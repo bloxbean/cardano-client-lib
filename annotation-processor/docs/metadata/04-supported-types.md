@@ -148,6 +148,7 @@ Here `tokenA` is serialized as a nested metadata map containing `policy_id`, `as
 | `LocalDate`      | Metadata string        | ISO-8601 (`2024-01-15`) |
 | `LocalDateTime`  | Metadata string        | ISO-8601 (`2024-01-15T10:30:00`) |
 | `Date`           | Metadata integer       | Epoch millis via `BigInteger.valueOf(date.getTime())`. With `enc = STRING`: ISO-8601 via `toInstant().toString()` |
+| `Duration`       | Metadata integer       | Total seconds via `BigInteger.valueOf(duration.getSeconds())`. With `enc = STRING`: ISO-8601 (`PT1H30M`) |
 
 To use a custom representation (e.g., epoch seconds), use a [custom type adapter](06-advanced-topics.md#custom-type-adapters):
 

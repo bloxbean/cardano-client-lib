@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -142,6 +143,7 @@ final class CompositeCodeGenHelper {
             case LOCAL_DATE     -> TypeName.get(LocalDate.class);
             case LOCAL_DATETIME -> TypeName.get(LocalDateTime.class);
             case DATE           -> TypeName.get(Date.class);
+            case DURATION       -> TypeName.get(Duration.class);
             default -> throw new IllegalArgumentException("Unsupported type: " + typeName);
         };
     }

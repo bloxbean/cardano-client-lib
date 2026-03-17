@@ -517,7 +517,7 @@ class MetadataTypeDetector {
                  INTEGER, PRIM_INT, SHORT, PRIM_SHORT, BYTE, PRIM_BYTE, BOOLEAN,
                  PRIM_BOOLEAN, DOUBLE, PRIM_DOUBLE, FLOAT, PRIM_FLOAT, CHARACTER, PRIM_CHAR,
                  BYTE_ARRAY, URI, URL, UUID, CURRENCY, LOCALE,
-                 INSTANT, LOCAL_DATE, LOCAL_DATETIME, DATE -> true;
+                 INSTANT, LOCAL_DATE, LOCAL_DATETIME, DATE, DURATION -> true;
             default -> false;
         };
     }

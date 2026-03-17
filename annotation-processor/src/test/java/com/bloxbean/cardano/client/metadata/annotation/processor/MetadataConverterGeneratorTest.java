@@ -1282,6 +1282,62 @@ class MetadataConverterGeneratorTest {
     }
 
     // =========================================================================
+    // Duration fields
+    // =========================================================================
+
+    @Nested
+    class DurationFields {
+
+        // --- DEFAULT (total seconds) ---
+
+        @Nested
+        class DefaultEncoding {
+
+            @Test
+            void toMetadataMap_storesTotalSeconds() {
+                String src = generate(List.of(field("duration", "java.time.Duration")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getDuration().getSeconds())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(field("duration", "java.time.Duration")));
+                assertTrue(src.contains("if (order.getDuration() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigIntegerGuard() {
+                String src = generate(List.of(field("duration", "java.time.Duration")));
+                assertTrue(src.contains("if (v instanceof BigInteger)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaOfSeconds() {
+                String src = generate(List.of(field("duration", "java.time.Duration")));
+                assertTrue(src.contains("Duration.ofSeconds(((BigInteger) v).longValue())"));
+            }
+        }
+
+        // --- STRING (ISO-8601) ---
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_storesIso8601() {
+                String src = generate(List.of(fieldEnc("duration", "java.time.Duration", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"duration\", order.getDuration().toString())"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaParse() {
+                String src = generate(List.of(fieldEnc("duration", "java.time.Duration", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Duration.parse((String) v)"));
+            }
+        }
+    }
+
+    // =========================================================================
     // LocalDate fields
     // =========================================================================
 
@@ -1951,6 +2007,22 @@ class MetadataConverterGeneratorTest {
             void fromMetadataMap_restoresViaNewDate() {
                 String src = generate(List.of(listField("dates", "java.util.Date")));
                 assertTrue(src.contains("_result.add(new Date(((BigInteger) _el).longValue()))"));
+            }
+        }
+
+        @Nested
+        class DurationElements {
+
+            @Test
+            void toMetadataMap_encodesAsTotalSeconds() {
+                String src = generate(List.of(listField("durations", "java.time.Duration")));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf(_el.getSeconds()))"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaOfSeconds() {
+                String src = generate(List.of(listField("durations", "java.time.Duration")));
+                assertTrue(src.contains("_result.add(Duration.ofSeconds(((BigInteger) _el).longValue()))"));
             }
         }
 
@@ -2833,6 +2905,28 @@ class MetadataConverterGeneratorTest {
             @Test
             void fromMetadataMap_elseBranch_setsOptionalEmpty() {
                 String src = generate(List.of(optionalField("x", "java.util.Date")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class DurationElements {
+
+            @Test
+            void toMetadataMap_encodesAsTotalSeconds() {
+                String src = generate(List.of(optionalField("x", "java.time.Duration")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getX().get().getSeconds())"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaOfSeconds() {
+                String src = generate(List.of(optionalField("x", "java.time.Duration")));
+                assertTrue(src.contains("Optional.of(Duration.ofSeconds(((BigInteger) v).longValue()))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.time.Duration")));
                 assertTrue(src.contains("obj.setX(Optional.empty())"));
             }
         }

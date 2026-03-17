@@ -61,4 +61,5 @@ public class MetadataConstants {
     public static final String INSTANT        = "java.time.Instant";
     public static final String LOCAL_DATE     = "java.time.LocalDate";
     public static final String LOCAL_DATETIME = "java.time.LocalDateTime";
+    public static final String DURATION       = "java.time.Duration";
 }

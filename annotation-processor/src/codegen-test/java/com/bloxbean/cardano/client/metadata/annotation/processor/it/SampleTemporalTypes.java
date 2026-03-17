@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -22,6 +23,8 @@ import java.util.Date;
  *   <li>{@code LocalDateTime} DEFAULT → ISO-8601 text</li>
  *   <li>{@code Date}          DEFAULT → BigInteger (epoch millis)</li>
  *   <li>{@code Date}          STRING  → ISO-8601 text via toInstant()</li>
+ *   <li>{@code Duration}     DEFAULT → BigInteger (total seconds)</li>
+ *   <li>{@code Duration}     STRING  → ISO-8601 duration text</li>
  * </ul>
  */
 @MetadataType
@@ -48,6 +51,12 @@ public class SampleTemporalTypes {
     @MetadataField(key = "legacyDateStr", enc = MetadataFieldType.STRING)
     private Date legacyDateAsString;
 
+    // --- Duration ---
+    private Duration ttl;
+
+    @MetadataField(key = "ttlStr", enc = MetadataFieldType.STRING)
+    private Duration ttlAsString;
+
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
@@ -68,4 +77,10 @@ public class SampleTemporalTypes {
 
     public Date getLegacyDateAsString() { return legacyDateAsString; }
     public void setLegacyDateAsString(Date legacyDateAsString) { this.legacyDateAsString = legacyDateAsString; }
+
+    public Duration getTtl() { return ttl; }
+    public void setTtl(Duration ttl) { this.ttl = ttl; }
+
+    public Duration getTtlAsString() { return ttlAsString; }
+    public void setTtlAsString(Duration ttlAsString) { this.ttlAsString = ttlAsString; }
 }

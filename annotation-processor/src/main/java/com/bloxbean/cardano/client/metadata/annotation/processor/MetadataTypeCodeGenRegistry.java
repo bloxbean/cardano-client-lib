@@ -40,6 +40,7 @@ public class MetadataTypeCodeGenRegistry {
         register(new LocalDateCodeGen());
         register(new LocalDateTimeCodeGen());
         register(new DateCodeGen());
+        register(new DurationCodeGen());
     }
 
     private void register(MetadataTypeCodeGen codeGen) {

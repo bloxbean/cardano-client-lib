@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -266,6 +267,74 @@ class SampleTemporalTypesMetadataConverterTest {
             MetadataMap map = converter.toMetadataMap(obj);
 
             assertEquals("2024-01-01T00:00:00Z", map.get("legacyDateStr"));
+        }
+    }
+
+    // =========================================================================
+    // Duration — DEFAULT (total seconds BigInteger)
+    // =========================================================================
+
+    @Nested
+    class DurationDefault {
+
+        @Test
+        void roundTrip() {
+            Duration duration = Duration.ofSeconds(5400); // 1h30m
+            SampleTemporalTypes obj = new SampleTemporalTypes();
+            obj.setTtl(duration);
+
+            SampleTemporalTypes restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(duration, restored.getTtl());
+        }
+
+        @Test
+        void storedAsBigInteger() {
+            Duration duration = Duration.ofHours(2);
+            SampleTemporalTypes obj = new SampleTemporalTypes();
+            obj.setTtl(duration);
+
+            MetadataMap map = converter.toMetadataMap(obj);
+
+            assertEquals(BigInteger.valueOf(7200L), map.get("ttl"));
+        }
+
+        @Test
+        void null_keyAbsentInMap() {
+            SampleTemporalTypes obj = new SampleTemporalTypes();
+            obj.setTtl(null);
+
+            assertNull(converter.toMetadataMap(obj).get("ttl"));
+        }
+    }
+
+    // =========================================================================
+    // Duration — STRING (ISO-8601 text)
+    // =========================================================================
+
+    @Nested
+    class DurationString {
+
+        @Test
+        void roundTrip() {
+            Duration duration = Duration.parse("PT1H30M");
+            SampleTemporalTypes obj = new SampleTemporalTypes();
+            obj.setTtlAsString(duration);
+
+            SampleTemporalTypes restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(duration, restored.getTtlAsString());
+        }
+
+        @Test
+        void storedAsIso8601String() {
+            Duration duration = Duration.ofHours(1).plusMinutes(30);
+            SampleTemporalTypes obj = new SampleTemporalTypes();
+            obj.setTtlAsString(duration);
+
+            MetadataMap map = converter.toMetadataMap(obj);
+
+            assertEquals("PT1H30M", map.get("ttlStr"));
         }
     }
 }
