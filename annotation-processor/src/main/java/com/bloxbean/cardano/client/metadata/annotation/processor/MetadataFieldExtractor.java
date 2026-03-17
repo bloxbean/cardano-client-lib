@@ -170,8 +170,8 @@ public class MetadataFieldExtractor {
         if (typeResult == null) return null;
 
         MetadataFieldValidator.MetadataKeyAndEncoding keyEnc = validator.resolveMetadataKeyAndEncoding(ve, fieldName, typeName,
-                typeResult.elementTypeName() != null, typeResult.mapType(),
-                typeResult.nestedType() || typeResult.polymorphicType(),
+                typeResult.elementTypeName() != null, typeResult.isMapType(),
+                typeResult.nestedType() || typeResult.isPolymorphicType(),
                 typeResult.elementTypeName());
         if (keyEnc == null) return null;
 
@@ -196,8 +196,8 @@ public class MetadataFieldExtractor {
         if (typeResult == null) return null;
 
         MetadataFieldValidator.MetadataKeyAndEncoding keyEnc = validator.resolveMetadataKeyAndEncoding(ve, fieldName, typeName,
-                typeResult.elementTypeName() != null, typeResult.mapType(),
-                typeResult.nestedType() || typeResult.polymorphicType(),
+                typeResult.elementTypeName() != null, typeResult.isMapType(),
+                typeResult.nestedType() || typeResult.isPolymorphicType(),
                 typeResult.elementTypeName());
         if (keyEnc == null) return null;
 
@@ -232,6 +232,11 @@ public class MetadataFieldExtractor {
                                               MetadataFieldValidator.MetadataKeyAndEncoding keyEnc,
                                               MetadataAccessorResolver.AccessorResult accessors,
                                               MetadataTypeDetector.FieldTypeResult type) {
+        // Resolve nestedConverterFqn: direct nested takes priority, then element nested
+        String converterFqn = type.nestedType() ? type.nestedConverterFqn()
+                : (type.element() != null && type.element().leaf().nestedType()
+                        ? type.element().leaf().converterFqn() : null);
+
         return MetadataFieldInfo.builder()
                 .javaFieldName(fieldName)
                 .metadataKey(keyEnc.metadataKey())
@@ -241,48 +246,15 @@ public class MetadataFieldExtractor {
                 .defaultValue(keyEnc.defaultValue())
                 .getterName(accessors.getterName())
                 .setterName(accessors.setterName())
-                .elementTypeName(type.elementTypeName())
                 .enumType(type.enumType())
-                .elementEnumType(type.elementEnumType())
                 .nestedType(type.nestedType())
+                .nestedConverterFqn(converterFqn)
                 .collectionType(type.collectionType())
                 .optionalType(type.optionalType())
                 .collectionKind(type.collectionKind())
-                .elementNestedType(type.elementNestedType())
-                .nestedConverterFqn(type.nestedType() ? type.nestedConverterFqn() : type.elementNestedConverterFqn())
+                .element(type.element() != null ? type.element() : MetadataFieldInfo.ElementInfo.NONE)
                 .mapType(type.mapType())
-                .mapKeyTypeName(type.mapKeyTypeName())
-                .mapValueTypeName(type.mapValueTypeName())
-                .mapValueEnumType(type.mapValueEnumType())
-                .mapValueNestedType(type.mapValueNestedType())
-                .mapValueConverterFqn(type.mapValueConverterFqn())
-                .mapValueCollectionType(type.mapValueCollectionType())
-                .mapValueCollectionKind(type.mapValueCollectionKind())
-                .mapValueElementTypeName(type.mapValueElementTypeName())
-                .mapValueElementEnumType(type.mapValueElementEnumType())
-                .mapValueElementNestedType(type.mapValueElementNestedType())
-                .mapValueElementConverterFqn(type.mapValueElementConverterFqn())
-                .mapValueMapType(type.mapValueMapType())
-                .mapValueMapKeyTypeName(type.mapValueMapKeyTypeName())
-                .mapValueMapValueTypeName(type.mapValueMapValueTypeName())
-                .mapValueMapValueEnumType(type.mapValueMapValueEnumType())
-                .mapValueMapValueNestedType(type.mapValueMapValueNestedType())
-                .mapValueMapValueConverterFqn(type.mapValueMapValueConverterFqn())
-                .elementCollectionType(type.elementCollectionType())
-                .elementCollectionKind(type.elementCollectionKind())
-                .elementElementTypeName(type.elementElementTypeName())
-                .elementElementEnumType(type.elementElementEnumType())
-                .elementElementNestedType(type.elementElementNestedType())
-                .elementElementConverterFqn(type.elementElementConverterFqn())
-                .elementMapType(type.elementMapType())
-                .elementMapKeyTypeName(type.elementMapKeyTypeName())
-                .elementMapValueTypeName(type.elementMapValueTypeName())
-                .elementMapValueEnumType(type.elementMapValueEnumType())
-                .elementMapValueNestedType(type.elementMapValueNestedType())
-                .elementMapValueConverterFqn(type.elementMapValueConverterFqn())
-                .polymorphicType(type.polymorphicType())
-                .discriminatorKey(type.discriminatorKey())
-                .subtypes(type.polymorphicSubtypes() != null ? type.polymorphicSubtypes() : List.of())
+                .polymorphic(type.polymorphic())
                 .build();
     }
 

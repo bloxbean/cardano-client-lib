@@ -104,7 +104,7 @@ class MetadataConverterGeneratorTest {
     /** List field with explicit getter/setter. */
     private MetadataFieldInfo listField(String name, String elementType) {
         MetadataFieldInfo f = field(name, "java.util.List<" + elementType + ">");
-        f.setElementTypeName(elementType);
+        f.setElement(new MetadataFieldInfo.ElementInfo(elementType, MetadataFieldInfo.LeafClassification.NONE, null, null));
         f.setCollectionType(true);
         f.setCollectionKind(COLLECTION_LIST);
         return f;
@@ -120,7 +120,7 @@ class MetadataConverterGeneratorTest {
     /** Set field with explicit getter/setter. */
     private MetadataFieldInfo setField(String name, String elementType) {
         MetadataFieldInfo f = field(name, "java.util.Set<" + elementType + ">");
-        f.setElementTypeName(elementType);
+        f.setElement(new MetadataFieldInfo.ElementInfo(elementType, MetadataFieldInfo.LeafClassification.NONE, null, null));
         f.setCollectionType(true);
         f.setCollectionKind(COLLECTION_SET);
         return f;
@@ -129,7 +129,7 @@ class MetadataConverterGeneratorTest {
     /** SortedSet field with explicit getter/setter. */
     private MetadataFieldInfo sortedSetField(String name, String elementType) {
         MetadataFieldInfo f = field(name, "java.util.SortedSet<" + elementType + ">");
-        f.setElementTypeName(elementType);
+        f.setElement(new MetadataFieldInfo.ElementInfo(elementType, MetadataFieldInfo.LeafClassification.NONE, null, null));
         f.setCollectionType(true);
         f.setCollectionKind(COLLECTION_SORTED_SET);
         return f;
@@ -138,7 +138,7 @@ class MetadataConverterGeneratorTest {
     /** Optional field with explicit getter/setter. */
     private MetadataFieldInfo optionalField(String name, String elementType) {
         MetadataFieldInfo f = field(name, "java.util.Optional<" + elementType + ">");
-        f.setElementTypeName(elementType);
+        f.setElement(new MetadataFieldInfo.ElementInfo(elementType, MetadataFieldInfo.LeafClassification.NONE, null, null));
         f.setOptionalType(true);
         return f;
     }
@@ -146,9 +146,7 @@ class MetadataConverterGeneratorTest {
     /** Map field with explicit getter/setter and configurable key/value types. */
     private MetadataFieldInfo mapField(String name, String keyType, String valueType) {
         MetadataFieldInfo f = field(name, "java.util.Map<" + keyType + ", " + valueType + ">");
-        f.setMapType(true);
-        f.setMapKeyTypeName(keyType);
-        f.setMapValueTypeName(valueType);
+        f.setMapType(new MetadataFieldInfo.MapTypeInfo(keyType, valueType, MetadataFieldInfo.LeafClassification.NONE, null, null));
         return f;
     }
 
@@ -2851,7 +2849,7 @@ class MetadataConverterGeneratorTest {
 
         /** Marks an existing collection / Optional field as having an enum element type. */
         private MetadataFieldInfo asEnumElement(MetadataFieldInfo f) {
-            f.setElementEnumType(true);
+            f.setElement(new MetadataFieldInfo.ElementInfo(f.getElementTypeName(), new MetadataFieldInfo.LeafClassification(true, false, null), null, null));
             return f;
         }
 
@@ -3046,7 +3044,7 @@ class MetadataConverterGeneratorTest {
                 f.setJavaFieldName(name);
                 f.setMetadataKey(name);
                 f.setJavaTypeName("java.util.Optional<" + elementType + ">");
-                f.setElementTypeName(elementType);
+                f.setElement(new MetadataFieldInfo.ElementInfo(elementType, MetadataFieldInfo.LeafClassification.NONE, null, null));
                 f.setOptionalType(true);
                 return f;
             }
@@ -3339,7 +3337,7 @@ class MetadataConverterGeneratorTest {
 
     private MetadataFieldInfo recordListField(String name, String elementType) {
         MetadataFieldInfo f = recordField(name, "java.util.List<" + elementType + ">");
-        f.setElementTypeName(elementType);
+        f.setElement(new MetadataFieldInfo.ElementInfo(elementType, MetadataFieldInfo.LeafClassification.NONE, null, null));
         f.setCollectionType(true);
         f.setCollectionKind(COLLECTION_LIST);
         return f;
@@ -3621,14 +3619,12 @@ class MetadataConverterGeneratorTest {
 
         private MetadataFieldInfo polyField(String name) {
             MetadataFieldInfo f = field(name, "com.test.Media");
-            f.setPolymorphicType(true);
-            f.setDiscriminatorKey("type");
-            f.setSubtypes(List.of(
+            f.setPolymorphic(new MetadataFieldInfo.PolymorphicInfo("type", List.of(
                     new MetadataFieldInfo.PolymorphicSubtypeInfo("image",
                             "com.test.ImageMediaMetadataConverter", "com.test.ImageMedia"),
                     new MetadataFieldInfo.PolymorphicSubtypeInfo("audio",
                             "com.test.AudioMediaMetadataConverter", "com.test.AudioMedia")
-            ));
+            )));
             return f;
         }
 

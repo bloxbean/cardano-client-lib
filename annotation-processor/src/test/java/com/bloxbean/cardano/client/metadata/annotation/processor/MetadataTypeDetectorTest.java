@@ -93,9 +93,9 @@ class MetadataTypeDetectorTest {
                 assertThat(r.typeResult.enumType()).isFalse();
                 assertThat(r.typeResult.nestedType()).isFalse();
                 assertThat(r.typeResult.collectionType()).isFalse();
-                assertThat(r.typeResult.mapType()).isFalse();
+                assertThat(r.typeResult.isMapType()).isFalse();
                 assertThat(r.typeResult.optionalType()).isFalse();
-                assertThat(r.typeResult.polymorphicType()).isFalse();
+                assertThat(r.typeResult.isPolymorphicType()).isFalse();
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -114,7 +114,7 @@ class MetadataTypeDetectorTest {
                 assertThat(r.compilation).succeeded();
                 assertThat(r.typeResult).isNotNull();
                 assertThat(r.typeResult.enumType()).isFalse();
-                assertThat(r.typeResult.mapType()).isFalse();
+                assertThat(r.typeResult.isMapType()).isFalse();
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -207,7 +207,7 @@ class MetadataTypeDetectorTest {
                 assertThat(r.typeResult.collectionType()).isTrue();
                 assertThat(r.typeResult.collectionKind()).isEqualTo("java.util.List");
                 assertThat(r.typeResult.elementTypeName()).isEqualTo("java.lang.String");
-                assertThat(r.typeResult.mapType()).isFalse();
+                assertThat(r.typeResult.isMapType()).isFalse();
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -252,11 +252,11 @@ class MetadataTypeDetectorTest {
             detectAndAssert(r -> {
                 assertThat(r.compilation).succeeded();
                 assertThat(r.typeResult).isNotNull();
-                assertThat(r.typeResult.mapType()).isTrue();
-                assertThat(r.typeResult.mapKeyTypeName()).isEqualTo("java.lang.String");
-                assertThat(r.typeResult.mapValueTypeName()).isEqualTo("java.lang.String");
-                assertThat(r.typeResult.mapValueEnumType()).isFalse();
-                assertThat(r.typeResult.mapValueNestedType()).isFalse();
+                assertThat(r.typeResult.isMapType()).isTrue();
+                assertThat(r.typeResult.mapType().keyTypeName()).isEqualTo("java.lang.String");
+                assertThat(r.typeResult.mapType().valueTypeName()).isEqualTo("java.lang.String");
+                assertThat(r.typeResult.mapType().valueLeaf().enumType()).isFalse();
+                assertThat(r.typeResult.mapType().valueLeaf().nestedType()).isFalse();
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -448,8 +448,8 @@ class MetadataTypeDetectorTest {
                 assertThat(r.compilation).succeeded();
                 assertThat(r.typeResult).isNotNull();
                 assertThat(r.typeResult.collectionType()).isTrue();
-                assertThat(r.typeResult.elementEnumType()).isFalse();
-                assertThat(r.typeResult.elementNestedType()).isFalse();
+                assertThat(r.typeResult.element().leaf().enumType()).isFalse();
+                assertThat(r.typeResult.element().leaf().nestedType()).isFalse();
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -469,8 +469,8 @@ class MetadataTypeDetectorTest {
                 assertThat(r.compilation).succeeded();
                 assertThat(r.typeResult).isNotNull();
                 assertThat(r.typeResult.collectionType()).isTrue();
-                assertThat(r.typeResult.elementEnumType()).isTrue();
-                assertThat(r.typeResult.elementNestedType()).isFalse();
+                assertThat(r.typeResult.element().leaf().enumType()).isTrue();
+                assertThat(r.typeResult.element().leaf().nestedType()).isFalse();
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -494,8 +494,8 @@ class MetadataTypeDetectorTest {
                 assertThat(r.compilation).succeeded();
                 assertThat(r.typeResult).isNotNull();
                 assertThat(r.typeResult.collectionType()).isTrue();
-                assertThat(r.typeResult.elementNestedType()).isTrue();
-                assertThat(r.typeResult.elementEnumType()).isFalse();
+                assertThat(r.typeResult.element().leaf().nestedType()).isTrue();
+                assertThat(r.typeResult.element().leaf().enumType()).isFalse();
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
