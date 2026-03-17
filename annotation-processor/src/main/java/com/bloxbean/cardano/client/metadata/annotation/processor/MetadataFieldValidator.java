@@ -5,6 +5,8 @@ import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 
 import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 
+import lombok.RequiredArgsConstructor;
+
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.VariableElement;
 import javax.tools.Diagnostic;
@@ -13,13 +15,10 @@ import javax.tools.Diagnostic;
  * Validates metadata field annotations: encoding rules, required/default
  * mutual exclusivity, and encoding compatibility with field types.
  */
+@RequiredArgsConstructor
 class MetadataFieldValidator {
 
     private final Messager messager;
-
-    MetadataFieldValidator(Messager messager) {
-        this.messager = messager;
-    }
 
     // ── Key and encoding resolution ───────────────────────────────────
 

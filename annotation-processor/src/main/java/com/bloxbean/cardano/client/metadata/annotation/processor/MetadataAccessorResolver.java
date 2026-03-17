@@ -2,6 +2,8 @@ package com.bloxbean.cardano.client.metadata.annotation.processor;
 
 import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 
+import lombok.RequiredArgsConstructor;
+
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.*;
@@ -12,15 +14,11 @@ import javax.tools.Diagnostic;
  * Resolves getter/setter accessors for fields during metadata extraction.
  * Handles standard JavaBeans naming, Lombok-generated accessors, and direct field access.
  */
+@RequiredArgsConstructor
 class MetadataAccessorResolver {
 
     private final ProcessingEnvironment processingEnv;
     private final Messager messager;
-
-    MetadataAccessorResolver(ProcessingEnvironment processingEnv, Messager messager) {
-        this.processingEnv = processingEnv;
-        this.messager = messager;
-    }
 
     // ── Accessor resolution ───────────────────────────────────────────
 

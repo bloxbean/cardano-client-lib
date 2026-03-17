@@ -1,14 +1,15 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor;
 
+import lombok.experimental.UtilityClass;
+
 /**
  * Shared constants for the metadata annotation processor.
  * <p>
  * Fully-qualified type name strings used for type detection, code generation,
  * and switch expressions throughout the processor pipeline.
  */
-public final class MetadataConstants {
-
-    private MetadataConstants() {}
+@UtilityClass
+public class MetadataConstants {
 
     // ── Collections & containers ─────────────────────────────────────────
     public static final String COLLECTION_LIST       = "java.util.List";

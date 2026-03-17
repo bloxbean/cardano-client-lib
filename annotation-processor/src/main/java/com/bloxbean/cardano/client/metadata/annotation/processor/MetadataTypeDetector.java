@@ -8,6 +8,8 @@ import com.bloxbean.cardano.client.metadata.annotation.MetadataTypeAdapter;
 
 import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 
+import lombok.RequiredArgsConstructor;
+
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.*;
@@ -21,6 +23,7 @@ import java.util.*;
  * Handles scalar, enum, nested, collection, map, optional, polymorphic,
  * and composite type detection.
  */
+@RequiredArgsConstructor
 @SuppressWarnings({
         "java:S1192", // Repeated warning message prefixes are clearer inline than as constants
         "java:S6541"  // detectFieldType is a dispatch method; complexity is inherent to the FieldTypeResult structure
@@ -32,11 +35,6 @@ class MetadataTypeDetector {
 
     private final ProcessingEnvironment processingEnv;
     private final Messager messager;
-
-    MetadataTypeDetector(ProcessingEnvironment processingEnv, Messager messager) {
-        this.processingEnv = processingEnv;
-        this.messager = messager;
-    }
 
     // ── Type detection ────────────────────────────────────────────────
 
