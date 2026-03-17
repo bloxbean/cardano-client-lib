@@ -79,7 +79,40 @@ public class Cip25NftMetadata extends NftBaseMetadata {
 }
 ```
 
-Lombok generates the no-arg constructor and getters/setters that the converter needs.
+### How Lombok Detection Works
+
+The processor detects Lombok at compile time by checking for these annotations on the class:
+
+- **`@Data`** — detected as Lombok-enabled (generates getters, setters, and other boilerplate)
+- **`@Getter` + `@Setter`** (both present) — detected as Lombok-enabled
+
+When Lombok is detected, the processor trusts that `getFieldName()` and `setFieldName()` methods will exist at compile time, even though they're not visible in the source AST during annotation processing.
+
+**Important:** The processor does **not** generate the no-arg constructor for you. Use `@NoArgsConstructor` (or `@Data` combined with `@NoArgsConstructor`) to ensure the generated converter can instantiate your class. Without it, the processor reports a compile-time error.
+
+### Supported Lombok Patterns
+
+```java
+// Recommended: @Data + @NoArgsConstructor
+@Data
+@NoArgsConstructor
+@MetadataType
+public class MyMetadata { ... }
+
+// Also works: @Getter + @Setter + @NoArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
+@MetadataType
+public class MyMetadata { ... }
+
+// With inheritance: add @EqualsAndHashCode(callSuper = true)
+@Data
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+@MetadataType(label = 1902)
+public class StakeDelegationBatch extends NftBaseMetadata { ... }
+```
 
 ## POJOs with Manual Getters/Setters
 
