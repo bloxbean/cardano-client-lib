@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConvert
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeAll;
@@ -71,7 +72,25 @@ public class StakeDelegationBatchDevnetTest extends BaseIT {
         }
 
         var jsonResult = backendService.getMetadataService().getJSONMetadataByTxnHash(txHash);
-        assertTrue(jsonResult.isSuccessful(), "Metadata retrieval should succeed");
+        assertTrue(jsonResult.isSuccessful(), "JSON metadata retrieval should succeed");
+        assertFalse(jsonResult.getValue().isEmpty(), "JSON metadata should have entries");
+
+        // Verify raw JSON values match what was submitted
+        JsonNode jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "1902");
+        assertNotNull(jsonMeta, "JSON metadata for label 1902 should exist");
+        System.out.println("[DIAG] JSON metadata for label 1902: " + jsonMeta);
+        assertEquals(original.getBatchId(), jsonMeta.get("batch_id").asText(), "JSON 'batch_id' value mismatch");
+        assertEquals(original.getStakeAddress(), jsonMeta.get("stake_addr").asText(), "JSON 'stake_addr' value mismatch");
+        assertEquals(original.getVersion(), jsonMeta.get("version").asText(), "JSON 'version' value mismatch");
+        assertEquals(original.getAuthor(), jsonMeta.get("author").asText(), "JSON 'author' value mismatch");
+        assertEquals(original.getStatus(), jsonMeta.get("status").asText(), "JSON 'status' value mismatch");
+        assertEquals(original.getTotalDelegated().toString(), jsonMeta.get("total_delegated").asText(), "JSON 'total_delegated' value mismatch");
+        assertTrue(jsonMeta.has("delegations"), "JSON should contain 'delegations'");
+        assertTrue(jsonMeta.get("delegations").isArray(), "'delegations' should be an array");
+        assertEquals(original.getDelegations().size(), jsonMeta.get("delegations").size(), "JSON 'delegations' size mismatch");
+        assertTrue(jsonMeta.has("reward_history"), "JSON should contain 'reward_history'");
+        assertTrue(jsonMeta.has("pool_preferences"), "JSON should contain 'pool_preferences'");
+        assertTrue(jsonMeta.has("active_pools"), "JSON should contain 'active_pools'");
 
         MetadataMap chainMap = extractMetadataMap(jsonResult.getValue(), "1902");
         restored = converter.fromMetadataMap(chainMap);
@@ -187,6 +206,15 @@ public class StakeDelegationBatchDevnetTest extends BaseIT {
         batch.setStatus("ACTIVE");
         batch.setMemo("should-be-ignored");
         return batch;
+    }
+
+    private JsonNode findJsonMetadataForLabel(List<MetadataJSONContent> entries, String label) {
+        for (MetadataJSONContent entry : entries) {
+            if (label.equals(entry.getLabel())) {
+                return entry.getJsonMetadata();
+            }
+        }
+        return null;
     }
 
     private MetadataMap extractMetadataMap(List<MetadataJSONContent> entries, String label) {

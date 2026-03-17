@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConverter;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeAll;
@@ -72,7 +73,22 @@ public class DexLiquidityPoolDevnetTest extends BaseIT {
         }
 
         var jsonResult = backendService.getMetadataService().getJSONMetadataByTxnHash(txHash);
-        assertTrue(jsonResult.isSuccessful(), "Metadata retrieval should succeed");
+        assertTrue(jsonResult.isSuccessful(), "JSON metadata retrieval should succeed");
+        assertFalse(jsonResult.getValue().isEmpty(), "JSON metadata should have entries");
+
+        // Verify raw JSON values match what was submitted
+        JsonNode jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "1000");
+        assertNotNull(jsonMeta, "JSON metadata for label 1000 should exist");
+        System.out.println("[DIAG] JSON metadata for label 1000: " + jsonMeta);
+        assertEquals(original.poolId(), jsonMeta.get("pool_id").asText(), "JSON 'pool_id' value mismatch");
+        assertEquals(original.reserveA().toString(), jsonMeta.get("reserve_a").asText(), "JSON 'reserve_a' value mismatch");
+        assertEquals(original.reserveB().toString(), jsonMeta.get("reserve_b").asText(), "JSON 'reserve_b' value mismatch");
+        assertEquals(original.totalLpTokens().toString(), jsonMeta.get("total_lp").asText(), "JSON 'total_lp' value mismatch");
+        assertEquals(original.lastAction().name(), jsonMeta.get("last_action").asText(), "JSON 'last_action' value mismatch");
+        assertTrue(jsonMeta.has("token_a"), "JSON should contain 'token_a'");
+        assertTrue(jsonMeta.has("token_b"), "JSON should contain 'token_b'");
+        assertTrue(jsonMeta.has("fees"), "JSON should contain 'fees'");
+        assertTrue(jsonMeta.has("provider_shares"), "JSON should contain 'provider_shares'");
 
         MetadataMap chainMap = extractMetadataMap(jsonResult.getValue(), "1000");
         restored = converter.fromMetadataMap(chainMap);
@@ -151,6 +167,15 @@ public class DexLiquidityPoolDevnetTest extends BaseIT {
                 Instant.ofEpochSecond(1700000000L),
                 Base64.getDecoder().decode("SGVsbG9Xb3JsZERhdHVt")
         );
+    }
+
+    private JsonNode findJsonMetadataForLabel(List<MetadataJSONContent> entries, String label) {
+        for (MetadataJSONContent entry : entries) {
+            if (label.equals(entry.getLabel())) {
+                return entry.getJsonMetadata();
+            }
+        }
+        return null;
     }
 
     private MetadataMap extractMetadataMap(List<MetadataJSONContent> entries, String label) {

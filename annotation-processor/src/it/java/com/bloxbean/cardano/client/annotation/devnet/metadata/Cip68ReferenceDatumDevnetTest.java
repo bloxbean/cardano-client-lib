@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConvert
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeAll;
@@ -70,7 +71,20 @@ public class Cip68ReferenceDatumDevnetTest extends BaseIT {
         }
 
         var jsonResult = backendService.getMetadataService().getJSONMetadataByTxnHash(txHash);
-        assertTrue(jsonResult.isSuccessful(), "Metadata retrieval should succeed");
+        assertTrue(jsonResult.isSuccessful(), "JSON metadata retrieval should succeed");
+        assertFalse(jsonResult.getValue().isEmpty(), "JSON metadata should have entries");
+
+        // Verify raw JSON values match what was submitted
+        JsonNode jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "100");
+        assertNotNull(jsonMeta, "JSON metadata for label 100 should exist");
+        System.out.println("[DIAG] JSON metadata for label 100: " + jsonMeta);
+        assertEquals(original.getName(), jsonMeta.get("name").asText(), "JSON 'name' value mismatch");
+        assertEquals(original.getMediaType(), jsonMeta.get("media_type").asText(), "JSON 'media_type' value mismatch");
+        assertEquals(original.getMetadataVersion(), jsonMeta.get("int_version").asInt(), "JSON 'int_version' value mismatch");
+        assertTrue(jsonMeta.has("image"), "JSON should contain 'image'");
+        assertTrue(jsonMeta.has("extra_data"), "JSON should contain 'extra_data'");
+        assertTrue(jsonMeta.has("royalty"), "JSON should contain 'royalty'");
+        assertTrue(jsonMeta.has("traits"), "JSON should contain 'traits'");
 
         MetadataMap chainMap = extractMetadataMap(jsonResult.getValue(), "100");
         restored = converter.fromMetadataMap(chainMap);
@@ -166,6 +180,15 @@ public class Cip68ReferenceDatumDevnetTest extends BaseIT {
         datum.setTags(new LinkedHashSet<>(List.of("nft", "reference", "cip68")));
         datum.setCachedHash(999999L);
         return datum;
+    }
+
+    private JsonNode findJsonMetadataForLabel(List<MetadataJSONContent> entries, String label) {
+        for (MetadataJSONContent entry : entries) {
+            if (label.equals(entry.getLabel())) {
+                return entry.getJsonMetadata();
+            }
+        }
+        return null;
     }
 
     private MetadataMap extractMetadataMap(List<MetadataJSONContent> entries, String label) {

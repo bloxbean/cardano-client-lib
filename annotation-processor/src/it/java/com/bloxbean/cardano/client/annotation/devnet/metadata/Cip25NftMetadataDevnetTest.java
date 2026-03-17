@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConvert
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeAll;
@@ -167,7 +168,19 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
         }
 
         var jsonResult = backendService.getMetadataService().getJSONMetadataByTxnHash(result.getValue());
-        assertTrue(jsonResult.isSuccessful(), "Metadata retrieval should succeed");
+        assertTrue(jsonResult.isSuccessful(), "JSON metadata retrieval should succeed");
+        assertFalse(jsonResult.getValue().isEmpty(), "JSON metadata should have entries");
+
+        // Verify raw JSON values match what was submitted
+        JsonNode jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "721");
+        assertNotNull(jsonMeta, "JSON metadata for label 721 should exist");
+        System.out.println("[DIAG] JSON metadata for label 721: " + jsonMeta);
+        assertEquals(nft.getName(), jsonMeta.get("name").asText(), "JSON 'name' value mismatch");
+        assertEquals(nft.getVersion(), jsonMeta.get("version").asText(), "JSON 'version' value mismatch");
+        assertEquals(nft.getAuthor(), jsonMeta.get("author").asText(), "JSON 'author' value mismatch");
+        assertEquals(nft.getMediaType(), jsonMeta.get("media_type").asText(), "JSON 'media_type' value mismatch");
+        assertTrue(jsonMeta.has("policy_id"), "JSON should contain 'policy_id'");
+        assertTrue(jsonMeta.has("image"), "JSON should contain 'image'");
 
         MetadataMap chainMap = extractMetadataMap(jsonResult.getValue(), "721");
         return converter.fromMetadataMap(chainMap);
@@ -210,6 +223,15 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
         nft.setMintedAt(Instant.ofEpochSecond(1700000100L));
         nft.setAttributes(Map.of());
         return nft;
+    }
+
+    private JsonNode findJsonMetadataForLabel(List<MetadataJSONContent> entries, String label) {
+        for (MetadataJSONContent entry : entries) {
+            if (label.equals(entry.getLabel())) {
+                return entry.getJsonMetadata();
+            }
+        }
+        return null;
     }
 
     private MetadataMap extractMetadataMap(List<MetadataJSONContent> entries, String label) {
