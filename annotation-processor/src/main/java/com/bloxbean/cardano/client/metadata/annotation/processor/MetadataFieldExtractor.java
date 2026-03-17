@@ -68,52 +68,56 @@ public class MetadataFieldExtractor {
         List<MetadataConverterGenerator.RecordComponentInfo> allComponents = new ArrayList<>();
         Set<String> seenFieldNames = new LinkedHashSet<>();
 
-        // Map from field name to VariableElement for annotation lookup
+        Map<String, VariableElement> fieldElements = buildFieldElementMap(typeElement);
+
+        for (RecordComponentElement component : typeElement.getRecordComponents()) {
+            String fieldName = component.getSimpleName().toString();
+            String typeName = component.asType().toString();
+            allComponents.add(new MetadataConverterGenerator.RecordComponentInfo(fieldName, typeName));
+
+            VariableElement ve = fieldElements.get(fieldName);
+            if (ve == null || shouldSkipField(ve, seenFieldNames)) continue;
+
+            MetadataFieldInfo info = extractRecordComponent(ve, fieldName, typeName);
+            if (info != null) fields.add(info);
+        }
+
+        return new RecordExtractionResult(fields, allComponents);
+    }
+
+    private Map<String, VariableElement> buildFieldElementMap(TypeElement typeElement) {
         Map<String, VariableElement> fieldElements = new LinkedHashMap<>();
         for (Element enclosed : typeElement.getEnclosedElements()) {
             if (enclosed instanceof VariableElement ve && enclosed.getKind() == ElementKind.FIELD) {
                 fieldElements.put(ve.getSimpleName().toString(), ve);
             }
         }
+        return fieldElements;
+    }
 
-        for (RecordComponentElement component : typeElement.getRecordComponents()) {
-            String fieldName = component.getSimpleName().toString();
-            String typeName = component.asType().toString();
-            VariableElement ve = fieldElements.get(fieldName);
+    private MetadataFieldInfo extractRecordComponent(VariableElement ve, String fieldName, String typeName) {
+        AccessorResult recordAccessor = new AccessorResult(fieldName, null);
 
-            // Always add to allComponents (needed for constructor)
-            allComponents.add(new MetadataConverterGenerator.RecordComponentInfo(fieldName, typeName));
-
-            if (ve == null) continue;
-            if (shouldSkipField(ve, seenFieldNames)) continue;
-
-            // Adapter shortcut: if @MetadataField(adapter=...) is set, bypass type detection
-            AdapterDetectionResult adapterResult = detectAdapter(ve, fieldName);
-            if (adapterResult != null) {
-                MetadataFieldInfo info = buildAdapterFieldInfo(fieldName, typeName, adapterResult.keyEnc,
-                        new AccessorResult(fieldName, null), adapterResult.adapterFqn);
-                info.setRecordMode(true);
-                fields.add(info);
-                continue;
-            }
-
-            FieldTypeResult typeResult = detectFieldType(ve, fieldName, typeName);
-            if (typeResult == null) continue;
-
-            MetadataKeyAndEncoding keyEnc = resolveMetadataKeyAndEncoding(ve, fieldName, typeName,
-                    typeResult.elementTypeName != null, typeResult.mapType,
-                    typeResult.nestedType || typeResult.polymorphicType,
-                    typeResult.elementTypeName);
-            if (keyEnc == null) continue;
-
-            // Record accessors: name() not getName(), no setter
-            MetadataFieldInfo info = buildFieldInfo(fieldName, typeName, keyEnc,
-                    new AccessorResult(fieldName, null), typeResult);
+        AdapterDetectionResult adapterResult = detectAdapter(ve, fieldName);
+        if (adapterResult != null) {
+            MetadataFieldInfo info = buildAdapterFieldInfo(fieldName, typeName, adapterResult.keyEnc,
+                    recordAccessor, adapterResult.adapterFqn);
             info.setRecordMode(true);
-            fields.add(info);
+            return info;
         }
 
-        return new RecordExtractionResult(fields, allComponents);
+        FieldTypeResult typeResult = detectFieldType(ve, fieldName, typeName);
+        if (typeResult == null) return null;
+
+        MetadataKeyAndEncoding keyEnc = resolveMetadataKeyAndEncoding(ve, fieldName, typeName,
+                typeResult.elementTypeName != null, typeResult.mapType,
+                typeResult.nestedType || typeResult.polymorphicType,
+                typeResult.elementTypeName);
+        if (keyEnc == null) return null;
+
+        MetadataFieldInfo info = buildFieldInfo(fieldName, typeName, keyEnc, recordAccessor, typeResult);
+        info.setRecordMode(true);
+        return info;
     }
 
     /**
@@ -174,44 +178,46 @@ public class MetadataFieldExtractor {
 
     // ── Per-class field extraction ──────────────────────────────────────
 
-    @SuppressWarnings("java:S135") // Multiple continues for early-skip patterns is cleaner than deep nesting
     private List<MetadataFieldInfo> extractFieldsForType(TypeElement typeElement, TypeElement leafTypeElement,
                                                           boolean hasLombok, Set<String> seenFieldNames) {
         List<MetadataFieldInfo> fields = new ArrayList<>();
 
         for (Element enclosed : typeElement.getEnclosedElements()) {
             if (!(enclosed instanceof VariableElement ve)) continue;
-
             if (shouldSkipField(ve, seenFieldNames)) continue;
 
-            String fieldName = ve.getSimpleName().toString();
-            String typeName = ve.asType().toString();
-
-            // Adapter shortcut: if @MetadataField(adapter=...) is set, bypass type detection
-            AdapterDetectionResult adapterResult = detectAdapter(ve, fieldName);
-            if (adapterResult != null) {
-                AccessorResult accessors = resolveAccessors(leafTypeElement, ve, fieldName, hasLombok);
-                if (accessors == null) continue;
-                fields.add(buildAdapterFieldInfo(fieldName, typeName, adapterResult.keyEnc, accessors, adapterResult.adapterFqn));
-                continue;
-            }
-
-            FieldTypeResult typeResult = detectFieldType(ve, fieldName, typeName);
-            if (typeResult == null) continue; // unsupported type, warning already emitted
-
-            MetadataKeyAndEncoding keyEnc = resolveMetadataKeyAndEncoding(ve, fieldName, typeName,
-                    typeResult.elementTypeName != null, typeResult.mapType,
-                    typeResult.nestedType || typeResult.polymorphicType,
-                    typeResult.elementTypeName);
-            if (keyEnc == null) continue; // invalid encoding, error already emitted
-
-            AccessorResult accessors = resolveAccessors(leafTypeElement, ve, fieldName, hasLombok);
-            if (accessors == null) continue; // no accessor found, warning already emitted
-
-            fields.add(buildFieldInfo(fieldName, typeName, keyEnc, accessors, typeResult));
+            MetadataFieldInfo info = extractClassField(ve, leafTypeElement, hasLombok);
+            if (info != null) fields.add(info);
         }
 
         return fields;
+    }
+
+    private MetadataFieldInfo extractClassField(VariableElement ve, TypeElement leafTypeElement, boolean hasLombok) {
+        String fieldName = ve.getSimpleName().toString();
+        String typeName = ve.asType().toString();
+
+        AdapterDetectionResult adapterResult = detectAdapter(ve, fieldName);
+        if (adapterResult != null) {
+            AccessorResult accessors = resolveAccessors(leafTypeElement, ve, fieldName, hasLombok);
+            return accessors != null
+                    ? buildAdapterFieldInfo(fieldName, typeName, adapterResult.keyEnc, accessors, adapterResult.adapterFqn)
+                    : null;
+        }
+
+        FieldTypeResult typeResult = detectFieldType(ve, fieldName, typeName);
+        if (typeResult == null) return null;
+
+        MetadataKeyAndEncoding keyEnc = resolveMetadataKeyAndEncoding(ve, fieldName, typeName,
+                typeResult.elementTypeName != null, typeResult.mapType,
+                typeResult.nestedType || typeResult.polymorphicType,
+                typeResult.elementTypeName);
+        if (keyEnc == null) return null;
+
+        AccessorResult accessors = resolveAccessors(leafTypeElement, ve, fieldName, hasLombok);
+        if (accessors == null) return null;
+
+        return buildFieldInfo(fieldName, typeName, keyEnc, accessors, typeResult);
     }
 
     // ── Phase 1: Skip check ────────────────────────────────────────────
@@ -666,34 +672,34 @@ public class MetadataFieldExtractor {
         Map<? extends ExecutableElement, ? extends AnnotationValue> elementValues =
                 processingEnv.getElementUtils().getElementValuesWithDefaults(discMirror);
 
-        List<MetadataSubtypeEntry> result = new ArrayList<>();
         for (var entry : elementValues.entrySet()) {
             if (!"subtypes".equals(entry.getKey().getSimpleName().toString())) continue;
 
             @SuppressWarnings("unchecked")
             List<? extends AnnotationValue> values = (List<? extends AnnotationValue>) entry.getValue().getValue();
-            for (AnnotationValue av : values) {
-                AnnotationMirror subtypeMirror = (AnnotationMirror) av.getValue();
-                Map<? extends ExecutableElement, ? extends AnnotationValue> subtypeValues =
-                        processingEnv.getElementUtils().getElementValuesWithDefaults(subtypeMirror);
-
-                String value = null;
-                TypeMirror typeMirror = null;
-                for (var se : subtypeValues.entrySet()) {
-                    String name = se.getKey().getSimpleName().toString();
-                    if ("value".equals(name)) {
-                        value = (String) se.getValue().getValue();
-                    } else if ("type".equals(name)) {
-                        typeMirror = (TypeMirror) se.getValue().getValue();
-                    }
-                }
-                if (value != null && typeMirror != null) {
-                    result.add(new MetadataSubtypeEntry(value, typeMirror));
-                }
-            }
-            break;
+            return values.stream()
+                    .map(av -> parseSubtypeEntry((AnnotationMirror) av.getValue()))
+                    .filter(java.util.Objects::nonNull)
+                    .toArray(MetadataSubtypeEntry[]::new);
         }
-        return result.toArray(new MetadataSubtypeEntry[0]);
+        return new MetadataSubtypeEntry[0];
+    }
+
+    private MetadataSubtypeEntry parseSubtypeEntry(AnnotationMirror subtypeMirror) {
+        Map<? extends ExecutableElement, ? extends AnnotationValue> subtypeValues =
+                processingEnv.getElementUtils().getElementValuesWithDefaults(subtypeMirror);
+
+        String value = null;
+        TypeMirror typeMirror = null;
+        for (var se : subtypeValues.entrySet()) {
+            String name = se.getKey().getSimpleName().toString();
+            if ("value".equals(name)) {
+                value = (String) se.getValue().getValue();
+            } else if ("type".equals(name)) {
+                typeMirror = (TypeMirror) se.getValue().getValue();
+            }
+        }
+        return (value != null && typeMirror != null) ? new MetadataSubtypeEntry(value, typeMirror) : null;
     }
 
     /**
@@ -747,59 +753,68 @@ public class MetadataFieldExtractor {
         String defaultValue = null;
         MetadataField mf = ve.getAnnotation(MetadataField.class);
         if (mf != null) {
-            if (!mf.key().isEmpty()) {
-                metadataKey = mf.key();
-            }
+            if (!mf.key().isEmpty()) metadataKey = mf.key();
             enc = mf.enc();
             required = mf.required();
-            if (!mf.defaultValue().isEmpty()) {
-                defaultValue = mf.defaultValue();
-            }
+            if (!mf.defaultValue().isEmpty()) defaultValue = mf.defaultValue();
         }
 
-        // Validate required + defaultValue mutual exclusivity
-        if (required && defaultValue != null) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldName + "': 'required' and 'defaultValue' are mutually exclusive.", ve);
+        if (!validateRequiredAndDefault(ve, fieldName, typeName, required, defaultValue,
+                hasElementType, isMapType, isNestedType)) {
             return null;
         }
 
-        // Validate required on Optional (warning)
+        enc = validateEncoding(ve, fieldName, typeName, enc, hasElementType, isMapType, isNestedType, elementTypeName);
+        if (enc == null) return null;
+
+        return new MetadataKeyAndEncoding(metadataKey, enc, required, defaultValue);
+    }
+
+    private boolean validateRequiredAndDefault(VariableElement ve, String fieldName, String typeName,
+                                                boolean required, String defaultValue,
+                                                boolean hasElementType, boolean isMapType, boolean isNestedType) {
+        if (required && defaultValue != null) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': 'required' and 'defaultValue' are mutually exclusive.", ve);
+            return false;
+        }
+
         boolean isOptional = OPTIONAL.equals(typeName) || typeName.startsWith(OPTIONAL + "<");
         if (required && isOptional) {
             messager.printMessage(Diagnostic.Kind.WARNING,
                     "Field '" + fieldName + "': 'required = true' on Optional contradicts Optional semantics.", ve);
         }
 
-        // Validate defaultValue only on scalar/enum fields
-        if (defaultValue != null) {
-            boolean isComplexType = hasElementType || isMapType || isNestedType
-                    || BYTE_ARRAY.equals(typeName);
-            if (isComplexType) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
-                        "Field '" + fieldName + "': 'defaultValue' is not supported on collection, map, Optional, nested, or byte[] types.", ve);
-                return null;
-            }
+        if (defaultValue != null && (hasElementType || isMapType || isNestedType || BYTE_ARRAY.equals(typeName))) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': 'defaultValue' is not supported on collection, map, Optional, nested, or byte[] types.", ve);
+            return false;
         }
+        return true;
+    }
 
-        // Allow enc=STRING_HEX/STRING_BASE64 on byte[] element collections; warn and reset for all others
+    /**
+     * Validates and adjusts the encoding, returning null if invalid.
+     */
+    private MetadataFieldType validateEncoding(VariableElement ve, String fieldName, String typeName,
+                                                MetadataFieldType enc,
+                                                boolean hasElementType, boolean isMapType, boolean isNestedType,
+                                                String elementTypeName) {
         boolean isByteArrayCollectionEnc = hasElementType && !isMapType && !isNestedType
                 && BYTE_ARRAY.equals(elementTypeName)
                 && (enc == MetadataFieldType.STRING_HEX || enc == MetadataFieldType.STRING_BASE64);
 
-        if ((hasElementType || isMapType || isNestedType) && enc != MetadataFieldType.DEFAULT) {
-            if (!isByteArrayCollectionEnc) {
-                messager.printMessage(Diagnostic.Kind.WARNING,
-                        "Field '" + fieldName + "': @MetadataField(enc=...) is not supported on this field type; using DEFAULT.", ve);
-                enc = MetadataFieldType.DEFAULT;
-            }
+        if ((hasElementType || isMapType || isNestedType) && enc != MetadataFieldType.DEFAULT
+                && !isByteArrayCollectionEnc) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Field '" + fieldName + "': @MetadataField(enc=...) is not supported on this field type; using DEFAULT.", ve);
+            enc = MetadataFieldType.DEFAULT;
         }
 
         if (!isNestedType && !isMapType && !isByteArrayCollectionEnc && !isValidEnc(typeName, enc, ve)) {
             return null;
         }
-
-        return new MetadataKeyAndEncoding(metadataKey, enc, required, defaultValue);
+        return enc;
     }
 
     // ── Phase 4: Accessor resolution ───────────────────────────────────

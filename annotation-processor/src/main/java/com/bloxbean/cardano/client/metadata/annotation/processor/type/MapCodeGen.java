@@ -93,11 +93,11 @@ public class MapCodeGen {
      * Emit an {@code instanceof} check for the given on-chain key class.
      * byte[] requires a literal check since JavaPoet's {@code $T} doesn't work with array types.
      */
-    static void emitKeyInstanceofCheck(MethodSpec.Builder builder, String var, Class<?> keyChain) {
+    static void emitKeyInstanceofCheck(MethodSpec.Builder builder, String varName, Class<?> keyChain) {
         if (keyChain == byte[].class) {
-            builder.beginControlFlow("if ($L instanceof byte[])", var);
+            builder.beginControlFlow("if ($L instanceof byte[])", varName);
         } else {
-            builder.beginControlFlow("if ($L instanceof $T)", var, keyChain);
+            builder.beginControlFlow("if ($L instanceof $T)", varName, keyChain);
         }
     }
 

@@ -3584,8 +3584,6 @@ class MetadataConverterGeneratorTest {
             // Should NOT contain the required/default patterns
             assertFalse(src.contains("throw new IllegalArgumentException"),
                     "Should not throw when not required");
-            // The only "if (v == null)" should not appear for unrequired fields without defaults
-            // (existing instanceof checks handle null implicitly)
         }
 
         @Test

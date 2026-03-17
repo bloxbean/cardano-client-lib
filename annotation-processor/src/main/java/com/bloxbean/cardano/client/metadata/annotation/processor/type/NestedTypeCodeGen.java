@@ -17,6 +17,8 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class NestedTypeCodeGen {
 
+    private static final String IF_V_INSTANCEOF = "if (v instanceof $T)";
+
     private final MetadataFieldAccessor accessor;
 
     // --- Serialization ---
@@ -44,7 +46,7 @@ public class NestedTypeCodeGen {
 
     public void emitDeserializeScalar(MethodSpec.Builder builder, MetadataFieldInfo field) {
         ClassName converterClass = ClassName.bestGuess(field.getNestedConverterFqn());
-        builder.beginControlFlow("if (v instanceof $T)", MetadataMap.class);
+        builder.beginControlFlow(IF_V_INSTANCEOF, MetadataMap.class);
         accessor.emitSetFmt(builder, field, "new $T().fromMetadataMap(($T) v)", converterClass, MetadataMap.class);
         builder.endControlFlow();
     }
@@ -58,7 +60,7 @@ public class NestedTypeCodeGen {
 
     public void emitDeserializeOptional(MethodSpec.Builder builder, MetadataFieldInfo field) {
         ClassName converterClass = ClassName.bestGuess(field.getNestedConverterFqn());
-        builder.beginControlFlow("if (v instanceof $T)", MetadataMap.class);
+        builder.beginControlFlow(IF_V_INSTANCEOF, MetadataMap.class);
         accessor.emitOptionalOfSetFmt(builder, field, "new $T().fromMetadataMap(($T) v)",
                 converterClass, MetadataMap.class);
         builder.nextControlFlow("else");
@@ -96,7 +98,7 @@ public class NestedTypeCodeGen {
     public void emitDeserializePolymorphic(MethodSpec.Builder builder, MetadataFieldInfo field) {
         List<MetadataFieldInfo.PolymorphicSubtypeInfo> subtypes = field.getSubtypes();
 
-        builder.beginControlFlow("if (v instanceof $T)", MetadataMap.class);
+        builder.beginControlFlow(IF_V_INSTANCEOF, MetadataMap.class);
         builder.addStatement("$T _polyMap = ($T) v", MetadataMap.class, MetadataMap.class);
         builder.addStatement("$T _disc = _polyMap.get($S)", Object.class, field.getDiscriminatorKey());
 

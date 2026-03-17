@@ -40,6 +40,12 @@ public class MetadataConverterGenerator {
 
     static final String CONVERTER_SUFFIX = "MetadataConverter";
 
+    // JavaPoet format strings used across multiple generated helper method overloads
+    private static final String SIGNUM_CHECK = "if (_v.signum() >= 0)";
+    private static final String PUT_KEY_VALUE = "_m.put(_k, _v)";
+    private static final String PUT_NEGATIVE = "_m.putNegative(_k, _v)";
+    private static final String METHOD_PUT_BIG_INT = "_putBigInt";
+
     private final MetadataTypeCodeGenRegistry registry;
     private final MetadataFieldAccessor accessor;
     private final EnumCodeGen enumCodeGen;
@@ -249,11 +255,6 @@ public class MetadataConverterGenerator {
                     ? fields.stream().map(f -> new RecordComponentInfo(f.getJavaFieldName(), f.getJavaTypeName())).toList()
                     : allComponents;
 
-            // Collect names of serialized fields for lookup
-            java.util.Set<String> serializedNames = fields.stream()
-                    .map(MetadataFieldInfo::getJavaFieldName)
-                    .collect(java.util.stream.Collectors.toSet());
-
             // Phase 1: declare local variables with type-appropriate defaults for ALL components
             for (RecordComponentInfo comp : components) {
                 String localName = "_" + comp.name();
@@ -321,24 +322,8 @@ public class MetadataConverterGenerator {
         StringBuilder sb = new StringBuilder();
         int i = 0;
         while (i < fqn.length()) {
-            int angleOpen = fqn.indexOf('<', i);
-            int angleClose = fqn.indexOf('>', i);
-            int comma = fqn.indexOf(',', i);
-
-            int next = fqn.length();
-            if (angleOpen >= 0 && angleOpen < next) next = angleOpen;
-            if (angleClose >= 0 && angleClose < next) next = angleClose;
-            if (comma >= 0 && comma < next) next = comma;
-
-            String segment = fqn.substring(i, next).trim();
-            if (!segment.isEmpty()) {
-                // Only simplify java.lang types — everything else stays fully-qualified
-                if (segment.startsWith("java.lang.") && segment.indexOf('.', 10) == -1) {
-                    sb.append(segment.substring(10));
-                } else {
-                    sb.append(segment);
-                }
-            }
+            int next = findNextDelimiter(fqn, i);
+            appendSimplifiedSegment(sb, fqn.substring(i, next).trim());
 
             if (next < fqn.length()) {
                 sb.append(fqn.charAt(next));
@@ -348,6 +333,25 @@ public class MetadataConverterGenerator {
             }
         }
         return sb.toString();
+    }
+
+    private static int findNextDelimiter(String fqn, int from) {
+        int next = fqn.length();
+        for (char delim : new char[]{'<', '>', ','}) {
+            int pos = fqn.indexOf(delim, from);
+            if (pos >= 0 && pos < next) next = pos;
+        }
+        return next;
+    }
+
+    private static void appendSimplifiedSegment(StringBuilder sb, String segment) {
+        if (segment.isEmpty()) return;
+        // Only simplify java.lang types — everything else stays fully-qualified
+        if (segment.startsWith("java.lang.") && segment.indexOf('.', 10) == -1) {
+            sb.append(segment.substring(10));
+        } else {
+            sb.append(segment);
+        }
     }
 
     private void emitFromMapGet(MethodSpec.Builder builder, MetadataFieldInfo field) {
@@ -563,56 +567,36 @@ public class MetadataConverterGenerator {
     // -------------------------------------------------------------------------
 
     private void addBigIntHelpers(TypeSpec.Builder classBuilder) {
-        // _putBigInt(MetadataMap, String, BigInteger)
-        classBuilder.addMethod(MethodSpec.methodBuilder("_putBigInt")
-                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
-                .addParameter(MetadataMap.class, "_m")
-                .addParameter(String.class, "_k")
-                .addParameter(BigInteger.class, "_v")
-                .beginControlFlow("if (_v.signum() >= 0)")
-                .addStatement("_m.put(_k, _v)")
-                .nextControlFlow("else")
-                .addStatement("_m.putNegative(_k, _v)")
-                .endControlFlow()
-                .build());
-
-        // _putBigInt(MetadataMap, BigInteger, BigInteger)
-        classBuilder.addMethod(MethodSpec.methodBuilder("_putBigInt")
-                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
-                .addParameter(MetadataMap.class, "_m")
-                .addParameter(BigInteger.class, "_k")
-                .addParameter(BigInteger.class, "_v")
-                .beginControlFlow("if (_v.signum() >= 0)")
-                .addStatement("_m.put(_k, _v)")
-                .nextControlFlow("else")
-                .addStatement("_m.putNegative(_k, _v)")
-                .endControlFlow()
-                .build());
-
-        // _putBigInt(MetadataMap, byte[], BigInteger)
-        classBuilder.addMethod(MethodSpec.methodBuilder("_putBigInt")
-                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
-                .addParameter(MetadataMap.class, "_m")
-                .addParameter(byte[].class, "_k")
-                .addParameter(BigInteger.class, "_v")
-                .beginControlFlow("if (_v.signum() >= 0)")
-                .addStatement("_m.put(_k, _v)")
-                .nextControlFlow("else")
-                .addStatement("_m.putNegative(_k, _v)")
-                .endControlFlow()
-                .build());
+        // _putBigInt overloads for String, BigInteger, and byte[] key types
+        for (Class<?> keyType : new Class<?>[]{String.class, BigInteger.class, byte[].class}) {
+            classBuilder.addMethod(buildSignumDispatchMethod(METHOD_PUT_BIG_INT, keyType));
+        }
 
         // _addBigInt(MetadataList, BigInteger)
         classBuilder.addMethod(MethodSpec.methodBuilder("_addBigInt")
                 .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
                 .addParameter(MetadataList.class, "_l")
                 .addParameter(BigInteger.class, "_v")
-                .beginControlFlow("if (_v.signum() >= 0)")
+                .beginControlFlow(SIGNUM_CHECK)
                 .addStatement("_l.add(_v)")
                 .nextControlFlow("else")
                 .addStatement("_l.addNegative(_v)")
                 .endControlFlow()
                 .build());
+    }
+
+    private static MethodSpec buildSignumDispatchMethod(String methodName, Class<?> keyType) {
+        return MethodSpec.methodBuilder(methodName)
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .addParameter(MetadataMap.class, "_m")
+                .addParameter(keyType, "_k")
+                .addParameter(BigInteger.class, "_v")
+                .beginControlFlow(SIGNUM_CHECK)
+                .addStatement(PUT_KEY_VALUE)
+                .nextControlFlow("else")
+                .addStatement(PUT_NEGATIVE)
+                .endControlFlow()
+                .build();
     }
 
     // -------------------------------------------------------------------------
@@ -651,6 +635,8 @@ public class MetadataConverterGenerator {
      * at least one adapter field exists. The helper dispatches at runtime based on
      * the value's concrete type.
      */
+    private static final String ADAPTED_PUT_CAST = "_m.put(_k, ($T) _v)";
+
     private void addAdapterHelper(TypeSpec.Builder classBuilder, List<MetadataFieldInfo> fields) {
         boolean hasAdapter = fields.stream().anyMatch(MetadataFieldInfo::isAdapterType);
         if (!hasAdapter) return;
@@ -661,15 +647,15 @@ public class MetadataConverterGenerator {
                 .addParameter(String.class, "_k")
                 .addParameter(Object.class, "_v")
                 .beginControlFlow("if (_v instanceof $T)", String.class)
-                .addStatement("_m.put(_k, ($T) _v)", String.class)
+                .addStatement(ADAPTED_PUT_CAST, String.class)
                 .nextControlFlow("else if (_v instanceof $T)", BigInteger.class)
                 .addStatement("_putBigInt(_m, _k, ($T) _v)", BigInteger.class)
                 .nextControlFlow("else if (_v instanceof byte[])")
                 .addStatement("_m.put(_k, (byte[]) _v)")
                 .nextControlFlow("else if (_v instanceof $T)", MetadataMap.class)
-                .addStatement("_m.put(_k, ($T) _v)", MetadataMap.class)
+                .addStatement(ADAPTED_PUT_CAST, MetadataMap.class)
                 .nextControlFlow("else if (_v instanceof $T)", MetadataList.class)
-                .addStatement("_m.put(_k, ($T) _v)", MetadataList.class)
+                .addStatement(ADAPTED_PUT_CAST, MetadataList.class)
                 .nextControlFlow("else")
                 .addStatement("throw new $T($S + _v.getClass().getName())",
                         IllegalArgumentException.class, "Adapter returned unsupported metadata type: ")
