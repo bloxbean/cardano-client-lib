@@ -11,6 +11,7 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
+import lombok.RequiredArgsConstructor;
 
 import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 
@@ -22,6 +23,7 @@ import java.util.*;
  * Generates MetadataMap serialization/deserialization with delegation to
  * the appropriate value type strategy (scalar, enum, nested, or composite).
  */
+@RequiredArgsConstructor
 @SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across similar codegen methods
 public class MapCodeGen {
 
@@ -29,14 +31,6 @@ public class MapCodeGen {
     private final MetadataFieldAccessor accessor;
     private final EnumCodeGen enumCodeGen;
     private final NestedTypeCodeGen nestedCodeGen;
-
-    public MapCodeGen(MetadataTypeCodeGenRegistry registry, MetadataFieldAccessor accessor,
-                      EnumCodeGen enumCodeGen, NestedTypeCodeGen nestedCodeGen) {
-        this.registry = registry;
-        this.accessor = accessor;
-        this.enumCodeGen = enumCodeGen;
-        this.nestedCodeGen = nestedCodeGen;
-    }
 
     // --- Key type helpers ---
 

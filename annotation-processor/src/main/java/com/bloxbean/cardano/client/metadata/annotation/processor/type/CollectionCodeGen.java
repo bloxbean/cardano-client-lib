@@ -14,6 +14,8 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 
 import java.util.*;
 
@@ -22,24 +24,15 @@ import java.util.*;
  * Provides the fixed skeleton (MetadataList creation, for-loop, null-check) and delegates
  * element-level serialization/deserialization to the registry.
  */
+@RequiredArgsConstructor
 @SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across similar codegen methods
 public class CollectionCodeGen {
 
     private final MetadataTypeCodeGenRegistry registry;
     private final MetadataFieldAccessor accessor;
     private final EnumCodeGen enumCodeGen;
+    @Setter
     private NestedTypeCodeGen nestedCodeGen;
-
-    public CollectionCodeGen(MetadataTypeCodeGenRegistry registry, MetadataFieldAccessor accessor,
-                             EnumCodeGen enumCodeGen) {
-        this.registry = registry;
-        this.accessor = accessor;
-        this.enumCodeGen = enumCodeGen;
-    }
-
-    public void setNestedCodeGen(NestedTypeCodeGen nestedCodeGen) {
-        this.nestedCodeGen = nestedCodeGen;
-    }
 
     // --- Serialization ---
 

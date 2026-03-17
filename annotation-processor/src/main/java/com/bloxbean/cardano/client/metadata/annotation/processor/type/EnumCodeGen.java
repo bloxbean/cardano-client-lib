@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAc
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
+import lombok.RequiredArgsConstructor;
 
 import java.util.Optional;
 
@@ -11,13 +12,10 @@ import java.util.Optional;
  * Code generation for enum fields. Enums are stored as their {@code name()} String
  * and reconstructed via {@code EnumType.valueOf(String)}.
  */
+@RequiredArgsConstructor
 public class EnumCodeGen {
 
     private final MetadataFieldAccessor accessor;
-
-    public EnumCodeGen(MetadataFieldAccessor accessor) {
-        this.accessor = accessor;
-    }
 
     // --- Serialization ---
 

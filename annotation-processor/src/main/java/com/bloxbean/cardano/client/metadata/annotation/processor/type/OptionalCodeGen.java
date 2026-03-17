@@ -6,29 +6,22 @@ import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCod
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCodeGenRegistry;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 
 /**
  * Code generation for {@code Optional<T>} fields.
  * Serialization: delegates inner value to the appropriate scalar strategy.
  * Deserialization: emits present/absent branches.
  */
+@RequiredArgsConstructor
 public class OptionalCodeGen {
 
     private final MetadataTypeCodeGenRegistry registry;
     private final MetadataFieldAccessor accessor;
     private final EnumCodeGen enumCodeGen;
+    @Setter
     private NestedTypeCodeGen nestedCodeGen;
-
-    public OptionalCodeGen(MetadataTypeCodeGenRegistry registry, MetadataFieldAccessor accessor,
-                           EnumCodeGen enumCodeGen) {
-        this.registry = registry;
-        this.accessor = accessor;
-        this.enumCodeGen = enumCodeGen;
-    }
-
-    public void setNestedCodeGen(NestedTypeCodeGen nestedCodeGen) {
-        this.nestedCodeGen = nestedCodeGen;
-    }
 
     // --- Serialization ---
 

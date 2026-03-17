@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAc
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
+import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,13 +14,10 @@ import java.util.Optional;
  * Code generation for nested {@code @MetadataType} fields.
  * Delegates serialization/deserialization to the nested type's generated converter.
  */
+@RequiredArgsConstructor
 public class NestedTypeCodeGen {
 
     private final MetadataFieldAccessor accessor;
-
-    public NestedTypeCodeGen(MetadataFieldAccessor accessor) {
-        this.accessor = accessor;
-    }
 
     // --- Serialization ---
 
