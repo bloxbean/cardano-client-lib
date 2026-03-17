@@ -1,19 +1,19 @@
 package com.bloxbean.cardano.client.annotation.devnet.metadata;
 
-import co.nstant.in.cbor.CborDecoder;
-import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataCBORContent;
+import com.bloxbean.cardano.client.backend.model.metadata.MetadataJSONContent;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.it.BaseIT;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
-import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
+import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConverter;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -58,10 +58,21 @@ public class Cip68ReferenceDatumDevnetTest extends BaseIT {
 
         waitForTransaction(result);
 
+        // Diagnostic: show that the CBOR metadata endpoint returns null cbor_metadata on Yaci Store
         var cborResult = backendService.getMetadataService().getCBORMetadataByTxnHash(txHash);
-        assertTrue(cborResult.isSuccessful(), "Metadata retrieval should succeed");
+        System.out.println("[DIAG] CBOR metadata endpoint successful=" + cborResult.isSuccessful()
+                + ", entries=" + (cborResult.getValue() != null ? cborResult.getValue().size() : "null"));
+        if (cborResult.isSuccessful() && cborResult.getValue() != null) {
+            for (MetadataCBORContent entry : cborResult.getValue()) {
+                System.out.println("[DIAG]   label=" + entry.getLabel()
+                        + ", cbor_metadata=" + (entry.getCborMetadata() == null ? "NULL" : entry.getCborMetadata().substring(0, Math.min(40, entry.getCborMetadata().length())) + "..."));
+            }
+        }
 
-        MetadataMap chainMap = extractMetadataMap(cborResult.getValue(), "100");
+        var jsonResult = backendService.getMetadataService().getJSONMetadataByTxnHash(txHash);
+        assertTrue(jsonResult.isSuccessful(), "Metadata retrieval should succeed");
+
+        MetadataMap chainMap = extractMetadataMap(jsonResult.getValue(), "100");
         restored = converter.fromMetadataMap(chainMap);
     }
 
@@ -157,13 +168,11 @@ public class Cip68ReferenceDatumDevnetTest extends BaseIT {
         return datum;
     }
 
-    @SneakyThrows
-    private MetadataMap extractMetadataMap(List<MetadataCBORContent> entries, String label) {
-        for (MetadataCBORContent entry : entries) {
+    private MetadataMap extractMetadataMap(List<MetadataJSONContent> entries, String label) {
+        for (MetadataJSONContent entry : entries) {
             if (label.equals(entry.getLabel())) {
-                byte[] cborBytes = HexUtil.decodeHexString(entry.getCborMetadata());
-                List<DataItem> items = CborDecoder.decode(cborBytes);
-                return new CBORMetadataMap((co.nstant.in.cbor.model.Map) items.get(0));
+                return JsonNoSchemaToMetadataConverter.parseObjectNode(
+                        (ObjectNode) entry.getJsonMetadata());
             }
         }
         fail("No metadata found for label " + label);
