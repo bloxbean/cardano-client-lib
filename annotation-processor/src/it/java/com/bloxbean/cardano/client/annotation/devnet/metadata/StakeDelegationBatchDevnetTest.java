@@ -21,8 +21,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
 import java.math.BigInteger;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -92,6 +96,16 @@ public class StakeDelegationBatchDevnetTest extends BaseIT {
         assertTrue(jsonMeta.has("reward_history"), "JSON should contain 'reward_history'");
         assertTrue(jsonMeta.has("pool_preferences"), "JSON should contain 'pool_preferences'");
         assertTrue(jsonMeta.has("active_pools"), "JSON should contain 'active_pools'");
+        assertTrue(jsonMeta.has("lock_period"), "JSON should contain 'lock_period'");
+        assertTrue(jsonMeta.has("lock_period_str"), "JSON should contain 'lock_period_str'");
+        assertTrue(jsonMeta.has("created_at"), "JSON should contain 'created_at'");
+        assertTrue(jsonMeta.has("created_at_str"), "JSON should contain 'created_at_str'");
+        assertTrue(jsonMeta.has("effective_date"), "JSON should contain 'effective_date'");
+        assertTrue(jsonMeta.has("effective_date_str"), "JSON should contain 'effective_date_str'");
+        assertTrue(jsonMeta.has("scheduled_at"), "JSON should contain 'scheduled_at'");
+        assertTrue(jsonMeta.has("legacy_date"), "JSON should contain 'legacy_date'");
+        assertTrue(jsonMeta.has("legacy_date_str"), "JSON should contain 'legacy_date_str'");
+        assertTrue(jsonMeta.has("correlation_id"), "JSON should contain 'correlation_id'");
 
         MetadataMap chainMap = extractMetadataMap(jsonResult.getValue(), "1902");
         restored = converter.fromMetadataMap(chainMap);
@@ -165,6 +179,56 @@ public class StakeDelegationBatchDevnetTest extends BaseIT {
     }
 
     @Test
+    void durationDefault_lockPeriod() {
+        assertEquals(original.getLockPeriod(), restored.getLockPeriod());
+    }
+
+    @Test
+    void durationString_lockPeriodAsString() {
+        assertEquals(original.getLockPeriodAsString(), restored.getLockPeriodAsString());
+    }
+
+    @Test
+    void instantDefault_createdAt() {
+        assertEquals(original.getCreatedAt(), restored.getCreatedAt());
+    }
+
+    @Test
+    void instantString_createdAtAsString() {
+        assertEquals(original.getCreatedAtAsString(), restored.getCreatedAtAsString());
+    }
+
+    @Test
+    void localDateDefault_effectiveDate() {
+        assertEquals(original.getEffectiveDate(), restored.getEffectiveDate());
+    }
+
+    @Test
+    void localDateString_effectiveDateAsString() {
+        assertEquals(original.getEffectiveDateAsString(), restored.getEffectiveDateAsString());
+    }
+
+    @Test
+    void localDateTimeDefault_scheduledAt() {
+        assertEquals(original.getScheduledAt(), restored.getScheduledAt());
+    }
+
+    @Test
+    void legacyDateDefault_legacyDate() {
+        assertEquals(original.getLegacyDate(), restored.getLegacyDate());
+    }
+
+    @Test
+    void legacyDateString_legacyDateAsString() {
+        assertEquals(original.getLegacyDateAsString(), restored.getLegacyDateAsString());
+    }
+
+    @Test
+    void uuid_correlationId() {
+        assertEquals(original.getCorrelationId(), restored.getCorrelationId());
+    }
+
+    @Test
     void defaultValue_status() {
         assertEquals(original.getStatus(), restored.getStatus());
     }
@@ -226,6 +290,68 @@ public class StakeDelegationBatchDevnetTest extends BaseIT {
         assertEquals(400, entry400.get("epoch_no").asInt());
     }
 
+    @Test
+    void jsonRaw_durationDefault_lockPeriodIsTotalSeconds() {
+        assertTrue(jsonMeta.has("lock_period"), "JSON should contain 'lock_period'");
+        assertEquals(7200L, jsonMeta.get("lock_period").asLong(),
+                "lock_period should be serialized as total seconds");
+    }
+
+    @Test
+    void jsonRaw_durationString_lockPeriodStrIsIso8601() {
+        assertTrue(jsonMeta.has("lock_period_str"), "JSON should contain 'lock_period_str'");
+        assertEquals("PT1H30M", jsonMeta.get("lock_period_str").asText(),
+                "lock_period_str should be serialized as ISO-8601 duration");
+    }
+
+    @Test
+    void jsonRaw_instantDefault_createdAtIsEpochSeconds() {
+        assertEquals(1700000000L, jsonMeta.get("created_at").asLong(),
+                "created_at should be epoch seconds");
+    }
+
+    @Test
+    void jsonRaw_instantString_createdAtStrIsIso8601() {
+        assertEquals("2024-01-15T10:30:00Z", jsonMeta.get("created_at_str").asText(),
+                "created_at_str should be ISO-8601 instant");
+    }
+
+    @Test
+    void jsonRaw_localDateDefault_effectiveDateIsEpochDays() {
+        assertEquals(LocalDate.of(2024, 3, 15).toEpochDay(), jsonMeta.get("effective_date").asLong(),
+                "effective_date should be epoch days");
+    }
+
+    @Test
+    void jsonRaw_localDateString_effectiveDateStrIsIso8601() {
+        assertEquals("2024-06-01", jsonMeta.get("effective_date_str").asText(),
+                "effective_date_str should be ISO-8601 date");
+    }
+
+    @Test
+    void jsonRaw_localDateTimeDefault_scheduledAtIsIso8601() {
+        assertEquals("2024-05-20T14:30", jsonMeta.get("scheduled_at").asText(),
+                "scheduled_at should be ISO-8601 datetime");
+    }
+
+    @Test
+    void jsonRaw_legacyDateDefault_legacyDateIsEpochMillis() {
+        assertEquals(1_700_000_000_000L, jsonMeta.get("legacy_date").asLong(),
+                "legacy_date should be epoch millis");
+    }
+
+    @Test
+    void jsonRaw_legacyDateString_legacyDateStrIsIso8601() {
+        assertEquals("2024-03-10T12:00:00Z", jsonMeta.get("legacy_date_str").asText(),
+                "legacy_date_str should be ISO-8601 via toInstant()");
+    }
+
+    @Test
+    void jsonRaw_uuid_correlationId() {
+        assertEquals("550e8400-e29b-41d4-a716-446655440000", jsonMeta.get("correlation_id").asText(),
+                "correlation_id should be UUID string");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private StakeDelegationBatch buildOriginal() {
@@ -258,6 +384,16 @@ public class StakeDelegationBatchDevnetTest extends BaseIT {
                 HexUtil.decodeHexString("ccdd44556677")
         ));
         batch.setSubmittedAt(Instant.ofEpochSecond(1700000000L));
+        batch.setLockPeriod(Duration.ofHours(2));
+        batch.setLockPeriodAsString(Duration.ofHours(1).plusMinutes(30));
+        batch.setCreatedAt(Instant.ofEpochSecond(1700000000L));
+        batch.setCreatedAtAsString(Instant.parse("2024-01-15T10:30:00Z"));
+        batch.setEffectiveDate(LocalDate.of(2024, 3, 15));
+        batch.setEffectiveDateAsString(LocalDate.of(2024, 6, 1));
+        batch.setScheduledAt(LocalDateTime.of(2024, 5, 20, 14, 30, 0));
+        batch.setLegacyDate(new Date(1_700_000_000_000L));
+        batch.setLegacyDateAsString(Date.from(Instant.parse("2024-03-10T12:00:00Z")));
+        batch.setCorrelationId(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"));
         batch.setStatus("ACTIVE");
         batch.setMemo("should-be-ignored");
         return batch;

@@ -9,10 +9,15 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -41,6 +46,41 @@ public class StakeDelegationBatch extends NftBaseMetadata {
 
     @MetadataField(adapter = EpochAdapter.class)
     private Instant submittedAt;
+
+    @MetadataField(key = "lock_period")
+    private Duration lockPeriod;
+
+    @MetadataField(key = "lock_period_str", enc = MetadataFieldType.STRING)
+    private Duration lockPeriodAsString;
+
+    // --- Instant native (no adapter) ---
+    @MetadataField(key = "created_at")
+    private Instant createdAt;
+
+    @MetadataField(key = "created_at_str", enc = MetadataFieldType.STRING)
+    private Instant createdAtAsString;
+
+    // --- LocalDate ---
+    @MetadataField(key = "effective_date")
+    private LocalDate effectiveDate;
+
+    @MetadataField(key = "effective_date_str", enc = MetadataFieldType.STRING)
+    private LocalDate effectiveDateAsString;
+
+    // --- LocalDateTime ---
+    @MetadataField(key = "scheduled_at")
+    private LocalDateTime scheduledAt;
+
+    // --- java.util.Date ---
+    @MetadataField(key = "legacy_date")
+    private Date legacyDate;
+
+    @MetadataField(key = "legacy_date_str", enc = MetadataFieldType.STRING)
+    private Date legacyDateAsString;
+
+    // --- UUID ---
+    @MetadataField(key = "correlation_id")
+    private UUID correlationId;
 
     @MetadataField(defaultValue = "PENDING")
     private String status;
