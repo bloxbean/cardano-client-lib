@@ -166,6 +166,19 @@ public class Cip68ReferenceDatumDevnetTest extends BaseIT {
     // ── Raw JSON Assertions ────────────────────────────────────────────
 
     @Test
+    void jsonRaw_chunkedString_imageIsArray() {
+        assertTrue(jsonMeta.has("image"), "JSON should contain 'image'");
+        JsonNode image = jsonMeta.get("image");
+        assertTrue(image.isArray(),
+                "Long string (> 64 chars) should be chunked into a JSON array");
+        assertEquals(2, image.size(), "83-char string should produce 2 chunks");
+        assertEquals("ipfs://QmXyZ123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq",
+                image.get(0).asText(), "First chunk should be 64 chars");
+        assertEquals("rstuvwxyz0123456789end",
+                image.get(1).asText(), "Second chunk should be the remaining 19 chars");
+    }
+
+    @Test
     void jsonRaw_base64Encoding_extraData() {
         assertTrue(jsonMeta.has("extra_data"), "JSON should contain 'extra_data'");
         assertEquals("RXh0cmFEYXRhRm9yVGVzdA==", jsonMeta.get("extra_data").asText(),

@@ -176,6 +176,19 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
     }
 
     @Test
+    void jsonRaw_chunkedString_imageIsArray() {
+        assertTrue(jsonMeta.has("image"), "JSON should contain 'image'");
+        JsonNode image = jsonMeta.get("image");
+        assertTrue(image.isArray(),
+                "Long string (> 64 chars) should be chunked into a JSON array");
+        assertEquals(2, image.size(), "83-char string should produce 2 chunks");
+        assertEquals("ipfs://QmXyZ123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq",
+                image.get(0).asText(), "First chunk should be 64 chars");
+        assertEquals("rstuvwxyz0123456789end",
+                image.get(1).asText(), "Second chunk should be the remaining 19 chars");
+    }
+
+    @Test
     void jsonRaw_polymorphicDiscriminator_displayMedia() {
         assertTrue(jsonMeta.has("displayMedia"), "JSON should contain 'displayMedia'");
         JsonNode dm = jsonMeta.get("displayMedia");
