@@ -42,7 +42,7 @@ When a label is specified (`@MetadataType(label = 721)`), the converter also imp
 | **Enums** | Stored as their `name()` string, reconstructed via `valueOf` |
 | **Nested types** | `@MetadataType`-annotated fields are recursively serialized via their own converter |
 | **Polymorphic types** | `@MetadataDiscriminator` on interfaces/abstract classes dispatches to concrete subtypes |
-| **Custom adapters** | `@MetadataField(adapter = MyAdapter.class)` for full control over serialization |
+| **Custom adapters** | `@MetadataEncoder` / `@MetadataDecoder` for full control over serialization |
 | **Encoding control** | `@MetadataField(enc = STRING)` forces string encoding; `STRING_HEX` / `STRING_BASE64` for `byte[]` |
 | **Required fields** | `@MetadataField(required = true)` throws on missing keys during deserialization |
 | **Default values** | `@MetadataField(defaultValue = "...")` provides fallbacks |

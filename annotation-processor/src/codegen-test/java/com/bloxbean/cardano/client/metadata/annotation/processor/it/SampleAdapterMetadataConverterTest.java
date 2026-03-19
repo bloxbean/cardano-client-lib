@@ -11,7 +11,7 @@ import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for custom adapter support via {@code @MetadataField(adapter = ...)}.
+ * Integration tests for custom adapter support via {@code @MetadataEncoder} + {@code @MetadataDecoder}.
  */
 class SampleAdapterMetadataConverterTest {
 

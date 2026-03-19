@@ -16,7 +16,7 @@ public record DexLiquidityPool(
         @MetadataField(key = "reserve_b") BigInteger reserveB,
         @MetadataField(key = "total_lp") BigInteger totalLpTokens,
         PoolFeeConfig fees,
-        @MetadataField(adapter = EpochAdapter.class) Instant updatedAt,
+        @MetadataEncoder(EpochAdapter.class) @MetadataDecoder(EpochAdapter.class) Instant updatedAt,
         @MetadataField(key = "pool_datum", enc = MetadataFieldType.STRING_BASE64) byte[] poolDatum
 ) {}
 ```
@@ -69,7 +69,8 @@ public class Cip25NftMetadata extends NftBaseMetadata {
 
     private NftRarity rarity;
 
-    @MetadataField(adapter = EpochAdapter.class)
+    @MetadataEncoder(EpochAdapter.class)
+    @MetadataDecoder(EpochAdapter.class)
     private Instant mintedAt;
 
     private Map<String, String> attributes;

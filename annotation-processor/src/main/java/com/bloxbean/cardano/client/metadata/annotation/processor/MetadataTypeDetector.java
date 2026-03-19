@@ -419,81 +419,6 @@ class MetadataTypeDetector {
         return (value != null && typeMirror != null) ? new MetadataSubtypeEntry(value, typeMirror) : null;
     }
 
-    // ── Adapter detection ─────────────────────────────────────────────
-
-    @SuppressWarnings("java:S3776") // Complexity is inherent to single-pass extraction + validation
-    AdapterDetectionResult detectAdapter(VariableElement ve, String fieldName) {
-        AnnotationMirror mfMirror = findAnnotationMirror(ve, MetadataField.class);
-        if (mfMirror == null) return null;
-
-        Map<? extends ExecutableElement, ? extends AnnotationValue> values =
-                processingEnv.getElementUtils().getElementValuesWithDefaults(mfMirror);
-
-        TypeMirror adapterMirror = null;
-        String key = "";
-        MetadataFieldType enc = MetadataFieldType.DEFAULT;
-        boolean required = false;
-        String defaultValue = "";
-        for (var entry : values.entrySet()) {
-            switch (entry.getKey().getSimpleName().toString()) {
-                case "adapter" -> adapterMirror = (TypeMirror) entry.getValue().getValue();
-                case "key" -> key = (String) entry.getValue().getValue();
-                case "enc" -> {
-                    VariableElement encEl = (VariableElement) entry.getValue().getValue();
-                    enc = MetadataFieldType.valueOf(encEl.getSimpleName().toString());
-                }
-                case "required" -> required = (Boolean) entry.getValue().getValue();
-                case "defaultValue" -> defaultValue = (String) entry.getValue().getValue();
-                default -> { /* ignore other attributes */ }
-            }
-        }
-        if (adapterMirror == null) return null;
-
-        TypeElement noAdapterEl = processingEnv.getElementUtils()
-                .getTypeElement(MetadataField.NoAdapter.class.getCanonicalName());
-        if (noAdapterEl != null && processingEnv.getTypeUtils().isSameType(adapterMirror, noAdapterEl.asType())) {
-            return null;
-        }
-
-        String adapterFqn = adapterMirror.toString();
-        TypeElement adapterTypeEl = (TypeElement) processingEnv.getTypeUtils().asElement(adapterMirror);
-        if (adapterTypeEl == null) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldName + "': cannot resolve adapter class '" + adapterFqn + "'.", ve);
-            return null;
-        }
-
-        TypeElement adapterInterfaceEl = processingEnv.getElementUtils()
-                .getTypeElement(MetadataTypeAdapter.class.getCanonicalName());
-        if (adapterInterfaceEl == null) {
-            return null;
-        }
-
-        TypeMirror erasedAdapter = processingEnv.getTypeUtils().erasure(adapterMirror);
-        TypeMirror erasedInterface = processingEnv.getTypeUtils().erasure(adapterInterfaceEl.asType());
-        if (!processingEnv.getTypeUtils().isAssignable(erasedAdapter, erasedInterface)) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldName + "': adapter '" + adapterFqn
-                            + "' must implement MetadataTypeAdapter.", ve);
-            return null;
-        }
-
-        if (!defaultValue.isEmpty()) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldName + "': 'adapter' and 'defaultValue' are mutually exclusive.", ve);
-            return null;
-        }
-
-        if (enc != MetadataFieldType.DEFAULT) {
-            messager.printMessage(Diagnostic.Kind.WARNING,
-                    "Field '" + fieldName + "': @MetadataField(enc=...) is ignored when an adapter is specified.", ve);
-        }
-
-        String metadataKey = key.isEmpty() ? fieldName : key;
-        return new AdapterDetectionResult(adapterFqn,
-                new MetadataFieldValidator.MetadataKeyAndEncoding(metadataKey, MetadataFieldType.DEFAULT, required, null));
-    }
-
     // ── Type validation helpers ───────────────────────────────────────
 
     boolean isSupportedType(TypeMirror typeMirror) {
@@ -615,8 +540,6 @@ class MetadataTypeDetector {
         }
     }
 
-    record AdapterDetectionResult(String adapterFqn, MetadataFieldValidator.MetadataKeyAndEncoding keyEnc) {}
-
     // ── Encoder / Decoder detection ──────────────────────────────────
 
     /**
@@ -629,15 +552,6 @@ class MetadataTypeDetector {
         AnnotationMirror decoderMirror = findAnnotationMirror(ve, MetadataDecoder.class);
 
         if (encoderMirror == null && decoderMirror == null) return null;
-
-        // Validate mutual exclusivity with @MetadataField(adapter=...)
-        AdapterDetectionResult adapterResult = detectAdapter(ve, fieldName);
-        if (adapterResult != null) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldName + "': @MetadataEncoder/@MetadataDecoder cannot be combined "
-                            + "with @MetadataField(adapter=...). Use one approach or the other.", ve);
-            return null;
-        }
 
         String encoderFqn = extractAndValidateAdapterClass(encoderMirror, ve, fieldName, "@MetadataEncoder");
         String decoderFqn = extractAndValidateAdapterClass(decoderMirror, ve, fieldName, "@MetadataDecoder");
@@ -727,7 +641,7 @@ class MetadataTypeDetector {
                 case "key" -> key = (String) entry.getValue().getValue();
                 case "required" -> required = (Boolean) entry.getValue().getValue();
                 case "defaultValue" -> defaultValue = (String) entry.getValue().getValue();
-                default -> { /* ignore enc, adapter */ }
+                default -> { /* ignore enc */ }
             }
         }
 

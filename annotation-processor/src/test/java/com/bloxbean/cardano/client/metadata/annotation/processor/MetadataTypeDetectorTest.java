@@ -28,7 +28,6 @@ class MetadataTypeDetectorTest {
     // ── Test harness ────────────────────────────────────────────────────
 
     record DetectResult(Compilation compilation, MetadataTypeDetector.FieldTypeResult typeResult,
-                        MetadataTypeDetector.AdapterDetectionResult adapterResult,
                         MetadataTypeDetector.EncoderDecoderResult encoderDecoderResult) {}
 
     private void detectAndAssert(Consumer<DetectResult> assertions, String source) {
@@ -47,14 +46,13 @@ class MetadataTypeDetectorTest {
         Compilation compilation = javac()
                 .withProcessors(processor)
                 .compile(sources);
-        assertions.accept(new DetectResult(compilation, processor.typeResult, processor.adapterResult, processor.encoderDecoderResult));
+        assertions.accept(new DetectResult(compilation, processor.typeResult, processor.encoderDecoderResult));
     }
 
     @SupportedAnnotationTypes("com.bloxbean.cardano.client.metadata.annotation.MetadataType")
     @SupportedSourceVersion(SourceVersion.RELEASE_17)
     static class TypeDetectorCapturingProcessor extends AbstractProcessor {
         MetadataTypeDetector.FieldTypeResult typeResult;
-        MetadataTypeDetector.AdapterDetectionResult adapterResult;
         MetadataTypeDetector.EncoderDecoderResult encoderDecoderResult;
 
         @Override
@@ -69,9 +67,8 @@ class MetadataTypeDetectorTest {
                         if (enclosed.getKind() == ElementKind.FIELD && !ve.getSimpleName().toString().startsWith("$")) {
                             String fieldName = ve.getSimpleName().toString();
                             String typeName = ve.asType().toString();
-                            adapterResult = detector.detectAdapter(ve, fieldName);
                             encoderDecoderResult = detector.detectEncoderDecoder(ve, fieldName);
-                            if (adapterResult == null && encoderDecoderResult == null) {
+                            if (encoderDecoderResult == null) {
                                 typeResult = detector.detectFieldType(ve, fieldName, typeName);
                             }
                             return true;
@@ -354,89 +351,6 @@ class MetadataTypeDetectorTest {
         }
     }
 
-    // ── Adapter detection ───────────────────────────────────────────────
-
-    @Nested
-    class AdapterDetection {
-
-        @Test
-        void detectsAdapterField() {
-            detectAndAssert(r -> {
-                assertThat(r.compilation).succeeded();
-                assertThat(r.adapterResult).isNotNull();
-                assertThat(r.adapterResult.adapterFqn()).isEqualTo("com.test.MyAdapter");
-            }, """
-                package com.test;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
-                @MetadataType
-                public class TestClass {
-                    @MetadataField(adapter = MyAdapter.class)
-                    private java.time.Instant ts;
-                    public java.time.Instant getTs() { return ts; }
-                    public void setTs(java.time.Instant ts) { this.ts = ts; }
-                }
-            """,
-            JavaFileObjects.forSourceString("com.test.MyAdapter", """
-                package com.test;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataTypeAdapter;
-                import java.math.BigInteger;
-                import java.time.Instant;
-                public class MyAdapter implements MetadataTypeAdapter<Instant> {
-                    @Override public Object toMetadata(Instant value) { return BigInteger.valueOf(value.getEpochSecond()); }
-                    @Override public Instant fromMetadata(Object metadata) { return Instant.ofEpochSecond(((BigInteger)metadata).longValue()); }
-                }
-            """));
-        }
-
-        @Test
-        void noAdapterReturnsNull() {
-            detectAndAssert(r -> {
-                assertThat(r.compilation).succeeded();
-                assertThat(r.adapterResult).isNull();
-                assertThat(r.typeResult).isNotNull();
-            }, """
-                package com.test;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
-                @MetadataType
-                public class TestClass {
-                    private String plain;
-                    public String getPlain() { return plain; }
-                    public void setPlain(String p) { this.plain = p; }
-                }
-            """);
-        }
-
-        @Test
-        void adapterWithDefaultValueFails() {
-            detectAndAssert(r -> {
-                assertThat(r.compilation).failed();
-                assertThat(r.compilation).hadErrorContaining("'adapter' and 'defaultValue' are mutually exclusive");
-            }, """
-                package com.test;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
-                @MetadataType
-                public class TestClass {
-                    @MetadataField(adapter = MyAdapter.class, defaultValue = "123")
-                    private java.time.Instant ts;
-                    public java.time.Instant getTs() { return ts; }
-                    public void setTs(java.time.Instant ts) { this.ts = ts; }
-                }
-            """,
-            JavaFileObjects.forSourceString("com.test.MyAdapter", """
-                package com.test;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataTypeAdapter;
-                import java.math.BigInteger;
-                import java.time.Instant;
-                public class MyAdapter implements MetadataTypeAdapter<Instant> {
-                    @Override public Object toMetadata(Instant value) { return BigInteger.valueOf(value.getEpochSecond()); }
-                    @Override public Instant fromMetadata(Object metadata) { return Instant.ofEpochSecond(((BigInteger)metadata).longValue()); }
-                }
-            """));
-        }
-    }
-
     // ── Encoder / Decoder detection ────────────────────────────────────
 
     @Nested
@@ -535,28 +449,6 @@ class MetadataTypeDetectorTest {
             """,
             JavaFileObjects.forSourceString("com.test.MyEncoder", MY_ADAPTER_SOURCE),
             JavaFileObjects.forSourceString("com.test.MyDecoder", MY_DECODER_SOURCE));
-        }
-
-        @Test
-        void encoderWithAdapterFails() {
-            detectAndAssert(r -> {
-                assertThat(r.compilation).failed();
-                assertThat(r.compilation).hadErrorContaining("@MetadataEncoder/@MetadataDecoder cannot be combined");
-            }, """
-                package com.test;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
-                import com.bloxbean.cardano.client.metadata.annotation.MetadataEncoder;
-                @MetadataType
-                public class TestClass {
-                    @MetadataEncoder(MyEncoder.class)
-                    @MetadataField(key = "val", adapter = MyEncoder.class)
-                    private long value;
-                    public long getValue() { return value; }
-                    public void setValue(long value) { this.value = value; }
-                }
-            """,
-            JavaFileObjects.forSourceString("com.test.MyEncoder", MY_ADAPTER_SOURCE));
         }
 
         @Test

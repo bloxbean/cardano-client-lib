@@ -43,30 +43,4 @@ public @interface MetadataField {
      */
     String defaultValue() default "";
 
-    /**
-     * Custom adapter for serializing/deserializing this field.
-     * When specified, the adapter's {@code toMetadata}/{@code fromMetadata} methods are
-     * used instead of the processor's built-in type handling.
-     * <p>Mutually exclusive with {@link #defaultValue()}.
-     * The {@link #enc()} attribute is ignored when an adapter is specified.
-     */
-    Class<? extends MetadataTypeAdapter<?>> adapter() default NoAdapter.class;
-
-    /**
-     * Sentinel class indicating no adapter is specified. Used as the default for {@link #adapter()}.
-     */
-    final class NoAdapter implements MetadataTypeAdapter<Void> {
-        private NoAdapter() {}
-
-        @Override
-        public Object toMetadata(Void value) {
-            throw new UnsupportedOperationException("NoAdapter sentinel");
-        }
-
-        @Override
-        public Void fromMetadata(Object metadata) {
-            throw new UnsupportedOperationException("NoAdapter sentinel");
-        }
-    }
-
 }

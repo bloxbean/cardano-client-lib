@@ -171,13 +171,6 @@ public class MetadataConverterGenerator {
         String javaType = field.getJavaTypeName();
         MetadataFieldType enc = field.getEnc();
 
-        // Custom adapter — takes priority over all built-in handling
-        if (field.isAdapterType()) {
-            builder.addStatement("_putAdapted(map, $S, $L.toMetadata($L))",
-                    key, adapterFieldName(field.getAdapterFqn()), getExpr);
-            return;
-        }
-
         // @MetadataEncoder — encoder-only serialization
         if (field.isEncoderType()) {
             builder.addStatement("_putAdapted(map, $S, $L.toMetadata($L))",
@@ -370,15 +363,6 @@ public class MetadataConverterGenerator {
     private void emitFromMapGet(MethodSpec.Builder builder, MetadataFieldInfo field) {
         String javaType = field.getJavaTypeName();
         MetadataFieldType enc = field.getEnc();
-
-        // Custom adapter — takes priority over all built-in handling
-        if (field.isAdapterType()) {
-            builder.beginControlFlow("if (v != null)");
-            accessor.emitSetRaw(builder, field,
-                    "(" + javaType + ") " + adapterFieldName(field.getAdapterFqn()) + ".fromMetadata(v)");
-            builder.endControlFlow();
-            return;
-        }
 
         // @MetadataDecoder — decoder-only deserialization
         if (field.isDecoderType()) {
@@ -575,7 +559,7 @@ public class MetadataConverterGenerator {
     private boolean isScalar(MetadataFieldInfo field) {
         return !field.isCollectionType() && !field.isOptionalType()
                 && !field.isMapType() && !field.isNestedType() && !field.isEnumType()
-                && !field.isPolymorphicType() && !field.isAdapterType();
+                && !field.isPolymorphicType();
     }
 
     private String firstLowerCase(String s) {
@@ -669,12 +653,11 @@ public class MetadataConverterGenerator {
     }
 
     /**
-     * Collects all distinct adapter FQNs from adapter, encoder, and decoder fields.
+     * Collects all distinct adapter FQNs from encoder and decoder fields.
      */
     private Set<String> collectAllAdapterFqns(List<MetadataFieldInfo> fields) {
         Set<String> fqns = new LinkedHashSet<>();
         for (MetadataFieldInfo f : fields) {
-            if (f.isAdapterType() && f.getAdapterFqn() != null) fqns.add(f.getAdapterFqn());
             if (f.isEncoderType() && f.getEncoderFqn() != null) fqns.add(f.getEncoderFqn());
             if (f.isDecoderType() && f.getDecoderFqn() != null) fqns.add(f.getDecoderFqn());
         }
@@ -692,13 +675,13 @@ public class MetadataConverterGenerator {
 
     /**
      * Adds a {@code _putAdapted(MetadataMap, String, Object)} helper only when
-     * at least one adapter/encoder field exists. The helper dispatches at runtime based on
+     * at least one encoder field exists. The helper dispatches at runtime based on
      * the value's concrete type.
      */
     private static final String ADAPTED_PUT_CAST = "_m.put(_k, ($T) _v)";
 
     private void addAdapterHelper(TypeSpec.Builder classBuilder, List<MetadataFieldInfo> fields) {
-        boolean hasAdapter = fields.stream().anyMatch(f -> f.isAdapterType() || f.isEncoderType());
+        boolean hasAdapter = fields.stream().anyMatch(MetadataFieldInfo::isEncoderType);
         if (!hasAdapter) return;
 
         classBuilder.addMethod(MethodSpec.methodBuilder("_putAdapted")

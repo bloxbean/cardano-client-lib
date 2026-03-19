@@ -153,7 +153,8 @@ Here `tokenA` is serialized as a nested metadata map containing `policy_id`, `as
 To use a custom representation (e.g., epoch seconds), use a [custom type adapter](06-advanced-topics.md#custom-type-adapters):
 
 ```java
-@MetadataField(adapter = EpochAdapter.class)
+@MetadataEncoder(EpochAdapter.class)
+@MetadataDecoder(EpochAdapter.class)
 private Instant mintedAt;
 ```
 

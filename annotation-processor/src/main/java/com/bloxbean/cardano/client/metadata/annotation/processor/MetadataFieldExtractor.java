@@ -158,14 +158,6 @@ public class MetadataFieldExtractor {
     private MetadataFieldInfo extractRecordComponent(VariableElement ve, String fieldName, String typeName) {
         MetadataAccessorResolver.AccessorResult recordAccessor = new MetadataAccessorResolver.AccessorResult(fieldName, null);
 
-        MetadataTypeDetector.AdapterDetectionResult adapterResult = typeDetector.detectAdapter(ve, fieldName);
-        if (adapterResult != null) {
-            MetadataFieldInfo info = buildAdapterFieldInfo(fieldName, typeName, adapterResult.keyEnc(),
-                    recordAccessor, adapterResult.adapterFqn());
-            info.setRecordMode(true);
-            return info;
-        }
-
         MetadataTypeDetector.EncoderDecoderResult encDecResult = typeDetector.detectEncoderDecoder(ve, fieldName);
         if (encDecResult != null) {
             MetadataFieldInfo info = buildEncoderDecoderFieldInfo(fieldName, typeName,
@@ -191,14 +183,6 @@ public class MetadataFieldExtractor {
     private MetadataFieldInfo extractClassField(VariableElement ve, TypeElement leafTypeElement, boolean hasLombok) {
         String fieldName = ve.getSimpleName().toString();
         String typeName = ve.asType().toString();
-
-        MetadataTypeDetector.AdapterDetectionResult adapterResult = typeDetector.detectAdapter(ve, fieldName);
-        if (adapterResult != null) {
-            MetadataAccessorResolver.AccessorResult accessors = accessorResolver.resolveAccessors(leafTypeElement, ve, fieldName, hasLombok);
-            return accessors != null
-                    ? buildAdapterFieldInfo(fieldName, typeName, adapterResult.keyEnc(), accessors, adapterResult.adapterFqn())
-                    : null;
-        }
 
         MetadataTypeDetector.EncoderDecoderResult encDecResult = typeDetector.detectEncoderDecoder(ve, fieldName);
         if (encDecResult != null) {
@@ -272,24 +256,6 @@ public class MetadataFieldExtractor {
                 .element(type.element() != null ? type.element() : MetadataFieldInfo.ElementInfo.NONE)
                 .mapType(type.mapType())
                 .polymorphic(type.polymorphic())
-                .build();
-    }
-
-    private MetadataFieldInfo buildAdapterFieldInfo(String fieldName, String typeName,
-                                                     MetadataFieldValidator.MetadataKeyAndEncoding keyEnc,
-                                                     MetadataAccessorResolver.AccessorResult accessors,
-                                                     String adapterFqn) {
-        return MetadataFieldInfo.builder()
-                .javaFieldName(fieldName)
-                .metadataKey(keyEnc.metadataKey())
-                .javaTypeName(typeName)
-                .enc(keyEnc.enc())
-                .required(keyEnc.required())
-                .defaultValue(keyEnc.defaultValue())
-                .getterName(accessors.getterName())
-                .setterName(accessors.setterName())
-                .adapterType(true)
-                .adapterFqn(adapterFqn)
                 .build();
     }
 

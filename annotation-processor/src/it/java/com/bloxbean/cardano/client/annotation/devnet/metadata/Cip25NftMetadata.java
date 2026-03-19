@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.annotation.devnet.metadata;
 
+import com.bloxbean.cardano.client.metadata.annotation.MetadataDecoder;
+import com.bloxbean.cardano.client.metadata.annotation.MetadataEncoder;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataIgnore;
@@ -37,7 +39,8 @@ public class Cip25NftMetadata extends NftBaseMetadata {
 
     private NftRarity rarity;
 
-    @MetadataField(adapter = EpochAdapter.class)
+    @MetadataEncoder(EpochAdapter.class)
+    @MetadataDecoder(EpochAdapter.class)
     private Instant mintedAt;
 
     private Map<String, String> attributes;

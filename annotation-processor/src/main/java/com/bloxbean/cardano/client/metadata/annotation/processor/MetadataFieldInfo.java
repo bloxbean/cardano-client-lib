@@ -149,14 +149,6 @@ public class MetadataFieldInfo {
      */
     private boolean recordMode;
 
-    // ── Adapter (2 fields) ─────────────────────────────────────────────
-
-    /** {@code true} when the field uses a custom {@code MetadataTypeAdapter}. */
-    private boolean adapterType;
-
-    /** Fully qualified name of the adapter class (e.g. {@code "com.example.EpochSecondsAdapter"}). */
-    private String adapterFqn;
-
     // ── Encoder / Decoder (4 fields) ──────────────────────────────────
 
     /** {@code true} when the field has {@code @MetadataEncoder}. */
@@ -221,8 +213,8 @@ public class MetadataFieldInfo {
      */
     private PolymorphicInfo polymorphic;
 
-    /** {@code true} when any adapter, encoder, or decoder is configured — triggers resolver codegen. */
-    public boolean hasAnyAdapter() { return adapterType || encoderType || decoderType; }
+    /** {@code true} when any encoder or decoder is configured — triggers resolver codegen. */
+    public boolean hasAnyAdapter() { return encoderType || decoderType; }
 
     // ── Convenience accessors for codegen dispatch ─────────────────────
 

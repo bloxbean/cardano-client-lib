@@ -14,8 +14,7 @@ import java.lang.annotation.Target;
  * {@link MetadataEncoder @MetadataEncoder} is also present on the same field.
  *
  * <p>Can be combined with {@link MetadataEncoder @MetadataEncoder} on the same field for
- * separate encode/decode logic. <strong>Mutually exclusive</strong> with
- * {@link MetadataField#adapter()}.
+ * separate encode/decode logic.
  *
  * <p>When the decoder requires constructor arguments (e.g., configuration or services),
  * supply a {@link MetadataAdapterResolver} to the generated converter's constructor.

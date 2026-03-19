@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.annotation.devnet.metadata;
 
+import com.bloxbean.cardano.client.metadata.annotation.MetadataDecoder;
+import com.bloxbean.cardano.client.metadata.annotation.MetadataEncoder;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataIgnore;
@@ -44,7 +46,8 @@ public class StakeDelegationBatch extends NftBaseMetadata {
     @MetadataField(key = "active_pools", enc = MetadataFieldType.STRING_HEX)
     private List<byte[]> activePoolHashes;
 
-    @MetadataField(adapter = EpochAdapter.class)
+    @MetadataEncoder(EpochAdapter.class)
+    @MetadataDecoder(EpochAdapter.class)
     private Instant submittedAt;
 
     @MetadataField(key = "lock_period")

@@ -40,14 +40,15 @@ public class EpochAdapter implements MetadataTypeAdapter<Instant> {
 }
 ```
 
-Apply it with `@MetadataField(adapter = ...)`:
+Apply it with `@MetadataEncoder` and `@MetadataDecoder`:
 
 ```java
-@MetadataField(adapter = EpochAdapter.class)
+@MetadataEncoder(EpochAdapter.class)
+@MetadataDecoder(EpochAdapter.class)
 private Instant mintedAt;
 ```
 
-The adapter class must have a public no-arg constructor. When an adapter is specified, the `enc` attribute of `@MetadataField` is ignored.
+The adapter class must have a public no-arg constructor. When an encoder is specified, the `enc` attribute of `@MetadataField` is ignored.
 
 ### When to Use Adapters
 
@@ -80,12 +81,11 @@ public class CompactUuidAdapter implements MetadataTypeAdapter<UUID> {
 ### Constraints
 
 - The adapter class must have a **public no-arg constructor** (unless a custom `MetadataAdapterResolver` is used — see below).
-- `adapter` and `defaultValue` are **mutually exclusive** — the processor reports a compile-time error if both are set.
-- When `adapter` is specified, the `enc` attribute is ignored.
+- When an encoder is specified, the `enc` attribute is ignored.
 
-## Separate Encoder and Decoder
+## Custom Encoder and Decoder
 
-When you need different classes for serialization and deserialization — or only want to customize one direction — use `@MetadataEncoder` and `@MetadataDecoder` instead of `@MetadataField(adapter = ...)`.
+When you need different classes for serialization and deserialization — or only want to customize one direction — use `@MetadataEncoder` and `@MetadataDecoder`.
 
 Each annotation takes a class that implements `MetadataTypeAdapter<T>`. Only the relevant method is called:
 - `@MetadataEncoder` → calls `toMetadata()`
@@ -124,7 +124,6 @@ private long slot;  // Encodes slot→epoch, decodes epoch→slot
 
 ### Constraints
 
-- `@MetadataEncoder`/`@MetadataDecoder` are **mutually exclusive** with `@MetadataField(adapter = ...)`.
 - The encoder/decoder class must implement `MetadataTypeAdapter<T>`.
 - When an encoder is present, the `enc` attribute of `@MetadataField` is ignored for serialization.
 
@@ -450,8 +449,9 @@ public class Cip25NftMetadata extends NftBaseMetadata {
 
     private NftRarity rarity;                                 // Enum
 
-    @MetadataField(adapter = EpochAdapter.class)
-    private Instant mintedAt;                                 // Custom adapter
+    @MetadataEncoder(EpochAdapter.class)
+    @MetadataDecoder(EpochAdapter.class)
+    private Instant mintedAt;                                 // Custom encoder/decoder
 
     private Map<String, String> attributes;                   // Map
 

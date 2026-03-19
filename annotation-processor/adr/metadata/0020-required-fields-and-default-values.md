@@ -54,7 +54,6 @@ if (v == null) {
 - **Mutual exclusivity**: `required` + `defaultValue` on the same field is a compile-time ERROR (contradictory semantics)
 - **Type restriction**: `defaultValue` only works on scalar and enum fields. Collections, maps, Optional, nested types, and byte[] emit a compile-time ERROR
 - **Optional warning**: `required = true` on an `Optional<T>` field emits a WARNING (contradicts Optional semantics)
-- **Adapter exclusivity**: `defaultValue` + `adapter` on the same field is a compile-time ERROR
 
 ### Record Support
 Both features work identically in record mode — the null check / default injection happens before the local variable assignment, before the canonical constructor call.

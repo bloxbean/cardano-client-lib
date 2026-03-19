@@ -51,16 +51,13 @@ private String mediaType;
 | `enc`          | `MetadataFieldType`     | `DEFAULT`            | Override the on-chain encoding. See [MetadataFieldType](#metadatafieldtype-enum) below. |
 | `required`     | `boolean`               | `false`              | When `true`, deserialization throws `IllegalArgumentException` if this key is missing. Mutually exclusive with `defaultValue`. |
 | `defaultValue` | `String`                | `""` (none)          | Fallback value (as a string) when this key is absent during deserialization. Only supported on scalar and enum fields. Mutually exclusive with `required`. |
-| `adapter`      | `Class<? extends MetadataTypeAdapter<?>>` | `NoAdapter.class` | Custom adapter class for serialization/deserialization. When specified, `enc` is ignored. See [Custom Type Adapters](06-advanced-topics.md#custom-type-adapters). |
 
 ### Constraints
 
 - `required` and `defaultValue` are mutually exclusive — the processor reports a compile-time error if both are set.
-- `adapter` and `defaultValue` are mutually exclusive — the processor reports a compile-time error if both are set.
 - `required = true` on `Optional` fields emits a compile-time warning (contradicts `Optional` semantics).
 - `defaultValue` only works on scalar and enum fields — not on collections, maps, `Optional`, `byte[]`, or nested `@MetadataType` fields.
 - `enc` on collection, map, `Optional`, or nested fields is silently reset to `DEFAULT` with a warning — except `STRING_HEX`/`STRING_BASE64` on `List<byte[]>` / `Set<byte[]>` which are supported.
-- When `adapter` is specified, the `enc` attribute is ignored.
 
 ### Examples
 
@@ -81,8 +78,9 @@ private String mediaType;
 @MetadataField(key = "policy_id", enc = MetadataFieldType.STRING_HEX)
 private byte[] policyId;
 
-// Use a custom adapter
-@MetadataField(adapter = EpochAdapter.class)
+// Use a custom encoder and decoder
+@MetadataEncoder(EpochAdapter.class)
+@MetadataDecoder(EpochAdapter.class)
 private Instant mintedAt;
 ```
 
@@ -100,7 +98,7 @@ private long slot;
 |-----------|------|-------------|
 | `value`   | `Class<? extends MetadataTypeAdapter<?>>` | The encoder class. |
 
-**Mutually exclusive** with `@MetadataField(adapter = ...)`. See [Separate Encoder and Decoder](06-advanced-topics.md#separate-encoder-and-decoder).
+See [Custom Encoder and Decoder](06-advanced-topics.md#custom-encoder-and-decoder).
 
 ## @MetadataDecoder
 
@@ -116,7 +114,7 @@ private long slot;
 |-----------|------|-------------|
 | `value`   | `Class<? extends MetadataTypeAdapter<?>>` | The decoder class. |
 
-**Mutually exclusive** with `@MetadataField(adapter = ...)`. See [Separate Encoder and Decoder](06-advanced-topics.md#separate-encoder-and-decoder).
+See [Custom Encoder and Decoder](06-advanced-topics.md#custom-encoder-and-decoder).
 
 ## @MetadataIgnore
 

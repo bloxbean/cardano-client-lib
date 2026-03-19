@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.annotation.devnet.metadata;
 
+import com.bloxbean.cardano.client.metadata.annotation.MetadataDecoder;
+import com.bloxbean.cardano.client.metadata.annotation.MetadataEncoder;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -21,6 +23,6 @@ public record DexLiquidityPool(
         @MetadataField(key = "last_action") LpAction lastAction,
         @MetadataField(key = "recent_actions") List<LpAction> recentActions,
         @MetadataField(key = "provider_shares") Map<String, BigInteger> providerShares,
-        @MetadataField(adapter = EpochAdapter.class) Instant updatedAt,
+        @MetadataEncoder(EpochAdapter.class) @MetadataDecoder(EpochAdapter.class) Instant updatedAt,
         @MetadataField(key = "pool_datum", enc = MetadataFieldType.STRING_BASE64) byte[] poolDatum
 ) {}

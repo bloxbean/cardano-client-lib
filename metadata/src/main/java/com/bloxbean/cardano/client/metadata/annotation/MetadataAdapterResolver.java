@@ -3,8 +3,8 @@ package com.bloxbean.cardano.client.metadata.annotation;
 /**
  * Strategy for resolving adapter instances used by generated metadata converters.
  * <p>
- * When a generated converter has fields annotated with {@link MetadataField#adapter()},
- * {@link MetadataEncoder @MetadataEncoder}, or {@link MetadataDecoder @MetadataDecoder},
+ * When a generated converter has fields annotated with
+ * {@link MetadataEncoder @MetadataEncoder} or {@link MetadataDecoder @MetadataDecoder},
  * it uses a resolver to obtain adapter instances. This enables dependency injection
  * and stateful adapters that require constructor arguments.
  *
