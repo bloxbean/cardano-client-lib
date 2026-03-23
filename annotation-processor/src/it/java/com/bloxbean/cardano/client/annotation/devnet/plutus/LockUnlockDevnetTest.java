@@ -1,9 +1,9 @@
-package com.bloxbean.cardano.client.annotation.devnet;
+package com.bloxbean.cardano.client.annotation.devnet.plutus;
 
-import com.bloxbean.cardano.client.annotation.devnet.lock.LockSpendValidator;
-import com.bloxbean.cardano.client.annotation.devnet.lock.model.Owner;
-import com.bloxbean.cardano.client.annotation.devnet.lock.model.impl.OwnerData;
-import com.bloxbean.cardano.client.annotation.devnet.lock.model.impl.RedeemerData;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.lock.LockSpendValidator;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.lock.model.Owner;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.lock.model.impl.OwnerData;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.lock.model.impl.RedeemerData;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.backend.api.BackendService;
