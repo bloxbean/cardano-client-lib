@@ -4,10 +4,10 @@ import com.bloxbean.cardano.client.crypto.kes.KesSigner;
 import com.bloxbean.cardano.client.crypto.kes.KesVerifier;
 import com.bloxbean.cardano.client.crypto.kes.Sum6KesSigner;
 import com.bloxbean.cardano.client.crypto.kes.Sum6KesVerifier;
-import com.bloxbean.cardano.client.crypto.vrf.EcVrfVerifier;
 import com.bloxbean.cardano.client.crypto.vrf.VrfProver;
 import com.bloxbean.cardano.client.crypto.vrf.VrfVerifier;
 import com.bloxbean.cardano.client.crypto.vrf.bc.BcVrfProver;
+import com.bloxbean.cardano.client.crypto.vrf.bc.BcVrfVerifier;
 
 public enum CryptoExtConfiguration {
     INSTANCE;
@@ -18,7 +18,7 @@ public enum CryptoExtConfiguration {
     private KesSigner kesSigner;
 
     CryptoExtConfiguration() {
-        vrfVerifier = new EcVrfVerifier();
+        vrfVerifier = new BcVrfVerifier();
         vrfProver = new BcVrfProver();
         kesVerifier = new Sum6KesVerifier();
         kesSigner = new Sum6KesSigner();

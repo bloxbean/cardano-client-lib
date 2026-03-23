@@ -77,6 +77,16 @@ public class OpCert {
             byte[] coldSignature = ((ByteString) bodyItems.get(3)).getBytes();
             byte[] coldVkey = ((ByteString) outerItems.get(1)).getBytes();
 
+            if (kesVkey.length != 32) {
+                throw new KesException("Invalid KES vkey size. Expected 32 bytes, got " + kesVkey.length);
+            }
+            if (coldSignature.length != 64) {
+                throw new KesException("Invalid cold signature size. Expected 64 bytes, got " + coldSignature.length);
+            }
+            if (coldVkey.length != 32) {
+                throw new KesException("Invalid cold vkey size. Expected 32 bytes, got " + coldVkey.length);
+            }
+
             return OpCert.builder()
                     .kesVkey(kesVkey)
                     .counter(counter)

@@ -306,8 +306,13 @@ public class Ed25519Point {
      * Scalar multiplication using right-to-left double-and-add.
      * Scalar is in little-endian byte order (standard Ed25519 convention).
      * <p>
-     * WARNING: This is a variable-time implementation. Do NOT use with secret scalars.
-     * Safe for VRF verification where scalars (c, s) are public proof components.
+     * <b>SECURITY WARNING:</b> This is a <em>variable-time</em> implementation and is
+     * vulnerable to timing side-channel attacks. It MUST NOT be used with secret scalars
+     * (e.g., private keys, nonces). It is only safe for public values such as VRF proof
+     * components (c, s) during verification.
+     *
+     * @param scalar little-endian scalar bytes (must be a public value, never a secret)
+     * @return the resulting point
      */
     public Ed25519Point scalarMultiply(byte[] scalar) {
         Ed25519Point result = NEUTRAL;

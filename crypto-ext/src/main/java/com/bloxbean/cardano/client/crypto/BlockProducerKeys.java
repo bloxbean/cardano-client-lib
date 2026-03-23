@@ -62,7 +62,11 @@ public class BlockProducerKeys {
             String json = Files.readString(path);
             ObjectMapper mapper = new ObjectMapper();
             JsonNode node = mapper.readTree(json);
-            String cborHex = node.get("cborHex").asText();
+            JsonNode cborHexNode = node.get("cborHex");
+            if (cborHexNode == null) {
+                throw new KesException("Missing 'cborHex' field in TextEnvelope: " + path);
+            }
+            String cborHex = cborHexNode.asText();
             return KeyGenCborUtil.cborToBytes(cborHex);
         } catch (IOException e) {
             throw new KesException("Failed to read key file: " + path, e);

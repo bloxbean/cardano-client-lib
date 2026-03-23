@@ -64,8 +64,8 @@ public class Sum6KesVerifier implements KesVerifier {
             byte[] sig = Arrays.copyOfRange(sigBytes, offset, offset + ED25519_SIG_SIZE);
             try {
                 return ed25519.verify(sig, message, expectedPk);
-            } catch (Exception e) {
-                return false;
+            } catch (com.bloxbean.cardano.client.crypto.CryptoException e) {
+                throw new KesException("Ed25519 verification failed", e);
             }
         }
 

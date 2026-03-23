@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -34,8 +35,8 @@ class BlockProductionCryptoTest {
     private final Sum6KesVerifier kesVerifier = new Sum6KesVerifier();
 
     @BeforeAll
-    static void loadKeys() {
-        Path base = Paths.get("src/test/resources/devnet");
+    static void loadKeys() throws URISyntaxException {
+        Path base = Paths.get(BlockProductionCryptoTest.class.getResource("/devnet").toURI());
         keys = BlockProducerKeys.load(
                 base.resolve("delegate1.vrf.skey"),
                 base.resolve("delegate1.kes.skey"),
