@@ -100,7 +100,7 @@ public final class MpfTrie {
      * @throws NullPointerException if store is null
      */
     public MpfTrie(NodeStore store) {
-        this(store, null);
+        this(store, (byte[]) null);
     }
 
     /**
@@ -120,6 +120,46 @@ public final class MpfTrie {
      */
     public MpfTrie(NodeStore store, byte[] root) {
         this.hashFn = Blake2b256::digest;
+        this.impl = new Impl(store, hashFn, root, new MpfCommitmentScheme(hashFn));
+    }
+
+/**
+     * Creates a new empty MpfTrie with a custom hash function.
+     *
+     * <p>This is a convenience constructor equivalent to
+     * {@code new MpfTrie(store, hashFn, null)}.</p>
+     *
+     * <p><b>Note:</b> Tries created with non-Blake2b-256 hash functions will NOT be
+     * compatible with Aiken's on-chain merkle-patricia-forestry library.</p>
+     *
+     * @param store  the storage backend for persisting trie nodes
+     * @param hashFn the hash function for key hashing and commitments
+     * @throws NullPointerException if store or hashFn is null
+     * @since 0.8.0
+     */
+    public MpfTrie(NodeStore store, HashFunction hashFn) {
+        this(store, hashFn, null);
+    }
+
+    /**
+     * Creates an MpfTrie with a custom hash function.
+     *
+     * <p>This constructor allows using alternative hash functions (e.g., Poseidon for
+     * ZK-friendly tries) while retaining the full MPF trie structure, proof generation,
+     * and verification capabilities.</p>
+     *
+     * <p><b>Note:</b> Tries created with non-Blake2b-256 hash functions will NOT be
+     * compatible with Aiken's on-chain merkle-patricia-forestry library. Use this
+     * constructor only when you need a different hash function (e.g., for ZK proofs).</p>
+     *
+     * @param store  the storage backend for persisting trie nodes
+     * @param hashFn the hash function for key hashing and commitments
+     * @param root   the root hash of an existing trie, or null for empty trie
+     * @throws NullPointerException if store or hashFn is null
+     * @since 0.8.0
+     */
+    public MpfTrie(NodeStore store, HashFunction hashFn, byte[] root) {
+        this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
         this.impl = new Impl(store, hashFn, root, new MpfCommitmentScheme(hashFn));
     }
 
