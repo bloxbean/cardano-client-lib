@@ -2,6 +2,9 @@ package com.bloxbean.cardano.vds.mpf;
 
 import com.bloxbean.cardano.vds.core.NodeHash;
 import com.bloxbean.cardano.vds.core.nibbles.Nibbles;
+import com.bloxbean.cardano.vds.core.util.Bytes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
@@ -30,6 +33,8 @@ import java.util.Arrays;
  * and no value should become an extension node).</p>
  */
 final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
+    private static final Logger log = LoggerFactory.getLogger(DeleteOperationVisitor.class);
+
     private final NodePersistence persistence;
     private final int[] keyNibbles;
     private final int position;
@@ -111,7 +116,9 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
 
             Node childNode = persistence.load(NodeHash.of(childHash));
             if (childNode == null) {
-                // Child node missing - key not found - unchanged
+                // Child node missing - key not found - unchanged (may indicate storage corruption)
+                log.warn("Child node hash {} referenced in branch but not found in storage",
+                        Bytes.toHex(childHash));
                 return persistence.persist(node);
             }
 
@@ -161,7 +168,9 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
         byte[] childHash = node.getChild();
         Node childNode = persistence.load(NodeHash.of(childHash));
         if (childNode == null) {
-            // Child not found - key not found - unchanged
+            // Child not found - key not found - unchanged (may indicate storage corruption)
+            log.warn("Child node hash {} referenced in extension but not found in storage",
+                    Bytes.toHex(childHash));
             return persistence.persist(node);
         }
 
@@ -244,7 +253,9 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
 
             Node child = persistence.load(NodeHash.of(childHash));
             if (child == null) {
-                // Child not found, keep as-is
+                // Child not found, keep as-is (may indicate storage corruption)
+                log.warn("Child node hash {} referenced in branch during compression but not found in storage",
+                        Bytes.toHex(childHash));
                 return persistence.persist(branch);
             }
 

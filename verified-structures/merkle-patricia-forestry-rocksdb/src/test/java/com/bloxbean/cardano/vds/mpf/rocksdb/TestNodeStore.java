@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.vds.mpf.rocksdb;
 
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -10,7 +10,7 @@ public class TestNodeStore implements NodeStore {
     private final Map<String, byte[]> map = new ConcurrentHashMap<>();
 
     private static String k(byte[] h) {
-        return Arrays.toString(h);
+        return HexUtil.encodeHexString(h);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.vds.mpf.rocksdb;
 
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
@@ -158,7 +159,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         try {
             java.util.Map<String, byte[]> stagedWrites = TL_STAGED.get();
             if (stagedWrites != null) {
-                byte[] cachedValue = stagedWrites.get(java.util.Arrays.toString(hash));
+                byte[] cachedValue = stagedWrites.get(HexUtil.encodeHexString(hash));
                 if (cachedValue != null) return cachedValue;
             }
             return db.get(cfNodes, keyPrefixer.prefix(hash));
@@ -185,7 +186,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
                     stagedWrites = new java.util.HashMap<>();
                     TL_STAGED.set(stagedWrites);
                 }
-                stagedWrites.put(java.util.Arrays.toString(hash), nodeBytes);
+                stagedWrites.put(HexUtil.encodeHexString(hash), nodeBytes);
             } else {
                 db.put(cfNodes, keyPrefixer.prefix(hash), nodeBytes);
             }
@@ -207,7 +208,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             if (currentBatch != null) {
                 currentBatch.delete(cfNodes, keyPrefixer.prefix(hash));
                 java.util.Map<String, byte[]> stagedWrites = TL_STAGED.get();
-                if (stagedWrites != null) stagedWrites.remove(java.util.Arrays.toString(hash));
+                if (stagedWrites != null) stagedWrites.remove(HexUtil.encodeHexString(hash));
             } else {
                 db.delete(cfNodes, keyPrefixer.prefix(hash));
             }
@@ -273,8 +274,11 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
      * @throws RuntimeException if the work function throws an exception
      */
     public <T> T withBatch(WriteBatch batch, java.util.concurrent.Callable<T> work) {
+        if (TL_BATCH.get() != null) {
+            throw new IllegalStateException("Nested withBatch() calls are not supported. "
+                    + "Compose operations within a single batch context instead.");
+        }
         TL_BATCH.set(batch);
-        java.util.Map<String, byte[]> previousStaged = TL_STAGED.get();
         TL_STAGED.set(new java.util.HashMap<>());
         try {
             return work.call();
@@ -282,7 +286,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             throw new RuntimeException("Batch operation failed", e);
         } finally {
             TL_BATCH.remove();
-            TL_STAGED.set(previousStaged);
+            TL_STAGED.remove();
         }
     }
 
