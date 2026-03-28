@@ -86,7 +86,10 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
 
             RocksDbMptSchema.ColumnFamilies schema = RocksDbMptSchema.columnFamilies(namespaceOptions);
 
-            java.util.List<byte[]> existingCfNames = RocksDB.listColumnFamilies(new org.rocksdb.Options().setCreateIfMissing(true), dbPath);
+            java.util.List<byte[]> existingCfNames;
+            try (org.rocksdb.Options tempOpts = new org.rocksdb.Options().setCreateIfMissing(true)) {
+                existingCfNames = RocksDB.listColumnFamilies(tempOpts, dbPath);
+            }
 
             // CF options with 1-byte prefix extractor for namespace support
             ColumnFamilyOptions columnFamilyOptions = new ColumnFamilyOptions();

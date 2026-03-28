@@ -69,6 +69,11 @@ public final class RocksDbBatchContext implements AutoCloseable {
     private final WriteOptions writeOptions;
 
     /**
+     * Whether this context owns (and must close) the WriteOptions instance.
+     */
+    private final boolean ownsWriteOptions;
+
+    /**
      * Staged writes for read-your-writes consistency.
      * Maps (column family + key) to value bytes.
      */
@@ -97,6 +102,7 @@ public final class RocksDbBatchContext implements AutoCloseable {
      */
     private RocksDbBatchContext(RocksDB db, WriteOptions writeOptions) {
         this.db = Objects.requireNonNull(db, "RocksDB instance cannot be null");
+        this.ownsWriteOptions = writeOptions == null;
         this.writeOptions = writeOptions != null ? writeOptions : new WriteOptions();
         this.batch = new WriteBatch();
         this.stagedWrites = new HashMap<>();
@@ -307,8 +313,14 @@ public final class RocksDbBatchContext implements AutoCloseable {
                 log.warn("Error closing WriteBatch", e);
             }
 
-            // Note: We don't close writeOptions here as it might be shared
-            // The caller is responsible for managing WriteOptions lifecycle
+            // Close writeOptions only if this context created it
+            if (ownsWriteOptions) {
+                try {
+                    writeOptions.close();
+                } catch (Exception e) {
+                    log.warn("Error closing WriteOptions", e);
+                }
+            }
         }
     }
 

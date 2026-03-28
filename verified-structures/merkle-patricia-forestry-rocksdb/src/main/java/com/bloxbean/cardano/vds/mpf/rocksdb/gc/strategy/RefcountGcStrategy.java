@@ -44,8 +44,9 @@ public class RefcountGcStrategy implements GcStrategy {
         long start = System.currentTimeMillis();
         long total = 0, deleted = 0;
 
-        try (WriteOptions wo = new WriteOptions(); WriteBatch wb = new WriteBatch()) {
-            ReadOptions ro = new ReadOptions();
+        try (WriteOptions wo = new WriteOptions();
+             WriteBatch wb = new WriteBatch();
+             ReadOptions ro = new ReadOptions()) {
             for (var e : drop) {
                 // Decrement refcounts for the entire subtree of this dropped root
                 long[] res = decrementAll(db, cfNodes, cfRefs, e.getValue(), wb, ro, keyPrefixer);
@@ -53,7 +54,6 @@ public class RefcountGcStrategy implements GcStrategy {
                 deleted += res[1];
             }
             if (!options.dryRun) db.write(wo, wb);
-            ro.close();
         }
 
         GcReport r = new GcReport();

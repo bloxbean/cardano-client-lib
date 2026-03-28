@@ -815,17 +815,12 @@ public final class MpfTrie {
                         return TraversalProof.nonInclusionMissingBranch(steps);
                     }
 
-                    if (steps.isEmpty()) {
-                        pendingPrefix = concat(pendingPrefix, extNibbles);
-                    } else {
-                        TraversalProof.Step lastStep = steps.remove(steps.size() - 1);
-                        if (!(lastStep instanceof TraversalProof.BranchStep)) {
-                            throw new IllegalStateException("Expected BranchStep before extension but found " + lastStep.getClass().getSimpleName());
-                        }
-                        TraversalProof.BranchStep last = (TraversalProof.BranchStep) lastStep;
-                        NibblePath extended = concat(last.skipPath(), extNibbles);
-                        steps.add(new TraversalProof.BranchStep(extended, last.childHashes(), last.childIndex(), last.branchValueHash()));
-                    }
+                    // Extension nibbles are always accumulated as pending prefix for the NEXT branch.
+                    // They must NOT be folded into the preceding BranchStep because the verifier
+                    // interprets skip as nibbles consumed BEFORE the branch, computing the branch
+                    // child nibble at position (cursor + skip). Folding an extension that comes
+                    // AFTER a branch shifts the nibble index and selects the wrong branch slot.
+                    pendingPrefix = concat(pendingPrefix, extNibbles);
 
                     for (int nibble : extNibbles) {
                         traversedNibbles.add(nibble);
