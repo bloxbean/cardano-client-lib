@@ -9,8 +9,11 @@ import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.cip.cip8.*;
 import com.bloxbean.cardano.client.cip.cip8.builder.COSESign1Builder;
 import com.bloxbean.cardano.client.config.Configuration;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
+
+import java.util.Arrays;
 
 import static com.bloxbean.cardano.client.cip.cip30.CIP30Constant.*;
 
@@ -141,11 +144,19 @@ public enum CIP30DataSigner {
         boolean sigVerified = Configuration.INSTANCE.getSigningProvider()
                 .verify(signature, sigStructure.serializeAsBytes(), pubKey);
 
-        //Verify address
+        //Verify address / credential binding
         byte[] addressBytes = coseSign1.headers()._protected().getAsHeaderMap().otherHeaderAsBytes(ADDRESS_KEY);
-        Address address = new Address(addressBytes);
 
-        boolean addressVerified = AddressProvider.verifyAddress(address, pubKey);
+        boolean addressVerified;
+        if (addressBytes.length == 28) {
+            // CIP-95: raw credential hash (28 bytes = blake2b-224 output, e.g. DRep key hash)
+            byte[] pubKeyHash = Blake2bUtil.blake2bHash224(pubKey);
+            addressVerified = Arrays.equals(pubKeyHash, addressBytes);
+        } else {
+            // Standard CIP-30: Shelley address (29+ bytes)
+            Address address = new Address(addressBytes);
+            addressVerified = AddressProvider.verifyAddress(address, pubKey);
+        }
 
         return sigVerified && addressVerified;
     }
