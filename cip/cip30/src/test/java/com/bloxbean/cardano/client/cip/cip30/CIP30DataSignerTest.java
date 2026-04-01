@@ -4,9 +4,10 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.cip.cip8.COSEKey;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
@@ -110,33 +111,38 @@ class CIP30DataSignerTest {
     void signDataWithDRepKeyAndVerify() throws DataSignError {
         byte[] payload = "Hello DRep".getBytes();
 
+        // Derive DRep keys
         HdKeyPair drepKeyPair = account.drepHdKeyPair();
-        byte[] signingKey = drepKeyPair.getPrivateKey().getKeyData(); // 32-byte private key
-        byte[] verificationKey = drepKeyPair.getPublicKey().getKeyData(); // 32-byte pub key
-        byte[] credentialHash = Blake2bUtil.blake2bHash224(verificationKey); // 28 bytes
+        byte[] signingKey = drepKeyPair.getPrivateKey().getKeyData();
+        byte[] verificationKey = drepKeyPair.getPublicKey().getKeyData();
+
+        // Per CIP-95: construct a type 6 (enterprise) address from the DRep credential hash
+        Credential drepCredential = Credential.fromKey(drepKeyPair.getPublicKey().getKeyHash());
+        Address drepAddress = AddressProvider.getEntAddress(drepCredential, Networks.testnet());
 
         DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
-                credentialHash, payload, signingKey, verificationKey);
+                drepAddress.getBytes(), payload, signingKey, verificationKey);
 
         boolean verified = CIP30DataSigner.INSTANCE.verify(dataSignature);
 
         assertThat(verified).isTrue();
-        assertThat(dataSignature.address()).isEqualTo(credentialHash);
     }
 
     @Test
     void signDataWithDRepKey_wrongKey_verifyFails() throws DataSignError {
         byte[] payload = "Hello DRep".getBytes();
 
+        // Build enterprise address from account's DRep credential
         HdKeyPair drepKeyPair = account.drepHdKeyPair();
-        byte[] credentialHash = Blake2bUtil.blake2bHash224(drepKeyPair.getPublicKey().getKeyData());
+        Credential drepCredential = Credential.fromKey(drepKeyPair.getPublicKey().getKeyHash());
+        Address drepAddress = AddressProvider.getEntAddress(drepCredential, Networks.testnet());
 
-        // Sign with a different account's DRep keys but using the original credential hash
+        // Sign with a different account's DRep keys but using the original DRep address
         Account otherAccount = new Account(Networks.testnet());
         HdKeyPair otherDrepKeyPair = otherAccount.drepHdKeyPair();
 
         DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
-                credentialHash, payload,
+                drepAddress.getBytes(), payload,
                 otherDrepKeyPair.getPrivateKey().getKeyData(),
                 otherDrepKeyPair.getPublicKey().getKeyData());
 
