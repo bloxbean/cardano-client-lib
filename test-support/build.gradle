@@ -1,0 +1,21 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    api(libs.jqwik)
+    api project(':common')
+    api project(':crypto')
+    compileOnly project(':verified-structures:verified-structures-core')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Test Support Module'
+                description = 'Cardano Client Lib - Test Support'
+            }
+        }
+    }
+}

@@ -164,6 +164,31 @@ public final class MpfTrie {
     }
 
     /**
+     * Creates an MpfTrie with a custom hash function and a custom commitment scheme.
+     *
+     * <p>This is the most flexible constructor: it lets callers override both the
+     * hash function and the {@link CommitmentScheme} used to derive node commitments.
+     * Use it when integrating with alternative cryptographic primitives (e.g., a
+     * ZK-friendly hash paired with a matching commitment scheme) or when supplying
+     * a pre-configured commitment scheme instance.</p>
+     *
+     * <p><b>Note:</b> Tries created with a non-Blake2b-256 hash function or a
+     * non-default commitment scheme will NOT be compatible with Aiken's on-chain
+     * merkle-patricia-forestry library.</p>
+     *
+     * @param store             the storage backend for persisting trie nodes
+     * @param hashFn            the hash function for key hashing and commitments
+     * @param root              the root hash of an existing trie, or null for empty trie
+     * @param commitmentScheme  the commitment scheme used to derive node commitments
+     * @throws NullPointerException if store, hashFn, or commitmentScheme is null
+     * @since 0.8.0
+     */
+    public MpfTrie(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitmentScheme) {
+        this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
+        this.impl = new Impl(store, hashFn, root, commitmentScheme);
+    }
+
+    /**
      * Sets the root hash of this trie.
      *
      * <p>This method allows switching to a different trie state by changing the root.

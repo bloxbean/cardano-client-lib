@@ -7,9 +7,12 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcReport;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.RetentionPolicy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.RefcountGcStrategy;
+import com.bloxbean.cardano.vds.rocksdb.RocksDbConfig;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 
@@ -58,12 +61,15 @@ import java.io.File;
  */
 public final class RocksDbStateTrees implements StateTrees {
 
+    private static final Logger log = LoggerFactory.getLogger(RocksDbStateTrees.class);
     private static final String MODE_METADATA_KEY_SUFFIX = "_storage_mode";
 
     private final DBOptions options;
     private final RocksDB db;
     private final ColumnFamilyHandle cfNodes;
     private final ColumnFamilyHandle cfRoots;
+    private final Cache blockCache;           // may be null
+    private final ColumnFamilyOptions columnFamilyOptions;
 
     private final RocksDbNodeStore nodeStore;
     private final RocksDbRootsIndex rootsIndex;
@@ -135,12 +141,7 @@ public final class RocksDbStateTrees implements StateTrees {
     /**
      * Creates a new unified RocksDB state trees storage with custom namespace options and storage mode.
      *
-     * <p>Enables multiple isolated trees within the same database using namespacing,
-     * with control over whether to store multiple versions or operate in snapshot mode.</p>
-     *
-     * <p>Storage mode is validated against existing database metadata. If the database
-     * already exists for this namespace, the mode must match. If this is a new namespace,
-     * the mode is persisted for future validation.</p>
+     * <p>Uses {@link RocksDbConfig.Profile#DEFAULT DEFAULT} RocksDB configuration.</p>
      *
      * @param dbPath the file system path where the RocksDB database should be stored
      * @param namespaceOptions the namespace configuration for this tree
@@ -149,24 +150,59 @@ public final class RocksDbStateTrees implements StateTrees {
      * @throws IllegalStateException if storage mode doesn't match existing database
      */
     public RocksDbStateTrees(String dbPath, NamespaceOptions namespaceOptions, StorageMode storageMode) {
+        this(dbPath, namespaceOptions, storageMode, RocksDbConfig.defaults());
+    }
+
+    /**
+     * Creates a new unified RocksDB state trees storage with full configuration.
+     *
+     * <p>Enables multiple isolated trees within the same database using namespacing,
+     * with control over whether to store multiple versions or operate in snapshot mode,
+     * and RocksDB performance tuning via {@link RocksDbConfig}.</p>
+     *
+     * <p>Storage mode is validated against existing database metadata. If the database
+     * already exists for this namespace, the mode must match. If this is a new namespace,
+     * the mode is persisted for future validation.</p>
+     *
+     * @param dbPath the file system path where the RocksDB database should be stored
+     * @param namespaceOptions the namespace configuration for this tree
+     * @param storageMode the storage mode (MULTI_VERSION or SINGLE_VERSION)
+     * @param rocksDbConfig the RocksDB performance configuration
+     * @throws RuntimeException if RocksDB initialization fails
+     * @throws IllegalStateException if storage mode doesn't match existing database
+     */
+    public RocksDbStateTrees(String dbPath, NamespaceOptions namespaceOptions, StorageMode storageMode,
+                             RocksDbConfig rocksDbConfig) {
+        RocksDB.loadLibrary();
+        File dbDirectory = new File(dbPath);
+        if (!dbDirectory.exists()) dbDirectory.mkdirs();
+
+        RocksDbMptSchema.ColumnFamilies schema = RocksDbMptSchema.columnFamilies(namespaceOptions);
+        RocksDbConfig config = rocksDbConfig != null ? rocksDbConfig : RocksDbConfig.defaults();
+
+        Cache localBlockCache = null;
+        ColumnFamilyOptions localCfOptions = null;
+        DBOptions localDbOptions = null;
+        RocksDB localDb = null;
+        java.util.List<ColumnFamilyHandle> cfHandles = new java.util.ArrayList<>();
+        boolean success = false;
         try {
-            RocksDB.loadLibrary();
-            File dbDirectory = new File(dbPath);
-            if (!dbDirectory.exists()) dbDirectory.mkdirs();
-
-            RocksDbMptSchema.ColumnFamilies schema = RocksDbMptSchema.columnFamilies(namespaceOptions);
-
             // List existing CFs and open them all; also ensure nodes and roots exist
-            java.util.List<byte[]> existingCfNames = RocksDB.listColumnFamilies(new org.rocksdb.Options().setCreateIfMissing(true), dbPath);
+            java.util.List<byte[]> existingCfNames;
+            try (org.rocksdb.Options tempOpts = new org.rocksdb.Options().setCreateIfMissing(true)) {
+                existingCfNames = RocksDB.listColumnFamilies(tempOpts, dbPath);
+            }
 
-            // CF options with 1-byte prefix extractor for namespace support
-            ColumnFamilyOptions columnFamilyOptions = new ColumnFamilyOptions();
-            columnFamilyOptions.useFixedLengthPrefixExtractor(1);
+            localBlockCache = config.createBlockCache();
+
+            localCfOptions = new ColumnFamilyOptions();
+            localCfOptions.useFixedLengthPrefixExtractor(1);
+            config.applyToCfOptions(localCfOptions, localBlockCache);
 
             java.util.List<ColumnFamilyDescriptor> cfDescriptors = new java.util.ArrayList<>();
             int nodesColumnFamilyIndex = -1, rootsColumnFamilyIndex = -1;
             for (byte[] cfName : existingCfNames) {
-                cfDescriptors.add(new ColumnFamilyDescriptor(cfName, columnFamilyOptions));
+                cfDescriptors.add(new ColumnFamilyDescriptor(cfName, localCfOptions));
                 if (java.util.Arrays.equals(cfName, schema.nodes().getBytes()))
                     nodesColumnFamilyIndex = cfDescriptors.size() - 1;
                 if (java.util.Arrays.equals(cfName, schema.roots().getBytes()))
@@ -180,20 +216,25 @@ public final class RocksDbStateTrees implements StateTrees {
                     break;
                 }
             if (!hasDefaultCf)
-                cfDescriptors.add(0, new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, columnFamilyOptions));
+                cfDescriptors.add(0, new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, localCfOptions));
             // Ensure nodes/roots CFs present
             if (nodesColumnFamilyIndex < 0) {
-                cfDescriptors.add(new ColumnFamilyDescriptor(schema.nodes().getBytes(), columnFamilyOptions));
+                cfDescriptors.add(new ColumnFamilyDescriptor(schema.nodes().getBytes(), localCfOptions));
                 nodesColumnFamilyIndex = cfDescriptors.size() - 1;
             }
             if (rootsColumnFamilyIndex < 0) {
-                cfDescriptors.add(new ColumnFamilyDescriptor(schema.roots().getBytes(), columnFamilyOptions));
+                cfDescriptors.add(new ColumnFamilyDescriptor(schema.roots().getBytes(), localCfOptions));
                 rootsColumnFamilyIndex = cfDescriptors.size() - 1;
             }
 
-            this.options = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
-            java.util.List<ColumnFamilyHandle> cfHandles = new java.util.ArrayList<>();
-            this.db = RocksDB.open(options, dbPath, cfDescriptors, cfHandles);
+            localDbOptions = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
+            config.applyToDbOptions(localDbOptions);
+            localDb = RocksDB.open(localDbOptions, dbPath, cfDescriptors, cfHandles);
+
+            this.blockCache = localBlockCache;
+            this.columnFamilyOptions = localCfOptions;
+            this.options = localDbOptions;
+            this.db = localDb;
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
 
@@ -204,8 +245,25 @@ public final class RocksDbStateTrees implements StateTrees {
             // Validate and persist storage mode
             this.storageMode = storageMode;
             validateAndPersistStorageMode(storageMode);
+            success = true;
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to open RocksDB for state trees", e);
+        } finally {
+            if (!success) {
+                for (ColumnFamilyHandle h : cfHandles) closeQuietly(h);
+                closeQuietly(localDb);
+                closeQuietly(localDbOptions);
+                closeQuietly(localCfOptions);
+                closeQuietly(localBlockCache);
+            }
+        }
+    }
+
+    private static void closeQuietly(AutoCloseable closeable) {
+        if (closeable == null) return;
+        try {
+            closeable.close();
+        } catch (Exception ignored) {
         }
     }
 
@@ -261,11 +319,16 @@ public final class RocksDbStateTrees implements StateTrees {
      * cannot be accidentally opened with a different mode, which could lead to
      * data corruption.</p>
      *
+     * <p><b>Concurrency note:</b> The {@code synchronized} keyword guards against
+     * concurrent calls on the same instance. If two threads concurrently construct
+     * separate instances for the same namespace with different storage modes, the
+     * last write wins. The mismatch will be detected on the next open of that namespace.</p>
+     *
      * @param requestedMode the storage mode being requested
      * @throws IllegalStateException if mode doesn't match existing database
      * @throws RuntimeException if RocksDB error occurs
      */
-    private void validateAndPersistStorageMode(StorageMode requestedMode) {
+    private synchronized void validateAndPersistStorageMode(StorageMode requestedMode) {
         try {
             // Create namespace-prefixed metadata key
             byte[] prefixedMetadataKey = keyPrefixer.prefix(MODE_METADATA_KEY_SUFFIX.getBytes());
@@ -450,15 +513,33 @@ public final class RocksDbStateTrees implements StateTrees {
         // Close handles and DB; nodeStore/rootsIndex constructed from existing DB are no-ops on close
         try {
             cfNodes.close();
-        } catch (Exception ignored) { /* Ignore cleanup exceptions */ }
+        } catch (Exception e) {
+            log.warn("Failed to close nodes column family handle", e);
+        }
         try {
             cfRoots.close();
-        } catch (Exception ignored) { /* Ignore cleanup exceptions */ }
+        } catch (Exception e) {
+            log.warn("Failed to close roots column family handle", e);
+        }
         try {
             db.close();
-        } catch (Exception ignored) { /* Ignore cleanup exceptions */ }
+        } catch (Exception e) {
+            log.warn("Failed to close RocksDB instance", e);
+        }
         try {
             options.close();
-        } catch (Exception ignored) { /* Ignore cleanup exceptions */ }
+        } catch (Exception e) {
+            log.warn("Failed to close DBOptions", e);
+        }
+        try {
+            columnFamilyOptions.close();
+        } catch (Exception e) {
+            log.warn("Failed to close ColumnFamilyOptions", e);
+        }
+        try {
+            if (blockCache != null) blockCache.close();
+        } catch (Exception e) {
+            log.warn("Failed to close block cache", e);
+        }
     }
 }

@@ -10,6 +10,8 @@ dependencies {
     implementation(libs.co.nstant.in.cbor)
     implementation(libs.jackson.databind)
 
+    testImplementation project(':test-support')
+
     jmh(libs.jmh.core)
     jmh(libs.jmh.generator.annprocess)
 }

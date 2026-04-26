@@ -19,7 +19,7 @@ import java.util.Objects;
  * Extension nodes simply combine their compressed prefix with the child
  * commitment.</p>
  */
-public final class MpfCommitmentScheme implements CommitmentScheme {
+    public final class MpfCommitmentScheme implements CommitmentScheme {
 
     private static final int RADIX = 16;
 
