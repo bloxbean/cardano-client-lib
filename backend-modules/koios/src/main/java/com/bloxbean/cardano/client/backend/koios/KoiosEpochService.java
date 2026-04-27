@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import rest.koios.client.backend.api.epoch.model.EpochInfo;
 import rest.koios.client.backend.api.epoch.model.EpochParams;
 
@@ -21,6 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Koios Epoch Service
  */
+@Slf4j
 public class KoiosEpochService implements EpochService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -174,6 +176,7 @@ public class KoiosEpochService implements EpochService {
             protocolParams.setMaxCollateralInputs(epochParams.getMaxCollateralInputs());
         }
         if (epochParams.getCostModels() != null) {
+            protocolParams.setCostModelsRaw(convertToCostModelsRaw(epochParams.getCostModels()));
             protocolParams.setCostModels(convertToCostModels(epochParams.getCostModels()));
         }
         if (epochParams.getCoinsPerUtxoSize() != null) {
@@ -213,6 +216,20 @@ public class KoiosEpochService implements EpochService {
         protocolParams.setMinFeeRefScriptCostPerByte(epochParams.getMinFeeRefScriptCostPerByte());
 
         return Result.success("OK").withValue(protocolParams).code(200);
+    }
+
+    private LinkedHashMap<String, List<Long>> convertToCostModelsRaw(JsonNode costModelsJsonNode) {
+        if (costModelsJsonNode == null || costModelsJsonNode.isNull()) {
+            return new LinkedHashMap<>();
+        }
+        try {
+            return objectMapper.convertValue(
+                    costModelsJsonNode,
+                    new TypeReference<LinkedHashMap<String, List<Long>>>() {});
+        } catch (IllegalArgumentException e) {
+            log.warn("Failed to convert cost models", e);
+            return new LinkedHashMap<>();
+        }
     }
 
     private LinkedHashMap<String, LinkedHashMap<String, Long>> convertToCostModels(JsonNode costModelsJsonNode) {

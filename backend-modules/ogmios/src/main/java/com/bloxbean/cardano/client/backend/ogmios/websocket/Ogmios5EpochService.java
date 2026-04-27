@@ -9,7 +9,9 @@ import io.adabox.model.query.response.CurrentProtocolParameters;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 @Slf4j
 public class Ogmios5EpochService implements EpochService {
@@ -72,9 +74,17 @@ public class Ogmios5EpochService implements EpochService {
 
         LinkedHashMap<String, Long> plutusV1CostModel = (LinkedHashMap<String, Long>)currentProtocolParameters.getProtocolParameters().getCostModels().get("plutus:v1");
         LinkedHashMap<String, Long> plutusV2CostModel = (LinkedHashMap<String, Long>)currentProtocolParameters.getProtocolParameters().getCostModels().get("plutus:v2");
+        LinkedHashMap<String, Long> plutusV3CostModel = (LinkedHashMap<String, Long>)currentProtocolParameters.getProtocolParameters().getCostModels().get("plutus:v3");
+        LinkedHashMap<String, List<Long>> costModelsRaw = new LinkedHashMap<>();
+        costModelsRaw.put("PlutusV1", new ArrayList<>(plutusV1CostModel.values()));
+        costModelsRaw.put("PlutusV2", new ArrayList<>(plutusV2CostModel.values()));
+        costModelsRaw.put("PlutusV3", new ArrayList<>(plutusV3CostModel.values()));
+        protocolParams.setCostModelsRaw(costModelsRaw);
+
         LinkedHashMap<String, LinkedHashMap<String, Long>> costModels = new LinkedHashMap<>();
         costModels.put("PlutusV1", plutusV1CostModel);
         costModels.put("PlutusV2", plutusV2CostModel);
+        costModels.put("PlutusV3", plutusV3CostModel);
         protocolParams.setCostModels(costModels);
 
         protocolParams.setPriceMem(stringToDecimal(currentProtocolParameters.getProtocolParameters().getPrices().getMemory()));
