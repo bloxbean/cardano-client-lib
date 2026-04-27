@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.plutus.spec.Language;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -651,6 +652,17 @@ public class CostModelUtil {
             languageKey = "PlutusV2";
         } else if (language == Language.PLUTUS_V3) {
             languageKey = "PlutusV3";
+        }
+
+        if (protocolParams.getCostModelsRaw() != null) {
+            List<Long> raw = protocolParams.getCostModelsRaw().get(languageKey);
+            if (raw != null && !raw.isEmpty()) {
+                long[] costModel = raw.stream()
+                        .mapToLong(Long::longValue)
+                        .toArray();
+
+                return Optional.of(new CostModel(language, costModel));
+            }
         }
 
         if (protocolParams.getCostModels() == null)
