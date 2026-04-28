@@ -4,6 +4,8 @@ import com.bloxbean.cardano.vds.core.api.RootsIndex;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -52,6 +54,8 @@ import java.util.Arrays;
  */
 public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
 
+    private static final Logger log = LoggerFactory.getLogger(RocksDbRootsIndex.class);
+
     private final RocksDB db;
     private final ColumnFamilyHandle cfRoots;
     private final KeyPrefixer keyPrefixer;
@@ -84,7 +88,10 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
 
             RocksDbMptSchema.ColumnFamilies schema = RocksDbMptSchema.columnFamilies(namespaceOptions);
 
-            java.util.List<byte[]> existingCfNames = RocksDB.listColumnFamilies(new org.rocksdb.Options().setCreateIfMissing(true), dbPath);
+            java.util.List<byte[]> existingCfNames;
+            try (org.rocksdb.Options tempOpts = new org.rocksdb.Options().setCreateIfMissing(true)) {
+                existingCfNames = RocksDB.listColumnFamilies(tempOpts, dbPath);
+            }
 
             // CF options with 1-byte prefix extractor for namespace support
             ColumnFamilyOptions columnFamilyOptions = new ColumnFamilyOptions();
@@ -352,8 +359,8 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         for (AutoCloseable resource : closeables) {
             try {
                 resource.close();
-            } catch (Exception ignored) {
-                // Ignore cleanup exceptions to avoid masking other issues
+            } catch (Exception e) {
+                log.warn("Failed to close resource: {}", resource.getClass().getSimpleName(), e);
             }
         }
     }

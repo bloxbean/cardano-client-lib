@@ -5,6 +5,8 @@ import com.bloxbean.cardano.vds.core.api.StorageMode;
 import com.bloxbean.cardano.vds.mpf.rdbms.gc.RdbmsGcOptions;
 import com.bloxbean.cardano.vds.mpf.rdbms.gc.RdbmsGcReport;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 
@@ -27,6 +29,8 @@ import java.util.Collections;
  * @since 0.8.0
  */
 public class RdbmsStateTrees implements StateTrees {
+
+    private static final Logger log = LoggerFactory.getLogger(RdbmsStateTrees.class);
 
     private final RdbmsNodeStore nodeStore;
     private final RdbmsRootsIndex rootsIndex;
@@ -164,7 +168,15 @@ public class RdbmsStateTrees implements StateTrees {
 
     @Override
     public void close() {
-        nodeStore.close();
-        rootsIndex.close();
+        try {
+            nodeStore.close();
+        } catch (Exception e) {
+            log.warn("Failed to close RdbmsNodeStore", e);
+        }
+        try {
+            rootsIndex.close();
+        } catch (Exception e) {
+            log.warn("Failed to close RdbmsRootsIndex", e);
+        }
     }
 }

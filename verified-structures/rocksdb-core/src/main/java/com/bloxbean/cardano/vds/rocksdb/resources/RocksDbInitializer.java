@@ -160,8 +160,10 @@ public final class RocksDbInitializer {
                                 .setCreateMissingColumnFamilies(true)));
 
                 // Discover existing column families
-                List<byte[]> existingCfNames = RocksDB.listColumnFamilies(
-                        new Options().setCreateIfMissing(true), databasePath);
+                List<byte[]> existingCfNames;
+                try (Options tempOpts = new Options().setCreateIfMissing(true)) {
+                    existingCfNames = RocksDB.listColumnFamilies(tempOpts, databasePath);
+                }
 
                 // Build column family descriptors
                 List<ColumnFamilyDescriptor> cfDescriptors = new ArrayList<>();

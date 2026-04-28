@@ -4,6 +4,8 @@ import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 import com.bloxbean.cardano.vds.rdbms.common.KeyCodec;
 import com.bloxbean.cardano.vds.rdbms.dialect.SqlDialect;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -25,6 +27,8 @@ import java.util.Map;
  * @since 0.8.0
  */
 public class RdbmsNodeStore implements NodeStore, AutoCloseable {
+
+    private static final Logger log = LoggerFactory.getLogger(RdbmsNodeStore.class);
 
     private final DataSource dataSource;
     private final SqlDialect dialect;
@@ -231,7 +235,8 @@ public class RdbmsNodeStore implements NodeStore, AutoCloseable {
             if (conn != null) {
                 try {
                     conn.close();
-                } catch (SQLException ignored) {
+                } catch (SQLException e) {
+                    log.warn("Failed to close connection after transaction", e);
                 }
             }
         }
@@ -283,12 +288,20 @@ public class RdbmsNodeStore implements NodeStore, AutoCloseable {
             if (ownConnection) conn.commit();
         } catch (SQLException e) {
             if (ownConnection && conn != null) {
-                try { conn.rollback(); } catch (SQLException ignored) {}
+                try {
+                    conn.rollback();
+                } catch (SQLException rollbackEx) {
+                    log.warn("Failed to rollback batch put", rollbackEx);
+                }
             }
             throw new RuntimeException("Batch put failed", e);
         } finally {
             if (ownConnection && conn != null) {
-                try { conn.close(); } catch (SQLException ignored) {}
+                try {
+                    conn.close();
+                } catch (SQLException closeEx) {
+                    log.warn("Failed to close connection after batch put", closeEx);
+                }
             }
         }
     }

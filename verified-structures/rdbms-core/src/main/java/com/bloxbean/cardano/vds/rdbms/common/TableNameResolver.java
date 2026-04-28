@@ -23,7 +23,13 @@ public final class TableNameResolver {
      * @param tablePrefix the table prefix (null or empty for default tables)
      */
     public TableNameResolver(String tablePrefix) {
-        this.tablePrefix = (tablePrefix == null || tablePrefix.isBlank()) ? "" : tablePrefix.trim();
+        String trimmed = (tablePrefix == null || tablePrefix.isBlank()) ? "" : tablePrefix.trim();
+        if (!trimmed.isEmpty() && !trimmed.matches("[a-zA-Z_][a-zA-Z0-9_]*")) {
+            throw new IllegalArgumentException(
+                "Table prefix must start with a letter or underscore, " +
+                "followed by alphanumeric characters and underscores, got: '" + trimmed + "'");
+        }
+        this.tablePrefix = trimmed;
     }
 
     /**

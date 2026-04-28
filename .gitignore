@@ -164,3 +164,5 @@ rust/jniLibs
 .gradle-user-home
 /.claude/
 /docs/public/_pagefind
+.jqwik-database
+**/.jqwik-database
