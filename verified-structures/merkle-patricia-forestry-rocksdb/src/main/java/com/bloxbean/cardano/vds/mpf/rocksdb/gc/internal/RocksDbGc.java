@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal;
 
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.mpf.internal.NodeRefParser;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbRootsIndex;
@@ -48,33 +49,36 @@ public final class RocksDbGc {
      */
     public static Report sweepUnreachable(RocksDbNodeStore store, Set<String> reachable, Options opts) {
         Report report = new Report();
-        try (ReadOptions ro = new ReadOptions(); RocksIterator it = store.db().newIterator(store.nodesHandle(), ro)) {
-            WriteOptions wopts = new WriteOptions();
+        try (ReadOptions ro = new ReadOptions();
+             RocksIterator it = store.db().newIterator(store.nodesHandle(), ro);
+             WriteOptions wopts = new WriteOptions()) {
             WriteBatch wb = new WriteBatch();
-            long deleted = 0, total = 0;
-            for (it.seekToFirst(); it.isValid(); it.next()) {
-                total++;
-                byte[] k = it.key();
-                if (!reachable.contains(key(k))) {
-                    if (!opts.dryRun) wb.delete(store.nodesHandle(), k);
-                    deleted++;
-                    if (!opts.dryRun && deleted % opts.deleteBatchSize == 0) {
-                        store.db().write(wopts, wb);
-                        wb.close();
-                        wb = new WriteBatch();
-                        if (opts.progress != null) opts.progress.accept(deleted);
+            try {
+                long deleted = 0, total = 0;
+                for (it.seekToFirst(); it.isValid(); it.next()) {
+                    total++;
+                    byte[] k = it.key();
+                    if (!reachable.contains(key(k))) {
+                        if (!opts.dryRun) wb.delete(store.nodesHandle(), k);
+                        deleted++;
+                        if (!opts.dryRun && deleted % opts.deleteBatchSize == 0) {
+                            store.db().write(wopts, wb);
+                            wb.close();
+                            wb = new WriteBatch();
+                            if (opts.progress != null) opts.progress.accept(deleted);
+                        }
                     }
                 }
+                if (!opts.dryRun) {
+                    store.db().write(wopts, wb);
+                }
+                report.total = total;
+                report.deleted = deleted;
+                report.reachable = reachable.size();
+                return report;
+            } finally {
+                wb.close();
             }
-            if (!opts.dryRun) {
-                store.db().write(wopts, wb);
-            }
-            wb.close();
-            wopts.close();
-            report.total = total;
-            report.deleted = deleted;
-            report.reachable = reachable.size();
-            return report;
         } catch (RocksDBException e) {
             throw new RuntimeException(e);
         }
@@ -120,7 +124,7 @@ public final class RocksDbGc {
     }
 
     private static String key(byte[] h) {
-        return java.util.Arrays.toString(h);
+        return HexUtil.encodeHexString(h);
     }
 }
 

@@ -2,6 +2,9 @@ package com.bloxbean.cardano.vds.mpf;
 
 import com.bloxbean.cardano.vds.core.NodeHash;
 import com.bloxbean.cardano.vds.core.nibbles.Nibbles;
+import com.bloxbean.cardano.vds.core.util.Bytes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Visitor implementation for PUT operations on MPT nodes.
@@ -33,6 +36,8 @@ import com.bloxbean.cardano.vds.core.nibbles.Nibbles;
  * @see NodeSplitter for node splitting logic
  */
 final class PutOperationVisitor implements NodeVisitor<NodeHash> {
+    private static final Logger log = LoggerFactory.getLogger(PutOperationVisitor.class);
+
     private final NodePersistence persistence;
     private final int[] keyNibbles;
     private final int position;
@@ -206,7 +211,9 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
 
         Node node = persistence.load(NodeHash.of(nodeHash));
         if (node == null) {
-            // Missing node - create new leaf
+            // Missing node - create new leaf (may indicate storage corruption)
+            log.warn("Node hash {} referenced but not found in storage — creating replacement leaf",
+                    Bytes.toHex(nodeHash));
             int[] remainingNibbles = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
             byte[] hp = Nibbles.packHP(true, remainingNibbles);
             LeafNode leaf = LeafNode.of(hp, value, key);
