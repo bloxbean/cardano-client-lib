@@ -13,7 +13,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 [0.7.1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.1)
 
 ### **Preview Release**
-[0.8.0-preview1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.8.0-preview1) — [Preview Documentation](https://cardano-client.dev/docs/preview)
+[0.8.0-pre3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.8.0-pre3) — [Preview Documentation](https://cardano-client.dev/docs/preview)
 
 ## Contributing - Branch Guidelines
 
