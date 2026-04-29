@@ -4,9 +4,11 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.cip.cip8.COSEKey;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
@@ -103,6 +105,50 @@ class CIP30DataSignerTest {
         assertThat(dataSignature.signature()).isEqualTo("845882a3012704583900327d065c4c135860b9ac6a758c9ef032100a724865998a6b1b8219f3d11c3061dfc0c16e14f5b6779fef214eab7aaa3dffdc5e30c1272f0e6761646472657373583900327d065c4c135860b9ac6a758c9ef032100a724865998a6b1b8219f3d11c3061dfc0c16e14f5b6779fef214eab7aaa3dffdc5e30c1272f0ea166686173686564f5581c19790463ef4ad09bdb724e3a6550c640593d4870f6e192ac8147f35d5840d6348538f8c69f5ac30615700b78597dc29795d5fef2aa6165f17ac208b3163b2d2d55405beb6cd8fc66e3beaac1d08b91fae7b9679cc0ae212c65cfe277d608");
         assertThat(dataSignature.key()).isEqualTo("a5010102583900327d065c4c135860b9ac6a758c9ef032100a724865998a6b1b8219f3d11c3061dfc0c16e14f5b6779fef214eab7aaa3dffdc5e30c1272f0e03272006215820097c8507b71063f99e38147f09eacf76f25576a2ddfac2f40da8feee8dab2d5d");
         assertThat(HexUtil.encodeHexString(dataSignature.address())).isEqualTo("00327d065c4c135860b9ac6a758c9ef032100a724865998a6b1b8219f3d11c3061dfc0c16e14f5b6779fef214eab7aaa3dffdc5e30c1272f0e");
+    }
+
+    @Test
+    void signDataWithDRepKeyAndVerify() throws DataSignError {
+        byte[] payload = "Hello DRep".getBytes();
+
+        // Derive DRep keys
+        HdKeyPair drepKeyPair = account.drepHdKeyPair();
+        byte[] signingKey = drepKeyPair.getPrivateKey().getKeyData();
+        byte[] verificationKey = drepKeyPair.getPublicKey().getKeyData();
+
+        // Per CIP-95: construct a type 6 (enterprise) address from the DRep credential hash
+        Credential drepCredential = Credential.fromKey(drepKeyPair.getPublicKey().getKeyHash());
+        Address drepAddress = AddressProvider.getEntAddress(drepCredential, Networks.testnet());
+
+        DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
+                drepAddress.getBytes(), payload, signingKey, verificationKey);
+
+        boolean verified = CIP30DataSigner.INSTANCE.verify(dataSignature);
+
+        assertThat(verified).isTrue();
+    }
+
+    @Test
+    void signDataWithDRepKey_wrongKey_verifyFails() throws DataSignError {
+        byte[] payload = "Hello DRep".getBytes();
+
+        // Build enterprise address from account's DRep credential
+        HdKeyPair drepKeyPair = account.drepHdKeyPair();
+        Credential drepCredential = Credential.fromKey(drepKeyPair.getPublicKey().getKeyHash());
+        Address drepAddress = AddressProvider.getEntAddress(drepCredential, Networks.testnet());
+
+        // Sign with a different account's DRep keys but using the original DRep address
+        Account otherAccount = new Account(Networks.testnet());
+        HdKeyPair otherDrepKeyPair = otherAccount.drepHdKeyPair();
+
+        DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
+                drepAddress.getBytes(), payload,
+                otherDrepKeyPair.getPrivateKey().getKeyData(),
+                otherDrepKeyPair.getPublicKey().getKeyData());
+
+        boolean verified = CIP30DataSigner.INSTANCE.verify(dataSignature);
+
+        assertThat(verified).isFalse();
     }
 
     @Test
