@@ -77,6 +77,26 @@ DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
 );
 ```
 
+### CIP-95: Signing with DRep / Governance Keys
+
+[CIP-95](https://cips.cardano.org/cips/cip95/) extends `signData` to governance keys (DRep, CC cold, CC hot). Per spec, the COSE `address` header is a **type-6 enterprise address** built from the credential hash — so no separate API is required: pass the enterprise address bytes to the existing `signData` / `verify` and the address-reconstruction check works as-is.
+
+```java
+// Derive DRep keys from the account
+HdKeyPair drepKeyPair = account.drepHdKeyPair();
+Address drepAddress = AddressProvider.getEntAddress(account.drepCredential(), Networks.testnet());
+
+DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
+        drepAddress.getBytes(),
+        payload,
+        drepKeyPair.getPrivateKey().getKeyData(),
+        drepKeyPair.getPublicKey().getKeyData());
+
+boolean isValid = CIP30DataSigner.INSTANCE.verify(dataSignature);
+```
+
+The same pattern applies to other governance credentials — build a type-6 enterprise address from the credential and sign with the matching key.
+
 ### UTXO Management (CIP30UtxoSupplier)
 
 Convert wallet-provided hex-encoded CBOR UTxOs into the library's `UtxoSupplier` for transaction building.
