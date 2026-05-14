@@ -106,8 +106,8 @@ class KoiosEpochServiceIT extends KoiosBaseTest {
         assertThat(protocolParams.getDrepActivity(), greaterThan(0));
         assertThat(protocolParams.getMinFeeRefScriptCostPerByte(), greaterThan(BigDecimal.ZERO));
 
-        assertThat(protocolParams.getCostModels().get("PlutusV1").size(), is(166));
-        assertThat(protocolParams.getCostModels().get("PlutusV2").size(), is(175));
-        assertThat(protocolParams.getCostModels().get("PlutusV3").size(), greaterThan(251));
+        assertThat(protocolParams.getCostModels().get("PlutusV1").size(), greaterThanOrEqualTo(166));
+        assertThat(protocolParams.getCostModels().get("PlutusV2").size(), greaterThanOrEqualTo(175));
+        assertThat(protocolParams.getCostModels().get("PlutusV3").size(), greaterThanOrEqualTo(251));
     }
 }

@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 @Data
 @Builder
@@ -43,7 +44,13 @@ public class ProtocolParams {
     private String nonce;
 
     //Alonzo changes
+    @Deprecated
+    /**
+     * Use costModelsRaw instead of costModels. costModelsRaw is a list of costs in the order of the language's built-in functions.
+     */
     private LinkedHashMap<String, LinkedHashMap<String, Long>> costModels;
+    @JsonProperty("cost_models_raw")
+    private LinkedHashMap<String, List<Long>> costModelsRaw;
     private BigDecimal priceMem;
     private BigDecimal priceStep;
     private String maxTxExMem;

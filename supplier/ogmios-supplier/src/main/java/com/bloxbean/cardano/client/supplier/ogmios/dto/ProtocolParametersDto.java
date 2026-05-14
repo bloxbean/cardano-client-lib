@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +76,12 @@ public class ProtocolParametersDto {
         protocolParams.setMinUtxo(String.valueOf(minUtxoDepositCoefficient));
         protocolParams.setMinPoolCost(minStakePoolCost.get("ada").get("lovelace").toString());
 //        protocolParams.setNonce(currentProtocolParameters.getProtocolParameters().getNonce()); // Not there
+
+        LinkedHashMap<String, List<Long>> costModelsRaw = new LinkedHashMap<>();
+        costModelsRaw.put("PlutusV1", Arrays.asList(plutusCostModels.get("plutus:v1")));
+        costModelsRaw.put("PlutusV2", Arrays.asList(plutusCostModels.get("plutus:v2")));
+        costModelsRaw.put("PlutusV3", Arrays.asList(plutusCostModels.get("plutus:v3")));
+        protocolParams.setCostModelsRaw(costModelsRaw);
 
         LinkedHashMap<String, LinkedHashMap<String, Long>> costModels = new LinkedHashMap<>();
         costModels.put("PlutusV1",
