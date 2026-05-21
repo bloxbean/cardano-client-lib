@@ -125,13 +125,17 @@ subprojects {
         testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
         testImplementation 'org.junit.jupiter:junit-jupiter-params'
         testImplementation 'org.hamcrest:hamcrest-library:2.2'
-        testImplementation 'org.mockito:mockito-inline:4.6.1'
-        testImplementation 'org.mockito:mockito-junit-jupiter:4.6.1'
+        testImplementation libs.mockito.core
+        testImplementation 'org.mockito:mockito-junit-jupiter:5.12.0'
         testImplementation('org.assertj:assertj-core:3.23.1')
         testRuntimeOnly 'org.slf4j:slf4j-log4j12:1.7.36'
 
         testCompileOnly libs.lombok
         testAnnotationProcessor libs.lombok
+    }
+
+    tasks.withType(JavaCompile) {
+        options.encoding = 'UTF-8'
     }
 
     compileJava {
@@ -146,13 +150,12 @@ subprojects {
     }
 
     task sourceJar(type: Jar) {
-        classifier "sources"
+        archiveClassifier = "sources"
         from sourceSets.main.allJava
     }
 
     task javadocJar(type: Jar, dependsOn: javadoc) {
-
-        classifier "javadoc"
+        archiveClassifier = "javadoc"
         from javadoc.destinationDir
     }
 
@@ -176,9 +179,6 @@ subprojects {
                     resources {
                         srcDirs = ['src/it/resources']
                     }
-
-                    compileClasspath += sourceSets.main.output + sourceSets.test.output
-                    runtimeClasspath += sourceSets.main.output + sourceSets.test.output
                 }
 
                 tasks.named('processIntegrationTestResources') {
@@ -186,7 +186,8 @@ subprojects {
                 }
 
                 dependencies {
-                    implementation project
+                    implementation project()
+                    implementation sourceSets.test.output
                 }
 
                 targets {
@@ -207,9 +208,6 @@ subprojects {
                     resources {
                         srcDirs = ['src/codegen-test/resources']
                     }
-
-                    compileClasspath += sourceSets.main.output + sourceSets.test.output
-                    runtimeClasspath += sourceSets.main.output + sourceSets.test.output
                 }
 
                 tasks.named('processCodegenTestResources') {
@@ -217,7 +215,8 @@ subprojects {
                 }
 
                 dependencies {
-                    implementation project
+                    implementation project()
+                    implementation sourceSets.test.output
                 }
             }
         }

@@ -18,6 +18,9 @@ native/*
 
 # Generated files
 .idea/**/contentModel.xml
+**/bin/
+.metals/**
+.bloop/**
 
 # Sensitive or high-churn files
 .idea/**/dataSources/

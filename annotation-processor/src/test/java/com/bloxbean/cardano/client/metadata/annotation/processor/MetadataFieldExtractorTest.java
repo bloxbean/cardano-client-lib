@@ -55,10 +55,14 @@ public class MetadataFieldExtractorTest {
      * instead of generating code.
      */
     @SupportedAnnotationTypes("com.bloxbean.cardano.client.metadata.annotation.MetadataType")
-    @SupportedSourceVersion(SourceVersion.RELEASE_17)
     static class CapturingProcessor extends AbstractProcessor {
         List<MetadataFieldInfo> capturedFields = new ArrayList<>();
         boolean hasLombok;
+
+        @Override
+        public SourceVersion getSupportedSourceVersion() {
+            return SourceVersion.latestSupported();
+        }
 
         @Override
         public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
