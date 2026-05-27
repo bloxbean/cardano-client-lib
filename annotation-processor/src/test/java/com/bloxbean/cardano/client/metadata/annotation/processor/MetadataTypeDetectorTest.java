@@ -50,10 +50,14 @@ class MetadataTypeDetectorTest {
     }
 
     @SupportedAnnotationTypes("com.bloxbean.cardano.client.metadata.annotation.MetadataType")
-    @SupportedSourceVersion(SourceVersion.RELEASE_17)
     static class TypeDetectorCapturingProcessor extends AbstractProcessor {
         MetadataTypeDetector.FieldTypeResult typeResult;
         MetadataTypeDetector.EncoderDecoderResult encoderDecoderResult;
+
+        @Override
+        public SourceVersion getSupportedSourceVersion() {
+            return SourceVersion.latestSupported();
+        }
 
         @Override
         public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {

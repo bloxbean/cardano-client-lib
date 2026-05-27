@@ -40,9 +40,13 @@ class MetadataFieldValidatorTest {
     }
 
     @SupportedAnnotationTypes("com.bloxbean.cardano.client.metadata.annotation.MetadataType")
-    @SupportedSourceVersion(SourceVersion.RELEASE_17)
     static class ValidatorCapturingProcessor extends AbstractProcessor {
         MetadataFieldValidator.MetadataKeyAndEncoding keyEnc;
+
+        @Override
+        public SourceVersion getSupportedSourceVersion() {
+            return SourceVersion.latestSupported();
+        }
 
         @Override
         public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {

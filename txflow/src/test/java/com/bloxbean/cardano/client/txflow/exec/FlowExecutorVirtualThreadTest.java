@@ -95,7 +95,7 @@ class FlowExecutorVirtualThreadTest {
 
             // Monitor completion asynchronously
             handle.getResultFuture().whenComplete((result, error) -> {
-                if (error != null) {
+                if (error != null || (result != null && result.isFailed())) {
                     failed.incrementAndGet();
                 } else {
                     completed.incrementAndGet();

@@ -48,10 +48,14 @@ class MetadataAccessorResolverTest {
     }
 
     @SupportedAnnotationTypes("com.bloxbean.cardano.client.metadata.annotation.MetadataType")
-    @SupportedSourceVersion(SourceVersion.RELEASE_17)
     static class AccessorCapturingProcessor extends AbstractProcessor {
         MetadataAccessorResolver.AccessorResult result;
         final boolean simulateLombok;
+
+        @Override
+        public SourceVersion getSupportedSourceVersion() {
+            return SourceVersion.latestSupported();
+        }
 
         AccessorCapturingProcessor(boolean simulateLombok) {
             this.simulateLombok = simulateLombok;
