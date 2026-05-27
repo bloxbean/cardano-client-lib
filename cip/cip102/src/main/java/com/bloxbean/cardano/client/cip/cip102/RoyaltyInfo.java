@@ -38,6 +38,8 @@ public class RoyaltyInfo {
     @Builder.Default
     private final List<RoyaltyRecipient> recipients = List.of();
 
+    // S1170: cannot be static — @Builder.Default requires an instance field so Lombok generates the builder setter correctly
+    @SuppressWarnings("java:S1170")
     @Builder.Default
     private final int version = VERSION_2;
 
