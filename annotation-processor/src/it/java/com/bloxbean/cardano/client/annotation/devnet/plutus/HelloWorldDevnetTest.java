@@ -15,6 +15,7 @@ import com.bloxbean.cardano.client.quicktx.blueprint.extender.common.ChangeRecei
 import com.bloxbean.cardano.client.quicktx.blueprint.extender.common.PubKeyReceiver;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import scalus.bloxbean.MapScriptSupplier;
@@ -27,13 +28,14 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * On-chain validation of the stdlib v3 shared-type pipeline. Exercises a
- * contract whose datum embeds an {@code aiken/crypto/VerificationKeyHash}
- * (resolved by {@code AikenBlueprintTypeRegistry} to the prebuilt
- * {@link VerificationKeyHash}); a successful lock + unlock proves that
- * shared-type's serialization round-trips through the ledger.
+ * Same on-chain flow as {@link LockUnlockDevnetTest}, except the datum's
+ * {@code owner} field is typed as {@code aiken/crypto/VerificationKeyHash}
+ * (registry-resolved to {@link VerificationKeyHash}) rather than bare
+ * {@code ByteArray}. A successful unlock proves the registry-resolved
+ * shared type's CBOR encoding is what the ledger expects.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@DisplayName("Lock/unlock with VerificationKeyHash datum field (registry-resolved stdlib v3 type)")
 public class HelloWorldDevnetTest extends BaseIT {
 
     private HelloWorldSpendValidator validator;
@@ -63,7 +65,8 @@ public class HelloWorldDevnetTest extends BaseIT {
     }
 
     @Test
-    void deployAndLockAndUnlock() {
+    @DisplayName("VerificationKeyHash datum round-trips through the ledger end-to-end")
+    void verificationKeyHashDatumRoundTripsOnChain() {
         var deployResult = validator
                 .deploy(address1)
                 .feePayer(address1)
