@@ -1,0 +1,61 @@
+{
+  "preamble": {
+    "title": "test/pair",
+    "description": "Synthetic Pair codegen smoke (Aiken stdlib v3+, modern angle-bracket syntax)",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/PairDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "compiledCode": "5820010000",
+      "hash": "6fb13cf9efdbe986e784d1983b21d3fb90231c1745925f536a820fb4"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Opaque Plutus data"
+    },
+    "Pair<Int,ByteArray>": {
+      "title": "Pair",
+      "dataType": "pair",
+      "left": {
+        "$ref": "#/definitions/Int"
+      },
+      "right": {
+        "$ref": "#/definitions/ByteArray"
+      }
+    },
+    "PairDatum": {
+      "title": "PairDatum",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "kv_pair",
+          "$ref": "#/definitions/Pair<Int,ByteArray>"
+        }
+      ]
+    }
+  }
+}
