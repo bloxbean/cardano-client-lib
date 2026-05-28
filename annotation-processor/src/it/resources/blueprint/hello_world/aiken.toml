@@ -1,0 +1,18 @@
+name = "ccl/hello_world"
+version = "0.0.0"
+compiler = "v1.1.21"
+plutus = "v3"
+license = "Apache-2.0"
+description = "Hello-world validator for stdlib v3.1 shared-type integration testing"
+
+[repository]
+user = "ccl"
+project = "hello_world"
+platform = "github"
+
+[[dependencies]]
+name = "aiken-lang/stdlib"
+version = "v3.1.0"
+source = "github"
+
+[config]
