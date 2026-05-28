@@ -17,13 +17,7 @@ import java.util.Optional;
 
 /**
  * Registry seeded with the CIP-57 schemas emitted by Aiken stdlib v3.x.
- *
- * <p>Verified against stdlib 3.0 and 3.1. v3.1.0 adds two new types
- * ({@code InsertStrategy} and {@code Fold2}) but both are Aiken function-type
- * aliases ({@code fn(...) -> ...}); function types are not serializable to
- * PlutusData and therefore never appear in CIP-57 blueprint definitions, so
- * the v3.0 shared-type schemas registered here cover v3.1 blueprints
- * unchanged.</p>
+ * Verified against stdlib 3.0 and 3.1 (no new shared types in 3.1).
  */
 public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
 

@@ -8,13 +8,8 @@ the prebuilt classes (avoiding duplicate generated copies across blueprints).
 
 ### Supported Aiken stdlib
 
-Targets the modern Aiken standard library: **stdlib v3.x — verified against
-3.0 and 3.1**. The v3.1.0 release adds two new types (`InsertStrategy`
-and `Fold2`), but both are Aiken function-type aliases
-(`fn(...) -> ...`) — function types are not serializable to PlutusData
-and therefore never appear in CIP-57 blueprint definitions, so the
-v3.0 shared-type schemas registered by `AikenBlueprintTypeRegistry`
-cover v3.1 blueprints unchanged.
+Targets the modern Aiken standard library: **stdlib v3.x — verified
+against 3.0 and 3.1** (no new shared types in 3.1).
 
 Older stdlib versions (v1 / v2) are not supported. Blueprints compiled
 against them must be re-emitted with a modern Aiken compiler before this
