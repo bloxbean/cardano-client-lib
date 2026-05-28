@@ -17,7 +17,7 @@ import java.util.Objects;
  *   <li>{@link Finite} (index 1) — a specific POSIX time value</li>
  *   <li>{@link PositiveInfinity} (index 2) — no upper bound</li>
  * </ul>
- * Structure is identical across all Aiken stdlib versions.
+ * Matches the {@code aiken/interval/IntervalBoundType} schema emitted by Aiken stdlib v3.x.
  */
 public interface IntervalBoundType extends Data<IntervalBoundType> {
 

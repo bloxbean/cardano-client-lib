@@ -40,10 +40,9 @@ public class JavaFileUtil {
 
     /**
      * Converts a string to lowerCamelCase (first letter lowercase).
-     * Handles all CIP-57 blueprint naming conventions including:
-     * - Legacy Aiken (v1.0.x): List$ByteArray, Tuple$Int_Int
-     * - Modern Aiken (v1.1.x+): {@code List<Int>}, aiken/crypto/Hash
-     * - Module paths with tildes: types~1order~1Action
+     * Handles CIP-57 blueprint naming including angle-bracket generics
+     * ({@code List<Int>}, {@code Option<Data>}), namespaced paths
+     * ({@code aiken/crypto/Hash}) and JSON Pointer escapes ({@code types~1order~1Action}).
      *
      * <p>Examples:
      * <ul>

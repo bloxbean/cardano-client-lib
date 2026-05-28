@@ -102,8 +102,8 @@ class ServiceLoaderSharedTypeLookup implements SharedTypeLookup {
     }
 
     /**
-     * Cache key that includes both the schema signature and context hints,
-     * so lookups for different stdlib versions don't collide.
+     * Cache key that includes both the schema signature and context hints, so lookups
+     * for distinct hint-shaped contexts don't collide.
      */
     private record CacheKey(SchemaSignature signature, Map<String, String> hints) { }
 

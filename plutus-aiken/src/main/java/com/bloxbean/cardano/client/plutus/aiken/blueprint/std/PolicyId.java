@@ -6,7 +6,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 /**
  * Wrapper for a minting policy identifier (28-byte script hash).
  * <p>
- * Matches the {@code cardano/assets/PolicyId} definition emitted by Aiken stdlib v2+
+ * Matches the {@code cardano/assets/PolicyId} definition emitted by Aiken stdlib v3.x
  * ({@code title: "PolicyId", dataType: "bytes"}).
  */
 public final class PolicyId extends ByteArrayWrapper {

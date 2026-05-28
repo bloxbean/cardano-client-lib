@@ -1,10 +1,12 @@
-package blueprint;
+package com.bloxbean.cardano.client.plutus.annotation.processor.it;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
-import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlib;
-import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
 
-@Blueprint(fileInResources = "blueprint/primitive-no-title_aiken_v1_0_26.json", packageName = "com.test.primitive")
-@AikenStdlib(AikenStdlibVersion.V1)
+/**
+ * Synthetic blueprint exercising primitives without explicit titles
+ * ({@code ByteArray}, {@code Int}, {@code Bool} — only dataType set).
+ */
+@Blueprint(fileInResources = "blueprint/primitive-no-title.json",
+           packageName = "com.test.primitivenotitle")
 public interface PrimitiveNoTitleBlueprint {
 }

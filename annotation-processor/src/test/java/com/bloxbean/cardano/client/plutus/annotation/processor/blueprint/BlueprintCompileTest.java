@@ -4,43 +4,28 @@ import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-
 import static com.google.testing.compile.CompilationSubject.assertThat;
 import static com.google.testing.compile.Compiler.javac;
 
-public class BlueprintCompileTest {
+/**
+ * Co-compiles multiple kept V3 blueprints in a single javac invocation to verify that
+ * generated classes from different blueprints don't collide and the processor handles
+ * a multi-blueprint compile cleanly.
+ */
+class BlueprintCompileTest {
 
     @Test
-    void nestedListMapCompile() {
-        Compilation compilation =
-                javac()
-                        .withProcessors(new BlueprintAnnotationProcessor())
-                        .compile(
-                                JavaFileObjects.forResource("blueprint/BasicTypesBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/ComplexTypesBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/HelloWorldBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/HelloWorldNoNSBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/ListBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/MapBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/AnyPlutusDataBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/SpendMintBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/MultipleValidatorsBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/ParameterizedValidatorBlueprint.java")
-                        );
+    void multipleBlueprintsCoCompileCleanly() {
+        Compilation compilation = javac()
+                .withProcessors(new BlueprintAnnotationProcessor())
+                .compile(
+                        JavaFileObjects.forResource("blueprint/SundaeSwapV3.java"),
+                        JavaFileObjects.forResource("blueprint/UVerify.java"),
+                        JavaFileObjects.forResource("blueprint/GiftCard.java"),
+                        JavaFileObjects.forResource("blueprint/JpgStoreSniper.java"),
+                        JavaFileObjects.forResource("blueprint/CircularNestedList.java")
+                );
 
-        System.out.println(compilation.diagnostics());
-        compilation.generatedFiles().forEach(javaFileObject -> {
-            if (javaFileObject.getName().endsWith("class"))
-                return;
-            System.out.println(javaFileObject.getName());
-            try {
-                System.out.println(javaFileObject.getCharContent(true));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-
-        });
         assertThat(compilation).succeeded();
     }
 }

@@ -1,8 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.it;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
-import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlib;
-import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
 
 /**
  * UVerify contract (Plutus v3) integration test marker interface.
@@ -23,6 +21,5 @@ import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
  */
 @Blueprint(fileInResources = "blueprint/uverify_aiken_v1_1_21_42babe5.json",
            packageName = "com.bloxbean.cardano.client.plutus.annotation.blueprint.uverify")
-@AikenStdlib(AikenStdlibVersion.V3)
 public interface UVerify {
 }

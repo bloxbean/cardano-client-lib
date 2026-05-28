@@ -178,18 +178,16 @@ your-aiken-project/plutus.json
 
 Copy this file to your Java project's resources directory.
 
-### Aiken Version Differences
+### Supported Aiken Output
 
-The Aiken compiler has evolved its schema output across versions:
+The annotation processor targets modern Aiken output: angle-bracket generic syntax
+(`Option<Int>`, `List<ByteArray>`) and namespaced standard-library types
+(`cardano/address/PaymentCredential`, `aiken/crypto/VerificationKeyHash`). This is
+the format emitted by Aiken stdlib v3.x. Older blueprints using the legacy `$`
+generic delimiter need to be re-emitted with a modern compiler.
 
-- **Aiken v1.0.x** — uses `$` prefix for generic type parameters (e.g., `Option$Int`)
-- **Aiken v1.1.x** — uses angle brackets (e.g., `Option<Int>`)
-
-The annotation processor handles both formats automatically.
-
-### Aiken Stdlib Versions
-
-Different Aiken stdlib versions produce different schemas for standard types like `Credential` and `Address`. See [Shared Types and plutus-aiken](04-shared-types-and-plutus-aiken.md) for details on how this is handled.
+See [Shared Types and plutus-aiken](04-shared-types-and-plutus-aiken.md) for how
+standard types are resolved.
 
 ## Next Steps
 

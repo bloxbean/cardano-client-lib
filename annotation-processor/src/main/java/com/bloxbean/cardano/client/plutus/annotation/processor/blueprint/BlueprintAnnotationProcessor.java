@@ -117,7 +117,6 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 String key = definition.getKey();
 
                 // Skip built-in containers (List, Option, etc.); extract base type for domain-specific generics.
-                // Handles both Aiken v1.0.x ($) and v1.1.x (<>) syntax.
                 String processKey = resolveDefinitionKeyForClassGeneration(key);
                 if (processKey == null) continue;
 
@@ -143,97 +142,31 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
     /**
      * Resolves a blueprint definition key to determine if and how a Java class should be generated.
      *
-     * <p><b>Purpose:</b> CIP-57 blueprints contain definitions for both built-in container types
+     * <p>CIP-57 blueprints contain definitions for both built-in container types
      * (which map to Java's standard library) and domain-specific types (which need generated classes).
-     * This method distinguishes between them and extracts the appropriate class name for generation.</p>
+     * Generic type instantiations use angle-bracket syntax (e.g. {@code Interval<Int>},
+     * {@code List<types/order/Action>}). Built-in containers (List, Option, Tuple, Pair, Map,
+     * Dict, Data, Redeemer, Quartet, Quintet) return {@code null}; domain-specific types
+     * return the base type name (e.g. {@code "Interval<Int>"} → {@code "Interval"}).</p>
      *
-     * <p><b>Aiken Compiler Generic Type Syntax:</b></p>
-     * <ul>
-     *   <li><b>Aiken v1.0.x (dollar syntax):</b> {@code "Interval$Int"}, {@code "List$ByteArray"}, {@code "Option$Credential"}</li>
-     *   <li><b>Aiken v1.1.x (angle bracket syntax):</b> {@code "Interval<Int>"}, {@code "List<types/order/Action>"}, {@code "Option<StakeCredential>"}</li>
-     * </ul>
-     *
-     * <p><b>Processing Strategy:</b></p>
-     * <table border="1">
-     *   <tr><th>Input Definition Key</th><th>Type Category</th><th>Return Value</th><th>Reason</th></tr>
-     *   <tr><td>List$Int</td><td>Built-in container</td><td>null (skip)</td><td>Maps to java.util.List</td></tr>
-     *   <tr><td>Option&lt;Credential&gt;</td><td>Built-in container</td><td>null (skip)</td><td>Handled by OptionDataTypeProcessor → Optional</td></tr>
-     *   <tr><td>Tuple$Int_String</td><td>Built-in container</td><td>null (skip)</td><td>Maps to Tuple or PlutusData</td></tr>
-     *   <tr><td>Data</td><td>Built-in abstract type</td><td>null (skip)</td><td>Maps to PlutusData (opaque)</td></tr>
-     *   <tr><td>Interval$Int</td><td>Domain-specific</td><td>"Interval"</td><td>Generate typed Interval class</td></tr>
-     *   <tr><td>aiken/interval/IntervalBound&lt;Int&gt;</td><td>Domain-specific</td><td>"aiken/interval/IntervalBound"</td><td>Generate typed IntervalBound class</td></tr>
-     *   <tr><td>cardano/transaction/ValidityRange</td><td>Non-generic</td><td>"cardano/transaction/ValidityRange"</td><td>Generate ValidityRange class</td></tr>
-     * </table>
-     *
-     * <p><b>Built-in Containers (skipped):</b> List, Option, Optional, Tuple, Pair, Map, Dict, Data, Redeemer</p>
-     *
-     * <p><b>Domain-Specific Types (generated):</b> Interval, IntervalBound, IntervalBoundType, ValidityRange, custom user types</p>
-     *
-     * <p><b>Examples:</b></p>
-     * <pre>
-     * // Built-in containers → null (skip generation)
-     * resolveDefinitionKeyForClassGeneration("List$Int")              → null
-     * resolveDefinitionKeyForClassGeneration("Option&lt;Credential&gt;")    → null
-     * resolveDefinitionKeyForClassGeneration("Tuple$Int_String")      → null
-     * resolveDefinitionKeyForClassGeneration("Data")                  → null
-     *
-     * // Domain-specific generics → base type (generate typed class)
-     * resolveDefinitionKeyForClassGeneration("Interval$Int")          → "Interval"
-     * resolveDefinitionKeyForClassGeneration("IntervalBound&lt;Int&gt;")    → "IntervalBound"
-     * resolveDefinitionKeyForClassGeneration("aiken/interval/Interval$Int") → "aiken/interval/Interval"
-     *
-     * // Non-generic types → as-is (generate class)
-     * resolveDefinitionKeyForClassGeneration("ValidityRange")         → "ValidityRange"
-     * resolveDefinitionKeyForClassGeneration("types/order/Action")    → "types/order/Action"
-     * </pre>
-     *
-     * <p><b>Why This Matters:</b></p>
-     * <ul>
-     *   <li><b>Type Safety:</b> Domain-specific types generate typed classes (e.g., {@code Interval} instead of {@code PlutusData})</li>
-     *   <li><b>No Redundancy:</b> Built-in containers don't generate conflicting classes</li>
-     *   <li><b>Aiken Version Support:</b> Handles both v1.0.x ({@code $}) and v1.1.x ({@code <>}) syntax uniformly</li>
-     *   <li><b>Real-world Impact:</b> SundaeSwap V2 "Interval$Int" generates typed {@code Interval} class for type-safe field access</li>
-     * </ul>
-     *
-     * @param definitionKey the blueprint definition key (e.g., "Interval$Int", "Option&lt;Credential&gt;", "types/order/Action")
-     * <p>Package-private for testing.</p>
-     *
+     * @param definitionKey the blueprint definition key
      * @return the resolved key for class generation, or {@code null} if this definition should be skipped
-     * @see #isBuiltInGenericContainer(String) for built-in container detection logic
      */
     String resolveDefinitionKeyForClassGeneration(String definitionKey) {
         String processKey = definitionKey;
 
-        // Check if this is a generic type instantiation (contains $ or < or >)
-        boolean isGenericInstantiation = definitionKey.contains("<")
-            || definitionKey.contains(">")
-            || definitionKey.contains("$");
+        int angleIndex = definitionKey.indexOf('<');
+        if (angleIndex > 0) {
+            String baseTypeName = definitionKey.substring(0, angleIndex);
 
-        if (isGenericInstantiation) {
-            // Extract base type name before $ or < (e.g., "Interval$Int" → "Interval")
-            String baseTypeName = definitionKey;
-
-            int dollarIndex = baseTypeName.indexOf('$');
-            if (dollarIndex > 0) {
-                baseTypeName = baseTypeName.substring(0, dollarIndex);
-            }
-
-            int angleIndex = baseTypeName.indexOf('<');
-            if (angleIndex > 0) {
-                baseTypeName = baseTypeName.substring(0, angleIndex);
-            }
-
-            // Extract simple name (last segment after /) for container detection
             String simpleName = baseTypeName.contains("/")
                 ? baseTypeName.substring(baseTypeName.lastIndexOf('/') + 1)
                 : baseTypeName;
 
-            // Skip built-in containers; they map to Java types or are handled by specialized processors
             if (isBuiltInGenericContainer(simpleName)) {
                 return null;
             }
 
-            // Domain-specific types: use base type (e.g., "Interval$Int" → "Interval" class)
             processKey = baseTypeName;
         }
 

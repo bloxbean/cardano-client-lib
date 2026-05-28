@@ -3,11 +3,7 @@
     "title": "test/missing-title",
     "description": "Test blueprint for schemas without title fields (CIP-57 compliance test)",
     "version": "0.0.0",
-    "plutusVersion": "v2",
-    "compiler": {
-      "name": "Aiken",
-      "version": "v1.0.26-alpha"
-    },
+    "plutusVersion": "v3",
     "license": "Apache-2.0"
   },
   "validators": [

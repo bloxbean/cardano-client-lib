@@ -16,8 +16,7 @@ import java.util.Objects;
  * {@code is_inclusive} is encoded as {@code Constr(0)} for {@code False}
  * and {@code Constr(1)} for {@code True}.
  * <p>
- * Structure is identical across Aiken stdlib versions; only the {@code $ref} key
- * syntax differs ({@code $Int} in v1 vs {@code <Int>} in v3).
+ * Matches the {@code aiken/interval/IntervalBound<Int>} schema emitted by Aiken stdlib v3.x.
  */
 public final class IntervalBound implements Data<IntervalBound> {
 

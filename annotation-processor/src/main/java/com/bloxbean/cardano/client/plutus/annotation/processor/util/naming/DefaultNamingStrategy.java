@@ -5,15 +5,16 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.util.JsonPointerU
 import javax.lang.model.SourceVersion;
 
 /**
- * Default implementation of NamingStrategy that handles all CIP-57 blueprint naming conventions.
+ * Default implementation of NamingStrategy for CIP-57 blueprint naming.
  *
- * This implementation is designed to work with ANY blueprint naming style, including:
- * - Legacy style with $ and _: List$ByteArray, Tuple$Int_Int
- * - Modern style with angle brackets: {@code List<Int>}, {@code Option<Data>}
- * - Module paths with slashes: aiken/crypto/Hash, cardano/address/Credential
- * - Mixed styles: {@code List<aiken/crypto/Hash>}, {@code Option<types~1order~1Action>}
+ * <p>Handles:</p>
+ * <ul>
+ *   <li>Angle-bracket generics: {@code List<Int>}, {@code Option<Data>}</li>
+ *   <li>Namespaced paths: {@code aiken/crypto/Hash}, {@code cardano/address/Credential}</li>
+ *   <li>JSON Pointer escapes inside generics: {@code Option<types~1order~1Action>}</li>
+ * </ul>
  *
- * All inputs are sanitized to produce valid Java identifiers that JavaPoet will accept.
+ * <p>All inputs are sanitized to produce valid Java identifiers that JavaPoet will accept.</p>
  */
 public class DefaultNamingStrategy implements NamingStrategy {
 
@@ -109,23 +110,6 @@ public class DefaultNamingStrategy implements NamingStrategy {
     private String convertToCamelCase(String value, boolean capitalizeFirst) {
         if (value == null || value.isEmpty()) {
             return value;
-        }
-
-        // Handle dollar signs specially - preserve them but process parts separately
-        if (value.contains("$")) {
-            String[] parts = value.split("\\$", -1);
-            StringBuilder result = new StringBuilder();
-            for (int i = 0; i < parts.length; i++) {
-                if (i > 0) {
-                    result.append("$");
-                }
-                if (!parts[i].isEmpty()) {
-                    // First part respects capitalizeFirst, subsequent parts are PascalCase
-                    boolean shouldCapitalize = (i == 0) ? capitalizeFirst : true;
-                    result.append(convertToCamelCase(parts[i], shouldCapitalize));
-                }
-            }
-            return result.toString();
         }
 
         // Check if the value contains any delimiters

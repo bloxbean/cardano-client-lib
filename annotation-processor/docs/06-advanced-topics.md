@@ -27,13 +27,11 @@ You can have multiple `@Blueprint`-annotated interfaces, each pointing to a diff
 @Blueprint(fileInResources = "blueprint/contract-a.json",
            packageName = "com.example.contracta")
 @ExtendWith(LockUnlockValidatorExtender.class)
-@AikenStdlib(AikenStdlibVersion.V3)
 public interface ContractABlueprint { }
 
 @Blueprint(fileInResources = "blueprint/contract-b.json",
            packageName = "com.example.contractb")
 @ExtendWith(MintValidatorExtender.class)
-@AikenStdlib(AikenStdlibVersion.V2)
 public interface ContractBBlueprint { }
 ```
 
