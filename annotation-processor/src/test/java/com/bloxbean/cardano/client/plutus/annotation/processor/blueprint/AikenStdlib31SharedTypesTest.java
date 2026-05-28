@@ -21,10 +21,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * verbatim (title, description, anyOf shape, $ref targets). If the registry's schemas
  * ever drift from real Aiken output this test will fail.</p>
  *
- * <p>Stdlib v3.1 is structurally identical to v3.0 (the v3.1.0 release only added
- * helper functions, no new types or schema changes — verified against the
- * {@code aiken-lang/stdlib} v3.1.0 release notes). So this test also doubles as the
- * v3.1 compatibility assertion called for by Step 2 of the plan.</p>
+ * <p>Stdlib v3.1 is structurally identical to v3.0 from a blueprint perspective.
+ * v3.1.0 does add two new types ({@code InsertStrategy} and {@code Fold2}), but
+ * both are Aiken function-type aliases ({@code fn(...) -> ...}); function types
+ * cannot be encoded as PlutusData and therefore never appear in CIP-57 blueprint
+ * definitions, so the V3 registry covers v3.1 blueprints unchanged.</p>
  */
 class AikenStdlib31SharedTypesTest {
 
