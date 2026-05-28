@@ -13,17 +13,16 @@ import static com.google.testing.compile.CompilationSubject.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Step 2 verification — exercises Aiken stdlib v3.x shared-type resolution end-to-end.
- *
- * <p>The driver blueprint is hand-crafted to mirror what {@code aiken build} emits for
- * a contract built against stdlib v3.1 — every shared definition matches the
- * signatures registered by {@link com.bloxbean.cardano.client.plutus.aiken.blueprint.registry.AikenBlueprintTypeRegistry}
- * verbatim (title, description, anyOf shape, $ref targets). If the registry's schemas
- * ever drift from real Aiken output this test will fail.</p>
+ * Exercises Aiken stdlib v3.x shared-type resolution end-to-end. The driver
+ * blueprint is hand-crafted to mirror what {@code aiken build} emits for a
+ * contract built against stdlib v3.1 — every shared definition matches the
+ * signatures registered by
+ * {@link com.bloxbean.cardano.client.plutus.aiken.blueprint.registry.AikenBlueprintTypeRegistry}
+ * verbatim (title, description, anyOf shape, $ref targets). If the registry's
+ * schemas ever drift from real Aiken output, this test will fail.
  *
  * <p>Stdlib v3.1 introduces no new shared types, so the V3 registry covers it
- * unchanged. This test also acts as the v3.1 compatibility assertion called for
- * by Step 2 of the plan.</p>
+ * unchanged.</p>
  */
 class AikenStdlib31SharedTypesTest {
 

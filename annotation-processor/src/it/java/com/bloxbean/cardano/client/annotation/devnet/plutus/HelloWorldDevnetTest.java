@@ -27,12 +27,11 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Step 3 — first on-chain validation of the stdlib v3 shared-type pipeline.
- * Exercises a contract whose datum embeds an {@code aiken/crypto/VerificationKeyHash}
+ * On-chain validation of the stdlib v3 shared-type pipeline. Exercises a
+ * contract whose datum embeds an {@code aiken/crypto/VerificationKeyHash}
  * (resolved by {@code AikenBlueprintTypeRegistry} to the prebuilt
- * {@link VerificationKeyHash}). A successful lock + unlock proves the shared-type
- * serialization that this PR's V3 registry sets up actually round-trips
- * through the ledger.
+ * {@link VerificationKeyHash}); a successful lock + unlock proves that
+ * shared-type's serialization round-trips through the ledger.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class HelloWorldDevnetTest extends BaseIT {
