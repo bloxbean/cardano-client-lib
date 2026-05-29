@@ -23,6 +23,16 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
 
     private static final String STD_PKG = "com.bloxbean.cardano.client.plutus.aiken.blueprint.std";
 
+    // Type names that appear in multiple places (registered type, schema title,
+    // and inner constructor title). Extracted to constants so a rename or typo
+    // can't drift between sites.
+    private static final String TYPE_VERIFICATION_KEY = "VerificationKey";
+    private static final String TYPE_SCRIPT = "Script";
+    private static final String TYPE_ADDRESS = "Address";
+    private static final String TYPE_OUTPUT_REFERENCE = "OutputReference";
+    private static final String TYPE_INTERVAL_BOUND = "IntervalBound";
+    private static final String TYPE_VALIDITY_RANGE = "ValidityRange";
+
     private final Map<SchemaSignature, RegisteredType> mappings;
     private final SchemaSignatureBuilder signatureBuilder;
 
@@ -50,8 +60,8 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
     // ── Bytes wrappers (independent of any stdlib structural shape) ─────────
 
     private void registerBytesWrappers() {
-        register(bytesSchema("VerificationKey"), new RegisteredType(STD_PKG, "VerificationKey"));
-        register(bytesSchema("Script"), new RegisteredType(STD_PKG, "Script"));
+        register(bytesSchema(TYPE_VERIFICATION_KEY), new RegisteredType(STD_PKG, TYPE_VERIFICATION_KEY));
+        register(bytesSchema(TYPE_SCRIPT), new RegisteredType(STD_PKG, TYPE_SCRIPT));
         register(bytesSchema("Signature"), new RegisteredType(STD_PKG, "Signature"));
         register(bytesSchema("VerificationKeyHash"), new RegisteredType(STD_PKG, "VerificationKeyHash"));
         register(bytesSchema("ScriptHash"), new RegisteredType(STD_PKG, "ScriptHash"));
@@ -69,10 +79,10 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
         register(credentialSchema("Credential"), paymentCredentialType);
         register(credentialSchema("PaymentCredential"), paymentCredentialType);
         register(stakeCredentialSchema(), new RegisteredType(STD_PKG, "StakeCredential"));
-        register(addressSchema(), new RegisteredType(STD_PKG, "Address"));
-        register(outputReferenceSchema(), new RegisteredType(STD_PKG, "OutputReference"));
-        register(intervalBoundSchema(), new RegisteredType(STD_PKG, "IntervalBound"));
-        register(validityRangeSchema(), new RegisteredType(STD_PKG, "ValidityRange"));
+        register(addressSchema(), new RegisteredType(STD_PKG, TYPE_ADDRESS));
+        register(outputReferenceSchema(), new RegisteredType(STD_PKG, TYPE_OUTPUT_REFERENCE));
+        register(intervalBoundSchema(), new RegisteredType(STD_PKG, TYPE_INTERVAL_BOUND));
+        register(validityRangeSchema(), new RegisteredType(STD_PKG, TYPE_VALIDITY_RANGE));
     }
 
     private void register(BlueprintSchema schema, RegisteredType type) {
@@ -95,8 +105,8 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
         schema.setTitle(title);
         schema.setDescription("A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).");
         schema.setAnyOf(List.of(
-                constructor("VerificationKey", 0, List.of(defRef("aiken/crypto/VerificationKeyHash"))),
-                constructor("Script", 1, List.of(defRef("aiken/crypto/ScriptHash")))
+                constructor(TYPE_VERIFICATION_KEY, 0, List.of(defRef("aiken/crypto/VerificationKeyHash"))),
+                constructor(TYPE_SCRIPT, 1, List.of(defRef("aiken/crypto/ScriptHash")))
         ));
         return schema;
     }
@@ -119,13 +129,13 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
 
     /** stdlib v3 Address: cardano/address/PaymentCredential + Option&lt;cardano/address/StakeCredential&gt;. */
     static BlueprintSchema addressSchema() {
-        BlueprintSchema addressConstructor = constructor("Address", 0, List.of(
+        BlueprintSchema addressConstructor = constructor(TYPE_ADDRESS, 0, List.of(
                 titled(defRef("cardano/address/PaymentCredential"), "payment_credential"),
                 titled(defRef("Option<cardano/address/StakeCredential>"), "stake_credential")
         ));
 
         BlueprintSchema schema = new BlueprintSchema();
-        schema.setTitle("Address");
+        schema.setTitle(TYPE_ADDRESS);
         schema.setDescription("A Cardano `Address` typically holding one or two credential references.\n\n Note that legacy bootstrap addresses (a.k.a. 'Byron addresses') are\n completely excluded from Plutus contexts. Thus, from an on-chain\n perspective only exists addresses of type 00, 01, ..., 07 as detailed\n in [CIP-0019 :: Shelley Addresses](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0019/#shelley-addresses).");
         schema.setAnyOf(List.of(addressConstructor));
         return schema;
@@ -134,10 +144,10 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
     /** stdlib v3 OutputReference: flat ByteArray + Int. */
     static BlueprintSchema outputReferenceSchema() {
         BlueprintSchema schema = new BlueprintSchema();
-        schema.setTitle("OutputReference");
+        schema.setTitle(TYPE_OUTPUT_REFERENCE);
         schema.setDescription("An `OutputReference` is a unique reference to an output on-chain. The `output_index`\n corresponds to the position in the output list of the transaction (identified by its id)\n that produced that output");
         schema.setAnyOf(List.of(
-                constructor("OutputReference", 0, List.of(
+                constructor(TYPE_OUTPUT_REFERENCE, 0, List.of(
                         titled(defRef("ByteArray"), "transaction_id"),
                         titled(defRef("Int"), "output_index")
                 ))
@@ -160,9 +170,9 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
     /** stdlib v3 IntervalBound: refs IntervalBoundType&lt;Int&gt; + Bool. */
     static BlueprintSchema intervalBoundSchema() {
         BlueprintSchema schema = new BlueprintSchema();
-        schema.setTitle("IntervalBound");
+        schema.setTitle(TYPE_INTERVAL_BOUND);
         schema.setAnyOf(List.of(
-                constructor("IntervalBound", 0, List.of(
+                constructor(TYPE_INTERVAL_BOUND, 0, List.of(
                         titled(defRef("aiken/interval/IntervalBoundType<Int>"), "bound_type"),
                         titled(defRef("Bool"), "is_inclusive")
                 ))
@@ -173,9 +183,9 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
     /** stdlib v3 ValidityRange: refs IntervalBound&lt;Int&gt;. */
     static BlueprintSchema validityRangeSchema() {
         BlueprintSchema schema = new BlueprintSchema();
-        schema.setTitle("ValidityRange");
+        schema.setTitle(TYPE_VALIDITY_RANGE);
         schema.setAnyOf(List.of(
-                constructor("ValidityRange", 0, List.of(
+                constructor(TYPE_VALIDITY_RANGE, 0, List.of(
                         titled(defRef("aiken/interval/IntervalBound<Int>"), "lower_bound"),
                         titled(defRef("aiken/interval/IntervalBound<Int>"), "upper_bound")
                 ))
