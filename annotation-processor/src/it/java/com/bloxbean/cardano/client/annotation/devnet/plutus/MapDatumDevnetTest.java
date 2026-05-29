@@ -1,9 +1,9 @@
 package com.bloxbean.cardano.client.annotation.devnet.plutus;
 
-import com.bloxbean.cardano.client.annotation.devnet.plutus.helloworld.HelloWorldSpendValidator;
-import com.bloxbean.cardano.client.annotation.devnet.plutus.helloworld.model.Owner;
-import com.bloxbean.cardano.client.annotation.devnet.plutus.helloworld.model.impl.OwnerData;
-import com.bloxbean.cardano.client.annotation.devnet.plutus.helloworld.model.impl.RedeemerData;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.mapdatum.MapDatumSpendValidator;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.mapdatum.model.Vault;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.mapdatum.model.impl.RedeemerData;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.mapdatum.model.impl.VaultData;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
@@ -21,28 +21,31 @@ import org.junit.jupiter.api.TestInstance;
 import scalus.bloxbean.MapScriptSupplier;
 import scalus.bloxbean.ScalusTransactionEvaluator;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * <b>Unique trait:</b> single registry-resolved shared type
- * ({@code aiken/crypto/VerificationKeyHash}) as a datum field — identical
- * on-chain flow to {@link LockUnlockDevnetTest}, but routed through the
- * stdlib v3 registry instead of bare {@code ByteArray}.
+ * <b>Unique trait:</b> datum carries a {@code Pairs<ByteArray, Int>} field —
+ * the only devnet test exercising CIP-57 {@code dataType: "map"} encoding.
+ * Keys deliberately inserted out-of-lexicographic-order to stress whatever
+ * sort the encoder applies.
  *
- * <b>Asserts on Cardano:</b> the registry-resolved {@link VerificationKeyHash}
- * type's CBOR encoding is byte-for-byte what the script reads from the datum
- * — a successful unlock means the prebuilt class's {@code toPlutusData()}
- * matches ledger expectations exactly.
+ * <b>Asserts on Cardano:</b> on-chain {@code pairs.get_first(balances,
+ * "alpha")} resolves to the locked value (=42) and unlocks, proving the
+ * Java encoder's map CBOR (sort order, definite vs indefinite length,
+ * {@code mapData} wrapper) matches what the script expects — invariants
+ * compile-time tests can not pin down.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@DisplayName("Lock/unlock with VerificationKeyHash datum field (registry-resolved stdlib v3 type)")
-public class HelloWorldDevnetTest extends BaseIT {
+@DisplayName("Map<ByteArray, Int> datum field — exercises CIP-57 map dataType end-to-end")
+public class MapDatumDevnetTest extends BaseIT {
 
-    private HelloWorldSpendValidator validator;
+    private MapDatumSpendValidator validator;
     private BackendService backendService;
 
     @SneakyThrows
@@ -56,57 +59,59 @@ public class HelloWorldDevnetTest extends BaseIT {
         var utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
 
         var scriptSupplier = new MapScriptSupplier(
-                Map.of(HelloWorldSpendValidator.HASH, validator().getPlutusScript()));
+                Map.of(MapDatumSpendValidator.HASH, validator().getPlutusScript()));
 
-        validator = new HelloWorldSpendValidator(Networks.testnet())
+        validator = new MapDatumSpendValidator(Networks.testnet())
                 .withBackendService(backendService)
                 .withTransactionEvaluator(
                         new ScalusTransactionEvaluator(protocolParams, utxoSupplier, scriptSupplier));
     }
 
-    private HelloWorldSpendValidator validator() {
-        return new HelloWorldSpendValidator(Networks.testnet());
+    private MapDatumSpendValidator validator() {
+        return new MapDatumSpendValidator(Networks.testnet());
     }
 
     @Test
-    @DisplayName("VerificationKeyHash datum round-trips through the ledger end-to-end")
-    void verificationKeyHashDatumRoundTripsOnChain() {
+    @DisplayName("Map balances datum unlocks when redeemer key resolves to a positive value")
+    void mapBalancesDatumLookupRoundTripsOnChain() {
         var deployResult = validator
                 .deploy(address1)
                 .feePayer(address1)
                 .withSigner(SignerProviders.signerFrom(account1))
                 .completeAndWait(System.out::println);
-
-        System.out.println("Deploy result: " + deployResult);
         assertTrue(deployResult.isSuccessful(), "Deploy should succeed");
-
         validator.withReferenceTxInput(deployResult.getValue(), 0);
 
-        // The owner field is a shared aiken/crypto/VerificationKeyHash — registry-resolved.
-        Owner owner = new OwnerData();
-        owner.setOwner(VerificationKeyHash.of(account1.getBaseAddress().getPaymentCredentialHash().get()));
+        // Deliberately insert keys in non-lexicographic order to exercise whatever sort
+        // the encoder applies. A LinkedHashMap preserves insertion order; if the
+        // validator only accepts CIP-21 canonical order, the encoder is responsible
+        // for sorting before serialisation.
+        Map<byte[], BigInteger> balances = new LinkedHashMap<>();
+        balances.put("zeta".getBytes(StandardCharsets.UTF_8), BigInteger.valueOf(1));
+        balances.put("alpha".getBytes(StandardCharsets.UTF_8), BigInteger.valueOf(42));
+        balances.put("mu".getBytes(StandardCharsets.UTF_8), BigInteger.valueOf(7));
+
+        Vault vault = new VaultData();
+        vault.setOwner(VerificationKeyHash.of(account1.getBaseAddress().getPaymentCredentialHash().get()));
+        vault.setBalances(balances);
 
         var lockResult = validator
-                .lock(address1, Amount.ada(20), owner)
+                .lock(address1, Amount.ada(20), vault)
                 .feePayer(address1)
                 .withSigner(SignerProviders.signerFrom(account1))
                 .completeAndWait(System.out::println);
-
-        System.out.println("Lock result: " + lockResult);
         assertTrue(lockResult.isSuccessful(), "Lock should succeed");
 
-        var receiver = new PubKeyReceiver(address1, Amount.ada(20));
         var redeemer = new RedeemerData();
-        redeemer.setMsg("Hello, World!".getBytes(StandardCharsets.UTF_8));
+        redeemer.setKey("alpha".getBytes(StandardCharsets.UTF_8));
 
+        var receiver = new PubKeyReceiver(address1, Amount.ada(20));
         var unlockResult = validator
-                .unlock(owner, redeemer, List.of(receiver), new ChangeReceiver(address1))
+                .unlock(vault, redeemer, List.of(receiver), new ChangeReceiver(address1))
                 .feePayer(address1)
                 .withRequiredSigners(account1.getBaseAddress())
                 .withSigner(SignerProviders.signerFrom(account1))
                 .completeAndWait(System.out::println);
-
-        System.out.println("Unlock result: " + unlockResult.getValue());
         assertTrue(unlockResult.isSuccessful(), "Unlock should succeed");
     }
 }

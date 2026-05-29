@@ -1,0 +1,104 @@
+{
+  "preamble": {
+    "title": "ccl/tuple_check",
+    "description": "Tuple datum field — exercises the Tuple<<A,B>> doubled-bracket syntactic edge case from the CIP-57 generics amendment",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "tuple_check.tuple_check.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/tuple_check~1Holder"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/tuple_check~1Redeemer"
+        }
+      },
+      "compiledCode": "59013401010029800aba2aba1aab9faab9eaab9dab9a48888896600264646644b30013370e900118031baa00189919912cc004cdc3a400060126ea8016264646644b300130110038acc004cdc3a4000601a6ea80162664464b3001323322330020020012259800800c528456600266e3cdd7180b000801c528c4cc008008c05c005012202a37586028602a602a602a602a602a602a602a602a60246ea8c05003cdd7180998089baa0038acc004cdc39bad3013001375a602660226ea8032266e3cdd71809980a0009bae30023011375401914a0807a294100f1bac3001301037540046020601c6ea80148c044c0480062c80622c8078dd718070009bad300e002300e001300a375400b164020601400260146016002600e6ea80062c8028c01c004c01cc020004c01c004c00cdd5003c52689b2b200201",
+      "hash": "0244015f3a98d17b58c00350c3e722b2c43db870084257a433d33680"
+    },
+    {
+      "title": "tuple_check.tuple_check.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "compiledCode": "59013401010029800aba2aba1aab9faab9eaab9dab9a48888896600264646644b30013370e900118031baa00189919912cc004cdc3a400060126ea8016264646644b300130110038acc004cdc3a4000601a6ea80162664464b3001323322330020020012259800800c528456600266e3cdd7180b000801c528c4cc008008c05c005012202a37586028602a602a602a602a602a602a602a602a60246ea8c05003cdd7180998089baa0038acc004cdc39bad3013001375a602660226ea8032266e3cdd71809980a0009bae30023011375401914a0807a294100f1bac3001301037540046020601c6ea80148c044c0480062c80622c8078dd718070009bad300e002300e001300a375400b164020601400260146016002600e6ea80062c8028c01c004c01cc020004c01c004c00cdd5003c52689b2b200201",
+      "hash": "0244015f3a98d17b58c00350c3e722b2c43db870084257a433d33680"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Tuple<<Int,ByteArray>>": {
+      "title": "Tuple",
+      "dataType": "list",
+      "items": [
+        {
+          "$ref": "#/definitions/Int"
+        },
+        {
+          "$ref": "#/definitions/ByteArray"
+        }
+      ]
+    },
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "tuple_check/Holder": {
+      "title": "Holder",
+      "anyOf": [
+        {
+          "title": "Holder",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+            },
+            {
+              "title": "entry",
+              "$ref": "#/definitions/Tuple<<Int,ByteArray>>"
+            }
+          ]
+        }
+      ]
+    },
+    "tuple_check/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "expected_n",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "expected_label",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

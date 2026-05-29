@@ -1,0 +1,98 @@
+{
+  "preamble": {
+    "title": "ccl/multi_action",
+    "description": "Multi-constructor redeemer — exercises ADT constructor index 0/1/2 + per-variant field-shape switching",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "multi_action.multi_action.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/multi_action~1Owner"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/multi_action~1Action"
+        }
+      },
+      "compiledCode": "59015f01010029800aba2aba1aab9faab9eaab9dab9a48888896600264653001300700198039804000cdc3a400530070024888966002600460106ea800e26466453001159800980098059baa002899912cc004c00c0062b3001002899b8f375c6020601c6ea8025221026869008a5040311598009803800c400a294500c2018323322330020020012259800800c528456600266e3cdd71808800801c528c4cc008008c04800500d20203758601e60206020602060206020602060206020601a6ea8014dd7180718061baa300e300c375400460166ea801e2c805260166ea801e601c0069112cc004c01000a26464b30013014002802c590121bae3012001300f375401515980098040014566002601e6ea802a00716404115980099b874801000a26464b30013014002802c590121bae3012001300f3754015164034806900d0c030c034004dc3a400060126ea800e2c8038600e00260066ea801e29344d95900101",
+      "hash": "7b7f3fce387cd45177c38450c084922acd113e06785a0ab5b3cb64ff"
+    },
+    {
+      "title": "multi_action.multi_action.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "compiledCode": "59015f01010029800aba2aba1aab9faab9eaab9dab9a48888896600264653001300700198039804000cdc3a400530070024888966002600460106ea800e26466453001159800980098059baa002899912cc004c00c0062b3001002899b8f375c6020601c6ea8025221026869008a5040311598009803800c400a294500c2018323322330020020012259800800c528456600266e3cdd71808800801c528c4cc008008c04800500d20203758601e60206020602060206020602060206020601a6ea8014dd7180718061baa300e300c375400460166ea801e2c805260166ea801e601c0069112cc004c01000a26464b30013014002802c590121bae3012001300f375401515980098040014566002601e6ea802a00716404115980099b874801000a26464b30013014002802c590121bae3012001300f3754015164034806900d0c030c034004dc3a400060126ea800e2c8038600e00260066ea801e29344d95900101",
+      "hash": "7b7f3fce387cd45177c38450c084922acd113e06785a0ab5b3cb64ff"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "multi_action/Action": {
+      "title": "Action",
+      "anyOf": [
+        {
+          "title": "Greet",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        },
+        {
+          "title": "Withdraw",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        },
+        {
+          "title": "Cancel",
+          "dataType": "constructor",
+          "index": 2,
+          "fields": [
+            {
+              "title": "reason",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "multi_action/Owner": {
+      "title": "Owner",
+      "anyOf": [
+        {
+          "title": "Owner",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

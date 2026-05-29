@@ -1,0 +1,98 @@
+{
+  "preamble": {
+    "title": "ccl/map_datum",
+    "description": "Map<K,V> datum field — exercises CIP-57 map dataType encoding (sort order, length encoding) end-to-end",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "map_datum.map_datum.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/map_datum~1Vault"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/map_datum~1Redeemer"
+        }
+      },
+      "compiledCode": "59016101010029800aba2aba1aba0aab9faab9eaab9dab9a488888896600264646644b30013370e900118031baa0018994c004c02c00660166018003370e90002444b30013001300a375400d132325980098088014566002600660186ea801226464b30013005300e375400315980099199119801001000912cc00400629422b30013371e6eb8c05400400e2946266004004602c00280810131bac30133014301430143014301430143014301430103754602601a6eb8c048c03cdd500144cdc4240006eb4c048c03cdd5000c528201a8b201a323322330020020012259800800c530103d87a80008992cc004cdc78021bae3011001899ba548000cc050c0480052f5c11330030033016002404060280028090dd59809180998079baa002375c6022601c6ea8024c040c034dd500245900b45900e1bae300f001300b375400d16402430073754003164014601000260106012002601000260066ea802229344d95900101",
+      "hash": "de5a5e89cfa2902dcf86292533fcaa3aee389b675454ee6fb69738e0"
+    },
+    {
+      "title": "map_datum.map_datum.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "compiledCode": "59016101010029800aba2aba1aba0aab9faab9eaab9dab9a488888896600264646644b30013370e900118031baa0018994c004c02c00660166018003370e90002444b30013001300a375400d132325980098088014566002600660186ea801226464b30013005300e375400315980099199119801001000912cc00400629422b30013371e6eb8c05400400e2946266004004602c00280810131bac30133014301430143014301430143014301430103754602601a6eb8c048c03cdd500144cdc4240006eb4c048c03cdd5000c528201a8b201a323322330020020012259800800c530103d87a80008992cc004cdc78021bae3011001899ba548000cc050c0480052f5c11330030033016002404060280028090dd59809180998079baa002375c6022601c6ea8024c040c034dd500245900b45900e1bae300f001300b375400d16402430073754003164014601000260106012002601000260066ea802229344d95900101",
+      "hash": "de5a5e89cfa2902dcf86292533fcaa3aee389b675454ee6fb69738e0"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Pairs<ByteArray,Int>": {
+      "title": "Pairs<ByteArray, Int>",
+      "dataType": "map",
+      "keys": {
+        "$ref": "#/definitions/ByteArray"
+      },
+      "values": {
+        "$ref": "#/definitions/Int"
+      }
+    },
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "map_datum/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "key",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "map_datum/Vault": {
+      "title": "Vault",
+      "anyOf": [
+        {
+          "title": "Vault",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+            },
+            {
+              "title": "balances",
+              "$ref": "#/definitions/Pairs<ByteArray,Int>"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

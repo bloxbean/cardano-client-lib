@@ -57,11 +57,19 @@ tasks.register('codegenTestNoRegistry') {
 
 // Integration test without shared type registry
 // Recompiles integration test sources with registry disabled, then runs them against the devnet.
-// HelloWorldDevnet{Blueprint,Test} validate registry-resolved shared types (VerificationKeyHash)
-// so they are meaningless — and don't compile — when the registry is off.
+// The excluded blueprint/test pairs all reference registry-resolved shared types
+// (VerificationKeyHash, Address, PaymentCredential, ...), so they are meaningless —
+// and don't compile — when the registry is off.
 tasks.register('compileIntegrationTestNoRegistryJava', JavaCompile) {
     source = sourceSets.integrationTest.java
-    exclude '**/HelloWorldDevnetBlueprint.java', '**/HelloWorldDevnetTest.java'
+    exclude '**/HelloWorldDevnetBlueprint.java', '**/HelloWorldDevnetTest.java',
+            '**/AddressCheckDevnetBlueprint.java', '**/AddressCheckDevnetTest.java',
+            '**/MultiActionDevnetBlueprint.java', '**/MultiActionDevnetTest.java',
+            '**/OptionRedeemerDevnetBlueprint.java', '**/OptionRedeemerDevnetTest.java',
+            '**/MapDatumDevnetBlueprint.java', '**/MapDatumDevnetTest.java',
+            '**/ParameterizedLockDevnetBlueprint.java', '**/ParameterizedLockDevnetTest.java',
+            '**/MintPolicyDevnetBlueprint.java', '**/MintPolicyDevnetTest.java',
+            '**/TupleCheckDevnetBlueprint.java', '**/TupleCheckDevnetTest.java'
     classpath = sourceSets.integrationTest.compileClasspath + files(sourceSets.integrationTest.resources.srcDirs)
     destinationDirectory = layout.buildDirectory.dir('classes/java/integrationTestNoRegistry')
     options.annotationProcessorPath = configurations.integrationTestAnnotationProcessor

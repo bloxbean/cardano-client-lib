@@ -1,42 +1,49 @@
 package com.bloxbean.cardano.client.annotation.devnet.plutus;
 
-import com.bloxbean.cardano.client.annotation.devnet.plutus.lock.LockSpendValidator;
-import com.bloxbean.cardano.client.annotation.devnet.plutus.lock.model.Owner;
-import com.bloxbean.cardano.client.annotation.devnet.plutus.lock.model.impl.OwnerData;
-import com.bloxbean.cardano.client.annotation.devnet.plutus.lock.model.impl.RedeemerData;
-import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.addresscheck.AddressCheckSpendValidator;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.addresscheck.model.Vault;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.addresscheck.model.impl.RedeemerData;
+import com.bloxbean.cardano.client.annotation.devnet.plutus.addresscheck.model.impl.VaultData;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.it.BaseIT;
+import com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Address;
+import com.bloxbean.cardano.client.plutus.aiken.blueprint.std.PaymentCredential;
 import com.bloxbean.cardano.client.quicktx.blueprint.extender.common.ChangeReceiver;
 import com.bloxbean.cardano.client.quicktx.blueprint.extender.common.PubKeyReceiver;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import scalus.bloxbean.MapScriptSupplier;
 import scalus.bloxbean.ScalusTransactionEvaluator;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * <b>Unique trait:</b> baseline harness — primitive-only datum field
- * ({@code ByteArray}), no shared-type registry involvement.
+ * <b>Unique trait:</b> the most composite shared stdlib v3 type —
+ * {@code cardano/address/Address}, containing {@code PaymentCredential}
+ * (2-variant sum) and {@code Optional<StakeCredential>} — as a datum field.
  *
- * <b>Asserts on Cardano:</b> deploy → lock → unlock cycle succeeds for the
- * simplest validator, proving the devnet wiring (accounts, Scalus evaluator,
- * MapScriptSupplier) is healthy before codegen complexity stacks on top.
+ * <b>Asserts on Cardano:</b> successful unlock under {@code account1}'s
+ * signature proves the validator decoded the full Address CBOR shape
+ * correctly — the {@code PaymentCredential.VerificationKey} constructor tag
+ * (0), the inner VKH bytes, and the wrapping {@code None} stake credential
+ * (alt 1 with no fields) all match the Java-side encoding.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class LockUnlockDevnetTest extends BaseIT {
+@DisplayName("Lock/unlock with full Address datum (registry-resolved Address + PaymentCredential + Optional StakeCredential)")
+public class AddressCheckDevnetTest extends BaseIT {
 
-    private LockSpendValidator validator;
+    private AddressCheckSpendValidator validator;
     private BackendService backendService;
 
     @SneakyThrows
@@ -49,23 +56,22 @@ public class LockUnlockDevnetTest extends BaseIT {
         var protocolParams = backendService.getEpochService().getProtocolParameters().getValue();
         var utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
 
-        // Provide the script to Scalus so it can resolve it during reference script evaluation
         var scriptSupplier = new MapScriptSupplier(
-                Map.of(LockSpendValidator.HASH, validator().getPlutusScript()));
+                Map.of(AddressCheckSpendValidator.HASH, validator().getPlutusScript()));
 
-        validator = new LockSpendValidator(Networks.testnet())
+        validator = new AddressCheckSpendValidator(Networks.testnet())
                 .withBackendService(backendService)
                 .withTransactionEvaluator(
                         new ScalusTransactionEvaluator(protocolParams, utxoSupplier, scriptSupplier));
     }
 
-    private LockSpendValidator validator() {
-        return new LockSpendValidator(Networks.testnet());
+    private AddressCheckSpendValidator validator() {
+        return new AddressCheckSpendValidator(Networks.testnet());
     }
 
     @Test
-    void deployAndLockAndUnlock() {
-        // 1. Deploy the contract to create a reference input
+    @DisplayName("Address datum (VerificationKey credential + None stake) round-trips through the ledger end-to-end")
+    void addressDatumRoundTripsOnChain() {
         var deployResult = validator
                 .deploy(address1)
                 .feePayer(address1)
@@ -77,12 +83,16 @@ public class LockUnlockDevnetTest extends BaseIT {
 
         validator.withReferenceTxInput(deployResult.getValue(), 0);
 
-        // 2. Lock funds with a datum
-        Owner owner = new OwnerData();
-        owner.setOwner(account1.getBaseAddress().getPaymentCredentialHash().get());
+        // Construct the admin Address from account1's payment credential hash.
+        // Stake credential left empty (None) — the validator only checks the payment side.
+        byte[] pkh = account1.getBaseAddress().getPaymentCredentialHash().get();
+        Address admin = new Address(PaymentCredential.verificationKey(pkh), Optional.empty());
+
+        Vault vault = new VaultData();
+        vault.setAdmin(admin);
 
         var lockResult = validator
-                .lock(address1, Amount.ada(20), owner)
+                .lock(address1, Amount.ada(20), vault)
                 .feePayer(address1)
                 .withSigner(SignerProviders.signerFrom(account1))
                 .completeAndWait(System.out::println);
@@ -90,13 +100,12 @@ public class LockUnlockDevnetTest extends BaseIT {
         System.out.println("Lock result: " + lockResult);
         assertTrue(lockResult.isSuccessful(), "Lock should succeed");
 
-        // 3. Unlock funds with a redeemer
         var receiver = new PubKeyReceiver(address1, Amount.ada(20));
         var redeemer = new RedeemerData();
-        redeemer.setMsg("Hello, World!".getBytes(StandardCharsets.UTF_8));
+        redeemer.setMarker("anything".getBytes());
 
         var unlockResult = validator
-                .unlock(owner, redeemer, List.of(receiver), new ChangeReceiver(address1))
+                .unlock(vault, redeemer, List.of(receiver), new ChangeReceiver(address1))
                 .feePayer(address1)
                 .withRequiredSigners(account1.getBaseAddress())
                 .withSigner(SignerProviders.signerFrom(account1))

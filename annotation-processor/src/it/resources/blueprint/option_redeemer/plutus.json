@@ -1,0 +1,88 @@
+{
+  "preamble": {
+    "title": "ccl/option_redeemer",
+    "description": "Option<T> redeemer — exercises generic Option<T> codegen at the validator boundary, both Some and None paths",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "option_redeemer.option_redeemer.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/option_redeemer~1Owner"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Option<ByteArray>"
+        }
+      },
+      "compiledCode": "59012d01010029800aba2aba1aab9faab9eaab9dab9a48888896600264653001300700198039804000cc01c0092225980099b8748008c01cdd500144c8cc8a60022b30013001300a3754005159800980098051baa0068acc004c8cc88cc008008004896600200314a115980099b8f375c602000200714a3133002002301100140308078dd618071807980798079807980798079807980798061baa005375c601a60166ea8c034c02cdd500144cdc79bae300d300b375400c9101026f6b008a50402514a0804a2c804a60146ea801a601a0069112cc004c01000a26464b30013013002802c590111bae3011001300e375401315980099b874800800a2b3001300e37540130038b201e8b20184030300b300c001370e900018041baa0028b200c180380098019baa0078a4d13656400401",
+      "hash": "84273295fd197e98e6df9e1dce322480b7a03220def16cc53dfef9f2"
+    },
+    {
+      "title": "option_redeemer.option_redeemer.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "compiledCode": "59012d01010029800aba2aba1aab9faab9eaab9dab9a48888896600264653001300700198039804000cc01c0092225980099b8748008c01cdd500144c8cc8a60022b30013001300a3754005159800980098051baa0068acc004c8cc88cc008008004896600200314a115980099b8f375c602000200714a3133002002301100140308078dd618071807980798079807980798079807980798061baa005375c601a60166ea8c034c02cdd500144cdc79bae300d300b375400c9101026f6b008a50402514a0804a2c804a60146ea801a601a0069112cc004c01000a26464b30013013002802c590111bae3011001300e375401315980099b874800800a2b3001300e37540130038b201e8b20184030300b300c001370e900018041baa0028b200c180380098019baa0078a4d13656400401",
+      "hash": "84273295fd197e98e6df9e1dce322480b7a03220def16cc53dfef9f2"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Option<ByteArray>": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "option_redeemer/Owner": {
+      "title": "Owner",
+      "anyOf": [
+        {
+          "title": "Owner",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

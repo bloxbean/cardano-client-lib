@@ -1,0 +1,18 @@
+name = "ccl/parameterized_lock"
+version = "0.0.0"
+compiler = "v1.1.21"
+plutus = "v3"
+license = "Apache-2.0"
+description = "Parameterised validator — exercises compile-time parameter application: distinct script hash per applied param value"
+
+[repository]
+user = "ccl"
+project = "parameterized_lock"
+platform = "github"
+
+[[dependencies]]
+name = "aiken-lang/stdlib"
+version = "v3.1.0"
+source = "github"
+
+[config]

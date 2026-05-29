@@ -1,0 +1,18 @@
+name = "ccl/multi_action"
+version = "0.0.0"
+compiler = "v1.1.21"
+plutus = "v3"
+license = "Apache-2.0"
+description = "Multi-constructor redeemer — exercises ADT constructor index 0/1/2 + per-variant field-shape switching"
+
+[repository]
+user = "ccl"
+project = "multi_action"
+platform = "github"
+
+[[dependencies]]
+name = "aiken-lang/stdlib"
+version = "v3.1.0"
+source = "github"
+
+[config]
