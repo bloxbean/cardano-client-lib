@@ -104,21 +104,7 @@ ConstrPlutusData plutusData = ref.toPlutusData();
 
 The registry targets the latest Aiken standard library (stdlib v3.x — verified against 3.0 and 3.1). Older stdlib versions (v1/v2) are no longer supported; blueprints compiled with those versions need to be re-emitted with a modern Aiken compiler.
 
-### Declaring the stdlib version
-
-The `@AikenStdlib` annotation is available as an optional marker:
-
-```java
-import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlib;
-import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
-
-@Blueprint(fileInResources = "blueprint/mycontract.json",
-           packageName = "com.example.mycontract")
-@AikenStdlib(AikenStdlibVersion.V3)
-public interface MyContractBlueprint {}
-```
-
-`AikenStdlibVersion` currently exposes a single value `V3` (and `LATEST = V3`); the annotation is a no-op for the processor and exists for source compatibility and as an extension point for a future stdlib v4+.
+The `@AikenStdlib(AikenStdlibVersion.V3)` annotation exists as a source-compatibility marker and a future extension point. It currently has only the single value `V3` (= `LATEST`) and is a no-op for the processor — you do not need to add it to your blueprint interface. If a future stdlib version introduces breaking changes, the annotation will be promoted to load-bearing then.
 
 ## How the Registry Works
 

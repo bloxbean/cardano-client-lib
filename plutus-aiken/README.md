@@ -24,8 +24,9 @@ processor will resolve their shared types.
   (`VerificationKeyHash`, `ScriptHash`, `PolicyId`, `AssetName`, `Hash`,
   `DataHash`, `Signature`, `Script`, `VerificationKey`).
 - `com.bloxbean.cardano.client.plutus.aiken.annotation` —
-  `@AikenStdlib` annotation and `AikenStdlibVersion` enum (currently
-  `V3` only; kept as a source-compat marker and extension point).
+  `@AikenStdlib` annotation and `AikenStdlibVersion` enum. Source-compat
+  marker only (no-op for the processor); kept as an extension point for
+  future stdlib versions.
 - `com.bloxbean.cardano.client.plutus.aiken.blueprint.registry` —
   `AikenBlueprintTypeRegistry`, registered via `META-INF/services`.
 

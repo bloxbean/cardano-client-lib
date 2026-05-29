@@ -173,6 +173,36 @@ public abstract class Script implements Data<Script>, Credential {
 
 The sub-package name is the interface name lowercased (e.g., `Credential` → `credential`, `PaymentCredential` → `paymentcredential`). This avoids naming collisions — both `credential.VerificationKey` and `paymentcredential.VerificationKey` can coexist.
 
+#### Instantiating sum-type variants
+
+To construct an `Action` value, instantiate the **variant's** `*Data` class — not the interface and not the abstract variant:
+
+```java
+import com.example.generated.multi_action.model.Action;
+import com.example.generated.multi_action.model.action.impl.GreetData;
+import com.example.generated.multi_action.model.action.impl.WithdrawData;
+import com.example.generated.multi_action.model.action.impl.CancelData;
+
+// Variant with fields
+Action a = new GreetData();
+((GreetData) a).setMsg("hi".getBytes(StandardCharsets.UTF_8));
+
+// Variant without fields
+Action b = new WithdrawData();
+```
+
+`MultiActionDevnetTest` walks the full pattern across all three variants.
+
+#### Recursive (self-referencing) types
+
+Recursive sum types — a variant whose field type is the enclosing interface — are supported without extra ceremony. Aiken's
+
+```aiken
+pub type IntList { Nil; Cons { head: Int, tail: IntList } }
+```
+
+generates a `Cons` variant with `private IntList tail;` and works the same way as any other sum type. `RecursiveSumDevnetTest` builds `Cons(1, Cons(2, Cons(3, Nil)))` and locks/unlocks it on-chain, which pins down the nested-`ConstrPlutusData` depth handling in the converter.
+
 The interface converter dispatches based on the `alternative` index:
 
 ```java
@@ -263,6 +293,23 @@ Owner owner = OwnerData.deserialize(hex);
 Owner owner = OwnerData.deserialize(bytes);
 ```
 
+### Reading a datum back from the chain
+
+To reconstruct a Java object from a datum the ledger has stored, fetch the script UTxO, take its inline-datum hex, and feed it through the generated `deserialize`:
+
+```java
+var utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+
+var scriptUtxo = ScriptUtxoFinders
+        .findFirstByInlineDatum(utxoSupplier, validator.getScriptAddress(), original.toPlutusData())
+        .orElseThrow(() -> new IllegalStateException("Script UTxO not found"));
+
+String datumCborHex = scriptUtxo.getInlineDatum();
+Owner decoded = OwnerData.deserialize(datumCborHex);
+```
+
+This is the only way to catch encoder/decoder drift (a field reorder applied to only one direction): an encoder-only test passes because it round-trips through itself, but a chain-read decoder test compares against bytes the ledger actually stored. `LockUnlockReadBackDevnetTest` is the worked example.
+
 ## Primitive Type Mapping
 
 | Plutus Type | JSON Schema | Java Type |
@@ -272,7 +319,7 @@ Owner owner = OwnerData.deserialize(bytes);
 | String | `"dataType": "#string"` | `String` |
 | Bool | Built-in | `boolean` |
 | List\<T\> | `"dataType": "list"` | `java.util.List<T>` |
-| Map\<K,V\> | `"dataType": "map"` | `java.util.Map<K,V>` |
+| Map\<K,V\> / Pairs\<K,V\> | `"dataType": "map"` | `java.util.Map<K,V>` |
 | Option\<T\> | `"anyOf"` with Some/None | `java.util.Optional<T>` |
 | Tuple (2 items) | `"dataType": "list"` (2 items) | `Pair<A,B>` |
 | Tuple (3 items) | `"dataType": "list"` (3 items) | `Triple<A,B,C>` |
@@ -280,6 +327,12 @@ Owner owner = OwnerData.deserialize(bytes);
 | Tuple (5 items) | `"dataType": "list"` (5 items) | `Quintet<A,B,C,D,E>` |
 | Tuple (6+ items) | `"dataType": "list"` (6+ items) | _(rejected — compilation error)_ |
 | Data (opaque) | `"title": "Data"` | `PlutusData` |
+
+A few notes on this table:
+
+- **Map vs Pairs.** Aiken's `Pairs<K, V>` and Map types both emit `"dataType": "map"` and both map to `java.util.Map<K, V>` on the Java side. They're the same thing at the blueprint level.
+- **Tuples use the CIP-57 doubled-bracket key.** Aiken emits an n-tuple definition key as `Tuple<<A,B>>` (note the doubled angle brackets — see the CIP-57 generics amendment for the rationale). The underlying encoding is `"dataType": "list"` with positional `items`, distinct from `constrData`.
+- **Top-level `Option<T>`.** The processor only generates a Java class for `Option<T>` when it appears **as a field** of an enclosing constructor. When `Option<T>` is itself the redeemer or datum at the validator boundary, no `OptionXxxData` class is emitted — construct the redeemer by hand as `ConstrPlutusData.of(0, …)` for `Some` or `ConstrPlutusData.of(1)` for `None`. `OptionRedeemerDevnetTest` shows the hand-rolled pattern.
 
 ## Converter Classes
 
