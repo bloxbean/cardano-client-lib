@@ -16,6 +16,9 @@ import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
  * must therefore NOT generate local copies and MUST emit the corresponding
  * {@code *Converter} classes for each resolved type.</p>
  */
+// Test-fixture file: loaded by google-testing-compile via JavaFileObjects.forResource,
+// not from a source root. Path/package decoupling is intentional.
+@SuppressWarnings("java:S1598")
 @Blueprint(fileInResources = "blueprint/aiken-stdlib-3.1-shared-types.json",
            packageName = "com.test.aikenstdlib31")
 @AikenStdlib(AikenStdlibVersion.V3)
