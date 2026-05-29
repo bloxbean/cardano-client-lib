@@ -8,9 +8,15 @@ import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.it.BaseIT;
+import co.nstant.in.cbor.model.ByteString;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -58,8 +64,7 @@ public class MintPolicyDevnetTest extends BaseIT {
         var utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
 
         // Bind authority to account1's payment key hash.
-        String appliedCode = ScalusScriptUtils.applyParamsToScript(
-                MintPolicyMintValidator.COMPILED_CODE,
+        String appliedCode = applyParamsAndUnwrap(MintPolicyMintValidator.COMPILED_CODE,
                 BytesPlutusData.of(account1.getBaseAddress().getPaymentCredentialHash().get()));
 
         validator = new MintPolicyMintValidator(Networks.testnet(), appliedCode)
@@ -88,5 +93,22 @@ public class MintPolicyDevnetTest extends BaseIT {
 
         System.out.println("Mint result: " + result);
         assertTrue(result.isSuccessful(), "Mint should succeed under the bound authority signer");
+    }
+
+    /**
+     * Scalus's {@code applyParamsToScript} expects double-CBOR-wrapped script hex and returns
+     * double-CBOR-wrapped output. The blueprint's {@code COMPILED_CODE} constant is the
+     * single-wrapped form, and the generated validator constructor expects single-wrapped too
+     * (it re-wraps internally via {@code getPlutusScriptFromCompiledCode}). Bridge the two:
+     * wrap once before Scalus, strip one layer after.
+     */
+    private static String applyParamsAndUnwrap(String singleWrappedHex, PlutusData... params) {
+        String doubleWrapped = PlutusBlueprintUtil
+                .getPlutusScriptFromCompiledCode(singleWrappedHex, PlutusVersion.v3)
+                .getCborHex();
+        String appliedDouble = ScalusScriptUtils.applyParamsToScript(doubleWrapped, params);
+        ByteString outerByteString = (ByteString) CborSerializationUtil
+                .deserialize(HexUtil.decodeHexString(appliedDouble));
+        return HexUtil.encodeHexString(outerByteString.getBytes());
     }
 }

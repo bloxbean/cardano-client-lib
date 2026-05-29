@@ -8,11 +8,17 @@ import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.it.BaseIT;
+import co.nstant.in.cbor.model.ByteString;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.quicktx.blueprint.extender.common.ChangeReceiver;
 import com.bloxbean.cardano.client.quicktx.blueprint.extender.common.PubKeyReceiver;
+import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -61,13 +67,11 @@ public class ParameterizedLockDevnetTest extends BaseIT {
         var utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
 
         // Apply 'authority = account1.paymentKeyHash' to the base compiled code.
-        String appliedCode1 = ScalusScriptUtils.applyParamsToScript(
-                ParameterizedLockSpendValidator.COMPILED_CODE,
+        String appliedCode1 = applyParamsAndUnwrap(ParameterizedLockSpendValidator.COMPILED_CODE,
                 BytesPlutusData.of(account1.getBaseAddress().getPaymentCredentialHash().get()));
 
         // Apply 'authority = account2.paymentKeyHash' to the same base — should give a different hash.
-        String appliedCode2 = ScalusScriptUtils.applyParamsToScript(
-                ParameterizedLockSpendValidator.COMPILED_CODE,
+        String appliedCode2 = applyParamsAndUnwrap(ParameterizedLockSpendValidator.COMPILED_CODE,
                 BytesPlutusData.of(account2.getBaseAddress().getPaymentCredentialHash().get()));
 
         validatorForAccount1 = new ParameterizedLockSpendValidator(Networks.testnet(), appliedCode1)
@@ -119,5 +123,22 @@ public class ParameterizedLockDevnetTest extends BaseIT {
                 .withSigner(SignerProviders.signerFrom(account1))
                 .completeAndWait(System.out::println);
         assertTrue(unlockResult.isSuccessful(), "Unlock should succeed");
+    }
+
+    /**
+     * Scalus's {@code applyParamsToScript} expects double-CBOR-wrapped script hex and returns
+     * double-CBOR-wrapped output. The blueprint's {@code COMPILED_CODE} constant is the
+     * single-wrapped form, and the generated validator constructor expects single-wrapped too
+     * (it re-wraps internally via {@code getPlutusScriptFromCompiledCode}). Bridge the two:
+     * wrap once before Scalus, strip one layer after.
+     */
+    private static String applyParamsAndUnwrap(String singleWrappedHex, PlutusData... params) {
+        String doubleWrapped = PlutusBlueprintUtil
+                .getPlutusScriptFromCompiledCode(singleWrappedHex, PlutusVersion.v3)
+                .getCborHex();
+        String appliedDouble = ScalusScriptUtils.applyParamsToScript(doubleWrapped, params);
+        ByteString outerByteString = (ByteString) CborSerializationUtil
+                .deserialize(HexUtil.decodeHexString(appliedDouble));
+        return HexUtil.encodeHexString(outerByteString.getBytes());
     }
 }
