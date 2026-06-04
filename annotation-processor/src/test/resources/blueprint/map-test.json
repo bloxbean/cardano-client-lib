@@ -1,0 +1,61 @@
+{
+  "preamble": {
+    "title": "test/map",
+    "description": "Synthetic Map codegen smoke (Aiken stdlib v3+, modern angle-bracket syntax)",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/MapDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "compiledCode": "5820010000",
+      "hash": "6fb13cf9efdbe986e784d1983b21d3fb90231c1745925f536a820fb4"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Opaque Plutus data"
+    },
+    "Map<ByteArray,Int>": {
+      "title": "Map",
+      "dataType": "map",
+      "keys": {
+        "$ref": "#/definitions/ByteArray"
+      },
+      "values": {
+        "$ref": "#/definitions/Int"
+      }
+    },
+    "MapDatum": {
+      "title": "MapDatum",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "balances",
+          "$ref": "#/definitions/Map<ByteArray,Int>"
+        }
+      ]
+    }
+  }
+}

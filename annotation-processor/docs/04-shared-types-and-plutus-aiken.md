@@ -67,22 +67,20 @@ VerificationKeyHash vkh2 = VerificationKeyHash.fromPlutusData(bytesPlutusData);
 
 | Class | Description |
 |---|---|
-| `Credential` | V1-style credential (VerificationKeyCredential / ScriptCredential) |
-| `PaymentCredential` | V2/V3-style payment credential (VerificationKey / Script) |
-| `StakeCredential` | Stake credential |
-| `ReferencedCredential` | Referenced (inline) credential wrapper |
+| `PaymentCredential` | Payment credential (VerificationKey / Script) |
+| `StakeCredential` | Stake credential (Inline / Pointer) |
 
 Usage:
 
 ```java
 // Create a verification key credential
-Credential cred = Credential.verificationKey(keyHashBytes);
+PaymentCredential cred = PaymentCredential.verificationKey(keyHashBytes);
 
 // Create a script credential
-Credential cred = Credential.script(scriptHashBytes);
+PaymentCredential cred = PaymentCredential.script(scriptHashBytes);
 
 // Deserialize from PlutusData
-Credential cred = Credential.fromPlutusData(constrPlutusData);
+PaymentCredential cred = PaymentCredential.fromPlutusData(constrPlutusData);
 ```
 
 ### Complex Types
@@ -91,7 +89,6 @@ Credential cred = Credential.fromPlutusData(constrPlutusData);
 |---|---|
 | `Address` | Full Cardano address (payment credential + optional stake credential) |
 | `OutputReference` | Transaction output reference (tx ID + output index) |
-| `OutputReferenceV1` | V1-style output reference (nested TransactionId wrapper) |
 | `IntervalBound` | Validity interval bound |
 | `IntervalBoundType` | Interval bound type (NegativeInfinity / Finite / PositiveInfinity) |
 | `ValidityRange` | Full validity range interval |
@@ -103,42 +100,11 @@ OutputReference ref = OutputReference.of(txIdBytes, BigInteger.valueOf(0));
 ConstrPlutusData plutusData = ref.toPlutusData();
 ```
 
-## Aiken Stdlib Versions
+## Aiken Stdlib Compatibility
 
-Different versions of the Aiken standard library produce different schema signatures for the same logical type. For example, `Credential` has different constructor layouts in stdlib v1 vs. v2 vs. v3.
+The registry targets the latest Aiken standard library (stdlib v3.x — verified against 3.0 and 3.1). Older stdlib versions (v1/v2) are no longer supported; blueprints compiled with those versions need to be re-emitted with a modern Aiken compiler.
 
-Declare the version your contract was compiled with using the `@AikenStdlib` annotation:
-
-```java
-import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlib;
-import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
-
-@Blueprint(fileInResources = "blueprint/mycontract.json",
-           packageName = "com.example.mycontract")
-@AikenStdlib(AikenStdlibVersion.V2)
-public interface MyContractBlueprint {
-}
-```
-
-### Version Ranges
-
-| Version Enum | Aiken stdlib Range |
-|---|---|
-| `AikenStdlibVersion.V1` | stdlib >= 1.9.0, < 2.0.0 |
-| `AikenStdlibVersion.V2` | stdlib >= 2.0.0, < 3.0.0 |
-| `AikenStdlibVersion.V3` | stdlib >= 3.0.0 (latest, default) |
-
-If you omit `@AikenStdlib`, the default is `V3`.
-
-### How to Determine Your Version
-
-Check your Aiken project's `aiken.toml` for the stdlib dependency version:
-
-```toml
-[[dependencies]]
-name = "aiken-lang/stdlib"
-version = "2.2.0"    # This is V2
-```
+The `@AikenStdlib(AikenStdlibVersion.V3)` annotation exists as a source-compatibility marker and a future extension point. It currently has only the single value `V3` (= `LATEST`) and is a no-op for the processor — you do not need to add it to your blueprint interface. If a future stdlib version introduces breaking changes, the annotation will be promoted to load-bearing then.
 
 ## How the Registry Works
 
@@ -148,7 +114,6 @@ Under the hood:
 2. During annotation processing, the processor discovers the registry via ServiceLoader.
 3. For each definition in the blueprint, the processor computes a **schema signature** and checks whether the registry has a matching pre-built type.
 4. If a match is found, the processor generates a converter that uses the shared type instead of generating a new model class.
-5. The `@AikenStdlib` annotation provides a version hint so the registry can match version-specific schemas correctly.
 
 ## Disabling the Registry
 

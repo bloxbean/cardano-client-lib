@@ -103,7 +103,7 @@ public class SharedTypeConverterGenerator {
         return SharedTypeKind.CONSTRUCTOR;
     }
 
-    // ---- Constructor-based type methods (Address, Credential, ReferencedCredential) ----
+    // ---- Constructor-based type methods (Address, PaymentCredential, StakeCredential) ----
 
     private MethodSpec toPlutusDataConstr(ClassName type) {
         return MethodSpec.methodBuilder("toPlutusData")

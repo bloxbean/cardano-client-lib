@@ -252,6 +252,37 @@ public class HelloWorldExample {
 }
 ```
 
+## Where to Find Working Examples
+
+The CCL ships with end-to-end devnet tests that exercise the generated code on a real local Cardano network. They live under `annotation-processor/src/it/java/com/bloxbean/cardano/client/annotation/devnet/plutus/` and double as the most reliable copy-paste source for each codegen scenario:
+
+| Scenario | Test class |
+|---|---|
+| Plain primitive datum (`ByteArray`) — harness sanity | `LockUnlockDevnetTest` |
+| One registry-resolved shared type (`VerificationKeyHash`) as a field | `HelloWorldDevnetTest` |
+| Composite shared type (`Address` + `PaymentCredential` + `Optional<StakeCredential>`) | `AddressCheckDevnetTest` |
+| Multi-constructor ADT redeemer (constructor tags 0/1/2) | `MultiActionDevnetTest` |
+| Top-level generic `Option<T>` redeemer, both `Some` and `None` arms | `OptionRedeemerDevnetTest` |
+| Map / Pairs datum (`dataType: "map"`) | `MapDatumDevnetTest` |
+| Decoder direction — reading datums back from the chain | `LockUnlockReadBackDevnetTest` |
+| Parameterised validator (compile-time params via `applyParamsToScript`) | `ParameterizedLockDevnetTest` |
+| Mint-purpose validator + Java-enum redeemer | `MintPolicyDevnetTest` |
+| Recursive ADT datum (`Cons.tail: IntList`) | `RecursiveSumDevnetTest` |
+| Tuple datum field (`Tuple<<A,B>>`) | `TupleCheckDevnetTest` |
+
+### Running them yourself
+
+```bash
+# Start a local Cardano devnet (one-time install: npm i -g @bloxbean/yaci-devkit)
+yaci-devkit up
+
+# In a separate shell, from the repo root:
+./gradlew :annotation-processor:integrationTest -Dyaci.integration.test=true \
+    --tests '*DevnetTest'
+```
+
+Each test's class-level Javadoc starts with two tagged paragraphs — `<b>Unique trait:</b>` (what makes that test distinct) and `<b>Asserts on Cardano:</b>` (what successful on-chain evaluation proves). That's the quickest way to find the example closest to your scenario.
+
 ## Next Steps
 
 - [Understanding Generated Code](02-generated-code.md) — learn about the generated class hierarchy

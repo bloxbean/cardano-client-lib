@@ -1,0 +1,18 @@
+name = "ccl/recursive_sum"
+version = "0.0.0"
+compiler = "v1.1.21"
+plutus = "v3"
+license = "Apache-2.0"
+description = "Recursive datum ADT — exercises self-referencing types (IntList = Nil | Cons { head, tail: IntList }) in both codegen and on-chain decoding"
+
+[repository]
+user = "ccl"
+project = "recursive_sum"
+platform = "github"
+
+[[dependencies]]
+name = "aiken-lang/stdlib"
+version = "v3.1.0"
+source = "github"
+
+[config]

@@ -1,0 +1,73 @@
+{
+  "preamble": {
+    "title": "ccl/mint_policy",
+    "description": "Mint validator — exercises the mint purpose (no datum, redeemer-only) and the MintValidatorExtender pathway",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "mint_policy.mint_policy.mint",
+      "redeemer": {
+        "title": "_redeemer",
+        "schema": {
+          "$ref": "#/definitions/mint_policy~1MintAction"
+        }
+      },
+      "parameters": [
+        {
+          "title": "authority",
+          "schema": {
+            "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+          }
+        }
+      ],
+      "compiledCode": "58d5010100229800aba2aba1aab9faab9eaab9dab9a9bae002488888896600264653001300800198041804800cc0200092225980099b8748000c020dd50014660026eb8c02cc024dd500144c8cc004004dd618061806980698069806980698069806980698051baa0022259800800c528456600266e3cdd718068008044528c4cc008008c038005009201898041baa00348896600266e1d20000018acc004c030dd5003400a2c806a2b30013370e9001000c56600260186ea801a005164035164028805116401c300800130043754011149a26cac80101",
+      "hash": "4a560a2d72bc3959b194aa8e1beb0b9fe03327a127b5c415a767741f"
+    },
+    {
+      "title": "mint_policy.mint_policy.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "parameters": [
+        {
+          "title": "authority",
+          "schema": {
+            "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+          }
+        }
+      ],
+      "compiledCode": "58d5010100229800aba2aba1aab9faab9eaab9dab9a9bae002488888896600264653001300800198041804800cc0200092225980099b8748000c020dd50014660026eb8c02cc024dd500144c8cc004004dd618061806980698069806980698069806980698051baa0022259800800c528456600266e3cdd718068008044528c4cc008008c038005009201898041baa00348896600266e1d20000018acc004c030dd5003400a2c806a2b30013370e9001000c56600260186ea801a005164035164028805116401c300800130043754011149a26cac80101",
+      "hash": "4a560a2d72bc3959b194aa8e1beb0b9fe03327a127b5c415a767741f"
+    }
+  ],
+  "definitions": {
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "mint_policy/MintAction": {
+      "title": "MintAction",
+      "anyOf": [
+        {
+          "title": "Mint",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Burn",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}

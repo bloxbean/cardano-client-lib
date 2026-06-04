@@ -205,8 +205,8 @@ class FieldSpecProcessorTest {
      *
      * <p><b>Real-world impact:</b></p>
      * <ul>
-     *   <li>Aiken v1.0.26: "Interval$Int" generates typed Interval class (was skipped)</li>
-     *   <li>Aiken v1.1.21+: "ValidityRange" with anyOf generates ValidityRange class (was failing with "cannot find symbol: Interval")</li>
+     *   <li>"aiken/interval/Interval&lt;Int&gt;" generates typed Interval class (was skipped)</li>
+     *   <li>"ValidityRange" with anyOf generates ValidityRange class (was failing with "cannot find symbol: Interval")</li>
      *   <li>Built-in containers like "Option&lt;T&gt;" return null (no class generated), but fields use Optional&lt;T&gt; via OptionDataTypeProcessor</li>
      * </ul>
      */
@@ -288,43 +288,23 @@ class FieldSpecProcessorTest {
         // and generate typed classes instead of using PlutusData
 
         @Test
-        void shouldExtractBaseType_aikenV1_0_26_intervalWithDollarSyntax() {
-            // WHY: Aiken v1.0.26 uses "Interval$Int" for generic instantiations
-            // BEFORE: Would return null → PlutusData (type-unsafe)
-            // AFTER: Extracts "Interval" → typed Interval class (type-safe)
-
+        void shouldExtractBaseType_intervalBoundWithAngleBrackets() {
             BlueprintSchema schema = new BlueprintSchema();
 
             String result = fieldSpecProcessor.resolveClassNameFromRef(
-                    "#/definitions/aiken~1interval~1Interval$Int",
+                    "#/definitions/aiken~1interval~1IntervalBound<Int>",
                     schema
             );
 
-            assertThat(result).isEqualTo("Interval");  // Base type extracted for type safety
+            assertThat(result).isEqualTo("IntervalBound");
         }
 
         @Test
-        void shouldExtractBaseType_aikenV1_0_26_intervalBoundWithDollarSyntax() {
-            // WHY: IntervalBound is a domain-specific type, not a built-in container
-            // RESULT: Generates typed IntervalBound class for type-safe field access
-
+        void shouldExtractBaseType_intervalBoundTypeWithAngleBrackets() {
             BlueprintSchema schema = new BlueprintSchema();
 
             String result = fieldSpecProcessor.resolveClassNameFromRef(
-                    "#/definitions/aiken~1interval~1IntervalBound$Int",
-                    schema
-            );
-
-            assertThat(result).isEqualTo("IntervalBound");  // Base type extracted
-        }
-
-        @Test
-        void shouldExtractBaseType_aikenV1_0_26_intervalBoundTypeWithDollarSyntax() {
-            // EXAMPLE: "IntervalBoundType$Int" from SundaeSwap V2 blueprint
-            BlueprintSchema schema = new BlueprintSchema();
-
-            String result = fieldSpecProcessor.resolveClassNameFromRef(
-                    "#/definitions/aiken~1interval~1IntervalBoundType$Int",
+                    "#/definitions/aiken~1interval~1IntervalBoundType<Int>",
                     schema
             );
 
@@ -332,7 +312,7 @@ class FieldSpecProcessorTest {
         }
 
         @Test
-        void shouldExtractBaseType_aikenV1_1_21_intervalWithAngleBrackets() {
+        void shouldExtractBaseType_intervalWithAngleBrackets() {
             // WHY: Newer Aiken versions can use <> syntax for generics
             // RESULT: Same behavior - extract base type for type safety
 
@@ -365,7 +345,7 @@ class FieldSpecProcessorTest {
             BlueprintSchema schema = new BlueprintSchema();
 
             String result = fieldSpecProcessor.resolveClassNameFromRef(
-                    "#/definitions/custom~1types~1MyContainer$String",
+                    "#/definitions/custom~1types~1MyContainer<String>",
                     schema
             );
 
@@ -382,43 +362,12 @@ class FieldSpecProcessorTest {
         // After our PlutusBlueprintLoader fix, Option<T> fields use Optional<T> via OptionDataTypeProcessor.
 
         @Test
-        void shouldReturnNull_forBuiltInContainer_option_dollarSyntax() {
-            // WHY: Option is a built-in container - we don't generate an "Option.java" class
-            // BEFORE: Would try to generate "Option" class → compilation error (conflicts with built-in)
-            // AFTER: Returns null → signals "don't generate class"
-            //
-            // NOTE: This does NOT mean Option<T> fields use PlutusData!
-            // Fields use Optional<T> via OptionDataTypeProcessor (after PlutusBlueprintLoader sets dataType=option)
-
-            BlueprintSchema schema = new BlueprintSchema();
-
-            String result = fieldSpecProcessor.resolveClassNameFromRef(
-                    "#/definitions/Option$ByteArray",
-                    schema
-            );
-
-            assertThat(result).isNull();  // Signals "skip class generation", NOT "use PlutusData"
-        }
-
-        @Test
         void shouldReturnNull_forBuiltInContainer_option_angleBrackets() {
             // EXAMPLE: "Option<types/order/Action>" from modern Aiken
             BlueprintSchema schema = new BlueprintSchema();
 
             String result = fieldSpecProcessor.resolveClassNameFromRef(
                     "#/definitions/Option<types~1order~1Action>",
-                    schema
-            );
-
-            assertThat(result).isNull();
-        }
-
-        @Test
-        void shouldReturnNull_forBuiltInContainer_list_dollarSyntax() {
-            BlueprintSchema schema = new BlueprintSchema();
-
-            String result = fieldSpecProcessor.resolveClassNameFromRef(
-                    "#/definitions/List$Int",
                     schema
             );
 
@@ -442,7 +391,7 @@ class FieldSpecProcessorTest {
             BlueprintSchema schema = new BlueprintSchema();
 
             String result = fieldSpecProcessor.resolveClassNameFromRef(
-                    "#/definitions/Tuple$Int_String",
+                    "#/definitions/Tuple<Int,String>",
                     schema
             );
 
@@ -466,7 +415,7 @@ class FieldSpecProcessorTest {
             BlueprintSchema schema = new BlueprintSchema();
 
             String result = fieldSpecProcessor.resolveClassNameFromRef(
-                    "#/definitions/Map$String_Int",
+                    "#/definitions/Map<String,Int>",
                     schema
             );
 
@@ -515,26 +464,8 @@ class FieldSpecProcessorTest {
         // These demonstrate the actual failures and fixes
 
         @Test
-        void realWorld_sundaeSwapV2_intervalInt_shouldGenerateTypedClass() {
-            // REAL EXAMPLE from sundaeswap_aiken_v1_0_26_alpha_075668b.json
-            // Definition: "aiken/interval/Interval$Int"
-            //
-            // BEFORE: Skipped entirely → fields use PlutusData (type-unsafe casting)
-            // AFTER: Generates typed Interval class → fields use Interval type (type-safe)
-
-            BlueprintSchema schema = new BlueprintSchema();
-
-            String result = fieldSpecProcessor.resolveClassNameFromRef(
-                    "#/definitions/aiken~1interval~1Interval$Int",
-                    schema
-            );
-
-            assertThat(result).isEqualTo("Interval");
-        }
-
-        @Test
         void realWorld_sundaeSwapV3_validityRange_shouldUseDefinitionKey() {
-            // REAL EXAMPLE from sundaeswap_aiken_v1_1_21_42babe5.json
+            // REAL EXAMPLE from sundaeswap_aiken_v1_1_21_42babe5.json (stdlib v3)
             // Definition key: "cardano/transaction/ValidityRange"
             // Single anyOf variant with title: "Interval"
             //
@@ -583,17 +514,10 @@ class FieldSpecProcessorTest {
     /**
      * Tests for extractBaseType() method.
      *
-     * <p>Pure string parsing that strips generic parameters from definition keys.
-     * Handles both $ syntax (older Aiken) and &lt;&gt; syntax (newer Aiken).</p>
+     * <p>Pure string parsing that strips angle-bracket generic parameters from definition keys.</p>
      */
     @Nested
     class ExtractBaseTypeTests {
-
-        @Test
-        void shouldStripDollarSyntax() {
-            String result = fieldSpecProcessor.extractBaseType("Interval$Int");
-            assertThat(result).isEqualTo("Interval");
-        }
 
         @Test
         void shouldStripAngleBracketSyntax() {
@@ -620,22 +544,15 @@ class FieldSpecProcessorTest {
         }
 
         @Test
-        void shouldStripDollarSyntax_withNamespace() {
-            String result = fieldSpecProcessor.extractBaseType("aiken/interval/Interval$Int");
-            assertThat(result).isEqualTo("aiken/interval/Interval");
-        }
-
-        @Test
         void shouldStripAngleBrackets_withNestedGenerics() {
             String result = fieldSpecProcessor.extractBaseType("Interval<Option<Int>>");
             assertThat(result).isEqualTo("Interval");
         }
 
         @Test
-        void shouldPreferDollarOverAngleBrackets_whenBothPresent() {
-            // $ appears first, so it wins
-            String result = fieldSpecProcessor.extractBaseType("Foo$Bar<Baz>");
-            assertThat(result).isEqualTo("Foo");
+        void shouldStripAngleBrackets_withNamespace() {
+            String result = fieldSpecProcessor.extractBaseType("aiken/interval/Interval<Int>");
+            assertThat(result).isEqualTo("aiken/interval/Interval");
         }
     }
 

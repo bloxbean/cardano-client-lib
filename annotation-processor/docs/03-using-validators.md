@@ -31,6 +31,74 @@ var validator = new HelloWorldValidator(Networks.testnet())
         .withTransactionEvaluator(customEvaluator);
 ```
 
+## Parameterised Validators
+
+Aiken validators can declare compile-time parameters that get baked into the script's compiled code:
+
+```aiken
+validator parameterized_lock(authority: VerificationKeyHash) {
+  spend(...) { ... }
+}
+```
+
+The annotation processor recognises the parameters and emits a **different constructor signature** for the generated validator class — `(Network, String applyParamCompiledCode)` instead of just `(Network)`:
+
+```java
+public ParameterizedLockSpendValidator(Network network, String applyParamCompiledCode) { ... }
+```
+
+`applyParamCompiledCode` is the compiled bytecode **after** the parameters have been applied. You're expected to apply them yourself before constructing the validator. Two new methods are also generated:
+
+- `getApplyParamCompiledCode()` — returns the applied bytecode
+- `getApplyParamHash()` — returns the resulting script hash (different per applied param value)
+
+### Applying parameters with Scalus
+
+The CCL ships with Scalus on the test/runtime classpath; `ScalusScriptUtils.applyParamsToScript(String compiledCode, PlutusData... params)` does the UPLC application:
+
+```java
+import scalus.bloxbean.ScalusScriptUtils;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+
+String appliedCode = applyParamsAndUnwrap(
+        ParameterizedLockSpendValidator.COMPILED_CODE,
+        BytesPlutusData.of(authorityKeyHash));
+
+var validator = new ParameterizedLockSpendValidator(Networks.testnet(), appliedCode)
+        .withBackendService(backendService);
+```
+
+### The single-/double-CBOR-wrap gotcha
+
+`COMPILED_CODE` on the generated validator class is the blueprint's **single-CBOR-wrapped** form (per CIP-57). Scalus's `applyParamsToScript` consumes and produces the **double-CBOR-wrapped** form (`Program.fromDoubleCborHex` / `Program.doubleCborHex`). The validator's `applyParamCompiledCode` constructor argument expects single-wrapped (it re-wraps internally via `PlutusBlueprintUtil.getPlutusScriptFromCompiledCode`).
+
+So you need a small bridge: wrap once before Scalus, strip one layer after:
+
+```java
+import co.nstant.in.cbor.model.ByteString;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.util.HexUtil;
+
+private static String applyParamsAndUnwrap(String singleWrappedHex, PlutusData... params) {
+    String doubleWrapped = PlutusBlueprintUtil
+            .getPlutusScriptFromCompiledCode(singleWrappedHex, PlutusVersion.v3)
+            .getCborHex();
+    String appliedDouble = ScalusScriptUtils.applyParamsToScript(doubleWrapped, params);
+    ByteString outerByteString = (ByteString) CborSerializationUtil
+            .deserialize(HexUtil.decodeHexString(appliedDouble));
+    return HexUtil.encodeHexString(outerByteString.getBytes());
+}
+```
+
+If you pass single-wrapped directly to Scalus, you'll see `io.bullet.borer.Borer$Error$InvalidInputData: Expected ByteString or Array of bytes but got Int (input position 0)` — that's the symptom of feeding single-wrapped into a double-expecting function.
+
+### Worked example
+
+`ParameterizedLockDevnetTest` (under `annotation-processor/src/it/java/.../devnet/plutus/`) drives the full flow end-to-end on a real devnet — applying the param twice with different values, asserting distinct script hashes, then locking and unlocking the bound instance.
+
 ## The `@ExtendWith` Annotation
 
 The `@ExtendWith` annotation on your blueprint interface controls which methods the generated validator class has:
@@ -217,50 +285,74 @@ var unlockResult = validator.unlockToContract(
 
 The `MintValidatorExtender` provides methods for minting validators.
 
-### Basic Minting
+### Basic minting — one asset, one receiver
 
-Mint tokens and distribute them to multiple receivers:
+The simplest mint operation: mint a single asset and send it to one address.
 
 ```java
-var validator = new MintValidator(Networks.testnet())
+import com.bloxbean.cardano.client.transaction.spec.Asset;
+
+var validator = new MintPolicyMintValidator(Networks.testnet())
         .withBackendService(backendService);
 
-// Deploy (optional)
-var deployResult = validator.deploy(account.baseAddress())
+// Deploy (optional but recommended for re-use)
+validator.deploy(account.baseAddress())
         .feePayer(account.baseAddress())
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(System.out::println);
 
-// Mint tokens
+// Mint 1000 units of "DemoToken" to account1
+Asset asset = new Asset("DemoToken", BigInteger.valueOf(1000));
+
+var mintResult = validator
+        .mintToAddress(redeemer, asset, account.baseAddress())
+        .feePayer(account.baseAddress())
+        .withRequiredSigners(account.getBaseAddress())
+        .withSigner(SignerProviders.signerFrom(account))
+        .completeAndWait(System.out::println);
+```
+
+The `redeemer` here is anything implementing `Data` — typically a generated `*Data` class for ADT redeemers, or a small `() -> ConstrPlutusData.of(0)` lambda when the redeemer is a Java `enum` (see [Enum redeemers](#enum-redeemers) below).
+
+### Multi-asset minting with per-receiver routing
+
+Use `MintAsset` (asset name + quantity + receiver) when you need to mint several assets and route each to a different address:
+
+```java
 var mintAsset1 = new MintAsset("TokenA", BigInteger.valueOf(100), receiver1);
 var mintAsset2 = new MintAsset("TokenB", BigInteger.valueOf(50), receiver2);
 
-var mintResult = validator.mint(
-            ActionData.of(Action.Mint),
-            mintAsset1, mintAsset2)
+var mintResult = validator.mint(redeemer, mintAsset1, mintAsset2)
         .feePayer(account.baseAddress())
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(System.out::println);
 ```
 
-`MintAsset` takes an asset name, quantity, and receiver address. Assets with the same name going to the same receiver are automatically aggregated.
+Assets with the same name going to the same receiver are automatically aggregated.
 
-### Mint to a Regular Address
-
-Send all minted tokens to a single address:
+### Mint multiple assets to a single address
 
 ```java
 Asset asset1 = new Asset("MyToken", BigInteger.valueOf(100));
 Asset asset2 = new Asset("MyOtherToken", BigInteger.valueOf(200));
 
-var mintResult = validator.mintToAddress(
-            ActionData.of(Action.Mint),
-            List.of(asset1, asset2),
-            receiverAddress)
+var mintResult = validator
+        .mintToAddress(redeemer, List.of(asset1, asset2), receiverAddress)
         .feePayer(account.baseAddress())
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(System.out::println);
 ```
+
+### Enum redeemers
+
+When a mint validator's redeemer is an Aiken sum type with **all zero-field variants** (e.g. `Action { Mint | Burn }`), the processor emits it as a Java `enum`, not as an interface ADT. Since `enum` doesn't implement `Data` directly, wrap a generated `*Converter` call in a lambda:
+
+```java
+MintActionConverter converter = new MintActionConverter();
+Data<?> redeemer = () -> converter.toPlutusData(MintAction.Mint);
+```
+
+See `MintPolicyDevnetTest` under `annotation-processor/src/it/java/.../devnet/plutus/` for the full pattern.
 
 ### Mint to a Contract Address
 

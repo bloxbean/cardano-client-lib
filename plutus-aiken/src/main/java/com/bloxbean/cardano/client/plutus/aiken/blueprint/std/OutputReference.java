@@ -11,16 +11,14 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Shared representation of the CIP-57 OutputReference schema (Aiken stdlib v2+).
+ * Shared representation of the CIP-57 OutputReference schema (Aiken stdlib v3.x).
  * <p>
  * An {@code OutputReference} is a unique reference to an output on-chain.
  * The {@code outputIndex} corresponds to the position in the output list of
  * the transaction (identified by its id) that produced that output.
  * <p>
- * This type matches the flat {@code cardano/transaction/OutputReference} definition
- * emitted by Aiken stdlib v2 and v3, where {@code transaction_id} is a bare
- * {@code ByteArray}. Stdlib v1 used a nested {@code TransactionId} wrapper instead
- * and is not covered by this type.
+ * Matches the flat {@code cardano/transaction/OutputReference} definition where
+ * {@code transaction_id} is a bare {@code ByteArray}.
  */
 public final class OutputReference implements Data<OutputReference> {
 

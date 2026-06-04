@@ -118,12 +118,10 @@ public class FieldSpecProcessor {
     }
 
     /**
-     * Extracts base type from a definition key by stripping generic parameters.
-     * Handles both $ syntax (older Aiken) and &lt;&gt; syntax (newer Aiken).
+     * Extracts the base type from a definition key by stripping angle-bracket generics.
      *
      * <p><b>Examples:</b></p>
      * <ul>
-     *   <li>"Interval$Int" → "Interval"</li>
      *   <li>"Option&lt;T&gt;" → "Option"</li>
      *   <li>"List&lt;Option&lt;Int&gt;&gt;" → "List"</li>
      *   <li>"cardano/transaction/ValidityRange" → "cardano/transaction/ValidityRange" (unchanged)</li>
@@ -137,13 +135,6 @@ public class FieldSpecProcessor {
             return key;
         }
 
-        // Strip generic parameters: "Interval$Int" → "Interval"
-        int dollarIndex = key.indexOf('$');
-        if (dollarIndex > 0) {
-            return key.substring(0, dollarIndex);
-        }
-
-        // Strip angle bracket generics: "Option<T>" → "Option"
         int angleIndex = key.indexOf('<');
         if (angleIndex > 0) {
             return key.substring(0, angleIndex);

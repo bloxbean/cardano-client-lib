@@ -1,0 +1,87 @@
+{
+  "preamble": {
+    "title": "ccl/recursive_sum",
+    "description": "Recursive datum ADT — exercises self-referencing types (IntList = Nil | Cons { head, tail: IntList }) in both codegen and on-chain decoding",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "recursive_sum.recursive_sum.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/recursive_sum~1IntList"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/recursive_sum~1Redeemer"
+        }
+      },
+      "compiledCode": "58d501010029800aba2aba1aab9faab9eaab9dab9a48888896600264653001300700198039804000cc01c0092225980099b8748008c01cdd500144ca60026016003300b300c0019b874800122259800980098059baa007899192cc004c04400a2b30013003300d375400913370e64660020026022601e6ea80148966002600a601e6ea80062900044c8cdc01bad30130013300300330133014001301037540028070dd6980818071baa0098b20188b201e375a601e00260186ea801e2c805060106ea800a2c8030600e00260066ea801e29344d9590011",
+      "hash": "e2c230b1a7cdd03975a7eea64ed612e4f72cb2972af96bd11e19b4af"
+    },
+    {
+      "title": "recursive_sum.recursive_sum.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "compiledCode": "58d501010029800aba2aba1aab9faab9eaab9dab9a48888896600264653001300700198039804000cc01c0092225980099b8748008c01cdd500144ca60026016003300b300c0019b874800122259800980098059baa007899192cc004c04400a2b30013003300d375400913370e64660020026022601e6ea80148966002600a601e6ea80062900044c8cdc01bad30130013300300330133014001301037540028070dd6980818071baa0098b20188b201e375a601e00260186ea801e2c805060106ea800a2c8030600e00260066ea801e29344d9590011",
+      "hash": "e2c230b1a7cdd03975a7eea64ed612e4f72cb2972af96bd11e19b4af"
+    }
+  ],
+  "definitions": {
+    "Int": {
+      "dataType": "integer"
+    },
+    "recursive_sum/IntList": {
+      "title": "IntList",
+      "anyOf": [
+        {
+          "title": "Nil",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Cons",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "head",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "tail",
+              "$ref": "#/definitions/recursive_sum~1IntList"
+            }
+          ]
+        }
+      ]
+    },
+    "recursive_sum/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "expected_sum",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

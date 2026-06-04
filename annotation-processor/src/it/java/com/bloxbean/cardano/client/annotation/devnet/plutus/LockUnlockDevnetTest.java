@@ -25,6 +25,14 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * <b>Unique trait:</b> baseline harness — primitive-only datum field
+ * ({@code ByteArray}), no shared-type registry involvement.
+ *
+ * <b>Asserts on Cardano:</b> deploy → lock → unlock cycle succeeds for the
+ * simplest validator, proving the devnet wiring (accounts, Scalus evaluator,
+ * MapScriptSupplier) is healthy before codegen complexity stacks on top.
+ */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class LockUnlockDevnetTest extends BaseIT {
 

@@ -6,7 +6,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 /**
  * Wrapper for an asset name (arbitrary byte string up to 32 bytes).
  * <p>
- * Matches the {@code cardano/assets/AssetName} definition emitted by Aiken stdlib v2+
+ * Matches the {@code cardano/assets/AssetName} definition emitted by Aiken stdlib v3.x
  * ({@code title: "AssetName", dataType: "bytes"}).
  */
 public final class AssetName extends ByteArrayWrapper {

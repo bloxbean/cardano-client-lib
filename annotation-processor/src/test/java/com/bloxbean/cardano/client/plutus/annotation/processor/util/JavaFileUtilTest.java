@@ -13,7 +13,6 @@ public class JavaFileUtilTest {
     public void testClassNameFormat_convertsSnakeCaseToPascalCase() {
         String s = "gift_card";
         String result = JavaFileUtil.toClassNameFormat(s);
-        // Should convert to UpperCamelCase/PascalCase (first letter uppercase)
         assertThat(result).isEqualTo("GiftCard");
     }
 
@@ -21,7 +20,6 @@ public class JavaFileUtilTest {
     public void testToCamelCase_convertsSnakeCaseToLowerCamelCase() {
         String s = "gift_card";
         String result = JavaFileUtil.toCamelCase(s);
-        // Should convert to lowerCamelCase (first letter lowercase)
         assertThat(result).isEqualTo("giftCard");
     }
 
@@ -29,133 +27,58 @@ public class JavaFileUtilTest {
     public void testToCamelCase_whenInputIsPascalCase() {
         String s = "GiftCard";
         String result = JavaFileUtil.toCamelCase(s);
-        // toCamelCase converts PascalCase to lowerCamelCase (first letter lowercase)
         assertThat(result).isEqualTo("giftCard");
     }
 
     @Nested
-    @DisplayName("Aiken Alpha Naming Convention (v1.0.x)")
-    class AikenAlphaNamingConvention {
+    @DisplayName("Generic type and module path conversion")
+    class GenericAndModulePathConversion {
 
         @Test
-        @DisplayName("should handle simple list with dollar delimiter")
-        void shouldHandleSimpleListWithDollar() {
-            // Aiken v1.0.26-alpha+075668b format: List$ByteArray
-            String input = "List$ByteArray";
-            String result = JavaFileUtil.toCamelCase(input);
-
-            // Should preserve dollar signs and convert to valid camelCase
-            assertThat(result).isEqualTo("list$ByteArray");
-            assertThat(isValidJavaIdentifier(result)).isTrue();
-        }
-
-        @Test
-        @DisplayName("should handle nested tuple with dollar and underscore delimiters")
-        void shouldHandleNestedTupleWithDollarAndUnderscore() {
-            // Aiken v1.0.26-alpha format: List$Tuple$Tuple$ByteArray_ByteArray_Int
-            String input = "List$Tuple$Tuple$ByteArray_ByteArray_Int";
-            String result = JavaFileUtil.toCamelCase(input);
-
-            // Should be valid Java identifier
-            assertThat(isValidJavaIdentifier(result)).isTrue();
-        }
-
-        @Test
-        @DisplayName("should handle definition with dollar delimiters")
-        void shouldHandleDefinitionWithDollarDelimiters() {
-            // Typical alpha format for nested types
-            String input = "Option$List$Int";
-            String result = JavaFileUtil.toCamelCase(input);
-
-            assertThat(isValidJavaIdentifier(result)).isTrue();
-        }
-
-        @Test
-        @DisplayName("should convert to lowercase first when used as field name")
-        void shouldConvertToLowercaseFirstForFieldName() {
-            String input = "List$ByteArray";
-            String camelCase = JavaFileUtil.toCamelCase(input);
-            String fieldName = JavaFileUtil.firstLowerCase(camelCase);
-
-            // Field names should start with lowercase
-            assertThat(fieldName).matches("^[a-z].*");
-            assertThat(isValidJavaIdentifier(fieldName)).isTrue();
-        }
-    }
-
-    @Nested
-    @DisplayName("Aiken 1.x Naming Convention (v1.1.x+)")
-    class Aiken1xNamingConvention {
-
-        @Test
-        @DisplayName("should handle simple list with angle brackets")
-        void shouldHandleSimpleListWithAngleBrackets() {
-            // Aiken v1.1.21+42babe5 format: List<Int>
-            String input = "List<Int>";
-            String result = JavaFileUtil.toCamelCase(input);
-
-            // Should convert to valid Java identifier
+        @DisplayName("simple generic: List<Int> → listOfInt")
+        void simpleAngleBracketGeneric() {
+            String result = JavaFileUtil.toCamelCase("List<Int>");
             assertThat(result).isEqualTo("listOfInt");
             assertThat(isValidJavaIdentifier(result)).isTrue();
         }
 
         @Test
-        @DisplayName("should handle nested generic types with multiple angle brackets")
-        void shouldHandleNestedGenericTypes() {
-            // Complex nested generics from SundaeSwap v3
-            // Note: Extra angle brackets in original test were a typo, fixing it
-            String input = "List<Tuple<Int,Option<Data>,Int>>";
-            String result = JavaFileUtil.toCamelCase(input);
-
-            // Should convert to valid Java identifier
+        @DisplayName("nested generic: List<Tuple<Int,Option<Data>,Int>> → listOfTupleOfIntAndOptionOfDataAndInt")
+        void nestedAngleBracketGeneric() {
+            String result = JavaFileUtil.toCamelCase("List<Tuple<Int,Option<Data>,Int>>");
             assertThat(result).isEqualTo("listOfTupleOfIntAndOptionOfDataAndInt");
             assertThat(isValidJavaIdentifier(result)).isTrue();
         }
 
         @Test
-        @DisplayName("should handle list with module path")
-        void shouldHandleListWithModulePath() {
-            // Format with forward slashes: List<aiken/crypto/VerificationKey>
-            String input = "List<aiken/crypto/VerificationKey>";
-            String result = JavaFileUtil.toCamelCase(input);
-
-            // Should convert module paths to valid Java identifier
+        @DisplayName("generic with module path: List<aiken/crypto/VerificationKey> → listOfAikenCryptoVerificationKey")
+        void genericWithModulePath() {
+            String result = JavaFileUtil.toCamelCase("List<aiken/crypto/VerificationKey>");
             assertThat(result).isEqualTo("listOfAikenCryptoVerificationKey");
             assertThat(isValidJavaIdentifier(result)).isTrue();
         }
 
         @Test
-        @DisplayName("should handle when used as field name with index suffix")
-        void shouldHandleWhenUsedAsFieldNameWithIndexSuffix() {
-            // Simulates what happens in ListDataTypeProcessor
-            String input = "List<Int>";
-            String withIndex = input + "0"; // Adding index suffix
-            String camelCase = JavaFileUtil.toCamelCase(withIndex);
+        @DisplayName("field-name with index suffix: List<Int>0 → listOfInt0")
+        void fieldNameWithIndexSuffix() {
+            String camelCase = JavaFileUtil.toCamelCase("List<Int>" + "0");
             String fieldName = JavaFileUtil.firstLowerCase(camelCase);
-
-            // Should produce valid identifier
             assertThat(fieldName).isEqualTo("listOfInt0");
             assertThat(isValidJavaIdentifier(fieldName)).isTrue();
         }
 
         @Test
-        @DisplayName("should handle cardano address credential list")
-        void shouldHandleCardanoAddressCredentialList() {
-            // Real example from SundaeSwap: List<cardano/address/Credential>
-            String input = "List<cardano/address/Credential>";
-            String result = JavaFileUtil.toCamelCase(input);
-
+        @DisplayName("cardano address credential list: List<cardano/address/Credential> → listOfCardanoAddressCredential")
+        void cardanoAddressCredentialList() {
+            String result = JavaFileUtil.toCamelCase("List<cardano/address/Credential>");
             assertThat(result).isEqualTo("listOfCardanoAddressCredential");
             assertThat(isValidJavaIdentifier(result)).isTrue();
         }
 
         @Test
-        @DisplayName("should handle multisig script list")
-        void shouldHandleMultisigScriptList() {
-            // Real example from SundaeSwap: List<sundae/multisig/MultisigScript>
-            String input = "List<sundae/multisig/MultisigScript>";
-            String result = JavaFileUtil.toCamelCase(input);
-
+        @DisplayName("multisig script list: List<sundae/multisig/MultisigScript> → listOfSundaeMultisigMultisigScript")
+        void multisigScriptList() {
+            String result = JavaFileUtil.toCamelCase("List<sundae/multisig/MultisigScript>");
             assertThat(result).isEqualTo("listOfSundaeMultisigMultisigScript");
             assertThat(isValidJavaIdentifier(result)).isTrue();
         }
@@ -166,53 +89,33 @@ public class JavaFileUtilTest {
     class PackageNameFormatting {
 
         @Test
-        @DisplayName("should handle package names with hyphens")
+        @DisplayName("removes hyphens, underscores and slashes")
         void shouldHandlePackageNamesWithHyphens() {
-            String pkg = "aiken-lang/gift_card";
-            String result = JavaFileUtil.toPackageNameFormat(pkg);
-
-            // Package formatting removes all special characters including slashes
+            String result = JavaFileUtil.toPackageNameFormat("aiken-lang/gift_card");
             assertThat(result).isEqualTo("aikenlanggiftcard");
-            assertThat(result).doesNotContain("-");
-            assertThat(result).doesNotContain("_");
-            assertThat(result).doesNotContain("/");
+            assertThat(result).doesNotContain("-").doesNotContain("_").doesNotContain("/");
         }
 
         @Test
-        @DisplayName("should convert package names to lowercase")
+        @DisplayName("converts to lowercase")
         void shouldConvertPackageNamesToLowercase() {
-            String pkg = "SundaeSwap-Finance";
-            String result = JavaFileUtil.toPackageNameFormat(pkg);
-
+            String result = JavaFileUtil.toPackageNameFormat("SundaeSwap-Finance");
             assertThat(result).isEqualTo("sundaeswapfinance");
-            assertThat(result).isLowerCase();
         }
     }
 
-    /**
-     * Helper method to validate if a string is a valid Java identifier.
-     * A valid identifier:
-     * - Must start with a letter, underscore, or dollar sign
-     * - Can contain letters, digits, underscores, and dollar signs
-     * - Cannot contain angle brackets, slashes, or other special characters
-     */
     private boolean isValidJavaIdentifier(String identifier) {
         if (identifier == null || identifier.isEmpty()) {
             return false;
         }
-
-        // Check first character
         if (!Character.isJavaIdentifierStart(identifier.charAt(0))) {
             return false;
         }
-
-        // Check remaining characters
         for (int i = 1; i < identifier.length(); i++) {
             if (!Character.isJavaIdentifierPart(identifier.charAt(i))) {
                 return false;
             }
         }
-
         return true;
     }
 }

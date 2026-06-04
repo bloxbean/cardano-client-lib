@@ -473,76 +473,6 @@ public class BlueprintUtilTest {
     }
 
     /**
-     * Tests for getNamespaceFromReferenceKey() with generic types (dollar sign syntax)
-     *
-     * <p>Dollar sign syntax used by older Aiken compiler versions (v1.0.26).</p>
-     * <p>Same rules as angle bracket syntax: namespace extracted from BASE TYPE, not type parameter.</p>
-     */
-    @Nested
-    class GetNamespaceFromReferenceKeyGenericDollarSignTests {
-
-        // Base types WITHOUT module paths (generic instantiations)
-        // These should return empty namespace regardless of type parameter
-
-        @Test
-        void shouldReturnEmptyString_whenDollarSignPrimitive() {
-            // Base type "Option" has no module path → empty namespace
-            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$Int")).isEmpty();
-        }
-
-        @Test
-        void shouldReturnEmptyString_whenDollarSignWithPath() {
-            // Base type "Option" has no module path → empty namespace (type param doesn't matter)
-            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$types/order/Action"))
-                    .isEmpty();
-        }
-
-        @Test
-        void shouldReturnEmptyString_whenDollarSignWithEscapes() {
-            // Base type "Option" has no module path → empty namespace
-            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$types~1order~1Action"))
-                    .isEmpty();
-        }
-
-        @Test
-        void shouldReturnEmptyString_whenDollarSignCardanoType() {
-            // Base type "Option" has no module path → empty namespace (type param doesn't matter)
-            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$cardano/address/Credential"))
-                    .isEmpty();
-        }
-
-        @Test
-        void shouldReturnEmptyString_whenNestedDollarSign() {
-            // Base type "Option" has no module path → empty namespace
-            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$List$types/order/Action"))
-                    .isEmpty();
-        }
-
-        @Test
-        void shouldReturnEmptyString_whenListDollarPrimitive() {
-            // Base type "List" has no module path → empty namespace
-            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List$ByteArray")).isEmpty();
-        }
-
-        // Base types WITH module paths
-        // These should extract namespace from the base type
-
-        @Test
-        void shouldExtractNamespace_whenBaseTypeHasModulePathWithDollarSign() {
-            // Base type "aiken/interval/IntervalBound" HAS module path → "aiken.interval"
-            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("aiken/interval/IntervalBound$Int"))
-                    .isEqualTo("aiken.interval");
-        }
-
-        @Test
-        void shouldExtractNamespace_whenBaseTypeWithDollarAndEscapes() {
-            // Base type "aiken~1interval~1IntervalBound" unescapes to "aiken/interval/IntervalBound" → "aiken.interval"
-            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("aiken~1interval~1IntervalBound$Int"))
-                    .isEqualTo("aiken.interval");
-        }
-    }
-
-    /**
      * Tests for edge cases in generic type handling
      */
     @Nested
@@ -574,12 +504,6 @@ public class BlueprintUtilTest {
                     .isEmpty();
         }
 
-        @Test
-        void shouldHandleMixedDollarAndBrackets() {
-            // Base type "Option" has no module path → empty namespace
-            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$List<types/order/Action>"))
-                    .isEmpty();
-        }
     }
 
     /**

@@ -17,7 +17,7 @@ public final class AnnotationHintDescriptor {
     private final String defaultValue;
 
     /**
-     * @param annotationFqn fully-qualified name of the annotation (e.g. {@code "com.…AikenStdlib"})
+     * @param annotationFqn fully-qualified name of the annotation the registry needs read
      * @param elementName   annotation element to read (e.g. {@code "value"})
      * @param hintKey       key under which the resolved value is placed in {@link LookupContext#hints()}
      * @param defaultValue  value to use when the annotation is absent

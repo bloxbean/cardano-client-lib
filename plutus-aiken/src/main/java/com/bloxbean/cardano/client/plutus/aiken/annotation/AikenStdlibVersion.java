@@ -3,15 +3,13 @@ package com.bloxbean.cardano.client.plutus.aiken.annotation;
 /**
  * Identifies the Aiken standard library version used to compile a blueprint.
  *
- * <p>The version determines which schema signatures the type registry uses
- * when resolving shared types (e.g., Credential, Address, OutputReference).</p>
+ * <p>Currently only {@code V3} (stdlib v3.x — covers 3.0 and 3.1) is supported.
+ * The enum is kept single-valued for source compatibility and to leave a
+ * clean extension point when a future stdlib (v4+) introduces incompatible
+ * schema changes.</p>
  */
 public enum AikenStdlibVersion {
-    /** stdlib &gt;= 1.9.0, &lt; 2.0.0 */
-    V1,
-    /** stdlib &gt;= 2.0.0, &lt; 3.0.0 */
-    V2,
-    /** stdlib &gt;= 3.0.0 (latest) */
+    /** Aiken stdlib v3.x (covers 3.0 and 3.1). */
     V3;
 
     public static final AikenStdlibVersion LATEST = V3;

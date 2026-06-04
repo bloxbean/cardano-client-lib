@@ -1,0 +1,219 @@
+{
+  "preamble": {
+    "title": "ccl/address_check",
+    "description": "Address-aware validator — exercises full cardano/address/Address CBOR shape (payment_credential + Optional stake_credential)",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "address_check.address_check.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/address_check~1Vault"
+        }
+      },
+      "redeemer": {
+        "title": "_redeemer",
+        "schema": {
+          "$ref": "#/definitions/address_check~1Redeemer"
+        }
+      },
+      "compiledCode": "59010001010029800aba2aba1aab9faab9eaab9dab9a48888896600264646644b30013370e900118031baa0018994c004c02800660146016003370e90002444b30013001300a375400d132325980098080014566002600660186ea8012264b30013004300d37540031323322330020020012259800800c528456600266e3cdd71809800801c528c4cc008008c05000500f20243758602260246024602460246024602460246024601e6ea8c044030dd7180818071baa0018b2018300f300d3754601e601a6ea8c03cc034dd500245900b45900e1bae300e001300b375400d16402430073754003164014600e002600e6010002600e00260066ea801e29344d95900101",
+      "hash": "0c54a05a0069db984fb8c93d77df0b89eaeb956ef2cb2bacc34b5a46"
+    },
+    {
+      "title": "address_check.address_check.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "compiledCode": "59010001010029800aba2aba1aab9faab9eaab9dab9a48888896600264646644b30013370e900118031baa0018994c004c02800660146016003370e90002444b30013001300a375400d132325980098080014566002600660186ea8012264b30013004300d37540031323322330020020012259800800c528456600266e3cdd71809800801c528c4cc008008c05000500f20243758602260246024602460246024602460246024601e6ea8c044030dd7180818071baa0018b2018300f300d3754601e601a6ea8c03cc034dd500245900b45900e1bae300e001300b375400d16402430073754003164014600e002600e6010002600e00260066ea801e29344d95900101",
+      "hash": "0c54a05a0069db984fb8c93d77df0b89eaeb956ef2cb2bacc34b5a46"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Option<cardano/address/StakeCredential>": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/cardano~1address~1StakeCredential"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "address_check/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "marker",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "address_check/Vault": {
+      "title": "Vault",
+      "anyOf": [
+        {
+          "title": "Vault",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "admin",
+              "$ref": "#/definitions/cardano~1address~1Address"
+            }
+          ]
+        }
+      ]
+    },
+    "aiken/crypto/ScriptHash": {
+      "title": "ScriptHash",
+      "dataType": "bytes"
+    },
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "cardano/address/Address": {
+      "title": "Address",
+      "description": "A Cardano `Address` typically holding one or two credential references.\n\n Note that legacy bootstrap addresses (a.k.a. 'Byron addresses') are\n completely excluded from Plutus contexts. Thus, from an on-chain\n perspective only exists addresses of type 00, 01, ..., 07 as detailed\n in [CIP-0019 :: Shelley Addresses](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0019/#shelley-addresses).",
+      "anyOf": [
+        {
+          "title": "Address",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "payment_credential",
+              "$ref": "#/definitions/cardano~1address~1PaymentCredential"
+            },
+            {
+              "title": "stake_credential",
+              "$ref": "#/definitions/Option<cardano~1address~1StakeCredential>"
+            }
+          ]
+        }
+      ]
+    },
+    "cardano/address/Credential": {
+      "title": "Credential",
+      "description": "A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).",
+      "anyOf": [
+        {
+          "title": "VerificationKey",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+            }
+          ]
+        },
+        {
+          "title": "Script",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1crypto~1ScriptHash"
+            }
+          ]
+        }
+      ]
+    },
+    "cardano/address/PaymentCredential": {
+      "title": "PaymentCredential",
+      "description": "A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).",
+      "anyOf": [
+        {
+          "title": "VerificationKey",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+            }
+          ]
+        },
+        {
+          "title": "Script",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1crypto~1ScriptHash"
+            }
+          ]
+        }
+      ]
+    },
+    "cardano/address/StakeCredential": {
+      "title": "StakeCredential",
+      "description": "Represent a type of object that can be represented either inline (by hash)\n or via a reference (i.e. a pointer to an on-chain location).\n\n This is mainly use for capturing pointers to a stake credential\n registration certificate in the case of so-called pointer addresses.",
+      "anyOf": [
+        {
+          "title": "Inline",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/cardano~1address~1Credential"
+            }
+          ]
+        },
+        {
+          "title": "Pointer",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "slot_number",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "transaction_index",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "certificate_index",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

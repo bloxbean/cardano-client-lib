@@ -42,7 +42,6 @@ public class BlueprintUtil {
      *   <li>{@code "List<Int>"} → {@code ""} (base "List" has NO path)</li>
      *   <li>{@code "Data"} → {@code ""} (primitive, NO path)</li>
      *   <li>{@code "Bool"} → {@code ""} (root-level ADT, NO path)</li>
-     *   <li>{@code "Option$types~1order~1Action"} → {@code ""} (base "Option" has NO path)</li>
      * </ul>
      *
      * @param key the blueprint definition reference key (may be null)
@@ -83,12 +82,11 @@ public class BlueprintUtil {
     }
 
     /**
-     * Extracts the base type from a definition key, stripping generic type parameters.
+     * Extracts the base type from a definition key, stripping angle-bracket generics.
      *
      * <p>Examples:</p>
      * <ul>
      *   <li>{@code "Option<cardano/address/StakeCredential>"} → {@code "Option"}</li>
-     *   <li>{@code "List$Int"} → {@code "List"}</li>
      *   <li>{@code "aiken/interval/IntervalBound<Int>"} → {@code "aiken/interval/IntervalBound"}</li>
      *   <li>{@code "types/order/OrderDatum"} → {@code "types/order/OrderDatum"}</li>
      * </ul>
@@ -101,27 +99,8 @@ public class BlueprintUtil {
             return "";
         }
 
-        // Find first generic delimiter
-        int genericStart = key.indexOf('<');
-        int dollarStart = key.indexOf('$');
-
-        // Determine which delimiter comes first (if any)
-        int delimiterPos = -1;
-        if (genericStart != -1 && dollarStart != -1) {
-            delimiterPos = Math.min(genericStart, dollarStart);
-        } else if (genericStart != -1) {
-            delimiterPos = genericStart;
-        } else if (dollarStart != -1) {
-            delimiterPos = dollarStart;
-        }
-
-        // If no generics, return the whole key
-        if (delimiterPos == -1) {
-            return key;
-        }
-
-        // Return everything before the generic delimiter
-        return key.substring(0, delimiterPos);
+        int angleIndex = key.indexOf('<');
+        return angleIndex == -1 ? key : key.substring(0, angleIndex);
     }
 
     /**

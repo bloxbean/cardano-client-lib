@@ -8,17 +8,17 @@ import java.lang.annotation.Target;
 /**
  * Declares the Aiken standard library version used by a {@code @Blueprint}-annotated interface.
  *
- * <p>The annotation processor reads this to filter the type registry so that only
- * schema signatures matching the declared version are resolved as shared types.</p>
+ * <p>Currently a no-op marker: the annotation processor supports a single stdlib
+ * family ({@link AikenStdlibVersion#V3}) so declaring the version is not required.
+ * The annotation is retained for source compatibility with existing user code and
+ * as an extension point for future stdlib versions.</p>
  *
- * <p>Usage:</p>
+ * <p>Usage (optional):</p>
  * <pre>{@code
  * @Blueprint(fileInResources = "blueprint.json", packageName = "my.generated")
- * @AikenStdlib(AikenStdlibVersion.V2)
+ * @AikenStdlib(AikenStdlibVersion.V3)
  * public interface MyBlueprint {}
  * }</pre>
- *
- * <p>When omitted, defaults to {@link AikenStdlibVersion#V3} (the latest).</p>
  */
 @Retention(RetentionPolicy.CLASS)
 @Target(ElementType.TYPE)

@@ -27,13 +27,11 @@ You can have multiple `@Blueprint`-annotated interfaces, each pointing to a diff
 @Blueprint(fileInResources = "blueprint/contract-a.json",
            packageName = "com.example.contracta")
 @ExtendWith(LockUnlockValidatorExtender.class)
-@AikenStdlib(AikenStdlibVersion.V3)
 public interface ContractABlueprint { }
 
 @Blueprint(fileInResources = "blueprint/contract-b.json",
            packageName = "com.example.contractb")
 @ExtendWith(MintValidatorExtender.class)
-@AikenStdlib(AikenStdlibVersion.V2)
 public interface ContractBBlueprint { }
 ```
 
@@ -72,9 +70,11 @@ Tuples with 6 or more items are rejected during annotation processing.
 
 Example — a 2-tuple of `(ByteArray, Int)` generates a field of type `Pair<byte[], BigInteger>`.
 
+Aiken emits tuple definition keys with the CIP-57 doubled-angle-bracket convention (`Tuple<<Int, ByteArray>>`) and `"dataType": "list"` with positional `items` — distinct from `constrData`. If you swap a tuple for a single-field constructor in the contract, the on-chain encoding changes; `TupleCheckDevnetTest` pins down the tuple-as-list encoding end-to-end.
+
 ## Optional / Option Handling
 
-Aiken's `Option<T>` maps to `java.util.Optional<T>`. The encoding uses the standard Plutus convention:
+Aiken's `Option<T>` maps to `java.util.Optional<T>` **when it appears as a field of an enclosing constructor**. The encoding uses the standard Plutus convention:
 
 - `Some(value)` → `ConstrPlutusData` with alternative `0` and the value as a field
 - `None` → `ConstrPlutusData` with alternative `1` and no fields
@@ -89,6 +89,24 @@ myDatum.setSomeField(Optional.empty());
 // Reading an optional field
 Optional<String> maybeValue = myDatum.getSomeField();
 ```
+
+### Top-level `Option<T>` (gap)
+
+When `Option<T>` is itself the redeemer or datum at the validator boundary — not a field of a containing constructor — the processor does not currently emit a Java class for it. Construct it by hand:
+
+```java
+import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+
+// Some(bytes) — alt 0 with one bytes field
+Data<?> some = () -> ConstrPlutusData.of(0, BytesPlutusData.of(bytes));
+
+// None — alt 1 with no fields
+Data<?> none = () -> ConstrPlutusData.of(1);
+```
+
+`OptionRedeemerDevnetTest` shows the full pattern, including an `OptionBytesRedeemer` helper class. This gap is tracked for a future processor enhancement.
 
 ## Working with RawData Types
 

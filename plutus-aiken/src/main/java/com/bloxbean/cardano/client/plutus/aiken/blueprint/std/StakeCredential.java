@@ -9,15 +9,11 @@ import java.math.BigInteger;
 import java.util.Objects;
 
 /**
- * Shared representation of the CIP-57 StakeCredential schema (Aiken stdlib v2+).
+ * Shared representation of the CIP-57 StakeCredential schema (Aiken stdlib v3.x).
  * <p>
- * Matches the {@code cardano/address/StakeCredential} definition emitted by
- * stdlib v2 and v3 blueprints. The Inline variant references
- * {@code cardano/address/Credential} which maps to {@link PaymentCredential}.
- * <p>
- * This type replaces the stdlib v1 {@code Referenced<Credential>} pattern
- * (title "Referenced", namespace {@code aiken/transaction/credential/}).
- * The schema structure is identical in stdlib v2 and v3.
+ * Matches the {@code cardano/address/StakeCredential} definition. The Inline
+ * variant references {@code cardano/address/Credential} which maps to
+ * {@link PaymentCredential}.
  */
 public interface StakeCredential extends Data<StakeCredential> {
 

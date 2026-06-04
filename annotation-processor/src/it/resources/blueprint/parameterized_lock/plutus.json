@@ -1,0 +1,85 @@
+{
+  "preamble": {
+    "title": "ccl/parameterized_lock",
+    "description": "Parameterised validator — exercises compile-time parameter application: distinct script hash per applied param value",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "parameterized_lock.parameterized_lock.spend",
+      "datum": {
+        "title": "_datum",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/parameterized_lock~1Redeemer"
+        }
+      },
+      "parameters": [
+        {
+          "title": "authority",
+          "schema": {
+            "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+          }
+        }
+      ],
+      "compiledCode": "58df010100229800aba2aba1aab9faab9eaab9dab9a9bae002488888896600264646644b30013370e900118039baa00189919912cc004cdc3a400060146ea801626464b300130100028acc004c8cc004004dd618081808980898089808980898089808980898071baa301000a2259800800c528456600266e3cdd718088008064528c4cc008008c04800500d2020899b8f375c601e601a6ea801d221046f70656e008a50402d1640386eb8c038004c02cdd5002c5900918058009805980600098041baa0018b200c300800130083009001300800130043754011149a26cac80101",
+      "hash": "18b6e6981e57cd3e22e3844b56803d732bc3c3c2f282a56ae6acb1eb"
+    },
+    {
+      "title": "parameterized_lock.parameterized_lock.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "parameters": [
+        {
+          "title": "authority",
+          "schema": {
+            "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+          }
+        }
+      ],
+      "compiledCode": "58df010100229800aba2aba1aab9faab9eaab9dab9a9bae002488888896600264646644b30013370e900118039baa00189919912cc004cdc3a400060146ea801626464b300130100028acc004c8cc004004dd618081808980898089808980898089808980898071baa301000a2259800800c528456600266e3cdd718088008064528c4cc008008c04800500d2020899b8f375c601e601a6ea801d221046f70656e008a50402d1640386eb8c038004c02cdd5002c5900918058009805980600098041baa0018b200c300800130083009001300800130043754011149a26cac80101",
+      "hash": "18b6e6981e57cd3e22e3844b56803d732bc3c3c2f282a56ae6acb1eb"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Any Plutus data."
+    },
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "parameterized_lock/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

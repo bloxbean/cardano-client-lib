@@ -14,8 +14,7 @@ import static com.google.testing.compile.Compiler.javac;
  * Tests for JpgStore Sniper blueprint annotation processing.
  *
  * <p>Verifies that the jpgstore/sniper-onchain blueprint (Aiken v1.1.21, Plutus V3)
- * compiles successfully <b>without</b> an explicit {@code @AikenStdlib} annotation,
- * testing that V3 is the implicit default.</p>
+ * compiles successfully.</p>
  */
 class JpgStoreSniperTest {
 

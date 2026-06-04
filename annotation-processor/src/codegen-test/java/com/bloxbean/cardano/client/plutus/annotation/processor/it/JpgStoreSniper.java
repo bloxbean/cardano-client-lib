@@ -9,10 +9,8 @@ import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
  * It contains 9 validators across 3 groups (merkle_snipe, policy_snipe, settings)
  * with mint, spend, and else purposes.</p>
  *
- * <p><strong>Implicit V3 Default Test:</strong> This marker deliberately omits the
- * {@code @AikenStdlib} annotation to verify that V3 is the implicit default.
- * Shared types (Address, Credential, OutputReference, PolicyId, AssetName, etc.)
- * should resolve via the V3 registry without explicit annotation.</p>
+ * <p>Shared types (Address, PaymentCredential, OutputReference, PolicyId, AssetName, etc.)
+ * resolve via the Aiken stdlib registry.</p>
  *
  * <p><b>Custom types:</b></p>
  * <ul>

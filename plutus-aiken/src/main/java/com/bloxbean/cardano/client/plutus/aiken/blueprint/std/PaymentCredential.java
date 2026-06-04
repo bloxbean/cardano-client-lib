@@ -9,21 +9,14 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Shared representation of the CIP-57 Credential schema (Aiken stdlib v2+).
+ * Shared representation of the CIP-57 PaymentCredential schema (Aiken stdlib v3.x).
  * <p>
- * Uses variant names {@code VerificationKey} / {@code Script} introduced in
- * stdlib v2, replacing the {@code VerificationKeyCredential} / {@code ScriptCredential}
- * names used in stdlib v1.
- * <p>
- * Covers both titled schemas emitted by stdlib v2 and v3 blueprints:
+ * Covers both titled schemas emitted by stdlib v3 blueprints:
  * <ul>
  *   <li>{@code cardano/address/Credential} (title "Credential")</li>
  *   <li>{@code cardano/address/PaymentCredential} (title "PaymentCredential")</li>
  * </ul>
- * The two are structurally identical; only the title differs. Stdlib v2 uses bare
- * hash refs ({@code VerificationKeyHash}, {@code ScriptHash}) while stdlib v3 uses
- * namespaced refs ({@code aiken/crypto/VerificationKeyHash}, {@code aiken/crypto/ScriptHash}),
- * but both map to this type.
+ * Both reference {@code aiken/crypto/VerificationKeyHash} / {@code aiken/crypto/ScriptHash}.
  */
 public interface PaymentCredential extends Data<PaymentCredential> {
 
