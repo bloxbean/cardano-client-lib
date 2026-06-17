@@ -561,12 +561,81 @@ public class TxFlowYamlIntegrationTest {
         System.out.println("\n=== Test 9 completed successfully! ===\n");
     }
 
+    @Test
+    @Order(10)
+    void yamlString_flowExecutionContextBatchMode_success() throws Exception {
+        System.out.println("=== Test 10: YAML String - Flow Execution Context BATCH Mode ===");
+
+        String yaml = """
+                version: "1.0"
+                context:
+                  chaining_mode: BATCH
+                  confirmation: quick
+                flow:
+                  id: yaml-context-batch
+                  description: BATCH mode and confirmation configured from YAML context
+                  steps:
+                    - step:
+                        id: step1
+                        description: Sender to Receiver
+                        tx:
+                          from_ref: account://sender
+                          intents:
+                            - type: payment
+                              address: %s
+                              amounts:
+                                - unit: lovelace
+                                  quantity: 2500000
+                        context:
+                          signers:
+                            - ref: account://sender
+                              scope: payment
+                    - step:
+                        id: step2
+                        description: Receiver to Relay
+                        depends_on:
+                          - from_step: step1
+                            strategy: all
+                        tx:
+                          from_ref: account://receiver
+                          intents:
+                            - type: payment
+                              address: %s
+                              amounts:
+                                - unit: lovelace
+                                  quantity: 1200000
+                        context:
+                          signers:
+                            - ref: account://receiver
+                              scope: payment
+                """.formatted(receiverAccount.baseAddress(), relayAccount.baseAddress());
+
+        TxFlow flow = TxFlow.fromYaml(yaml);
+
+        assertEquals(ChainingMode.BATCH, flow.getExecutionSettings().getChainingMode());
+        assertNotNull(flow.getExecutionSettings().getConfirmationConfig());
+        assertEquals(1, flow.getExecutionSettings().getConfirmationConfig().getMinConfirmations());
+
+        FlowResult result = FlowExecutor.create(backendService)
+                .withSignerRegistry(signerRegistry)
+                .withListener(new LoggingFlowListener())
+                .executeSync(flow);
+
+        assertTrue(result.isSuccessful(), "YAML context BATCH flow should succeed: " +
+                (result.getError() != null ? result.getError().getMessage() : "no error"));
+        assertEquals(2, result.getCompletedStepCount());
+        assertEquals(2, result.getTransactionHashes().size());
+
+        System.out.println("Tx hashes: " + result.getTransactionHashes());
+        System.out.println("\n=== Test 10 completed successfully! ===\n");
+    }
+
     // ==================== Category 5: YAML Resource Files ====================
 
     @Test
-    @Order(10)
+    @Order(11)
     void yamlResourceFile_loadAndExecute_success() throws Exception {
-        System.out.println("=== Test 10: YAML Resource File - Load and Execute ===");
+        System.out.println("=== Test 11: YAML Resource File - Load and Execute ===");
 
         // Load YAML from classpath resource
         String yaml = loadResource("/flows/two-step-chain.yaml");
@@ -597,15 +666,15 @@ public class TxFlowYamlIntegrationTest {
         assertEquals(2, result.getTransactionHashes().size());
 
         System.out.println("Tx hashes: " + result.getTransactionHashes());
-        System.out.println("\n=== Test 10 completed successfully! ===\n");
+        System.out.println("\n=== Test 11 completed successfully! ===\n");
     }
 
     // ==================== Category 6: UTXO Selection DSL ====================
 
     @Test
-    @Order(11)
+    @Order(12)
     void txPlan_indexedUtxoSelection_success() throws Exception {
-        System.out.println("=== Test 11: TxPlan - Indexed UTXO Selection ===");
+        System.out.println("=== Test 12: TxPlan - Indexed UTXO Selection ===");
 
         // Step 1: Sender sends two separate payments to Receiver (3 ADA + 2 ADA)
         // This creates two distinct outputs at the receiver address
@@ -649,13 +718,13 @@ public class TxFlowYamlIntegrationTest {
         assertEquals(2, result.getTransactionHashes().size());
 
         System.out.println("Tx hashes: " + result.getTransactionHashes());
-        System.out.println("\n=== Test 11 completed successfully! ===\n");
+        System.out.println("\n=== Test 12 completed successfully! ===\n");
     }
 
     @Test
-    @Order(12)
+    @Order(13)
     void yamlString_indexedUtxoSelection_success() throws Exception {
-        System.out.println("=== Test 12: YAML String - Indexed UTXO Selection ===");
+        System.out.println("=== Test 13: YAML String - Indexed UTXO Selection ===");
 
         String yaml = """
                 version: "1.0"
@@ -725,13 +794,13 @@ public class TxFlowYamlIntegrationTest {
         assertEquals(2, result.getTransactionHashes().size());
 
         System.out.println("Tx hashes: " + result.getTransactionHashes());
-        System.out.println("\n=== Test 12 completed successfully! ===\n");
+        System.out.println("\n=== Test 13 completed successfully! ===\n");
     }
 
     @Test
-    @Order(13)
+    @Order(14)
     void yamlString_changeOutputDependency_success() throws Exception {
-        System.out.println("=== Test 13: YAML String - Change Output Dependency ===");
+        System.out.println("=== Test 14: YAML String - Change Output Dependency ===");
 
         // Step 1: Sender sends 2 ADA to Receiver. This creates a change output back to Sender.
         // Step 2: Sender sends 1 ADA to Relay. With strategy: all, step1's change output
@@ -797,7 +866,7 @@ public class TxFlowYamlIntegrationTest {
         assertEquals(2, result.getTransactionHashes().size());
 
         System.out.println("Tx hashes: " + result.getTransactionHashes());
-        System.out.println("\n=== Test 13 completed successfully! ===\n");
+        System.out.println("\n=== Test 14 completed successfully! ===\n");
     }
 
     // ==================== Helpers ====================

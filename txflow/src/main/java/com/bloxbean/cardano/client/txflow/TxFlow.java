@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.txflow;
 
 import com.bloxbean.cardano.client.txflow.yaml.FlowDocument;
+import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.exec.RollbackStrategy;
 import lombok.Getter;
 
 import java.util.*;
@@ -46,12 +48,16 @@ public class TxFlow {
     private final String description;
     private final Map<String, Object> variables;
     private final List<FlowStep> steps;
+    private final FlowExecutionSettings executionSettings;
 
     private TxFlow(Builder builder) {
         this.id = builder.id;
         this.description = builder.description;
         this.variables = Collections.unmodifiableMap(new HashMap<>(builder.variables));
         this.steps = Collections.unmodifiableList(new ArrayList<>(builder.steps));
+        this.executionSettings = builder.executionSettings != null
+                ? builder.executionSettings
+                : FlowExecutionSettings.empty();
     }
 
     /**
@@ -261,6 +267,7 @@ public class TxFlow {
         private String description;
         private final Map<String, Object> variables = new HashMap<>();
         private final List<FlowStep> steps = new ArrayList<>();
+        private FlowExecutionSettings executionSettings = FlowExecutionSettings.empty();
 
         private Builder(String id) {
             if (id == null || id.isEmpty()) {
@@ -303,6 +310,81 @@ public class TxFlow {
             if (variables != null) {
                 this.variables.putAll(variables);
             }
+            return this;
+        }
+
+        /**
+         * Set flow-level execution settings.
+         *
+         * @param executionSettings execution settings for this flow
+         * @return this builder
+         */
+        public Builder withExecutionSettings(FlowExecutionSettings executionSettings) {
+            this.executionSettings = executionSettings != null
+                    ? executionSettings
+                    : FlowExecutionSettings.empty();
+            return this;
+        }
+
+        /**
+         * Alias for {@link #withExecutionSettings(FlowExecutionSettings)} for YAML context parity.
+         *
+         * @param executionSettings execution settings for this flow
+         * @return this builder
+         */
+        public Builder withContext(FlowExecutionSettings executionSettings) {
+            return withExecutionSettings(executionSettings);
+        }
+
+        /**
+         * Set the flow-level chaining mode.
+         *
+         * @param chainingMode chaining mode
+         * @return this builder
+         */
+        public Builder withChainingMode(ChainingMode chainingMode) {
+            this.executionSettings = this.executionSettings.toBuilder()
+                    .chainingMode(chainingMode)
+                    .build();
+            return this;
+        }
+
+        /**
+         * Set the flow-level confirmation configuration.
+         *
+         * @param confirmationConfig confirmation configuration
+         * @return this builder
+         */
+        public Builder withConfirmationConfig(ConfirmationConfig confirmationConfig) {
+            this.executionSettings = this.executionSettings.toBuilder()
+                    .confirmationConfig(confirmationConfig)
+                    .build();
+            return this;
+        }
+
+        /**
+         * Set the flow-level rollback strategy.
+         *
+         * @param rollbackStrategy rollback strategy
+         * @return this builder
+         */
+        public Builder withRollbackStrategy(RollbackStrategy rollbackStrategy) {
+            this.executionSettings = this.executionSettings.toBuilder()
+                    .rollbackStrategy(rollbackStrategy)
+                    .build();
+            return this;
+        }
+
+        /**
+         * Set the flow-level default retry policy for steps that do not define one.
+         *
+         * @param retryPolicy default retry policy
+         * @return this builder
+         */
+        public Builder withDefaultRetryPolicy(RetryPolicy retryPolicy) {
+            this.executionSettings = this.executionSettings.toBuilder()
+                    .retryPolicy(retryPolicy)
+                    .build();
             return this;
         }
 
