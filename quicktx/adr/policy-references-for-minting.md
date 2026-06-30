@@ -2,7 +2,7 @@
 
 **Status**: Proposed
 **Date**: 2026-06-17
-**Issue**: https://github.com/bloxbean/cardano-client-lib/issues/630
+**Issue**: https://github.com/bloxbean/cardano-client-lib/issues/632
 **Modules**: `quicktx`, `transaction-spec`
 
 ## 1. Context
@@ -86,11 +86,15 @@ private String policyRef;
 Add fluent Java helpers, for example:
 
 ```java
-Tx mintAssetRef(String policyRef, Asset asset, String receiver)
-Tx mintAssetRef(String policyRef, List<Asset> assets, String receiver)
+PolicyRef.ref(String ref)
+
+Tx mintAssets(PolicyRef policyRef, Asset asset, String receiver)
+Tx mintAssets(PolicyRef policyRef, List<Asset> assets, String receiver)
 ```
 
-Exact overload naming can follow local API style, but it should be clear that the policy is resolved at composition/build time.
+Do not add string-based `mintAssetsRef(String, ...)` helpers in the initial implementation. The typed `PolicyRef` overloads are the Java API, so callers explicitly choose the lookup type.
+
+The first implementation supports `PolicyRef.ref(...)`, backed by `policy_ref` in YAML. A future extension can add `PolicyRef.policyId(...)` and a YAML `policy_id` field if policy-id lookup is needed. A policy id alone is not enough to mint; it must resolve to a full native `Policy` with script material and signing capability.
 
 ## 4. Resolution Flow
 

@@ -42,7 +42,7 @@ TxResult result = builder
 QuickTx resolves senders, fee payers, collateral payers, and extra witnesses from URI-style references using a pluggable `SignerRegistry`. This keeps YAML free from secrets while letting the runtime decide how to sign:
 
 ```java
-SignerRegistry registry = new InMemorySignerRegistry()
+SignerRegistry registry = new DefaultSignerRegistry()
     .addAccount("account://ops", opsAccount)
     .addPolicy("policy://nft", policy);
 
@@ -51,8 +51,8 @@ Tx tx = new Tx()
     .payToAddress("addr_test1_receiver", Amount.ada(5));
 
 TxResult result = builder
-    .withSignerRegistry(registry)
     .compose(tx)
+    .withSignerRegistry(registry)
     .feePayerRef("account://ops")
     .withSignerRef("policy://nft", "policy")
     .completeAndWait();
@@ -62,6 +62,84 @@ TxResult result = builder
 - `feePayerRef` / `collateralPayerRef` resolve to a wallet or preferred address at compose time.
 - `withSignerRef(ref, scope)` adds additional witnesses such as `stake`, `drep`, or `policy`.
 - Mixing address-based APIs with references is allowed; conflicts raise a `TxBuildException`.
+
+Native minting can use the same policy reference without embedding the policy script in YAML:
+
+```java
+Tx tx = new Tx()
+    .fromRef("account://ops")
+    .mintAssets(PolicyRef.ref("policy://nft"), new Asset("ExampleToken", BigInteger.ONE), "addr_test1_receiver");
+```
+
+```yaml
+transaction:
+  - tx:
+      from_ref: account://ops
+      intents:
+        - type: minting
+          policy_ref: policy://nft
+          assets:
+            - name: ExampleToken
+              value: 1
+          receiver: addr_test1_receiver
+```
+
+`policy_ref` is for native `Policy`-backed minting. Plutus minting continues to use validator attachment or reference-script workflows.
+
+### Script Registry & Attachment References
+
+Validator and native script witnesses can also be kept out of YAML and resolved at build time through a `ScriptRegistry`.
+
+```java
+ScriptRegistry scripts = new DefaultScriptRegistry()
+    .addPlutusScript("validator://mint", mintValidator)
+    .addNativeScript("native://policy", nativeScript);
+
+Tx tx = new Tx()
+    .fromRef("account://ops")
+    .payToAddress("addr_test1_receiver", Amount.ada(5))
+    .attachMintValidator(ScriptRef.ref("validator://mint"))
+    .attachNativeScript(ScriptRef.hash(nativeScript.getPolicyId()));
+
+Transaction transaction = builder
+    .compose(tx)
+    .withSignerRegistry(registry)
+    .withScriptRegistry(scripts)
+    .build();
+```
+
+The same references can be represented in TxPlan YAML:
+
+```yaml
+version: 1.0
+transaction:
+  - tx:
+      from_ref: account://ops
+      intents:
+        - type: payment
+          address: addr_test1_receiver
+          amounts:
+            - unit: lovelace
+              quantity: 5000000
+      scripts:
+        - type: validator
+          role: mint
+          script_ref: validator://mint
+        - type: native_script
+          script_hash: f711cc44f1611e6784f13ca21a0863ed2923d065d4493ef24246ea46
+```
+
+`script_ref` is a runtime registry reference, not a Cardano on-chain reference script. On-chain reference scripts still use reference inputs, `script_ref_bytes`, and the existing reference-script resolver flow. `script_hash` can resolve Plutus scripts through a configured `ScriptSupplier`; logical `script_ref` values require a `ScriptRegistry`.
+
+For TxPlan execution, configure registries on the composed context:
+
+```java
+TxPlan plan = TxPlan.from(yaml);
+
+Transaction transaction = builder
+    .compose(plan, registry, scripts)
+    .build();
+```
 
 ## TxPlan YAML Serialization
 
@@ -117,7 +195,7 @@ TxResult result = context
 #### Basic Structure
 
 ```yaml
-version: 1.1
+version: 1.0
 variables:
   sender_ref: account://ops_sender
   receiver: addr_test1_receiver_address
@@ -126,8 +204,7 @@ context:
   fee_payer_ref: account://ops
   collateral_payer_ref: account://ops
   signers:
-    - type: policy
-      ref: policy://nft
+    - ref: policy://nft
       scope: policy
   required_signers:
     - ab123def
@@ -139,10 +216,10 @@ transaction:
       from_ref: ${sender_ref}
       intents:
         - type: payment
-          to: ${receiver}
-          amount:
-            unit: lovelace
-            quantity: ${amount}
+          address: ${receiver}
+          amounts:
+            - unit: lovelace
+              quantity: ${amount}
 ```
 
 Address-based fields (`from`, `fee_payer`, `collateral_payer`) remain valid for backward compatibility; mix and match them with references as needed.
@@ -153,7 +230,7 @@ Address-based fields (`from`, `fee_payer`, `collateral_payer`) remain valid for 
 - **fee_payer_ref**: Registry reference that resolves to a wallet or address for paying fees
 - **collateral_payer**: Address that provides collateral for script transactions
 - **collateral_payer_ref**: Registry reference used when collateral should be derived at runtime
-- **signers**: Array of `{ type, ref, scope }` entries resolved via the registry for extra witnesses
+- **signers**: Array of `{ ref, scope }` entries resolved via the registry for extra witnesses
 - **required_signers**: List of required signer credentials (hex-encoded)
 - **valid_from_slot**: Transaction validity start slot (optional)
 - **valid_to_slot**: Transaction validity end slot (optional)
@@ -175,10 +252,10 @@ transaction:
       from: ${treasury}
       intents:
         - type: payment
-          to: ${alice}
-          amount:
-            unit: lovelace
-            quantity: ${amount}
+          address: ${alice}
+          amounts:
+            - unit: lovelace
+              quantity: ${amount}
 ```
 
 ### Multiple Transactions
@@ -200,36 +277,56 @@ transaction:
       from: ${treasury}
       intents:
         - type: payment
-          to: ${pool_operator}
-          amount:
-            unit: lovelace
-            quantity: 500000000
+          address: ${pool_operator}
+          amounts:
+            - unit: lovelace
+              quantity: 500000000
             
-  - scriptTx:
+  - tx:
+      from: ${treasury}
       intents:
         - type: stake_pool_registration
           pool_id: pool1abc123
           # ... pool parameters
 ```
 
-### Script Transactions in YAML
+### Script Attachments in YAML
+
+Use the unified `tx` format for script operations. The legacy `scriptTx` YAML form is not supported.
 
 ```yaml
+version: 1.0
 transaction:
-  - scriptTx:
-      change_address: addr_test1_change
-      change_datum: "590a01a1581c..."  # hex-encoded PlutusData
+  - tx:
+      from: addr_test1_sender
       intents:
-        - type: script_call
-          contract_address: addr_test1_contract
-          datum_hex: "d87980"
-          redeemer_hex: "d87a80"
-          amount:
-            unit: lovelace
-            quantity: 10000000
-      validators:
-        - script_hex: "590a01..."
-          type: plutus_v2
+        - type: payment
+          address: addr_test1_receiver
+          amounts:
+            - unit: lovelace
+              quantity: 5000000
+      scripts:
+        - type: validator
+          role: spend
+          cbor_hex: "49480100002221200101"
+          version: v2
+        - type: native_script
+          script_hex: "8200581c..."
+```
+
+The same attachments can be referenced through a runtime `ScriptRegistry`:
+
+```yaml
+version: 1.0
+transaction:
+  - tx:
+      from_ref: account://ops
+      scripts:
+        - type: validator
+          role: spend
+          script_ref: validator://spend
+        - type: native_script
+          script_ref: native://policy
 ```
 
 ## Examples
@@ -251,10 +348,10 @@ String yamlPlan = """
           from: ${sender}
           intents:
             - type: payment
-              to: ${receiver}
-              amount:
-                unit: lovelace
-                quantity: 5000000
+              address: ${receiver}
+              amounts:
+                - unit: lovelace
+                  quantity: 5000000
     """;
 
 // 2. Load and execute

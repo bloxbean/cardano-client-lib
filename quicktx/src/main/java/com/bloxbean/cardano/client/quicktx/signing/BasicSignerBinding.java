@@ -88,6 +88,11 @@ class BasicSignerBinding implements SignerBinding {
     }
 
     @Override
+    public Optional<Policy> asPolicy() {
+        return Optional.ofNullable(policy);
+    }
+
+    @Override
     public Optional<String> preferredAddress() {
         if (wallet != null) {
             return Optional.ofNullable(wallet.getBaseAddressString(0));
