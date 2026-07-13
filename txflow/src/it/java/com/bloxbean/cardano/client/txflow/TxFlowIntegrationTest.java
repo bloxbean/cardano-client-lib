@@ -8,7 +8,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
-import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
 import com.bloxbean.cardano.client.txflow.exec.FlowHandle;
 import com.bloxbean.cardano.client.txflow.exec.FlowListener;
@@ -20,6 +20,8 @@ import org.junit.jupiter.api.*;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,6 +45,7 @@ public class TxFlowIntegrationTest {
     private BFBackendService backendService;
     private FlowExecutor flowExecutor;
     private DefaultSignerRegistry signerRegistry;
+    private ExecutorService asyncExecutor;
 
     // Pre-funded accounts from Yaci DevKit
     private Account account0; // Index 0 - Primary sender
@@ -52,6 +55,8 @@ public class TxFlowIntegrationTest {
     @BeforeEach
     void setUp() {
         System.out.println("\n=== TxFlow Integration Test Setup ===");
+
+        asyncExecutor = Executors.newCachedThreadPool();
 
         // Initialize backend service
         backendService = new BFBackendService(YACI_BASE_URL, "dummy-project-id");
@@ -75,6 +80,7 @@ public class TxFlowIntegrationTest {
         // Create FlowExecutor
         flowExecutor = FlowExecutor.create(backendService)
                 .withSignerRegistry(signerRegistry)
+                .withExecutor(asyncExecutor)
                 .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(60)).build());
 
         // Verify accounts have funds
@@ -309,6 +315,7 @@ public class TxFlowIntegrationTest {
         System.out.println("Starting async execution...");
 
         FlowHandle handle = FlowExecutor.create(backendService)
+                .withExecutor(asyncExecutor)
                 .execute(flow);
 
         // Check initial status
@@ -362,11 +369,10 @@ public class TxFlowIntegrationTest {
 
     @Test
     @Order(6)
-    void testFlowYamlRoundTrip() throws Exception {
-        System.out.println("=== Test 6: Flow YAML Round Trip ===");
+    void javaFactoryFlowIsRejectedByYamlWriter() {
+        System.out.println("=== Test 6: Java Factory Serialization Honesty ===");
 
-        // Create a flow using withTxContext (note: YAML round-trip will not preserve factory functions)
-        // This test focuses on flow structure preservation
+        // Java factory functions cannot be represented faithfully in YAML.
         TxFlow originalFlow = TxFlow.builder("yaml-roundtrip")
                 .withDescription("YAML serialization test")
                 .addVariable("amount", 1_500_000L)
@@ -389,28 +395,10 @@ public class TxFlowIntegrationTest {
                         .build())
                 .build();
 
-        // Serialize to YAML
-        String yaml = originalFlow.toYaml();
-        System.out.println("Serialized YAML:");
-        System.out.println(yaml);
-
-        // Deserialize back
-        TxFlow restoredFlow = TxFlow.fromYaml(yaml);
-
-        // Verify structure preserved
-        assertEquals(originalFlow.getId(), restoredFlow.getId());
-        assertEquals(originalFlow.getDescription(), restoredFlow.getDescription());
-        assertEquals(originalFlow.getSteps().size(), restoredFlow.getSteps().size());
-
-        // Verify dependencies preserved
-        assertTrue(restoredFlow.getStep("step2").get().hasDependencies());
-        assertEquals("step1", restoredFlow.getStep("step2").get().getDependencyStepIds().get(0));
-
-        System.out.println("\nYAML round trip successful!");
-        System.out.println("  ID preserved: " + restoredFlow.getId());
-        System.out.println("  Steps preserved: " + restoredFlow.getSteps().size());
-        System.out.println("  Dependencies preserved: " + restoredFlow.getStep("step2").get().hasDependencies());
-
+        // Java factories close over runtime objects and have no portable representation.
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                originalFlow::toYaml);
+        assertTrue(failure.getMessage().contains("factory"));
         System.out.println("\n=== Test 6 completed successfully! ===\n");
     }
 
@@ -628,6 +616,9 @@ public class TxFlowIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        if (asyncExecutor != null) {
+            asyncExecutor.shutdownNow();
+        }
         System.out.println("Test cleanup completed\n");
     }
 

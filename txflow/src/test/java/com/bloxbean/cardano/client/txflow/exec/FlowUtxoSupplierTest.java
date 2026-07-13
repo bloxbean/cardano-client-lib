@@ -185,4 +185,35 @@ class FlowUtxoSupplierTest {
         assertEquals(TX_HASH_2, result.get().getTxHash());
         assertEquals(0, result.get().getOutputIndex());
     }
+
+    @Test
+    void testGetTxOutputHonorsDependencySelection() {
+        Utxo first = utxo(TX_HASH_2, 0, ADDR);
+        Utxo selected = utxo(TX_HASH_2, 1, ADDR);
+        context.recordStepResult("step1", FlowStepResult.success(
+                "step1", TX_HASH_2, List.of(first, selected), Collections.emptyList()));
+        when(baseSupplier.getTxOutput(anyString(), anyInt())).thenReturn(Optional.empty());
+
+        FlowUtxoSupplier supplier = new FlowUtxoSupplier(
+                baseSupplier, context, List.of(StepDependency.atIndex("step1", 1)));
+
+        assertTrue(supplier.getTxOutput(TX_HASH_2, 0).isEmpty());
+        assertEquals(selected, supplier.getTxOutput(TX_HASH_2, 1).orElseThrow());
+    }
+
+    @Test
+    void explicitPortableOutputLookupDoesNotBroadenAddressDependencies() {
+        Utxo explicit = utxo(TX_HASH_2, 0, ADDR);
+        context.recordStepResult("producer", FlowStepResult.success(
+                "producer", TX_HASH_2, List.of(explicit), Collections.emptyList()));
+        when(baseSupplier.getTxOutput(anyString(), anyInt())).thenReturn(Optional.empty());
+        when(baseSupplier.getAll(ADDR)).thenReturn(List.of());
+
+        FlowUtxoSupplier supplier = new FlowUtxoSupplier(
+                baseSupplier, context, List.of(), java.util.Set.of("producer"));
+
+        assertEquals(explicit, supplier.getTxOutput(TX_HASH_2, 0).orElseThrow());
+        assertTrue(supplier.getAll(ADDR).isEmpty(),
+                "explicit flow_output access must not act like an address dependency");
+    }
 }

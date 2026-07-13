@@ -5,24 +5,28 @@ import com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
-import com.bloxbean.cardano.client.txflow.FlowExecutionSettings;
+import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.SelectionStrategy;
 import com.bloxbean.cardano.client.txflow.StepDependency;
 import com.bloxbean.cardano.client.txflow.TxFlow;
-import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
-import com.bloxbean.cardano.client.txflow.exec.RollbackStrategy;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
+import com.bloxbean.cardano.client.txflow.internal.DurationCodec;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.yaml.snakeyaml.LoaderOptions;
 
 import java.time.Duration;
 import java.util.*;
@@ -70,12 +74,21 @@ public class FlowDocument {
     private static final ObjectMapper YAML_MAPPER;
 
     static {
-        YAMLFactory factory = new YAMLFactory();
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setAllowDuplicateKeys(false);
+        loaderOptions.setMaxAliasesForCollections(50);
+        loaderOptions.setNestingDepthLimit(100);
+        loaderOptions.setCodePointLimit(3_000_000);
+
+        YAMLFactory factory = YAMLFactory.builder()
+                .loaderOptions(loaderOptions)
+                .build();
         factory.enable(YAMLGenerator.Feature.MINIMIZE_QUOTES);
         factory.disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
         factory.disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID);
 
         YAML_MAPPER = new ObjectMapper(factory);
+        YAML_MAPPER.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         YAML_MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
     }
 
@@ -189,11 +202,15 @@ public class FlowDocument {
         @JsonProperty("utxo_index")
         private Integer utxoIndex;
 
-        @JsonProperty("filter")
-        private String filter;
-
         @JsonProperty("optional")
         private Boolean optional;
+
+        /**
+         * Retained only so legacy documents containing the historical, non-portable
+         * filter field can still be read. The codec reports that it is not executable.
+         */
+        @JsonProperty("filter")
+        private JsonNode filter;
     }
 
     /**
@@ -253,6 +270,9 @@ public class FlowDocument {
         @JsonProperty("post_rollback_utxo_sync_delay")
         private String postRollbackUtxoSyncDelay;
 
+        @JsonProperty("required_authoritative_absences")
+        private Integer requiredAuthoritativeAbsences;
+
         boolean isEmpty() {
             return preset == null
                     && minConfirmations == null
@@ -261,7 +281,8 @@ public class FlowDocument {
                     && maxRollbackRetries == null
                     && waitForBackendAfterRollback == null
                     && postRollbackWaitAttempts == null
-                    && postRollbackUtxoSyncDelay == null;
+                    && postRollbackUtxoSyncDelay == null
+                    && requiredAuthoritativeAbsences == null;
         }
     }
 
@@ -284,6 +305,25 @@ public class FlowDocument {
 
         List<StepEntry> stepEntries = new ArrayList<>();
         for (FlowStep step : flow.getSteps()) {
+            if (step.hasTxContextFactory()) {
+                throw new IllegalStateException("Step '" + step.getId()
+                        + "' uses a Java transaction factory and cannot be serialized");
+            }
+            if (!step.hasTxPlan()) {
+                throw new IllegalStateException("Step '" + step.getId()
+                        + "' has no serializable transaction plan");
+            }
+            if (step.getTxPlan().getTxs().size() != 1) {
+                throw new IllegalStateException("Step '" + step.getId()
+                        + "' must contain exactly one transaction for TxFlow YAML");
+            }
+            for (StepDependency dependency : step.getDependencies()) {
+                if (dependency.getStrategy() == SelectionStrategy.FILTER) {
+                    throw new IllegalStateException("Step '" + step.getId()
+                            + "' uses a predicate FILTER dependency that cannot be serialized");
+                }
+            }
+
             StepEntry entry = new StepEntry();
             StepContent stepContent = new StepContent();
 
@@ -376,6 +416,7 @@ public class FlowDocument {
         entry.setWaitForBackendAfterRollback(config.isWaitForBackendAfterRollback());
         entry.setPostRollbackWaitAttempts(config.getPostRollbackWaitAttempts());
         entry.setPostRollbackUtxoSyncDelay(formatDuration(config.getPostRollbackUtxoSyncDelay()));
+        entry.setRequiredAuthoritativeAbsences(config.getRequiredAuthoritativeAbsences());
         return entry;
     }
 
@@ -399,7 +440,7 @@ public class FlowDocument {
                 stepContent.setContext(doc.getContext());
             }
         } catch (Exception e) {
-            log.error("Failed to convert TxPlan to step content", e);
+            throw new IllegalStateException("Failed to serialize TxPlan transaction", e);
         }
     }
 
@@ -551,14 +592,15 @@ public class FlowDocument {
                 ? confirmationPreset(entry.getPreset())
                 : ConfirmationConfig.defaults();
 
-        ConfirmationConfig.ConfirmationConfigBuilder builder = ConfirmationConfig.builder()
+        ConfirmationConfig.Builder builder = ConfirmationConfig.builder()
                 .minConfirmations(base.getMinConfirmations())
                 .checkInterval(base.getCheckInterval())
                 .timeout(base.getTimeout())
                 .maxRollbackRetries(base.getMaxRollbackRetries())
                 .waitForBackendAfterRollback(base.isWaitForBackendAfterRollback())
                 .postRollbackWaitAttempts(base.getPostRollbackWaitAttempts())
-                .postRollbackUtxoSyncDelay(base.getPostRollbackUtxoSyncDelay());
+                .postRollbackUtxoSyncDelay(base.getPostRollbackUtxoSyncDelay())
+                .requiredAuthoritativeAbsences(base.getRequiredAuthoritativeAbsences());
 
         if (entry.getMinConfirmations() != null) {
             requireNonNegative(entry.getMinConfirmations(), "min_confirmations");
@@ -587,6 +629,11 @@ public class FlowDocument {
             builder.postRollbackUtxoSyncDelay(requireNonNegative(parseDurationStrict(
                     entry.getPostRollbackUtxoSyncDelay(), "post_rollback_utxo_sync_delay"),
                     "post_rollback_utxo_sync_delay"));
+        }
+        if (entry.getRequiredAuthoritativeAbsences() != null) {
+            requirePositive(entry.getRequiredAuthoritativeAbsences(),
+                    "required_authoritative_absences");
+            builder.requiredAuthoritativeAbsences(entry.getRequiredAuthoritativeAbsences());
         }
 
         return builder.build();
@@ -661,30 +708,7 @@ public class FlowDocument {
      * Parse a duration string (e.g., "1s", "500ms", "2m") to Duration.
      */
     private Duration parseDurationStrict(String durationStr, String fieldName) {
-        if (durationStr == null || durationStr.trim().isEmpty()) {
-            throw new IllegalArgumentException(fieldName + " cannot be blank");
-        }
-
-        durationStr = durationStr.trim().toLowerCase(Locale.ROOT);
-
-        try {
-            if (durationStr.endsWith("ms")) {
-                long ms = Long.parseLong(durationStr.substring(0, durationStr.length() - 2));
-                return Duration.ofMillis(ms);
-            } else if (durationStr.endsWith("s")) {
-                long s = Long.parseLong(durationStr.substring(0, durationStr.length() - 1));
-                return Duration.ofSeconds(s);
-            } else if (durationStr.endsWith("m")) {
-                long m = Long.parseLong(durationStr.substring(0, durationStr.length() - 1));
-                return Duration.ofMinutes(m);
-            } else {
-                // Default to seconds
-                long s = Long.parseLong(durationStr);
-                return Duration.ofSeconds(s);
-            }
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid duration for " + fieldName + ": " + durationStr, e);
-        }
+        return DurationCodec.parseLegacy(durationStr, fieldName);
     }
 
     /**
@@ -695,17 +719,7 @@ public class FlowDocument {
             return "1s";
         }
 
-        long millis = duration.toMillis();
-        if (millis % 1000 != 0) {
-            return millis + "ms";
-        }
-
-        long seconds = duration.getSeconds();
-        if (seconds % 60 != 0) {
-            return seconds + "s";
-        }
-
-        return duration.toMinutes() + "m";
+        return DurationCodec.format(duration);
     }
 
     /**
@@ -767,6 +781,8 @@ public class FlowDocument {
      */
     public static FlowDocument fromYaml(String yaml) {
         try {
+            validateSingleDocument(yaml);
+            validateVersion(yaml);
             // Extract variables and expand template if present
             JsonNode tree = YAML_MAPPER.readTree(yaml);
             JsonNode flowNode = tree.get("flow");
@@ -784,6 +800,18 @@ public class FlowDocument {
         }
     }
 
+    private static void validateSingleDocument(String yaml) throws Exception {
+        try (MappingIterator<JsonNode> documents = YAML_MAPPER.readerFor(JsonNode.class).readValues(yaml)) {
+            if (!documents.hasNextValue()) {
+                throw new IllegalArgumentException("TxFlow YAML document is empty");
+            }
+            documents.nextValue();
+            if (documents.hasNextValue()) {
+                throw new IllegalArgumentException("Multiple YAML documents are not supported");
+            }
+        }
+    }
+
     /**
      * Validate the YAML version.
      *
@@ -794,11 +822,11 @@ public class FlowDocument {
         try {
             JsonNode tree = YAML_MAPPER.readTree(yaml);
             JsonNode versionNode = tree.get("version");
-            if (versionNode != null) {
-                String version = versionNode.asText();
-                if (!"1.0".equals(version)) {
-                    throw new IllegalArgumentException("Unsupported flow document version: " + version);
-                }
+            // Versionless documents predate the explicit version field and are 1.0.
+            if (versionNode == null) return;
+            String version = versionNode.asText();
+            if (!"1.0".equals(version)) {
+                throw new IllegalArgumentException("Unsupported flow document version: " + version);
             }
         } catch (IllegalArgumentException e) {
             throw e;

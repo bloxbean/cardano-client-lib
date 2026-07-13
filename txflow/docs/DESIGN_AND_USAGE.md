@@ -77,7 +77,7 @@ if (result.isSuccessful()) {
 ```java
 TxFlow flow = TxFlow.builder("escrow-flow")       // Required: unique flow ID
     .withDescription("Deposit and release escrow") // Optional: human-readable description
-    .withVersion("1.0")                            // Optional: schema version (default "1.0")
+    .withDefinitionVersion("1.0")                  // Optional: user definition version
     .addVariable("amount", 50_000_000L)            // Optional: flow-level variables
     .addVariable("receiver", "addr_test1...")
     .addStep(step1)                                // Required: at least one step
@@ -150,7 +150,6 @@ Steps can declare dependencies on outputs from previous steps using `StepDepende
 |----------|-------------|----------------|
 | `ALL` | All outputs from the previous step | `dependsOn("stepId")` |
 | `INDEX` | A specific output by index | `dependsOnIndex("stepId", 0)` |
-| `CHANGE` | The change output (last output) | `dependsOnChange("stepId")` |
 | `FILTER` | Outputs matching a predicate | `StepDependency.filter("stepId", predicate)` |
 
 ### Usage Examples
@@ -165,12 +164,6 @@ FlowStep.builder("release")
 // Use only output at index 0
 FlowStep.builder("release")
     .dependsOnIndex("deposit", 0)
-    .withTxContext(...)
-    .build();
-
-// Use only the change output
-FlowStep.builder("next-payment")
-    .dependsOnChange("deposit")
     .withTxContext(...)
     .build();
 
@@ -488,7 +481,7 @@ FlowStep criticalStep = FlowStep.builder("critical")
 | Invalid transaction | No |
 | Already spent UTXOs | No |
 | Confirmation timeout | No |
-| Unknown errors | Yes (by default) |
+| Unknown/untyped failure | No; use a typed I/O or timeout cause for known pre-submission transients |
 
 ---
 
@@ -514,7 +507,11 @@ FlowExecutor executor = FlowExecutor.create(
 ```java
 FlowExecutor executor = FlowExecutor.create(backendService)
     .withChainingMode(ChainingMode.SEQUENTIAL)             // Execution mode
-    .withConfirmationConfig(ConfirmationConfig.devnet())    // Confirmation tracking
+    .withConfirmationConfig(ConfirmationConfig.builder()
+        .minConfirmations(3)
+        .timeout(Duration.ofSeconds(60))
+        .checkInterval(Duration.ofSeconds(2))
+        .build())                                           // Confirmation tracking
     .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)  // Rollback handling
     .withDefaultRetryPolicy(RetryPolicy.defaults())        // Default retry for all steps
     .withListener(new MyFlowListener())                    // Event callbacks
@@ -522,9 +519,7 @@ FlowExecutor executor = FlowExecutor.create(backendService)
     .withExecutor(virtualThreadExecutor)                   // Custom thread executor
     .withTxInspector(tx -> log.debug("Built: {}", tx))     // Debug transaction inspection
     .withRegistry(flowRegistry)                            // Auto-register flows
-    .withStateStore(stateStore)                            // Persist state for recovery
-    .withConfirmationTimeout(Duration.ofSeconds(60))       // Simple mode timeout
-    .withCheckInterval(Duration.ofSeconds(2));             // Simple mode check interval
+    .withStateStore(stateStore);                           // Legacy state snapshots
 ```
 
 ### Synchronous Execution
@@ -546,25 +541,34 @@ if (result.isSuccessful()) {
 
 ### Asynchronous Execution
 
-Returns a `FlowHandle` immediately for non-blocking monitoring.
+Returns a `FlowHandle` immediately for non-blocking monitoring. Async execution requires an
+application-managed executor; TxFlow does not create or shut down that executor. Java 17
+applications can use a normal pool, while Java 21+ applications can supply a virtual-thread
+executor.
 
 ```java
-FlowHandle handle = executor.execute(flow);
+ExecutorService asyncExecutor = Executors.newCachedThreadPool();
+try {
+    FlowExecutor asyncFlowExecutor = FlowExecutor.create(backendService)
+        .withExecutor(asyncExecutor);
+    FlowHandle handle = asyncFlowExecutor.execute(flow);
 
-// Monitor progress
-while (handle.isRunning()) {
-    System.out.printf("Progress: %d/%d (step: %s)%n",
-        handle.getCompletedStepCount(),
-        handle.getTotalStepCount(),
-        handle.getCurrentStepId().orElse("none"));
-    Thread.sleep(1000);
+    // Monitor progress
+    while (handle.isRunning()) {
+        System.out.printf("Progress: %d/%d (step: %s)%n",
+            handle.getCompletedStepCount(),
+            handle.getTotalStepCount(),
+            handle.getCurrentStepId().orElse("none"));
+        Thread.sleep(1000);
+    }
+
+    // Block until done (or use handle.await(Duration.ofMinutes(5)))
+    FlowResult result = handle.await();
+} finally {
+    asyncExecutor.shutdown();
 }
 
-// Block until done
-FlowResult result = handle.await();
-
-// Or with timeout
-FlowResult result = handle.await(Duration.ofMinutes(5));
+// Java 21+: Executors.newVirtualThreadPerTaskExecutor() can be used instead.
 ```
 
 ### FlowHandle API
@@ -676,6 +680,19 @@ The executor persists state on key transitions:
 
 A no-op implementation (`FlowStateStore.NOOP`) is available for testing.
 
+`InMemoryFlowStateStore` supports delayed auto-cleanup only when an application-managed cleanup
+executor is supplied explicitly:
+
+```java
+FlowStateStore stateStore = InMemoryFlowStateStore.builder()
+    .withAutoCleanup(Duration.ofMinutes(5))
+    .withCleanupExecutor(applicationCleanupExecutor)
+    .build();
+```
+
+The store never falls back to a shared pool and never shuts the executor down. Java 21+
+applications may supply a virtual-thread executor.
+
 ### FlowStateSnapshot & StepStateSnapshot
 
 ```java
@@ -694,23 +711,32 @@ StepStateSnapshot stepSnapshot = StepStateSnapshot.submitted("deposit", txHash);
 snapshot.addStep(stepSnapshot);
 ```
 
-### Recovery on Application Startup
+### Legacy resume
 
 ```java
-// 1. Load pending flows from store
-List<FlowStateSnapshot> pending = stateStore.loadPendingFlows();
-
-// 2. Resume tracking for each pending flow
-for (FlowStateSnapshot snapshot : pending) {
-    FlowHandle handle = executor.resumeTracking(snapshot);
-    registry.register(snapshot.getFlowId(), handle);
-}
+// Resume uses an earlier FlowResult; it is not a snapshot-recovery API.
+FlowResult resumed = executor.resumeSync(flow, previousResult);
 ```
+
+For crash-safe execution, use `FlowEngine` with a `FlowExecutionStore`. Recover a persisted
+uncertain attempt by execution identity; the engine acquires and fences durable leases, observes
+the known hash, verifies persisted signed bytes, and permits only identical-CBOR resubmission:
+
+```java
+FlowRecoveryResult recovered = engine.recover(FlowRecoveryRequest.builder()
+    .executionId(executionId)
+    .currentSlot(currentSlot)
+    .resubmitSafetyMargin(60)
+    .build());
+```
+
+See [DURABLE_RUNTIME.md](DURABLE_RUNTIME.md) for database adapter and recovery semantics.
 
 ### Wiring It All Together
 
 ```java
 FlowExecutor executor = FlowExecutor.create(backendService)
+    .withExecutor(applicationExecutor)
     .withConfirmationConfig(ConfirmationConfig.defaults())
     .withStateStore(myStateStore)
     .withRegistry(new InMemoryFlowRegistry());
@@ -718,11 +744,9 @@ FlowExecutor executor = FlowExecutor.create(backendService)
 // Normal execution — state is persisted automatically
 FlowHandle handle = executor.execute(flow);
 
-// On restart — recover pending flows
-List<FlowStateSnapshot> pending = myStateStore.loadPendingFlows();
-for (FlowStateSnapshot snapshot : pending) {
-    FlowHandle recovered = executor.resumeTracking(snapshot);
-}
+// The application shuts down applicationExecutor during its own lifecycle.
+
+// On a process restart, use FlowEngine + FlowExecutionStore and engine.recover(...).
 ```
 
 ---
@@ -734,9 +758,13 @@ for (FlowStateSnapshot snapshot : pending) {
 ### Usage
 
 ```java
-FlowRegistry registry = new InMemoryFlowRegistry();
+FlowRegistry registry = InMemoryFlowRegistry.builder()
+    .withAutoCleanup(Duration.ofMinutes(5))
+    .withCleanupExecutor(applicationCleanupExecutor)
+    .build();
 
 FlowExecutor executor = FlowExecutor.create(backendService)
+    .withExecutor(applicationExecutor)
     .withRegistry(registry);  // Flows auto-register on execute()
 
 // Query flows
@@ -747,6 +775,11 @@ registry.size();                                   // Total registered flows
 registry.activeCount();                            // Count of IN_PROGRESS flows
 registry.contains("escrow-flow");                  // Check if registered
 ```
+
+If auto-cleanup is enabled, `withCleanupExecutor(...)` is required. The application owns that
+executor and shuts it down; the registry never uses an implicit common pool. A Java 21+
+virtual-thread executor is accepted. For a registry without auto-cleanup, use
+`new InMemoryFlowRegistry()`.
 
 ### FlowLifecycleListener
 
@@ -832,8 +865,6 @@ registry.addLifecycleListener(new FlowLifecycleListener() {
 | `withTxInspector(Consumer<Transaction>)` | Debug transaction inspection |
 | `withRegistry(FlowRegistry)` | Auto-register flows |
 | `withStateStore(FlowStateStore)` | Persist state for recovery |
-| `withConfirmationTimeout(Duration)` | Simple mode timeout (default: 60s) |
-| `withCheckInterval(Duration)` | Simple mode check interval (default: 2s) |
 
 ---
 
@@ -842,3 +873,5 @@ registry.addLifecycleListener(new FlowLifecycleListener() {
 - **[FLOWLISTENER_PATTERNS.md](FLOWLISTENER_PATTERNS.md)** — Listener implementation patterns, logging, metrics, alerting
 - **[SPRING_BOOT_INTEGRATION.md](SPRING_BOOT_INTEGRATION.md)** — Spring Boot auto-configuration, bean wiring, profiles
 - **[VIRTUAL_THREADS.md](VIRTUAL_THREADS.md)** — Java 21 virtual threads integration, executor configuration
+- **[PORTABLE_TXFLOW_MIGRATION.md](PORTABLE_TXFLOW_MIGRATION.md)** — portable v1alpha1 authoring and migration
+- **[DURABLE_RUNTIME.md](DURABLE_RUNTIME.md)** — durable store, fencing, executor, and recovery contract

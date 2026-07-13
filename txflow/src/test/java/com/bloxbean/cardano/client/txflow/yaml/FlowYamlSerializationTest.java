@@ -9,8 +9,8 @@ import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.SelectionStrategy;
 import com.bloxbean.cardano.client.txflow.TxFlow;
-import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
-import com.bloxbean.cardano.client.txflow.exec.RollbackStrategy;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -430,6 +430,7 @@ class FlowYamlSerializationTest {
                 .waitForBackendAfterRollback(false)
                 .postRollbackWaitAttempts(2)
                 .postRollbackUtxoSyncDelay(Duration.ofMillis(250))
+                .requiredAuthoritativeAbsences(5)
                 .build();
 
         TxFlow flow = TxFlow.builder("context-roundtrip-flow")
@@ -458,9 +459,12 @@ class FlowYamlSerializationTest {
         assertThat(yaml).contains("max_rollback_retries: 0");
         assertThat(yaml).contains("wait_for_backend_after_rollback: false");
         assertThat(yaml).contains("post_rollback_utxo_sync_delay: 250ms");
+        assertThat(yaml).contains("required_authoritative_absences: 5");
         assertThat(restored.getExecutionSettings().getChainingMode()).isEqualTo(ChainingMode.BATCH);
         assertThat(restored.getExecutionSettings().getRollbackStrategy()).isEqualTo(RollbackStrategy.NOTIFY_ONLY);
         assertThat(restored.getExecutionSettings().getConfirmationConfig().getMinConfirmations()).isZero();
+        assertThat(restored.getExecutionSettings().getConfirmationConfig()
+                .getRequiredAuthoritativeAbsences()).isEqualTo(5);
         assertThat(restored.getExecutionSettings().getRetryPolicy().getBackoffStrategy()).isEqualTo(BackoffStrategy.LINEAR);
     }
 

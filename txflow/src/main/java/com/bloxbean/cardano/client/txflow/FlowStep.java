@@ -2,11 +2,16 @@ package com.bloxbean.cardano.client.txflow;
 
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.txflow.model.TransactionTemplate;
+import com.bloxbean.cardano.client.txflow.model.FlowOutputSelector;
 import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.function.Function;
 
 /**
@@ -14,7 +19,8 @@ import java.util.function.Function;
  * <p>
  * A FlowStep can contain either:
  * <ul>
- *     <li>A {@link TxPlan} for YAML-first workflows</li>
+ *     <li>A {@link TransactionTemplate} for portable YAML/JSON definitions</li>
+ *     <li>A {@link TxPlan} for legacy YAML-first or Java-first workflows</li>
  *     <li>A factory function that creates a configured {@link QuickTxBuilder.TxContext} for Java-first workflows</li>
  * </ul>
  * <p>
@@ -57,6 +63,9 @@ public class FlowStep {
     private final Function<QuickTxBuilder, QuickTxBuilder.TxContext> txContextFactory;
     private final List<StepDependency> dependencies;
     private final RetryPolicy retryPolicy;
+    private final List<String> needs;
+    private final TransactionTemplate transactionTemplate;
+    private final Map<String, FlowOutputSelector> outputBindings;
 
     private FlowStep(Builder builder) {
         this.id = builder.id;
@@ -65,6 +74,9 @@ public class FlowStep {
         this.txContextFactory = builder.txContextFactory;
         this.dependencies = Collections.unmodifiableList(new ArrayList<>(builder.dependencies));
         this.retryPolicy = builder.retryPolicy;
+        this.needs = Collections.unmodifiableList(new ArrayList<>(builder.needs));
+        this.transactionTemplate = builder.transactionTemplate;
+        this.outputBindings = Collections.unmodifiableMap(new LinkedHashMap<>(builder.outputBindings));
     }
 
     /**
@@ -83,6 +95,15 @@ public class FlowStep {
      */
     public boolean hasTxContextFactory() {
         return txContextFactory != null;
+    }
+
+    /**
+     * Checks whether this step carries an unbound portable QuickTx transaction.
+     *
+     * @return {@code true} when compilation must bind a transaction template
+     */
+    public boolean hasTransactionTemplate() {
+        return transactionTemplate != null;
     }
 
     /**
@@ -148,6 +169,9 @@ public class FlowStep {
         private Function<QuickTxBuilder, QuickTxBuilder.TxContext> txContextFactory;
         private final List<StepDependency> dependencies = new ArrayList<>();
         private RetryPolicy retryPolicy;
+        private final List<String> needs = new ArrayList<>();
+        private TransactionTemplate transactionTemplate;
+        private final Map<String, FlowOutputSelector> outputBindings = new LinkedHashMap<>();
 
         private Builder(String id) {
             if (id == null || id.trim().isEmpty()) {
@@ -174,8 +198,8 @@ public class FlowStep {
          * @return this builder
          */
         public Builder withTxPlan(TxPlan txPlan) {
-            if (this.txContextFactory != null) {
-                throw new IllegalStateException("Cannot set TxPlan when TxContext factory is already set");
+            if (this.txContextFactory != null || this.transactionTemplate != null) {
+                throw new IllegalStateException("Cannot set TxPlan when another transaction definition is already set");
             }
             this.txPlan = txPlan;
             return this;
@@ -208,10 +232,64 @@ public class FlowStep {
          * @return this builder
          */
         public Builder withTxContext(Function<QuickTxBuilder, QuickTxBuilder.TxContext> txContextFactory) {
-            if (this.txPlan != null) {
-                throw new IllegalStateException("Cannot set TxContext factory when TxPlan is already set");
+            if (this.txPlan != null || this.transactionTemplate != null) {
+                throw new IllegalStateException("Cannot set TxContext factory when another transaction definition is already set");
             }
             this.txContextFactory = txContextFactory;
+            return this;
+        }
+
+        /**
+         * Sets the portable, single-transaction template for this step.
+         *
+         * <p>The template remains unbound in the reusable flow definition. The
+         * compiler validates parameters and materializes a fresh one-transaction
+         * {@link TxPlan} for execution.</p>
+         *
+         * @param transactionTemplate embedded QuickTx transaction template
+         * @return this builder
+         * @throws IllegalStateException if another transaction-definition form is already set
+         */
+        public Builder withTransactionTemplate(TransactionTemplate transactionTemplate) {
+            if (this.txPlan != null || this.txContextFactory != null) {
+                throw new IllegalStateException("Cannot set transaction template when another transaction definition is already set");
+            }
+            this.transactionTemplate = Objects.requireNonNull(transactionTemplate, "transactionTemplate");
+            return this;
+        }
+
+        /**
+         * Declares an explicit portable ordering dependency on an earlier step.
+         *
+         * <p>This declaration controls scheduling but does not implicitly select
+         * or spend any output. Use a flow-output reference in the transaction
+         * template when the transaction consumes a named output.</p>
+         *
+         * @param stepId required predecessor step identifier
+         * @return this builder
+         */
+        public Builder needs(String stepId) {
+            if (stepId == null || stepId.isBlank()) {
+                throw new IllegalArgumentException("needed step ID cannot be blank");
+            }
+            this.needs.add(stepId);
+            return this;
+        }
+
+        /**
+         * Publishes one transaction output under a stable flow-local name.
+         *
+         * @param name unique output name within this step
+         * @param selector deterministic selector applied to the confirmed transaction
+         * @return this builder
+         */
+        public Builder bindOutput(String name, FlowOutputSelector selector) {
+            if (name == null || name.isBlank()) {
+                throw new IllegalArgumentException("output binding name cannot be blank");
+            }
+            if (outputBindings.putIfAbsent(name, Objects.requireNonNull(selector, "selector")) != null) {
+                throw new IllegalArgumentException("Duplicate output binding: " + name);
+            }
             return this;
         }
 
@@ -278,11 +356,11 @@ public class FlowStep {
          * Build the FlowStep.
          *
          * @return the built FlowStep
-         * @throws IllegalStateException if neither TxPlan nor TxContext factory is set
+         * @throws IllegalStateException if no transaction-definition form is set
          */
         public FlowStep build() {
-            if (txPlan == null && txContextFactory == null) {
-                throw new IllegalStateException("FlowStep must have either a TxPlan or TxContext factory");
+            if (txPlan == null && txContextFactory == null && transactionTemplate == null) {
+                throw new IllegalStateException("FlowStep must have a transaction definition");
             }
             return new FlowStep(this);
         }

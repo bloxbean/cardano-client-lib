@@ -31,9 +31,16 @@ public class CardanoConfig {
         return new BFBackendService(backendUrl, apiKey);
     }
 
+    @Bean(destroyMethod = "shutdown")
+    public ExecutorService txFlowExecutorService() {
+        return Executors.newCachedThreadPool();
+    }
+
     @Bean
-    public FlowExecutor flowExecutor(BackendService backendService) {
+    public FlowExecutor flowExecutor(BackendService backendService,
+                                     ExecutorService txFlowExecutorService) {
         return FlowExecutor.create(backendService)
+            .withExecutor(txFlowExecutorService)
             .withConfirmationConfig(ConfirmationConfig.defaults())
             .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW);
     }
@@ -250,8 +257,10 @@ public class CardanoConfig {
 
     @Bean
     public FlowExecutor flowExecutor(BackendService backendService,
+                                     ExecutorService txFlowExecutorService,
                                      MetricsFlowListener metricsListener) {
         return FlowExecutor.create(backendService)
+            .withExecutor(txFlowExecutorService)
             .withConfirmationConfig(ConfirmationConfig.defaults())
             .withListener(metricsListener);
     }
@@ -289,14 +298,14 @@ public class TxFlowExceptionHandler {
 @Configuration
 public class AsyncConfig {
 
-    @Bean
-    public Executor virtualThreadExecutor() {
+    @Bean(destroyMethod = "shutdown")
+    public ExecutorService virtualThreadExecutor() {
         return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     @Bean
     public FlowExecutor flowExecutor(BackendService backendService,
-                                     Executor virtualThreadExecutor,
+                                     ExecutorService virtualThreadExecutor,
                                      MetricsFlowListener metricsListener) {
         return FlowExecutor.create(backendService)
             .withExecutor(virtualThreadExecutor)  // Use virtual threads

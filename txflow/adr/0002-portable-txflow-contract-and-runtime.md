@@ -1,14 +1,14 @@
 # ADR 0002: Portable TxFlow Contract, Compilation, Execution, and Recovery
 
-**Status**: Proposed
+**Status**: Implemented
 
-**ADR Document Version**: 2.5.0
+**ADR Document Version**: 2.6.4
 
 **Date**: 2026-07-10
 
-**Last Updated**: 2026-07-12
+**Last Updated**: 2026-07-13
 
-**Review State**: Fifth review round (Codex review of 2.3.0) incorporated; reviewer would approve — awaiting maintainer acceptance
+**Review State**: Implemented; implementation review and re-review remediated and verified on Java 17 with Yaci DevKit
 
 **Target Release**: To be decided
 
@@ -32,6 +32,11 @@ The ADR document version is independent from the TxFlow YAML schema version disc
 | 2.3.0 | 2026-07-12 | Independent design review (maintainer-commissioned) | Fourth review round | Incorporates the Codex review of 2.2.0. Absence authority moves from `ConfirmationConfig` to a backend-adapter capability (`TransactionObservationCapabilities` SPI plus a server-side wrapper) — flow configuration, execution settings, and YAML can never declare a backend's transaction index authoritative. `FlowExecutionStore` completes its own semantics: execution/resource lease renewal and release, a sequence-cursor `readEvents` API returning typed `EVENTS_COMPACTED`, resource-lease epochs validated on writes, and `compactedThroughSequence` on the snapshot record. Decision 18 acknowledges that fencing protects state writes but cannot stop a partitioned stale worker from submitting to Cardano — race-free cross-process spending needs the deferred reservation/coordinator ADR. `InlineCbor` shows its defensive-copy constructor/accessor; `SignedPayloadResolver` added with mandatory hash verification during recovery; the leftover 2.0.0 idempotency-collision row and the Decision 7 stale-variable wording aligned; metadata formatting fixed. |
 | 2.4.0 | 2026-07-12 | Independent design review (maintainer-commissioned) | Fifth review round | Final API corrections from the Codex review of 2.3.0, after which the reviewer considers the ADR ready for maintainer acceptance. `InlineCbor` compact constructor made `public` (a nested record in an interface is implicitly public; Java 17 rejects a stricter canonical constructor) with null check. Payload verification moved into CCL: the engine — never the resolver implementation — verifies the recorded `sha256` and recomputes the Cardano transaction hash against the recorded `transactionHash` before resubmission, for external and inline payloads alike. `append` takes a composite `MutationFence` (execution-lease fence plus optional `ResourceLeaseFence`) so both epochs are actually validatable, matching the 2.3.0 text. Governance note generalized to cover the 2.1.x–2.4.x review-round revisions. |
 | 2.5.0 | 2026-07-12 | Bloxbean / CCL maintainers | Maintainer revision | Schema group host changed from `txflow.bloxbean.com` to `txflow.cardano-client.dev`: the identifier is now product-scoped (cardano-client-lib) rather than organization-scoped, keeping the schema identity stable independent of organizational branding. The group remains a purely symbolic DNS name under the maintainer's control; nothing is fetched from it. |
+| 2.6.0 | 2026-07-13 | Bloxbean / CCL maintainers | Accepted | Clarifies that a portable TxFlow step embeds exactly one transaction from the shared QuickTx/TxPlan transaction contract rather than defining a second transaction language. Pins schema ownership, version compatibility, flow-specific input references, and defensive compilation rules. The maintainer accepts the ADR and authorizes implementation in Track A → B → C order. |
+| 2.6.1 | 2026-07-13 | Bloxbean / CCL maintainers | Implemented | Records completion of Tracks A, B, and C: deterministic correctness hardening, the portable QuickTx-owned contract/compiler/policy surface, and the executor-neutral durable runtime/recovery primitives. Verification used Java 17 and the external Yaci DevKit, including the complete TxFlow unit suites, strict integration suite, and focused portable same-hash recovery coverage. |
+| 2.6.2 | 2026-07-13 | Bloxbean / CCL maintainers | Corrective implementation review | Reopens implementation after an adversarial review found that the green test matrix did not cover several accepted invariants, including sequential non-confirmed fall-through, depth-safe prefix reconciliation, recovery-required mapping, lease-renewal ordering, and the Decision 20 decomposition. Records that the ADR remains accepted but is not considered implemented until the reviewed gaps are corrected and the full Java 17 unit and Yaci matrices pass again. |
+| 2.6.3 | 2026-07-13 | Bloxbean / CCL maintainers | Implemented after corrective review | Records independent classification and remediation of the implementation-review findings, including strict non-permissive rollback tests and the additional NOTIFY_ONLY tracking correction. Final Java 17 verification passes QuickTx 350/350, TxFlow 474 passing plus one Java 21-only skip, and the complete 63/63 external-Yaci integration matrix; the strict rollback class passes 11/11 and the bounded scalability scenario completes 100/100 flows (200 transactions). Remaining items are non-blocking performance/style follow-ups: per-depth durable appends, safe per-attempt TxPlan reparsing, and low-severity boilerplate cleanup. |
+| 2.6.4 | 2026-07-13 | Bloxbean / CCL maintainers | Implemented after re-review | Fixes the two re-review regressions introduced by fresh/resume consolidation: resume no longer replaces the legacy state snapshot or emits a duplicate flow-start callback, while all fresh paths retain their start behavior. Adds strict external-Yaci coverage for the default non-authoritative backend adapter: ambiguous post-inclusion absence emits a suspected-rollback event, ends in a bounded typed reconciliation-uncertain outcome, and never rebuilds. Clarifies conservative unknown-failure retry compatibility and locks negative portable durations at their owning-policy boundaries. Final Java 17 verification passes QuickTx 350/350, TxFlow 480 passing plus one Java 21-only skip, and 64/64 external-Yaci tests; the strict rollback class now passes 12/12. |
 
 ### Versioning Rules For This ADR
 
@@ -334,6 +339,23 @@ steps:
 ```
 
 The redundant `- step:` wrapper remains supported only by the legacy-format compatibility decoder.
+
+#### Transaction Schema Ownership
+
+The transaction inside a portable TxFlow step is owned by the QuickTx/TxPlan contract. TxFlow does not define a second transaction-intent language and must not copy or fork the QuickTx transaction model.
+
+Normative rules:
+
+1. `spec.steps[].transaction` embeds exactly one QuickTx transaction definition. It is the single-transaction subset of a standalone `TxPlan`, consisting of `tx` plus its transaction `context`.
+2. The standalone `TxPlan` envelope fields (`version`, `variables`, and the `transaction` list) are not nested inside a TxFlow step. TxFlow owns definition metadata, parameters, bindings, scheduling, outputs, execution policy, and lifecycle.
+3. The `tx` and `context` fields use the same Java model, serialized names, intent discriminators, validation rules, and execution semantics as the corresponding QuickTx/TxPlan fields.
+4. QuickTx owns the reusable transaction JSON Schema definitions. The TxFlow schema references or mechanically incorporates those shared definitions; independently maintained duplicate schema definitions are not permitted.
+5. Each TxFlow schema version declares the QuickTx transaction-schema versions it accepts. An unsupported combination fails during parsing or compilation with a stable diagnostic; it is never interpreted using best-effort field matching.
+6. Flow-aware input references such as `flow_output` are additions to the shared QuickTx input-reference model. Their syntax is declared by QuickTx, while resolution against named step outputs is performed by the TxFlow compiler/runtime.
+7. Compilation creates an immutable defensive snapshot and materializes a fresh, exactly-one-transaction `TxPlan` (or equivalent internal QuickTx plan) for each execution. Neither compilation nor execution mutates the source `TxFlow`, embedded transaction definition, or a caller-supplied `TxPlan`.
+8. A Java `FlowStep` containing a multi-transaction `TxPlan` remains executable only through explicitly supported legacy Java behavior. It is not portable and the portable writer rejects it with a diagnostic rather than selecting or discarding entries.
+
+For `txflow.cardano-client.dev/v1alpha1`, the initial compatible QuickTx transaction schema is the current unified `Tx` YAML contract represented by `TransactionDocument.TxContent` and `TransactionDocument.TxContext`. Before the first artifact containing the portable schema is released, that QuickTx schema receives its own stable schema identifier and shared JSON Schema definitions; B1 treats this as part of publishing the TxFlow schema, not as a separate optional task.
 
 #### Existing Java API
 
@@ -1094,14 +1116,15 @@ interface FlowExecutionStore {
     // stale owner whose lease expired before new writes advanced the revision.
     // 2.4.0: the fence is a composite MutationFence so a write presents the
     // execution-lease epoch and, when spending resources are claimed, the
-    // resource-lease epoch — the store validates both.
+    // resource-lease epoch — the store validates both and binds every lease
+    // and event to the target execution (and resource leases to its owner).
     AppendResult append(
             FlowExecutionId executionId,
             long expectedRevision,
             MutationFence fence,
             List<FlowEvent> events);
 
-    // 2.3.0: durable consumers read by sequence cursor; a cursor at or below
+    // 2.3.0: durable consumers read by sequence cursor; a cursor below
     // the compaction watermark yields a typed EVENTS_COMPACTED result telling
     // the consumer to re-baseline from the snapshot.
     EventReadResult readEvents(
@@ -1276,7 +1299,7 @@ The server-oriented default is `PAUSE_FOR_RECOVERY` or `FAIL_EXECUTION`, not unc
 
 The append-based journal is unbounded by nature. The store contract defines a compaction rule so implementations do not invent their own: once an execution reaches a terminal state, an implementation may replace its event history with the terminal snapshot plus attempt summaries, provided attempt histories (including rolled-back and superseded attempts) are preserved in the snapshot. Retention beyond that is an application decision.
 
-Compaction is observable (2.2.0): the snapshot records a `compactedThroughSequence` watermark. A consumer reconnecting with a cursor at or below the watermark receives a typed `EVENTS_COMPACTED` response and must re-baseline from the snapshot — events are never silently missing for a durable consumer.
+Compaction is observable (2.2.0): the snapshot records an inclusive `compactedThroughSequence` watermark. A consumer reconnecting with an exclusive cursor strictly below the watermark receives a typed `EVENTS_COMPACTED` response and must re-baseline from the snapshot; a cursor equal to the watermark safely requests the first retained event after it. Events are never silently missing for a durable consumer.
 
 ### Decision 12: Use Typed, Phase-Aware Retry Classification
 
@@ -1917,7 +1940,7 @@ Decision 2 makes concurrent executions of one definition a first-class capabilit
 - **Opaque steps**: a Java-factory step's spending set is unknowable before execution. Such executions either declare their spending resources explicitly on the step or are treated conservatively — serialized against all executions of the same engine; policy chooses which.
 - **Dynamically bound sources**: resources that depend on bindings are resolved at compile/bind time, before the execution enters the contention set.
 - **Multi-resource acquisition**: locks are acquired in a deterministic global order (sorted canonical IDs), all-or-nothing with bounded wait, to prevent deadlock between executions with overlapping resource sets.
-- **Lease safety**: cross-process resource leases (via the store's `tryAcquireResources`) carry expiry and are renewed by the active owner. Fencing is token-based (revised 2.2.0/2.4.0): each lease acquisition mints a monotonically increasing epoch, every mutation carries a composite `MutationFence` (execution-lease fence plus, when spending resources are claimed, a `ResourceLeaseFence`), and the store rejects any write whose execution- or resource-lease epoch predates the current one — revision checks alone cannot fence a stale owner when no new writes have advanced the revision since its lease expired.
+- **Lease safety**: cross-process resource leases (via the store's `tryAcquireResources`) carry expiry and are renewed by the active owner. Fencing is token-based (revised 2.2.0/2.4.0): each lease acquisition mints a monotonically increasing epoch, every mutation carries a composite `MutationFence` (execution-lease fence plus, when spending resources are claimed, a `ResourceLeaseFence`), and the store rejects any write whose execution- or resource-lease epoch predates the current one. The complete fence and appended events must name the mutation's target execution, and each resource lease must belong to the active execution-lease owner. Revision checks alone cannot fence a stale owner when no new writes have advanced the revision since its lease expired.
 
 ```java
 FlowExecutionPolicy.builder()

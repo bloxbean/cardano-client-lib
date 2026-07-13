@@ -2,10 +2,16 @@ package com.bloxbean.cardano.client.txflow.exec;
 
 import com.bloxbean.cardano.client.api.ChainDataSupplier;
 import com.bloxbean.cardano.client.api.model.TransactionInfo;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
@@ -42,12 +48,14 @@ public class ConfirmationTracker {
 
     private final ChainDataSupplier chainDataSupplier;
     private final ConfirmationConfig config;
+    private final FlowScheduler scheduler;
 
     /**
      * Tracks last known state of transactions for rollback detection.
      * Key: transaction hash, Value: last known tracking state
      */
     private final ConcurrentMap<String, TrackedTransaction> trackedTransactions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Integer> authoritativeAbsenceCounts = new ConcurrentHashMap<>();
 
     /**
      * Create a new ConfirmationTracker.
@@ -56,8 +64,14 @@ public class ConfirmationTracker {
      * @param config the confirmation configuration
      */
     public ConfirmationTracker(ChainDataSupplier chainDataSupplier, ConfirmationConfig config) {
-        this.chainDataSupplier = chainDataSupplier;
+        this(chainDataSupplier, config, FlowScheduler.system());
+    }
+
+    ConfirmationTracker(ChainDataSupplier chainDataSupplier, ConfirmationConfig config,
+                        FlowScheduler scheduler) {
+        this.chainDataSupplier = Objects.requireNonNull(chainDataSupplier, "chainDataSupplier");
         this.config = config != null ? config : ConfirmationConfig.defaults();
+        this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
     }
 
     /**
@@ -77,62 +91,67 @@ public class ConfirmationTracker {
      */
     public ConfirmationResult checkStatus(String txHash) {
         try {
-            // Get current chain tip
-            long tipHeight;
-            try {
-                tipHeight = chainDataSupplier.getChainTipHeight();
-            } catch (Exception e) {
-                log.warn("Failed to get latest block for confirmation check: {}", e.getMessage());
-                return ConfirmationResult.builder()
-                        .txHash(txHash)
-                        .status(ConfirmationStatus.SUBMITTED)
-                        .confirmationDepth(-1)
-                        .error(new RuntimeException("Failed to get latest block", e))
-                        .build();
-            }
+            return checkStatusAtTip(txHash, chainDataSupplier.getChainTipHeight());
+        } catch (Exception e) {
+            log.warn("Failed to get latest block for confirmation check: {}", e.getMessage());
+            return observationFailure(txHash, new RuntimeException("Failed to get latest block", e));
+        }
+    }
 
-            // Get transaction details
+    /** Observe several transaction hashes against one chain-tip snapshot. */
+    Map<String, ConfirmationResult> checkStatuses(List<String> txHashes) {
+        Map<String, ConfirmationResult> results = new LinkedHashMap<>();
+        final long tipHeight;
+        try {
+            tipHeight = chainDataSupplier.getChainTipHeight();
+        } catch (Exception e) {
+            RuntimeException failure = new RuntimeException("Failed to get latest block", e);
+            for (String txHash : txHashes) results.put(txHash, observationFailure(txHash, failure));
+            return results;
+        }
+        for (String txHash : txHashes) results.put(txHash, checkStatusAtTip(txHash, tipHeight));
+        return results;
+    }
+
+    private ConfirmationResult checkStatusAtTip(String txHash, long tipHeight) {
+        try {
             var txInfo = chainDataSupplier.getTransactionInfo(txHash);
-
             TrackedTransaction previousState = trackedTransactions.get(txHash);
 
             if (txInfo.isEmpty()) {
-                // Transaction not found in chain
                 if (previousState != null && previousState.getBlockHeight() != null) {
-                    // Previously tracked in a block but now missing - ROLLBACK detected
-                    log.warn("Rollback detected for tx {}: was in block {} but now not found",
-                            txHash, previousState.getBlockHeight());
-                    return ConfirmationResult.rolledBack(txHash, previousState.getBlockHeight(), tipHeight,
-                            new RuntimeException("Transaction disappeared from chain (rollback detected)"));
+                    if (supportsAuthoritativeAbsence() && tipHeight >= previousState.getBlockHeight()) {
+                        int count = authoritativeAbsenceCounts.merge(txHash, 1, Integer::sum);
+                        if (count >= config.getRequiredAuthoritativeAbsences()) {
+                            log.warn("Rollback detected for tx {} after {} authoritative absence observations",
+                                    txHash, count);
+                            return ConfirmationResult.rolledBack(txHash, previousState.getBlockHeight(), tipHeight,
+                                    new RuntimeException("Transaction authoritatively absent after prior inclusion"));
+                        }
+                        log.debug("Authoritative absence {}/{} for tx {}",
+                                count, config.getRequiredAuthoritativeAbsences(), txHash);
+                    } else {
+                        log.debug("Ambiguous absence for previously included tx {}; continuing reconciliation", txHash);
+                    }
                 }
-                // Not yet in any block
                 return ConfirmationResult.submitted(txHash, tipHeight);
             }
 
+            authoritativeAbsenceCounts.remove(txHash);
             TransactionInfo tx = txInfo.get();
             Long txBlockHeight = tx.getBlockHeight();
             String txBlockHash = tx.getBlockHash();
+            if (txBlockHeight == null) return ConfirmationResult.submitted(txHash, tipHeight);
 
-            if (txBlockHeight == null) {
-                // Transaction found but block height not available (unusual)
-                return ConfirmationResult.submitted(txHash, tipHeight);
-            }
-
-            // Check for block hash change (possible rollback and re-inclusion)
             if (previousState != null && previousState.getBlockHash() != null
                     && !previousState.getBlockHash().equals(txBlockHash)) {
                 log.info("Transaction {} was re-included: old block={}, new block={}",
                         txHash, previousState.getBlockHash(), txBlockHash);
             }
 
-            // Calculate confirmation depth
             int depth = (int) (tipHeight - txBlockHeight);
-
-            // Determine status based on depth
             ConfirmationStatus status;
             if (depth < 0) {
-                // This shouldn't happen normally (tx in block ahead of tip)
-                // Could indicate timing issue or node sync problem
                 log.warn("Transaction {} has negative depth: block={}, tip={}",
                         txHash, txBlockHeight, tipHeight);
                 status = ConfirmationStatus.IN_BLOCK;
@@ -143,11 +162,8 @@ public class ConfirmationTracker {
                 status = ConfirmationStatus.CONFIRMED;
             }
 
-            // Update tracking state
-            TrackedTransaction newState = new TrackedTransaction(
-                    txHash, txBlockHeight, txBlockHash, status, Instant.now());
-            trackedTransactions.put(txHash, newState);
-
+            trackedTransactions.put(txHash, new TrackedTransaction(
+                    txHash, txBlockHeight, txBlockHash, status, scheduler.now()));
             return ConfirmationResult.builder()
                     .txHash(txHash)
                     .status(status)
@@ -156,16 +172,19 @@ public class ConfirmationTracker {
                     .blockHash(txBlockHash)
                     .currentTipHeight(tipHeight)
                     .build();
-
         } catch (Exception e) {
             log.error("Error checking confirmation status for tx {}", txHash, e);
-            return ConfirmationResult.builder()
-                    .txHash(txHash)
-                    .status(ConfirmationStatus.SUBMITTED)
-                    .confirmationDepth(-1)
-                    .error(e)
-                    .build();
+            return observationFailure(txHash, e);
         }
+    }
+
+    private ConfirmationResult observationFailure(String txHash, Throwable error) {
+        return ConfirmationResult.builder()
+                .txHash(txHash)
+                .status(ConfirmationStatus.SUBMITTED)
+                .confirmationDepth(-1)
+                .error(error)
+                .build();
     }
 
     /**
@@ -212,14 +231,34 @@ public class ConfirmationTracker {
     public ConfirmationResult waitForConfirmation(String txHash, ConfirmationStatus targetStatus,
                                                    BiConsumer<String, ConfirmationResult> onProgress,
                                                    BooleanSupplier isCancelledCheck) {
-        long startTime = System.currentTimeMillis();
-        long timeoutMs = config.getTimeout().toMillis();
-        long checkIntervalMs = config.getCheckInterval().toMillis();
+        return waitForConfirmation(txHash, targetStatus, onProgress, isCancelledCheck,
+                scheduler.now().plus(config.getTimeout()), false);
+    }
+
+    /**
+     * Wait using a caller-owned absolute deadline. When {@code continueAfterRollback}
+     * is true, authoritative rollback observations remain part of the same tracking
+     * attempt and polling continues so the same hash can be observed re-included.
+     *
+     * @param txHash transaction hash to monitor
+     * @param targetStatus confirmation status that completes the wait successfully
+     * @param onProgress optional callback invoked when the observed confirmation depth changes
+     * @param isCancelledCheck cooperative cancellation signal
+     * @param deadline absolute deadline shared with the owning execution budget
+     * @param continueAfterRollback whether to keep observing the same hash after authoritative rollback
+     * @return final confirmation, rollback, cancellation, or timeout result
+     */
+    public ConfirmationResult waitForConfirmation(
+            String txHash, ConfirmationStatus targetStatus,
+            BiConsumer<String, ConfirmationResult> onProgress,
+            BooleanSupplier isCancelledCheck, Instant deadline,
+            boolean continueAfterRollback) {
+        Objects.requireNonNull(deadline, "deadline");
 
         ConfirmationResult lastResult = null;
         int lastDepth = -2; // Initialize to invalid value to ensure first callback fires
 
-        while (System.currentTimeMillis() - startTime < timeoutMs) {
+        while (scheduler.now().isBefore(deadline)) {
             // Check for cancellation
             if (isCancelledCheck.getAsBoolean()) {
                 log.info("Cancellation detected while waiting for confirmation of tx {}", txHash);
@@ -240,7 +279,7 @@ public class ConfirmationTracker {
             }
 
             // Check for terminal conditions
-            if (lastResult.isRolledBack()) {
+            if (lastResult.isRolledBack() && !continueAfterRollback) {
                 log.warn("Transaction {} rolled back during confirmation wait", txHash);
                 return lastResult;
             }
@@ -252,7 +291,7 @@ public class ConfirmationTracker {
 
             // Wait before next check
             try {
-                Thread.sleep(checkIntervalMs);
+                sleepUntilNextCheck(deadline, isCancelledCheck);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return ConfirmationResult.builder()
@@ -266,12 +305,89 @@ public class ConfirmationTracker {
 
         // Timeout reached
         log.warn("Timeout waiting for tx {} to reach status {}", txHash, targetStatus);
+        if (continueAfterRollback && lastResult != null && lastResult.isRolledBack()) {
+            return lastResult;
+        }
+        return timeoutResult(txHash, lastResult);
+    }
+
+    /** Wait for a set of hashes under one overall timeout and one tip read per pass. */
+    Map<String, ConfirmationResult> waitForConfirmations(
+            List<String> txHashes, ConfirmationStatus targetStatus,
+            BooleanSupplier isCancelledCheck) {
+        Instant deadline = scheduler.now().plus(config.getTimeout());
+        Map<String, ConfirmationResult> lastResults = new LinkedHashMap<>();
+
+        while (scheduler.now().isBefore(deadline)) {
+            if (isCancelledCheck.getAsBoolean()) {
+                RuntimeException cancelled = new RuntimeException("Flow cancelled");
+                for (String txHash : txHashes) {
+                    ConfirmationResult last = lastResults.get(txHash);
+                    lastResults.put(txHash, ConfirmationResult.builder()
+                            .txHash(txHash)
+                            .status(last != null ? last.getStatus() : ConfirmationStatus.SUBMITTED)
+                            .confirmationDepth(last != null ? last.getConfirmationDepth() : -1)
+                            .error(cancelled)
+                            .build());
+                }
+                return lastResults;
+            }
+
+            lastResults = checkStatuses(txHashes);
+            boolean allReached = true;
+            for (ConfirmationResult result : lastResults.values()) {
+                if (result.isRolledBack()) return lastResults;
+                if (!result.hasReached(targetStatus)) allReached = false;
+            }
+            if (allReached) return lastResults;
+
+            try {
+                sleepUntilNextCheck(deadline, isCancelledCheck);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                for (String txHash : txHashes) {
+                    ConfirmationResult last = lastResults.get(txHash);
+                    lastResults.put(txHash, ConfirmationResult.builder()
+                            .txHash(txHash)
+                            .status(last != null ? last.getStatus() : ConfirmationStatus.SUBMITTED)
+                            .confirmationDepth(last != null ? last.getConfirmationDepth() : -1)
+                            .error(e)
+                            .build());
+                }
+                return lastResults;
+            }
+        }
+
+        Map<String, ConfirmationResult> terminal = new LinkedHashMap<>();
+        for (String txHash : txHashes) {
+            ConfirmationResult last = lastResults.get(txHash);
+            terminal.put(txHash, last != null && last.hasReached(targetStatus)
+                    ? last : timeoutResult(txHash, last));
+        }
+        return terminal;
+    }
+
+    private void sleepUntilNextCheck(Instant deadline, BooleanSupplier cancelled)
+            throws InterruptedException {
+        Duration remaining = Duration.between(scheduler.now(), deadline);
+        if (remaining.isNegative() || remaining.isZero()) return;
+        Duration delay = config.getCheckInterval().compareTo(remaining) <= 0
+                ? config.getCheckInterval() : remaining;
+        scheduler.sleep(delay, cancelled);
+    }
+
+    private ConfirmationResult timeoutResult(String txHash, ConfirmationResult lastResult) {
+        Throwable terminalError = trackedTransactions.containsKey(txHash)
+                ? new ReconciliationUncertainException(txHash)
+                : new ConfirmationTimeoutException(txHash);
         return ConfirmationResult.builder()
                 .txHash(txHash)
                 .status(lastResult != null ? lastResult.getStatus() : ConfirmationStatus.SUBMITTED)
                 .confirmationDepth(lastResult != null ? lastResult.getConfirmationDepth() : -1)
+                .blockHeight(lastResult != null ? lastResult.getBlockHeight() : null)
+                .blockHash(lastResult != null ? lastResult.getBlockHash() : null)
                 .currentTipHeight(lastResult != null ? lastResult.getCurrentTipHeight() : null)
-                .error(new ConfirmationTimeoutException(txHash))
+                .error(terminalError)
                 .build();
     }
 
@@ -285,6 +401,7 @@ public class ConfirmationTracker {
      */
     public void stopTracking(String txHash) {
         trackedTransactions.remove(txHash);
+        authoritativeAbsenceCounts.remove(txHash);
     }
 
     /**
@@ -292,6 +409,12 @@ public class ConfirmationTracker {
      */
     public void clearTracking() {
         trackedTransactions.clear();
+        authoritativeAbsenceCounts.clear();
+    }
+
+    private boolean supportsAuthoritativeAbsence() {
+        return chainDataSupplier instanceof TransactionObservationCapabilities
+                && ((TransactionObservationCapabilities) chainDataSupplier).supportsAuthoritativeAbsence();
     }
 
     /**

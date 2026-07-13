@@ -8,7 +8,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
-import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
 import com.bloxbean.cardano.client.txflow.exec.FlowHandle;
 import com.bloxbean.cardano.client.txflow.exec.FlowListener;
@@ -19,6 +19,8 @@ import org.junit.jupiter.api.*;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,6 +46,7 @@ public class ChainingModeIntegrationTest {
 
     private BFBackendService backendService;
     private DefaultSignerRegistry signerRegistry;
+    private ExecutorService asyncExecutor;
 
     // Pre-funded accounts from Yaci DevKit
     private Account account0; // Index 0 - Primary sender
@@ -53,6 +56,8 @@ public class ChainingModeIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         System.out.println("\n=== Chaining Mode Integration Test Setup ===");
+
+        asyncExecutor = Executors.newCachedThreadPool();
 
         // Initialize backend service
         backendService = new BFBackendService(YACI_BASE_URL, "dummy-project-id");
@@ -272,6 +277,7 @@ public class ChainingModeIntegrationTest {
         System.out.println("Starting async execution...");
 
         FlowHandle handle = FlowExecutor.create(backendService)
+                .withExecutor(asyncExecutor)
                 .withChainingMode(ChainingMode.PIPELINED)
                 .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .execute(flow);
@@ -462,6 +468,7 @@ public class ChainingModeIntegrationTest {
         System.out.println("Starting async BATCH execution...");
 
         FlowHandle handle = FlowExecutor.create(backendService)
+                .withExecutor(asyncExecutor)
                 .withChainingMode(ChainingMode.BATCH)
                 .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .execute(flow);
@@ -755,6 +762,9 @@ public class ChainingModeIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        if (asyncExecutor != null) {
+            asyncExecutor.shutdownNow();
+        }
         System.out.println("Test cleanup completed\n");
     }
 

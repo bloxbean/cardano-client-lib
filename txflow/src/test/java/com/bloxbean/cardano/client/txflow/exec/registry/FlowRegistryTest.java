@@ -316,6 +316,7 @@ class FlowRegistryTest {
     void testBuilderWithAutoCleanup() throws Exception {
         InMemoryFlowRegistry cleanupRegistry = InMemoryFlowRegistry.builder()
                 .withAutoCleanup(Duration.ofMillis(100))
+                .withCleanupExecutor(Runnable::run)
                 .build();
 
         TxFlow flow = createTestFlow("test-1");
@@ -339,6 +340,14 @@ class FlowRegistryTest {
         assertEquals(0, cleanupRegistry.size());
 
         cleanupRegistry.shutdown();
+    }
+
+    @Test
+    void autoCleanupRequiresApplicationManagedExecutor() {
+        NullPointerException failure = assertThrows(NullPointerException.class,
+                () -> InMemoryFlowRegistry.builder()
+                        .withAutoCleanup(Duration.ofSeconds(1)).build());
+        assertTrue(failure.getMessage().contains("cleanupExecutor"));
     }
 
     @Test

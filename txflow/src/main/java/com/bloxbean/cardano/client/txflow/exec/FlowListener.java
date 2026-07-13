@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow.exec;
 
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 
@@ -123,6 +124,20 @@ public interface FlowListener {
      * @param previousBlockHeight the block height where the transaction was previously included
      */
     default void onTransactionRolledBack(FlowStep step, String transactionHash, long previousBlockHeight) {
+    }
+
+    /**
+     * Called when a previously included transaction can no longer be observed, but
+     * the configured backend cannot authoritatively prove that it was rolled back.
+     * This is an informational signal only; execution continues reconciling until
+     * the transaction is confirmed, authoritatively rolled back, or becomes uncertain.
+     *
+     * @param step the step whose transaction is temporarily absent
+     * @param transactionHash the transaction hash
+     * @param previousBlockHeight the last observed inclusion height
+     */
+    default void onTransactionRollbackSuspected(FlowStep step, String transactionHash,
+                                                long previousBlockHeight) {
     }
 
     /**
@@ -343,6 +358,19 @@ class CompositeFlowListener implements FlowListener {
                 listener.onTransactionRolledBack(step, transactionHash, previousBlockHeight);
             } catch (Exception e) {
                 log.warn("Listener {} threw exception in onTransactionRolledBack: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onTransactionRollbackSuspected(FlowStep step, String transactionHash,
+                                               long previousBlockHeight) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onTransactionRollbackSuspected(step, transactionHash, previousBlockHeight);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onTransactionRollbackSuspected: {}",
                         listener.getClass().getSimpleName(), e.getMessage(), e);
             }
         }

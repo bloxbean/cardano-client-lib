@@ -31,7 +31,9 @@ class ConfirmationTrackerTest {
     @Test
     void testCheckStatus_Submitted() throws Exception {
         // Setup: Transaction not found in any block
-        tracker = new ConfirmationTracker(chainDataSupplier, ConfirmationConfig.defaults());
+        tracker = new ConfirmationTracker(
+                ObservationCapabilities.withAuthoritativeAbsence(chainDataSupplier),
+                ConfirmationConfig.defaults());
 
         when(chainDataSupplier.getChainTipHeight()).thenReturn(1000L);
         when(chainDataSupplier.getTransactionInfo("txHash123")).thenReturn(Optional.empty());
@@ -106,7 +108,9 @@ class ConfirmationTrackerTest {
     @Test
     void testCheckStatus_RollbackDetected() throws Exception {
         // Setup: Transaction was previously seen in a block but now not found
-        tracker = new ConfirmationTracker(chainDataSupplier, ConfirmationConfig.defaults());
+        tracker = new ConfirmationTracker(
+                ObservationCapabilities.withAuthoritativeAbsence(chainDataSupplier),
+                ConfirmationConfig.defaults());
 
         // First check: transaction is in block
         when(chainDataSupplier.getChainTipHeight()).thenReturn(1000L);
@@ -122,6 +126,9 @@ class ConfirmationTrackerTest {
 
         // Second check: transaction is now missing (simulating rollback)
         when(chainDataSupplier.getTransactionInfo("txHash123")).thenReturn(Optional.empty());
+
+        ConfirmationResult suspectedResult = tracker.checkStatus("txHash123");
+        assertEquals(ConfirmationStatus.SUBMITTED, suspectedResult.getStatus());
 
         ConfirmationResult secondResult = tracker.checkStatus("txHash123");
 

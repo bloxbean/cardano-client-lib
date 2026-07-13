@@ -3,14 +3,28 @@ package com.bloxbean.cardano.client.txflow;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
-import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
 import com.bloxbean.cardano.client.txflow.exec.FlowListener;
+import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
+import com.bloxbean.cardano.client.txflow.exec.FlowExecutionRequest;
+import com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult;
+import com.bloxbean.cardano.client.txflow.codec.FlowParseOptions;
+import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
+import com.bloxbean.cardano.client.txflow.model.FlowBindings;
+import com.bloxbean.cardano.client.txflow.recovery.FlowRecoveryRequest;
+import com.bloxbean.cardano.client.txflow.recovery.FlowRecoveryResult;
+import com.bloxbean.cardano.client.txflow.store.AttemptState;
+import com.bloxbean.cardano.client.txflow.store.InMemoryFlowExecutionStore;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import org.junit.jupiter.api.*;
@@ -105,6 +119,68 @@ public class TxFlowYamlIntegrationTest {
     }
 
     // ==================== Category 1: Programmatic TxPlan (Builder API) ====================
+
+    @Test
+    @Order(0)
+    void portableYaml_bindCompileAndExecute_success() {
+        String yaml = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: portable-integration}
+                spec:
+                  network: preview
+                  parameters:
+                    beneficiary: {type: address, required: true}
+                  execution:
+                    confirmation: {min_confirmations: 1, check_interval: 1s, timeout: 2m}
+                    rollback:
+                      action: FAIL
+                      monitoring_horizon: UNTIL_FLOW_TERMINAL
+                      minimum_consistent_absence_observations: 2
+                  steps:
+                    - id: payment
+                      transaction:
+                        tx:
+                          from_ref: account://sender
+                          intents:
+                            - type: payment
+                              address: '${{ inputs.beneficiary }}'
+                              amounts:
+                                - {unit: lovelace, quantity: 2000000}
+                        context:
+                          signers:
+                            - {ref: account://sender, scope: payment}
+                """;
+        TxFlow definition = TxFlowCodec.standard()
+                .parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
+        FlowEngine engine = FlowEngine.builder(
+                        new DefaultUtxoSupplier(backendService.getUtxoService()),
+                        new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                        new DefaultTransactionProcessor(backendService.getTransactionService()),
+                        new DefaultChainDataSupplier(backendService))
+                .executor(Runnable::run)
+                .maintenanceExecutor(Runnable::run)
+                .signerRegistry(signerRegistry)
+                .store(new InMemoryFlowExecutionStore())
+                .build();
+        FlowExecutionResult result = engine.start(FlowExecutionRequest.builder(definition)
+                        .executionId("portable-yaci-execution")
+                        .bindings(FlowBindings.builder()
+                                .put("beneficiary", receiverAccount.baseAddress()).build())
+                        .build())
+                .await();
+        assertTrue(result.isSuccessful(), () -> result.error() != null
+                ? result.error().message() : "portable execution failed");
+        assertEquals(1, result.steps().size());
+        assertEquals(1, result.attempts().size());
+
+        FlowRecoveryResult recovery = engine.recover(new FlowRecoveryRequest(
+                result.attempts().get(0), 0, 0, null));
+        assertEquals(AttemptState.IN_BLOCK, recovery.state());
+        assertEquals(result.attempts().get(0).signedPayload().transactionHash(),
+                recovery.transactionHash());
+        assertNotNull(recovery.inclusion());
+    }
 
     @Test
     @Order(1)

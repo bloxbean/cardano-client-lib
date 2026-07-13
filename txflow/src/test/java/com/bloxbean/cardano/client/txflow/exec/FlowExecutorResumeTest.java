@@ -11,11 +11,18 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
+import com.bloxbean.cardano.client.txflow.exec.store.FlowStateSnapshot;
+import com.bloxbean.cardano.client.txflow.exec.store.InMemoryFlowStateStore;
+import com.bloxbean.cardano.client.txflow.exec.store.StepStateSnapshot;
+import com.bloxbean.cardano.client.txflow.exec.store.TransactionState;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStatus;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -27,8 +34,9 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for FlowExecutor resume/retry functionality.
@@ -49,7 +57,9 @@ class FlowExecutorResumeTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier, transactionProcessor, chainDataSupplier);
+        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
+                        transactionProcessor, chainDataSupplier)
+                .withExecutor(Runnable::run);
     }
 
     private TxFlow createThreeStepFlow(String flowId) {
@@ -83,6 +93,33 @@ class FlowExecutorResumeTest {
 
     private FlowStepResult failedStep(String stepId) {
         return FlowStepResult.failure(stepId, new RuntimeException("step failed"));
+    }
+
+    private InMemoryFlowStateStore stateStoreWithConfirmedPrefix(TxFlow flow) {
+        Instant confirmedAt = Instant.parse("2026-07-13T01:02:03Z");
+        FlowStateSnapshot snapshot = FlowStateSnapshot.builder()
+                .flowId(flow.getId())
+                .status(FlowStatus.FAILED)
+                .startedAt(Instant.parse("2026-07-13T00:00:00Z"))
+                .completedAt(Instant.parse("2026-07-13T00:05:00Z"))
+                .totalSteps(flow.getSteps().size())
+                .completedSteps(1)
+                .build();
+        snapshot.addStep(StepStateSnapshot.builder()
+                .stepId("step1")
+                .transactionHash("tx1")
+                .state(TransactionState.CONFIRMED)
+                .blockHeight(100L)
+                .confirmationDepth(3)
+                .confirmedAt(confirmedAt)
+                .lastChecked(confirmedAt)
+                .build());
+        snapshot.addStep(StepStateSnapshot.pending("step2"));
+        snapshot.addStep(StepStateSnapshot.pending("step3"));
+
+        InMemoryFlowStateStore stateStore = new InMemoryFlowStateStore();
+        stateStore.saveFlowState(snapshot);
+        return stateStore;
     }
 
     // ==================== Validation tests ====================
@@ -171,8 +208,7 @@ class FlowExecutorResumeTest {
     }
 
     @Test
-    void resumeSync_step1RolledBack_reExecutesAll() throws Exception {
-        // step1 tx no longer on-chain (rolled back)
+    void resumeSync_ambiguousAbsence_requiresRecoveryInsteadOfRebuilding() throws Exception {
         when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(Optional.empty());
 
         TxFlow flow = createThreeStepFlow("flow1");
@@ -180,25 +216,12 @@ class FlowExecutorResumeTest {
                 successStep("step1", "tx1"),
                 failedStep("step2"));
 
-        FlowResult result = executor.resumeSync(flow, previousResult);
-
-        // Flow should fail because mocked backend can't build transactions
-        assertNotNull(result);
-        assertEquals(FlowStatus.FAILED, result.getStatus());
-
-        // step1 should NOT be reused — it was rolled back
-        // The result may contain a step1 failure or no step1 at all
-        // depending on how far execution got
-        Optional<FlowStepResult> step1Result = result.getStepResult("step1");
-        if (step1Result.isPresent()) {
-            // If step1 is in results, it should be a fresh attempt (failed, because mock)
-            assertFalse(step1Result.get().isSuccessful());
-        }
+        assertThrows(ReconciliationUncertainException.class,
+                () -> executor.resumeSync(flow, previousResult));
     }
 
     @Test
-    void resumeSync_verificationException_reExecutesFromThatStep() throws Exception {
-        // step1 verification throws exception
+    void resumeSync_verificationException_requiresRecoveryInsteadOfRebuilding() throws Exception {
         when(chainDataSupplier.getTransactionInfo("tx1")).thenThrow(new RuntimeException("network error"));
 
         TxFlow flow = createThreeStepFlow("flow1");
@@ -206,10 +229,10 @@ class FlowExecutorResumeTest {
                 successStep("step1", "tx1"),
                 failedStep("step2"));
 
-        FlowResult result = executor.resumeSync(flow, previousResult);
-
-        assertNotNull(result);
-        assertEquals(FlowStatus.FAILED, result.getStatus());
+        ReconciliationUncertainException error = assertThrows(
+                ReconciliationUncertainException.class,
+                () -> executor.resumeSync(flow, previousResult));
+        assertInstanceOf(RuntimeException.class, error.getCause());
     }
 
     @Test
@@ -226,8 +249,7 @@ class FlowExecutorResumeTest {
     }
 
     @Test
-    void resumeSync_step1ConfirmedWithNullBlockHeight_reExecutes() throws Exception {
-        // step1 tx found but blockHeight is null (not yet confirmed)
+    void resumeSync_step1WithNullBlockHeight_requiresRecovery() throws Exception {
         when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(
                 Optional.of(TransactionInfo.builder().txHash("tx1").blockHeight(null).build()));
 
@@ -236,10 +258,87 @@ class FlowExecutorResumeTest {
                 successStep("step1", "tx1"),
                 failedStep("step2"));
 
+        assertThrows(ReconciliationUncertainException.class,
+                () -> executor.resumeSync(flow, previousResult));
+    }
+
+    @Test
+    void resumeSync_shallowConfirmedPrefixWaitsForRequiredDepthAndIsRetainedOnce() throws Exception {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        FlowListener listener = mock(FlowListener.class);
+        executor.withScheduler(scheduler).withListener(listener)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .minConfirmations(2)
+                        .checkInterval(Duration.ofSeconds(1))
+                        .timeout(Duration.ofSeconds(5))
+                        .build());
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(
+                Optional.of(TransactionInfo.builder().txHash("tx1").blockHeight(100L).build()));
+        when(chainDataSupplier.getChainTipHeight()).thenReturn(100L, 102L, 102L);
+
+        TxFlow flow = createThreeStepFlow("flow1");
+        FlowResult previousResult = buildFailedResult("flow1",
+                successStep("step1", "tx1"), failedStep("step2"));
+
         FlowResult result = executor.resumeSync(flow, previousResult);
 
-        assertNotNull(result);
+        assertEquals(1, result.getStepResults().stream()
+                .filter(step -> "step1".equals(step.getStepId())).count());
+        verify(listener, times(1)).onStepCompleted(
+                argThat(step -> "step1".equals(step.getId())),
+                argThat(step -> "tx1".equals(step.getTransactionHash())));
+        assertFalse(scheduler.getDelays().isEmpty());
+    }
+
+    @Test
+    void resumeSync_authoritativeAbsenceWithoutRecordedInclusionRequiresRecovery() throws Exception {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        ChainDataSupplier authoritative = ObservationCapabilities.withAuthoritativeAbsence(chainDataSupplier);
+        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
+                        transactionProcessor, authoritative)
+                .withScheduler(scheduler)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .minConfirmations(1)
+                        .requiredAuthoritativeAbsences(2)
+                        .checkInterval(Duration.ofSeconds(1))
+                        .timeout(Duration.ofSeconds(5))
+                        .build());
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(Optional.empty());
+
+        TxFlow flow = createThreeStepFlow("flow1");
+        FlowResult previousResult = buildFailedResult("flow1",
+                successStep("step1", "tx1"), failedStep("step2"));
+
+        assertThrows(ReconciliationUncertainException.class,
+                () -> executor.resumeSync(flow, previousResult));
+        verify(chainDataSupplier, atLeast(2)).getTransactionInfo("tx1");
+    }
+
+    @Test
+    void resumeReconciliationReadsOneChainTipPerPassForMultipleTransactions() throws Exception {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        executor.withScheduler(scheduler).withConfirmationConfig(ConfirmationConfig.builder()
+                .minConfirmations(2)
+                .checkInterval(Duration.ofSeconds(1))
+                .timeout(Duration.ofSeconds(5))
+                .build());
+        when(chainDataSupplier.getTransactionInfo(anyString())).thenAnswer(invocation -> {
+            String txHash = invocation.getArgument(0);
+            return Optional.of(TransactionInfo.builder().txHash(txHash)
+                    .blockHeight(100L).build());
+        });
+        when(chainDataSupplier.getChainTipHeight()).thenReturn(102L);
+
+        TxFlow flow = createThreeStepFlow("flow1");
+        FlowResult previousResult = buildFailedResult("flow1",
+                successStep("step1", "tx1"), successStep("step2", "tx2"), failedStep("step3"));
+
+        FlowResult result = executor.resumeSync(flow, previousResult);
+
         assertEquals(FlowStatus.FAILED, result.getStatus());
+        verify(chainDataSupplier, times(2)).getChainTipHeight();
+        verify(chainDataSupplier, times(2)).getTransactionInfo("tx1");
+        verify(chainDataSupplier, times(2)).getTransactionInfo("tx2");
     }
 
     @Test
@@ -408,7 +507,109 @@ class FlowExecutorResumeTest {
         blockLatch.countDown();
     }
 
+    @ParameterizedTest
+    @EnumSource(ChainingMode.class)
+    void resumeSync_preservesPersistedConfirmedPrefixInEveryMode(ChainingMode mode) throws Exception {
+        TxFlow flow = createThreeStepFlow("persisted-prefix-" + mode);
+        InMemoryFlowStateStore stateStore = stateStoreWithConfirmedPrefix(flow);
+        FlowListener listener = mock(FlowListener.class);
+        executor.withChainingMode(mode)
+                .withStateStore(stateStore)
+                .withListener(listener);
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(
+                Optional.of(TransactionInfo.builder().txHash("tx1").blockHeight(100L).build()));
+
+        FlowResult previousResult = buildFailedResult(flow.getId(),
+                successStep("step1", "tx1"), failedStep("step2"));
+        executor.resumeSync(flow, previousResult);
+
+        FlowStateSnapshot persisted = stateStore.getFlowState(flow.getId()).orElseThrow();
+        StepStateSnapshot retained = persisted.getStep("step1");
+        assertAll(
+                () -> assertEquals(TransactionState.CONFIRMED, retained.getState()),
+                () -> assertEquals("tx1", retained.getTransactionHash()),
+                () -> assertEquals(100L, retained.getBlockHeight()),
+                () -> assertEquals(3, retained.getConfirmationDepth()),
+                () -> assertEquals(Instant.parse("2026-07-13T01:02:03Z"), retained.getConfirmedAt()),
+                () -> assertEquals(1, persisted.getCompletedSteps()));
+        verify(listener, never()).onFlowStarted(any());
+    }
+
+    @Test
+    void resumeAsync_preservesPersistedConfirmedPrefix() throws Exception {
+        TxFlow flow = createThreeStepFlow("async-persisted-prefix");
+        InMemoryFlowStateStore stateStore = stateStoreWithConfirmedPrefix(flow);
+        FlowListener listener = mock(FlowListener.class);
+        executor.withStateStore(stateStore).withListener(listener);
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(
+                Optional.of(TransactionInfo.builder().txHash("tx1").blockHeight(100L).build()));
+
+        FlowResult previousResult = buildFailedResult(flow.getId(),
+                successStep("step1", "tx1"), failedStep("step2"));
+        executor.resume(flow, previousResult).await(Duration.ofSeconds(5));
+
+        StepStateSnapshot retained = stateStore.getFlowState(flow.getId()).orElseThrow()
+                .getStep("step1");
+        assertEquals(TransactionState.CONFIRMED, retained.getState());
+        assertEquals("tx1", retained.getTransactionHash());
+        verify(listener, never()).onFlowStarted(any());
+    }
+
+    @Test
+    void freshExecutionFollowedBySyncAndAsyncResumeFiresFlowStartedExactlyOnce() throws Exception {
+        TxFlow flow = createThreeStepFlow("single-start-callback");
+        FlowListener listener = mock(FlowListener.class);
+        executor.withListener(listener);
+
+        FlowResult previousResult = executor.executeSync(flow);
+        assertFalse(previousResult.isSuccessful());
+
+        executor.resumeSync(flow, previousResult);
+        executor.resume(flow, previousResult).await(Duration.ofSeconds(5));
+
+        verify(listener, times(1)).onFlowStarted(flow);
+    }
+
     // ==================== Mode-specific resume tests ====================
+
+    @ParameterizedTest
+    @EnumSource(ChainingMode.class)
+    void resumePrefixResultHashAndCallbacksAreEmittedExactlyOnce(ChainingMode mode) throws Exception {
+        FlowListener listener = mock(FlowListener.class);
+        executor.withChainingMode(mode).withListener(listener);
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(
+                Optional.of(TransactionInfo.builder().txHash("tx1").blockHeight(100L).build()));
+
+        TxFlow flow = createThreeStepFlow("shared-" + mode);
+        FlowResult previousResult = buildFailedResult(flow.getId(),
+                successStep("step1", "tx1"), failedStep("step2"));
+
+        FlowResult result = executor.resumeSync(flow, previousResult);
+
+        assertEquals(1, result.getStepResults().stream()
+                .filter(step -> "step1".equals(step.getStepId())).count());
+        assertEquals(1, result.getTransactionHashes().stream()
+                .filter("tx1"::equals).count());
+        verify(listener, times(1)).onTransactionConfirmed(
+                argThat(step -> "step1".equals(step.getId())), eq("tx1"));
+        verify(listener, times(1)).onStepCompleted(
+                argThat(step -> "step1".equals(step.getId())),
+                argThat(step -> "tx1".equals(step.getTransactionHash())));
+    }
+
+    @Test
+    void freshAndResumeShareExactlyThreeModeExecutionStrategies() {
+        List<String> strategies = java.util.Arrays.stream(FlowExecutor.class.getDeclaredMethods())
+                .map(java.lang.reflect.Method::getName)
+                .filter(name -> name.matches("doExecute(Sequential|Pipelined|Batch)"))
+                .sorted()
+                .toList();
+
+        assertEquals(List.of("doExecuteBatch", "doExecutePipelined", "doExecuteSequential"),
+                strategies);
+        assertTrue(java.util.Arrays.stream(FlowExecutor.class.getDeclaredMethods())
+                .noneMatch(method -> method.getName().contains("WithResume")));
+    }
 
     @Test
     void resumeSync_pipelinedMode_step1Confirmed() throws Exception {

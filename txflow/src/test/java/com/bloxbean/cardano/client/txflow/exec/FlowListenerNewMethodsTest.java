@@ -92,6 +92,31 @@ class FlowListenerNewMethodsTest {
     }
 
     @Test
+    void testCompositeListenerOnTransactionRollbackSuspected() {
+        AtomicInteger callCount = new AtomicInteger();
+        FlowStep step = createTestStep();
+        FlowListener first = new FlowListener() {
+            @Override
+            public void onTransactionRollbackSuspected(
+                    FlowStep s, String txHash, long previousBlockHeight) {
+                callCount.incrementAndGet();
+                throw new RuntimeException("listener failure");
+            }
+        };
+        FlowListener second = new FlowListener() {
+            @Override
+            public void onTransactionRollbackSuspected(
+                    FlowStep s, String txHash, long previousBlockHeight) {
+                callCount.incrementAndGet();
+            }
+        };
+
+        assertDoesNotThrow(() -> FlowListener.composite(first, second)
+                .onTransactionRollbackSuspected(step, "txHash123", 950L));
+        assertEquals(2, callCount.get());
+    }
+
+    @Test
     void testCompositeListener_OnTransactionInBlock() {
         AtomicInteger callCount = new AtomicInteger(0);
         FlowStep step = createTestStep();
@@ -179,6 +204,7 @@ class FlowListenerNewMethodsTest {
         assertDoesNotThrow(() -> noopListener.onTransactionInBlock(step, "tx", 100L));
         assertDoesNotThrow(() -> noopListener.onConfirmationDepthChanged(step, "tx", 10, ConfirmationStatus.IN_BLOCK));
         assertDoesNotThrow(() -> noopListener.onTransactionRolledBack(step, "tx", 100L));
+        assertDoesNotThrow(() -> noopListener.onTransactionRollbackSuspected(step, "tx", 100L));
         assertDoesNotThrow(() -> noopListener.onStepRebuilding(step, 1, 3, "rollback"));
         assertDoesNotThrow(() -> noopListener.onFlowRestarting(flow, 1, 3, "rollback"));
     }

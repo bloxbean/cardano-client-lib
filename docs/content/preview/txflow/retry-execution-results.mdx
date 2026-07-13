@@ -69,6 +69,7 @@ FlowStep criticalStep = FlowStep.builder("critical")
 | Invalid transaction | No |
 | Already spent UTXOs | No |
 | Confirmation timeout | No |
+| Unknown/untyped failure | No; use a typed I/O or timeout cause for known pre-submission transients |
 
 ## FlowExecutor
 
@@ -141,23 +142,30 @@ if (result.isSuccessful()) {
 
 ## Asynchronous Execution
 
-Returns a `FlowHandle` immediately for non-blocking monitoring.
+Returns a `FlowHandle` immediately for non-blocking monitoring. Supply an
+application-managed executor for every async executor instance. TxFlow does not own or shut it
+down. On Java 17, use a normal pool; on Java 21+, a virtual-thread executor is also supported.
 
 ```java
-FlowHandle handle = executor.execute(flow);
+ExecutorService asyncExecutor = Executors.newCachedThreadPool();
+try {
+    FlowExecutor asyncFlowExecutor = FlowExecutor.create(backendService)
+        .withExecutor(asyncExecutor);
+    FlowHandle handle = asyncFlowExecutor.execute(flow);
 
-// Monitor progress
-while (handle.isRunning()) {
-    System.out.printf("Progress: %d/%d (step: %s)%n",
-        handle.getCompletedStepCount(),
-        handle.getTotalStepCount(),
-        handle.getCurrentStepId().orElse("none"));
-    Thread.sleep(1000);
+    // Monitor progress
+    while (handle.isRunning()) {
+        System.out.printf("Progress: %d/%d (step: %s)%n",
+            handle.getCompletedStepCount(),
+            handle.getTotalStepCount(),
+            handle.getCurrentStepId().orElse("none"));
+        Thread.sleep(1000);
+    }
+
+    FlowResult result = handle.await(Duration.ofMinutes(5));
+} finally {
+    asyncExecutor.shutdown();
 }
-
-// Block until done (or with timeout)
-FlowResult result = handle.await();
-FlowResult result = handle.await(Duration.ofMinutes(5));
 ```
 
 ### FlowHandle API

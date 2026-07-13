@@ -5,6 +5,8 @@ import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.api.model.TransactionInfo;
+import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.TxResult;
@@ -13,6 +15,14 @@ import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
+import com.bloxbean.cardano.client.txflow.config.RollbackAction;
+import com.bloxbean.cardano.client.txflow.config.RollbackMonitoringHorizon;
+import com.bloxbean.cardano.client.txflow.config.RollbackPolicy;
+import com.bloxbean.cardano.client.txflow.config.RollbackRebuildScope;
+import com.bloxbean.cardano.client.txflow.codec.FlowParseOptions;
+import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
+import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStatus;
@@ -32,12 +42,26 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static com.bloxbean.cardano.client.txflow.exec.ScriptedChainBackend.Observation.absent;
+import static com.bloxbean.cardano.client.txflow.exec.ScriptedChainBackend.Observation.included;
 
 class FlowExecutorTest {
+
+    @Test
+    void submissionFailureClassificationRecognizesWrappedApiRuntimeSubclasses() {
+        class ProviderFailure extends ApiRuntimeException {
+            ProviderFailure(String message) { super(message); }
+        }
+
+        assertTrue(FlowExecutor.hasSubmissionApiFailure(
+                new RuntimeException("wrapped", new ProviderFailure("provider unavailable"))));
+        assertFalse(FlowExecutor.hasSubmissionApiFailure(new RuntimeException("ordinary")));
+    }
 
     @Mock
     private UtxoSupplier utxoSupplier;
@@ -53,7 +77,9 @@ class FlowExecutorTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier, transactionProcessor, chainDataSupplier);
+        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
+                        transactionProcessor, chainDataSupplier)
+                .withExecutor(Runnable::run);
     }
 
     private TxFlow createSimpleFlow(String flowId) {
@@ -72,6 +98,203 @@ class FlowExecutorTest {
         return txContext;
     }
 
+    private QuickTxBuilder.TxContext successfulTxContext(String txHash) {
+        QuickTxBuilder.TxContext txContext = mock(QuickTxBuilder.TxContext.class);
+        when(txContext.withTxInspector(any())).thenReturn(txContext);
+        Result<String> result = Result.success("submitted");
+        result.withValue(txHash);
+        when(txContext.completeAndWait(any(Duration.class), any(Duration.class), any()))
+                .thenReturn(TxResult.fromResult(result));
+        return txContext;
+    }
+
+    @Test
+    void sequentialConfirmationTimeoutDoesNotAdvanceToNextStep() throws Exception {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        executor.withScheduler(scheduler);
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(Optional.empty());
+        QuickTxBuilder.TxContext first = successfulTxContext("tx1");
+        AtomicInteger secondStepBuilds = new AtomicInteger();
+
+        TxFlow flow = TxFlow.builder("sequential-confirmation-gate")
+                .addStep(FlowStep.builder("step1").withTxContext(builder -> first).build())
+                .addStep(FlowStep.builder("step2").withTxContext(builder -> {
+                    secondStepBuilds.incrementAndGet();
+                    return successfulTxContext("tx2");
+                }).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertInstanceOf(ConfirmationTimeoutException.class, result.getError());
+        assertEquals(0, secondStepBuilds.get());
+    }
+
+    @Test
+    void ambiguousAbsenceAfterInclusionIsSuspectedThenRequiresRecovery() throws Exception {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        executor.withScheduler(scheduler).withConfirmationConfig(ConfirmationConfig.builder()
+                .minConfirmations(3)
+                .checkInterval(Duration.ofSeconds(1))
+                .timeout(Duration.ofSeconds(3))
+                .build());
+        when(chainDataSupplier.getChainTipHeight()).thenReturn(100L);
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(
+                Optional.of(TransactionInfo.builder().txHash("tx1")
+                        .blockHeight(99L).blockHash("block-99").build()),
+                Optional.empty());
+        AtomicInteger suspected = new AtomicInteger();
+        executor.withListener(new FlowListener() {
+            @Override
+            public void onTransactionRollbackSuspected(
+                    FlowStep step, String transactionHash, long previousBlockHeight) {
+                suspected.incrementAndGet();
+            }
+        });
+
+        TxFlow flow = TxFlow.builder("ambiguous-absence")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> successfulTxContext("tx1")).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertInstanceOf(ReconciliationUncertainException.class, result.getError());
+        assertEquals(1, suspected.get());
+    }
+
+    @Test
+    void portableWaitForReinclusionSucceedsWithinItsIndependentWindow() {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        ScriptedChainBackend chain = new ScriptedChainBackend()
+                .then(included(100, 100, "block-a"), absent(101), absent(102),
+                        absent(103), included(104, 103, "block-b"),
+                        included(105, 103, "block-b"));
+        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
+                        transactionProcessor, chain)
+                .withScheduler(scheduler);
+
+        TxFlow flow = portableWaitFlow("wait-reincluded", Duration.ofSeconds(2));
+        FlowResult result = executor.executeSync(flow);
+
+        assertTrue(result.isSuccessful());
+        assertEquals(Duration.ofSeconds(3), scheduler.getDelays().stream()
+                .reduce(Duration.ZERO, Duration::plus));
+    }
+
+    @Test
+    void portableWaitForReinclusionExhaustsAtWindowNotRecoveryCycleCount() {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        ScriptedChainBackend chain = new ScriptedChainBackend()
+                .then(included(100, 100, "block-a"), absent(101), absent(102),
+                        absent(103), absent(104));
+        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
+                        transactionProcessor, chain)
+                .withScheduler(scheduler);
+
+        FlowResult result = executor.executeSync(
+                portableWaitFlow("wait-exhausted", Duration.ofSeconds(2)));
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertInstanceOf(RollbackException.class, result.getError());
+        assertInstanceOf(ReconciliationUncertainException.class, result.getError().getCause());
+        assertTrue(result.getError().getCause().getCause().getMessage().contains("within PT2S"));
+        assertEquals(Duration.ofSeconds(4), scheduler.getDelays().stream()
+                .reduce(Duration.ZERO, Duration::plus));
+    }
+
+    @Test
+    void exhaustedNotifyOnlyRepollsPreserveRollbackOutcome() {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        ScriptedChainBackend chain = new ScriptedChainBackend()
+                .then(included(100, 100, "block-a"), absent(101), absent(102));
+        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
+                        transactionProcessor, chain)
+                .withExecutor(Runnable::run)
+                .withScheduler(scheduler)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .minConfirmations(1)
+                        .requiredAuthoritativeAbsences(1)
+                        .checkInterval(Duration.ofSeconds(1))
+                        .timeout(Duration.ofSeconds(2))
+                        .maxRollbackRetries(1)
+                        .build())
+                .withRollbackStrategy(RollbackStrategy.NOTIFY_ONLY);
+
+        TxFlow flow = TxFlow.builder("notify-only-exhausted")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> successfulTxContext("same-hash"))
+                        .build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertInstanceOf(RollbackException.class, result.getError());
+        assertEquals(100L, ((RollbackException) result.getError()).getPreviousBlockHeight());
+        assertEquals(Duration.ofSeconds(2), scheduler.getDelays().stream()
+                .reduce(Duration.ZERO, Duration::plus));
+    }
+
+    @Test
+    void notifyOnlyRepollAllowsSameHashReinclusion() {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        ScriptedChainBackend chain = new ScriptedChainBackend()
+                .then(included(100, 100, "block-a"), absent(101),
+                        included(102, 102, "block-b"), included(103, 102, "block-b"),
+                        included(104, 102, "block-b"));
+        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
+                        transactionProcessor, chain)
+                .withExecutor(Runnable::run)
+                .withScheduler(scheduler)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .minConfirmations(1)
+                        .requiredAuthoritativeAbsences(1)
+                        .checkInterval(Duration.ofSeconds(1))
+                        .timeout(Duration.ofSeconds(5))
+                        .maxRollbackRetries(1)
+                        .build())
+                .withRollbackStrategy(RollbackStrategy.NOTIFY_ONLY);
+
+        TxFlow flow = TxFlow.builder("notify-only-reincluded")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> successfulTxContext("same-hash"))
+                        .build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertTrue(result.isSuccessful(), () -> "unexpected result: " + result.getStatus()
+                + ", error=" + result.getError() + ", delays=" + scheduler.getDelays());
+        assertEquals(Duration.ofSeconds(3), scheduler.getDelays().stream()
+                .reduce(Duration.ZERO, Duration::plus));
+    }
+
+    private TxFlow portableWaitFlow(String flowId, Duration reinclusionWindow) {
+        ConfirmationConfig confirmation = ConfirmationConfig.builder()
+                .minConfirmations(1)
+                .requiredAuthoritativeAbsences(2)
+                .checkInterval(Duration.ofSeconds(1))
+                .timeout(Duration.ofSeconds(20))
+                .build();
+        RollbackPolicy rollback = new RollbackPolicy(
+                RollbackAction.WAIT_FOR_REINCLUSION,
+                RollbackMonitoringHorizon.UNTIL_STEP_CONFIRMED,
+                RollbackRebuildScope.INVALIDATED_CLOSURE,
+                99, reinclusionWindow, 2);
+        return TxFlow.builder(flowId)
+                .withExecutionSettings(FlowExecutionSettings.builder()
+                        .confirmationConfig(confirmation)
+                        .rollbackPolicy(rollback)
+                        .build())
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> successfulTxContext("same-hash"))
+                        .build())
+                .build();
+    }
+
     private Function<QuickTxBuilder, QuickTxBuilder.TxContext> blockingFactory(
             QuickTxBuilder.TxContext txContext, CountDownLatch started, CountDownLatch release) {
         return builder -> {
@@ -86,6 +309,51 @@ class FlowExecutorTest {
             }
             return txContext;
         };
+    }
+
+    @Test
+    void asyncExecutionRequiresCallerSuppliedExecutorButSyncDoesNot() {
+        FlowExecutor withoutExecutor = FlowExecutor.create(
+                utxoSupplier, protocolParamsSupplier, transactionProcessor, chainDataSupplier);
+        TxFlow flow = createSimpleFlow("caller-executor-required");
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class, () -> withoutExecutor.execute(flow));
+
+        assertTrue(failure.getMessage().contains("caller-supplied Executor"));
+        assertTrue(failure.getMessage().contains("virtual-thread executor"));
+        FlowResult previous = FlowResult.builder(flow.getId())
+                .withStatus(FlowStatus.FAILED)
+                .addStepResult(FlowStepResult.failure("step1", new RuntimeException("failed")))
+                .build();
+        assertThrows(IllegalStateException.class,
+                () -> withoutExecutor.resume(flow, previous));
+        assertDoesNotThrow(() -> withoutExecutor.executeSync(flow));
+    }
+
+    @Test
+    void portableTemplateRequiresCompilationBeforeDirectExecution() {
+        String yaml = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: portable-template}
+                spec:
+                  steps:
+                    - id: payment
+                      transaction:
+                        tx: {intents: []}
+                """;
+        TxFlow portable = TxFlowCodec.standard()
+                .parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
+
+        FlowExecutionException syncFailure = assertThrows(FlowExecutionException.class,
+                () -> executor.executeSync(portable));
+        assertTrue(syncFailure.getMessage().contains("TxFlowCompiler"));
+        assertTrue(syncFailure.getMessage().contains("FlowEngine"));
+
+        FlowExecutionException asyncFailure = assertThrows(FlowExecutionException.class,
+                () -> executor.execute(portable));
+        assertTrue(asyncFailure.getMessage().contains("template steps: [payment]"));
     }
 
     // ==================== HIGH-3: Validate rollback strategy requires ConfirmationConfig ====================
@@ -210,6 +478,28 @@ class FlowExecutorTest {
                 .build();
 
         assertEquals(ChainingMode.SEQUENTIAL, executor.effectiveSettings(flow).getChainingMode());
+    }
+
+    @Test
+    void portableRollbackPolicyControlsLegacyFacadeWithoutLosingItsBudgets() {
+        var rollback = new com.bloxbean.cardano.client.txflow.config.RollbackPolicy(
+                com.bloxbean.cardano.client.txflow.config.RollbackAction.RECONCILE_AND_REBUILD,
+                com.bloxbean.cardano.client.txflow.config.RollbackMonitoringHorizon.UNTIL_FLOW_TERMINAL,
+                com.bloxbean.cardano.client.txflow.config.RollbackRebuildScope.INVALIDATED_CLOSURE,
+                7, Duration.ofMinutes(1), 4);
+        TxFlow flow = TxFlow.builder("portable-rollback")
+                .withExecutionSettings(com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings.builder()
+                        .rollbackPolicy(rollback).build())
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+
+        FlowExecutor.EffectiveFlowExecutionSettings settings = executor.effectiveSettings(flow);
+        assertEquals(RollbackStrategy.REBUILD_ENTIRE_FLOW, settings.getRollbackStrategy());
+        assertEquals(7, settings.getConfirmationConfig().getMaxRollbackRetries());
+        assertEquals(4, settings.getConfirmationConfig().getRequiredAuthoritativeAbsences());
+        assertTrue(settings.isMonitorUntilFlowTerminal());
     }
 
     @Test
@@ -476,9 +766,9 @@ class FlowExecutorTest {
     }
 
     @Test
-    void testIsRetryable_returnsTrueForUnknownRuntimeException() {
+    void testIsRetryable_returnsFalseForUnknownRuntimeException() {
         RetryPolicy policy = RetryPolicy.defaults();
-        assertTrue(policy.isRetryable(new RuntimeException("unknown transient issue")));
+        assertFalse(policy.isRetryable(new RuntimeException("unknown transient issue")));
     }
 
     // ==================== HIGH-1: Listener wrapping ====================
@@ -561,6 +851,20 @@ class FlowExecutorTest {
         // The flow may have already failed before reaching confirmation wait (due to mocked backend),
         // but the key assertion is that cancel() returns promptly and the handle reflects cancellation
         assertTrue(elapsed < 5000, "Should exit promptly after cancel, took " + elapsed + "ms");
+    }
+
+    @Test
+    void cooperativeCancellationKeepsHandleStatusCancelled() throws Exception {
+        java.util.concurrent.atomic.AtomicReference<Runnable> queued =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        executor.withExecutor(queued::set);
+        FlowHandle handle = executor.execute(createSimpleFlow("cancel-status"));
+
+        assertTrue(handle.cancel());
+        queued.get().run();
+
+        assertThrows(java.util.concurrent.CancellationException.class, handle::await);
+        assertEquals(FlowStatus.CANCELLED, handle.getStatus());
     }
 
     // ==================== HIGH-5: executeSync/resumeSync duplicate flow ID guard ====================

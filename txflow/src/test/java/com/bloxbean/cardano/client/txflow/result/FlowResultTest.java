@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -174,6 +176,22 @@ class FlowResultTest {
 
         assertEquals(FlowStatus.COMPLETED, result.getStatus());
         assertNotNull(result.getCompletedAt());
+    }
+
+    @Test
+    void terminalAndStepTimestampsCanBeDeterministic() {
+        Instant now = Instant.parse("2026-07-13T15:00:00Z");
+        FlowResult flow = FlowResult.builder("flow-1")
+                .clock(Clock.fixed(now, ZoneOffset.UTC))
+                .success();
+        FlowStepResult step = FlowStepResult.successAt(
+                "step-1", "hash", List.of(), List.of(), now);
+        FlowStepResult failed = FlowStepResult.failureAt(
+                "step-2", new RuntimeException("failed"), now);
+
+        assertEquals(now, flow.getCompletedAt());
+        assertEquals(now, step.getCompletedAt());
+        assertEquals(now, failed.getCompletedAt());
     }
 
     @Test

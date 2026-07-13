@@ -1,0 +1,10 @@
+api_version: txflow.cardano-client.dev/v1alpha1
+kind: TxFlow
+metadata:
+  name: minimal
+spec:
+  steps:
+    - id: transaction
+      transaction:
+        tx:
+          intents: []
