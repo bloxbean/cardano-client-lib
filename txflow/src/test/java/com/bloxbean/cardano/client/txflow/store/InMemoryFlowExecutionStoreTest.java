@@ -183,6 +183,8 @@ class InMemoryFlowExecutionStoreTest {
     @Test
     void resourceLeaseSerializesExecutionsAndCanBeRenewed() {
         InMemoryFlowExecutionStore store = store();
+        store.createOrGet("tenant", "one", snapshot("one", "d", "r"));
+        store.createOrGet("tenant", "two", snapshot("two", "d", "r"));
         ResourceLease first = store.acquireResourceLease(
                 "treasury", "one", "worker-a", NOW, Duration.ofMinutes(1));
         assertEquals("TXFLOW_RESOURCE_LEASE_CONFLICT", assertThrows(FlowStoreException.class,

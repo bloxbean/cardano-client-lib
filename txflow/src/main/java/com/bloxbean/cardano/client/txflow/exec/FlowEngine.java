@@ -44,6 +44,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.UUID;
 
@@ -61,9 +62,15 @@ import java.util.UUID;
  * lifecycle events are durably ordered under fenced execution and resource
  * leases. Durable mode also requires a caller-owned maintenance executor for
  * lease renewal; it must remain schedulable while flow tasks or spending waits
- * are blocked.</p>
+ * are blocked. Explicit idempotency namespaces are preserved unchanged. The
+ * store keys are bounded SHA-256 identities with separate versioned domains for
+ * application idempotency and internal execution-ID claims, so neither claim
+ * kind consumes the other's public text limit or aliases it.</p>
  */
 public final class FlowEngine {
+    private static final String EXECUTION_CLAIM_NAMESPACE = "ccl.txflow.execution";
+    private static final String EXECUTION_CLAIM_KEY_DOMAIN = "execution:v1:";
+    private static final String IDEMPOTENCY_CLAIM_KEY_DOMAIN = "idempotency:v1:";
     private final UtxoSupplier utxoSupplier;
     private final ProtocolParamsSupplier protocolParamsSupplier;
     private final TransactionProcessor transactionProcessor;
@@ -80,8 +87,8 @@ public final class FlowEngine {
     private final Duration leaseDuration;
     private final String ownerToken;
     private final int maxInMemoryIdempotencyClaims;
-    private final Map<String, FlowExecutionHandle> activeExecutions = new ConcurrentHashMap<>();
-    private final Map<String, IdempotencyClaim> idempotencyClaims = new ConcurrentHashMap<>();
+    private final Map<String, ActiveExecution> activeExecutions = new ConcurrentHashMap<>();
+    private final Map<ClaimIdentity, IdempotencyClaim> idempotencyClaims = new ConcurrentHashMap<>();
     private final SpendingResourceCoordinator spendingCoordinator;
 
     private FlowEngine(Builder builder) {
@@ -183,12 +190,17 @@ public final class FlowEngine {
                     "TXFLOW_CONCURRENT_SPENDING_FORBIDDEN", FlowErrorCategory.POLICY,
                     "Server policy does not allow the concurrent-spending opt-out");
         }
-        String requestFingerprint = requestFingerprint(request, compiled);
+        Set<String> spendingResources = effectiveSpendingResources(request, compiled);
+        List<PersistedBinding> persistedBindings = persistedBindings(request);
+        String requestFingerprint = ExecutionRequestFingerprinter.fingerprint(
+                compiled.getFingerprint(), spendingResources,
+                request.isConcurrentSpendingAllowed(), persistedBindings,
+                request.getSecureBindingReferences());
+        ClaimIdentity claimIdentity = claimIdentity(request);
 
         if (store == null && request.getIdempotencyKey() != null) {
-            String claimKey = request.getIdempotencyNamespace() + "\u0000" + request.getIdempotencyKey();
             synchronized (idempotencyClaims) {
-                IdempotencyClaim existing = idempotencyClaims.get(claimKey);
+                IdempotencyClaim existing = idempotencyClaims.get(claimIdentity);
                 if (existing != null) {
                     if (existing.fingerprint.equals(requestFingerprint)) return existing.handle;
                     return completedFailure(request.getExecutionId(), compiled.getFingerprint(),
@@ -201,12 +213,18 @@ public final class FlowEngine {
                             "In-memory idempotency claim capacity is exhausted; configure a durable store "
                                     + "or increase maxInMemoryIdempotencyClaims");
                 }
-                FlowExecutionHandle created = createHandle(request, compiled);
-                idempotencyClaims.put(claimKey, new IdempotencyClaim(requestFingerprint, created));
-                return created;
+                HandleCreation creation = createHandle(
+                        request, compiled, requestFingerprint, claimIdentity,
+                        spendingResources, persistedBindings);
+                if (creation.retainIdempotencyClaim()) {
+                    idempotencyClaims.put(claimIdentity,
+                            new IdempotencyClaim(requestFingerprint, creation.handle()));
+                }
+                return creation.handle();
             }
         }
-        return createHandle(request, compiled);
+        return createHandle(request, compiled, requestFingerprint, claimIdentity,
+                spendingResources, persistedBindings).handle();
     }
 
     /**
@@ -350,28 +368,46 @@ public final class FlowEngine {
                         "No matching persisted attempt for execution " + request.executionId()));
     }
 
-    private FlowExecutionHandle createHandle(FlowExecutionRequest request, CompiledTxFlow compiled) {
+    private HandleCreation createHandle(FlowExecutionRequest request, CompiledTxFlow compiled,
+                                        String requestFingerprint, ClaimIdentity claimIdentity,
+                                        Set<String> spendingResources,
+                                        List<PersistedBinding> persistedBindings) {
         synchronized (activeExecutions) {
-            FlowExecutionHandle active = activeExecutions.get(request.getExecutionId());
-            if (active != null) return active;
             if (store != null) {
                 try {
-                    String namespace = request.getIdempotencyNamespace() != null
-                            ? request.getIdempotencyNamespace() : "_execution";
-                    String key = request.getIdempotencyKey() != null
-                            ? request.getIdempotencyKey() : request.getExecutionId();
-                    IdempotencyClaimResult claim = store.createOrGet(namespace, key,
-                            initialSnapshot(request, compiled));
+                    // The durable claim is authoritative. Consult it even when this process
+                    // already has an active handle so a different tenant/key or fingerprint
+                    // can never attach to another caller's execution.
+                    IdempotencyClaimResult claim = store.createOrGet(
+                            claimIdentity.namespace(), claimIdentity.key(),
+                            initialSnapshot(request, compiled, requestFingerprint,
+                                    spendingResources, persistedBindings));
                     if (!claim.created()) {
-                        FlowExecutionHandle claimedActive = activeExecutions.get(claim.snapshot().executionId());
-                        return claimedActive != null ? claimedActive : handleForStoredSnapshot(claim.snapshot());
+                        ActiveExecution claimedActive = activeExecutions.get(
+                                claim.snapshot().executionId());
+                        if (claimedActive != null) {
+                            if (claimedActive.matches(requestFingerprint, claimIdentity)) {
+                                return new HandleCreation(claimedActive.handle(), true);
+                            }
+                            return rejectedActiveExecution(request, compiled);
+                        }
+                        return new HandleCreation(handleForStoredSnapshot(claim.snapshot()), true);
                     }
                 } catch (FlowStoreException failure) {
                     FlowErrorCategory category = "TXFLOW_IDEMPOTENCY_CONFLICT".equals(failure.getCode())
                             || "TXFLOW_EXECUTION_ID_CONFLICT".equals(failure.getCode())
                             ? FlowErrorCategory.VALIDATION : FlowErrorCategory.PERSISTENCE;
-                    return completedFailure(request.getExecutionId(), compiled.getFingerprint(),
-                            failure.getCode(), category, failure.getMessage());
+                    return new HandleCreation(completedFailure(
+                            request.getExecutionId(), compiled.getFingerprint(),
+                            failure.getCode(), category, failure.getMessage()), false);
+                }
+            } else {
+                ActiveExecution active = activeExecutions.get(request.getExecutionId());
+                if (active != null) {
+                    if (active.matches(requestFingerprint, claimIdentity)) {
+                        return new HandleCreation(active.handle(), true);
+                    }
+                    return rejectedActiveExecution(request, compiled);
                 }
             }
 
@@ -381,23 +417,42 @@ public final class FlowEngine {
                     store, request.getExecutionId(), clock);
             FlowExecutionHandle handle = new FlowExecutionHandle(
                     request.getExecutionId(), completion, cancelled, journal.events());
-            activeExecutions.put(request.getExecutionId(), handle);
+            ActiveExecution active = new ActiveExecution(
+                    requestFingerprint, claimIdentity, handle);
+            activeExecutions.put(request.getExecutionId(), active);
             journal.record(FlowEventType.EXECUTION_CREATED, null, null, Map.of());
             journal.record(FlowEventType.COMPILATION_COMPLETED, null, null,
                     Map.of("fingerprint", compiled.getFingerprint()));
-            executor.execute(() -> run(request, compiled, handle, completion, cancelled, journal));
-            return handle;
+            try {
+                executor.execute(() -> run(request, compiled, active, completion, cancelled, journal));
+                return new HandleCreation(handle, true);
+            } catch (RejectedExecutionException rejection) {
+                completeRejectedExecution(request, compiled, active, completion, journal, rejection);
+                return new HandleCreation(handle, false);
+            }
         }
     }
 
-    private FlowExecutionSnapshot initialSnapshot(FlowExecutionRequest request, CompiledTxFlow compiled) {
+    private HandleCreation rejectedActiveExecution(FlowExecutionRequest request,
+                                                   CompiledTxFlow compiled) {
+        return new HandleCreation(completedFailure(
+                request.getExecutionId(), compiled.getFingerprint(),
+                "TXFLOW_EXECUTION_ID_CONFLICT", FlowErrorCategory.VALIDATION,
+                "Execution ID is already associated with a different execution request"), false);
+    }
+
+    private FlowExecutionSnapshot initialSnapshot(FlowExecutionRequest request,
+                                                  CompiledTxFlow compiled,
+                                                  String requestFingerprint,
+                                                  Set<String> spendingResources,
+                                                  List<PersistedBinding> persistedBindings) {
         Map<String, Object> data = new java.util.LinkedHashMap<>();
-        data.put("spending_resources", effectiveSpendingResources(request, compiled));
+        data.put("spending_resources", spendingResources);
         data.put("concurrent_spending", request.isConcurrentSpendingAllowed());
-        data.put("bindings", persistedBindings(request));
+        data.put("bindings", persistedBindings);
         return new FlowExecutionSnapshot(
                 request.getExecutionId(), compiled.getFingerprint(),
-                requestFingerprint(request, compiled),
+                requestFingerprint,
                 FlowExecutionState.CREATED, 0, 0, 0, clock.instant(), data);
     }
 
@@ -440,17 +495,75 @@ public final class FlowEngine {
                 new AtomicBoolean(), Collections.synchronizedList(new ArrayList<>()));
     }
 
+    private void completeRejectedExecution(FlowExecutionRequest request, CompiledTxFlow compiled,
+                                           ActiveExecution active,
+                                           CompletableFuture<FlowExecutionResult> completion,
+                                           ExecutionJournalSession journal,
+                                           RejectedExecutionException rejection) {
+        Instant now = clock.instant();
+        FlowExecutionState state = FlowExecutionState.FAILED;
+        FlowError error = new FlowError("TXFLOW_EXECUTOR_REJECTED", FlowErrorCategory.RESOURCE,
+                Objects.toString(rejection.getMessage(), "Execution executor rejected the flow task"),
+                null, store == null);
+        DurableLeaseGuard leases = null;
+        boolean executionLeaseAcquired = false;
+        try {
+            if (store != null) {
+                leases = new DurableLeaseGuard(store, clock, leaseDuration, maintenanceExecutor);
+                journal.attach(leases);
+                leases.acquireExecution(request.getExecutionId(), ownerToken);
+                executionLeaseAcquired = true;
+            }
+            journal.record(FlowEventType.EXECUTION_FAILED, null, null,
+                    Map.of("code", error.code(), "message", error.message()));
+            if (store != null) {
+                String failureCode = error.code();
+                journal.persist(FlowExecutionState.FAILED,
+                        data -> data.put("failure_code", failureCode));
+            }
+        } catch (Throwable persistenceFailure) {
+            state = FlowExecutionState.RECOVERY_REQUIRED;
+            String message = executionLeaseAcquired
+                    ? "Executor rejected the flow task and its terminal state could not be persisted"
+                    : "Executor rejected the flow task and no durable fence could be acquired";
+            error = new FlowError("TXFLOW_EXECUTOR_REJECTION_PERSISTENCE_FAILED",
+                    FlowErrorCategory.PERSISTENCE, message + ": "
+                    + Objects.toString(persistenceFailure.getMessage(),
+                    persistenceFailure.getClass().getSimpleName()), null, true);
+            journal.record(FlowEventType.RECOVERY_REQUIRED, null, null,
+                    Map.of("code", error.code(), "message", error.message()));
+            if (store != null && executionLeaseAcquired) {
+                try {
+                    String failureCode = error.code();
+                    journal.persist(FlowExecutionState.RECOVERY_REQUIRED,
+                            data -> data.put("failure_code", failureCode));
+                } catch (Throwable recoveryPersistenceFailure) {
+                    if (recoveryPersistenceFailure != persistenceFailure) {
+                        persistenceFailure.addSuppressed(recoveryPersistenceFailure);
+                    }
+                }
+            }
+        } finally {
+            if (leases != null) leases.close();
+            activeExecutions.remove(request.getExecutionId(), active);
+        }
+        completion.complete(new FlowExecutionResult(request.getExecutionId(),
+                compiled.getFingerprint(), state, List.of(), error, now, clock.instant()));
+    }
+
     private void run(FlowExecutionRequest request, CompiledTxFlow compiled,
-                     FlowExecutionHandle handle, CompletableFuture<FlowExecutionResult> completion,
+                     ActiveExecution active, CompletableFuture<FlowExecutionResult> completion,
                      AtomicBoolean cancelled, ExecutionJournalSession journal) {
         SpendingResourceCoordinator.Acquisition spendingAcquisition = null;
         DurableLeaseGuard leases = store != null
                 ? new DurableLeaseGuard(store, clock, leaseDuration, maintenanceExecutor) : null;
         Instant started = clock.instant();
+        boolean executionLeaseAcquired = false;
         try {
             if (store != null) {
                 journal.attach(leases);
                 leases.acquireExecution(request.getExecutionId(), ownerToken);
+                executionLeaseAcquired = true;
                 // The in-process spending queue may wait longer than the durable lease.
                 // Renew immediately so the execution fence remains valid while queued.
                 leases.startRenewal();
@@ -472,7 +585,7 @@ public final class FlowEngine {
             }
             if (cancelled.get()) {
                 FlowExecutionResult cancelledResult = cancelledResult(
-                        request, compiled, handle, journal, started);
+                        request, compiled, active.handle(), journal, started);
                 if (store != null) {
                     journal.persist(FlowExecutionState.CANCELLED, data -> { });
                 }
@@ -538,18 +651,41 @@ public final class FlowEngine {
             FlowStoreException storeFailure = findCause(failure, FlowStoreException.class);
             ReconciliationUncertainException reconciliationFailure = findCause(
                     failure, ReconciliationUncertainException.class);
+            boolean recoveryRequired = storeFailure != null || reconciliationFailure != null
+                    || (store != null && !executionLeaseAcquired);
             String code = storeFailure != null
                     ? storeFailure.getCode()
                     : reconciliationFailure != null ? "TXFLOW_RECOVERY_REQUIRED"
                     : failure instanceof SpendingResourceBusyException
                     ? "TXFLOW_RESOURCE_BUSY" : "TXFLOW_ENGINE_FAILURE";
             FlowError error = new FlowError(code, classify(failure),
-                    failure.getMessage(), null, reconciliationFailure != null);
-            journal.record(reconciliationFailure != null
+                    Objects.toString(failure.getMessage(), failure.getClass().getSimpleName()),
+                    null, recoveryRequired);
+            journal.record(recoveryRequired
                             ? FlowEventType.RECOVERY_REQUIRED : FlowEventType.EXECUTION_FAILED,
                     null, null, Map.of("message", String.valueOf(failure.getMessage())));
-            FlowExecutionState failureState = storeFailure != null || reconciliationFailure != null
+            FlowExecutionState failureState = recoveryRequired
                     ? FlowExecutionState.RECOVERY_REQUIRED : FlowExecutionState.FAILED;
+            if (store != null && executionLeaseAcquired) {
+                try {
+                    FlowExecutionState persistedState = failureState;
+                    String failureCode = error.code();
+                    journal.persist(persistedState,
+                            data -> data.put("failure_code", failureCode));
+                } catch (Throwable persistenceFailure) {
+                    if (!recoveryRequired) {
+                        journal.record(FlowEventType.RECOVERY_REQUIRED, null, null,
+                                Map.of("message", "Terminal state persistence failed"));
+                    }
+                    failureState = FlowExecutionState.RECOVERY_REQUIRED;
+                    error = new FlowError("TXFLOW_TERMINAL_PERSISTENCE_FAILED",
+                            FlowErrorCategory.PERSISTENCE,
+                            "Execution stopped, but its terminal state could not be persisted: "
+                                    + Objects.toString(persistenceFailure.getMessage(),
+                                    persistenceFailure.getClass().getSimpleName()),
+                            null, true);
+                }
+            }
             completion.complete(new FlowExecutionResult(request.getExecutionId(), compiled.getFingerprint(),
                     failureState, List.of(), error, started, clock.instant()));
         } finally {
@@ -557,7 +693,7 @@ public final class FlowEngine {
                 leases.close();
             }
             if (spendingAcquisition != null) spendingAcquisition.close();
-            activeExecutions.remove(request.getExecutionId(), handle);
+            activeExecutions.remove(request.getExecutionId(), active);
         }
     }
 
@@ -685,13 +821,45 @@ public final class FlowEngine {
         return Collections.unmodifiableSet(identities);
     }
 
-    private String requestFingerprint(FlowExecutionRequest request, CompiledTxFlow compiled) {
-        return compiled.getFingerprint() + "|" + effectiveSpendingResources(request, compiled)
-                + "|concurrent=" + request.isConcurrentSpendingAllowed()
-                + "|secure=" + new java.util.TreeMap<>(request.getSecureBindingReferences());
+    private ClaimIdentity claimIdentity(FlowExecutionRequest request) {
+        if (request.getIdempotencyKey() != null) {
+            return new ClaimIdentity(
+                    request.getIdempotencyNamespace(),
+                    boundedClaimKey(IDEMPOTENCY_CLAIM_KEY_DOMAIN,
+                            request.getIdempotencyKey()));
+        }
+        return new ClaimIdentity(
+                EXECUTION_CLAIM_NAMESPACE,
+                boundedClaimKey(EXECUTION_CLAIM_KEY_DOMAIN, request.getExecutionId()));
+    }
+
+    /**
+     * Produces a bounded store key without reducing the public key or execution-ID limits.
+     * The visible domain tag keeps execution claims disjoint from explicit idempotency claims,
+     * including when an application chooses the engine's internal namespace spelling.
+     */
+    private static String boundedClaimKey(String domain, String value) {
+        return domain + SignedPayloadVerifier.sha256(value);
     }
 
     private record IdempotencyClaim(String fingerprint, FlowExecutionHandle handle) {}
+
+    private record ClaimIdentity(String namespace, String key) {
+        private ClaimIdentity {
+            Objects.requireNonNull(namespace, "namespace");
+            Objects.requireNonNull(key, "key");
+        }
+    }
+
+    private record ActiveExecution(String requestFingerprint, ClaimIdentity claimIdentity,
+                                   FlowExecutionHandle handle) {
+        private boolean matches(String candidateFingerprint, ClaimIdentity candidateClaim) {
+            return requestFingerprint.equals(candidateFingerprint)
+                    && claimIdentity.equals(candidateClaim);
+        }
+    }
+
+    private record HandleCreation(FlowExecutionHandle handle, boolean retainIdempotencyClaim) {}
 
     /**
      * Builder for application-owned engine dependencies and execution policy.

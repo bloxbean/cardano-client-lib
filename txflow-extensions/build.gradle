@@ -1,0 +1,14 @@
+dependencies {
+    api project(':txflow-extensions:txflow-store-rdbms')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client TxFlow Extensions'
+                description = 'Cardano Client Lib - Optional TxFlow persistence extensions'
+            }
+        }
+    }
+}

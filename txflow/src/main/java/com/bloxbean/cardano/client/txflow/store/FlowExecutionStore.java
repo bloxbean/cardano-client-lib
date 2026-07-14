@@ -22,6 +22,9 @@ import java.util.function.UnaryOperator;
  * from a stale worker; it cannot prevent that worker from submitting already signed bytes to the
  * Cardano network.</p>
  *
+ * <p>Persisted identities follow {@link FlowStoreTextPolicy}: valid Unicode without NUL, measured
+ * by conservative UTF-8 byte limits shared by the in-memory and certified relational stores.</p>
+ *
  * @see InMemoryFlowExecutionStore
  * @see FlowExecutionSnapshot
  */
@@ -33,10 +36,13 @@ public interface FlowExecutionStore {
      * fingerprints in {@code initialSnapshot} must match the stored fingerprints; otherwise the
      * store rejects the request as an idempotency conflict.</p>
      *
-     * @param namespace application-defined tenant or principal scope
-     * @param key idempotency key within the namespace
+     * @param namespace non-blank claim scope satisfying the portable namespace limit; a
+     *        {@code FlowEngine} preserves an explicit application namespace unchanged
+     * @param key non-blank opaque claim key satisfying the portable key limit
      * @param initialSnapshot snapshot to insert when the claim is new
      * @return the newly inserted snapshot, or the matching existing snapshot
+     * @throws IllegalArgumentException when either claim component violates
+     *         {@link FlowStoreTextPolicy}
      * @throws FlowStoreException when the claim exists with different fingerprints or the
      *         execution identifier cannot be created
      */
@@ -134,7 +140,8 @@ public interface FlowExecutionStore {
      * @param now time against which an existing lease is evaluated
      * @param duration positive lease duration
      * @return the acquired resource lease with a new fencing epoch
-     * @throws FlowStoreException when an unexpired lease belongs to another execution
+     * @throws FlowStoreException when the execution does not exist or an unexpired lease belongs
+     *         to another execution or owner
      */
     ResourceLease acquireResourceLease(String resourceId, String executionId, String ownerToken,
                                        Instant now, Duration duration);

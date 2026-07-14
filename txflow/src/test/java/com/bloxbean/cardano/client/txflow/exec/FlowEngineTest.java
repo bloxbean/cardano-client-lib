@@ -15,6 +15,7 @@ import com.bloxbean.cardano.client.txflow.codec.FlowParseOptions;
 import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionStore;
 import com.bloxbean.cardano.client.txflow.store.FlowStoreException;
+import com.bloxbean.cardano.client.txflow.store.FlowStoreTextPolicy;
 import com.bloxbean.cardano.client.txflow.store.InMemoryFlowExecutionStore;
 import com.bloxbean.cardano.client.txflow.store.AttemptState;
 import com.bloxbean.cardano.client.txflow.store.FlowAttemptSnapshot;
@@ -35,6 +36,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +48,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.AdditionalMatchers.aryEq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 
 class FlowEngineTest {
     private static final Instant NOW = Instant.parse("2026-07-13T00:00:00Z");
@@ -145,6 +158,134 @@ class FlowEngineTest {
     }
 
     @Test
+    void activeExecutionIdRequiresMatchingFingerprintAndClaimIdentity() {
+        QueuedExecutor executor = new QueuedExecutor();
+        FlowEngine engine = engineBuilder().executor(executor).build();
+        TxFlow definition = definition();
+        FlowExecutionHandle first = engine.start(FlowExecutionRequest.builder(definition)
+                .executionId("shared-active-id").build());
+
+        assertSame(first, engine.start(FlowExecutionRequest.builder(definition)
+                .executionId("shared-active-id").build()));
+        FlowExecutionResult fingerprintConflict = engine.start(
+                FlowExecutionRequest.builder(definition)
+                        .executionId("shared-active-id")
+                        .spendingResource("different-resource").build()).await();
+        FlowExecutionResult claimConflict = engine.start(
+                FlowExecutionRequest.builder(definition)
+                        .executionId("shared-active-id")
+                        .idempotency("tenant", "operation").build()).await();
+
+        assertEquals("TXFLOW_EXECUTION_ID_CONFLICT", fingerprintConflict.error().code());
+        assertEquals("TXFLOW_EXECUTION_ID_CONFLICT", claimConflict.error().code());
+        // A rejected collision must not reserve the unrelated idempotency identity.
+        FlowExecutionHandle independent = engine.start(FlowExecutionRequest.builder(definition)
+                .executionId("independent-id")
+                .idempotency("tenant", "operation").build());
+        assertFalse(independent.isDone());
+    }
+
+    @Test
+    void explicitNamespaceCannotAliasTheInternalExecutionClaim() {
+        InMemoryFlowExecutionStore store = new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC));
+        QueuedExecutor executor = new QueuedExecutor();
+        FlowEngine engine = engineBuilder().executor(executor)
+                .maintenanceExecutor(Runnable::run).store(store).build();
+        FlowExecutionHandle implicit = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("claim-alias").build());
+
+        FlowExecutionResult explicit = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("claim-alias")
+                .idempotency("ccl.txflow.execution", "claim-alias").build()).await();
+
+        assertFalse(implicit.isDone());
+        assertEquals("TXFLOW_EXECUTION_ID_CONFLICT", explicit.error().code());
+    }
+
+    @Test
+    void explicitClaimCannotAliasTheExactInternalStoreTuple() {
+        InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC)));
+        QueuedExecutor executor = new QueuedExecutor();
+        FlowEngine engine = engineBuilder().executor(executor)
+                .maintenanceExecutor(Runnable::run).store(store).build();
+        FlowExecutionHandle implicit = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("internal-claim-owner").build());
+        org.mockito.ArgumentCaptor<String> namespace =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> key =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(store).createOrGet(namespace.capture(), key.capture(), any());
+
+        FlowExecutionHandle explicit = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("explicit-claim-owner")
+                .idempotency(namespace.getValue(), key.getValue()).build());
+
+        assertFalse(implicit == explicit);
+        assertFalse(explicit.isDone());
+        assertTrue(store.get("internal-claim-owner").isPresent());
+        assertTrue(store.get("explicit-claim-owner").isPresent());
+    }
+
+    @Test
+    void durableIdempotencyPreservesFullAsciiNamespaceLimit() {
+        assertDurableNamespaceBoundary("n".repeat(FlowStoreTextPolicy.MAX_NAMESPACE_BYTES),
+                "ascii");
+    }
+
+    @Test
+    void durableIdempotencyPreservesFullMultibyteNamespaceLimit() {
+        assertDurableNamespaceBoundary("é".repeat(127) + "n", "multibyte");
+    }
+
+    @Test
+    void durableExecutionClaimPreservesFullExecutionIdLimit() {
+        InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC)));
+        FlowEngine engine = engineBuilder().executor(new QueuedExecutor())
+                .maintenanceExecutor(Runnable::run).store(store).build();
+        String executionId = "e".repeat(FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId(executionId).build());
+
+        assertFalse(handle.isDone());
+        verify(store).createOrGet(eq("ccl.txflow.execution"),
+                eq("execution:v1:" + SignedPayloadVerifier.sha256(executionId)), any());
+        assertTrue(store.get(executionId).isPresent());
+    }
+
+    @Test
+    void durableClaimsPreserveFullMultibyteKeyAndExecutionIdLimits() {
+        InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC)));
+        FlowEngine engine = engineBuilder().executor(new QueuedExecutor())
+                .maintenanceExecutor(Runnable::run).store(store).build();
+        String exactly512Bytes = "界".repeat(170) + "ab";
+
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId(exactly512Bytes)
+                .idempotency("tenant", exactly512Bytes).build());
+
+        assertFalse(handle.isDone());
+        verify(store).createOrGet(eq("tenant"),
+                eq("idempotency:v1:" + SignedPayloadVerifier.sha256(exactly512Bytes)), any());
+        assertTrue(store.get(exactly512Bytes).isPresent());
+    }
+
+    @Test
+    void nonDurableIdempotencyAcceptsFullAsciiNamespaceLimit() {
+        assertNonDurableNamespaceBoundary(
+                "n".repeat(FlowStoreTextPolicy.MAX_NAMESPACE_BYTES), "ascii");
+    }
+
+    @Test
+    void nonDurableIdempotencyAcceptsFullMultibyteNamespaceLimit() {
+        assertNonDurableNamespaceBoundary("é".repeat(127) + "n", "multibyte");
+    }
+
+    @Test
     void cancellationAndEventsArePersistedBeforeCompletion() {
         QueuedExecutor executor = new QueuedExecutor();
         InMemoryFlowExecutionStore store = new InMemoryFlowExecutionStore(
@@ -162,6 +303,54 @@ class FlowEngineTest {
                 store.get("durable-cancel").orElseThrow().state());
         assertEquals(handle.getEvents().size(),
                 store.readEvents("durable-cancel", 0, 100).events().size());
+    }
+
+    @Test
+    void durableCatchPathPersistsTerminalFailureBeforeCompletingHandle() {
+        InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC)));
+        doThrow(new IllegalStateException("resource adapter failed"))
+                .when(store).acquireResourceLease(eq("wallet"), eq("durable-failure"),
+                        anyString(), any(), any());
+        QueuedExecutor executor = new QueuedExecutor();
+        FlowEngine engine = engineBuilder().executor(executor)
+                .maintenanceExecutor(Runnable::run).store(store).build();
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("durable-failure").spendingResource("wallet").build());
+
+        executor.runNext();
+
+        assertEquals(FlowExecutionState.FAILED, handle.await().state());
+        FlowExecutionSnapshot snapshot = store.get("durable-failure").orElseThrow();
+        assertEquals(FlowExecutionState.FAILED, snapshot.state());
+        assertEquals("TXFLOW_ENGINE_FAILURE", snapshot.data().get("failure_code"));
+        assertEquals(FlowEventType.EXECUTION_FAILED,
+                store.readEvents("durable-failure", 0, 100).events().get(3).type());
+    }
+
+    @Test
+    void terminalPersistenceFailureReturnsRecoveryRequiredInsteadOfFailed() {
+        InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC)));
+        doThrow(new FlowStoreException("TXFLOW_STORE_UNAVAILABLE", "append unavailable"))
+                .when(store).append(anyString(), anyLong(), any(), anyList(), any());
+        QueuedExecutor executor = new QueuedExecutor();
+        FlowEngine engine = engineBuilder().executor(executor)
+                .maintenanceExecutor(Runnable::run).store(store).build();
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("terminal-persist-failure").build());
+
+        executor.runNext();
+
+        FlowExecutionResult result = handle.await();
+        assertEquals(FlowExecutionState.RECOVERY_REQUIRED, result.state());
+        assertEquals("TXFLOW_TERMINAL_PERSISTENCE_FAILED", result.error().code());
+        assertTrue(result.error().retryable());
+        assertEquals(FlowExecutionState.CREATED,
+                store.get("terminal-persist-failure").orElseThrow().state());
+        assertTrue(handle.getEvents().stream()
+                .anyMatch(event -> event.type() == FlowEventType.RECOVERY_REQUIRED));
+        verify(store, times(2)).append(anyString(), anyLong(), any(), anyList(), any());
     }
 
     @Test
@@ -213,6 +402,133 @@ class FlowEngineTest {
         org.mockito.Mockito.verify(store, org.mockito.Mockito.times(2)).createOrGet(
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void durableActiveExecutionIdCannotBypassStoreConflictValidation() {
+        InMemoryFlowExecutionStore store = new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC));
+        QueuedExecutor executor = new QueuedExecutor();
+        FlowEngine engine = engineBuilder().executor(executor)
+                .maintenanceExecutor(Runnable::run).store(store).build();
+        TxFlow definition = definition();
+        FlowExecutionHandle first = engine.start(FlowExecutionRequest.builder(definition)
+                .executionId("durable-shared-id").idempotency("tenant", "operation").build());
+
+        assertSame(first, engine.start(FlowExecutionRequest.builder(definition)
+                .executionId("ignored-retry-id").idempotency("tenant", "operation").build()));
+        FlowExecutionResult fingerprintConflict = engine.start(
+                FlowExecutionRequest.builder(definition)
+                        .executionId("durable-shared-id")
+                        .idempotency("tenant", "operation")
+                        .spendingResource("different-resource").build()).await();
+        FlowExecutionResult executionIdConflict = engine.start(
+                FlowExecutionRequest.builder(definition)
+                        .executionId("durable-shared-id")
+                        .idempotency("other-tenant", "other-operation").build()).await();
+
+        assertEquals("TXFLOW_IDEMPOTENCY_CONFLICT", fingerprintConflict.error().code());
+        assertEquals("TXFLOW_EXECUTION_ID_CONFLICT", executionIdConflict.error().code());
+    }
+
+    @Test
+    void executorRejectionCompletesHandleAndDoesNotRetainInMemoryClaims() {
+        RejectOnceExecutor executor = new RejectOnceExecutor();
+        FlowEngine engine = engineBuilder().executor(executor).build();
+        FlowExecutionRequest rejectedRequest = FlowExecutionRequest.builder(definition())
+                .executionId("executor-rejected")
+                .idempotency("tenant", "retryable-operation").build();
+
+        FlowExecutionResult rejected = engine.start(rejectedRequest).await();
+
+        assertEquals(FlowExecutionState.FAILED, rejected.state());
+        assertEquals("TXFLOW_EXECUTOR_REJECTED", rejected.error().code());
+        assertEquals(FlowErrorCategory.RESOURCE, rejected.error().category());
+        assertTrue(rejected.error().retryable());
+        FlowExecutionHandle retry = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("executor-rejected")
+                .idempotency("tenant", "retryable-operation")
+                .spendingResource("changed-after-rejection").build());
+        assertFalse(retry.isDone());
+    }
+
+    @Test
+    void executorRejectionIsDurablyTerminalized() {
+        InMemoryFlowExecutionStore store = new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC));
+        FlowEngine engine = engineBuilder().executor(command -> {
+                    throw new RejectedExecutionException("executor saturated");
+                })
+                .maintenanceExecutor(Runnable::run).store(store).build();
+
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("durable-executor-rejected").build());
+
+        FlowExecutionResult result = handle.await();
+        assertEquals(FlowExecutionState.FAILED, result.state());
+        assertEquals("TXFLOW_EXECUTOR_REJECTED", result.error().code());
+        assertFalse(result.error().retryable());
+        FlowExecutionSnapshot snapshot = store.get("durable-executor-rejected").orElseThrow();
+        assertEquals(FlowExecutionState.FAILED, snapshot.state());
+        assertEquals("TXFLOW_EXECUTOR_REJECTED", snapshot.data().get("failure_code"));
+        assertEquals(handle.getEvents(),
+                store.readEvents("durable-executor-rejected", 0, 100).events());
+    }
+
+    @Test
+    void executorRejectionWithUnpersistableTerminalStateRequiresRecovery() {
+        InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC)));
+        doThrow(new FlowStoreException("TXFLOW_STORE_UNAVAILABLE", "append unavailable"))
+                .when(store).append(anyString(), anyLong(), any(), anyList(), any());
+        FlowEngine engine = engineBuilder().executor(command -> {
+                    throw new RejectedExecutionException("executor saturated");
+                })
+                .maintenanceExecutor(Runnable::run).store(store).build();
+
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("unpersistable-executor-rejection").build());
+
+        FlowExecutionResult result = handle.await();
+        assertEquals(FlowExecutionState.RECOVERY_REQUIRED, result.state());
+        assertEquals("TXFLOW_EXECUTOR_REJECTION_PERSISTENCE_FAILED", result.error().code());
+        assertEquals(FlowExecutionState.CREATED,
+                store.get("unpersistable-executor-rejection").orElseThrow().state());
+        assertEquals(FlowEventType.RECOVERY_REQUIRED,
+                handle.getEvents().get(handle.getEvents().size() - 1).type());
+    }
+
+    @Test
+    void executorRejectionPersistsRecoveryRequiredAfterTransientAppendFailure() {
+        InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC)));
+        AtomicBoolean failOnce = new AtomicBoolean(true);
+        doAnswer(invocation -> {
+            if (failOnce.compareAndSet(true, false)) {
+                throw new FlowStoreException(
+                        "TXFLOW_STORE_UNAVAILABLE", "transient append failure");
+            }
+            return invocation.callRealMethod();
+        }).when(store).append(anyString(), anyLong(), any(), anyList(), any());
+        FlowEngine engine = engineBuilder().executor(command -> {
+                    throw new RejectedExecutionException("executor saturated");
+                })
+                .maintenanceExecutor(Runnable::run).store(store).build();
+
+        FlowExecutionResult result = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId("transient-rejection-persistence").build()).await();
+
+        assertEquals(FlowExecutionState.RECOVERY_REQUIRED, result.state());
+        assertEquals("TXFLOW_EXECUTOR_REJECTION_PERSISTENCE_FAILED", result.error().code());
+        FlowExecutionSnapshot snapshot = store.get(
+                "transient-rejection-persistence").orElseThrow();
+        assertEquals(FlowExecutionState.RECOVERY_REQUIRED, snapshot.state());
+        assertEquals("TXFLOW_EXECUTOR_REJECTION_PERSISTENCE_FAILED",
+                snapshot.data().get("failure_code"));
+        assertEquals(FlowEventType.RECOVERY_REQUIRED,
+                store.readEvents("transient-rejection-persistence", 0, 10)
+                        .events().get(3).type());
+        verify(store, times(2)).append(anyString(), anyLong(), any(), anyList(), any());
     }
 
     @Test
@@ -421,9 +737,66 @@ class FlowEngineTest {
         return TxFlowCodec.standard().parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
     }
 
+    private void assertDurableNamespaceBoundary(String namespace, String executionPrefix) {
+        InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC)));
+        FlowEngine engine = engineBuilder().executor(new QueuedExecutor())
+                .maintenanceExecutor(Runnable::run).store(store).build();
+        String applicationKey = "k".repeat(FlowStoreTextPolicy.MAX_IDEMPOTENCY_KEY_BYTES);
+
+        FlowExecutionHandle first = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId(executionPrefix + "-durable-first")
+                .idempotency(namespace, applicationKey).build());
+        FlowExecutionHandle retry = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId(executionPrefix + "-durable-retry")
+                .idempotency(namespace, applicationKey).build());
+
+        assertSame(first, retry);
+        org.mockito.ArgumentCaptor<String> persistedNamespace =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> persistedKey =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(store, times(2)).createOrGet(
+                persistedNamespace.capture(), persistedKey.capture(), any());
+        assertEquals(List.of(namespace, namespace), persistedNamespace.getAllValues());
+        assertEquals(persistedKey.getAllValues().get(0), persistedKey.getAllValues().get(1));
+        assertEquals("idempotency:v1:" + SignedPayloadVerifier.sha256(applicationKey),
+                persistedKey.getValue());
+        assertTrue(persistedKey.getValue().length()
+                < FlowStoreTextPolicy.MAX_IDEMPOTENCY_KEY_BYTES);
+    }
+
+    private void assertNonDurableNamespaceBoundary(String namespace, String executionPrefix) {
+        FlowEngine engine = engineBuilder().executor(new QueuedExecutor()).build();
+        String applicationKey = "k".repeat(FlowStoreTextPolicy.MAX_IDEMPOTENCY_KEY_BYTES);
+
+        FlowExecutionHandle first = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId(executionPrefix + "-memory-first")
+                .idempotency(namespace, applicationKey).build());
+        FlowExecutionHandle retry = engine.start(FlowExecutionRequest.builder(definition())
+                .executionId(executionPrefix + "-memory-retry")
+                .idempotency(namespace, applicationKey).build());
+
+        assertSame(first, retry);
+        assertFalse(first.isDone());
+    }
+
     private static final class QueuedExecutor implements Executor {
         private final Queue<Runnable> tasks = new ArrayDeque<>();
         @Override public void execute(Runnable command) { tasks.add(command); }
         void runNext() { tasks.remove().run(); }
+    }
+
+    private static final class RejectOnceExecutor implements Executor {
+        private final AtomicBoolean reject = new AtomicBoolean(true);
+        private final Queue<Runnable> tasks = new ArrayDeque<>();
+
+        @Override
+        public void execute(Runnable command) {
+            if (reject.compareAndSet(true, false)) {
+                throw new RejectedExecutionException("executor saturated");
+            }
+            tasks.add(command);
+        }
     }
 }

@@ -48,9 +48,14 @@ public record FlowExecutionSnapshot(String executionId, String definitionFingerp
      * @param data durable execution data; the map is copied but its values are not deep-copied
      */
     public FlowExecutionSnapshot {
-        if (executionId == null || executionId.isBlank()) throw new IllegalArgumentException("executionId cannot be blank");
-        Objects.requireNonNull(definitionFingerprint, "definitionFingerprint");
-        Objects.requireNonNull(requestFingerprint, "requestFingerprint");
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        FlowStoreTextPolicy.requireCompatibleText(
+                definitionFingerprint, "definitionFingerprint",
+                FlowStoreTextPolicy.MAX_FINGERPRINT_BYTES);
+        FlowStoreTextPolicy.requireCompatibleText(
+                requestFingerprint, "requestFingerprint",
+                FlowStoreTextPolicy.MAX_FINGERPRINT_BYTES);
         Objects.requireNonNull(state, "state");
         Objects.requireNonNull(updatedAt, "updatedAt");
         if (revision < 0 || lastSequence < 0 || compactedThroughSequence < 0

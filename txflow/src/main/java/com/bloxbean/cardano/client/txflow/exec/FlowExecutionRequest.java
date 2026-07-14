@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow.exec;
 
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.model.FlowBindings;
+import com.bloxbean.cardano.client.txflow.store.FlowStoreTextPolicy;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -17,7 +18,9 @@ import java.util.LinkedHashMap;
  * bindings and server-owned execution metadata. Idempotency keys identify the
  * logical operation; spending-resource identities and secure binding references
  * contribute to its request fingerprint. These values must therefore remain
- * consistent across caller retries.</p>
+ * consistent across caller retries. The complete application namespace and key
+ * limits defined by {@link FlowStoreTextPolicy} are available to callers; the
+ * engine's internal execution-claim encoding does not consume either limit.</p>
  */
 public final class FlowExecutionRequest {
     private final String executionId;
@@ -41,9 +44,15 @@ public final class FlowExecutionRequest {
         if ((idempotencyNamespace == null) != (idempotencyKey == null)) {
             throw new IllegalStateException("idempotency namespace and key must be provided together");
         }
-        if (executionId.isBlank()) throw new IllegalStateException("executionId cannot be blank");
-        if (idempotencyNamespace != null && (idempotencyNamespace.isBlank() || idempotencyKey.isBlank())) {
-            throw new IllegalStateException("idempotency namespace and key cannot be blank");
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        if (idempotencyNamespace != null) {
+            FlowStoreTextPolicy.requireIdentifier(
+                    idempotencyNamespace, "idempotency namespace",
+                    FlowStoreTextPolicy.MAX_NAMESPACE_BYTES);
+            FlowStoreTextPolicy.requireIdentifier(
+                    idempotencyKey, "idempotency key",
+                    FlowStoreTextPolicy.MAX_IDEMPOTENCY_KEY_BYTES);
         }
     }
 
@@ -80,6 +89,7 @@ public final class FlowExecutionRequest {
 
     /**
      * Returns the application-defined idempotency namespace.
+     * The engine preserves this value without adding an internal prefix.
      *
      * @return namespace, or {@code null} when not requested
      */
@@ -145,6 +155,9 @@ public final class FlowExecutionRequest {
         /**
          * Associates this logical operation with a namespaced idempotency key.
          * Reusing the key with a different request fingerprint is rejected.
+         * Namespace and key limits are measured in UTF-8 bytes according to
+         * {@link FlowStoreTextPolicy}; no part of either public limit is reserved
+         * for engine bookkeeping.
          *
          * @param namespace application-defined namespace
          * @param key idempotency key within the namespace
@@ -163,9 +176,9 @@ public final class FlowExecutionRequest {
          * @return this builder
          */
         public Builder spendingResource(String canonicalIdentity) {
-            if (canonicalIdentity == null || canonicalIdentity.isBlank()) {
-                throw new IllegalArgumentException("spending resource cannot be blank");
-            }
+            FlowStoreTextPolicy.requireIdentifier(
+                    canonicalIdentity, "spending resource",
+                    FlowStoreTextPolicy.MAX_RESOURCE_ID_BYTES);
             this.spendingResources.add(canonicalIdentity);
             return this;
         }

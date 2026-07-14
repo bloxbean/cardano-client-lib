@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow.exec;
 
+import com.bloxbean.cardano.client.txflow.store.FlowStoreTextPolicy;
+
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
@@ -35,9 +37,12 @@ public record FlowEvent(long sequence, String executionId, FlowEventType type,
      */
     public FlowEvent {
         if (sequence < 1) throw new IllegalArgumentException("event sequence must be positive");
-        if (executionId == null || executionId.isBlank()) {
-            throw new IllegalArgumentException("executionId cannot be blank");
-        }
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        FlowStoreTextPolicy.requireOptionalText(stepId, "stepId",
+                FlowStoreTextPolicy.MAX_STEP_ID_BYTES);
+        FlowStoreTextPolicy.requireOptionalText(transactionHash, "transactionHash",
+                FlowStoreTextPolicy.MAX_TRANSACTION_HASH_BYTES);
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(timestamp, "timestamp");
         details = Map.copyOf(details != null ? details : Map.of());

@@ -29,7 +29,7 @@ import java.util.function.UnaryOperator;
 public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
     private final Clock clock;
     private final Map<String, FlowExecutionSnapshot> snapshots = new ConcurrentHashMap<>();
-    private final Map<String, String> idempotency = new HashMap<>();
+    private final Map<ClaimIdentity, String> idempotency = new HashMap<>();
     private final Map<String, List<FlowEvent>> journals = new HashMap<>();
     private final Map<String, ExecutionLease> executionLeases = new HashMap<>();
     private final Map<String, ResourceLease> resourceLeases = new HashMap<>();
@@ -52,10 +52,12 @@ public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
     @Override
     public synchronized IdempotencyClaimResult createOrGet(String namespace, String key,
                                                             FlowExecutionSnapshot initial) {
-        if (namespace == null || namespace.isBlank() || key == null || key.isBlank()) {
-            throw new IllegalArgumentException("idempotency namespace and key cannot be blank");
-        }
-        String claim = namespace + "\u0000" + key;
+        FlowStoreTextPolicy.requireIdentifier(namespace, "idempotency namespace",
+                FlowStoreTextPolicy.MAX_NAMESPACE_BYTES);
+        FlowStoreTextPolicy.requireIdentifier(key, "idempotency key",
+                FlowStoreTextPolicy.MAX_IDEMPOTENCY_KEY_BYTES);
+        Objects.requireNonNull(initial, "initial");
+        ClaimIdentity claim = new ClaimIdentity(namespace, key);
         String existingId = idempotency.get(claim);
         if (existingId != null) {
             FlowExecutionSnapshot existing = snapshots.get(existingId);
@@ -76,6 +78,8 @@ public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
 
     @Override
     public Optional<FlowExecutionSnapshot> get(String executionId) {
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
         return Optional.ofNullable(snapshots.get(executionId));
     }
 
@@ -83,6 +87,8 @@ public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
     public synchronized FlowExecutionSnapshot append(String executionId, long expectedRevision,
                                                       MutationFence fence, List<FlowEvent> events,
                                                       UnaryOperator<FlowExecutionSnapshot> mutation) {
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
         Objects.requireNonNull(events, "events");
         Objects.requireNonNull(mutation, "mutation");
         FlowExecutionSnapshot current = requireSnapshot(executionId);
@@ -119,6 +125,8 @@ public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
 
     @Override
     public synchronized EventReadResult readEvents(String executionId, long afterSequence, int limit) {
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
         if (afterSequence < 0 || limit < 1) {
             throw new IllegalArgumentException("event cursor must be non-negative and limit positive");
         }
@@ -138,6 +146,10 @@ public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
     @Override
     public synchronized ExecutionLease acquireExecutionLease(String executionId, String owner,
                                                               Instant now, Duration duration) {
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        FlowStoreTextPolicy.requireIdentifier(owner, "ownerToken",
+                FlowStoreTextPolicy.MAX_OWNER_TOKEN_BYTES);
         validateLeaseRequest(now, duration);
         requireSnapshot(executionId);
         ExecutionLease current = executionLeases.get(executionId);
@@ -171,10 +183,18 @@ public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
     @Override
     public synchronized ResourceLease acquireResourceLease(String resourceId, String executionId,
                                                             String owner, Instant now, Duration duration) {
+        FlowStoreTextPolicy.requireIdentifier(resourceId, "resourceId",
+                FlowStoreTextPolicy.MAX_RESOURCE_ID_BYTES);
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        FlowStoreTextPolicy.requireIdentifier(owner, "ownerToken",
+                FlowStoreTextPolicy.MAX_OWNER_TOKEN_BYTES);
         validateLeaseRequest(now, duration);
+        requireSnapshot(executionId);
         ResourceLease current = resourceLeases.get(resourceId);
         if (current != null && current.expiresAt().isAfter(now)
-                && !current.executionId().equals(executionId)) {
+                && (!current.executionId().equals(executionId)
+                || !current.ownerToken().equals(owner))) {
             throw new FlowStoreException("TXFLOW_RESOURCE_LEASE_CONFLICT", "Resource is already leased");
         }
         ResourceLease next = new ResourceLease(resourceId, executionId, owner,
@@ -205,6 +225,8 @@ public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
 
     @Override
     public synchronized void compactEvents(String executionId, long throughSequence) {
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
         FlowExecutionSnapshot current = requireSnapshot(executionId);
         switch (current.state()) {
             case COMPLETED:
@@ -293,5 +315,9 @@ public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
             throw new FlowStoreException("TXFLOW_STALE_RESOURCE_FENCE", "Resource lease fence is stale");
         }
         return current;
+    }
+
+    /** Exact tuple key; it deliberately does not flatten caller-controlled text. */
+    private record ClaimIdentity(String namespace, String key) {
     }
 }

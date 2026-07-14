@@ -23,6 +23,18 @@ public class FlowStoreException extends RuntimeException {
     }
 
     /**
+     * Creates a store failure that retains its implementation-level cause.
+     *
+     * @param code stable machine-readable error code
+     * @param message human-readable diagnostic
+     * @param cause underlying persistence or codec failure
+     */
+    public FlowStoreException(String code, String message, Throwable cause) {
+        super(message, cause);
+        this.code = code;
+    }
+
+    /**
      * Returns the stable error code suitable for programmatic handling.
      *
      * @return store error code

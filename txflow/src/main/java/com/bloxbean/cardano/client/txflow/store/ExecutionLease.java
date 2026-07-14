@@ -26,9 +26,10 @@ public record ExecutionLease(String executionId, String ownerToken, long epoch, 
      * @param expiresAt exclusive lease expiry
      */
     public ExecutionLease {
-        if (executionId == null || executionId.isBlank() || ownerToken == null || ownerToken.isBlank()) {
-            throw new IllegalArgumentException("lease execution and owner identities cannot be blank");
-        }
+        FlowStoreTextPolicy.requireIdentifier(executionId, "lease execution identity",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        FlowStoreTextPolicy.requireIdentifier(ownerToken, "lease owner identity",
+                FlowStoreTextPolicy.MAX_OWNER_TOKEN_BYTES);
         if (epoch < 1) throw new IllegalArgumentException("lease epoch must be positive");
         Objects.requireNonNull(expiresAt, "expiresAt");
     }

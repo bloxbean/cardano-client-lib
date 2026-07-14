@@ -32,10 +32,12 @@ public record ResourceLease(String resourceId, String executionId, String ownerT
      * @param expiresAt exclusive lease expiry
      */
     public ResourceLease {
-        if (resourceId == null || resourceId.isBlank() || executionId == null
-                || executionId.isBlank() || ownerToken == null || ownerToken.isBlank()) {
-            throw new IllegalArgumentException("resource lease identities cannot be blank");
-        }
+        FlowStoreTextPolicy.requireIdentifier(resourceId, "resource identity",
+                FlowStoreTextPolicy.MAX_RESOURCE_ID_BYTES);
+        FlowStoreTextPolicy.requireIdentifier(executionId, "resource execution identity",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        FlowStoreTextPolicy.requireIdentifier(ownerToken, "resource owner identity",
+                FlowStoreTextPolicy.MAX_OWNER_TOKEN_BYTES);
         if (epoch < 1) throw new IllegalArgumentException("lease epoch must be positive");
         Objects.requireNonNull(expiresAt, "expiresAt");
     }

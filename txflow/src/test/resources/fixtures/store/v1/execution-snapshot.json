@@ -1,0 +1,1 @@
+{"format":"ccl.txflow.store","version":1,"kind":"execution_snapshot","payload":{"execution_id":"execution-1","definition_fingerprint":"definition-sha","request_fingerprint":"request-sha","state":"RUNNING","revision":7,"last_sequence":19,"compacted_through_sequence":4,"updated_at":"2026-07-14T01:02:03.456Z","data":{}}}

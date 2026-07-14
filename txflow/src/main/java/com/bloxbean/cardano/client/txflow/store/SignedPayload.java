@@ -60,6 +60,49 @@ public sealed interface SignedPayload permits SignedPayload.InlineCbor, SignedPa
         public byte[] cbor() {
             return Arrays.copyOf(cbor, cbor.length);
         }
+
+        /**
+         * Compares inline payloads by their signed bytes and recorded identities.
+         *
+         * <p>The record-generated implementation would compare {@code byte[]} by
+         * reference, which is not suitable for a durable value object.</p>
+         *
+         * @param other value to compare
+         * @return whether both payloads contain the same bytes and identities
+         */
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) return true;
+            if (!(other instanceof InlineCbor that)) return false;
+            return Arrays.equals(cbor, that.cbor)
+                    && sha256.equals(that.sha256)
+                    && transactionHash.equals(that.transactionHash);
+        }
+
+        /**
+         * Computes a content-based hash consistent with {@link #equals(Object)}.
+         *
+         * @return content-based hash code
+         */
+        @Override
+        public int hashCode() {
+            int result = Arrays.hashCode(cbor);
+            result = 31 * result + sha256.hashCode();
+            result = 31 * result + transactionHash.hashCode();
+            return result;
+        }
+
+        /**
+         * Describes the payload without rendering signed transaction bytes.
+         *
+         * @return redacted diagnostic representation
+         */
+        @Override
+        public String toString() {
+            return "InlineCbor[cborLength=" + cbor.length
+                    + ", sha256=" + sha256
+                    + ", transactionHash=" + transactionHash + ']';
+        }
     }
 
     /**

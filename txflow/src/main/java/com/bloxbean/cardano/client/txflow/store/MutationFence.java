@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.txflow.store;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Composite proof that a worker may commit an execution mutation.
@@ -11,7 +13,8 @@ import java.util.List;
  * lease must name the append's target execution, and resource-lease owners must match the active
  * execution-lease owner.</p>
  *
- * <p>The resource list is defensively copied and unmodifiable.</p>
+ * <p>The resource list is defensively copied and unmodifiable. Each resource identity may occur
+ * only once so every adapter receives the same unambiguous fence.</p>
  *
  * @param executionLease current lease for the execution being mutated
  * @param resourceLeases current leases for its claimed spending resources
@@ -23,9 +26,18 @@ public record MutationFence(ExecutionLease executionLease, List<ResourceLease> r
      * @param executionLease current lease for the execution being mutated
      * @param resourceLeases current leases for its claimed spending resources; {@code null} is
      *        treated as an empty list
+     * @throws IllegalArgumentException when the list contains the same resource identity more
+     *         than once
      */
     public MutationFence {
         resourceLeases = List.copyOf(resourceLeases != null ? resourceLeases : List.of());
+        Set<String> identities = new HashSet<>();
+        for (ResourceLease lease : resourceLeases) {
+            if (!identities.add(lease.resourceId())) {
+                throw new IllegalArgumentException(
+                        "resource leases must have unique resource identities");
+            }
+        }
     }
 
     /**
