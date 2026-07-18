@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
  * // With auto-cleanup (remove completed flows after 5 minutes)
  * FlowRegistry registry = InMemoryFlowRegistry.builder()
  *     .withAutoCleanup(Duration.ofMinutes(5))
+ *     .withCleanupExecutor(applicationExecutor)
  *     .build();
  * }</pre>
  */
@@ -38,29 +39,37 @@ public class InMemoryFlowRegistry implements FlowRegistry {
     private final ConcurrentMap<String, FlowHandle> flows = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, FlowStatus> lastKnownStatus = new ConcurrentHashMap<>();
     private final List<FlowLifecycleListener> listeners = new CopyOnWriteArrayList<>();
-    private final ScheduledExecutorService cleanupExecutor;
+    private final Executor cleanupExecutor;
     private final Duration autoCleanupDelay;
 
     /**
      * Create a new InMemoryFlowRegistry with no auto-cleanup.
      */
     public InMemoryFlowRegistry() {
-        this(null);
+        this(null, null);
     }
 
     /**
-     * Create a new InMemoryFlowRegistry with optional auto-cleanup.
+     * Create a registry without auto-cleanup. A non-zero delay requires the
+     * executor-accepting constructor so the application owns scheduling resources.
      *
-     * @param autoCleanupDelay delay after completion before removing flows, or null to disable
+     * @param autoCleanupDelay null or zero to disable cleanup
+     * @deprecated use {@link #InMemoryFlowRegistry(Duration, Executor)} when enabling cleanup
      */
+    @Deprecated
     public InMemoryFlowRegistry(Duration autoCleanupDelay) {
+        this(autoCleanupDelay, null);
+    }
+
+    /**
+     * Create a registry using an application-managed executor for delayed cleanup work.
+     * The executor is never shut down by this registry, so Java 21 applications may pass
+     * a virtual-thread executor.
+     */
+    public InMemoryFlowRegistry(Duration autoCleanupDelay, Executor cleanupExecutor) {
         this.autoCleanupDelay = autoCleanupDelay;
         if (autoCleanupDelay != null && !autoCleanupDelay.isZero()) {
-            this.cleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "flow-registry-cleanup");
-                t.setDaemon(true);
-                return t;
-            });
+            this.cleanupExecutor = Objects.requireNonNull(cleanupExecutor, "cleanupExecutor cannot be null");
         } else {
             this.cleanupExecutor = null;
         }
@@ -162,22 +171,9 @@ public class InMemoryFlowRegistry implements FlowRegistry {
     }
 
     /**
-     * Shutdown the registry and release resources.
-     * <p>
-     * This stops the auto-cleanup executor if enabled.
+     * Clear the registry. Application-managed executors are not shut down.
      */
     public void shutdown() {
-        if (cleanupExecutor != null) {
-            cleanupExecutor.shutdown();
-            try {
-                if (!cleanupExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                    cleanupExecutor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                cleanupExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-        }
         clear();
     }
 
@@ -196,12 +192,13 @@ public class InMemoryFlowRegistry implements FlowRegistry {
 
                 // Schedule auto-cleanup if enabled
                 if (autoCleanupDelay != null && cleanupExecutor != null) {
-                    cleanupExecutor.schedule(() -> {
+                    CompletableFuture.delayedExecutor(autoCleanupDelay.toMillis(), TimeUnit.MILLISECONDS,
+                            cleanupExecutor).execute(() -> {
                         if (flows.containsKey(flowId) && handle.isDone()) {
                             unregister(flowId);
                             log.debug("Auto-cleaned flow after completion: {}", flowId);
                         }
-                    }, autoCleanupDelay.toMillis(), TimeUnit.MILLISECONDS);
+                    });
                 }
             }
         });
@@ -262,6 +259,7 @@ public class InMemoryFlowRegistry implements FlowRegistry {
      */
     public static class Builder {
         private Duration autoCleanupDelay;
+        private Executor cleanupExecutor;
 
         /**
          * Enable auto-cleanup of completed flows after the specified delay.
@@ -274,13 +272,19 @@ public class InMemoryFlowRegistry implements FlowRegistry {
             return this;
         }
 
+        /** Configure the application-managed executor used by delayed cleanup tasks. */
+        public Builder withCleanupExecutor(Executor executor) {
+            this.cleanupExecutor = Objects.requireNonNull(executor, "executor cannot be null");
+            return this;
+        }
+
         /**
          * Build the registry.
          *
          * @return a new InMemoryFlowRegistry
          */
         public InMemoryFlowRegistry build() {
-            return new InMemoryFlowRegistry(autoCleanupDelay);
+            return new InMemoryFlowRegistry(autoCleanupDelay, cleanupExecutor);
         }
     }
 }

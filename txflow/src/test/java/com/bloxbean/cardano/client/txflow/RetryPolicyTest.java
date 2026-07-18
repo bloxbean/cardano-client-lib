@@ -52,6 +52,7 @@ class RetryPolicyTest {
         RetryPolicy policy = RetryPolicy.builder()
                 .initialDelay(Duration.ofSeconds(2))
                 .backoffStrategy(BackoffStrategy.FIXED)
+                .jitterFactor(0)
                 .build();
 
         assertEquals(Duration.ofSeconds(2), policy.calculateDelay(1));
@@ -66,6 +67,7 @@ class RetryPolicyTest {
                 .initialDelay(Duration.ofSeconds(1))
                 .backoffStrategy(BackoffStrategy.LINEAR)
                 .maxDelay(Duration.ofSeconds(60))
+                .jitterFactor(0)
                 .build();
 
         assertEquals(Duration.ofSeconds(1), policy.calculateDelay(1));  // 1 * 1 = 1
@@ -80,6 +82,7 @@ class RetryPolicyTest {
                 .initialDelay(Duration.ofSeconds(1))
                 .backoffStrategy(BackoffStrategy.EXPONENTIAL)
                 .maxDelay(Duration.ofSeconds(60))
+                .jitterFactor(0)
                 .build();
 
         assertEquals(Duration.ofSeconds(1), policy.calculateDelay(1));  // 1 * 2^0 = 1
@@ -95,6 +98,7 @@ class RetryPolicyTest {
                 .initialDelay(Duration.ofSeconds(10))
                 .maxDelay(Duration.ofSeconds(30))
                 .backoffStrategy(BackoffStrategy.EXPONENTIAL)
+                .jitterFactor(0)
                 .build();
 
         assertEquals(Duration.ofSeconds(10), policy.calculateDelay(1)); // 10
@@ -162,12 +166,7 @@ class RetryPolicyTest {
                 .retryOnNetworkError(false)  // Disable both to test
                 .build();
 
-        // When both timeout and network retry are disabled, the error is still retryable
-        // as an unknown error (default behavior). This tests that the timeout-specific
-        // path is not taken when disabled.
-        // The error "Connection timeout" won't match the timeout OR network paths when both
-        // are disabled, but will still be retryable as unknown.
-        assertTrue(policy.isRetryable(new RuntimeException("Connection timeout")));
+        assertFalse(policy.isRetryable(new RuntimeException("Connection timeout")));
 
         // However, insufficient funds should still not be retryable
         assertFalse(policy.isRetryable(new RuntimeException("Insufficient funds")));
@@ -180,9 +179,7 @@ class RetryPolicyTest {
                 .retryOnNetworkError(false)
                 .build();
 
-        // When both timeout and network retry are disabled, the errors are still retryable
-        // as unknown errors (default behavior).
-        assertTrue(policy.isRetryable(new RuntimeException("connection refused")));
+        assertFalse(policy.isRetryable(new RuntimeException("connection refused")));
 
         // However, invalid transaction should still not be retryable
         assertFalse(policy.isRetryable(new RuntimeException("invalid transaction")));
@@ -199,16 +196,14 @@ class RetryPolicyTest {
     void testNullErrorMessage() {
         RetryPolicy policy = RetryPolicy.defaults();
 
-        // Error with null message should be treated as retryable (unknown error)
-        assertTrue(policy.isRetryable(new RuntimeException((String) null)));
+        assertFalse(policy.isRetryable(new RuntimeException((String) null)));
     }
 
     @Test
-    void testUnknownErrorIsRetryable() {
+    void testUnknownErrorIsNotRetryableWithoutPhaseContext() {
         RetryPolicy policy = RetryPolicy.defaults();
 
-        // Unknown errors should be retryable by default
-        assertTrue(policy.isRetryable(new RuntimeException("Some unknown error")));
+        assertFalse(policy.isRetryable(new RuntimeException("Some unknown error")));
     }
 
     @Test
@@ -260,6 +255,34 @@ class RetryPolicyTest {
     }
 
     @Test
+    void testExtremeAttemptSaturatesAtMaximum() {
+        RetryPolicy policy = RetryPolicy.builder()
+                .initialDelay(Duration.ofMillis(1))
+                .maxDelay(Duration.ofSeconds(30))
+                .backoffStrategy(BackoffStrategy.EXPONENTIAL)
+                .jitterFactor(0)
+                .build();
+
+        assertEquals(Duration.ofSeconds(30), policy.calculateDelay(Integer.MAX_VALUE));
+    }
+
+    @Test
+    void testInvalidBoundsRejectedAtBuildTime() {
+        assertThrows(IllegalArgumentException.class, () -> RetryPolicy.builder().maxAttempts(0).build());
+        assertThrows(IllegalArgumentException.class, () -> RetryPolicy.builder()
+                .initialDelay(Duration.ofSeconds(2))
+                .maxDelay(Duration.ofSeconds(1))
+                .build());
+        assertThrows(IllegalArgumentException.class, () -> RetryPolicy.builder().jitterFactor(1.1).build());
+    }
+
+    @Test
+    void testWrappedFatalErrorIsNeverRetried() {
+        RetryPolicy policy = RetryPolicy.defaults();
+        assertFalse(policy.isRetryable(new RuntimeException("wrapper", new AssertionError("fatal"))));
+    }
+
+    @Test
     void testNetworkTimeoutIsStillRetryable() {
         RetryPolicy policy = RetryPolicy.defaults();
 
@@ -280,5 +303,48 @@ class RetryPolicyTest {
         // Network timeout - retryable (transaction was never submitted)
         assertTrue(policy.isRetryable(new RuntimeException("Network timeout")));
         assertTrue(policy.isRetryable(new RuntimeException("HTTP timeout connecting to server")));
+    }
+
+    @Test
+    void phaseAwareDecisionNeverRebuildsAnUnknownSubmission() {
+        RetryPolicy policy = RetryPolicy.builder().maxAttempts(3).jitterFactor(0).build();
+        com.bloxbean.cardano.client.txflow.config.RetryDecision unknown = policy.evaluate(
+                com.bloxbean.cardano.client.txflow.config.RetryContext.builder()
+                        .phase(com.bloxbean.cardano.client.txflow.config.FlowErrorPhase.SUBMIT)
+                        .category(com.bloxbean.cardano.client.txflow.exec.FlowErrorCategory.NETWORK)
+                        .attempt(1).transactionHash("known-hash")
+                        .submissionOutcome(com.bloxbean.cardano.client.txflow.config.SubmissionOutcome.UNKNOWN)
+                        .build());
+        assertEquals(com.bloxbean.cardano.client.txflow.config.RetryAction.RECONCILE_THEN_RETRY,
+                unknown.action());
+
+        assertEquals(com.bloxbean.cardano.client.txflow.config.RetryAction.RETRY_SAME_TRANSACTION,
+                policy.evaluate(com.bloxbean.cardano.client.txflow.config.RetryContext.builder()
+                        .phase(com.bloxbean.cardano.client.txflow.config.FlowErrorPhase.SUBMIT)
+                        .category(com.bloxbean.cardano.client.txflow.exec.FlowErrorCategory.NETWORK)
+                        .attempt(1).transactionHash("known-hash")
+                        .submissionOutcome(com.bloxbean.cardano.client.txflow.config.SubmissionOutcome.NOT_ATTEMPTED)
+                        .build()).action());
+    }
+
+    @Test
+    void unknownAndAcceptedSubmissionsReconcileEvenWhenRetryBudgetIsExhausted() {
+        RetryPolicy policy = RetryPolicy.builder().maxAttempts(2).jitterFactor(0).build();
+
+        for (com.bloxbean.cardano.client.txflow.config.SubmissionOutcome outcome : java.util.List.of(
+                com.bloxbean.cardano.client.txflow.config.SubmissionOutcome.UNKNOWN,
+                com.bloxbean.cardano.client.txflow.config.SubmissionOutcome.ACCEPTED)) {
+            com.bloxbean.cardano.client.txflow.config.RetryDecision decision = policy.evaluate(
+                    com.bloxbean.cardano.client.txflow.config.RetryContext.builder()
+                            .phase(com.bloxbean.cardano.client.txflow.config.FlowErrorPhase.SUBMIT)
+                            .category(com.bloxbean.cardano.client.txflow.exec.FlowErrorCategory.NETWORK)
+                            .attempt(2)
+                            .transactionHash("known-hash")
+                            .submissionOutcome(outcome)
+                            .build());
+
+            assertEquals(com.bloxbean.cardano.client.txflow.config.RetryAction.RECONCILE_THEN_RETRY,
+                    decision.action());
+        }
     }
 }

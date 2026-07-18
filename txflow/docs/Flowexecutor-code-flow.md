@@ -691,7 +691,7 @@ FlowExecutor executor = FlowExecutor.create(backendService)
     // or: FlowExecutor.create(utxoSupplier, protocolParamsSupplier, transactionProcessor, chainDataSupplier)
     .withSignerRegistry(registry)          // for TxPlan/YAML workflows
     .withListener(listener)                // lifecycle callbacks
-    .withExecutor(customExecutor)          // custom thread pool (default: virtual threads on Java 21+)
+    .withExecutor(customExecutor)          // application-managed executor
     .withTxInspector(tx -> ...)            // inspect built transactions
     .withChainingMode(ChainingMode.PIPELINED)
     .withDefaultRetryPolicy(RetryPolicy.defaults())
@@ -749,7 +749,8 @@ do not abort flow execution.
 - `FlowExecutionContext` uses `ConcurrentHashMap` for step results
 - `activeFlowIds` and `activeHandles` are `ConcurrentHashMap.newKeySet()` backed sets
 - Duplicate flow ID detection: `activeFlowIds.add(id)` returns false if already present
-- Default executor: virtual threads (Java 21+) or cached daemon thread pool (Java 11-20)
+- Default executor: JVM common pool; TxFlow does not create or own executor services
+- Java 21+ applications can supply a virtual-thread-per-task executor
 - `ConfirmationTracker.trackedTransactions` is a `ConcurrentMap`
 - `FlowHandle` fields use `volatile` and `AtomicInteger` for thread-safe status reporting
 

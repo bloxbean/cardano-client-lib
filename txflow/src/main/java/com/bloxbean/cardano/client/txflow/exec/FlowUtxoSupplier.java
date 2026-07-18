@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.txflow.FlowDependencyException;
 import com.bloxbean.cardano.client.txflow.StepDependency;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ public class FlowUtxoSupplier implements UtxoSupplier {
     private final UtxoSupplier baseSupplier;
     private final FlowExecutionContext context;
     private final List<StepDependency> dependencies;
+    private final Set<String> exactPendingStepIds;
 
     /**
      * Create a flow-aware UTXO supplier.
@@ -46,9 +48,17 @@ public class FlowUtxoSupplier implements UtxoSupplier {
     public FlowUtxoSupplier(UtxoSupplier baseSupplier,
                             FlowExecutionContext context,
                             List<StepDependency> dependencies) {
+        this(baseSupplier, context, dependencies, Set.of());
+    }
+
+    FlowUtxoSupplier(UtxoSupplier baseSupplier,
+                     FlowExecutionContext context,
+                     List<StepDependency> dependencies,
+                     Set<String> exactPendingStepIds) {
         this.baseSupplier = baseSupplier;
         this.context = context;
         this.dependencies = new ArrayList<>(dependencies);
+        this.exactPendingStepIds = Set.copyOf(exactPendingStepIds);
     }
 
     @Override
@@ -123,17 +133,14 @@ public class FlowUtxoSupplier implements UtxoSupplier {
         for (StepDependency dependency : dependencies) {
             try {
                 // Get all UTXOs from the dependency step
-                List<Utxo> stepOutputs = context.getStepOutputs(dependency.getStepId());
+                List<Utxo> selectedUtxos = dependency.resolveUtxos(context);
 
-                if (stepOutputs == null || stepOutputs.isEmpty()) {
+                if (selectedUtxos.isEmpty()) {
                     if (!dependency.isOptional()) {
                         log.warn("Required dependency step '{}' has no outputs yet", dependency.getStepId());
                     }
                     continue;
                 }
-
-                // Apply selection strategy to get the right UTXOs
-                List<Utxo> selectedUtxos = dependency.resolveUtxos(context);
 
                 // Filter for the specific address
                 for (Utxo utxo : selectedUtxos) {
@@ -149,6 +156,8 @@ public class FlowUtxoSupplier implements UtxoSupplier {
             } catch (Exception e) {
                 if (!dependency.isOptional()) {
                     log.error("Failed to resolve required dependency '{}'", dependency.getStepId(), e);
+                    throw new FlowDependencyException(
+                            "Failed to resolve required dependency '" + dependency.getStepId() + "'", e);
                 } else {
                     log.warn("Optional dependency '{}' failed: {}", dependency.getStepId(), e.getMessage());
                 }
@@ -168,7 +177,7 @@ public class FlowUtxoSupplier implements UtxoSupplier {
     private Optional<Utxo> findPendingUtxo(String txHash, int outputIndex) {
         for (StepDependency dependency : dependencies) {
             try {
-                List<Utxo> stepOutputs = context.getStepOutputs(dependency.getStepId());
+                List<Utxo> stepOutputs = dependency.resolveUtxos(context);
 
                 for (Utxo utxo : stepOutputs) {
                     if (txHash.equals(utxo.getTxHash()) && outputIndex == utxo.getOutputIndex()) {
@@ -176,7 +185,26 @@ public class FlowUtxoSupplier implements UtxoSupplier {
                     }
                 }
             } catch (Exception e) {
-                // Continue searching in other dependencies
+                if (dependency.isOptional()) {
+                    log.warn("Optional dependency '{}' failed while resolving {}#{}: {}",
+                            dependency.getStepId(), txHash, outputIndex, e.getMessage());
+                } else {
+                    log.error("Required dependency '{}' failed while resolving {}#{}",
+                            dependency.getStepId(), txHash, outputIndex, e);
+                    throw new FlowDependencyException(
+                            "Failed to resolve required dependency '" + dependency.getStepId() + "'", e);
+                }
+            }
+        }
+
+        // Portable flow_output references are exact identities, not address-selection
+        // dependencies. Search all outputs only for the producer steps explicitly named
+        // by those references, leaving legacy dependency selection semantics unchanged.
+        for (String stepId : exactPendingStepIds) {
+            for (Utxo utxo : context.getStepOutputs(stepId)) {
+                if (txHash.equals(utxo.getTxHash()) && outputIndex == utxo.getOutputIndex()) {
+                    return Optional.of(utxo);
+                }
             }
         }
 

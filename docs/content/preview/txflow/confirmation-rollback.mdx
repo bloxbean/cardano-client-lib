@@ -1,11 +1,12 @@
 ---
-title: "Confirmation & Rollback"
-description: "Confirmation tracking, status lifecycle, and rollback strategies"
+title: "Legacy: Confirmation & Rollback"
+description: "Compatibility reference for preview confirmation and rollback behavior"
 ---
 
-# Confirmation & Rollback
+# Legacy: Confirmation & Rollback
 
-> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+> **Compatibility API:** This page documents preview `FlowExecutor` types. For the current policy
+> and outcome model, see [Policies, Results & Observability](./policies-results-observability).
 
 ## Confirmation Status Lifecycle
 
@@ -17,10 +18,15 @@ SUBMITTED -> IN_BLOCK -> CONFIRMED
 
 | Status | Meaning | Depth Criteria |
 |--------|---------|----------------|
-| `SUBMITTED` | In mempool, not yet in a block | Not found in block |
+| `SUBMITTED` | Submission accepted or awaiting observation; not proof of mempool presence | Not yet observed in a block |
 | `IN_BLOCK` | Included in a block, waiting for depth | `0 <= depth < minConfirmations` |
 | `CONFIRMED` | Reached safety threshold | `depth >= minConfirmations` |
-| `ROLLED_BACK` | Was in chain but disappeared (reorg) | Previously tracked, now not found |
+| `ROLLED_BACK` | Prior inclusion was removed with authoritative rollback evidence | Required consecutive authoritative absences reached |
+
+An empty or lagging indexer lookup is not by itself rollback evidence. The backend adapter must
+declare absence authoritative and the configured consecutive-observation threshold must be met.
+Otherwise `FlowExecutor` emits a suspected-rollback notification and preserves an uncertain typed
+outcome rather than authorizing a rebuild.
 
 ## ConfirmationConfig
 

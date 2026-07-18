@@ -1,139 +1,48 @@
 package com.bloxbean.cardano.client.txflow.exec;
 
-import lombok.Builder;
-import lombok.Getter;
-
 import java.time.Duration;
 
 /**
- * Configuration for transaction confirmation tracking.
- * <p>
- * Defines thresholds and timing parameters for monitoring transaction
- * confirmation status, including:
- * <ul>
- *     <li>Minimum confirmations for practical safety</li>
- *     <li>Polling intervals and timeouts</li>
- * </ul>
- *
- * <h2>Default Values (Public Networks)</h2>
- * <table border="1">
- *   <caption>Default configuration values for public Cardano networks</caption>
- *   <tr><th>Parameter</th><th>Value</th><th>Reasoning</th></tr>
- *   <tr><td>minConfirmations</td><td>10 blocks</td><td>~200 seconds, practical safety threshold</td></tr>
- *   <tr><td>checkInterval</td><td>5 seconds</td><td>Balance between responsiveness and API load</td></tr>
- *   <tr><td>timeout</td><td>30 minutes</td><td>Maximum time to wait for confirmation</td></tr>
- * </table>
- *
- * <h2>Usage</h2>
- * <pre>{@code
- * // Use defaults
- * ConfirmationConfig config = ConfirmationConfig.defaults();
- *
- * // Custom configuration
- * ConfirmationConfig config = ConfirmationConfig.builder()
- *     .minConfirmations(20)
- *     .checkInterval(Duration.ofSeconds(10))
- *     .build();
- *
- * // Devnet preset (faster block times)
- * ConfirmationConfig config = ConfirmationConfig.devnet();
- * }</pre>
+ * @deprecated Import {@link com.bloxbean.cardano.client.txflow.config.ConfirmationConfig}
+ * instead. This forwarding subclass is retained only for pre-release source compatibility.
  */
-@Getter
-@Builder
-public class ConfirmationConfig {
+@Deprecated
+public class ConfirmationConfig
+        extends com.bloxbean.cardano.client.txflow.config.ConfirmationConfig {
+
+    private ConfirmationConfig(int minConfirmations, Duration checkInterval,
+                               Duration timeout, int maxRollbackRetries,
+                               boolean waitForBackendAfterRollback,
+                               int postRollbackWaitAttempts,
+                               Duration postRollbackUtxoSyncDelay,
+                               int requiredAuthoritativeAbsences) {
+        super(minConfirmations, checkInterval, timeout, maxRollbackRetries,
+                waitForBackendAfterRollback, postRollbackWaitAttempts,
+                postRollbackUtxoSyncDelay, requiredAuthoritativeAbsences);
+    }
 
     /**
-     * Minimum number of confirmations to consider a transaction practically safe.
-     * <p>
-     * Once this depth is reached, the transaction status transitions from IN_BLOCK to CONFIRMED.
-     * Default: 10 blocks (~200 seconds on mainnet with 20-second block time).
-     */
-    @Builder.Default
-    private final int minConfirmations = 10;
-
-    /**
-     * Interval between confirmation status checks.
-     * <p>
-     * Default: 5 seconds.
-     */
-    @Builder.Default
-    private final Duration checkInterval = Duration.ofSeconds(5);
-
-    /**
-     * Maximum time to wait for a transaction to reach the target confirmation status.
-     * <p>
-     * Default: 30 minutes.
-     */
-    @Builder.Default
-    private final Duration timeout = Duration.ofMinutes(30);
-
-    /**
-     * Maximum number of rebuild attempts when using REBUILD_FROM_FAILED or REBUILD_ENTIRE_FLOW strategies.
-     * <p>
-     * For REBUILD_FROM_FAILED: Max times a single step can be rebuilt after rollback.
-     * For REBUILD_ENTIRE_FLOW: Max times the entire flow can be restarted after rollback.
-     * <p>
-     * After this limit is reached, the flow will fail.
-     * <p>
-     * Default: 3 attempts.
-     */
-    @Builder.Default
-    private final int maxRollbackRetries = 3;
-
-    /**
-     * Whether to wait for the backend to be ready after a rollback is detected.
-     * <p>
-     * In production environments, rollbacks don't cause node restarts, so waiting
-     * is unnecessary overhead. In test environments (e.g., Yaci DevKit), rollback
-     * simulation may cause node restart, requiring a wait for backend availability.
-     * <p>
-     * Default: false (production default - no wait).
-     */
-    @Builder.Default
-    private final boolean waitForBackendAfterRollback = false;
-
-    /**
-     * Maximum number of attempts to check if backend is ready after rollback.
-     * <p>
-     * Only used when {@link #waitForBackendAfterRollback} is true.
-     * Each attempt waits for {@link #checkInterval} before retrying.
-     * <p>
-     * Default: 5 attempts (quick health check).
-     */
-    @Builder.Default
-    private final int postRollbackWaitAttempts = 5;
-
-    /**
-     * Additional delay to wait for UTXO indexer to sync after backend becomes ready.
-     * <p>
-     * In test environments, the block service may respond before UTXO indexes are
-     * fully updated. This delay ensures UTXOs are available for transaction building.
-     * <p>
-     * Only used when {@link #waitForBackendAfterRollback} is true.
-     * <p>
-     * Default: Duration.ZERO (no additional delay - production default).
-     */
-    @Builder.Default
-    private final Duration postRollbackUtxoSyncDelay = Duration.ZERO;
-
-    /**
-     * Create a configuration with default values suitable for public Cardano networks.
+     * Creates the deprecated forwarding builder.
      *
-     * @return default configuration
+     * @return compatibility builder producing this forwarding type
+     */
+    public static ConfirmationConfigBuilder builder() {
+        return new ConfirmationConfigBuilder();
+    }
+
+    /**
+     * Returns the default confirmation settings using the compatibility type.
+     *
+     * @return default settings
      */
     public static ConfirmationConfig defaults() {
         return builder().build();
     }
 
     /**
-     * Create a configuration preset for fast devnets (e.g., Yaci DevKit).
-     * <p>
-     * Devnets typically have 1-second block times, so confirmation thresholds
-     * are adjusted accordingly. This preset also enables post-rollback waiting
-     * since devnet rollback simulation may cause node restart.
+     * Returns settings tuned for a fast local development network.
      *
-     * @return devnet configuration preset
+     * @return development-network settings
      */
     public static ConfirmationConfig devnet() {
         return builder()
@@ -147,12 +56,9 @@ public class ConfirmationConfig {
     }
 
     /**
-     * Create a configuration preset for testnet usage.
-     * <p>
-     * Uses slightly lower thresholds than mainnet defaults since testnet
-     * transactions have no real value at risk.
+     * Returns conservative settings suitable for a public test network.
      *
-     * @return testnet configuration preset
+     * @return test-network settings
      */
     public static ConfirmationConfig testnet() {
         return builder()
@@ -163,13 +69,9 @@ public class ConfirmationConfig {
     }
 
     /**
-     * Create a quick configuration for development/testing.
-     * <p>
-     * Waits for only 1 confirmation with aggressive polling.
-     * Enables post-rollback waiting for test environments.
-     * NOT suitable for production use.
+     * Returns a low-latency preset that accepts one confirmation.
      *
-     * @return quick development configuration
+     * @return quick confirmation settings
      */
     public static ConfirmationConfig quick() {
         return builder()
@@ -180,5 +82,75 @@ public class ConfirmationConfig {
                 .postRollbackWaitAttempts(30)
                 .postRollbackUtxoSyncDelay(Duration.ofSeconds(3))
                 .build();
+    }
+
+    /** @deprecated Use {@code ConfirmationConfig.Builder} in the config package. */
+    @Deprecated
+    public static class ConfirmationConfigBuilder
+            extends com.bloxbean.cardano.client.txflow.config.ConfirmationConfig.Builder {
+        @Override
+        public ConfirmationConfigBuilder minConfirmations(int value) {
+            super.minConfirmations(value);
+            return this;
+        }
+
+        @Override
+        public ConfirmationConfigBuilder checkInterval(Duration value) {
+            super.checkInterval(value);
+            return this;
+        }
+
+        @Override
+        public ConfirmationConfigBuilder timeout(Duration value) {
+            super.timeout(value);
+            return this;
+        }
+
+        @Override
+        public ConfirmationConfigBuilder maxRollbackRetries(int value) {
+            super.maxRollbackRetries(value);
+            return this;
+        }
+
+        @Override
+        public ConfirmationConfigBuilder waitForBackendAfterRollback(boolean value) {
+            super.waitForBackendAfterRollback(value);
+            return this;
+        }
+
+        @Override
+        public ConfirmationConfigBuilder postRollbackWaitAttempts(int value) {
+            super.postRollbackWaitAttempts(value);
+            return this;
+        }
+
+        @Override
+        public ConfirmationConfigBuilder postRollbackUtxoSyncDelay(Duration value) {
+            super.postRollbackUtxoSyncDelay(value);
+            return this;
+        }
+
+        @Override
+        public ConfirmationConfigBuilder requiredAuthoritativeAbsences(int value) {
+            super.requiredAuthoritativeAbsences(value);
+            return this;
+        }
+
+        @Override
+        protected com.bloxbean.cardano.client.txflow.config.ConfirmationConfig create(
+                int minConfirmations, Duration checkInterval, Duration timeout,
+                int maxRollbackRetries, boolean waitForBackendAfterRollback,
+                int postRollbackWaitAttempts, Duration postRollbackUtxoSyncDelay,
+                int requiredAuthoritativeAbsences) {
+            return new ConfirmationConfig(minConfirmations, checkInterval, timeout,
+                    maxRollbackRetries, waitForBackendAfterRollback,
+                    postRollbackWaitAttempts, postRollbackUtxoSyncDelay,
+                    requiredAuthoritativeAbsences);
+        }
+
+        @Override
+        public ConfirmationConfig build() {
+            return (ConfirmationConfig) super.build();
+        }
     }
 }

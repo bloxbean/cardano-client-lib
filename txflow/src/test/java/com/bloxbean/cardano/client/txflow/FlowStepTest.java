@@ -71,7 +71,7 @@ class FlowStepTest {
         assertThatThrownBy(() ->
                 FlowStep.builder("step1").build()
         ).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("TxPlan or TxContext factory");
+                .hasMessageContaining("transaction definition");
     }
 
     @Test

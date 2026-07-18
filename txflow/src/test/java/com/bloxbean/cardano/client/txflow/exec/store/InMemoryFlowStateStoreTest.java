@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -250,6 +252,23 @@ class InMemoryFlowStateStoreTest {
         assertTrue(retrieved.isPresent());
         assertEquals(FlowStatus.COMPLETED, retrieved.get().getStatus());
         assertNotNull(retrieved.get().getCompletedAt());
+    }
+
+    @Test
+    void completionTimestampUsesInjectedClock() {
+        Instant completedAt = Instant.parse("2026-07-13T12:00:00Z");
+        InMemoryFlowStateStore deterministicStore = InMemoryFlowStateStore.builder()
+                .withClock(Clock.fixed(completedAt, ZoneOffset.UTC))
+                .build();
+        deterministicStore.saveFlowState(FlowStateSnapshot.builder()
+                .flowId("deterministic")
+                .status(FlowStatus.IN_PROGRESS)
+                .build());
+
+        deterministicStore.markFlowComplete("deterministic", FlowStatus.COMPLETED);
+
+        assertEquals(completedAt, deterministicStore.getFlowState("deterministic")
+                .orElseThrow().getCompletedAt());
     }
 
     @Test
@@ -634,9 +653,18 @@ class InMemoryFlowStateStoreTest {
     }
 
     @Test
+    void autoCleanupRequiresApplicationManagedExecutor() {
+        NullPointerException failure = assertThrows(NullPointerException.class,
+                () -> InMemoryFlowStateStore.builder()
+                        .withAutoCleanup(Duration.ofSeconds(1)).build());
+        assertTrue(failure.getMessage().contains("cleanupExecutor"));
+    }
+
+    @Test
     void testBuilderWithAutoCleanup() throws Exception {
         InMemoryFlowStateStore cleanupStore = InMemoryFlowStateStore.builder()
                 .withAutoCleanup(Duration.ofMillis(100))
+                .withCleanupExecutor(Runnable::run)
                 .build();
 
         cleanupStore.saveFlowState(FlowStateSnapshot.builder()
@@ -662,6 +690,7 @@ class InMemoryFlowStateStoreTest {
     void testAutoCleanupDoesNotRemoveInProgressFlows() throws Exception {
         InMemoryFlowStateStore cleanupStore = InMemoryFlowStateStore.builder()
                 .withAutoCleanup(Duration.ofMillis(50))
+                .withCleanupExecutor(Runnable::run)
                 .build();
 
         cleanupStore.saveFlowState(FlowStateSnapshot.builder()
@@ -705,6 +734,7 @@ class InMemoryFlowStateStoreTest {
     void testShutdownWithAutoCleanup() {
         InMemoryFlowStateStore cleanupStore = InMemoryFlowStateStore.builder()
                 .withAutoCleanup(Duration.ofMinutes(5))
+                .withCleanupExecutor(Runnable::run)
                 .build();
 
         cleanupStore.saveFlowState(FlowStateSnapshot.builder()
