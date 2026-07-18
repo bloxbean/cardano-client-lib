@@ -47,7 +47,10 @@ import java.util.function.UnaryOperator;
  * and queries, while the versioned payload retains the exact typed snapshot and event values
  * needed by recovery. Column and payload metadata are cross-checked on every read so corruption
  * fails closed. Timestamp cross-checks use microsecond precision, the common lossless precision
- * of the certified PostgreSQL profile.</p>
+ * of the certified PostgreSQL profile. Top-level snapshot and event timestamps are truncated to
+ * that precision before they are encoded, bound, or returned. Lease expiries are instead rounded
+ * up to the next microsecond so every positive requested duration remains strictly after the
+ * caller's acquisition or renewal time.</p>
  */
 public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCloseable {
     private static final String EXECUTION_COLUMNS = "execution_id, definition_fingerprint, "
@@ -107,18 +110,19 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
         requireText(key, "idempotency key",
                 FlowStoreTextPolicy.MAX_IDEMPOTENCY_KEY_BYTES);
         Objects.requireNonNull(initialSnapshot, "initialSnapshot");
-        byte[] encoded = codec.encodeSnapshot(initialSnapshot);
+        FlowExecutionSnapshot persistedInitial = normalizeSnapshotTimestamp(initialSnapshot);
+        byte[] encoded = codec.encodeSnapshot(persistedInitial);
         try {
             return inTransaction("create idempotency claim", connection -> {
                 String claimedExecution = findClaimedExecution(connection, namespace, key, true);
                 if (claimedExecution != null) {
                     FlowExecutionSnapshot existing = requireSnapshot(connection,
                             claimedExecution, true);
-                    verifyClaimFingerprints(existing, initialSnapshot);
+                    verifyClaimFingerprints(existing, persistedInitial);
                     return new IdempotencyClaimResult(existing, false);
                 }
                 FlowExecutionSnapshot executionWithRequestedId = readSnapshot(
-                        connection, initialSnapshot.executionId(), true);
+                        connection, persistedInitial.executionId(), true);
                 if (executionWithRequestedId != null) {
                     // A concurrent transaction may have committed the execution and its claim
                     // after our first absent-claim read. Claims are immutable, so this second
@@ -131,21 +135,21 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
                                 executionWithRequestedId.executionId())
                                 ? executionWithRequestedId
                                 : requireSnapshot(connection, concurrentlyClaimedExecution, true);
-                        verifyClaimFingerprints(existing, initialSnapshot);
+                        verifyClaimFingerprints(existing, persistedInitial);
                         return new IdempotencyClaimResult(existing, false);
                     }
                     throw new FlowStoreException("TXFLOW_EXECUTION_ID_CONFLICT",
                             "Execution ID already exists");
                 }
-                insertSnapshot(connection, initialSnapshot, encoded);
-                insertClaim(connection, namespace, key, initialSnapshot.executionId());
-                return new IdempotencyClaimResult(initialSnapshot, true);
+                insertSnapshot(connection, persistedInitial, encoded);
+                insertClaim(connection, namespace, key, persistedInitial.executionId());
+                return new IdempotencyClaimResult(persistedInitial, true);
             });
         } catch (FlowStoreException failure) {
             if (!"TXFLOW_RDBMS_UNIQUE_CONFLICT".equals(failure.getCode())) throw failure;
             // Certified schemas use immediate unique constraints. The failed transaction was
             // rolled back before this read, so resolving the winning claim is safe and bounded.
-            return resolveConcurrentClaim(namespace, key, initialSnapshot);
+            return resolveConcurrentClaim(namespace, key, persistedInitial);
         }
     }
 
@@ -185,7 +189,9 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
                     throw new FlowStoreException("TXFLOW_EVENT_SEQUENCE",
                             "Events must name the execution and remain contiguous");
                 }
-                encodedEvents.add(new EncodedEvent(event, codec.encodeEvent(event)));
+                FlowEvent persistedEvent = normalizeEventTimestamp(event);
+                encodedEvents.add(new EncodedEvent(
+                        persistedEvent, codec.encodeEvent(persistedEvent)));
                 nextSequence = event.sequence();
             }
 
@@ -196,6 +202,7 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
                     current.requestFingerprint(), proposed.state(), current.revision() + 1,
                     nextSequence, current.compactedThroughSequence(), proposed.updatedAt(),
                     proposed.data());
+            committed = normalizeSnapshotTimestamp(committed);
             byte[] encodedSnapshot = codec.encodeSnapshot(committed);
             insertEvents(connection, encodedEvents);
             updateSnapshot(connection, committed, current.revision(), encodedSnapshot);
@@ -262,7 +269,7 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
                         "Execution is leased by another owner");
             }
             ExecutionLease acquired = new ExecutionLease(
-                    executionId, ownerToken, epoch, now.plus(duration));
+                    executionId, ownerToken, epoch, normalizeLeaseExpiry(now, duration));
             if (current == null) insertExecutionLease(connection, acquired);
             else updateExecutionLease(connection, acquired);
             return acquired;
@@ -281,7 +288,8 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
                         "Execution lease has expired");
             }
             ExecutionLease renewed = new ExecutionLease(current.executionId(),
-                    current.ownerToken(), current.epoch(), now.plus(duration));
+                    current.ownerToken(), current.epoch(),
+                    normalizeLeaseExpiry(now, duration));
             updateExecutionLease(connection, renewed);
             return renewed;
         });
@@ -325,7 +333,7 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
                         "Resource is already leased by another execution owner");
             }
             ResourceLease acquired = new ResourceLease(resourceId, executionId,
-                    ownerToken, epoch, now.plus(duration));
+                    ownerToken, epoch, normalizeLeaseExpiry(now, duration));
             if (current == null) insertResourceLease(connection, acquired);
             else updateResourceLease(connection, acquired);
             return acquired;
@@ -345,7 +353,7 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
             }
             ResourceLease renewed = new ResourceLease(current.resourceId(),
                     current.executionId(), current.ownerToken(), current.epoch(),
-                    now.plus(duration));
+                    normalizeLeaseExpiry(now, duration));
             updateResourceLease(connection, renewed);
             return renewed;
         });
@@ -389,6 +397,7 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
                     current.executionId(), current.definitionFingerprint(),
                     current.requestFingerprint(), current.state(), current.revision() + 1,
                     current.lastSequence(), throughSequence, current.updatedAt(), current.data());
+            compacted = normalizeSnapshotTimestamp(compacted);
             updateSnapshot(connection, compacted, current.revision(),
                     codec.encodeSnapshot(compacted));
             return null;
@@ -530,8 +539,13 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
                 String format = row.getString("data_format");
                 int version = row.getInt("data_version");
                 verifyPayloadEnvelope(format, version);
-                FlowExecutionSnapshot snapshot = codec.decodeSnapshot(
-                        readPayload(row, "data_payload"));
+                FlowExecutionSnapshot snapshot;
+                try {
+                    snapshot = codec.decodeSnapshot(
+                            readPayload(row, "data_payload"), version);
+                } catch (FlowStoreException failure) {
+                    throw mapEnvelopeMismatch(failure);
+                }
                 verifySnapshotColumns(row, snapshot);
                 return snapshot;
             }
@@ -590,8 +604,14 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
 
     private FlowEvent decodeEventRow(ResultSet row, String expectedExecutionId)
             throws SQLException {
-        verifyPayloadEnvelope(row.getString("details_format"), row.getInt("details_version"));
-        FlowEvent event = codec.decodeEvent(readPayload(row, "details_payload"));
+        int version = row.getInt("details_version");
+        verifyPayloadEnvelope(row.getString("details_format"), version);
+        FlowEvent event;
+        try {
+            event = codec.decodeEvent(readPayload(row, "details_payload"), version);
+        } catch (FlowStoreException failure) {
+            throw mapEnvelopeMismatch(failure);
+        }
         if (!expectedExecutionId.equals(event.executionId())
                 || event.sequence() != row.getLong("sequence_no")
                 || !event.type().name().equals(row.getString("event_type"))
@@ -606,10 +626,16 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
 
     private void verifyPayloadEnvelope(String format, int version) {
         if (!FlowStoreCodec.FORMAT_ID.equals(format)
-                || version != FlowStoreCodec.CURRENT_FORMAT_VERSION) {
+                || !FlowStoreCodec.supportsFormatVersion(version)) {
             throw new FlowStoreException("TXFLOW_STORE_CODEC_UNSUPPORTED_VERSION",
                     "Relational payload metadata is unsupported");
         }
+    }
+
+    private FlowStoreException mapEnvelopeMismatch(FlowStoreException failure) {
+        if (!"TXFLOW_STORE_CODEC_VERSION_MISMATCH".equals(failure.getCode())) return failure;
+        return new FlowStoreException("TXFLOW_STORE_CORRUPT",
+                "Relational payload version does not match its inner envelope", failure);
     }
 
     private byte[] readPayload(ResultSet row, String column) throws SQLException {
@@ -674,6 +700,41 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
         return actual != null
                 && expected.truncatedTo(ChronoUnit.MICROS).equals(
                 actual.toInstant().truncatedTo(ChronoUnit.MICROS));
+    }
+
+    private FlowExecutionSnapshot normalizeSnapshotTimestamp(
+            FlowExecutionSnapshot snapshot) {
+        Instant normalized = normalizeTimestamp(snapshot.updatedAt());
+        if (normalized.equals(snapshot.updatedAt())) return snapshot;
+        return new FlowExecutionSnapshot(
+                snapshot.executionId(), snapshot.definitionFingerprint(),
+                snapshot.requestFingerprint(), snapshot.state(), snapshot.revision(),
+                snapshot.lastSequence(), snapshot.compactedThroughSequence(), normalized,
+                snapshot.data());
+    }
+
+    private FlowEvent normalizeEventTimestamp(FlowEvent event) {
+        Instant normalized = normalizeTimestamp(event.timestamp());
+        if (normalized.equals(event.timestamp())) return event;
+        return new FlowEvent(event.sequence(), event.executionId(), event.type(), normalized,
+                event.stepId(), event.transactionHash(), event.details());
+    }
+
+    private Instant normalizeTimestamp(Instant instant) {
+        return instant.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    private Instant normalizeLeaseExpiry(Instant now, Duration duration) {
+        Instant requestedExpiry = now.plus(duration);
+        Instant normalized = normalizeTimestamp(requestedExpiry);
+        if (!normalized.equals(requestedExpiry)) {
+            normalized = normalized.plus(1, ChronoUnit.MICROS);
+        }
+        if (!normalized.isAfter(now)) {
+            throw new IllegalArgumentException(
+                    "lease duration is below the relational timestamp precision");
+        }
+        return normalized;
     }
 
     private long nextLeaseEpoch(Connection connection) throws SQLException {
@@ -882,7 +943,7 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
             restoreAutoCommitAfterFailure(connection, originalAutoCommit, failure);
             closeAfterFailure(connection, failure);
             throw mapSqlFailure(operation, failure);
-        } catch (RuntimeException failure) {
+        } catch (RuntimeException | Error failure) {
             rollbackOrThrow(connection, operation, failure);
             restoreAutoCommitAfterFailure(connection, originalAutoCommit, failure);
             closeAfterFailure(connection, failure);
@@ -976,7 +1037,7 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
             return new FlowStoreException("TXFLOW_STORE_UNAVAILABLE",
                     "Relational TxFlow store is unavailable during " + operation, safeCause);
         }
-        if ("40001".equals(state) || "40P01".equals(state)) {
+        if (dialect.isRetryableTransactionFailure(failure)) {
             return new FlowStoreException("TXFLOW_STORE_SERIALIZATION_FAILURE",
                     "Relational TxFlow transaction was concurrently invalidated during "
                             + operation, safeCause);
@@ -1187,7 +1248,7 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
                 throw new FlowStoreException("TXFLOW_STORE_CONFIGURATION_FAILED",
                         "Relational TxFlow store configuration failed",
                         RdbmsSqlExceptionSanitizer.sanitize(failure));
-            } catch (RuntimeException failure) {
+            } catch (RuntimeException | Error failure) {
                 closeQuietly(anchor);
                 throw failure;
             }

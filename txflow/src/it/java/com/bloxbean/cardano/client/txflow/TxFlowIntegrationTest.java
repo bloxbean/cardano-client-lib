@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * Prerequisites:
  * - Yaci DevKit running at http://localhost:8080/api/v1/
- * - Run with: ./gradlew :txflow:integrationTest -Dyaci.integration.test=true
+ * - Run with: ./gradlew :txflow:integrationTest
  *
  * Yaci DevKit provides 10 pre-funded addresses (index 0-9) from the default mnemonic.
  * Each address has sufficient ADA for testing.

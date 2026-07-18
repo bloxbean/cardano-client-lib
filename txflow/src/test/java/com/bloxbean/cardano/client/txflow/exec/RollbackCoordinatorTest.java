@@ -43,15 +43,15 @@ class RollbackCoordinatorTest {
     void actualInputsAndExplicitRefsInvalidateClosureButOrderingOnlyNeedsDoNot() {
         FlowAttemptSnapshot a = attempt("a", "hash-a", List.of());
         FlowAttemptSnapshot b = attempt("b", "hash-b", List.of("hash-a#0"));
-        FlowAttemptSnapshot c = attempt("c", "hash-c", List.of("independent#0"));
+        FlowAttemptSnapshot c = attempt("c", "hash-c", List.of());
         FlowAttemptSnapshot d = attempt("d", "hash-d", List.of("hash-b#1"));
 
         Set<String> invalidated = new RollbackCoordinator().invalidatedClosure(
-                "a", List.of(a, b, c, d), Map.of("a", Set.of("c")));
+                "a", "hash-a", List.of(a, b, c, d), Map.of("a", Set.of("c")));
 
         assertEquals(Set.of("a", "b", "c", "d"), invalidated);
         assertEquals(Set.of("a"), new RollbackCoordinator().invalidatedClosure(
-                "a", List.of(a, c), Map.of()));
+                "a", "hash-a", List.of(a, c), Map.of()));
     }
 
     private FlowAttemptSnapshot attempt(String step, String hash, List<String> inputs) {

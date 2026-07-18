@@ -1,9 +1,11 @@
 package com.bloxbean.cardano.client.txflow.store.rdbms;
 
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
+import com.bloxbean.cardano.client.txflow.store.ExecutionLease;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
 import com.bloxbean.cardano.client.txflow.store.FlowStoreException;
 import com.bloxbean.cardano.client.txflow.store.IdempotencyClaimResult;
+import com.bloxbean.cardano.client.txflow.store.MutationFence;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 
@@ -14,8 +16,10 @@ import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -102,6 +106,49 @@ class RdbmsJdbcTransactionTest {
 
             assertEquals("TXFLOW_EXECUTION_NOT_FOUND", failure.getCode());
             assertEquals(1, faults.rollbackCalls());
+        }
+    }
+
+    @Test
+    void storeMapsH2LockTimeoutToRetryableTransactionFailure() {
+        JdbcDataSource delegate = h2DataSource();
+        new RdbmsSchemaManager(delegate, H2Dialect.INSTANCE, fixedClock())
+                .initialize(SchemaManagement.MIGRATE);
+        FaultInjectingDataSource faults = new FaultInjectingDataSource(delegate);
+
+        try (RdbmsFlowExecutionStore store = store(faults.dataSource())) {
+            faults.throwH2LockTimeoutBeforeNextPrepareStatement();
+
+            FlowStoreException failure = assertThrows(FlowStoreException.class,
+                    () -> store.get("lock-timeout"));
+
+            assertEquals("TXFLOW_STORE_SERIALIZATION_FAILURE", failure.getCode());
+            assertEquals(1, faults.rollbackCalls());
+        }
+    }
+
+    @Test
+    void storeRollsBackWhenCallerMutationThrowsAnError() {
+        JdbcDataSource delegate = h2DataSource();
+        new RdbmsSchemaManager(delegate, H2Dialect.INSTANCE, fixedClock())
+                .initialize(SchemaManagement.MIGRATE);
+        FaultInjectingDataSource faults = new FaultInjectingDataSource(delegate);
+
+        try (RdbmsFlowExecutionStore store = store(faults.dataSource())) {
+            store.createOrGet("tenant", "error-cleanup", snapshot("error-cleanup"));
+            ExecutionLease lease = store.acquireExecutionLease(
+                    "error-cleanup", "owner", NOW, Duration.ofMinutes(1));
+            int rollbacksBeforeFailure = faults.rollbackCalls();
+
+            AssertionError failure = assertThrows(AssertionError.class,
+                    () -> store.append("error-cleanup", 0,
+                            MutationFence.executionOnly(lease), List.of(), current -> {
+                                throw new AssertionError("mutation error");
+                            }));
+
+            assertEquals("mutation error", failure.getMessage());
+            assertEquals(rollbacksBeforeFailure + 1, faults.rollbackCalls());
+            assertEquals(0, store.get("error-cleanup").orElseThrow().revision());
         }
     }
 
@@ -260,6 +307,8 @@ class RdbmsJdbcTransactionTest {
         private final AtomicBoolean throwAfterClose = new AtomicBoolean();
         private final AtomicBoolean throwAfterAutoCommitRestore = new AtomicBoolean();
         private final AtomicBoolean throwBeforePrepareStatement = new AtomicBoolean();
+        private final AtomicBoolean throwH2LockTimeoutBeforePrepareStatement =
+                new AtomicBoolean();
         private final AtomicBoolean throwAfterRollback = new AtomicBoolean();
         private final AtomicBoolean rollbackFailureObserved = new AtomicBoolean();
         private final AtomicInteger rollbackCalls = new AtomicInteger();
@@ -291,6 +340,11 @@ class RdbmsJdbcTransactionTest {
                     (proxy, method, arguments) -> {
                         if ("rollback".equals(method.getName())) {
                             rollbackCalls.incrementAndGet();
+                        }
+                        if ("prepareStatement".equals(method.getName())
+                                && throwH2LockTimeoutBeforePrepareStatement.compareAndSet(
+                                true, false)) {
+                            throw new SQLException("injected H2 lock timeout", "HYT00", 50200);
                         }
                         if ("prepareStatement".equals(method.getName())
                                 && throwBeforePrepareStatement.compareAndSet(true, false)) {
@@ -357,6 +411,10 @@ class RdbmsJdbcTransactionTest {
 
         private void throwBeforeNextPrepareStatement() {
             assertTrue(throwBeforePrepareStatement.compareAndSet(false, true));
+        }
+
+        private void throwH2LockTimeoutBeforeNextPrepareStatement() {
+            assertTrue(throwH2LockTimeoutBeforePrepareStatement.compareAndSet(false, true));
         }
 
         private void throwAfterNextRollback() {

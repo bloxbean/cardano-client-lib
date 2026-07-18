@@ -149,6 +149,60 @@ class RdbmsFlowExecutionStoreTest {
     }
 
     @Test
+    void h2NormalizesPersistedTimestampsToMicrosecondsBeforeEncodingAndBinding() {
+        RdbmsFlowExecutionStore store = store();
+        Instant initialTime = Instant.parse("2026-07-14T00:00:00.123456789Z");
+        Instant normalizedInitial = Instant.parse("2026-07-14T00:00:00.123456Z");
+        FlowExecutionSnapshot initial = new FlowExecutionSnapshot(
+                "timestamp-precision", "definition", "request",
+                FlowExecutionState.CREATED, 0, 0, 0, initialTime, Map.of());
+
+        IdempotencyClaimResult created = store.createOrGet(
+                "tenant", "timestamp-precision", initial);
+
+        assertEquals(normalizedInitial, created.snapshot().updatedAt());
+        assertEquals(normalizedInitial,
+                store.get("timestamp-precision").orElseThrow().updatedAt());
+
+        Instant leaseNow = Instant.parse("2026-07-14T00:00:01.123456789Z");
+        ExecutionLease lease = store.acquireExecutionLease(
+                "timestamp-precision", "owner", leaseNow, Duration.ofNanos(1));
+        Instant expectedExpiry = Instant.parse("2026-07-14T00:00:01.123457Z");
+        assertEquals(expectedExpiry, lease.expiresAt());
+        assertTrue(lease.expiresAt().isAfter(leaseNow));
+
+        Instant renewalNow = leaseNow.plusNanos(100);
+        ExecutionLease renewed = store.renewExecutionLease(
+                lease, renewalNow, Duration.ofNanos(1));
+        assertEquals(expectedExpiry, renewed.expiresAt());
+        assertTrue(renewed.expiresAt().isAfter(renewalNow));
+
+        ResourceLease resource = store.acquireResourceLease(
+                "wallet", "timestamp-precision", "owner", leaseNow, Duration.ofNanos(1));
+        assertEquals(expectedExpiry, resource.expiresAt());
+        assertTrue(resource.expiresAt().isAfter(leaseNow));
+        ResourceLease renewedResource = store.renewResourceLease(
+                resource, renewalNow, Duration.ofNanos(1));
+        assertEquals(expectedExpiry, renewedResource.expiresAt());
+        assertTrue(renewedResource.expiresAt().isAfter(renewalNow));
+
+        Instant eventTime = Instant.parse("2026-07-14T00:00:02.999999789Z");
+        FlowEvent event = new FlowEvent(1, "timestamp-precision",
+                FlowEventType.EXECUTION_STARTED, eventTime, null, null, Map.of());
+        Instant updateTime = Instant.parse("2026-07-14T00:00:03.987654789Z");
+        FlowExecutionSnapshot updated = store.append(
+                "timestamp-precision", 0, MutationFence.executionOnly(renewed), List.of(event),
+                current -> current.withState(
+                        FlowExecutionState.RUNNING, updateTime, Map.of()));
+
+        assertEquals(Instant.parse("2026-07-14T00:00:03.987654Z"), updated.updatedAt());
+        assertEquals(updated, store.get("timestamp-precision").orElseThrow());
+        assertEquals(Instant.parse("2026-07-14T00:00:02.999999Z"),
+                store.readEvents("timestamp-precision", 0, 10)
+                        .events().get(0).timestamp());
+    }
+
+    @Test
     void appendAtomicallyChecksRevisionFenceAndContiguousEvents() {
         RdbmsFlowExecutionStore store = store();
         store.createOrGet("tenant", "append", snapshot("append", "request"));

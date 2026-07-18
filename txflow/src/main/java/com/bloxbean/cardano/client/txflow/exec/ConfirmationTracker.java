@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
@@ -266,7 +267,7 @@ public class ConfirmationTracker {
                         .txHash(txHash)
                         .status(lastResult != null ? lastResult.getStatus() : ConfirmationStatus.SUBMITTED)
                         .confirmationDepth(lastResult != null ? lastResult.getConfirmationDepth() : -1)
-                        .error(new RuntimeException("Flow cancelled"))
+                        .error(new CancellationException("Flow cancelled"))
                         .build();
             }
 
@@ -294,11 +295,14 @@ public class ConfirmationTracker {
                 sleepUntilNextCheck(deadline, isCancelledCheck);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                CancellationException cancellation = new CancellationException(
+                        "Flow interrupted while waiting for confirmation");
+                cancellation.initCause(e);
                 return ConfirmationResult.builder()
                         .txHash(txHash)
                         .status(lastResult != null ? lastResult.getStatus() : ConfirmationStatus.SUBMITTED)
                         .confirmationDepth(lastResult != null ? lastResult.getConfirmationDepth() : -1)
-                        .error(e)
+                        .error(cancellation)
                         .build();
             }
         }
@@ -320,7 +324,7 @@ public class ConfirmationTracker {
 
         while (scheduler.now().isBefore(deadline)) {
             if (isCancelledCheck.getAsBoolean()) {
-                RuntimeException cancelled = new RuntimeException("Flow cancelled");
+                CancellationException cancelled = new CancellationException("Flow cancelled");
                 for (String txHash : txHashes) {
                     ConfirmationResult last = lastResults.get(txHash);
                     lastResults.put(txHash, ConfirmationResult.builder()
@@ -345,13 +349,16 @@ public class ConfirmationTracker {
                 sleepUntilNextCheck(deadline, isCancelledCheck);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                CancellationException cancellation = new CancellationException(
+                        "Flow interrupted while monitoring confirmations");
+                cancellation.initCause(e);
                 for (String txHash : txHashes) {
                     ConfirmationResult last = lastResults.get(txHash);
                     lastResults.put(txHash, ConfirmationResult.builder()
                             .txHash(txHash)
                             .status(last != null ? last.getStatus() : ConfirmationStatus.SUBMITTED)
                             .confirmationDepth(last != null ? last.getConfirmationDepth() : -1)
-                            .error(e)
+                            .error(cancellation)
                             .build());
                 }
                 return lastResults;

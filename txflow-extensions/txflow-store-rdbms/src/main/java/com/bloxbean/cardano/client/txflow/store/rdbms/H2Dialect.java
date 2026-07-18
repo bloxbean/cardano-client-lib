@@ -47,4 +47,17 @@ public final class H2Dialect implements TxFlowSqlDialect {
     public int minimumTimestampFractionalDigits() {
         return 6;
     }
+
+    @Override
+    public boolean isRetryableTransactionFailure(SQLException failure) {
+        if (TxFlowSqlDialect.super.isRetryableTransactionFailure(failure)) return true;
+        SQLException current = failure;
+        while (current != null) {
+            if ("HYT00".equals(current.getSQLState()) || current.getErrorCode() == 50200) {
+                return true;
+            }
+            current = current.getNextException();
+        }
+        return false;
+    }
 }

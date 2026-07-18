@@ -9,7 +9,6 @@ import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
-import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
 import com.bloxbean.cardano.client.txflow.model.ParameterSpec;
 import com.bloxbean.cardano.client.txflow.model.ParameterType;
 import com.bloxbean.cardano.client.txflow.model.TransactionTemplate;
@@ -35,14 +34,20 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.error.Mark;
+import org.yaml.snakeyaml.error.MarkedYAMLException;
 
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.time.Duration;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Reads, classifies, and writes legacy and portable TxFlow documents.
@@ -57,6 +62,9 @@ import java.time.Duration;
 public final class TxFlowCodec {
     /** API-version identifier emitted and accepted for the portable v1alpha1 contract. */
     public static final String PORTABLE_API_VERSION = "txflow.cardano-client.dev/v1alpha1";
+    private static final Pattern LEGACY_EXPRESSION = Pattern.compile("\\$\\{(?!\\{)");
+    private static final Set<String> CONFIRMATION_PRESETS =
+            Set.of("defaults", "devnet", "testnet", "quick");
     private static final ObjectMapper JSON = new ObjectMapper(JsonFactory.builder()
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .build())
@@ -84,16 +92,19 @@ public final class TxFlowCodec {
      */
     public FlowDocumentType detect(String source) {
         try {
-            JsonNode root = readSingleTree(source, FlowParseOptions.serverDefaults());
-            if (root == null || !root.isObject()) return FlowDocumentType.UNKNOWN;
-            if ("TxFlow".equals(root.path("kind").asText()) || root.has("flow")) {
-                return FlowDocumentType.TX_FLOW;
-            }
-            if (root.has("transaction")) return FlowDocumentType.TX_PLAN;
-            return FlowDocumentType.UNKNOWN;
+            return detect(readSingleTree(source, FlowParseOptions.serverDefaults()));
         } catch (Exception e) {
             return FlowDocumentType.UNKNOWN;
         }
+    }
+
+    private FlowDocumentType detect(JsonNode root) {
+        if (root == null || !root.isObject()) return FlowDocumentType.UNKNOWN;
+        if ("TxFlow".equals(root.path("kind").asText()) || root.has("flow")) {
+            return FlowDocumentType.TX_FLOW;
+        }
+        if (root.has("transaction")) return FlowDocumentType.TX_PLAN;
+        return FlowDocumentType.UNKNOWN;
     }
 
     /**
@@ -120,18 +131,18 @@ public final class TxFlowCodec {
         }
 
         try {
-            FlowDocumentType type = detect(source);
+            JsonNode root = readSingleTree(source, options);
+            FlowDocumentType type = detect(root);
             if (type != FlowDocumentType.TX_FLOW) {
                 diagnostics.add(FlowDiagnostic.error("TXFLOW_DOCUMENT_KIND",
                         "Document is not a TxFlow", "$"));
                 return new FlowParseResult(null, diagnostics);
             }
 
-            JsonNode root = readSingleTree(source, options);
             if (root.has("api_version")) {
                 return parsePortable(source, root, options, diagnostics);
             }
-            if (source.contains("${{")) {
+            if (containsPortableExpression(root)) {
                 diagnostics.add(FlowDiagnostic.error("TXFLOW_EXPRESSION_SYNTAX",
                         "Portable expression syntax is not allowed in a legacy document", "$"));
                 return new FlowParseResult(null, diagnostics);
@@ -155,6 +166,11 @@ public final class TxFlowCodec {
 
     private FlowParseResult parsePortable(String source, JsonNode root, FlowParseOptions options,
                                           List<FlowDiagnostic> diagnostics) throws Exception {
+        validatePortableShape(root, diagnostics);
+        if (diagnostics.stream().anyMatch(diagnostic ->
+                diagnostic.severity() == DiagnosticSeverity.ERROR)) {
+            return new FlowParseResult(null, diagnostics);
+        }
         String apiVersion = root.path("api_version").asText();
         if (!options.getSupportedApiVersions().contains(apiVersion)) {
             diagnostics.add(FlowDiagnostic.error("TXFLOW_UNSUPPORTED_API_VERSION",
@@ -172,8 +188,12 @@ public final class TxFlowCodec {
             return new FlowParseResult(null, diagnostics);
         }
 
-        if (options.getUnknownFieldPolicy() == UnknownFieldPolicy.WARN) {
-            collectUnknownFields(root, diagnostics);
+        if (options.getUnknownFieldPolicy() != UnknownFieldPolicy.IGNORE) {
+            collectUnknownFields(root, diagnostics, options.getUnknownFieldPolicy());
+        }
+        if (diagnostics.stream().anyMatch(diagnostic ->
+                diagnostic.severity() == DiagnosticSeverity.ERROR)) {
+            return new FlowParseResult(null, diagnostics);
         }
 
         PortableDocument document = mapperFor(source, options).treeToValue(root, PortableDocument.class);
@@ -194,6 +214,7 @@ public final class TxFlowCodec {
         }
 
         TxFlow.Builder flow = TxFlow.builder(document.metadata.name)
+                .withDescription(document.metadata.description)
                 .withDefinitionVersion(document.metadata.version)
                 .withNetwork(document.spec.network)
                 .withExecutionSettings(parseExecution(document.spec.execution));
@@ -248,7 +269,9 @@ public final class TxFlowCodec {
      * <p>Portable steps must contain an embedded transaction template or an
      * exactly-one-transaction QuickTx plan. Java transaction factories and
      * multi-transaction plans cannot be projected into the portable contract.
-     * Legacy output is available as YAML only.</p>
+     * Legacy step dependencies, step-level retry overrides, and legacy variable
+     * maps are also rejected because silently dropping them would change
+     * execution semantics. Legacy output is available as YAML only.</p>
      *
      * @param flow flow to serialize
      * @param options target format and schema version
@@ -261,14 +284,20 @@ public final class TxFlowCodec {
             if (options.format() != FlowFormat.YAML) {
                 throw new FlowEncodingException("Legacy TxFlow supports YAML output only");
             }
-            return flow.toYaml();
+            try {
+                return flow.toYaml();
+            } catch (RuntimeException failure) {
+                throw new FlowEncodingException("Failed to encode legacy TxFlow", failure);
+            }
         }
+        validatePortableSemantics(flow);
         try {
             ObjectNode root = JSON.createObjectNode();
             root.put("api_version", PORTABLE_API_VERSION);
             root.put("kind", "TxFlow");
             ObjectNode metadata = root.putObject("metadata");
             metadata.put("name", flow.getId());
+            if (flow.getDescription() != null) metadata.put("description", flow.getDescription());
             if (flow.getDefinitionVersion() != null) metadata.put("version", flow.getDefinitionVersion());
             if (!flow.getAnnotations().isEmpty()) metadata.set("annotations", JSON.valueToTree(flow.getAnnotations()));
             ObjectNode spec = root.putObject("spec");
@@ -306,6 +335,15 @@ public final class TxFlowCodec {
         }
     }
 
+    private void validatePortableSemantics(TxFlow flow) {
+        List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(flow);
+        if (!diagnostics.isEmpty()) {
+            FlowDiagnostic first = diagnostics.get(0);
+            throw new FlowEncodingException(first.code() + " at " + first.documentPath()
+                    + ": " + first.message());
+        }
+    }
+
     private JsonNode transactionNode(FlowStep step) throws Exception {
         if (step.hasTransactionTemplate()) return step.getTransactionTemplate().toJsonNode();
         if (!step.hasTxPlan() || step.getTxPlan().getTxs().size() != 1) {
@@ -340,23 +378,15 @@ public final class TxFlowCodec {
         }
         JsonNode confirmation = node.get("confirmation");
         if (confirmation != null && confirmation.isObject()) {
-            ConfirmationConfig.Builder confirmationBuilder;
-            String preset = confirmation.path("preset").asText("");
-            if ("testnet".equalsIgnoreCase(preset)) {
-                ConfirmationConfig presetConfig = ConfirmationConfig.testnet();
-                confirmationBuilder = ConfirmationConfig.builder()
-                        .minConfirmations(presetConfig.getMinConfirmations())
-                        .checkInterval(presetConfig.getCheckInterval())
-                        .timeout(presetConfig.getTimeout());
-            } else {
-                confirmationBuilder = ConfirmationConfig.builder();
-            }
-            if (confirmation.has("min_confirmations"))
-                confirmationBuilder.minConfirmations(confirmation.get("min_confirmations").asInt());
-            if (confirmation.has("check_interval"))
+            ConfirmationConfig preset = confirmationPreset(
+                    confirmation.path("preset").asText("defaults"));
+            ConfirmationConfig.Builder confirmationBuilder = copyPortableConfirmation(preset);
+            if (confirmation.hasNonNull("min_confirmations"))
+                confirmationBuilder.minConfirmations(confirmation.get("min_confirmations").intValue());
+            if (confirmation.hasNonNull("check_interval"))
                 confirmationBuilder.checkInterval(parseDuration(
                         confirmation.get("check_interval").asText(), "check_interval"));
-            if (confirmation.has("timeout"))
+            if (confirmation.hasNonNull("timeout"))
                 confirmationBuilder.timeout(parseDuration(
                         confirmation.get("timeout").asText(), "timeout"));
             builder.confirmationConfig(confirmationBuilder.build());
@@ -364,50 +394,48 @@ public final class TxFlowCodec {
         JsonNode rollback = node.get("rollback");
         if (rollback != null && rollback.hasNonNull("action")) {
             String action = rollback.get("action").asText().toUpperCase(Locale.ROOT);
-            RollbackStrategy strategy = action.equals("FAIL") ? RollbackStrategy.FAIL_IMMEDIATELY
-                    : action.equals("NOTIFY") || action.equals("WAIT_FOR_REINCLUSION")
-                    ? RollbackStrategy.NOTIFY_ONLY
-                    : RollbackStrategy.REBUILD_FROM_FAILED;
-            builder.rollbackStrategy(strategy);
             RollbackPolicy defaults = RollbackPolicy.defaults();
-            RollbackAction portableAction = action.equals("NOTIFY")
-                    ? RollbackAction.WAIT_FOR_REINCLUSION
-                    : action.equals("REBUILD_FROM_FAILED") || action.equals("REBUILD_ENTIRE_FLOW")
-                    ? RollbackAction.RECONCILE_AND_REBUILD : RollbackAction.valueOf(action);
-            builder.rollbackPolicy(new RollbackPolicy(
-                    portableAction,
+            RollbackPolicy policy = new RollbackPolicy(
+                    RollbackAction.valueOf(action),
                     rollback.hasNonNull("monitoring_horizon")
                             ? RollbackMonitoringHorizon.valueOf(rollback.get("monitoring_horizon")
                             .asText().toUpperCase(Locale.ROOT)) : defaults.monitoringHorizon(),
                     rollback.hasNonNull("rebuild_scope")
                             ? RollbackRebuildScope.valueOf(rollback.get("rebuild_scope")
                             .asText().toUpperCase(Locale.ROOT)) : defaults.rebuildScope(),
-                    rollback.path("max_recovery_cycles").asInt(defaults.maxRecoveryCycles()),
+                    rollback.hasNonNull("max_recovery_cycles")
+                            ? rollback.get("max_recovery_cycles").intValue()
+                            : defaults.maxRecoveryCycles(),
                     rollback.hasNonNull("reinclusion_window")
                             ? parseDuration(rollback.get("reinclusion_window").asText(),
                                     "reinclusion_window")
                             : defaults.reinclusionWindow(),
-                    rollback.path("minimum_consistent_absence_observations")
-                            .asInt(defaults.minimumConsistentAbsenceObservations())));
+                    rollback.hasNonNull("minimum_consistent_absence_observations")
+                            ? rollback.get("minimum_consistent_absence_observations").intValue()
+                            : defaults.minimumConsistentAbsenceObservations());
+            builder.rollbackPolicy(policy);
         }
         JsonNode retry = node.get("retry");
         if (retry != null && retry.isObject()) {
             RetryPolicy.RetryPolicyBuilder retryBuilder = RetryPolicy.builder();
-            if (retry.has("max_attempts")) retryBuilder.maxAttempts(retry.get("max_attempts").asInt());
-            if (retry.has("backoff")) retryBuilder.backoffStrategy(
+            if (retry.hasNonNull("max_attempts"))
+                retryBuilder.maxAttempts(retry.get("max_attempts").intValue());
+            if (retry.hasNonNull("backoff")) retryBuilder.backoffStrategy(
                     BackoffStrategy.valueOf(retry.get("backoff").asText().toUpperCase(Locale.ROOT)));
-            if (retry.has("initial_delay")) retryBuilder.initialDelay(
+            if (retry.hasNonNull("initial_delay")) retryBuilder.initialDelay(
                     parseDuration(retry.get("initial_delay").asText(), "initial_delay"));
-            if (retry.has("max_delay")) retryBuilder.maxDelay(
+            if (retry.hasNonNull("max_delay")) retryBuilder.maxDelay(
                     parseDuration(retry.get("max_delay").asText(), "max_delay"));
-            if (retry.has("jitter")) retryBuilder.jitterFactor(retry.get("jitter").asDouble());
+            if (retry.hasNonNull("jitter"))
+                retryBuilder.jitterFactor(retry.get("jitter").doubleValue());
             builder.retryPolicy(retryBuilder.build());
         }
         JsonNode validity = node.get("validity");
         if (validity != null && validity.hasNonNull("window")) {
             builder.validityPolicy(new ValidityPolicy(
                     parseDuration(validity.get("window").asText(), "window"),
-                    validity.path("resubmit_safety_margin").asLong(0)));
+                    validity.hasNonNull("resubmit_safety_margin")
+                            ? validity.get("resubmit_safety_margin").longValue() : 0));
         }
         return builder.build();
     }
@@ -421,8 +449,8 @@ public final class TxFlowCodec {
             confirmation.put("check_interval", formatDuration(settings.getConfirmationConfig().getCheckInterval()));
             confirmation.put("timeout", formatDuration(settings.getConfirmationConfig().getTimeout()));
         }
-        if (settings.getRollbackPolicy() != null) {
-            RollbackPolicy rollbackPolicy = settings.getRollbackPolicy();
+        RollbackPolicy rollbackPolicy = settings.getRollbackPolicy();
+        if (rollbackPolicy != null) {
             ObjectNode rollback = node.putObject("rollback");
             rollback.put("action", rollbackPolicy.action().name());
             rollback.put("monitoring_horizon", rollbackPolicy.monitoringHorizon().name());
@@ -431,11 +459,6 @@ public final class TxFlowCodec {
             rollback.put("reinclusion_window", formatDuration(rollbackPolicy.reinclusionWindow()));
             rollback.put("minimum_consistent_absence_observations",
                     rollbackPolicy.minimumConsistentAbsenceObservations());
-        } else if (settings.getRollbackStrategy() != null) {
-            String action = settings.getRollbackStrategy() == RollbackStrategy.FAIL_IMMEDIATELY ? "FAIL"
-                    : settings.getRollbackStrategy() == RollbackStrategy.NOTIFY_ONLY ? "NOTIFY"
-                    : "RECONCILE_AND_REBUILD";
-            node.putObject("rollback").put("action", action);
         }
         if (settings.getRetryPolicy() != null) {
             ObjectNode retry = node.putObject("retry");
@@ -456,6 +479,23 @@ public final class TxFlowCodec {
 
     private Duration parseDuration(String value, String fieldName) {
         return DurationCodec.parsePortable(value, fieldName);
+    }
+
+    private ConfirmationConfig confirmationPreset(String name) {
+        switch (name.toLowerCase(Locale.ROOT)) {
+            case "devnet": return ConfirmationConfig.devnet();
+            case "testnet": return ConfirmationConfig.testnet();
+            case "quick": return ConfirmationConfig.quick();
+            case "defaults": return ConfirmationConfig.defaults();
+            default: throw new IllegalArgumentException("Unsupported confirmation preset: " + name);
+        }
+    }
+
+    private ConfirmationConfig.Builder copyPortableConfirmation(ConfirmationConfig value) {
+        return ConfirmationConfig.builder()
+                .minConfirmations(value.getMinConfirmations())
+                .checkInterval(value.getCheckInterval())
+                .timeout(value.getTimeout());
     }
 
     private String formatDuration(Duration value) {
@@ -483,8 +523,7 @@ public final class TxFlowCodec {
 
     private boolean containsLegacyExpression(JsonNode node) {
         if (node.isTextual()) {
-            String value = node.asText();
-            return value.matches(".*\\$\\{(?!\\{).*" );
+            return LEGACY_EXPRESSION.matcher(node.asText()).find();
         }
         if (node.isContainerNode()) {
             for (JsonNode child : node) if (containsLegacyExpression(child)) return true;
@@ -492,14 +531,316 @@ public final class TxFlowCodec {
         return false;
     }
 
+    private boolean containsPortableExpression(JsonNode node) {
+        if (node.isTextual()) return node.asText().contains("${{");
+        if (node.isContainerNode()) {
+            for (JsonNode child : node) if (containsPortableExpression(child)) return true;
+        }
+        return false;
+    }
+
+    private void validatePortableShape(JsonNode root,
+                                       List<FlowDiagnostic> diagnostics) {
+        requireField(root, "api_version", "$.api_version", diagnostics);
+        validateText(root, "api_version", "$.api_version", diagnostics);
+        requireField(root, "kind", "$.kind", diagnostics);
+        validateText(root, "kind", "$.kind", diagnostics);
+
+        requireField(root, "metadata", "$.metadata", diagnostics);
+        JsonNode metadata = validateObject(root, "metadata", "$.metadata", diagnostics);
+        if (metadata != null) {
+            requireField(metadata, "name", "$.metadata.name", diagnostics);
+            validateText(metadata, "name", "$.metadata.name", diagnostics);
+            validateText(metadata, "description", "$.metadata.description", diagnostics);
+            validateText(metadata, "version", "$.metadata.version", diagnostics);
+            JsonNode annotations = validateObject(metadata, "annotations",
+                    "$.metadata.annotations", diagnostics);
+            if (annotations != null) {
+                annotations.fields().forEachRemaining(entry -> {
+                    if (!entry.getValue().isTextual()) {
+                        addTypeError(diagnostics,
+                                "$.metadata.annotations." + entry.getKey(), "string");
+                    }
+                });
+            }
+        }
+
+        requireField(root, "spec", "$.spec", diagnostics);
+        JsonNode spec = validateObject(root, "spec", "$.spec", diagnostics);
+        if (spec == null) return;
+        validateText(spec, "network", "$.spec.network", diagnostics);
+        validateParameters(spec, diagnostics);
+        JsonNode execution = spec.get("execution");
+        if (execution != null) validateExecutionShape(execution, diagnostics);
+        validateSteps(spec, diagnostics);
+    }
+
+    private void validateParameters(JsonNode spec,
+                                    List<FlowDiagnostic> diagnostics) {
+        JsonNode parameters = validateObject(spec, "parameters", "$.spec.parameters", diagnostics);
+        if (parameters == null) return;
+        parameters.fields().forEachRemaining(entry -> {
+            String path = "$.spec.parameters." + entry.getKey();
+            JsonNode parameter = entry.getValue();
+            if (!parameter.isObject()) {
+                addTypeError(diagnostics, path, "object");
+                return;
+            }
+            requireField(parameter, "type", path + ".type", diagnostics);
+            validateEnum(parameter, "type", path + ".type", diagnostics,
+                    Set.of("string", "integer", "boolean", "address", "asset_unit"), false);
+            validateBoolean(parameter, "required", path + ".required", diagnostics);
+            validateInteger(parameter, "minimum", path + ".minimum", diagnostics, true);
+            validateInteger(parameter, "maximum", path + ".maximum", diagnostics, true);
+            validateInteger(parameter, "max_length", path + ".max_length", diagnostics, false);
+            validateBoolean(parameter, "sensitive", path + ".sensitive", diagnostics);
+        });
+    }
+
+    private void validateSteps(JsonNode spec,
+                               List<FlowDiagnostic> diagnostics) {
+        requireField(spec, "steps", "$.spec.steps", diagnostics);
+        JsonNode steps = spec.get("steps");
+        if (steps == null) return;
+        if (!steps.isArray()) {
+            addTypeError(diagnostics, "$.spec.steps", "array");
+            return;
+        }
+        for (int index = 0; index < steps.size(); index++) {
+            JsonNode step = steps.get(index);
+            String path = "$.spec.steps[" + index + "]";
+            if (!step.isObject()) {
+                addTypeError(diagnostics, path, "object");
+                continue;
+            }
+            requireField(step, "id", path + ".id", diagnostics);
+            validateText(step, "id", path + ".id", diagnostics);
+            validateText(step, "description", path + ".description", diagnostics);
+            validateStringArray(step, "needs", path + ".needs", diagnostics);
+            requireField(step, "transaction", path + ".transaction", diagnostics);
+            validateObject(step, "transaction", path + ".transaction", diagnostics);
+            validateOutputs(step, path, diagnostics);
+        }
+    }
+
+    private void validateOutputs(JsonNode step, String stepPath,
+                                 List<FlowDiagnostic> diagnostics) {
+        JsonNode outputs = validateObject(step, "outputs", stepPath + ".outputs", diagnostics);
+        if (outputs == null) return;
+        outputs.fields().forEachRemaining(entry -> {
+            String path = stepPath + ".outputs." + entry.getKey();
+            JsonNode output = entry.getValue();
+            if (!output.isObject()) {
+                addTypeError(diagnostics, path, "object");
+                return;
+            }
+            requireField(output, "select", path + ".select", diagnostics);
+            JsonNode select = validateObject(output, "select", path + ".select", diagnostics);
+            if (select != null) {
+                requireField(select, "output_index", path + ".select.output_index", diagnostics);
+                validateInteger(select, "output_index", path + ".select.output_index",
+                        diagnostics, false);
+            }
+            requireField(output, "expect", path + ".expect", diagnostics);
+            validateEnum(output, "expect", path + ".expect", diagnostics,
+                    Set.of("exactly_one"), false);
+        });
+    }
+
+    private void validateExecutionShape(JsonNode execution,
+                                        List<FlowDiagnostic> diagnostics) {
+        if (!execution.isObject()) {
+            addTypeError(diagnostics, "$.spec.execution", "object");
+            return;
+        }
+        validateEnum(execution, "mode", "$.spec.execution.mode", diagnostics,
+                Set.of("SEQUENTIAL", "PIPELINED", "BATCH"), false);
+
+        JsonNode confirmation = validateObject(execution, "confirmation",
+                "$.spec.execution.confirmation", diagnostics);
+        if (confirmation != null) {
+            validateText(confirmation, "preset", "$.spec.execution.confirmation.preset", diagnostics);
+            JsonNode preset = confirmation.get("preset");
+            if (preset != null && preset.isTextual()
+                    && !CONFIRMATION_PRESETS.contains(preset.asText())) {
+                diagnostics.add(FlowDiagnostic.error("TXFLOW_CONFIRMATION_PRESET_UNSUPPORTED",
+                        "Unsupported confirmation preset: " + preset.asText(),
+                        "$.spec.execution.confirmation.preset"));
+            }
+            validateInteger(confirmation, "min_confirmations",
+                    "$.spec.execution.confirmation.min_confirmations", diagnostics, false);
+            validateDuration(confirmation, "check_interval",
+                    "$.spec.execution.confirmation.check_interval", diagnostics);
+            validateDuration(confirmation, "timeout",
+                    "$.spec.execution.confirmation.timeout", diagnostics);
+        }
+
+        JsonNode rollback = validateObject(execution, "rollback",
+                "$.spec.execution.rollback", diagnostics);
+        if (rollback != null) {
+            requireField(rollback, "action", "$.spec.execution.rollback.action", diagnostics);
+            validateEnum(rollback, "action", "$.spec.execution.rollback.action", diagnostics,
+                    enumNames(RollbackAction.values()), false);
+            validateEnum(rollback, "monitoring_horizon",
+                    "$.spec.execution.rollback.monitoring_horizon", diagnostics,
+                    enumNames(RollbackMonitoringHorizon.values()), false);
+            validateEnum(rollback, "rebuild_scope",
+                    "$.spec.execution.rollback.rebuild_scope", diagnostics,
+                    enumNames(RollbackRebuildScope.values()), false);
+            validateInteger(rollback, "max_recovery_cycles",
+                    "$.spec.execution.rollback.max_recovery_cycles", diagnostics, false);
+            validateDuration(rollback, "reinclusion_window",
+                    "$.spec.execution.rollback.reinclusion_window", diagnostics);
+            validateInteger(rollback, "minimum_consistent_absence_observations",
+                    "$.spec.execution.rollback.minimum_consistent_absence_observations",
+                    diagnostics, false);
+        }
+
+        JsonNode retry = validateObject(execution, "retry", "$.spec.execution.retry", diagnostics);
+        if (retry != null) {
+            validateInteger(retry, "max_attempts", "$.spec.execution.retry.max_attempts",
+                    diagnostics, false);
+            validateEnum(retry, "backoff", "$.spec.execution.retry.backoff", diagnostics,
+                    Set.of("fixed", "linear", "exponential",
+                            "FIXED", "LINEAR", "EXPONENTIAL"), false);
+            validateDuration(retry, "initial_delay", "$.spec.execution.retry.initial_delay",
+                    diagnostics);
+            validateDuration(retry, "max_delay", "$.spec.execution.retry.max_delay", diagnostics);
+            JsonNode jitter = retry.get("jitter");
+            if (jitter != null && (!jitter.isNumber() || !Double.isFinite(jitter.doubleValue()))) {
+                addTypeError(diagnostics, "$.spec.execution.retry.jitter", "finite number");
+            }
+        }
+
+        JsonNode validity = validateObject(execution, "validity",
+                "$.spec.execution.validity", diagnostics);
+        if (validity != null) {
+            requireField(validity, "window", "$.spec.execution.validity.window", diagnostics);
+            validateDuration(validity, "window", "$.spec.execution.validity.window", diagnostics);
+            validateInteger(validity, "resubmit_safety_margin",
+                    "$.spec.execution.validity.resubmit_safety_margin", diagnostics, true);
+        }
+    }
+
+    private JsonNode validateObject(JsonNode parent, String field, String path,
+                                    List<FlowDiagnostic> diagnostics) {
+        JsonNode value = parent.get(field);
+        if (value == null) return null;
+        if (!value.isObject()) {
+            addTypeError(diagnostics, path, "object");
+            return null;
+        }
+        return value;
+    }
+
+    private void validateText(JsonNode parent, String field, String path,
+                              List<FlowDiagnostic> diagnostics) {
+        JsonNode value = parent.get(field);
+        if (value != null && !value.isTextual()) addTypeError(diagnostics, path, "string");
+    }
+
+    private void validateBoolean(JsonNode parent, String field, String path,
+                                 List<FlowDiagnostic> diagnostics) {
+        JsonNode value = parent.get(field);
+        if (value != null && !value.isBoolean()) addTypeError(diagnostics, path, "boolean");
+    }
+
+    private void validateStringArray(JsonNode parent, String field, String path,
+                                     List<FlowDiagnostic> diagnostics) {
+        JsonNode value = parent.get(field);
+        if (value == null) return;
+        if (!value.isArray()) {
+            addTypeError(diagnostics, path, "array");
+            return;
+        }
+        for (int index = 0; index < value.size(); index++) {
+            if (!value.get(index).isTextual()) {
+                addTypeError(diagnostics, path + "[" + index + "]", "string");
+            }
+        }
+    }
+
+    private void requireField(JsonNode parent, String field, String path,
+                              List<FlowDiagnostic> diagnostics) {
+        if (!parent.has(field)) {
+            diagnostics.add(FlowDiagnostic.error("TXFLOW_FIELD_VALUE",
+                    "Required field is missing", path));
+        }
+    }
+
+    private void validateInteger(JsonNode parent, String field, String path,
+                                 List<FlowDiagnostic> diagnostics, boolean allowLong) {
+        JsonNode value = parent.get(field);
+        if (value != null && (!value.isIntegralNumber()
+                || (allowLong ? !value.canConvertToLong() : !value.canConvertToInt()))) {
+            addTypeError(diagnostics, path, allowLong ? "64-bit integer" : "32-bit integer");
+        }
+    }
+
+    private void validateDuration(JsonNode parent, String field, String path,
+                                  List<FlowDiagnostic> diagnostics) {
+        JsonNode value = parent.get(field);
+        if (value == null) return;
+        if (!value.isTextual()) {
+            addTypeError(diagnostics, path, "duration string");
+            return;
+        }
+        try {
+            parseDuration(value.asText(), field);
+        } catch (RuntimeException failure) {
+            diagnostics.add(FlowDiagnostic.error("TXFLOW_FIELD_VALUE", failure.getMessage(), path));
+        }
+    }
+
+    private void validateEnum(JsonNode parent, String field, String path,
+                              List<FlowDiagnostic> diagnostics, Set<String> allowed,
+                              boolean caseInsensitive) {
+        JsonNode value = parent.get(field);
+        if (value == null) return;
+        if (!value.isTextual()) {
+            addTypeError(diagnostics, path, "string");
+            return;
+        }
+        String candidate = caseInsensitive
+                ? value.asText().toUpperCase(Locale.ROOT) : value.asText();
+        Set<String> comparison = caseInsensitive
+                ? allowed.stream().map(item -> item.toUpperCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toSet()) : allowed;
+        if (!comparison.contains(candidate)) {
+            diagnostics.add(FlowDiagnostic.error("TXFLOW_FIELD_VALUE",
+                    "Unsupported value '" + value.asText() + "'", path));
+        }
+    }
+
+    private Set<String> enumNames(Enum<?>[] values) {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        for (Enum<?> value : values) names.add(value.name());
+        return names;
+    }
+
+    private void addTypeError(List<FlowDiagnostic> diagnostics, String path, String expected) {
+        diagnostics.add(FlowDiagnostic.error("TXFLOW_FIELD_TYPE",
+                "Expected " + expected, path));
+    }
+
     private FlowDiagnostic parseDiagnostic(Exception exception) {
         Throwable current = exception;
-        while (current != null && !(current instanceof JsonProcessingException)) current = current.getCause();
-        if (current instanceof JsonProcessingException) {
-            JsonProcessingException json = (JsonProcessingException) current;
-            return new FlowDiagnostic("TXFLOW_PARSE_ERROR", DiagnosticSeverity.ERROR,
-                    json.getOriginalMessage(), "$", json.getLocation().getLineNr(),
-                    json.getLocation().getColumnNr(), null);
+        while (current != null) {
+            if (current instanceof JsonProcessingException) {
+                JsonProcessingException json = (JsonProcessingException) current;
+                return new FlowDiagnostic("TXFLOW_PARSE_ERROR", DiagnosticSeverity.ERROR,
+                        json.getOriginalMessage(), "$", json.getLocation().getLineNr(),
+                        json.getLocation().getColumnNr(), null);
+            }
+            if (current instanceof MarkedYAMLException) {
+                MarkedYAMLException yaml = (MarkedYAMLException) current;
+                Mark mark = yaml.getProblemMark();
+                return new FlowDiagnostic("TXFLOW_PARSE_ERROR", DiagnosticSeverity.ERROR,
+                        yaml.getProblem() != null ? yaml.getProblem() : yaml.getMessage(), "$",
+                        mark != null ? mark.getLine() + 1 : null,
+                        mark != null ? mark.getColumn() + 1 : null, null);
+            }
+            current = current.getCause();
         }
         return FlowDiagnostic.error("TXFLOW_PARSE_ERROR", exception.getMessage(), "$" );
     }
@@ -511,6 +852,7 @@ public final class TxFlowCodec {
     }
 
     private JsonNode readSingleTree(String source, FlowParseOptions options) throws Exception {
+        if (!source.stripLeading().startsWith("{")) validateYamlSafety(source, options);
         ObjectMapper mapper = mapperFor(source, options);
         try (MappingIterator<JsonNode> documents = mapper.readerFor(JsonNode.class).readValues(source)) {
             if (!documents.hasNextValue()) return null;
@@ -522,12 +864,18 @@ public final class TxFlowCodec {
         }
     }
 
+    private void validateYamlSafety(String source, FlowParseOptions options) {
+        int documentCount = 0;
+        for (org.yaml.snakeyaml.nodes.Node ignored
+                : new Yaml(loaderOptions(options)).composeAll(new StringReader(source))) {
+            if (++documentCount > 1) {
+                throw new IllegalArgumentException("Multiple documents are not allowed");
+            }
+        }
+    }
+
     private ObjectMapper yamlMapper(FlowParseOptions options) {
-        LoaderOptions loader = new LoaderOptions();
-        loader.setAllowDuplicateKeys(false);
-        loader.setMaxAliasesForCollections(options.getMaxAliases());
-        loader.setNestingDepthLimit(options.getMaxNestingDepth());
-        loader.setCodePointLimit(options.getMaxDocumentBytes());
+        LoaderOptions loader = loaderOptions(options);
         YAMLFactory factory = YAMLFactory.builder().loaderOptions(loader).build();
         factory.enable(YAMLGenerator.Feature.MINIMIZE_QUOTES);
         factory.disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
@@ -541,37 +889,49 @@ public final class TxFlowCodec {
         return mapper;
     }
 
-    private void collectUnknownFields(JsonNode root, List<FlowDiagnostic> diagnostics) {
-        warnUnknown(root, "$", diagnostics, "api_version", "kind", "metadata", "spec");
+    private LoaderOptions loaderOptions(FlowParseOptions options) {
+        LoaderOptions loader = new LoaderOptions();
+        loader.setAllowDuplicateKeys(false);
+        loader.setMaxAliasesForCollections(options.getMaxAliases());
+        loader.setNestingDepthLimit(options.getMaxNestingDepth());
+        loader.setCodePointLimit(options.getMaxDocumentBytes());
+        return loader;
+    }
+
+    private void collectUnknownFields(JsonNode root, List<FlowDiagnostic> diagnostics,
+                                      UnknownFieldPolicy policy) {
+        warnUnknown(root, "$", diagnostics, policy, "api_version", "kind", "metadata", "spec");
         JsonNode metadata = root.path("metadata");
-        warnUnknown(metadata, "$.metadata", diagnostics, "name", "version", "annotations");
+        warnUnknown(metadata, "$.metadata", diagnostics, policy,
+                "name", "description", "version", "annotations");
         JsonNode spec = root.path("spec");
-        warnUnknown(spec, "$.spec", diagnostics, "network", "parameters", "execution", "steps");
+        warnUnknown(spec, "$.spec", diagnostics, policy,
+                "network", "parameters", "execution", "steps");
         spec.path("parameters").fields().forEachRemaining(entry -> warnUnknown(entry.getValue(),
-                "$.spec.parameters." + entry.getKey(), diagnostics,
+                "$.spec.parameters." + entry.getKey(), diagnostics, policy,
                 "type", "required", "default", "minimum", "maximum", "max_length", "sensitive"));
         JsonNode execution = spec.path("execution");
-        warnUnknown(execution, "$.spec.execution", diagnostics,
+        warnUnknown(execution, "$.spec.execution", diagnostics, policy,
                 "mode", "confirmation", "rollback", "retry", "validity");
-        warnUnknown(execution.path("confirmation"), "$.spec.execution.confirmation", diagnostics,
+        warnUnknown(execution.path("confirmation"), "$.spec.execution.confirmation", diagnostics, policy,
                 "preset", "min_confirmations", "check_interval", "timeout");
-        warnUnknown(execution.path("rollback"), "$.spec.execution.rollback", diagnostics,
+        warnUnknown(execution.path("rollback"), "$.spec.execution.rollback", diagnostics, policy,
                 "action", "monitoring_horizon", "rebuild_scope", "max_recovery_cycles",
                 "reinclusion_window", "minimum_consistent_absence_observations");
-        warnUnknown(execution.path("retry"), "$.spec.execution.retry", diagnostics,
+        warnUnknown(execution.path("retry"), "$.spec.execution.retry", diagnostics, policy,
                 "max_attempts", "backoff", "initial_delay", "max_delay", "jitter");
-        warnUnknown(execution.path("validity"), "$.spec.execution.validity", diagnostics,
+        warnUnknown(execution.path("validity"), "$.spec.execution.validity", diagnostics, policy,
                 "window", "resubmit_safety_margin");
         JsonNode steps = spec.path("steps");
         for (int i = 0; i < steps.size(); i++) {
             JsonNode step = steps.get(i);
             String path = "$.spec.steps[" + i + "]";
-            warnUnknown(step, path, diagnostics,
-                    "id", "description", "needs", "transaction", "outputs", "retry");
+            warnUnknown(step, path, diagnostics, policy,
+                    "id", "description", "needs", "transaction", "outputs");
             step.path("outputs").fields().forEachRemaining(entry -> {
                 String outputPath = path + ".outputs." + entry.getKey();
-                warnUnknown(entry.getValue(), outputPath, diagnostics, "select", "expect");
-                warnUnknown(entry.getValue().path("select"), outputPath + ".select", diagnostics,
+                warnUnknown(entry.getValue(), outputPath, diagnostics, policy, "select", "expect");
+                warnUnknown(entry.getValue().path("select"), outputPath + ".select", diagnostics, policy,
                         "output_index");
             });
         }
@@ -595,12 +955,14 @@ public final class TxFlowCodec {
     }
 
     private void warnUnknown(JsonNode node, String path, List<FlowDiagnostic> diagnostics,
-                             String... knownFields) {
+                             UnknownFieldPolicy policy, String... knownFields) {
         if (!node.isObject()) return;
         java.util.Set<String> known = java.util.Set.of(knownFields);
         node.fieldNames().forEachRemaining(field -> {
             if (!known.contains(field)) {
-                diagnostics.add(new FlowDiagnostic("TXFLOW_UNKNOWN_FIELD", DiagnosticSeverity.WARNING,
+                diagnostics.add(new FlowDiagnostic("TXFLOW_UNKNOWN_FIELD",
+                        policy == UnknownFieldPolicy.REJECT
+                                ? DiagnosticSeverity.ERROR : DiagnosticSeverity.WARNING,
                         "Unknown field: " + field, path + "." + field, null, null, null));
             }
         });
@@ -615,6 +977,7 @@ public final class TxFlowCodec {
 
     static final class Metadata {
         public String name;
+        public String description;
         public String version;
         public Map<String, String> annotations = new LinkedHashMap<>();
     }

@@ -127,6 +127,20 @@ public final class FlowStoreCodec {
     }
 
     /**
+     * Reports whether this library retains a reader for a durable envelope version.
+     *
+     * <p>Relational adapters use this independently of {@link #CURRENT_FORMAT_VERSION} so a
+     * future writer-version bump does not make existing rows unreadable while their explicit
+     * version reader remains supported.</p>
+     *
+     * @param version envelope version stored alongside the payload
+     * @return whether the payload can be decoded by this library
+     */
+    public static boolean supportsFormatVersion(int version) {
+        return version == FORMAT_VERSION_V1;
+    }
+
+    /**
      * Encodes a complete execution snapshot in the current persistence envelope.
      *
      * @param snapshot snapshot to encode
@@ -158,7 +172,24 @@ public final class FlowStoreCodec {
      *         configured size limit
      */
     public FlowExecutionSnapshot decodeSnapshot(byte[] encoded) {
-        ObjectNode payload = readEnvelope(encoded, SNAPSHOT_KIND);
+        return decodeSnapshot(encoded, null);
+    }
+
+    /**
+     * Decodes a snapshot while cross-checking version metadata stored outside the payload.
+     *
+     * @param encoded UTF-8 persistence document
+     * @param expectedFormatVersion envelope version recorded by the durable adapter
+     * @return reconstructed snapshot with typed durable data
+     * @throws FlowStoreException when the inner and externally recorded versions differ, or the
+     *         document is otherwise invalid
+     */
+    public FlowExecutionSnapshot decodeSnapshot(byte[] encoded, int expectedFormatVersion) {
+        return decodeSnapshot(encoded, Integer.valueOf(expectedFormatVersion));
+    }
+
+    private FlowExecutionSnapshot decodeSnapshot(byte[] encoded, Integer expectedFormatVersion) {
+        ObjectNode payload = readEnvelope(encoded, SNAPSHOT_KIND, expectedFormatVersion);
         requireExactFields(payload, "snapshot", "execution_id", "definition_fingerprint",
                 "request_fingerprint", "state", "revision", "last_sequence",
                 "compacted_through_sequence", "updated_at", "data");
@@ -211,7 +242,24 @@ public final class FlowStoreCodec {
      *         configured size limit
      */
     public FlowEvent decodeEvent(byte[] encoded) {
-        ObjectNode payload = readEnvelope(encoded, EVENT_KIND);
+        return decodeEvent(encoded, null);
+    }
+
+    /**
+     * Decodes an event while cross-checking version metadata stored outside the payload.
+     *
+     * @param encoded UTF-8 persistence document
+     * @param expectedFormatVersion envelope version recorded by the durable adapter
+     * @return reconstructed event with typed details
+     * @throws FlowStoreException when the inner and externally recorded versions differ, or the
+     *         document is otherwise invalid
+     */
+    public FlowEvent decodeEvent(byte[] encoded, int expectedFormatVersion) {
+        return decodeEvent(encoded, Integer.valueOf(expectedFormatVersion));
+    }
+
+    private FlowEvent decodeEvent(byte[] encoded, Integer expectedFormatVersion) {
+        ObjectNode payload = readEnvelope(encoded, EVENT_KIND, expectedFormatVersion);
         requireExactFields(payload, "event", "sequence", "execution_id", "type", "timestamp",
                 "step_id", "transaction_hash", "details");
         try {
@@ -250,7 +298,8 @@ public final class FlowStoreCodec {
         }
     }
 
-    private ObjectNode readEnvelope(byte[] encoded, String expectedKind) {
+    private ObjectNode readEnvelope(byte[] encoded, String expectedKind,
+                                    Integer expectedFormatVersion) {
         if (encoded == null || encoded.length == 0) {
             throw decodeFailure("Store document cannot be empty", null);
         }
@@ -266,9 +315,13 @@ public final class FlowStoreCodec {
                 throw decodeFailure("Unsupported store format", null);
             }
             int version = requiredInt(envelope, "version", "envelope");
+            if (expectedFormatVersion != null && version != expectedFormatVersion) {
+                throw new FlowStoreException("TXFLOW_STORE_CODEC_VERSION_MISMATCH",
+                        "Store envelope version does not match its external metadata");
+            }
             // Keep explicit version readers here when a later writer version is introduced.
             // Incrementing CURRENT_FORMAT_VERSION must never remove the v1 read path.
-            if (version != FORMAT_VERSION_V1) {
+            if (!supportsFormatVersion(version)) {
                 throw new FlowStoreException("TXFLOW_STORE_CODEC_UNSUPPORTED_VERSION",
                         "Unsupported store format version: " + version);
             }

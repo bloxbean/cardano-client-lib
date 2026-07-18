@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow.store.rdbms;
 
+import com.bloxbean.cardano.client.txflow.exec.FlowEvent;
+import com.bloxbean.cardano.client.txflow.exec.FlowEventType;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
 import com.bloxbean.cardano.client.txflow.store.ExecutionLease;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
@@ -21,6 +23,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -108,6 +111,40 @@ class PostgresFlowExecutionStoreContractTest extends FlowExecutionStoreContract 
                     "multi-instance", 0, MutationFence.executionOnly(stale), List.of(),
                     current -> current));
         }
+    }
+
+    @Test
+    void postgresNormalizesSubMicrosecondAndRolloverTimestampsBeforePersistence() {
+        Instant initialTime = Instant.parse("2026-07-14T00:00:00.123456789Z");
+        FlowExecutionSnapshot initial = new FlowExecutionSnapshot(
+                "timestamp-precision", "definition", "request",
+                FlowExecutionState.CREATED, 0, 0, 0, initialTime, Map.of());
+
+        FlowExecutionSnapshot created = store.createOrGet(
+                "tenant", "timestamp-precision", initial).snapshot();
+
+        assertEquals(Instant.parse("2026-07-14T00:00:00.123456Z"), created.updatedAt());
+        assertEquals(created, store.get("timestamp-precision").orElseThrow());
+
+        Instant leaseNow = Instant.parse("2026-07-14T00:00:00.123456789Z");
+        ExecutionLease lease = store.acquireExecutionLease(
+                "timestamp-precision", "owner", leaseNow, Duration.ofNanos(1));
+        assertEquals(Instant.parse("2026-07-14T00:00:00.123457Z"), lease.expiresAt());
+        assertTrue(lease.expiresAt().isAfter(leaseNow));
+        Instant rolloverTime = Instant.parse("2026-07-14T00:00:00.999999789Z");
+        FlowEvent event = new FlowEvent(1, "timestamp-precision",
+                FlowEventType.EXECUTION_STARTED, rolloverTime, null, null, Map.of());
+        FlowExecutionSnapshot updated = store.append(
+                "timestamp-precision", 0, MutationFence.executionOnly(lease), List.of(event),
+                current -> current.withState(
+                        FlowExecutionState.RUNNING, rolloverTime, Map.of()));
+
+        Instant normalizedRollover = Instant.parse("2026-07-14T00:00:00.999999Z");
+        assertEquals(normalizedRollover, updated.updatedAt());
+        assertEquals(updated, store.get("timestamp-precision").orElseThrow());
+        assertEquals(normalizedRollover,
+                store.readEvents("timestamp-precision", 0, 10)
+                        .events().get(0).timestamp());
     }
 
     @Test

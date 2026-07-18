@@ -36,7 +36,7 @@ final class DurableLeaseGuard implements AutoCloseable {
     private final Executor maintenanceExecutor;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean renewalStarted = new AtomicBoolean();
-    private final AtomicReference<RuntimeException> renewalFailure = new AtomicReference<>();
+    private final AtomicReference<Throwable> renewalFailure = new AtomicReference<>();
     private ExecutionLease executionLease;
     private List<ResourceLease> resourceLeases = new ArrayList<>();
 
@@ -78,8 +78,12 @@ final class DurableLeaseGuard implements AutoCloseable {
 
     /** Throws the first renewal failure, if any, before further durable work. */
     void checkHealthy() {
-        RuntimeException failure = renewalFailure.get();
-        if (failure != null) throw failure;
+        Throwable failure = renewalFailure.get();
+        if (failure instanceof Error) throw (Error) failure;
+        if (failure instanceof RuntimeException) throw (RuntimeException) failure;
+        if (failure != null) {
+            throw new FlowExecutionException("Durable lease renewal failed", failure);
+        }
     }
 
     /** Returns the current execution/resource epochs for a fenced store write. */
@@ -90,17 +94,40 @@ final class DurableLeaseGuard implements AutoCloseable {
 
     private void scheduleRenewal() {
         long delayMillis = Math.max(1, leaseDuration.toMillis() / 3);
-        CompletableFuture.delayedExecutor(delayMillis, TimeUnit.MILLISECONDS,
-                maintenanceExecutor).execute(() -> {
-            if (closed.get()) return;
+        Executor recordingExecutor = command -> {
             try {
-                renew();
-            } catch (RuntimeException failure) {
-                renewalFailure.compareAndSet(null, failure);
-                return;
+                maintenanceExecutor.execute(() -> runRenewalTask(command));
+            } catch (Throwable dispatchFailure) {
+                recordRenewalFailure(dispatchFailure);
             }
-            if (!closed.get()) scheduleRenewal();
-        });
+        };
+        try {
+            CompletableFuture.delayedExecutor(delayMillis, TimeUnit.MILLISECONDS,
+                    recordingExecutor).execute(() -> {
+                if (closed.get()) return;
+                try {
+                    renew();
+                } catch (Throwable failure) {
+                    recordRenewalFailure(failure);
+                    return;
+                }
+                if (!closed.get()) scheduleRenewal();
+            });
+        } catch (Throwable schedulingFailure) {
+            recordRenewalFailure(schedulingFailure);
+        }
+    }
+
+    private void runRenewalTask(Runnable command) {
+        try {
+            command.run();
+        } catch (Throwable failure) {
+            recordRenewalFailure(failure);
+        }
+    }
+
+    private void recordRenewalFailure(Throwable failure) {
+        renewalFailure.compareAndSet(null, failure);
     }
 
     private synchronized void renew() {

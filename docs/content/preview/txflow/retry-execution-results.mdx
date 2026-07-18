@@ -1,11 +1,13 @@
 ---
-title: "Retry, Execution & Results"
-description: "RetryPolicy, FlowExecutor configuration, sync/async execution, FlowResult"
+title: "Legacy: Retry, Execution & Results"
+description: "Compatibility reference for preview retry, FlowExecutor, and FlowResult APIs"
 ---
 
-# Retry, Execution & Results
+# Legacy: Retry, Execution & Results
 
-> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+> **Compatibility API:** This page documents preview `FlowExecutor` and `FlowResult` types. For new
+> code, see [Execution Engine](./execution-engine) and
+> [Policies, Results & Observability](./policies-results-observability).
 
 ## Retry Policy
 
@@ -93,7 +95,11 @@ FlowExecutor executor = FlowExecutor.create(
 ```java
 FlowExecutor executor = FlowExecutor.create(backendService)
     .withChainingMode(ChainingMode.SEQUENTIAL)
-    .withConfirmationConfig(ConfirmationConfig.devnet())
+    .withConfirmationConfig(ConfirmationConfig.builder()
+        .minConfirmations(3)
+        .timeout(Duration.ofSeconds(60))
+        .checkInterval(Duration.ofSeconds(2))
+        .build())
     .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)
     .withDefaultRetryPolicy(RetryPolicy.defaults())
     .withListener(new MyFlowListener())
@@ -101,9 +107,7 @@ FlowExecutor executor = FlowExecutor.create(backendService)
     .withExecutor(virtualThreadExecutor)
     .withTxInspector(tx -> log.debug("Built: {}", tx))
     .withRegistry(flowRegistry)
-    .withStateStore(stateStore)
-    .withConfirmationTimeout(Duration.ofSeconds(60))
-    .withCheckInterval(Duration.ofSeconds(2));
+    .withStateStore(stateStore);
 ```
 
 ### Configuration Reference
@@ -111,7 +115,7 @@ FlowExecutor executor = FlowExecutor.create(backendService)
 | Method | Description |
 |--------|-------------|
 | `withChainingMode(ChainingMode)` | Execution mode (default: SEQUENTIAL) |
-| `withConfirmationConfig(ConfirmationConfig)` | Enable confirmation tracking |
+| `withConfirmationConfig(ConfirmationConfig)` | Enable confirmation tracking and configure depth, timeout, and polling interval |
 | `withRollbackStrategy(RollbackStrategy)` | Rollback handling (default: FAIL_IMMEDIATELY) |
 | `withDefaultRetryPolicy(RetryPolicy)` | Default retry for all steps |
 | `withListener(FlowListener)` | Event callbacks |
@@ -120,8 +124,6 @@ FlowExecutor executor = FlowExecutor.create(backendService)
 | `withTxInspector(Consumer<Transaction>)` | Debug transaction inspection |
 | `withRegistry(FlowRegistry)` | Auto-register flows |
 | `withStateStore(FlowStateStore)` | Persist state for recovery |
-| `withConfirmationTimeout(Duration)` | Simple mode timeout (default: 60s) |
-| `withCheckInterval(Duration)` | Simple mode check interval (default: 2s) |
 
 ## Synchronous Execution
 
@@ -210,14 +212,19 @@ result.getCompletedAt();         // Instant when execution finished
 FlowStepResult stepResult = result.getStepResult("deposit").orElseThrow();
 
 stepResult.isSuccessful();        // true if completed
-stepResult.getStatus();           // FlowStatus
+stepResult.getStatus();           // FlowStatus, including IN_PROGRESS after submission
 stepResult.getStepId();           // Step ID
-stepResult.getTransactionHash();  // Tx hash (null if failed)
+stepResult.getTransactionHash();  // Known tx hash; null when failure preceded build/submission
 stepResult.getOutputUtxos();      // List<Utxo> produced by this step
 stepResult.getSpentInputs();      // List<TransactionInput> consumed
 stepResult.getError();            // Throwable if failed
-stepResult.getCompletedAt();      // Instant when this step finished
+stepResult.getCompletedAt();      // Instant when this result state was observed
 ```
+
+In pipelined and batch terminal results, a submitted transaction that did not reach the effective
+confirmation policy remains `IN_PROGRESS` and is not counted as successful. A build-only
+transaction is omitted. A failed result retains its transaction hash when submission identity was
+already known.
 
 ## Error Handling
 

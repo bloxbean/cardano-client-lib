@@ -18,6 +18,15 @@ import java.util.Set;
  * attempt state nor decides whether policy permits a rebuild.</p>
  */
 final class RollbackCoordinator {
+    record AttemptRef(String stepId, int attemptNumber) { }
+
+    record Invalidation(Set<String> stepIds, Set<AttemptRef> attempts) {
+        Invalidation {
+            stepIds = Set.copyOf(stepIds);
+            attempts = Set.copyOf(attempts);
+        }
+    }
+
     boolean hasActualConsumer(String producerTransactionHash,
                               Iterable<FlowStepResult> results) {
         if (producerTransactionHash == null || results == null) return false;
@@ -59,36 +68,77 @@ final class RollbackCoordinator {
         return Set.copyOf(invalidatedSteps);
     }
 
-    Set<String> invalidatedClosure(String rolledBackStep,
+    Set<String> invalidatedClosure(String rolledBackStep, String rolledBackTransactionHash,
                                    List<FlowAttemptSnapshot> attempts,
                                    Map<String, Set<String>> explicitConsumers) {
+        return invalidatedAttempts(rolledBackStep, rolledBackTransactionHash,
+                attempts, explicitConsumers).stepIds();
+    }
+
+    Invalidation invalidatedAttempts(
+            String rolledBackStep, String rolledBackTransactionHash,
+            List<FlowAttemptSnapshot> attempts,
+            Map<String, Set<String>> explicitConsumers) {
         Set<String> invalidatedSteps = new LinkedHashSet<>();
         Set<String> invalidatedHashes = new LinkedHashSet<>();
+        Set<AttemptRef> invalidatedAttempts = new LinkedHashSet<>();
         invalidatedSteps.add(rolledBackStep);
-        attempts.stream().filter(attempt -> attempt.stepId().equals(rolledBackStep))
-                .map(FlowAttemptSnapshot::signedPayload).filter(java.util.Objects::nonNull)
-                .forEach(payload -> invalidatedHashes.add(payload.transactionHash()));
+        if (rolledBackTransactionHash != null) {
+            invalidatedHashes.add(rolledBackTransactionHash);
+        }
+        for (FlowAttemptSnapshot attempt : attempts) {
+            if (rolledBackTransactionHash != null
+                    && rolledBackStep.equals(attempt.stepId())
+                    && attempt.signedPayload() != null
+                    && rolledBackTransactionHash.equals(
+                    attempt.signedPayload().transactionHash())) {
+                invalidatedAttempts.add(ref(attempt));
+            }
+        }
 
         boolean changed;
         do {
             changed = false;
             for (String producer : List.copyOf(invalidatedSteps)) {
                 for (String consumer : explicitConsumers.getOrDefault(producer, Set.of())) {
-                    changed |= invalidatedSteps.add(consumer);
+                    boolean hasAttempt = false;
+                    for (FlowAttemptSnapshot attempt : attempts) {
+                        if (!consumer.equals(attempt.stepId())) continue;
+                        hasAttempt = true;
+                        // Concrete signed inputs identify the exact producer
+                        // attempt and are handled below. Fall back to the
+                        // compiler's step-level edge only while no concrete
+                        // binding is available for this attempt.
+                        if (attempt.spentInputs().isEmpty()) {
+                            changed |= invalidatedAttempts.add(ref(attempt));
+                            changed |= invalidatedSteps.add(consumer);
+                        }
+                    }
+                    if (!hasAttempt) {
+                        changed |= invalidatedSteps.add(consumer);
+                    }
                 }
             }
             for (FlowAttemptSnapshot attempt : attempts) {
-                if (invalidatedSteps.contains(attempt.stepId())) continue;
+                if (invalidatedAttempts.contains(ref(attempt))) continue;
                 boolean spendsInvalidated = attempt.spentInputs().stream().anyMatch(input ->
                         invalidatedHashes.stream().anyMatch(hash -> input.startsWith(hash + "#")));
-                if (spendsInvalidated) changed |= invalidatedSteps.add(attempt.stepId());
+                if (spendsInvalidated) {
+                    changed |= invalidatedAttempts.add(ref(attempt));
+                    changed |= invalidatedSteps.add(attempt.stepId());
+                }
             }
             for (FlowAttemptSnapshot attempt : attempts) {
-                if (invalidatedSteps.contains(attempt.stepId()) && attempt.signedPayload() != null) {
+                if (invalidatedAttempts.contains(ref(attempt))
+                        && attempt.signedPayload() != null) {
                     changed |= invalidatedHashes.add(attempt.signedPayload().transactionHash());
                 }
             }
         } while (changed);
-        return Set.copyOf(invalidatedSteps);
+        return new Invalidation(invalidatedSteps, invalidatedAttempts);
+    }
+
+    private AttemptRef ref(FlowAttemptSnapshot attempt) {
+        return new AttemptRef(attempt.stepId(), attempt.attemptNumber());
     }
 }

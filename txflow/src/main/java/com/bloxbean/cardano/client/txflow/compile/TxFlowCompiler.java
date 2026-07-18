@@ -1,16 +1,14 @@
 package com.bloxbean.cardano.client.txflow.compile;
 
-import com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
-import com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer;
 import com.bloxbean.cardano.client.txflow.FlowStep;
-import com.bloxbean.cardano.client.txflow.StepDependency;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionPolicy;
 import com.bloxbean.cardano.client.txflow.codec.FlowDiagnostic;
 import com.bloxbean.cardano.client.txflow.codec.FlowFormat;
 import com.bloxbean.cardano.client.txflow.codec.FlowSchemaVersion;
 import com.bloxbean.cardano.client.txflow.codec.FlowWriteOptions;
+import com.bloxbean.cardano.client.txflow.codec.PortableFlowValidator;
 import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
 import com.bloxbean.cardano.client.txflow.model.FlowBindings;
 import com.bloxbean.cardano.client.txflow.model.ParameterSpec;
@@ -46,11 +44,14 @@ import java.util.regex.Pattern;
  * failures are returned as stable {@link FlowDiagnostic} values rather than thrown.</p>
  */
 public final class TxFlowCompiler {
+    private static final String FINGERPRINT_FORMAT = "txflow-compiled:v1\n";
     private static final Pattern EXACT_INPUT = Pattern.compile(
             "^\\$\\{\\{\\s*inputs\\.([A-Za-z_][A-Za-z0-9_.-]*)\\s*}}$");
     private static final Pattern INTERPOLATED_INPUT = Pattern.compile(
             "\\$\\{\\{\\s*inputs\\.([A-Za-z_][A-Za-z0-9_.-]*)\\s*}}");
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final QuickTxTemplateMaterializer QUICK_TX_MATERIALIZER =
+            new QuickTxTemplateMaterializer();
 
     /**
      * Binds, validates, and preflights a reusable definition.
@@ -71,6 +72,8 @@ public final class TxFlowCompiler {
         graph.getErrors().forEach(error -> diagnostics.add(
                 FlowDiagnostic.error("TXFLOW_GRAPH_INVALID", error, "$.spec.steps")));
         validateFlowOutputReferences(definition, diagnostics);
+        validateExecutableTransactionProjection(definition, diagnostics);
+        diagnostics.addAll(PortableFlowValidator.validate(definition));
 
         Map<String, Object> values = validateBindings(
                 definition.getParameters(), request.bindings(), diagnostics);
@@ -86,29 +89,31 @@ public final class TxFlowCompiler {
             definition.getAnnotations().forEach(compiled::addAnnotation);
             definition.getParameters().values().forEach(compiled::addParameter);
 
-            for (FlowStep step : definition.getSteps()) {
+            for (int stepIndex = 0; stepIndex < definition.getSteps().size(); stepIndex++) {
+                FlowStep step = definition.getSteps().get(stepIndex);
+                String stepPath = "$.spec.steps[" + stepIndex + "]";
                 FlowStep.Builder target = FlowStep.builder(step.getId()).withDescription(step.getDescription());
                 step.getNeeds().forEach(target::needs);
                 step.getOutputBindings().forEach(target::bindOutput);
-                for (StepDependency dependency : step.getDependencies()) target.dependsOn(dependency);
                 if (step.hasTransactionTemplate()) {
                     JsonNode bound = bindNode(step.getTransactionTemplate().toJsonNode(), values,
-                            "$.spec.steps[" + step.getId() + "].transaction", diagnostics);
+                            stepPath + ".transaction", diagnostics);
                     diagnostics.addAll(request.policy().evaluateTransaction(bound,
-                            "$.spec.steps[" + step.getId() + "].transaction"));
+                            stepPath + ".transaction"));
                     preflightResources(bound, request, definition.getNetwork(), diagnostics,
-                            spendingResources, "$.spec.steps[" + step.getId() + "].transaction");
+                            spendingResources, stepPath + ".transaction");
                     if (hasErrors(diagnostics)) continue;
-                    target.withTxPlan(toTxPlan(bound));
+                    try {
+                        target.withTxPlan(QUICK_TX_MATERIALIZER.materialize(
+                                bound, stepPath + ".transaction"));
+                    } catch (QuickTxTemplateMaterializer.MaterializationException failure) {
+                        diagnostics.add(FlowDiagnostic.error(failure.code(),
+                                failure.getMessage(), failure.documentPath()));
+                        continue;
+                    }
                 } else if (step.hasTxPlan()) {
                     target.withTxPlan(TxPlan.from(step.getTxPlan().toYaml()));
-                } else {
-                    diagnostics.add(FlowDiagnostic.error("TXFLOW_NON_PORTABLE_FACTORY",
-                            "Java transaction factories cannot be compiled as a portable plan",
-                            "$.spec.steps[" + step.getId() + "]"));
-                    continue;
-                }
-                if (step.hasRetryPolicy()) target.withRetryPolicy(step.getRetryPolicy());
+                } else continue; // Shared portability validation already reported this path.
                 compiled.addStep(target.build());
             }
             if (hasErrors(diagnostics)) return new FlowCompilationResult(null, diagnostics);
@@ -116,7 +121,7 @@ public final class TxFlowCompiler {
             String canonical = TxFlowCodec.standard().write(plan,
                     FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
             return new FlowCompilationResult(new CompiledTxFlow(
-                    plan, SignedPayloadVerifier.sha256(canonical), spendingResources,
+                    plan, SignedPayloadVerifier.sha256(FINGERPRINT_FORMAT + canonical), spendingResources,
                     explicitConsumers(definition)), diagnostics);
         } catch (Exception e) {
             diagnostics.add(FlowDiagnostic.error("TXFLOW_COMPILATION_FAILED", e.getMessage(), "$"));
@@ -153,6 +158,22 @@ public final class TxFlowCompiler {
             validateFlowOutputNode(consumer.getTransactionTemplate().toJsonNode(), definition,
                     stepIndexes, i, diagnostics,
                     "$.spec.steps[" + i + "].transaction");
+        }
+    }
+
+    private void validateExecutableTransactionProjection(
+            TxFlow definition, List<FlowDiagnostic> diagnostics) {
+        for (int index = 0; index < definition.getSteps().size(); index++) {
+            FlowStep step = definition.getSteps().get(index);
+            if (!step.hasTransactionTemplate()) continue;
+            JsonNode transaction = step.getTransactionTemplate().toJsonNode();
+            if (transaction.path("tx").has("from_wallet")) {
+                diagnostics.add(FlowDiagnostic.error(
+                        "TXFLOW_TRANSACTION_FROM_WALLET_UNSUPPORTED",
+                        "from_wallet cannot be materialized by the current QuickTx TxPlan "
+                                + "projection; use from_ref with an application resource resolver",
+                        "$.spec.steps[" + index + "].transaction.tx.from_wallet"));
+            }
         }
     }
 
@@ -326,16 +347,6 @@ public final class TxFlowCompiler {
             return copy;
         }
         return node.deepCopy();
-    }
-
-    private TxPlan toTxPlan(JsonNode transaction) throws Exception {
-        TransactionDocument document = new TransactionDocument();
-        document.setVersion("1.0");
-        document.setContext(JSON.treeToValue(transaction.get("context"), TransactionDocument.TxContext.class));
-        TransactionDocument.TxContent tx = JSON.treeToValue(
-                transaction.get("tx"), TransactionDocument.TxContent.class);
-        document.setTransaction(List.of(new TransactionDocument.TxEntry(tx)));
-        return TxPlan.from(YamlSerializer.serialize(document));
     }
 
     private void preflightResources(JsonNode node, FlowCompilationRequest request, String network,

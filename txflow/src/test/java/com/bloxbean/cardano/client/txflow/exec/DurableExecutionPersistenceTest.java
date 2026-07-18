@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -129,6 +130,80 @@ class DurableExecutionPersistenceTest {
                         FlowEventType.TRANSACTION_CONFIRMED),
                 store.readEvents("boundaries", 0, 20).events().stream()
                         .map(FlowEvent::type).toList());
+        leases.close();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void delayedRollbackUpdatesMatchingHashInsteadOfNewerStepAttempt() {
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        InMemoryFlowExecutionStore store = new InMemoryFlowExecutionStore(clock);
+        store.createOrGet("test", "attempt-hash", new FlowExecutionSnapshot(
+                "attempt-hash", "definition", "request", FlowExecutionState.RUNNING,
+                0, 0, 0, NOW, Map.of()));
+        DurableLeaseGuard leases = new DurableLeaseGuard(
+                store, clock, Duration.ofMinutes(1), Runnable::run);
+        leases.acquireExecution("attempt-hash", "owner");
+        ExecutionJournalSession journal = new ExecutionJournalSession(
+                store, "attempt-hash", clock);
+        journal.attach(leases);
+        DurableExecutionPersistence persistence = new DurableExecutionPersistence(journal);
+        FlowStep step = FlowStep.builder("pay").withTxContext(builder -> null).build();
+        Transaction first = transaction("00".repeat(32));
+        Transaction newer = transaction("11".repeat(32));
+        String firstHash = TransactionUtil.getTxHash(first);
+
+        persistence.onPrepared(step, first);
+        persistence.onPrepared(step, newer);
+        persistence.onRolledBack(step, firstHash, 42);
+
+        Map<String, FlowAttemptSnapshot> attempts =
+                (Map<String, FlowAttemptSnapshot>) store.get("attempt-hash")
+                        .orElseThrow().data().get(DurableExecutionPersistence.ATTEMPTS_KEY);
+        assertEquals(AttemptState.ROLLED_BACK, attempts.get("pay#1").state());
+        assertEquals(AttemptState.SIGNED, attempts.get("pay#2").state());
+        assertEquals(firstHash, store.readEvents("attempt-hash", 0, 10).events().stream()
+                .filter(event -> event.type() == FlowEventType.TRANSACTION_ROLLED_BACK)
+                .findFirst().orElseThrow().transactionHash());
+        leases.close();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void delayedRollbackInvalidatesOnlyDependentsOfTheMatchingProducerAttempt() {
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        InMemoryFlowExecutionStore store = new InMemoryFlowExecutionStore(clock);
+        store.createOrGet("test", "attempt-closure", new FlowExecutionSnapshot(
+                "attempt-closure", "definition", "request", FlowExecutionState.RUNNING,
+                0, 0, 0, NOW, Map.of()));
+        DurableLeaseGuard leases = new DurableLeaseGuard(
+                store, clock, Duration.ofMinutes(1), Runnable::run);
+        leases.acquireExecution("attempt-closure", "owner");
+        ExecutionJournalSession journal = new ExecutionJournalSession(
+                store, "attempt-closure", clock);
+        journal.attach(leases);
+        DurableExecutionPersistence persistence = new DurableExecutionPersistence(
+                journal, Map.of("producer", Set.of("consumer")));
+        FlowStep producer = FlowStep.builder("producer").withTxContext(builder -> null).build();
+        FlowStep consumer = FlowStep.builder("consumer").withTxContext(builder -> null).build();
+        Transaction firstProducer = transaction("00".repeat(32));
+        String firstHash = TransactionUtil.getTxHash(firstProducer);
+        Transaction secondProducer = transaction("11".repeat(32));
+        String secondHash = TransactionUtil.getTxHash(secondProducer);
+
+        persistence.onPrepared(producer, firstProducer);
+        persistence.onPrepared(consumer, transaction(firstHash));
+        persistence.onPrepared(producer, secondProducer);
+        persistence.onPrepared(consumer, transaction(secondHash));
+        persistence.onRolledBack(producer, firstHash, 42);
+
+        Map<String, FlowAttemptSnapshot> attempts =
+                (Map<String, FlowAttemptSnapshot>) store.get("attempt-closure")
+                        .orElseThrow().data().get(DurableExecutionPersistence.ATTEMPTS_KEY);
+        assertEquals(AttemptState.ROLLED_BACK, attempts.get("producer#1").state());
+        assertEquals(AttemptState.SIGNED, attempts.get("producer#2").state());
+        assertEquals(AttemptState.RECOVERY_REQUIRED, attempts.get("consumer#1").state());
+        assertEquals(AttemptState.SIGNED, attempts.get("consumer#2").state());
         leases.close();
     }
 

@@ -29,6 +29,20 @@ store close during normal shutdown even though the integration suite also verifi
 child-JVM termination. Protect the database files with application-appropriate filesystem
 permissions, and configure H2 encryption through H2 when encryption at rest is required.
 
+Because H2 can commit DDL between migration statements, `MIGRATE` recognizes one narrow
+first-install recovery case: a compatible empty `txflow_schema_history` marker with the expected
+columns and primary key, plus an empty creation-order prefix of V1 tables. It drops that
+verified-empty prefix in reverse order and recreates the canonical checksummed schema, so extra
+indexes, defaults, or constraints on the partial tables are discarded. Missing markers,
+unexpected TxFlow tables, non-empty state, and every incompatible marker shape remain fail-closed;
+the store never adopts application data as an interrupted migration.
+
+The packaged `db/txflow/<dialect>/V1__txflow_store.sql` files are inputs to TxFlow's internal
+schema manager, not Flyway migrations. They use a familiar filename only for human-readable
+ordering and are tracked in the dedicated `txflow_schema_history` table, so an application's own
+Flyway `V1__...` migration does not conflict. Do not add the TxFlow resource directory to the
+application's Flyway locations.
+
 ## Application-managed databases
 
 `DataSource` is the primary production boundary. It must provide ordinary local-transaction JDBC
@@ -46,6 +60,25 @@ RdbmsFlowExecutionStore store = RdbmsFlowExecutionStore.builder()
 
 Application-supplied data sources default to `VALIDATE`; choosing `MIGRATE` is explicit.
 The store closes each borrowed connection but never closes the `DataSource` or pool.
+
+For command-line tools and small services, URL mode also accepts separate credentials and an
+optional driver class:
+
+```java
+RdbmsFlowExecutionStore store = RdbmsFlowExecutionStore.builder()
+        .jdbcUrl(jdbcUrl)
+        .username(jdbcUsername)
+        .password(jdbcPassword)
+        // JDBC 4 discovery normally makes this unnecessary.
+        // .driverClassName("org.postgresql.Driver")
+        .dialect(PostgresDialect.INSTANCE)
+        .schemaManagement(SchemaManagement.VALIDATE)
+        .build();
+```
+
+Configure exactly one of a URL or `DataSource`. URL credentials and `driverClassName` cannot be
+combined with a `DataSource`, and a password requires a username. URL mode is deliberately
+non-pooling; prefer an application-managed pool for normal PostgreSQL services.
 
 The PostgreSQL JDBC driver is deliberately not a runtime dependency of this artifact. Applications
 must put a driver compatible with their server and pool on their own runtime classpath. Keep
@@ -116,7 +149,9 @@ operation.
   256 for transaction hashes). These bounds also keep PostgreSQL indexed values below its B-tree
   key limit for multibyte input.
 - Lease epochs are monotonically allocated and stale execution or resource owners cannot mutate
-  durable state. Append samples expiry only after locking the complete mutation fence.
+  durable state. Append samples expiry only after locking the complete mutation fence. Stored
+  timestamps use microsecond precision; lease expiry is rounded upward when necessary so even a
+  positive sub-microsecond requested duration remains strictly later than its acquisition time.
 - The store is synchronous and creates no executor, scheduler, worker thread, or connection pool.
 - Closing the store rejects new operations, closes only its store-owned H2 anchor connection,
   and never closes an application-supplied `DataSource`.

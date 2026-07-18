@@ -366,6 +366,16 @@ class ScriptRegistryAttachmentTest extends QuickTxBaseTest {
                 .hasMessageContaining("Resolved script hash mismatch");
     }
 
+    @Test
+    void defaultScriptRegistry_normalizesLogicalReferenceWhitespace() {
+        PlutusV2Script script = plutusScript("49480100002221200101");
+        DefaultScriptRegistry registry = new DefaultScriptRegistry()
+                .addPlutusScript("  validator://mint  ", script);
+
+        assertThat(registry.resolve("validator://mint")).containsSame(script);
+        assertThat(registry.resolve(" validator://mint ")).containsSame(script);
+    }
+
     private PlutusV2Script plutusScript(String cborHex) {
         return PlutusV2Script.builder()
                 .type("PlutusScriptV2")

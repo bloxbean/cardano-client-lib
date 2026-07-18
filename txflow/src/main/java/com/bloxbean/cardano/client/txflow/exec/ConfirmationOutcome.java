@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.txflow.exec;
 
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 
 /**
  * Lossless internal result of waiting for transaction confirmation.
@@ -49,7 +50,7 @@ final class ConfirmationOutcome {
 
     static ConfirmationOutcome cancelled(ConfirmationResult result) {
         return new ConfirmationOutcome(Type.CANCELLED, result,
-                new FlowExecutionException("Flow cancelled while waiting for confirmation"));
+                new CancellationException("Flow cancelled while waiting for confirmation"));
     }
 
     static ConfirmationOutcome recoveryRequired(String txHash, ConfirmationResult result) {

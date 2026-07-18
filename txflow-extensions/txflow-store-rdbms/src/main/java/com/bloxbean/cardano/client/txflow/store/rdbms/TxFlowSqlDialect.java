@@ -134,4 +134,23 @@ public interface TxFlowSqlDialect {
         }
         return false;
     }
+
+    /**
+     * Classifies a transaction failure that is safe to retry after JDBC confirmed rollback.
+     *
+     * <p>The default covers standard serialization failures and PostgreSQL deadlocks. Dialects
+     * may add vendor lock-timeout states whose failed transaction is likewise retryable.</p>
+     *
+     * @param failure database failure, including any chained exceptions
+     * @return whether the transaction was transiently invalidated by concurrency
+     */
+    default boolean isRetryableTransactionFailure(SQLException failure) {
+        SQLException current = failure;
+        while (current != null) {
+            String state = current.getSQLState();
+            if ("40001".equals(state) || "40P01".equals(state)) return true;
+            current = current.getNextException();
+        }
+        return false;
+    }
 }

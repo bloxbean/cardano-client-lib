@@ -283,6 +283,23 @@ class FlowResultTest {
     }
 
     @Test
+    void testFailureAfterSubmissionFactory_preservesTransactionDetails() {
+        RuntimeException error = new RuntimeException("confirmation failed");
+        Utxo output = Utxo.builder().txHash("tx-hash").outputIndex(0).build();
+        TransactionInput input = new TransactionInput("abcd1234", 2);
+
+        FlowStepResult result = FlowStepResult.failureAfterSubmission(
+                "step-1", "tx-hash", List.of(output), List.of(input), error);
+
+        assertFalse(result.isSuccessful());
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertEquals("tx-hash", result.getTransactionHash());
+        assertEquals(List.of(output), result.getOutputUtxos());
+        assertEquals(List.of(input), result.getSpentInputs());
+        assertSame(error, result.getError());
+    }
+
+    @Test
     void testIsSuccessful_derivedFromStatus() {
         FlowStepResult completed = new FlowStepResult("step-1", FlowStatus.COMPLETED, "tx-1", List.of());
         FlowStepResult failed = new FlowStepResult("step-2", FlowStatus.FAILED, null, List.of());

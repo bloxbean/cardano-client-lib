@@ -271,7 +271,10 @@ public final class FlowEngine {
      * carrying an attempt, the engine resolves the persisted signed payload and
      * performs recovery under the execution's leases. Recovery may resubmit only
      * the verified, identical signed payload; an inconclusive observation
-     * remains recovery-required.</p>
+     * remains recovery-required. Calling this method is an explicit
+     * operator-authorized override: it may reconcile a signed attempt retained
+     * by a terminally cancelled execution, which is never resumed or recovered
+     * automatically.</p>
      *
      * @param request attempt or durable execution selection to reconcile
      * @return recovery disposition and resulting attempt state
@@ -559,6 +562,7 @@ public final class FlowEngine {
                 ? new DurableLeaseGuard(store, clock, leaseDuration, maintenanceExecutor) : null;
         Instant started = clock.instant();
         boolean executionLeaseAcquired = false;
+        FlowResult legacy = null;
         try {
             if (store != null) {
                 journal.attach(leases);
@@ -577,19 +581,22 @@ public final class FlowEngine {
             }
             spendingAcquisition = spendingCoordinator.acquire(spendingResources, policy,
                     request.isConcurrentSpendingAllowed(), cancelled);
+            if (completeCancellationIfRequested(request, compiled, active, completion,
+                    cancelled, spendingAcquisition, journal, started)) {
+                return;
+            }
             for (String identity : spendingAcquisition.identities()) {
                 if (store != null) {
+                    if (completeCancellationIfRequested(request, compiled, active, completion,
+                            cancelled, spendingAcquisition, journal, started)) {
+                        return;
+                    }
                     leases.checkHealthy();
                     leases.acquireResource(identity, request.getExecutionId(), ownerToken);
                 }
             }
-            if (cancelled.get()) {
-                FlowExecutionResult cancelledResult = cancelledResult(
-                        request, compiled, active.handle(), journal, started);
-                if (store != null) {
-                    journal.persist(FlowExecutionState.CANCELLED, data -> { });
-                }
-                completion.complete(cancelledResult);
+            if (completeCancellationIfRequested(request, compiled, active, completion,
+                    cancelled, spendingAcquisition, journal, started)) {
                 return;
             }
 
@@ -606,7 +613,7 @@ public final class FlowEngine {
                 facade.withPersistencePort(new DurableExecutionPersistence(
                         journal, compiled.getExplicitConsumers()));
             }
-            FlowResult legacy = facade.executeSync(compiled.getExecutionPlan(),
+            legacy = facade.executeSync(compiled.getExecutionPlan(),
                     () -> cancelled.get() || (leases != null && leases.hasFailed()));
             if (leases != null) leases.checkHealthy();
             FlowExecutionState state = toState(legacy.getStatus());
@@ -628,14 +635,23 @@ public final class FlowEngine {
             if (pauseRollback) {
                 state = FlowExecutionState.RECOVERY_REQUIRED;
             }
-            FlowError error = legacy.getError() != null
-                    ? new FlowError(persistenceFailure != null ? persistenceFailure.getCode()
-                            : reconciliationFailure != null || pauseRollback
-                                ? "TXFLOW_RECOVERY_REQUIRED" : "TXFLOW_EXECUTION_FAILED",
-                            pauseRollback ? FlowErrorCategory.RECOVERY : classify(legacy.getError()),
-                            legacy.getError().getMessage(), null,
-                            reconciliationFailure != null || pauseRollback)
-                    : null;
+            FlowError error;
+            if (state == FlowExecutionState.CANCELLED) {
+                error = new FlowError("TXFLOW_CANCELLED", FlowErrorCategory.CANCELLATION,
+                        legacy.getError() != null
+                                ? Objects.toString(legacy.getError().getMessage(),
+                                "Execution cancelled") : "Execution cancelled",
+                        null, false);
+            } else {
+                error = legacy.getError() != null
+                        ? new FlowError(persistenceFailure != null ? persistenceFailure.getCode()
+                                : reconciliationFailure != null || pauseRollback
+                                    ? "TXFLOW_RECOVERY_REQUIRED" : "TXFLOW_EXECUTION_FAILED",
+                                pauseRollback ? FlowErrorCategory.RECOVERY : classify(legacy.getError()),
+                                legacy.getError().getMessage(), null,
+                                reconciliationFailure != null || pauseRollback)
+                        : null;
+            }
             FlowExecutionResult result = new FlowExecutionResult(request.getExecutionId(),
                     compiled.getFingerprint(), state, legacy.getStepResults(),
                     storedAttempts(request.getExecutionId()), error,
@@ -643,30 +659,42 @@ public final class FlowEngine {
                     legacy.getCompletedAt() != null ? legacy.getCompletedAt() : clock.instant());
             if (store != null) {
                 FlowExecutionState persistedState = state;
+                int stepCount = legacy.getStepResults().size();
                 journal.persist(persistedState,
-                        data -> data.put("step_count", legacy.getStepResults().size()));
+                        data -> data.put("step_count", stepCount));
             }
             completion.complete(result);
         } catch (Throwable failure) {
             FlowStoreException storeFailure = findCause(failure, FlowStoreException.class);
             ReconciliationUncertainException reconciliationFailure = findCause(
                     failure, ReconciliationUncertainException.class);
-            boolean recoveryRequired = storeFailure != null || reconciliationFailure != null
-                    || (store != null && !executionLeaseAcquired);
-            String code = storeFailure != null
+            boolean leaseContention = isLeaseContention(storeFailure);
+            boolean leaseHealthFailure = leases != null && leases.hasFailed();
+            boolean resourceBusy = leaseContention
+                    || findCause(failure, SpendingResourceBusyException.class) != null;
+            boolean recoveryRequired = leaseHealthFailure
+                    || storeFailure != null && !leaseContention
+                    || reconciliationFailure != null
+                    || (store != null && !executionLeaseAcquired && !leaseContention);
+            String code = leaseContention
+                    ? "TXFLOW_RESOURCE_BUSY"
+                    : leaseHealthFailure && storeFailure == null
+                    ? "TXFLOW_LEASE_RENEWAL_FAILED"
+                    : storeFailure != null
                     ? storeFailure.getCode()
                     : reconciliationFailure != null ? "TXFLOW_RECOVERY_REQUIRED"
-                    : failure instanceof SpendingResourceBusyException
+                    : resourceBusy
                     ? "TXFLOW_RESOURCE_BUSY" : "TXFLOW_ENGINE_FAILURE";
-            FlowError error = new FlowError(code, classify(failure),
+            FlowError error = new FlowError(code,
+                    leaseHealthFailure ? FlowErrorCategory.PERSISTENCE : classify(failure),
                     Objects.toString(failure.getMessage(), failure.getClass().getSimpleName()),
-                    null, recoveryRequired);
+                    null, recoveryRequired || resourceBusy);
             journal.record(recoveryRequired
                             ? FlowEventType.RECOVERY_REQUIRED : FlowEventType.EXECUTION_FAILED,
                     null, null, Map.of("message", String.valueOf(failure.getMessage())));
             FlowExecutionState failureState = recoveryRequired
                     ? FlowExecutionState.RECOVERY_REQUIRED : FlowExecutionState.FAILED;
-            if (store != null && executionLeaseAcquired) {
+            if (store != null && executionLeaseAcquired && !leaseHealthFailure) {
                 try {
                     FlowExecutionState persistedState = failureState;
                     String failureCode = error.code();
@@ -686,8 +714,16 @@ public final class FlowEngine {
                             null, true);
                 }
             }
+            List<com.bloxbean.cardano.client.txflow.result.FlowStepResult> stepResults =
+                    legacy != null ? legacy.getStepResults() : List.of();
+            Instant resultStarted = legacy != null && legacy.getStartedAt() != null
+                    ? legacy.getStartedAt() : started;
+            Instant resultCompleted = legacy != null && legacy.getCompletedAt() != null
+                    ? legacy.getCompletedAt() : clock.instant();
             completion.complete(new FlowExecutionResult(request.getExecutionId(), compiled.getFingerprint(),
-                    failureState, List.of(), error, started, clock.instant()));
+                    failureState, stepResults,
+                    bestEffortStoredAttempts(request.getExecutionId()), error,
+                    resultStarted, resultCompleted));
         } finally {
             if (store != null) {
                 leases.close();
@@ -695,6 +731,21 @@ public final class FlowEngine {
             if (spendingAcquisition != null) spendingAcquisition.close();
             activeExecutions.remove(request.getExecutionId(), active);
         }
+    }
+
+    private boolean completeCancellationIfRequested(
+            FlowExecutionRequest request, CompiledTxFlow compiled, ActiveExecution active,
+            CompletableFuture<FlowExecutionResult> completion, AtomicBoolean cancelled,
+            SpendingResourceCoordinator.Acquisition acquisition,
+            ExecutionJournalSession journal, Instant started) {
+        if (!cancelled.get() && !acquisition.cancelled()) return false;
+        FlowExecutionResult result = cancelledResult(
+                request, compiled, active.handle(), journal, started);
+        if (store != null) {
+            journal.persist(FlowExecutionState.CANCELLED, data -> { });
+        }
+        completion.complete(result);
+        return true;
     }
 
     private FlowListener eventListener(ExecutionJournalSession journal) {
@@ -784,13 +835,21 @@ public final class FlowEngine {
     }
 
     private FlowErrorCategory classify(Throwable failure) {
-        if (findCause(failure, FlowStoreException.class) != null) return FlowErrorCategory.PERSISTENCE;
+        FlowStoreException storeFailure = findCause(failure, FlowStoreException.class);
+        if (isLeaseContention(storeFailure)) return FlowErrorCategory.RESOURCE;
+        if (storeFailure != null) return FlowErrorCategory.PERSISTENCE;
         if (findCause(failure, ReconciliationUncertainException.class) != null) return FlowErrorCategory.RECOVERY;
         if (findCause(failure, SpendingResourceBusyException.class) != null) return FlowErrorCategory.RESOURCE;
         if (findCause(failure, RollbackException.class) != null) return FlowErrorCategory.ROLLBACK;
         if (findCause(failure, ConfirmationTimeoutException.class) != null) return FlowErrorCategory.CONFIRMATION;
         if (findCause(failure, FlowExecutionException.class) != null) return FlowErrorCategory.BUILD;
         return FlowErrorCategory.INTERNAL;
+    }
+
+    private boolean isLeaseContention(FlowStoreException failure) {
+        if (failure == null) return false;
+        return "TXFLOW_LEASE_CONFLICT".equals(failure.getCode())
+                || "TXFLOW_RESOURCE_LEASE_CONFLICT".equals(failure.getCode());
     }
 
     private <T extends Throwable> T findCause(Throwable failure, Class<T> type) {
@@ -812,6 +871,18 @@ public final class FlowEngine {
                 .sorted(Comparator.comparing(FlowAttemptSnapshot::stepId)
                         .thenComparingInt(FlowAttemptSnapshot::attemptNumber))
                 .toList();
+    }
+
+    /**
+     * Reads persisted attempts for a failure result without allowing a second
+     * store/read/decode failure to strand completion of the execution handle.
+     */
+    private List<FlowAttemptSnapshot> bestEffortStoredAttempts(String executionId) {
+        try {
+            return storedAttempts(executionId);
+        } catch (RuntimeException ignored) {
+            return List.of();
+        }
     }
 
     private Set<String> effectiveSpendingResources(FlowExecutionRequest request,

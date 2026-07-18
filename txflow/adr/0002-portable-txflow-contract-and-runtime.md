@@ -2,13 +2,13 @@
 
 **Status**: Implemented
 
-**ADR Document Version**: 2.6.4
+**ADR Document Version**: 2.6.6
 
 **Date**: 2026-07-10
 
-**Last Updated**: 2026-07-13
+**Last Updated**: 2026-07-18
 
-**Review State**: Implemented; implementation review and re-review remediated and verified on Java 17 with Yaci DevKit
+**Review State**: Implemented; iteration-1 refinement review remediated and independently reconciled; final Java 17, RDBMS, documentation, and external-Yaci verification complete
 
 **Target Release**: To be decided
 
@@ -37,6 +37,8 @@ The ADR document version is independent from the TxFlow YAML schema version disc
 | 2.6.2 | 2026-07-13 | Bloxbean / CCL maintainers | Corrective implementation review | Reopens implementation after an adversarial review found that the green test matrix did not cover several accepted invariants, including sequential non-confirmed fall-through, depth-safe prefix reconciliation, recovery-required mapping, lease-renewal ordering, and the Decision 20 decomposition. Records that the ADR remains accepted but is not considered implemented until the reviewed gaps are corrected and the full Java 17 unit and Yaci matrices pass again. |
 | 2.6.3 | 2026-07-13 | Bloxbean / CCL maintainers | Implemented after corrective review | Records independent classification and remediation of the implementation-review findings, including strict non-permissive rollback tests and the additional NOTIFY_ONLY tracking correction. Final Java 17 verification passes QuickTx 350/350, TxFlow 474 passing plus one Java 21-only skip, and the complete 63/63 external-Yaci integration matrix; the strict rollback class passes 11/11 and the bounded scalability scenario completes 100/100 flows (200 transactions). Remaining items are non-blocking performance/style follow-ups: per-depth durable appends, safe per-attempt TxPlan reparsing, and low-severity boilerplate cleanup. |
 | 2.6.4 | 2026-07-13 | Bloxbean / CCL maintainers | Implemented after re-review | Fixes the two re-review regressions introduced by fresh/resume consolidation: resume no longer replaces the legacy state snapshot or emits a duplicate flow-start callback, while all fresh paths retain their start behavior. Adds strict external-Yaci coverage for the default non-authoritative backend adapter: ambiguous post-inclusion absence emits a suspected-rollback event, ends in a bounded typed reconciliation-uncertain outcome, and never rebuilds. Clarifies conservative unknown-failure retry compatibility and locks negative portable durations at their owning-policy boundaries. Final Java 17 verification passes QuickTx 350/350, TxFlow 480 passing plus one Java 21-only skip, and 64/64 external-Yaci tests; the strict rollback class now passes 12/12. |
+| 2.6.5 | 2026-07-16 | Bloxbean / CCL maintainers | Implemented follow-up | Restores the no-silent-loss invariant for portable writing after the usage-guide audit found that legacy `StepDependency` values were omitted. Portable output now rejects every legacy dependency-selection strategy, step-level retry overrides, legacy flow variables, and per-`TxPlan` variables with migration guidance. Java 17 verification passes all 542 TxFlow unit tests with one Java 21-only skip and the focused external-Yaci portable `FlowEngine` path. |
+| 2.6.6 | 2026-07-18 | Bloxbean / CCL maintainers | Implemented after refinement review | Records the iteration-1 remediation of portable-codec strictness and canonical fingerprints, execution-state classification and result integrity, durable lease and recovery handling, relational timestamp/schema robustness, and user documentation. Clarifies that shipped restart recovery reconciles one persisted attempt and that whole-flow continuation remains future orchestration work. Final Java 17 verification passes QuickTx 351/351; TxFlow 653 passing plus one Java 21-only skip; relational-store unit 68/68 and H2/PostgreSQL integration 40/40; and external-Yaci integration 64/64, including the strict rollback matrix at 12/12. TxFlow and relational-store Javadocs and the 66-page documentation production build also complete successfully. |
 
 ### Versioning Rules For This ADR
 
@@ -47,7 +49,7 @@ The ADR document version is independent from the TxFlow YAML schema version disc
 - Record unresolved reviewer disagreements in the Open Questions section until the review reaches a decision.
 - Suggested status progression is `Proposed` -> `Accepted` -> `Implementing` -> `Implemented`. Use `Rejected` or `Superseded` where appropriate.
 
-**Governance note (2.1.0)**: under the rules above, the 0.2.0 → 2.0.0 change would ordinarily have been 0.3.0, since the ADR is still `Proposed` and no accepted decision was replaced. The renumbering to 2.0.0 was an explicit maintainer decision to designate the revised proposal as the second major draft of this document; it is recorded here as a rule exception rather than justified by rewording the rules. Versions after 2.0.0 follow the original rules — hence the 2.1.x–2.5.x minor revisions for the subsequent review rounds and maintainer adjustments. Decisions marked "Resolved" in this document are review-proposed resolutions approved by the project maintainer during the 2.0.0/2.1.0 review rounds; they remain revisable while the ADR is `Proposed`.
+**Governance note (2.1.0; acceptance clarified 2.6.6)**: under the rules above, the 0.2.0 → 2.0.0 change would ordinarily have been 0.3.0, since the ADR was then `Proposed` and no accepted decision was replaced. The renumbering to 2.0.0 was an explicit maintainer decision to designate the revised proposal as the second major draft of this document; it is recorded here as a rule exception rather than justified by rewording the rules. Versions after 2.0.0 follow the original rules — hence the 2.1.x–2.5.x minor revisions for the subsequent review rounds and maintainer adjustments. Decisions marked "Resolved" were accepted by the project maintainer at version 2.6.0 and are now normative unless a later ADR revision explicitly replaces them.
 
 ## Terminology Used In This Document
 
@@ -489,9 +491,12 @@ bindings:
 
 #### Compatibility
 
-- Legacy execution APIs derive an execution ID internally. **Revised 2.1.0**: Track A threads this internal execution ID through the execution context, results, and logs for correlation only; the same-definition duplicate guard and the id-keyed registry/state-store behavior are retained until Track C1, where execution-ID keying lands together with Decision 18 spending-resource serialization. Concurrent same-definition executions are never enabled before contention control exists.
-- `FlowResult.getFlowId()` remains available but is deprecated in favor of `getDefinitionRef()` and `getExecutionId()`.
-- Existing per-executor duplicate-flow-ID protection is replaced by execution-ID and idempotency-key protection.
+- Legacy `FlowExecutor` methods retain definition-scoped `FlowResult.getFlowId()` and their
+  compatibility behavior; that result type does not expose a request execution ID.
+- The server-facing `FlowEngine` accepts the execution ID on `FlowExecutionRequest` and returns it
+  through `FlowExecutionHandle.getExecutionId()` and `FlowExecutionResult.executionId()`.
+- `FlowEngine` applies execution-ID and idempotency-key protection together with Decision 18
+  spending-resource coordination; this does not retroactively change the legacy result contract.
 
 ### Decision 3: Introduce Explicit Parse, Bind, Compile, And Execute Stages
 
@@ -994,7 +999,12 @@ boolean successful = step.isSuccessful();
 
 The existing result model cannot precisely distinguish a transaction that was built, submitted, included, deeply confirmed, or later rolled back.
 
-#### Proposed Java API
+#### Historical Proposed Java API (Shipped Contract Differs)
+
+The following sketch records the pre-implementation design vocabulary. The shipped
+`FlowExecutionResult` uses a `String` execution ID, `FlowExecutionState state()`,
+`List<FlowStepResult> steps()`, durable `attempts()`, and one nullable `FlowError error()`.
+Intermediate compilation/readiness states are events rather than terminal result states.
 
 ```java
 FlowExecutionResult result = handle.await();
@@ -1101,7 +1111,14 @@ interface FlowStateStore {
 
 Documentation currently shows `executor.resumeTracking(snapshot)`, but such an API does not exist. The API that does exist — `FlowExecutor.resume(TxFlow, FlowResult)` — consumes a previous in-memory `FlowResult`, not a persisted snapshot, so the persistence store and the resume path are disconnected. The current snapshot lacks a definition fingerprint, execution ID, attempt history, prepared signed transaction, and output/spent-input data needed for robust recovery. Persistence failures are logged and ignored by the executor, and `IN_BLOCK`/depth transitions are never persisted at all.
 
-#### Proposed Java API
+#### Historical Proposed Java API (Shipped Contract Differs)
+
+The following block preserves the design sketch reviewed before implementation. It is not a source
+API reference. In particular, the shipped `FlowExecutionStore` uses `String` execution IDs,
+`FlowExecutionState`, atomic `createOrGet`, `append`, cursor-based `readEvents`, and explicit
+execution/resource lease operations. It intentionally has no `findRecoverable` scan; applications
+retain the execution IDs that their recovery runbooks must inspect. The shipped payload variants
+are `SignedPayload.InlineCbor` and `SignedPayload.ExternalCbor`.
 
 ```java
 interface FlowExecutionStore {
@@ -1241,47 +1258,58 @@ sealed interface SignedPayload permits SignedPayload.InlineCbor, SignedPayload.E
 // engine verifies the recorded sha256 AND recomputes the Cardano transaction
 // hash against the recorded transactionHash before any resubmission.
 interface SignedPayloadResolver {
-    byte[] resolve(SignedPayload.ExternalRef ref);
+    byte[] resolve(String reference);
 }
 ```
 
 `PreparedTransaction` records the validity interval when the built transaction carries one — the fields are nullable so intentionally unbounded legacy transactions remain representable — so recovery can decide whether identical-CBOR resubmission is still possible without re-deriving TTL (Decision 19).
 
-Non-sensitive bindings may be stored directly. Sensitive bindings are persisted as references to an application-controlled secure value store, together with a fingerprint and redacted display value. CCL defines the `secureValueRef` field and a recovery-time resolver interface but does not implement a secret store. A snapshot must retain enough binding information to compile or resume unbuilt later steps; redaction alone is not sufficient for recovery.
+Non-sensitive bindings may be stored directly. Sensitive bindings are persisted as references to an application-controlled secure value store, together with a fingerprint and redacted display value. CCL defines the `secureValueRef` field and a resolver interface but does not implement a secret store. The shipped attempt-level recovery path uses persisted bindings for request identity and audit context; it does not recompile unbuilt steps. A future whole-flow continuation service would additionally need the definition and enough resolvable binding information to compile later steps safely.
 
-**Resolved (2.0.0; payload modeled explicitly 2.2.0)**: signed transaction bytes are stored inline by default via `SignedPayload.InlineCbor` (defensive copies on construction and access); `SignedPayload.ExternalRef` carries a reference plus content hash for deployments with payload-size or key-management constraints. Stores must support inline payloads; external-reference support is optional and declared by the implementation. Recovery resolves external references through the `SignedPayloadResolver` primitive; verification is CCL's job, not the resolver implementation's — before any resubmission the engine verifies the recorded `sha256` against the loaded bytes and recomputes the Cardano transaction hash from the payload, requiring it to equal the recorded `transactionHash` (revised 2.4.0). The recomputed-hash check applies to inline payloads as well.
+**Resolved (2.0.0; payload modeled explicitly 2.2.0; implemented name clarified 2.6.6)**: signed transaction bytes are stored inline by default via `SignedPayload.InlineCbor` (defensive copies on construction and access); `SignedPayload.ExternalCbor` carries a reference, content hash, and transaction hash for deployments with payload-size or key-management constraints. Stores must support inline payloads. Recovery resolves external references through the `SignedPayloadResolver` primitive; verification is CCL's job, not the resolver implementation's — before any resubmission the engine verifies the recorded `sha256` against the loaded bytes and recomputes the Cardano transaction hash from the payload, requiring it to equal the recorded `transactionHash` (revised 2.4.0). The recomputed-hash check applies to inline payloads as well.
 
 ```java
 interface SecureBindingResolver {
-    Object resolve(String secureValueRef, ResolutionContext context);
+    Object resolve(String secureValueRef);
 }
 ```
 
 Before submission, the engine persists `SIGNED` with the locally computed transaction hash and signed CBOR. It then persists `SUBMITTING`, calls the backend, and persists `SUBMITTED`. If the process stops after the backend accepted the transaction but before `SUBMITTED` is stored, recovery queries the known hash before deciding what to do.
 
-Recovery API:
+Shipped attempt-recovery API:
 
 ```java
 FlowRecoveryResult recovery = engine.recover(
         FlowRecoveryRequest.builder()
                 .executionId(executionId)
-                .definitionResolver(definitionResolver)
+                .stepId(stepId)
+                .attemptNumber(attemptNumber)
+                .currentSlot(currentSlot)
+                .resubmitSafetyMargin(safetyMarginSlots)
                 .build()
 );
 ```
 
-Recovery reconciliation rules:
+Implemented recovery reconciliation rules:
 
-1. Verify the definition fingerprint.
-2. Acquire an execution lease or fail without mutation.
-3. For each non-terminal attempt with a prepared hash, query chain/backend state.
-4. If confirmed, reconstruct outputs and advance state.
-5. If in block, resume confirmation tracking.
-6. If submitted or possibly in mempool, continue tracking before rebuilding.
-7. If absent and submission was never attempted, submit the prepared transaction (within its validity interval).
-8. If absent after a recorded uncertain submission, apply configured reconciliation timeout before retry.
-9. Rebuild only when policy and retry classification allow it.
-10. Append recovery decisions as events.
+1. Resolve one persisted attempt by execution ID plus optional step and attempt selectors.
+2. Acquire the execution and recorded spending-resource leases or fail without mutation.
+3. Query the persisted transaction hash before considering resubmission.
+4. If the hash is observed, record the new `SUBMITTED` or `IN_BLOCK` attempt state and inclusion metadata.
+5. If it is not observed and a recorded upper validity slot is still safely open, verify both the signed-payload digest and Cardano transaction hash before resubmitting the identical bytes.
+6. Missing or corrupt payloads, expired validity, failed observation, and failed identical resubmission remain `RECOVERY_REQUIRED`; none authorizes an implicit rebuild.
+7. Append the attempt-level recovery decision as fenced events and update the attempt snapshot.
+
+**Implemented recovery boundary (clarified 2.6.6)**: the shipped
+`FlowEngine.recover(FlowRecoveryRequest)` reconciles and records one selected transaction attempt.
+The request identifies an execution and may select a step and attempt explicitly; operational and
+cross-process callers should supply both selectors unless the target is demonstrably unambiguous.
+The caller also supplies the current authoritative Cardano slot. Recovery does not automatically recompile the definition,
+restart remaining steps, rebuild a transaction, or resume the whole business flow. The
+`definitionResolver`-driven whole-flow continuation shown in the original proposal remains future
+orchestration work. Applications must interpret the attempt result and explicitly invoke their
+continuation or operator workflow. This boundary does not weaken identical-payload verification,
+lease fencing, or the rule that uncertainty remains `RECOVERY_REQUIRED`.
 
 #### Persistence Failure Policy
 
@@ -1727,21 +1755,28 @@ Assume `fund-staging` produced transaction `txA` and `forward-payment` produced 
 7. A preceding independent confirmed step is retained and is not executed again.
 8. The final result exposes both attempt histories and the recovery events. If the recovery budget is exhausted, the result is a typed rollback failure or `RECOVERY_REQUIRED` with accurate partial-success state.
 
-The same recovery can be resumed after a process stop:
+After a process stop, the shipped API can reconcile one selected persisted attempt from this
+scenario. It does not restart the remaining invalidated closure automatically:
 
 ~~~java
 FlowRecoveryResult recovery = engine.recover(
         FlowRecoveryRequest.builder()
                 .executionId(executionId)
-                .definitionResolver(definitionResolver)
+                .stepId("fund-staging")
+                .attemptNumber(1)
+                .currentSlot(currentSlot)
+                .resubmitSafetyMargin(safetyMarginSlots)
                 .build()
 );
 
-if (recovery.status() == FlowExecutionStatus.RECOVERY_REQUIRED) {
-    recovery.diagnostics().forEach(diagnostic ->
-            log.warn("{}: {}", diagnostic.code(), diagnostic.message()));
+if (recovery.state() == AttemptState.RECOVERY_REQUIRED) {
+    log.warn("Attempt recovery remains unresolved: {}", recovery.error());
 }
 ~~~
+
+The definition-resolution and automatic whole-flow continuation needed to resume steps 6–8 are
+aspirational parts of the original design. The application currently interprets the attempt result
+and invokes its own continuation or operator workflow.
 
 #### Strict Rollback Acceptance Matrix
 
@@ -1793,7 +1828,14 @@ FlowEngine engine = FlowEngine.builder()
 
 `FlowEngine` is immutable and thread-safe after `build()`. Every execution creates a run-scoped context containing effective settings, resource-resolution scope, listener/event sink, confirmation tracker, cancellation token, and state revision.
 
-**Resolved (2.0.0)**: `FlowEngine` is a new public facade. `FlowExecutor` is not evolved in place; it becomes a thin delegating adapter over the engine in the same release that introduces `FlowEngine`, and is deprecated in a later, separately decided release. Evolving the 2,986-line class in place was rejected because its six execution-path variants make behavior-preserving refactoring unverifiable without the facade split (see Decision 20).
+**Resolved (2.0.0; implementation direction clarified 2.6.6)**: `FlowEngine` is the new public,
+immutable facade for portable compilation, policy, request identity, coordination, durable state,
+and recovery. The implementation reuses the behavior-locked execution core by creating a fresh,
+run-scoped `FlowExecutor` for each engine execution; it does not duplicate the three chaining and
+rollback algorithms. `FlowExecutor` therefore remains the compatibility facade rather than
+recursively delegating back to `FlowEngine`. Its six fresh/resume variants were collapsed to three
+parameterized paths and the internal collaborators in Decision 20 were extracted. Deprecation, if
+any, remains a later separately decided change.
 
 #### Proposed Execution API
 
@@ -1814,7 +1856,8 @@ Cancellation sets `CANCEL_REQUESTED`, signals a run-scoped token, interrupts an 
 
 #### Compatibility
 
-- `FlowExecutor` remains available and delegates to `FlowEngine`.
+- `FlowExecutor` remains available as the compatibility facade; `FlowEngine` creates an isolated
+  run-scoped instance to reuse its behavior-locked execution core.
 - Existing executor setters remain supported during the migration window.
 - New documentation recommends `FlowEngine` for server-side and concurrent applications.
 
@@ -1876,7 +1919,11 @@ FlowExecutionSettings settings = FlowExecutionSettings.builder()
 
 #### Proposed API
 
-**Resolved (2.0.0; forwarding limits documented 2.1.0)**: public configuration types move to `txflow.config` during the pre-release window — the only time the move is cheap. Honest limits: Java enums cannot have forwarding aliases, so `RollbackStrategy` and other enums are hard-moved — a source- and binary-breaking pre-release change called out explicitly in release notes; deprecated forwarding is possible only for classes/interfaces and is used where practical. If the binary-compatibility open question resolves to "compatibility required for the current series", the move is cancelled outright rather than half-done.
+**Resolved (2.0.0; forwarding limits documented 2.1.0; implementation recorded 2.6.6)**:
+public configuration types moved to `txflow.config` during the pre-release window. Java enums
+cannot have forwarding aliases, so `RollbackStrategy` and other enums were hard-moved as an
+explicit pre-release compatibility change. Deprecated forwarding classes are retained where Java
+allows them, including the legacy `FlowExecutionSettings` and `ConfirmationConfig` entry points.
 
 ```java
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
@@ -1957,17 +2004,22 @@ Serialization is conservative — two executions that would have selected disjoi
 
 ### Decision 19 (new in 2.0.0): Deliberate Transaction Validity-Interval Policy
 
-Rollback recovery (Decision 13, invariant 5) prefers resubmitting identical signed CBOR. That preference is only meaningful within the transaction's validity interval — and today TxFlow neither sets nor records validity intervals for orchestration purposes, so recovery cannot know whether a prepared transaction is still submittable.
+Rollback recovery (Decision 13, invariant 5) prefers resubmitting identical signed CBOR. That
+preference is only meaningful within the transaction's validity interval. The original gap was that
+TxFlow did not record those bounds with the signed attempt, so recovery could not determine whether
+the prepared transaction remained safely submittable.
 
 #### Decision
 
-Revised 2.1.0: recording and policy control replace the earlier universal mandate; concrete default values remain an open question.
+Revised 2.1.0 and implementation boundary clarified 2.6.6: recording and policy control replace
+the earlier universal mandate; there is no universal network default.
 
-1. The validity interval (`validFromSlot`, `validToSlot`) is always recorded in `PreparedTransaction` (Decision 11) at signing time when the built transaction carries one; the fields are nullable so intentionally unbounded legacy transactions remain representable and valid.
-2. Server policy may require an interval (`requireValidityInterval()`) and may cap the window length. An engine-level `defaultValidityWindow` is available as opt-in configuration for definitions that do not set one; it is not mandated, and network-appropriate default values remain an open question.
-3. Recovery and rollback reconciliation classify a prepared attempt with a recorded `validToSlot` as reusable only while the current chain tip plus a safety margin (`resubmitSafetyMargin`) stays below `validToSlot`; past that, the attempt is superseded and rebuild rules apply. An attempt without a recorded interval is governed by input validity alone.
-4. Absolute-slot validation is chain-dependent and therefore happens at preflight and runtime, not at compile time; compile time checks only internal consistency. The reinclusion-window-versus-validity-window comparison (a `reinclusion_window` longer than the validity window makes re-inclusion of an expired transaction impossible) is emitted as a preflight warning.
-5. YAML may set per-flow or per-step validity preferences; server policy may cap or require them:
+1. The validity interval (`validFromSlot`, `validToSlot`) is recorded with the durable attempt at signing time when the built transaction carries one; the fields remain nullable so intentionally unbounded transactions are representable.
+2. Server policy can require both explicit absolute bounds with `requireValidityInterval(true)` and reject an interval wider than `maxValidityWindowSlots`. The portable duration-based `ValidityPolicy` is also policy-visible and can be capped with `maxRequestedValidityWindow`.
+3. No engine-level `defaultValidityWindow` API is shipped, and the engine does not translate the duration preference into absolute slots. Network-aware slot selection remains application or future orchestration work; controlled deployments set `transaction.context.valid_from_slot` and `valid_to_slot` explicitly.
+4. Explicit attempt recovery accepts a caller-supplied authoritative `currentSlot` and `resubmitSafetyMargin`. At or beyond the safe upper bound it returns `RECOVERY_REQUIRED`; it does not automatically supersede the attempt or rebuild another transaction. Without a recorded `validToSlot`, the stock coordinator can resubmit verified identical bytes without an expiry check.
+5. Compilation checks the internal ordering and configured maximum span of explicit absolute slots. A chain-tip-relative interval check and a reinclusion-window-versus-validity warning were part of the aspirational design but are not shipped diagnostics.
+6. YAML can carry one flow-level validity preference. Individual steps express actual absolute bounds in their QuickTx transaction context:
 
 ```yaml
 spec:
@@ -2293,16 +2345,16 @@ FLOW_COMPLETED
 ```java
 FlowExecutionResult result = handle.await();
 
-if (result.getStatus() == FlowExecutionStatus.COMPLETED) {
-    result.getSteps().forEach(step ->
+if (result.state() == FlowExecutionState.COMPLETED) {
+    result.steps().forEach(step ->
             log.info("{} -> {}", step.getStepId(), step.getTransactionHash()));
-} else {
-    result.getErrors().forEach(error ->
-            log.error("{} {}", error.code(), error.message()));
+} else if (result.error() != null) {
+    log.error("{} {}", result.error().code(), result.error().message());
 }
 ```
 
-Example JSON representation:
+Illustrative transport projection (the Java record itself uses ordinary record accessors and does
+not prescribe this JSON naming convention):
 
 ```json
 {
@@ -2312,48 +2364,44 @@ Example JSON representation:
     "version": "1.0.0",
     "fingerprint": "sha256:..."
   },
-  "status": "COMPLETED",
+  "state": "COMPLETED",
   "steps": [
     {
       "step_id": "fund-staging",
-      "attempt": 1,
-      "status": "CONFIRMED",
-      "transaction_hash": "abc...",
-      "outputs": {
-        "staging-funds": "abc...#0"
-      }
+      "status": "COMPLETED",
+      "transaction_hash": "abc..."
     },
     {
       "step_id": "forward-payment",
-      "attempt": 1,
-      "status": "CONFIRMED",
+      "status": "COMPLETED",
       "transaction_hash": "def..."
     }
   ],
-  "errors": []
+  "error": null
 }
 ```
 
-### 10. Recover After A Process Restart
+### 10. Reconcile An Attempt After A Process Restart
 
 ```java
-List<FlowExecutionRef> recoverable = executionStore.findRecoverable(
-        RecoveryQuery.defaults()
+FlowRecoveryResult recovery = engine.recover(
+        FlowRecoveryRequest.builder()
+                .executionId(executionId)
+                .stepId(stepId)
+                .attemptNumber(attemptNumber)
+                .currentSlot(currentSlot)
+                .resubmitSafetyMargin(safetyMarginSlots)
+                .build()
 );
 
-for (FlowExecutionRef ref : recoverable) {
-    FlowRecoveryResult recovery = engine.recover(
-            FlowRecoveryRequest.builder()
-                    .executionId(ref.executionId())
-                    .definitionResolver(definitionRepository::resolve)
-                    .build()
-    );
-
-    log.info("Recovery {} -> {}", ref.executionId(), recovery.getAction());
-}
+log.info("Attempt recovery {}#{} -> {}", stepId, attemptNumber, recovery.state());
 ```
 
-If the last stored state is `SUBMITTING` with a known signed transaction hash, recovery queries the hash. It does not immediately rebuild the step.
+`FlowExecutionStore` intentionally has no unbounded scan-all API. Applications retain their own
+index or known execution IDs, then select an attempt explicitly for an operator or cross-process
+workflow. If the last stored state is `SUBMITTING` with a known signed transaction hash, recovery
+queries the hash before considering identical-payload resubmission. It does not rebuild the step or
+resume later steps; whole-flow continuation from a definition repository remains future work.
 
 ## Proposed Module And Package Layout
 
@@ -2778,17 +2826,19 @@ Rejected. Current users hit the Track A defects today through the existing API; 
 
 ## Resolved Decisions (Formerly Open Questions)
 
-Resolutions proposed by the independent review and approved by the project maintainer (2.0.0 review; 2.1.0 revisions noted). Each is recorded inline at the owning decision; all remain revisable while the ADR is `Proposed`.
+Resolutions proposed by the independent review and approved by the project maintainer (2.0.0
+review; 2.1.0 revisions noted). Each is recorded inline at the owning decision and was accepted at
+ADR version 2.6.0.
 
 | # | Question (0.2.0) | Resolution |
 |---|------------------|------------|
 | 1–2 | Schema namespace and version name | `txflow.cardano-client.dev/v1alpha1` — Kubernetes group/version form, product-scoped host (Decision 1; form revised 2.1.0, host revised 2.5.0) |
-| 3 | `FlowEngine` vs evolved `FlowExecutor` | New `FlowEngine` facade; `FlowExecutor` becomes a delegating adapter (Decision 14) |
+| 3 | `FlowEngine` vs evolved `FlowExecutor` | New immutable `FlowEngine` facade owns compilation, policy, identity, coordination, durability, and recovery; each run creates an isolated `FlowExecutor` to reuse its behavior-locked execution core, while `FlowExecutor` remains the compatibility facade (Decision 14; implementation direction clarified 2.6.6) |
 | 4 | `TxFlow` vs new `FlowDefinition` name | Keep `TxFlow` (Decision 2) |
 | 5 | Config package location | Move to `txflow.config` now (Decision 16) |
 | 6 | `TxInputRef` sealed or open | Sealed for the pre-release series; widening/unsealing is source-breaking for exhaustive switches and accepted pre-release (Decision 5; rationale corrected 2.1.0) |
 | 7 | Output binding location | On `FlowStep`; intent-level may follow (Decision 5) |
-| 9 | Policy capping behavior | Numeric ceilings: record + warn + continue; semantic replacements (mode, rollback action, horizon): reject or require explicit caller acknowledgement; `strictSettings()` rejects any difference (Decision 9; revised 2.2.0) |
+| 9 | Policy capping behavior | Cappable execution requests (retry attempts, confirmation timeout, rollback cycles, duration validity preference) record + warn + continue unless `strictSettings()` is enabled; structural limits, explicit absolute-slot limits, and disallowed semantic choices are rejected (Decision 9; revised 2.2.0, implementation clarified 2.6.6) |
 | 11 | Signed CBOR storage | Inline by default; external/encrypted blob reference permitted (Decision 11) |
 | 13 | Idempotency scope | (namespace, key) unique; a match requires equal definition AND canonical execution-request fingerprints — any mismatch is a typed conflict (Decision 2; revised 2.1.0) |
 | 16 | Monitoring horizon in server mode | `UNTIL_FLOW_TERMINAL` default; legacy horizon allowed with warning (Decision 13) |
@@ -2798,44 +2848,44 @@ Resolutions proposed by the independent review and approved by the project maint
 | — | Idempotency collision behavior (new) | Atomic (namespace, key) claim at the store: equal definition AND execution-request fingerprints → return the existing handle/result; any mismatch → typed `TXFLOW_IDEMPOTENCY_CONFLICT` (Decision 2; revised 2.1.0–2.2.0) |
 | — | Concurrent spending (new) | Serialize by default, explicit policy-visible opt-out (Decision 18) |
 
-## Open Questions For Review
+## Future Design Questions (Non-Blocking)
 
 1. Which parts of `UtxoFilterSpec` are safe and stable enough to expose in the TxFlow output-selector schema? (Proposed starting subset: address, asset unit, minimum amount, datum-hash presence.)
-2. What is the required binary compatibility policy during the current pre-release series?
-3. Which backend states can be portably distinguished across Blockfrost, Koios, Ogmios/Yaci, and custom suppliers — specifically, which adapters can declare `AUTHORITATIVE_ABSENCE`, and which can distinguish mempool absence from chain absence strongly enough to support identical-CBOR resubmission?
-4. Should independent steps ever execute concurrently in a future version, or should ordering remain fully explicit?
-5. Which current legacy-format ambiguities should be warnings versus immediate errors in the compatibility decoder?
-6. Decision 18 defers per-UTXO reservation. Is per-engine spending-resource serialization plus store-level resource leases sufficient for the first server deployments, or must the reservation ADR land in the same release train?
-7. What are the right engine defaults for `defaultValidityWindow` and `resubmitSafetyMargin` (Decision 19) across mainnet and testnets with different slot characteristics?
+2. Which backend states can be portably distinguished across Blockfrost, Koios, Ogmios/Yaci, and custom suppliers — specifically, which adapters can declare `AUTHORITATIVE_ABSENCE`, and which can distinguish mempool absence from chain absence strongly enough to support identical-CBOR resubmission?
+3. Should independent steps ever execute concurrently in a future version, or should ordering remain fully explicit?
+4. Which current legacy-format ambiguities should be warnings versus immediate errors in the compatibility decoder?
+5. Decision 18 defers per-UTXO reservation. Is per-engine spending-resource serialization plus store-level resource leases sufficient for the first server deployments, or must the reservation ADR land in the same release train?
+6. Should a future network-aware interval materializer offer opt-in validity-window and recovery-margin defaults across mainnet and testnets with different slot characteristics? The current implementation intentionally has no `defaultValidityWindow` API or universal network default.
 
-## Review Checklist
+## Historical Acceptance Checklist
 
-Reviewers should explicitly confirm or request changes for:
+The project maintainer accepted these items at ADR version 2.6.0. Later implementation reviews are
+recorded in the version history rather than reopening this checklist.
 
-- [ ] TxFlow scope as an ordered Cardano transaction graph
-- [ ] verification-status section, corrected findings, and newly found defects (NEW-01 … NEW-05)
-- [ ] versioned document envelope and `v1alpha1` naming
-- [ ] definition/execution identity separation and idempotency semantics
-- [ ] typed parameter and binding model, including syntax isolation
-- [ ] `needs` versus explicit flow-output references
-- [ ] lossless portability rules (including FILTER rejection)
-- [ ] compiler and diagnostics API
-- [ ] resource catalog and capability model
-- [ ] execution policy ownership and capping behavior
-- [ ] immutable `FlowEngine` direction and `FlowExecutor` adapter plan
-- [ ] lifecycle, result, event, and error models
-- [ ] durable store, lease, journal-compaction, and recovery model
-- [ ] retry and uncertain-submission semantics
-- [ ] rollback terms, monitoring horizon, and backend-uncertainty boundary
-- [ ] rollback compatibility mapping and invalidated-closure rebuild semantics
-- [ ] rollback portable policy, observation, event, state, and error APIs
-- [ ] strict rollback/retry acceptance matrix and Yaci DevKit verification plan
-- [ ] concurrent-execution spending contention (Decision 18)
-- [ ] validity-interval policy (Decision 19)
-- [ ] `FlowExecutor` decomposition plan (Decision 20)
-- [ ] deterministic time/chain seam (Decision 21)
-- [ ] Track A breaking-by-honesty behavior changes
-- [ ] package ownership changes
-- [ ] legacy compatibility and deprecation strategy
-- [ ] three-track implementation plan and sequencing
-- [ ] Java 17 requirement
+- [x] TxFlow scope as an ordered Cardano transaction graph
+- [x] verification-status section, corrected findings, and newly found defects (NEW-01 … NEW-05)
+- [x] versioned document envelope and `v1alpha1` naming
+- [x] definition/execution identity separation and idempotency semantics
+- [x] typed parameter and binding model, including syntax isolation
+- [x] `needs` versus explicit flow-output references
+- [x] lossless portability rules (including FILTER rejection)
+- [x] compiler and diagnostics API
+- [x] resource catalog and capability model
+- [x] execution policy ownership and capping behavior
+- [x] immutable `FlowEngine` direction and `FlowExecutor` adapter plan
+- [x] lifecycle, result, event, and error models
+- [x] durable store, lease, journal-compaction, and recovery model
+- [x] retry and uncertain-submission semantics
+- [x] rollback terms, monitoring horizon, and backend-uncertainty boundary
+- [x] rollback compatibility mapping and invalidated-closure rebuild semantics
+- [x] rollback portable policy, observation, event, state, and error APIs
+- [x] strict rollback/retry acceptance matrix and Yaci DevKit verification plan
+- [x] concurrent-execution spending contention (Decision 18)
+- [x] validity-interval policy (Decision 19)
+- [x] `FlowExecutor` decomposition plan (Decision 20)
+- [x] deterministic time/chain seam (Decision 21)
+- [x] Track A breaking-by-honesty behavior changes
+- [x] package ownership changes
+- [x] legacy compatibility and deprecation strategy
+- [x] three-track implementation plan and sequencing
+- [x] Java 17 requirement

@@ -1,5 +1,11 @@
 # TxFlow: Design & Usage Guide
 
+> **Compatibility reference:** Most of this document describes the preview `FlowExecutor`,
+> `FlowHandle`, and `FlowStateStore` API. New integrations should begin with
+> [`txflow/README.md`](../README.md) and the current public guide under
+> `docs/content/preview/txflow`. Use this document when maintaining or migrating an existing
+> preview integration.
+
 TxFlow orchestrates multi-step Cardano transaction flows with automatic UTXO dependency management, confirmation tracking, rollback recovery, and retry policies.
 
 **Core problem:** When a Cardano workflow requires multiple related transactions (e.g., deposit then release, mint then distribute), each subsequent transaction may depend on UTXOs produced by a previous one. TxFlow automates this dependency resolution, monitors confirmations, and handles chain reorganizations.
@@ -617,14 +623,19 @@ result.getCompletedAt();         // Instant when execution finished
 FlowStepResult stepResult = result.getStepResult("deposit").orElseThrow();
 
 stepResult.isSuccessful();        // true if completed
-stepResult.getStatus();           // FlowStatus (COMPLETED, FAILED, CANCELLED)
+stepResult.getStatus();           // FlowStatus (including IN_PROGRESS after submission)
 stepResult.getStepId();           // Step ID
-stepResult.getTransactionHash();  // Tx hash (null if failed)
+stepResult.getTransactionHash();  // Known tx hash; null when failure preceded build/submission
 stepResult.getOutputUtxos();      // List<Utxo> produced by this step
 stepResult.getSpentInputs();      // List<TransactionInput> consumed by this step
 stepResult.getError();            // Throwable if failed
-stepResult.getCompletedAt();      // Instant when this step finished
+stepResult.getCompletedAt();      // Instant when this result state was observed
 ```
+
+In pipelined and batch terminal results, a submitted transaction that did not reach the effective
+confirmation policy remains `IN_PROGRESS` and is not counted as successful. A build-only
+transaction is omitted. A failed result retains its transaction hash when submission identity was
+already known.
 
 ### Error Handling Patterns
 

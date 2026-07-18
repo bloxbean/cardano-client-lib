@@ -47,6 +47,18 @@ uncertain. It never rebuilds a different body merely because an index lookup is 
 `RECOVERY_REQUIRED` result leaves the attempt history and partial-success state available for a
 later operator- or policy-directed recovery.
 
+`FlowEngine.recover(...)` reconciles and records one selected transaction attempt. It does not
+restart remaining steps, rebuild a transaction, or resume the whole business flow. The application
+must interpret the recovery result and explicitly invoke its continuation or operator workflow.
+An inconclusive result remains `RECOVERY_REQUIRED` with its history preserved.
+
+The caller supplies `currentSlot`; it must be a fresh authoritative Cardano slot rather than a
+block height or wall-clock value, and recovery should fail closed when it is unavailable. The
+coordinator enforces its safety margin only when `validToSlot` was persisted. Controlled servers
+should require validity intervals through `FlowExecutionPolicy`. The stock engine persistence path
+stores signed CBOR inline; external payload references require a custom or pre-seeded persistence
+path plus `SignedPayloadResolver` during recovery.
+
 Store fencing protects TxFlow state writes. It cannot prevent a partitioned stale process from
 submitting already-signed bytes to Cardano; multi-process deployments that require stronger
 guarantees must also serialize spending externally or implement a UTXO reservation coordinator.

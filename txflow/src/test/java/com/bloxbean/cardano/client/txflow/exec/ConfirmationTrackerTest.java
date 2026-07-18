@@ -9,6 +9,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -287,6 +288,7 @@ class ConfirmationTrackerTest {
         // Should return promptly with error
         assertNotNull(result);
         assertNotNull(result.getError());
+        assertInstanceOf(CancellationException.class, result.getError());
         assertTrue(result.getError().getMessage().contains("Flow cancelled"));
     }
 
@@ -326,6 +328,7 @@ class ConfirmationTrackerTest {
         ConfirmationResult result = resultRef.get();
         assertNotNull(result);
         assertNotNull(result.getError());
+        assertInstanceOf(CancellationException.class, result.getError());
         assertTrue(result.getError().getMessage().contains("Flow cancelled"));
     }
 }

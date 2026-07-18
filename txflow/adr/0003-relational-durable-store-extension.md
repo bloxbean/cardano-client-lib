@@ -4,7 +4,7 @@
 
 **Date**: 2026-07-14
 
-**Last Updated**: 2026-07-14
+**Last Updated**: 2026-07-17
 
 **Target Release**: To be decided
 
@@ -61,6 +61,26 @@ dialect SPI, but CCL does not describe an arbitrary JDBC database as compatible 
 passes the conformance suite.
 
 RocksDB is not part of this decision.
+
+### Implementation refinement (2026-07-17)
+
+The first post-implementation review tightened four database boundaries without changing the
+public store API:
+
+- snapshot and event timestamps are normalized to microsecond precision before payload encoding
+  and JDBC binding, while lease and schema-history timestamps are normalized before binding. This
+  matches the certified PostgreSQL precision and prevents driver rounding from making a valid row
+  appear corrupt;
+- H2 `MIGRATE` may complete an interrupted first V1 migration only when a compatible empty history
+  table exists as the first-script marker, the remaining TxFlow table names form a valid V1
+  creation-order prefix, and every prefix table is empty. The verified-empty prefix is dropped in
+  reverse and recreated from the canonical checksummed script—discarding any extra indexes,
+  defaults, or constraints on those tables—while every other partial schema remains fail-closed;
+- relational envelope validation delegates readable payload versions to
+  `FlowStoreCodec.supportsFormatVersion(...)`, so a future writer-version bump does not make an
+  explicitly retained older reader unreachable; and
+- PostgreSQL serialization/deadlock states and H2 lock-timeout states (`HYT00` or vendor code
+  `50200`) map to the same retryable transaction-invalidated store error after confirmed rollback.
 
 ## Goals
 
@@ -191,6 +211,13 @@ Isolation and locking may differ by dialect, but correctness may not depend on a
 followed by an unconditional write. Deadlock and serialization failures are mapped to stable typed
 store errors; the adapter does not silently retry an operation whose outcome is uncertain.
 
+Relational columns in the certified profiles preserve timestamps to microseconds. The adapter
+truncates top-level snapshot, event, and migration-history instants before encoding, binding, and
+returning them. Lease expiry is instead rounded up to the next representable microsecond when
+needed, so every positive duration remains strictly later than the caller's `now`. Column/payload
+cross-checks therefore compare the same persisted value without relying on driver-specific
+sub-microsecond rounding.
+
 ## Durable Payload Format
 
 The current snapshot contains a generic `Map<String, Object>`. A database adapter must not rely on
@@ -237,6 +264,17 @@ checksums. Migration coordination must ensure that two starters cannot apply the
 concurrently. A database with a schema newer than the running library fails fast. Automatic
 downgrade and destructive repair are not supported. Every released schema version remains in the
 upgrade test matrix for the documented compatibility window.
+
+H2 can commit DDL between script statements. To avoid permanently bricking the embedded profile
+after a first-run process stop, `MIGRATE` recognizes only a compatible empty
+`txflow_schema_history` table as the first-script marker plus a valid creation-order prefix of the
+remaining V1 tables. The marker must have the expected columns and primary key. Every prefix table
+must be empty and no unexpected TxFlow table may exist.
+The adapter drops that verified-empty prefix in reverse dependency order, recreates the canonical
+schema from the checksummed script, validates it, and only then records the history row. Dropping
+first discards extra indexes, defaults, or constraints on a verified-empty prefix rather than
+allowing them to survive repair. `VALIDATE`, PostgreSQL, a missing marker with other tables,
+non-empty partial state, and unexpected TxFlow tables never use this recovery path.
 
 Schema or table-name configuration, if exposed, accepts identifiers rather than SQL fragments and
 is validated and quoted by the dialect. All domain values are passed through prepared statements.
@@ -301,10 +339,13 @@ The RDBMS module adds these integration layers:
 - child-JVM hard-kill tests at the prepared, submitting, submitted, included, and terminal
   boundaries, followed by recovery from the same H2 file;
 - Testcontainers PostgreSQL tests for the same contract, real row locking and transaction
-  isolation, and server-raised PostgreSQL serialization-failure classification;
+  isolation, server-raised PostgreSQL serialization-failure classification, and
+  sub-microsecond timestamp normalization including rollover;
 - concurrent workers using independent PostgreSQL store instances and JDBC connections, showing
   that a stale owner cannot mutate state without relying on process-local synchronization;
 - migration tests from every supported released schema and payload version.
+- H2 interrupted-first-migration tests covering safe empty completion and rejection of non-empty,
+  malformed, or unexpected partial state.
 
 No real PostgreSQL credentials are required for the normal build; Testcontainers supplies the
 certification database. Testing a separately operated PostgreSQL service is an optional deployment

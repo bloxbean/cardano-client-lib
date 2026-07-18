@@ -1,5 +1,10 @@
 # Spring Boot Integration Guide
 
+> **Compatibility reference:** This example uses the preview `FlowExecutor` facade. For new
+> services, construct an application-scoped `FlowEngine`, supply application-owned task and
+> maintenance executors, and use `FlowExecutionRequest`. See [`txflow/README.md`](../README.md)
+> and the current public TxFlow guide.
+
 This guide shows how to integrate TxFlow with Spring Boot applications for production use.
 
 ## Basic Setup
@@ -8,9 +13,11 @@ This guide shows how to integrate TxFlow with Spring Boot applications for produ
 
 ```gradle
 // build.gradle
+def cclVersion = "0.8.0-pre5-SNAPSHOT"
+
 dependencies {
-    implementation 'com.bloxbean.cardano:cardano-client-lib-txflow:${version}'
-    implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:${version}'
+    implementation "com.bloxbean.cardano:cardano-client-txflow:${cclVersion}"
+    implementation "com.bloxbean.cardano:cardano-client-backend-blockfrost:${cclVersion}"
 }
 ```
 

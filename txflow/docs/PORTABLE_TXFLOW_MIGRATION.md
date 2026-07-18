@@ -25,8 +25,33 @@ Key changes from the preview `version: "1.0"` format:
 Durable/server deployments should also follow [the store, fencing, recovery, and executor
 contract](DURABLE_RUNTIME.md).
 
-The codec still reads the preview format and emits `TXFLOW_LEGACY_FORMAT`. Encoding fails instead
-of silently discarding Java factories, predicate filters, or additional transactions.
+Compatibility notes for the v1alpha1 refinement:
+
+- Compiled definition fingerprints include an explicit `txflow-compiled:v1` domain marker. Any
+  fingerprint produced by an earlier preview build changes once; do not rewrite an existing
+  durable execution to force a match. Finish or reconcile it with the build that created it, or
+  treat the upgraded definition as a deliberately new execution identity.
+- Portable parsing now rejects unknown execution fields, wrong scalar types, invalid presets, and
+  malformed values that older preview builds ignored or coerced. Empty `execution:` and
+  `confirmation:` stanzas are also rejected; omit an unused stanza or provide an object with the
+  intended settings.
+- `metadata.description` is an additive v1alpha1 field. Older external validators using the prior
+  schema with `additionalProperties: false` may need the updated bundled schema before accepting a
+  document that emits it.
+- `ConfirmationConfig.devnet()` and `quick()` contain legacy backend-wait behavior. Express their
+  portable confirmation values with `preset` or explicit min/check/timeout fields; backend restart
+  and index-sync behavior remains host/test infrastructure, not document authority.
+- The legacy `FlowExecutor` facade now reports submitted-but-unconfirmed steps as `IN_PROGRESS`
+  and omits build-only steps from terminal results. `onStepCompleted` fires after confirmation,
+  cancellation results carry a `CancellationException`, and the batch-mode `txInspector` callback
+  is invoked consistently with the other chaining modes.
+
+The codec still reads the preview format and emits `TXFLOW_LEGACY_FORMAT`. Portable encoding fails
+instead of silently discarding Java factories, any legacy `StepDependency` selection, step-level
+retry overrides, legacy flow/`TxPlan` variables, additional transactions, legacy
+`RollbackStrategy`, non-default legacy confirmation compatibility fields, or non-default retry
+filter flags. Migrate dependencies to `needs` plus named `flow_output` references, values to
+parameters plus `FlowBindings`, and rollback behavior to `RollbackPolicy`.
 
 For Java 21 virtual threads, create the executor in the application and pass it to the engine or
 legacy facade. TxFlow never owns or closes it.

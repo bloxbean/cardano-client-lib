@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>
  * Prerequisites:
  * - Yaci DevKit running at http://localhost:8080/api/v1/
- * - Run with: ./gradlew :txflow:integrationTest --tests ChainingModeIntegrationTest -Dyaci.integration.test=true
+ * - Run with: ./gradlew :txflow:integrationTest --tests ChainingModeIntegrationTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class ChainingModeIntegrationTest {

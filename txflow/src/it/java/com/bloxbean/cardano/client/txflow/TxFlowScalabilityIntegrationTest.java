@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>
  * Prerequisites:
  * - Yaci DevKit running at http://localhost:8080/api/v1/
- * - Run with: ./gradlew :txflow:integrationTest -Dyaci.integration.test=true --tests TxFlowScalabilityIntegrationTest
+ * - Run with: ./gradlew :txflow:integrationTest --tests TxFlowScalabilityIntegrationTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TxFlowScalabilityIntegrationTest {

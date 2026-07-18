@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.store.AttemptState;
 import com.bloxbean.cardano.client.txflow.store.FlowAttemptSnapshot;
+import com.bloxbean.cardano.client.txflow.store.FlowStoreException;
 import com.bloxbean.cardano.client.txflow.store.InclusionRecord;
 import com.bloxbean.cardano.client.txflow.store.SignedPayload;
 import com.bloxbean.cardano.client.txflow.store.SignedPayloadVerifier;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -45,7 +47,7 @@ final class DurableExecutionPersistence implements PersistencePort {
 
     DurableExecutionPersistence(ExecutionJournalSession journal,
                                Map<String, Set<String>> explicitConsumers) {
-        this.journal = java.util.Objects.requireNonNull(journal, "journal");
+        this.journal = Objects.requireNonNull(journal, "journal");
         this.explicitConsumers = Map.copyOf(explicitConsumers);
     }
 
@@ -118,30 +120,51 @@ final class DurableExecutionPersistence implements PersistencePort {
     @Override
     public synchronized void onRolledBack(FlowStep step, String transactionHash,
                                           long previousBlockHeight) {
-        FlowAttemptSnapshot current = requireAttempt(step);
-        if (current.state() == AttemptState.ROLLED_BACK) return;
-        List<InclusionRecord> inclusions = current.inclusions().stream()
-                .map(inclusion -> inclusion.blockHeight() == previousBlockHeight
-                        ? new InclusionRecord(inclusion.blockHeight(), inclusion.blockHash(),
-                        inclusion.slot(), inclusion.observedAt(), true) : inclusion)
+        Objects.requireNonNull(transactionHash, "transactionHash");
+        List<Map.Entry<String, FlowAttemptSnapshot>> matchingAttempts = attempts.entrySet().stream()
+                .filter(entry -> step.getId().equals(entry.getValue().stepId()))
+                .filter(entry -> entry.getValue().signedPayload() != null
+                        && transactionHash.equals(
+                        entry.getValue().signedPayload().transactionHash()))
                 .toList();
-        putAttempt(step, withState(current, AttemptState.ROLLED_BACK,
-                inclusions, "TXFLOW_ROLLBACK"));
+        if (matchingAttempts.isEmpty()) {
+            throw new FlowStoreException(
+                    "TXFLOW_PREPARED_ATTEMPT_MISSING",
+                    "No prepared attempt for step " + step.getId()
+                            + " matches transaction " + transactionHash);
+        }
+        boolean changed = false;
+        for (Map.Entry<String, FlowAttemptSnapshot> entry : matchingAttempts) {
+            FlowAttemptSnapshot current = entry.getValue();
+            if (current.state() == AttemptState.ROLLED_BACK) continue;
+            List<InclusionRecord> inclusions = current.inclusions().stream()
+                    .map(inclusion -> inclusion.blockHeight() == previousBlockHeight
+                            ? new InclusionRecord(inclusion.blockHeight(), inclusion.blockHash(),
+                            inclusion.slot(), inclusion.observedAt(), true) : inclusion)
+                    .toList();
+            attempts.put(entry.getKey(), withState(current, AttemptState.ROLLED_BACK,
+                    inclusions, "TXFLOW_ROLLBACK"));
+            changed = true;
+        }
+        if (!changed) return;
         emit(FlowEventType.TRANSACTION_ROLLED_BACK, step.getId(), transactionHash,
                 Map.of("previous_block_height", previousBlockHeight));
-        Set<String> invalidated = new RollbackCoordinator().invalidatedClosure(
-                step.getId(), List.copyOf(attempts.values()), explicitConsumers);
-        for (String invalidatedStep : invalidated) {
-            if (invalidatedStep.equals(step.getId())) continue;
-            String attemptKey = activeAttemptKeys.get(invalidatedStep);
-            FlowAttemptSnapshot dependent = attemptKey != null ? attempts.get(attemptKey) : null;
-            if (dependent == null || dependent.state() == AttemptState.RECOVERY_REQUIRED) continue;
+        RollbackCoordinator.Invalidation invalidated =
+                new RollbackCoordinator().invalidatedAttempts(
+                step.getId(), transactionHash, List.copyOf(attempts.values()), explicitConsumers);
+        for (RollbackCoordinator.AttemptRef invalidatedAttempt : invalidated.attempts()) {
+            String attemptKey = invalidatedAttempt.stepId()
+                    + "#" + invalidatedAttempt.attemptNumber();
+            FlowAttemptSnapshot dependent = attempts.get(attemptKey);
+            if (dependent == null || dependent.state() == AttemptState.ROLLED_BACK
+                    || dependent.state() == AttemptState.RECOVERY_REQUIRED) continue;
             attempts.put(attemptKey, withState(dependent, AttemptState.RECOVERY_REQUIRED,
                     dependent.inclusions(), "TXFLOW_ROLLBACK_INVALIDATED"));
-            emit(FlowEventType.RECOVERY_REQUIRED, invalidatedStep,
+            emit(FlowEventType.RECOVERY_REQUIRED, invalidatedAttempt.stepId(),
                     dependent.signedPayload() != null
                             ? dependent.signedPayload().transactionHash() : null,
-                    Map.of("rolled_back_producer", step.getId()));
+                    Map.of("rolled_back_producer", step.getId(),
+                            "attempt", invalidatedAttempt.attemptNumber()));
         }
         persist();
     }

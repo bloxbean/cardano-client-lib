@@ -18,9 +18,11 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Clock;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,6 +34,14 @@ final class RdbmsSchemaManager {
     static final int CURRENT_VERSION = 1;
     private static final Object H2_MIGRATION_LOCK = new Object();
     private static final String HISTORY_TABLE = "txflow_schema_history";
+    private static final List<String> MIGRATION_TABLE_ORDER = List.of(
+            HISTORY_TABLE,
+            "txflow_execution",
+            "txflow_idempotency",
+            "txflow_event",
+            "txflow_execution_lease",
+            "txflow_resource_lease",
+            "txflow_lease_epoch");
     private static final Map<String, TableSpec> REQUIRED_SCHEMA = requiredSchema();
 
     private final DataSource dataSource;
@@ -166,28 +176,38 @@ final class RdbmsSchemaManager {
             Map<String, String> tables = tablesInEffectiveSchema(connection);
             boolean historyExists = tables.containsKey(
                     runtimeIdentifier(connection, HISTORY_TABLE));
-            if (!historyExists && containsTxFlowObjects(tables)) {
-                throw incompatible(
-                        "Pre-existing TxFlow tables have no compatible migration history");
-            }
+            boolean txFlowObjectsExist = containsTxFlowObjects(tables);
             MigrationState state = historyExists
                     ? readMigrationState(connection, migration) : MigrationState.MISSING;
             if (state == MigrationState.CURRENT) {
                 validateRequiredSchema(connection);
                 return null;
             }
-            if (historyExists) {
-                throw incompatible("TxFlow migration history has no supported current version");
+            if (historyExists || txFlowObjectsExist) {
+                if (!canRecoverInterruptedH2Migration(management) || !historyExists) {
+                    if (historyExists) {
+                        throw incompatible(
+                                "TxFlow migration history has no supported current version");
+                    }
+                    throw incompatible(
+                            "Pre-existing TxFlow tables have no compatible migration history");
+                }
+                repairRecoverableH2PartialSchema(connection, tables);
             }
             if (management == SchemaManagement.VALIDATE) {
                 throw new FlowStoreException("TXFLOW_SCHEMA_MISSING",
                         "TxFlow database schema is not initialized");
             }
             executeScript(connection, migration.sql());
-            insertHistory(connection, migration);
+            ensureLeaseEpoch(connection);
             validateRequiredSchema(connection);
+            insertHistory(connection, migration);
             return null;
         });
+    }
+
+    private boolean canRecoverInterruptedH2Migration(SchemaManagement management) {
+        return dialect == H2Dialect.INSTANCE && management == SchemaManagement.MIGRATE;
     }
 
     private MigrationState readMigrationState(Connection connection, Migration expected)
@@ -222,13 +242,77 @@ final class RdbmsSchemaManager {
             statement.setInt(1, CURRENT_VERSION);
             statement.setString(2, "initial TxFlow execution store");
             statement.setString(3, migration.checksum());
-            statement.setTimestamp(4, Timestamp.from(clock.instant()));
+            statement.setTimestamp(4, Timestamp.from(
+                    clock.instant().truncatedTo(ChronoUnit.MICROS)));
             statement.executeUpdate();
         }
+    }
+
+    private void ensureLeaseEpoch(Connection connection) throws SQLException {
         if (!leaseEpochExists(connection)) {
             try (PreparedStatement statement = connection.prepareStatement(
                     "INSERT INTO txflow_lease_epoch (singleton_id, last_epoch) VALUES (1, 0)")) {
                 statement.executeUpdate();
+            }
+        }
+    }
+
+    private void repairRecoverableH2PartialSchema(
+            Connection connection, Map<String, String> tables) throws SQLException {
+        String schema = effectiveSchema(connection);
+        Map<String, String> logicalByRuntimeName = new LinkedHashMap<>();
+        for (String logicalName : MIGRATION_TABLE_ORDER) {
+            logicalByRuntimeName.put(runtimeIdentifier(connection, logicalName), logicalName);
+        }
+        for (String actualTable : tables.keySet()) {
+            if (normalize(actualTable).startsWith("txflow_")
+                    && !logicalByRuntimeName.containsKey(actualTable)) {
+                throw incompatible(
+                        "Interrupted H2 migration contains an unexpected TxFlow table");
+            }
+        }
+
+        int prefixLength = 0;
+        boolean missingSeen = false;
+        for (String logicalName : MIGRATION_TABLE_ORDER) {
+            boolean present = tables.containsKey(runtimeIdentifier(connection, logicalName));
+            if (!present) {
+                missingSeen = true;
+            } else if (missingSeen) {
+                throw incompatible(
+                        "Interrupted H2 migration tables are not a valid V1 prefix");
+            } else {
+                prefixLength++;
+            }
+        }
+        if (prefixLength == 0) {
+            throw incompatible("Interrupted H2 migration history marker is missing");
+        }
+
+        String actualHistory = tables.get(runtimeIdentifier(connection, HISTORY_TABLE));
+        TableSpec history = REQUIRED_SCHEMA.get(HISTORY_TABLE);
+        validateColumns(connection, schema, actualHistory, history, true);
+        validatePrimaryKey(connection, schema, actualHistory, history);
+        validateForeignKeys(connection, schema, actualHistory, history);
+
+        for (int index = 0; index < prefixLength; index++) {
+            requireEmptyRecoveryTable(connection, MIGRATION_TABLE_ORDER.get(index));
+        }
+        for (int index = prefixLength - 1; index >= 0; index--) {
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("DROP TABLE " + MIGRATION_TABLE_ORDER.get(index));
+            }
+        }
+    }
+
+    private void requireEmptyRecoveryTable(Connection connection, String table)
+            throws SQLException {
+        try (Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery(
+                     "SELECT 1 FROM " + table + " LIMIT 1")) {
+            if (rows.next()) {
+                throw incompatible(
+                        "Interrupted H2 migration contains durable TxFlow rows");
             }
         }
     }
@@ -253,6 +337,11 @@ final class RdbmsSchemaManager {
 
     private void validateColumns(Connection connection, String schema, String table,
                                  TableSpec required) throws SQLException {
+        validateColumns(connection, schema, table, required, false);
+    }
+
+    private void validateColumns(Connection connection, String schema, String table,
+                                 TableSpec required, boolean exact) throws SQLException {
         Map<String, ActualColumn> actual = new LinkedHashMap<>();
         DatabaseMetaData metadata = connection.getMetaData();
         String catalog = connection.getCatalog();
@@ -269,6 +358,12 @@ final class RdbmsSchemaManager {
                         columns.getInt("NULLABLE"), columns.getInt("COLUMN_SIZE"),
                         nullableFractionalDigits));
             }
+        }
+        if (exact && !actual.keySet().equals(
+                new LinkedHashSet<>(runtimeIdentifiers(
+                        connection, List.copyOf(required.columns().keySet()))))) {
+            throw incompatible("Interrupted H2 migration has unexpected columns: "
+                    + normalize(table));
         }
         for (Map.Entry<String, ColumnSpec> entry : required.columns().entrySet()) {
             String expectedColumn = runtimeIdentifier(connection, entry.getKey());
@@ -550,7 +645,7 @@ final class RdbmsSchemaManager {
             restoreAutoCommitAfterFailure(connection, originalAutoCommit, failure);
             closeAfterFailure(connection, failure);
             throw schemaOperationFailed(failure);
-        } catch (RuntimeException failure) {
+        } catch (RuntimeException | Error failure) {
             rollbackOrThrow(connection, failure);
             restoreAutoCommitAfterFailure(connection, originalAutoCommit, failure);
             closeAfterFailure(connection, failure);

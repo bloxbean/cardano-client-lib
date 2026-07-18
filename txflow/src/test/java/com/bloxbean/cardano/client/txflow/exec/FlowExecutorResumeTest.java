@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -553,6 +554,29 @@ class FlowExecutorResumeTest {
         assertEquals(TransactionState.CONFIRMED, retained.getState());
         assertEquals("tx1", retained.getTransactionHash());
         verify(listener, never()).onFlowStarted(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(ChainingMode.class)
+    void cancelledAsyncResumeDoesNotFailDuringRetainedPrefixRecheck(
+            ChainingMode mode) throws Exception {
+        AtomicReference<Runnable> queuedTask = new AtomicReference<>();
+        executor.withChainingMode(mode).withExecutor(queuedTask::set);
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(
+                Optional.of(TransactionInfo.builder()
+                        .txHash("tx1").blockHeight(100L).build()));
+
+        TxFlow flow = createThreeStepFlow("cancelled-prefix-" + mode.name().toLowerCase());
+        FlowResult previousResult = buildFailedResult(flow.getId(),
+                successStep("step1", "tx1"), failedStep("step2"));
+
+        FlowHandle handle = executor.resume(flow, previousResult);
+        assertNotNull(queuedTask.get());
+        assertTrue(handle.cancel());
+        queuedTask.get().run();
+
+        assertEquals(FlowStatus.CANCELLED, handle.getStatus());
+        verify(chainDataSupplier, times(1)).getTransactionInfo("tx1");
     }
 
     @Test

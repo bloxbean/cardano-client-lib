@@ -10,6 +10,13 @@ import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.TxResult;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
+import com.bloxbean.cardano.client.transaction.spec.Value;
+import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.FlowStep;
@@ -28,14 +35,19 @@ import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.math.BigInteger;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -43,6 +55,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -51,6 +65,9 @@ import static com.bloxbean.cardano.client.txflow.exec.ScriptedChainBackend.Obser
 import static com.bloxbean.cardano.client.txflow.exec.ScriptedChainBackend.Observation.included;
 
 class FlowExecutorTest {
+    private static final String TEST_ADDRESS =
+            "addr_test1qz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2"
+                    + "k2xt3uqxgjqnnj83ws8lhrn648jjxtwq2ytjqp";
 
     @Test
     void submissionFailureClassificationRecognizesWrappedApiRuntimeSubclasses() {
@@ -108,6 +125,241 @@ class FlowExecutorTest {
         return txContext;
     }
 
+    private QuickTxBuilder.TxContext successfulPipelinedTxContext(String txHash) {
+        QuickTxBuilder.TxContext txContext = mock(QuickTxBuilder.TxContext.class);
+        when(txContext.withTxInspector(any())).thenReturn(txContext);
+        Result<String> result = Result.success("submitted");
+        result.withValue(txHash);
+        when(txContext.complete()).thenReturn(TxResult.fromResult(result));
+        return txContext;
+    }
+
+    private QuickTxBuilder.TxContext batchTxContext(Transaction transaction) {
+        QuickTxBuilder.TxContext txContext = mock(QuickTxBuilder.TxContext.class);
+        when(txContext.buildAndSign()).thenReturn(transaction);
+        return txContext;
+    }
+
+    private Transaction transaction(int inputIndex) {
+        return Transaction.builder()
+                .body(TransactionBody.builder()
+                        .inputs(List.of(new TransactionInput("00".repeat(32), inputIndex)))
+                        .fee(BigInteger.ZERO)
+                        .build())
+                .witnessSet(TransactionWitnessSet.builder().build())
+                .isValid(true)
+                .build();
+    }
+
+    private Transaction transactionWithOutput(int inputIndex) {
+        return Transaction.builder()
+                .body(TransactionBody.builder()
+                        .inputs(List.of(new TransactionInput("00".repeat(32), inputIndex)))
+                        .outputs(List.of(TransactionOutput.builder()
+                                .address(TEST_ADDRESS)
+                                .value(Value.builder().coin(BigInteger.ONE).build())
+                                .build()))
+                        .fee(BigInteger.ZERO)
+                        .build())
+                .witnessSet(TransactionWitnessSet.builder().build())
+                .isValid(true)
+                .build();
+    }
+
+    private PersistencePort failingConfirmationPersistence() {
+        return new PersistencePort() {
+            @Override
+            public void onConfirmed(FlowStep step, String transactionHash) {
+                throw new IllegalStateException("confirmation journal unavailable");
+            }
+        };
+    }
+
+    @Test
+    void sequentialTerminalFailurePreservesAlreadyConfirmedStepResults() throws Exception {
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(Optional.of(
+                TransactionInfo.builder().txHash("tx1").blockHeight(10L).build()));
+        executor.withPersistencePort(failingConfirmationPersistence());
+        TxFlow flow = TxFlow.builder("sequential-terminal-integrity")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> successfulTxContext("tx1")).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertEquals(List.of("step1"), result.getStepResults().stream()
+                .map(FlowStepResult::getStepId).toList());
+        assertTrue(result.getStepResults().get(0).isSuccessful());
+    }
+
+    @Test
+    void pipelinedTerminalFailurePreservesAlreadyConfirmedStepResults() throws Exception {
+        when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(Optional.of(
+                TransactionInfo.builder().txHash("tx1").blockHeight(10L).build()));
+        executor.withChainingMode(ChainingMode.PIPELINED)
+                .withPersistencePort(failingConfirmationPersistence());
+        TxFlow flow = TxFlow.builder("pipelined-terminal-integrity")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> successfulPipelinedTxContext("tx1")).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertEquals(List.of("step1"), result.getStepResults().stream()
+                .map(FlowStepResult::getStepId).toList());
+        assertTrue(result.getStepResults().get(0).isSuccessful());
+    }
+
+    @Test
+    void pipelinedSubmittedButUnconfirmedPrefixIsNotSuccessful() {
+        QuickTxBuilder.TxContext rejected = mock(QuickTxBuilder.TxContext.class);
+        when(rejected.withTxInspector(any())).thenReturn(rejected);
+        when(rejected.complete()).thenReturn(
+                TxResult.fromResult(Result.error("second rejected")));
+        executor.withChainingMode(ChainingMode.PIPELINED);
+        TxFlow flow = TxFlow.builder("pipelined-submitted-prefix")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> successfulPipelinedTxContext("tx1")).build())
+                .addStep(FlowStep.builder("step2")
+                        .withTxContext(builder -> rejected).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertEquals(2, result.getStepResults().size());
+        assertEquals(FlowStatus.IN_PROGRESS, result.getStepResults().get(0).getStatus());
+        assertFalse(result.getStepResults().get(0).isSuccessful());
+        assertEquals("tx1", result.getStepResults().get(0).getTransactionHash());
+        assertEquals("step2", result.getFailedStep().orElseThrow().getStepId());
+    }
+
+    @Test
+    void batchDefinitiveSubmissionFailureDoesNotReportBuildOnlyStepAsSuccessful() throws Exception {
+        Transaction transaction = transaction(0);
+        when(transactionProcessor.submitTransaction(any(byte[].class)))
+                .thenReturn(Result.error("definitively rejected"));
+        executor.withChainingMode(ChainingMode.BATCH);
+        TxFlow flow = TxFlow.builder("batch-build-only")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> batchTxContext(transaction)).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertEquals(1, result.getStepResults().size());
+        assertEquals("step1", result.getFailedStep().orElseThrow().getStepId());
+        assertFalse(result.getStepResults().get(0).isSuccessful());
+    }
+
+    @Test
+    void batchInvokesUserTransactionInspectorExactlyOnceAfterBuild() throws Exception {
+        Transaction transaction = transaction(0);
+        QuickTxBuilder.TxContext txContext = batchTxContext(transaction);
+        AtomicInteger inspections = new AtomicInteger();
+        AtomicReference<Transaction> inspectedTransaction = new AtomicReference<>();
+        when(transactionProcessor.submitTransaction(any(byte[].class)))
+                .thenReturn(Result.error("definitively rejected"));
+        executor.withChainingMode(ChainingMode.BATCH)
+                .withTxInspector(inspected -> {
+                    inspections.incrementAndGet();
+                    inspectedTransaction.set(inspected);
+                });
+        TxFlow flow = TxFlow.builder("batch-inspector")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> txContext).build())
+                .build();
+
+        executor.executeSync(flow);
+
+        assertEquals(1, inspections.get());
+        assertSame(transaction, inspectedTransaction.get());
+        verify(txContext, never()).withTxInspector(any());
+    }
+
+    @Test
+    void batchTerminalFailurePreservesSubmittedAndFailedSteps() throws Exception {
+        Transaction first = transaction(0);
+        Transaction second = transaction(1);
+        String firstHash = TransactionUtil.getTxHash(first);
+        Result<String> firstSubmission = Result.success("submitted");
+        firstSubmission.withValue(firstHash);
+        when(transactionProcessor.submitTransaction(any(byte[].class)))
+                .thenReturn(firstSubmission, Result.error("second rejected"));
+        executor.withChainingMode(ChainingMode.BATCH);
+        TxFlow flow = TxFlow.builder("batch-submitted-prefix")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> batchTxContext(first)).build())
+                .addStep(FlowStep.builder("step2")
+                        .withTxContext(builder -> batchTxContext(second)).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertEquals(List.of("step1", "step2"), result.getStepResults().stream()
+                .map(FlowStepResult::getStepId).toList());
+        assertEquals(firstHash, result.getStepResults().get(0).getTransactionHash());
+        assertEquals(FlowStatus.IN_PROGRESS, result.getStepResults().get(0).getStatus());
+        assertFalse(result.getStepResults().get(0).isSuccessful());
+        assertEquals("step2", result.getFailedStep().orElseThrow().getStepId());
+    }
+
+    @Test
+    void batchObservationFailureAfterUnknownSubmissionRequiresRecovery() throws Exception {
+        class ProviderFailure extends ApiRuntimeException {
+            ProviderFailure(String message) { super(message); }
+        }
+        Transaction transaction = transaction(0);
+        String hash = TransactionUtil.getTxHash(transaction);
+        when(transactionProcessor.submitTransaction(any(byte[].class)))
+                .thenThrow(new ProviderFailure("response lost"));
+        when(chainDataSupplier.getTransactionInfo(hash))
+                .thenThrow(new IllegalStateException("backend unavailable"));
+        executor.withChainingMode(ChainingMode.BATCH);
+        TxFlow flow = TxFlow.builder("batch-unknown-observation")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> batchTxContext(transaction)).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertInstanceOf(ReconciliationUncertainException.class, result.getError());
+        assertEquals("step1", result.getFailedStep().orElseThrow().getStepId());
+        assertInstanceOf(ReconciliationUncertainException.class,
+                result.getFailedStep().orElseThrow().getError());
+    }
+
+    @Test
+    void batchRejectedSameHashResubmissionRequiresRecovery() throws Exception {
+        class ProviderFailure extends ApiRuntimeException {
+            ProviderFailure(String message) { super(message); }
+        }
+        Transaction transaction = transaction(0);
+        String hash = TransactionUtil.getTxHash(transaction);
+        when(transactionProcessor.submitTransaction(any(byte[].class)))
+                .thenThrow(new ProviderFailure("response lost"))
+                .thenReturn(Result.error("bad inputs may mean first submission landed"));
+        when(chainDataSupplier.getTransactionInfo(hash)).thenReturn(Optional.empty());
+        executor.withChainingMode(ChainingMode.BATCH);
+        TxFlow flow = TxFlow.builder("batch-unknown-resubmit")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> batchTxContext(transaction)).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertInstanceOf(ReconciliationUncertainException.class, result.getError());
+        assertEquals("step1", result.getFailedStep().orElseThrow().getStepId());
+        assertInstanceOf(ReconciliationUncertainException.class,
+                result.getFailedStep().orElseThrow().getError());
+    }
+
     @Test
     void sequentialConfirmationTimeoutDoesNotAdvanceToNextStep() throws Exception {
         TestFlowScheduler scheduler = new TestFlowScheduler();
@@ -128,7 +380,440 @@ class FlowExecutorTest {
 
         assertEquals(FlowStatus.FAILED, result.getStatus());
         assertInstanceOf(ConfirmationTimeoutException.class, result.getError());
+        assertEquals(0, result.getCompletedStepCount());
+        assertEquals("step1", result.getFailedStep().orElseThrow().getStepId());
+        assertInstanceOf(ConfirmationTimeoutException.class,
+                result.getFailedStep().orElseThrow().getError());
+        assertEquals("tx1", result.getFailedStep().orElseThrow().getTransactionHash());
         assertEquals(0, secondStepBuilds.get());
+    }
+
+    @Test
+    void pipelinedConfirmationFailurePreservesSubmittedTransactionDetails() throws Exception {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        Transaction transaction = transactionWithOutput(3);
+        String transactionHash = "pipeline-hash";
+        QuickTxBuilder.TxContext txContext = mock(QuickTxBuilder.TxContext.class);
+        AtomicReference<Consumer<Transaction>> buildInspector = new AtomicReference<>();
+        when(txContext.withTxInspector(any())).thenAnswer(invocation -> {
+            buildInspector.set(invocation.getArgument(0));
+            return txContext;
+        });
+        Result<String> submission = Result.success("submitted");
+        submission.withValue(transactionHash);
+        when(txContext.complete()).thenAnswer(invocation -> {
+            buildInspector.get().accept(transaction);
+            return TxResult.fromResult(submission);
+        });
+        when(chainDataSupplier.getTransactionInfo(transactionHash)).thenReturn(Optional.empty());
+        executor.withChainingMode(ChainingMode.PIPELINED)
+                .withScheduler(scheduler)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .timeout(Duration.ofSeconds(1))
+                        .checkInterval(Duration.ofSeconds(1))
+                        .build());
+        TxFlow flow = TxFlow.builder("pipeline-confirmation-details")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> txContext).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertEquals(1, result.getStepResults().size());
+        FlowStepResult failed = result.getFailedStep().orElseThrow();
+        assertEquals(transactionHash, failed.getTransactionHash());
+        assertEquals(1, failed.getOutputUtxos().size());
+        assertEquals(transactionHash, failed.getOutputUtxos().get(0).getTxHash());
+        assertEquals(3, failed.getSpentInputs().get(0).getIndex());
+        assertInstanceOf(ConfirmationTimeoutException.class, failed.getError());
+    }
+
+    @Test
+    void batchConfirmationFailurePreservesSubmittedTransactionDetails() throws Exception {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        Transaction transaction = transactionWithOutput(4);
+        String transactionHash = TransactionUtil.getTxHash(transaction);
+        Result<String> submission = Result.success("submitted");
+        submission.withValue(transactionHash);
+        when(transactionProcessor.submitTransaction(any(byte[].class))).thenReturn(submission);
+        when(chainDataSupplier.getTransactionInfo(transactionHash)).thenReturn(Optional.empty());
+        executor.withChainingMode(ChainingMode.BATCH)
+                .withScheduler(scheduler)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .timeout(Duration.ofSeconds(1))
+                        .checkInterval(Duration.ofSeconds(1))
+                        .build());
+        TxFlow flow = TxFlow.builder("batch-confirmation-details")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> batchTxContext(transaction)).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertEquals(1, result.getStepResults().size());
+        FlowStepResult failed = result.getFailedStep().orElseThrow();
+        assertEquals(transactionHash, failed.getTransactionHash());
+        assertEquals(1, failed.getOutputUtxos().size());
+        assertEquals(transactionHash, failed.getOutputUtxos().get(0).getTxHash());
+        assertEquals(4, failed.getSpentInputs().get(0).getIndex());
+        assertInstanceOf(ConfirmationTimeoutException.class, failed.getError());
+    }
+
+    @ParameterizedTest
+    @EnumSource(ChainingMode.class)
+    void confirmationCancellationKeepsSubmittedAttemptInProgress(
+            ChainingMode mode) throws Exception {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        when(chainDataSupplier.getChainTipHeight()).thenReturn(100L);
+        when(chainDataSupplier.getTransactionInfo(anyString())).thenAnswer(invocation -> {
+            cancelled.set(true);
+            return Optional.empty();
+        });
+
+        String expectedHash;
+        QuickTxBuilder.TxContext txContext;
+        if (mode == ChainingMode.BATCH) {
+            Transaction transaction = transactionWithOutput(8);
+            expectedHash = TransactionUtil.getTxHash(transaction);
+            txContext = batchTxContext(transaction);
+            Result<String> accepted = Result.success("submitted");
+            accepted.withValue(expectedHash);
+            when(transactionProcessor.submitTransaction(any(byte[].class)))
+                    .thenReturn(accepted);
+        } else if (mode == ChainingMode.PIPELINED) {
+            expectedHash = "cancelled-pipeline-hash";
+            txContext = successfulPipelinedTxContext(expectedHash);
+        } else {
+            expectedHash = "cancelled-sequential-hash";
+            txContext = successfulTxContext(expectedHash);
+        }
+        executor.withChainingMode(mode)
+                .withScheduler(scheduler)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .minConfirmations(1)
+                        .checkInterval(Duration.ofSeconds(1))
+                        .timeout(Duration.ofSeconds(10))
+                        .build());
+        TxFlow flow = TxFlow.builder("cancel-confirmation-" + mode.name().toLowerCase())
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> txContext).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow, cancelled::get);
+
+        assertEquals(FlowStatus.CANCELLED, result.getStatus());
+        assertInstanceOf(CancellationException.class, result.getError());
+        assertEquals(1, result.getStepResults().size());
+        FlowStepResult submitted = result.getStepResults().get(0);
+        assertEquals(FlowStatus.IN_PROGRESS, submitted.getStatus());
+        assertFalse(submitted.isSuccessful());
+        assertEquals(expectedHash, submitted.getTransactionHash());
+        assertInstanceOf(CancellationException.class, submitted.getError());
+        assertTrue(result.getFailedStep().isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(ChainingMode.class)
+    void liveHorizonCancellationIsTypedCancelledInEveryMode(
+            ChainingMode mode) throws Exception {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicInteger firstHashObservations = new AtomicInteger();
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+
+        String firstHash;
+        String secondHash;
+        QuickTxBuilder.TxContext firstContext;
+        QuickTxBuilder.TxContext secondContext;
+        if (mode == ChainingMode.BATCH) {
+            Transaction first = transactionWithOutput(12);
+            Transaction second = transactionWithOutput(13);
+            firstHash = TransactionUtil.getTxHash(first);
+            secondHash = TransactionUtil.getTxHash(second);
+            firstContext = batchTxContext(first);
+            secondContext = batchTxContext(second);
+            Result<String> firstAccepted = Result.success("submitted");
+            firstAccepted.withValue(firstHash);
+            Result<String> secondAccepted = Result.success("submitted");
+            secondAccepted.withValue(secondHash);
+            when(transactionProcessor.submitTransaction(any(byte[].class)))
+                    .thenReturn(firstAccepted, secondAccepted);
+        } else if (mode == ChainingMode.PIPELINED) {
+            firstHash = "live-horizon-pipeline-first";
+            secondHash = "live-horizon-pipeline-second";
+            firstContext = successfulPipelinedTxContext(firstHash);
+            secondContext = successfulPipelinedTxContext(secondHash);
+        } else {
+            firstHash = "live-horizon-sequential-first";
+            secondHash = "live-horizon-sequential-second";
+            firstContext = successfulTxContext(firstHash);
+            secondContext = successfulTxContext(secondHash);
+        }
+
+        when(chainDataSupplier.getChainTipHeight()).thenReturn(100L);
+        int confirmationsBeforeHorizon = mode == ChainingMode.SEQUENTIAL ? 2 : 1;
+        when(chainDataSupplier.getTransactionInfo(anyString())).thenAnswer(invocation -> {
+            String transactionHash = invocation.getArgument(0);
+            if (!firstHash.equals(transactionHash)) return Optional.empty();
+            if (firstHashObservations.incrementAndGet() <= confirmationsBeforeHorizon) {
+                return Optional.of(TransactionInfo.builder()
+                        .txHash(firstHash).blockHeight(100L).blockHash("block-100").build());
+            }
+            cancelled.set(true);
+            return Optional.empty();
+        });
+
+        executor.withChainingMode(mode)
+                .withScheduler(scheduler)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .minConfirmations(0)
+                        .checkInterval(Duration.ofSeconds(1))
+                        .timeout(Duration.ofSeconds(10))
+                        .build());
+        TxFlow flow = TxFlow.builder("cancel-live-horizon-" + mode.name().toLowerCase())
+                .withExecutionSettings(FlowExecutionSettings.builder()
+                        .rollbackPolicy(RollbackPolicy.defaults())
+                        .build())
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> firstContext).build())
+                .addStep(FlowStep.builder("step2")
+                        .withTxContext(builder -> secondContext).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow, cancelled::get);
+
+        assertEquals(FlowStatus.CANCELLED, result.getStatus());
+        assertInstanceOf(CancellationException.class, result.getError());
+        assertTrue(result.getStepResults().stream().anyMatch(step ->
+                firstHash.equals(step.getTransactionHash()) && step.isSuccessful()));
+        assertTrue(result.getStepResults().stream().noneMatch(step ->
+                step.getStatus() == FlowStatus.FAILED));
+    }
+
+    @Test
+    void batchCancellationAfterSigningStopsBeforeSubmittingTransitionAndBackend()
+            throws Exception {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        Transaction transaction = transaction(9);
+        PersistencePort persistence = mock(PersistencePort.class);
+        executor.withChainingMode(ChainingMode.BATCH)
+                .withPersistencePort(persistence)
+                .withTxInspector(ignored -> cancelled.set(true));
+        TxFlow flow = TxFlow.builder("cancel-signed-batch")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> batchTxContext(transaction)).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow, cancelled::get);
+
+        assertEquals(FlowStatus.CANCELLED, result.getStatus());
+        assertInstanceOf(CancellationException.class, result.getError());
+        assertTrue(result.getStepResults().isEmpty());
+        verify(persistence).onPrepared(any(), eq(transaction));
+        verify(persistence, never()).onSubmitting(any(), any());
+        verify(transactionProcessor, never()).submitTransaction(any(byte[].class));
+    }
+
+    @Test
+    void batchCancellationAtSubmittingBoundaryStillStopsBeforeBackendCall()
+            throws Exception {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        Transaction transaction = transaction(11);
+        PersistencePort persistence = mock(PersistencePort.class);
+        doAnswer(invocation -> {
+            cancelled.set(true);
+            return null;
+        }).when(persistence).onSubmitting(any(), eq(transaction));
+        executor.withChainingMode(ChainingMode.BATCH)
+                .withPersistencePort(persistence);
+        TxFlow flow = TxFlow.builder("cancel-at-submitting-boundary")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> batchTxContext(transaction)).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow, cancelled::get);
+
+        assertEquals(FlowStatus.CANCELLED, result.getStatus());
+        assertInstanceOf(CancellationException.class, result.getError());
+        assertTrue(result.getStepResults().isEmpty());
+        verify(persistence).onSubmitting(any(), eq(transaction));
+        verify(transactionProcessor, never()).submitTransaction(any(byte[].class));
+    }
+
+    @Test
+    void sequentialCancellationAtInnerExecutionBoundaryIsTypedCancelled() {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicInteger factories = new AtomicInteger();
+        executor.withListener(new FlowListener() {
+            @Override
+            public void onStepStarted(FlowStep step, int index, int total) {
+                cancelled.set(true);
+            }
+        });
+        TxFlow flow = TxFlow.builder("cancel-inner-sequential")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> {
+                            factories.incrementAndGet();
+                            return successfulTxContext("must-not-submit");
+                        }).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow, cancelled::get);
+
+        assertEquals(FlowStatus.CANCELLED, result.getStatus());
+        assertInstanceOf(CancellationException.class, result.getError());
+        assertEquals(1, result.getStepResults().size());
+        assertEquals(FlowStatus.CANCELLED,
+                result.getStepResults().get(0).getStatus());
+        assertInstanceOf(CancellationException.class,
+                result.getStepResults().get(0).getError());
+        assertEquals(0, factories.get());
+    }
+
+    @ParameterizedTest
+    @EnumSource(ChainingMode.class)
+    void exhaustedRollbackNeverLeavesRolledBackHashSuccessful(
+            ChainingMode mode) throws Exception {
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        ScriptedChainBackend chain = new ScriptedChainBackend()
+                .then(included(100, 100, "block-a"), absent(101));
+        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
+                        transactionProcessor, chain)
+                .withExecutor(Runnable::run)
+                .withScheduler(scheduler)
+                .withChainingMode(mode)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .minConfirmations(2)
+                        .requiredAuthoritativeAbsences(1)
+                        .checkInterval(Duration.ofSeconds(1))
+                        .timeout(Duration.ofSeconds(10))
+                        .maxRollbackRetries(0)
+                        .build())
+                .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW);
+
+        String rolledBackHash;
+        QuickTxBuilder.TxContext txContext;
+        if (mode == ChainingMode.BATCH) {
+            Transaction transaction = transactionWithOutput(10);
+            rolledBackHash = TransactionUtil.getTxHash(transaction);
+            txContext = batchTxContext(transaction);
+            Result<String> accepted = Result.success("submitted");
+            accepted.withValue(rolledBackHash);
+            when(transactionProcessor.submitTransaction(any(byte[].class)))
+                    .thenReturn(accepted);
+        } else if (mode == ChainingMode.PIPELINED) {
+            rolledBackHash = "rolled-back-pipeline-hash";
+            txContext = successfulPipelinedTxContext(rolledBackHash);
+        } else {
+            rolledBackHash = "rolled-back-sequential-hash";
+            txContext = successfulTxContext(rolledBackHash);
+        }
+        TxFlow flow = TxFlow.builder("rollback-projection-" + mode.name().toLowerCase())
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> txContext).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        FlowStepResult rolledBack = result.getStepResults().stream()
+                .filter(stepResult -> rolledBackHash.equals(stepResult.getTransactionHash()))
+                .findFirst().orElseThrow();
+        assertEquals(FlowStatus.FAILED, rolledBack.getStatus());
+        assertFalse(rolledBack.isSuccessful());
+        assertInstanceOf(RollbackException.class, rolledBack.getError());
+        assertFalse(result.getStepResults().stream().anyMatch(stepResult ->
+                rolledBackHash.equals(stepResult.getTransactionHash())
+                        && stepResult.isSuccessful()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(ChainingMode.class)
+    void cancellationDuringRollbackPrefixReconciliationStaysCancelled(
+            ChainingMode mode) throws Exception {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicInteger rolledBackObservations = new AtomicInteger();
+        TestFlowScheduler scheduler = new TestFlowScheduler();
+        ChainDataSupplier authoritative = ObservationCapabilities.withAuthoritativeAbsence(
+                chainDataSupplier);
+
+        String firstHash;
+        String rolledBackHash;
+        QuickTxBuilder.TxContext firstContext;
+        QuickTxBuilder.TxContext rolledBackContext;
+        if (mode == ChainingMode.BATCH) {
+            Transaction first = transactionWithOutput(14);
+            Transaction rolledBack = transactionWithOutput(15);
+            firstHash = TransactionUtil.getTxHash(first);
+            rolledBackHash = TransactionUtil.getTxHash(rolledBack);
+            firstContext = batchTxContext(first);
+            rolledBackContext = batchTxContext(rolledBack);
+            Result<String> firstAccepted = Result.success("submitted");
+            firstAccepted.withValue(firstHash);
+            Result<String> secondAccepted = Result.success("submitted");
+            secondAccepted.withValue(rolledBackHash);
+            when(transactionProcessor.submitTransaction(any(byte[].class)))
+                    .thenReturn(firstAccepted, secondAccepted);
+        } else if (mode == ChainingMode.PIPELINED) {
+            firstHash = "rollback-cancel-pipeline-first";
+            rolledBackHash = "rollback-cancel-pipeline-second";
+            firstContext = successfulPipelinedTxContext(firstHash);
+            rolledBackContext = successfulPipelinedTxContext(rolledBackHash);
+        } else {
+            firstHash = "rollback-cancel-sequential-first";
+            rolledBackHash = "rollback-cancel-sequential-second";
+            firstContext = successfulTxContext(firstHash);
+            rolledBackContext = successfulTxContext(rolledBackHash);
+        }
+
+        when(chainDataSupplier.getTransactionInfo(firstHash)).thenReturn(Optional.of(
+                TransactionInfo.builder().txHash(firstHash)
+                        .blockHeight(100L).blockHash("block-100").build()));
+        when(chainDataSupplier.getTransactionInfo(rolledBackHash)).thenAnswer(invocation ->
+                rolledBackObservations.incrementAndGet() == 1
+                        ? Optional.of(TransactionInfo.builder().txHash(rolledBackHash)
+                                .blockHeight(101L).blockHash("block-101").build())
+                        : Optional.empty());
+        when(chainDataSupplier.getChainTipHeight()).thenAnswer(invocation ->
+                rolledBackObservations.get() >= 2 ? 102L : 101L);
+
+        executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
+                        transactionProcessor, authoritative)
+                .withExecutor(Runnable::run)
+                .withScheduler(scheduler)
+                .withChainingMode(mode)
+                .withConfirmationConfig(ConfirmationConfig.builder()
+                        .minConfirmations(1)
+                        .requiredAuthoritativeAbsences(1)
+                        .checkInterval(Duration.ofSeconds(1))
+                        .timeout(Duration.ofSeconds(10))
+                        .maxRollbackRetries(1)
+                        .build())
+                .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)
+                .withListener(new FlowListener() {
+                    @Override
+                    public void onTransactionRolledBack(
+                            FlowStep step, String transactionHash, long previousBlockHeight) {
+                        cancelled.set(true);
+                    }
+                });
+        TxFlow flow = TxFlow.builder("cancel-rollback-reconcile-" + mode.name().toLowerCase())
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> firstContext).build())
+                .addStep(FlowStep.builder("step2")
+                        .withTxContext(builder -> rolledBackContext).build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow, cancelled::get);
+
+        assertEquals(FlowStatus.CANCELLED, result.getStatus());
+        assertInstanceOf(CancellationException.class, result.getError());
+        assertTrue(result.getStepResults().stream().anyMatch(step ->
+                firstHash.equals(step.getTransactionHash()) && step.isSuccessful()));
+        assertTrue(result.getStepResults().stream().noneMatch(step ->
+                step.getStatus() == FlowStatus.FAILED));
     }
 
     @Test

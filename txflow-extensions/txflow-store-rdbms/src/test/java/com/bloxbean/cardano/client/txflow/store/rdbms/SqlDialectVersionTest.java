@@ -5,10 +5,13 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +33,18 @@ class SqlDialectVersionTest {
                 () -> H2Dialect.INSTANCE.validateDatabase(legacy));
 
         assertEquals("TXFLOW_DIALECT_VERSION_UNSUPPORTED", failure.getCode());
+    }
+
+    @Test
+    void h2DialectClassifiesLockTimeoutStateAndVendorCodeAsRetryable() {
+        assertTrue(H2Dialect.INSTANCE.isRetryableTransactionFailure(
+                new SQLException("lock timeout", "HYT00", 0)));
+        assertTrue(H2Dialect.INSTANCE.isRetryableTransactionFailure(
+                new SQLException("lock timeout", "HY000", 50200)));
+        assertTrue(H2Dialect.INSTANCE.isRetryableTransactionFailure(
+                new SQLException("deadlock", "40001", 40001)));
+        assertFalse(H2Dialect.INSTANCE.isRetryableTransactionFailure(
+                new SQLException("syntax", "42000", 42000)));
     }
 
     private Connection h2Connection(int majorVersion) throws Exception {

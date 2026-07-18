@@ -138,6 +138,9 @@ class FlowStoreCodecTest {
         assertArrayEquals(CODEC.encodeSnapshot(first), CODEC.encodeSnapshot(second));
         assertEquals("ccl.txflow.store", FlowStoreCodec.FORMAT_ID);
         assertEquals(1, FlowStoreCodec.CURRENT_FORMAT_VERSION);
+        assertTrue(FlowStoreCodec.supportsFormatVersion(1));
+        assertFalse(FlowStoreCodec.supportsFormatVersion(0));
+        assertFalse(FlowStoreCodec.supportsFormatVersion(2));
     }
 
     @Test
@@ -259,6 +262,11 @@ class FlowStoreCodecTest {
         FlowStoreException version = assertThrows(FlowStoreException.class,
                 () -> CODEC.decodeSnapshot(bytes(valid.replace("\"version\":1", "\"version\":2"))));
         assertEquals("TXFLOW_STORE_CODEC_UNSUPPORTED_VERSION", version.getCode());
+        FlowStoreException externalVersionMismatch = assertThrows(FlowStoreException.class,
+                () -> CODEC.decodeSnapshot(
+                        bytes(valid.replace("\"version\":1", "\"version\":2")), 1));
+        assertEquals("TXFLOW_STORE_CODEC_VERSION_MISMATCH",
+                externalVersionMismatch.getCode());
 
         FlowStoreException kind = assertThrows(FlowStoreException.class,
                 () -> CODEC.decodeEvent(bytes(valid)));

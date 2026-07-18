@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <ul>
  *     <li>Yaci DevKit running at http://localhost:8080/api/v1/</li>
  *     <li>Yaci DevKit Admin API at http://localhost:10000/</li>
- *     <li>Run with: ./gradlew :txflow:integrationTest --tests "RollbackStrategyIntegrationTest" -Dyaci.integration.test=true</li>
+ *     <li>Run with: ./gradlew :txflow:integrationTest --tests "RollbackStrategyIntegrationTest"</li>
  * </ul>
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
@@ -61,6 +62,27 @@ class RdbmsCorruptionTest {
             FlowStoreException failure = assertThrows(FlowStoreException.class,
                     () -> store.readEvents("event-time", 0, 10));
             assertEquals("TXFLOW_STORE_CORRUPT", failure.getCode());
+        }
+    }
+
+    @Test
+    void relationalAndInnerPayloadVersionsMustMatch() throws Exception {
+        String url = "jdbc:h2:mem:payload-version-" + UUID.randomUUID();
+        try (RdbmsFlowExecutionStore store = store(url)) {
+            store.createOrGet("tenant", "payload-version", snapshot("payload-version"));
+            try (Connection connection = DriverManager.getConnection(url);
+                 Statement statement = connection.createStatement()) {
+                statement.executeUpdate("UPDATE txflow_execution SET data_payload = "
+                        + "REPLACE(data_payload, '\"version\":1', '\"version\":2') "
+                        + "WHERE execution_id = 'payload-version'");
+            }
+
+            FlowStoreException failure = assertThrows(
+                    FlowStoreException.class, () -> store.get("payload-version"));
+
+            assertEquals("TXFLOW_STORE_CORRUPT", failure.getCode());
+            assertEquals("TXFLOW_STORE_CODEC_VERSION_MISMATCH",
+                    ((FlowStoreException) failure.getCause()).getCode());
         }
     }
 

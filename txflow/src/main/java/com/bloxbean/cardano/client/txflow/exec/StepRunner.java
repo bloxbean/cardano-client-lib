@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow.exec;
 
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.config.FlowErrorPhase;
@@ -8,9 +10,12 @@ import com.bloxbean.cardano.client.txflow.config.RetryContext;
 import com.bloxbean.cardano.client.txflow.config.RetryDecision;
 import com.bloxbean.cardano.client.txflow.config.SubmissionOutcome;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
+import com.bloxbean.cardano.client.txflow.result.FlowStatus;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -45,8 +50,15 @@ final class StepRunner {
         int maxAttempts = policy != null ? policy.getMaxAttempts() : 1;
         Throwable lastError = null;
         for (int number = 1; number <= maxAttempts; number++) {
+            if (cancelled.getAsBoolean()) {
+                return cancelled(step);
+            }
             FlowStepResult result = attempt.execute();
             if (result.isSuccessful()) return result;
+            if (result.getStatus() == FlowStatus.CANCELLED
+                    || result.getStatus() == FlowStatus.IN_PROGRESS) {
+                return result;
+            }
             lastError = result.getError();
             if (lastError instanceof UncertainSubmissionException) {
                 UncertainSubmissionException uncertain = (UncertainSubmissionException) lastError;
@@ -58,7 +70,9 @@ final class StepRunner {
                             .transactionHash(uncertain.getTransactionHash())
                             .submissionOutcome(SubmissionOutcome.UNKNOWN)
                             .build());
-                    if (decision.action() != RetryAction.RECONCILE_THEN_RETRY) return result;
+                    if (decision.action() != RetryAction.RECONCILE_THEN_RETRY) {
+                        return uncertainFailure(step, uncertain);
+                    }
                 }
                 return reconciler.reconcile(uncertain);
             }
@@ -70,7 +84,7 @@ final class StepRunner {
             log.info("Retrying step '{}' (attempt {}/{}): {}", step.getId(), number + 1,
                     maxAttempts, lastError != null ? lastError.getMessage() : "unknown error");
             if (cancelled.getAsBoolean()) {
-                return FlowStepResult.failure(step.getId(), new RuntimeException("Flow cancelled"));
+                return cancelled(step);
             }
             try {
                 RetryDecision decision = policy.evaluate(RetryContext.builder()
@@ -82,14 +96,35 @@ final class StepRunner {
                 if (decision.action() == RetryAction.FAIL) return result;
                 Duration delay = decision.delay();
                 if (!scheduler.sleep(delay, cancelled)) {
-                    return FlowStepResult.failure(step.getId(), new RuntimeException("Flow cancelled"));
+                    return cancelled(step);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return FlowStepResult.failure(step.getId(), e);
+                CancellationException cancellation = new CancellationException(
+                        "Flow interrupted while waiting to retry");
+                cancellation.initCause(e);
+                return FlowStepResult.cancelledAt(
+                        step.getId(), cancellation, scheduler.now());
             }
         }
         return FlowStepResult.failure(step.getId(), lastError);
+    }
+
+    private FlowStepResult uncertainFailure(
+            FlowStep step, UncertainSubmissionException uncertain) {
+        Transaction transaction = uncertain.getTransaction();
+        List<TransactionInput> spentInputs = transaction.getBody() != null
+                && transaction.getBody().getInputs() != null
+                ? transaction.getBody().getInputs() : List.of();
+        return FlowStepResult.failureAfterSubmission(
+                step.getId(), uncertain.getTransactionHash(), List.of(), spentInputs,
+                new ReconciliationUncertainException(
+                        uncertain.getTransactionHash(), uncertain));
+    }
+
+    private FlowStepResult cancelled(FlowStep step) {
+        return FlowStepResult.cancelledAt(step.getId(),
+                new CancellationException("Flow cancelled"), scheduler.now());
     }
 
     private FlowErrorCategory retryCategory(Throwable failure) {
