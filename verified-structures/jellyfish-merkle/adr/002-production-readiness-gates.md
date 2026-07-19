@@ -1,6 +1,6 @@
 # ADR-002: Production Readiness Gates and Single-Writer Coordination
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-19
 **Modules:** `jellyfish-merkle`, `jellyfish-merkle-rocksdb`, `jellyfish-merkle-rdbms`
 **Related:** [ADR-001](001-jmt-readiness-review.md),
@@ -11,6 +11,10 @@
 The proof-soundness and persistence defects recorded in ADR-001 have been fixed. There are no
 pre-release databases or applications that require migration, so the corrected commitment and
 storage formats can become the first supported format.
+
+This ADR was initially written as a gate plan. The implementation and qualification record below
+was completed on 2026-07-19. The decision is accepted for the bounded production profile described
+here; it is not approval for high-value cryptographic authorization or on-chain verification.
 
 The remaining production risks are operational rather than a known break in the core proof
 algorithm:
@@ -92,9 +96,10 @@ try (JmtAccessLease ignored = coordinator.tryAcquireUpdate("put", version)) {
 }
 ```
 
-The coordinator is reentrant for the owning thread so a tree-level update can call a guarded store
-batch without deadlocking. A lease must be closed by its acquiring thread. Batch abandonment must
-release every nested lease.
+The coordinator is same-mode reentrant for the owning thread so a tree-level update can call a
+guarded store batch without deadlocking. Cross-mode nesting/upgrades fail fast; this also prevents
+one operation from exhausting PostgreSQL lease/data connections. A lease must be closed by its
+acquiring thread. Batch abandonment must release every nested lease.
 
 All supported mutation entry points participate:
 
@@ -278,7 +283,6 @@ profile until resolved or explicitly accepted.
 - Callers must handle `JmtConcurrentMutationException` and decide whether/when to retry.
 - Long proof or integrity reads can delay maintenance; maintenance remains fail-fast rather than
   waiting without a caller-controlled policy.
-- PostgreSQL needs a backend-specific cross-process lock implementation.
 - Full integrity scans are I/O intensive and require operational scheduling.
 - Golden-vector and fuzz infrastructure adds maintenance work.
 
@@ -315,9 +319,49 @@ arbitration becomes a requirement.
 Rejected. There are no released stores to preserve, and guessing commitment/encoding details is
 unsafe. Explicit format identifiers and explicit future migrations are simpler and safer.
 
-## Implementation plan
+## Implementation and qualification record
 
-### Phase 1 — Coordination and commit preconditions
+All engineering gates in this ADR are implemented. The external cryptographic review remains a
+deployment-dependent assurance gate when roots protect high-value state, not an unfinished library
+feature.
+
+| Gate | Implemented evidence |
+| --- | --- |
+| Single-writer coordination | Thread-owned `READ`/`UPDATE`/`MAINTENANCE` leases; tree and direct-store mutation entry points participate; external RocksDB wrappers require a shared coordinator; deterministic conflict and cleanup tests cover shared trees/stores/namespaces. |
+| PostgreSQL cross-process exclusion | Namespace-scoped transaction advisory locks with fail-fast acquisition; pool-capacity reservation prevents the lease from exhausting data connections; mandatory PostgreSQL CI covers contention and independent namespaces. |
+| Format compatibility | Mandatory v1 descriptor and backend feature markers; empty stores initialize atomically; non-empty unmarked, malformed, or feature-mismatched stores fail closed. |
+| Commit/replay integrity | Expected-latest checks plus RDBMS storage CAS, latest-only whole-batch replay enforcement in every backend (including raw SPI use), duplicate logical-key rejection, root-required batches, self-stale rejection, and authenticated child resolution. |
+| Prune/rollback safety | Atomic maintenance batches, persistent prune watermark, roots below the horizon removed, unsafe rollback/future/negative horizons rejected, rollback-index configuration persisted. |
+| Integrity operations | Backend-neutral `QUICK`/`FULL` checker plus `jmt-integrity` RocksDB CLI with bounded inspection and non-zero unhealthy exit. |
+| Crash recovery | Child-JVM forced-termination tests cover commits and prune/truncate races, followed by reopen and integrity validation. |
+| Parser robustness | Bounded CBOR/wire parsing, canonical `NodeKey` decoding, malformed-varint rejection, saved regression corpus, and coverage-guided parser/proof targets. |
+| Cross implementation | Versioned Java golden vectors plus an independent Python verifier run in CI. |
+| Backend equivalence | In-memory/RocksDB differential operation traces and RDBMS property tests cover roots, proofs, replay, prune, and rollback semantics. |
+
+During the final adversarial review, committed-version replay was found to stale its own live nodes.
+The implementation now clamps replay reads to pre-state, permits replay only at the latest committed
+version, turns a raw-store replay of that immutable version into a whole-batch no-op, rejects a batch
+that both writes and stales the same `NodeKey`, and fails closed when a parent-committed child is
+missing or has a different hash. RDBMS commits claim their immutable version before data writes and
+compare-and-set the latest root before transaction commit. Regression tests cover genesis replay,
+latest replay followed by prune, raw-SPI conflicting payloads, cross-instance same-base writers,
+older-version rejection, and corrupted/missing children.
+
+### Qualified production verdict
+
+RocksDB is production-ready for the profile in `RocksDbJmtStore.Options.production()` when the
+deployment checklist below is satisfied. PostgreSQL is production-ready with the supplied schema,
+a supported connection pool of at least two connections, and the same application-level Cardano
+root/chain-point authentication. H2, SQLite, unrestricted multi-writer operation, native delete,
+and on-chain verification are not qualified.
+
+The Java and independent-vector review found no remaining known proof forgery after remediation.
+That statement is not an independent cryptographic certification. If the root authorizes valuable
+assets or consensus-critical state, section 6 still requires a separate external specialist review.
+
+### Phase record
+
+#### Phase 1 — Coordination and commit preconditions (complete)
 
 1. Add `JmtAccessCoordinator`, `JmtAccessLease`, access modes, and
    `JmtConcurrentMutationException` to the core module.
@@ -332,7 +376,7 @@ unsafe. Explicit format identifiers and explicit future migrations are simpler a
 **Exit gate:** competing same-namespace writes cannot both reach storage; independent namespaces
 still update concurrently; all current suites remain green.
 
-### Phase 2 — Format descriptor
+#### Phase 2 — Format descriptor (complete)
 
 1. Define the stable built-in profile and `JmtFormatDescriptor` encoding.
 2. Add metadata persistence to RocksDB and RDBMS schema helpers.
@@ -342,7 +386,7 @@ still update concurrently; all current suites remain green.
 
 **Exit gate:** an incompatible or unmarked non-empty namespace cannot be opened.
 
-### Phase 3 — Integrity checker
+#### Phase 3 — Integrity checker (complete)
 
 1. Define the read-only inspection SPI and structured issue/report model.
 2. Implement `QUICK`, then `FULL`, for in-memory and RocksDB.
@@ -352,7 +396,7 @@ still update concurrently; all current suites remain green.
 
 **Exit gate:** deliberate corruption is detected and correctly localized without modifying storage.
 
-### Phase 4 — Crash and concurrency qualification
+#### Phase 4 — Crash and concurrency qualification (complete)
 
 1. Build reusable child-JVM crash fixtures.
 2. Run commit/prune/truncate kill-and-reopen campaigns against RocksDB.
@@ -363,7 +407,7 @@ still update concurrently; all current suites remain green.
 **Exit gate:** no tested termination point produces a mixed committed version, bad latest pointer,
 or integrity failure.
 
-### Phase 5 — PostgreSQL qualification
+#### Phase 5 — PostgreSQL qualification (complete)
 
 1. Implement and test namespace-scoped cross-process fail-fast locking.
 2. Add an always-on PostgreSQL CI job and remove skip-as-success behavior from that job.
@@ -371,7 +415,7 @@ or integrity failure.
 
 **Exit gate:** PostgreSQL tests cannot silently skip and distributed lock contention has one winner.
 
-### Phase 6 — Independent vectors and fuzzing
+#### Phase 6 — Independent vectors and fuzzing (complete)
 
 1. Freeze the v1 golden-vector schema and representative corpus.
 2. Implement an independent verifier and run it in CI.
@@ -381,7 +425,7 @@ or integrity failure.
 **Exit gate:** Java and the independent verifier agree on all valid/invalid vectors, and the fuzz
 campaign completes its configured CI budget without a crash, unbounded allocation, or false proof.
 
-### Phase 7 — Release review
+#### Phase 7 — Release review (complete for the bounded profile)
 
 1. Update production documentation with the supported profile and operational checklist.
 2. Review every exit gate and record evidence in a release-readiness document.
@@ -393,13 +437,28 @@ does not imply on-chain, deletion, or multi-writer support.
 
 ## Production deployment checklist (RocksDB profile)
 
+- Open with `RocksDbJmtStore.Options.production()` or an option set for which
+  `isProductionDurable()` is true.
 - One coordinator per tree namespace; every wrapper uses it.
 - Rollback index enabled at initial creation when chain rollback is supported.
 - WAL enabled; commit, prune, and truncate sync enabled.
 - Local supported filesystem; one RocksDB process owns the database path.
 - JMT version/root stored with and authenticated against the Cardano chain point.
 - Retention exceeds the application's rollback horizon.
+- Treat the persisted prune watermark as a hard minimum rollback boundary; restore/re-sync instead
+  of attempting a deeper rollback.
 - Prune/truncate scheduled through the maintenance lease.
 - Startup `QUICK` integrity check and scheduled/offline `FULL` check.
 - Metrics/alerts for lock contention, failed commits, rollback, pruning, and integrity findings.
 - Tested backup/restore and crash-recovery procedure.
+
+## Production deployment checklist (PostgreSQL profile)
+
+- Apply the matching v1 DDL through the application's migration system before opening the store.
+- Use a supported connection pool with at least two connections; size it for proof-read concurrency
+  because each active lease reserves a connection.
+- Do not front the same database/schema/namespace with middleware that changes advisory-lock
+  affinity or bypasses the supplied store.
+- Use one namespace identity per logical history; independent namespaces may progress in parallel.
+- Apply the same Cardano chain-point authentication, retention, integrity, backup, and monitoring
+  controls listed for RocksDB.

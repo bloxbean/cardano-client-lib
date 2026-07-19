@@ -66,14 +66,14 @@ class RocksDbJmtPropertyTest {
 
         byte[] memRoot;
         try (InMemoryJmtStore mem = new InMemoryJmtStore()) {
-            JellyfishMerkleTree memTree = new JellyfishMerkleTree(mem, COMMITMENTS, HASH);
+            JellyfishMerkleTree memTree = new JellyfishMerkleTree(mem);
             memRoot = memTree.put(1L, updates).rootHash();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
         try (RocksDbJmtStore rocks = new RocksDbJmtStore(dbDir.resolve("db").toString())) {
-            JellyfishMerkleTree rocksTree = new JellyfishMerkleTree(rocks, COMMITMENTS, HASH);
+            JellyfishMerkleTree rocksTree = new JellyfishMerkleTree(rocks);
             byte[] rocksRoot = rocksTree.put(1L, updates).rootHash();
 
             assertArrayEquals(memRoot, rocksRoot, "RocksDB root must match in-memory root");

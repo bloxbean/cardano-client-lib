@@ -101,6 +101,14 @@ public class DbConfig implements AutoCloseable {
         private SqlDialect dialect;
         private String tablePrefix = "";
         private boolean ownsDataSource = false;
+        private HikariConfig pendingHikariConfig;
+        private boolean built;
+
+        private void ensureNotBuilt() {
+            if (built) {
+                throw new IllegalStateException("DbConfig.Builder may only build one configuration");
+            }
+        }
 
         /**
          * If this builder previously created a pool it owns, close it before the reference is
@@ -124,8 +132,10 @@ public class DbConfig implements AutoCloseable {
          * @return this builder
          */
         public Builder dataSource(DataSource dataSource) {
+            ensureNotBuilt();
             closeOwnedDataSourceIfAny();
             this.dataSource = dataSource;
+            this.pendingHikariConfig = null;
             this.ownsDataSource = false; // externally supplied; caller owns its lifecycle
             return this;
         }
@@ -137,6 +147,7 @@ public class DbConfig implements AutoCloseable {
          * @return this builder
          */
         public Builder dialect(SqlDialect dialect) {
+            ensureNotBuilt();
             this.dialect = dialect;
             return this;
         }
@@ -148,6 +159,7 @@ public class DbConfig implements AutoCloseable {
          * @return this builder
          */
         public Builder tablePrefix(String tablePrefix) {
+            ensureNotBuilt();
             this.tablePrefix = tablePrefix;
             return this;
         }
@@ -161,8 +173,9 @@ public class DbConfig implements AutoCloseable {
          * @return this builder with DataSource and Dialect configured
          */
         public Builder jdbcUrl(String jdbcUrl, String username, String password) {
+            ensureNotBuilt();
+            SqlDialect detectedDialect = detectDialect(jdbcUrl);
             closeOwnedDataSourceIfAny();
-            // Create HikariCP DataSource
             HikariConfig hikariConfig = new HikariConfig();
             hikariConfig.setJdbcUrl(jdbcUrl);
             hikariConfig.setUsername(username);
@@ -171,11 +184,12 @@ public class DbConfig implements AutoCloseable {
             hikariConfig.setMinimumIdle(2);
             hikariConfig.setConnectionTimeout(30000);
 
-            this.dataSource = new HikariDataSource(hikariConfig);
-            this.ownsDataSource = true; // this config created the pool; it must close it
-
-            // Auto-detect dialect from JDBC URL
-            this.dialect = detectDialect(jdbcUrl);
+            // Defer starting the connection pool until build() has validated the builder. This
+            // prevents abandoned/invalid builders from leaking pool threads and connections.
+            this.pendingHikariConfig = hikariConfig;
+            this.dataSource = null;
+            this.ownsDataSource = false;
+            this.dialect = detectedDialect;
 
             return this;
         }
@@ -187,10 +201,13 @@ public class DbConfig implements AutoCloseable {
          * @return this builder with DataSource and Dialect configured
          */
         public Builder simpleJdbcUrl(String jdbcUrl) {
+            ensureNotBuilt();
+            SqlDialect detectedDialect = detectDialect(jdbcUrl);
             closeOwnedDataSourceIfAny();
             this.dataSource = new SimpleDataSource(jdbcUrl);
+            this.pendingHikariConfig = null;
             this.ownsDataSource = true; // this config created the data source
-            this.dialect = detectDialect(jdbcUrl);
+            this.dialect = detectedDialect;
             return this;
         }
 
@@ -216,13 +233,28 @@ public class DbConfig implements AutoCloseable {
          * @throws IllegalStateException if required fields are missing
          */
         public DbConfig build() {
-            if (dataSource == null) {
+            ensureNotBuilt();
+            if (dataSource == null && pendingHikariConfig == null) {
                 throw new IllegalStateException("dataSource is required");
             }
             if (dialect == null) {
                 throw new IllegalStateException("dialect is required");
             }
-            return new DbConfig(dataSource, dialect, tablePrefix, ownsDataSource);
+            DataSource configuredDataSource = dataSource;
+            boolean configOwnsDataSource = ownsDataSource;
+            if (pendingHikariConfig != null) {
+                configuredDataSource = new HikariDataSource(pendingHikariConfig);
+                configOwnsDataSource = true;
+            }
+            DbConfig config = new DbConfig(configuredDataSource, dialect, tablePrefix,
+                    configOwnsDataSource);
+            // Ownership has transferred to the returned config. Reusing this builder would make
+            // lifecycle ownership ambiguous, so consume it.
+            built = true;
+            dataSource = null;
+            pendingHikariConfig = null;
+            ownsDataSource = false;
+            return config;
         }
     }
 }

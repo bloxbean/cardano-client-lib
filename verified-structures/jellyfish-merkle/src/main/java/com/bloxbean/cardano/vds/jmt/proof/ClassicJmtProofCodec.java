@@ -10,6 +10,7 @@ import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.NibblePath;
 import com.bloxbean.cardano.vds.core.nibbles.Nibbles;
 import com.bloxbean.cardano.vds.jmt.JmtEncoding;
+import com.bloxbean.cardano.vds.jmt.BoundedCbor;
 import com.bloxbean.cardano.vds.jmt.JmtExtensionNode;
 import com.bloxbean.cardano.vds.jmt.JmtInternalNode;
 import com.bloxbean.cardano.vds.jmt.JmtLeafNode;
@@ -141,6 +142,10 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
             JmtNode node = nodes.get(i);
             if (node instanceof JmtInternalNode) {
                 JmtInternalNode in = (JmtInternalNode) node;
+                if (in.compressedPath() != null) {
+                    // Path compression is not part of the stable v1 committed branch preimage.
+                    return false;
+                }
                 if (depth >= keyNibbles.length) return false;
                 internalDepths[i] = depth;
                 int nib = keyNibbles[depth];
@@ -157,17 +162,9 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
                 continue;
             }
             if (node instanceof JmtExtensionNode) {
-                // Enforce nibble segment match; HP bytes already include mode flags, but we only use nibbles
-                JmtExtensionNode ex = (JmtExtensionNode) node;
-                com.bloxbean.cardano.vds.core.nibbles.Nibbles.HP hp = Nibbles.unpackHP(ex.hpBytes());
-                int[] seg = hp.nibbles;
-                if (hp.isLeaf || seg.length == 0 || ex.childHash().length != keyHash.length) return false;
-                if (depth + seg.length > keyNibbles.length) return false;
-                for (int j = 0; j < seg.length; j++) {
-                    if (keyNibbles[depth + j] != seg[j]) return false;
-                }
-                depth += seg.length;
-                continue;
+                // The stable v1 tree never emits extension nodes. Reject them instead of carrying
+                // an attacker-only verification branch with no honest producer or vector.
+                return false;
             }
             if (node instanceof JmtLeafNode) {
                 leafNode = (JmtLeafNode) node;
@@ -195,6 +192,10 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
         // Bottom-up recomputation
         byte[] computed = null;
         if (terminalLeaf) {
+            if (leafNode.keyHash().length != keyHash.length
+                    || leafNode.valueHash().length != keyHash.length) {
+                return false;
+            }
             if (including) {
                 if (valueOrNull == null) return false;
                 if (!Arrays.equals(leafNode.keyHash(), keyHash)) return false;
@@ -222,10 +223,7 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
         for (int i = nodes.size() - 1; i >= 0; i--) {
             JmtNode node = nodes.get(i);
             if (node instanceof JmtExtensionNode) {
-                JmtExtensionNode ex = (JmtExtensionNode) node;
-                byte[] child = computed == null ? cs.nullHash() : computed;
-                computed = hashFn.digest(com.bloxbean.cardano.vds.core.util.Bytes.concat(new byte[]{0x02}, ex.hpBytes(), child));
-                continue;
+                return false;
             }
             if (node instanceof JmtInternalNode) {
                 JmtInternalNode in = (JmtInternalNode) node;
@@ -258,6 +256,7 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
 
     private static List<JmtNode> decodeNodes(byte[] wire, int maxNodes) {
         try {
+            BoundedCbor.validateSingleItem(wire, 2, maxNodes + 1, MAX_WIRE_BYTES);
             List<DataItem> items = new CborDecoder(new ByteArrayInputStream(wire)).decode();
             if (items.size() != 1 || !(items.get(0) instanceof Array)) {
                 throw new IllegalArgumentException("Classic JMT proof must contain exactly one CBOR array");

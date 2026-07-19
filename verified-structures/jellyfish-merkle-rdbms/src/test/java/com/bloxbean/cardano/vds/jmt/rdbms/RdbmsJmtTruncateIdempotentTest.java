@@ -55,7 +55,7 @@ class RdbmsJmtTruncateIdempotentTest {
 
     @Test
     void truncateAfterRemovesFutureVersionsAndRepointsLatest() {
-        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
         byte[] root2 = null;
         for (long v = 1; v <= 5; v++) {
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
@@ -85,7 +85,7 @@ class RdbmsJmtTruncateIdempotentTest {
 
     @Test
     void replayingSameVersionCommitIsIdempotent() {
-        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
         Map<byte[], byte[]> updates = new LinkedHashMap<>();
         updates.put(b("alice"), b("100"));
         updates.put(b("bob"), b("200"));
@@ -102,7 +102,7 @@ class RdbmsJmtTruncateIdempotentTest {
 
     @Test
     void divergentReplayOfSameVersionIsRejected() {
-        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
         Map<byte[], byte[]> a = new LinkedHashMap<>();
         a.put(b("alice"), b("100"));
         byte[] root1 = tree.put(1L, a).rootHash();
@@ -119,8 +119,8 @@ class RdbmsJmtTruncateIdempotentTest {
     }
 
     @Test
-    void replayingOlderVersionDoesNotRegressLatestPointer() {
-        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+    void replayingOlderVersionIsRejectedWithoutRegressingLatestPointer() {
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
         for (long v = 1; v <= 3; v++) {
             Map<byte[], byte[]> u = new LinkedHashMap<>();
             u.put(b("k-" + v), b("v-" + v));
@@ -128,12 +128,12 @@ class RdbmsJmtTruncateIdempotentTest {
         }
         assertEquals(3L, store.latestRoot().orElseThrow().version());
 
-        // Crash-recovery style replay of an already-committed OLDER version (identical content).
+        // Only the latest version is eligible for crash-recovery replay.
         Map<byte[], byte[]> u1 = new LinkedHashMap<>();
         u1.put(b("k-1"), b("v-1"));
-        assertDoesNotThrow(() -> tree.put(1L, u1));
+        assertThrows(IllegalArgumentException.class, () -> tree.put(1L, u1));
 
         assertEquals(3L, store.latestRoot().orElseThrow().version(),
-                "latest pointer must not regress to the replayed older version");
+                "latest pointer must not regress after an older replay is rejected");
     }
 }

@@ -85,6 +85,10 @@ public final class JmtProofVerifier {
         byte[] conflictingKeyHash = proof.conflictingKeyHash();
         byte[] conflictingValueHash = proof.conflictingValueHash();
         if (conflictingKeyHash == null || conflictingValueHash == null) return false;
+        if (conflictingKeyHash.length != keyHash.length
+                || conflictingValueHash.length != keyHash.length) {
+            return false;
+        }
         // The conflicting leaf must be a DIFFERENT key that lies on the queried key's path.
         if (Arrays.equals(keyHash, conflictingKeyHash)) return false;
         int depth = proof.steps().size();
@@ -114,6 +118,11 @@ public final class JmtProofVerifier {
             int nibble = nibbles[i];
             if (step.prefix().length() != i || step.childIndex() != nibble) {
                 throw new IllegalArgumentException("Branch step does not match queried key path");
+            }
+            for (int prefixIndex = 0; prefixIndex < i; prefixIndex++) {
+                if (step.prefix().get(prefixIndex) != nibbles[prefixIndex]) {
+                    throw new IllegalArgumentException("Branch prefix does not match queried key");
+                }
             }
             if (childHashes[nibble] != null || !Arrays.equals(hash, nullHash)) {
                 childHashes[nibble] = Arrays.copyOf(hash, hash.length);

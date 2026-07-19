@@ -1,9 +1,9 @@
-# Jellyfish-Merkle RocksDB Backend (Experimental)
+# Jellyfish-Merkle RocksDB Backend
 
 RocksDB persistence for the repository's custom, versioned radix-16 JMT implementation.
 
-> The key-binding security fix changes every non-empty root. Rebuild old trees into a new database
-> or column-family namespace; do not continue an existing pre-fix tree. Read the
+> The first supported persistent format is `classic-radix16-blake2b256-v1`. Stores with missing or
+> incompatible format/feature metadata fail closed. Read the
 > [JMT security/performance/Cardano audit](../jellyfish-merkle/docs/security-performance-audit.md).
 
 ## Usage
@@ -17,11 +17,7 @@ import com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtStore;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-RocksDbJmtStore.Options options = RocksDbJmtStore.Options.builder()
-        // Required if the application must call truncateAfter(), such as a Cardano chain follower.
-        // Enable this when the database is first created; it does not backfill old commits.
-        .enableRollbackIndex(true)
-        .build();
+RocksDbJmtStore.Options options = RocksDbJmtStore.Options.production();
 
 try (RocksDbJmtStore store = RocksDbJmtStore.open("data/jmt", options)) {
     HashFunction hashFn = Blake2b256::digest;
@@ -50,7 +46,8 @@ caller remains responsible for the database and for any supplied column-family h
 - `prunePolicy(SAFE|AGGRESSIVE)`: safe mode keeps the latest value sentinel at/below the prune
   boundary; aggressive mode removes all such value history.
 - `syncOnCommit`, `syncOnPrune`, `syncOnTruncate`: default to `true` for durability.
-- `disableWalForBatches(true)`: unsafe benchmarking option; do not use for durable chain state.
+- `disableWalForBatches(true)`: unsafe benchmarking option that permits torn state after a crash;
+  it cannot be combined with sync commits and must not be used for durable chain state.
 - `rocksDbConfig(...)`: selects/tunes the shared RocksDB configuration.
 
 ## Lifecycle operations
@@ -64,8 +61,13 @@ int removed = store.pruneUpTo(1_000L);
 store.truncateAfter(900L);
 ```
 
-Serialize `put`, `pruneUpTo`, and `truncateAfter` for each namespace. RocksDB's thread-safe API does
-not make the tree's read/compute/commit protocol safe for concurrent writers.
+The shared coordinator serializes updates and excludes maintenance for each namespace. A competing
+writer does not block: it throws `JmtConcurrentMutationException` before touching storage. Every
+wrapper around an externally owned RocksDB handle must be given the same explicit coordinator;
+the safe `attach(...)` API requires it.
+
+Pruning removes roots below the retained horizon and persists a prune watermark. Rollback below
+that watermark is rejected rather than exposing an incomplete historical tree.
 
 ## Storage layout
 

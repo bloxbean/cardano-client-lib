@@ -11,9 +11,21 @@ import com.bloxbean.cardano.vds.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.metrics.JmtMetrics;
 import com.bloxbean.cardano.vds.jmt.proof.ClassicJmtProofCodec;
 import com.bloxbean.cardano.vds.jmt.proof.JmtProofCodec;
+import com.bloxbean.cardano.vds.jmt.store.JmtAccessLease;
+import com.bloxbean.cardano.vds.jmt.store.JmtFormatDescriptor;
 import com.bloxbean.cardano.vds.jmt.store.JmtStore;
 
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Jellyfish Merkle Tree implementation inspired by Diem's JMT implementation.
@@ -42,6 +54,33 @@ public final class JellyfishMerkleTree {
     private final HashFunction hashFn;
     private final JmtMetrics metrics;
     private final JmtProofCodec proofCodec;
+    private final JmtFormatDescriptor formatDescriptor;
+
+    /**
+     * Creates a tree using the stable classic radix-16 Blake2b-256 v1 production profile.
+     */
+    public JellyfishMerkleTree(JmtStore store) {
+        this(store, JmtProfile.classicBlake2b256V1());
+    }
+
+    /**
+     * Creates a tree using a stable, named production profile.
+     */
+    public JellyfishMerkleTree(JmtStore store, JmtProfile profile) {
+        this(store, profile, JmtMetrics.NOOP);
+    }
+
+    /**
+     * Creates a tree using a stable, named production profile and metrics collector.
+     */
+    public JellyfishMerkleTree(JmtStore store, JmtProfile profile, JmtMetrics metrics) {
+        this(store,
+                Objects.requireNonNull(profile, "profile").commitmentScheme(),
+                profile.hashFunction(),
+                metrics,
+                profile.proofCodec(),
+                profile.format());
+    }
 
     /**
      * Creates a new JellyfishMerkleTree backed by the specified store.
@@ -76,12 +115,23 @@ public final class JellyfishMerkleTree {
      * @param proofCodec  the codec for encoding/decoding proofs to wire format
      */
     public JellyfishMerkleTree(JmtStore store, CommitmentScheme commitments, HashFunction hashFn, JmtMetrics metrics, JmtProofCodec proofCodec) {
+        this(store, commitments, hashFn, metrics, proofCodec, JmtFormatDescriptor.unversioned());
+    }
+
+    private JellyfishMerkleTree(JmtStore store,
+                                CommitmentScheme commitments,
+                                HashFunction hashFn,
+                                JmtMetrics metrics,
+                                JmtProofCodec proofCodec,
+                                JmtFormatDescriptor formatDescriptor) {
         this.store = Objects.requireNonNull(store, "store");
         this.commitments = Objects.requireNonNull(commitments, "commitments");
         this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
         this.metrics = Objects.requireNonNull(metrics, "metrics");
         this.proofCodec = Objects.requireNonNull(proofCodec, "proofCodec");
+        this.formatDescriptor = Objects.requireNonNull(formatDescriptor, "formatDescriptor");
         validateDigestConfiguration();
+        store.ensureFormat(formatDescriptor);
     }
 
     /**
@@ -134,67 +184,73 @@ public final class JellyfishMerkleTree {
     public CommitResult put(long version, Map<byte[], byte[]> updates) {
         requireVersion(version);
         Objects.requireNonNull(updates, "updates");
-        validateCommitVersion(version);
+        try (JmtAccessLease ignored = store.accessCoordinator().tryAcquireUpdate("put", version)) {
+            Optional<JmtStore.VersionedRoot> expectedLatest = validateCommitVersion(version);
 
-        long startTime = System.currentTimeMillis();
+            long startTime = System.currentTimeMillis();
 
-        // 1. Create TreeCache for this version
-        TreeCache cache = new TreeCache(store, version);
-        // 2. Track value operations for the result
-        List<ValueOperation> valueOps = new ArrayList<>(updates.size());
+            // 1. Create TreeCache for this version
+            TreeCache cache = new TreeCache(store, version);
+            // 2. Track value operations for the result
+            List<ValueOperation> valueOps = new ArrayList<>(updates.size());
+            Set<ByteBuffer> uniqueKeys = new HashSet<>(updates.size());
 
-        // 3. Apply each update (Diem-inspired: no deletes, all values must be non-null)
-        for (Map.Entry<byte[], byte[]> entry : updates.entrySet()) {
-            byte[] key = Objects.requireNonNull(entry.getKey(), "key");
-            byte[] value = Objects.requireNonNull(entry.getValue(), "value"); // Null not supported
+            // 3. Apply each update (Diem-inspired: no deletes, all values must be non-null)
+            for (Map.Entry<byte[], byte[]> entry : updates.entrySet()) {
+                byte[] key = Objects.requireNonNull(entry.getKey(), "key").clone();
+                byte[] value = Objects.requireNonNull(entry.getValue(), "value").clone();
+                if (!uniqueKeys.add(ByteBuffer.wrap(key).asReadOnlyBuffer())) {
+                    throw new IllegalArgumentException("updates contains duplicate key bytes");
+                }
 
-            byte[] keyHash = hashFn.digest(key);
-            byte[] valueHash = hashFn.digest(value);
+                byte[] keyHash = hashFn.digest(key);
+                byte[] valueHash = hashFn.digest(value);
 
-            putValue(keyHash, valueHash, cache);
-            valueOps.add(ValueOperation.put(keyHash, value));
+                putValue(keyHash, valueHash, cache);
+                valueOps.add(ValueOperation.put(keyHash, value));
+            }
+
+            // 4. Compute root hash before freezing
+            NodeKey finalRoot = cache.getRootNodeKey();
+            Optional<NodeEntry> rootEntryOpt = cache.getNode(finalRoot);
+            byte[] rootHash;
+            if (rootEntryOpt.isPresent()) {
+                rootHash = computeNodeHash(finalRoot, rootEntryOpt.get().node());
+            } else {
+                // Empty tree - use the commitment scheme's canonical placeholder.
+                rootHash = commitments.nullHash();
+            }
+
+            // 5. Freeze cache to capture state
+            cache.freeze(rootHash);
+
+            // 6. Convert to batch and commit to storage
+            TreeUpdateBatch batch = cache.toBatch();
+            commitBatchToStore(version, rootHash, batch, valueOps, expectedLatest);
+
+            // 7. Build result
+            Map<NodeKey, JmtNode> nodes = new LinkedHashMap<>();
+            for (Map.Entry<NodeKey, NodeEntry> entry : batch.nodes().entrySet()) {
+                nodes.put(entry.getKey(), entry.getValue().node());
+            }
+
+            List<NodeKey> staleNodes = new ArrayList<>();
+            for (StaleNodeIndex staleIndex : batch.staleIndices()) {
+                staleNodes.add(staleIndex.nodeKey());
+            }
+
+            // 8. Record metrics
+            long durationMs = System.currentTimeMillis() - startTime;
+            metrics.recordCommit(durationMs, version, updates.size(), nodes.size(), staleNodes.size());
+
+            // Record storage stats (partial: version and root hash size available)
+            metrics.recordStorageStats(version, rootHash.length, 0, 0);
+
+            // Record cache stats (cache size only, no hit/miss tracking)
+            metrics.recordCacheStats(0, 0, batch.nodes().size());
+
+            return new CommitResult(version, rootHash, nodes, staleNodes, valueOps);
         }
-
-        // 4. Compute root hash before freezing
-        NodeKey finalRoot = cache.getRootNodeKey();
-        Optional<NodeEntry> rootEntryOpt = cache.getNode(finalRoot);
-        byte[] rootHash;
-        if (rootEntryOpt.isPresent()) {
-            rootHash = computeNodeHash(finalRoot, rootEntryOpt.get().node());
-        } else {
-            // Empty tree - use the commitment scheme's canonical placeholder.
-            rootHash = commitments.nullHash();
-        }
-
-        // 5. Freeze cache to capture state
-        cache.freeze(rootHash);
-
-        // 6. Convert to batch and commit to storage
-        TreeUpdateBatch batch = cache.toBatch();
-        commitBatchToStore(version, rootHash, batch, valueOps);
-
-        // 7. Build result
-        Map<NodeKey, JmtNode> nodes = new LinkedHashMap<>();
-        for (Map.Entry<NodeKey, NodeEntry> entry : batch.nodes().entrySet()) {
-            nodes.put(entry.getKey(), entry.getValue().node());
-        }
-
-        List<NodeKey> staleNodes = new ArrayList<>();
-        for (StaleNodeIndex staleIndex : batch.staleIndices()) {
-            staleNodes.add(staleIndex.nodeKey());
-        }
-
-        // 8. Record metrics
-        long durationMs = System.currentTimeMillis() - startTime;
-        metrics.recordCommit(durationMs, version, updates.size(), nodes.size(), staleNodes.size());
-
-        // Record storage stats (partial: version and root hash size available)
-        metrics.recordStorageStats(version, rootHash.length, 0, 0);
-
-        // Record cache stats (cache size only, no hit/miss tracking)
-        metrics.recordCacheStats(0, 0, batch.nodes().size());
-
-        return new CommitResult(version, rootHash, nodes, staleNodes, valueOps);
     }
 
     /**
@@ -312,173 +368,175 @@ public final class JellyfishMerkleTree {
     public Optional<JmtProof> getProof(byte[] key, long version) {
         requireVersion(version);
         Objects.requireNonNull(key, "key");
+        try (JmtAccessLease ignored = store.accessCoordinator().tryAcquireRead("getProof", version)) {
 
-        long startTime = System.currentTimeMillis();
+            long startTime = System.currentTimeMillis();
 
-        // Get root hash for this version
-        Optional<byte[]> rootHashOpt = store.rootHash(version);
-        if (rootHashOpt.isEmpty()) {
-            return Optional.empty();
-        }
-
-        byte[] keyHash = hashFn.digest(key);
-        int[] nibbles = Nibbles.toNibbles(keyHash);
-
-        // Check if tree is empty at this version
-        Optional<JmtStore.NodeEntry> rootEntryOpt = store.getNode(version, NibblePath.EMPTY);
-
-        if (rootEntryOpt.isEmpty()) {
-            // Empty tree - non-inclusion proof
-            List<JmtProof.BranchStep> emptySteps = Collections.emptyList();
-            return Optional.of(JmtProof.nonInclusionEmpty(emptySteps));
-        }
-
-        // Navigate tree to find leaf
-        // Use depth indexing to avoid concat() allocations during traversal
-        List<JmtProof.BranchStep> steps = new ArrayList<>();
-        int depth = 0;
-
-        Optional<JmtStore.NodeEntry> currentEntryOpt = rootEntryOpt;
-
-        while (currentEntryOpt.isPresent()) {
-            JmtStore.NodeEntry entry = currentEntryOpt.get();
-            JmtNode node = entry.node();
-
-            if (node instanceof JmtLeafNode) {
-                JmtLeafNode leaf = (JmtLeafNode) node;
-
-                // Check if this is the leaf we're looking for
-                if (Arrays.equals(leaf.keyHash(), keyHash)) {
-                    // Inclusion proof - found the key
-                    byte[] value = store.getValueAt(keyHash, version).orElse(null);
-                    int[] fullNibbles = Nibbles.toNibbles(leaf.keyHash());
-                    NibblePath fullPath = NibblePath.of(fullNibbles);
-                    // Use depth directly instead of materializing path (zero-allocation)
-                    NibblePath suffix = fullPath.slice(depth, fullPath.length());
-
-                    JmtProof proof = JmtProof.inclusion(
-                            steps,
-                            value,
-                            leaf.valueHash(),
-                            suffix,
-                            leaf.keyHash()
-                    );
-
-                    // Record metrics
-                    long durationMs = System.currentTimeMillis() - startTime;
-                    metrics.recordProofGeneration(durationMs, steps.size(), true);
-
-                    return Optional.of(proof);
-                } else {
-                    // Non-inclusion proof - found a different leaf
-                    int[] fullNibbles = Nibbles.toNibbles(leaf.keyHash());
-                    NibblePath fullPath = NibblePath.of(fullNibbles);
-                    // Use depth directly instead of materializing path (zero-allocation)
-                    NibblePath suffix = fullPath.slice(depth, fullPath.length());
-
-                    JmtProof proof = JmtProof.nonInclusionDifferentLeaf(
-                            steps,
-                            leaf.keyHash(),
-                            leaf.valueHash(),
-                            suffix
-                    );
-
-                    // Record metrics
-                    long durationMs = System.currentTimeMillis() - startTime;
-                    metrics.recordProofGeneration(durationMs, steps.size(), false);
-
-                    return Optional.of(proof);
-                }
-            } else if (node instanceof JmtInternalNode) {
-                JmtInternalNode internal = (JmtInternalNode) node;
-
-                if (depth >= nibbles.length) {
-                    throw new IllegalStateException("Depth exceeds key length");
-                }
-
-                int nibble = nibbles[depth];
-
-                // Expand child hashes to full 16-element array
-                byte[][] fullChildHashes = expandChildHashes(internal.bitmap(), internal.childHashes());
-
-                // Collect neighbor information for proof
-                int neighborCount = 0;
-                int neighborNibble = -1;
-                byte[] leafNeighborKey = null;
-                byte[] leafNeighborValue = null;
-                NibblePath forkPrefix = null;
-                byte[] forkRoot = null;
-
-                for (int idx = 0; idx < 16; idx++) {
-                    if (idx == nibble) continue;
-                    if (fullChildHashes[idx] != null) {
-                        neighborCount++;
-                        neighborNibble = idx;
-
-                        // Try to load the neighbor node to determine its type
-                        // Build path: nibbles[0..depth-1] + idx
-                        // We need to construct a path with one more nibble (the neighbor idx)
-                        int[] neighborNibbles = new int[depth + 1];
-                        System.arraycopy(nibbles, 0, neighborNibbles, 0, depth);
-                        neighborNibbles[depth] = idx;
-                        NibblePath neighborPath = NibblePath.fromRaw(neighborNibbles);
-                        Optional<JmtStore.NodeEntry> neighborOpt = store.getNode(version, neighborPath);
-
-                        if (neighborOpt.isPresent()) {
-                            JmtNode neighborNode = neighborOpt.get().node();
-                            if (neighborNode instanceof JmtLeafNode) {
-                                JmtLeafNode neighborLeaf = (JmtLeafNode) neighborNode;
-                                leafNeighborKey = neighborLeaf.keyHash();
-                                leafNeighborValue = neighborLeaf.valueHash();
-                            } else if (neighborNode instanceof JmtInternalNode) {
-                                forkPrefix = neighborPath;
-                                forkRoot = fullChildHashes[idx];
-                            }
-                        }
-
-                        if (neighborCount > 1) break;
-                    }
-                }
-
-                boolean singleNeighbor = (neighborCount == 1);
-
-                // Materialize current path for BranchStep (only when needed)
-                NibblePath currentPath = NibblePath.fromRange(nibbles, 0, depth);
-
-                // Add branch step
-                steps.add(new JmtProof.BranchStep(
-                        currentPath,
-                        fullChildHashes,
-                        nibble,
-                        singleNeighbor,
-                        neighborNibble,
-                        forkPrefix,
-                        forkRoot,
-                        leafNeighborKey,
-                        leafNeighborValue
-                ));
-
-                // Check if child exists at this nibble
-                if (fullChildHashes[nibble] == null) {
-                    // Non-inclusion - path doesn't exist
-                    long durationMs = System.currentTimeMillis() - startTime;
-                    metrics.recordProofGeneration(durationMs, steps.size(), false);
-                    return Optional.of(JmtProof.nonInclusionEmpty(steps));
-                }
-
-                // Navigate to child: increment depth to include this nibble in the path
-                depth++;
-                NibblePath childPath = NibblePath.fromRange(nibbles, 0, depth);
-                currentEntryOpt = store.getNode(version, childPath);
-            } else {
-                throw new IllegalStateException("Unknown node type: " + node.getClass());
+            // Get root hash for this version
+            Optional<byte[]> rootHashOpt = store.rootHash(version);
+            if (rootHashOpt.isEmpty()) {
+                return Optional.empty();
             }
-        }
 
-        // Path doesn't exist - non-inclusion proof
-        long durationMs = System.currentTimeMillis() - startTime;
-        metrics.recordProofGeneration(durationMs, steps.size(), false);
-        return Optional.of(JmtProof.nonInclusionEmpty(steps));
+            byte[] keyHash = hashFn.digest(key);
+            int[] nibbles = Nibbles.toNibbles(keyHash);
+
+            // Check if tree is empty at this version
+            Optional<JmtStore.NodeEntry> rootEntryOpt = store.getNode(version, NibblePath.EMPTY);
+
+            if (rootEntryOpt.isEmpty()) {
+                // Empty tree - non-inclusion proof
+                List<JmtProof.BranchStep> emptySteps = Collections.emptyList();
+                return Optional.of(JmtProof.nonInclusionEmpty(emptySteps));
+            }
+
+            // Navigate tree to find leaf
+            // Use depth indexing to avoid concat() allocations during traversal
+            List<JmtProof.BranchStep> steps = new ArrayList<>();
+            int depth = 0;
+
+            Optional<JmtStore.NodeEntry> currentEntryOpt = rootEntryOpt;
+
+            while (currentEntryOpt.isPresent()) {
+                JmtStore.NodeEntry entry = currentEntryOpt.get();
+                JmtNode node = entry.node();
+
+                if (node instanceof JmtLeafNode) {
+                    JmtLeafNode leaf = (JmtLeafNode) node;
+
+                    // Check if this is the leaf we're looking for
+                    if (Arrays.equals(leaf.keyHash(), keyHash)) {
+                        // Inclusion proof - found the key
+                        byte[] value = store.getValueAt(keyHash, version).orElse(null);
+                        int[] fullNibbles = Nibbles.toNibbles(leaf.keyHash());
+                        NibblePath fullPath = NibblePath.of(fullNibbles);
+                        // Use depth directly instead of materializing path (zero-allocation)
+                        NibblePath suffix = fullPath.slice(depth, fullPath.length());
+
+                        JmtProof proof = JmtProof.inclusion(
+                                steps,
+                                value,
+                                leaf.valueHash(),
+                                suffix,
+                                leaf.keyHash()
+                        );
+
+                        // Record metrics
+                        long durationMs = System.currentTimeMillis() - startTime;
+                        metrics.recordProofGeneration(durationMs, steps.size(), true);
+
+                        return Optional.of(proof);
+                    } else {
+                        // Non-inclusion proof - found a different leaf
+                        int[] fullNibbles = Nibbles.toNibbles(leaf.keyHash());
+                        NibblePath fullPath = NibblePath.of(fullNibbles);
+                        // Use depth directly instead of materializing path (zero-allocation)
+                        NibblePath suffix = fullPath.slice(depth, fullPath.length());
+
+                        JmtProof proof = JmtProof.nonInclusionDifferentLeaf(
+                                steps,
+                                leaf.keyHash(),
+                                leaf.valueHash(),
+                                suffix
+                        );
+
+                        // Record metrics
+                        long durationMs = System.currentTimeMillis() - startTime;
+                        metrics.recordProofGeneration(durationMs, steps.size(), false);
+
+                        return Optional.of(proof);
+                    }
+                } else if (node instanceof JmtInternalNode) {
+                    JmtInternalNode internal = (JmtInternalNode) node;
+
+                    if (depth >= nibbles.length) {
+                        throw new IllegalStateException("Depth exceeds key length");
+                    }
+
+                    int nibble = nibbles[depth];
+
+                    // Expand child hashes to full 16-element array
+                    byte[][] fullChildHashes = expandChildHashes(internal.bitmap(), internal.childHashes());
+
+                    // Collect neighbor information for proof
+                    int neighborCount = 0;
+                    int neighborNibble = -1;
+                    byte[] leafNeighborKey = null;
+                    byte[] leafNeighborValue = null;
+                    NibblePath forkPrefix = null;
+                    byte[] forkRoot = null;
+
+                    for (int idx = 0; idx < 16; idx++) {
+                        if (idx == nibble) continue;
+                        if (fullChildHashes[idx] != null) {
+                            neighborCount++;
+                            neighborNibble = idx;
+
+                            // Try to load the neighbor node to determine its type
+                            // Build path: nibbles[0..depth-1] + idx
+                            // We need to construct a path with one more nibble (the neighbor idx)
+                            int[] neighborNibbles = new int[depth + 1];
+                            System.arraycopy(nibbles, 0, neighborNibbles, 0, depth);
+                            neighborNibbles[depth] = idx;
+                            NibblePath neighborPath = NibblePath.fromRaw(neighborNibbles);
+                            Optional<JmtStore.NodeEntry> neighborOpt = store.getNode(version, neighborPath);
+
+                            if (neighborOpt.isPresent()) {
+                                JmtNode neighborNode = neighborOpt.get().node();
+                                if (neighborNode instanceof JmtLeafNode) {
+                                    JmtLeafNode neighborLeaf = (JmtLeafNode) neighborNode;
+                                    leafNeighborKey = neighborLeaf.keyHash();
+                                    leafNeighborValue = neighborLeaf.valueHash();
+                                } else if (neighborNode instanceof JmtInternalNode) {
+                                    forkPrefix = neighborPath;
+                                    forkRoot = fullChildHashes[idx];
+                                }
+                            }
+
+                            if (neighborCount > 1) break;
+                        }
+                    }
+
+                    boolean singleNeighbor = (neighborCount == 1);
+
+                    // Materialize current path for BranchStep (only when needed)
+                    NibblePath currentPath = NibblePath.fromRange(nibbles, 0, depth);
+
+                    // Add branch step
+                    steps.add(new JmtProof.BranchStep(
+                            currentPath,
+                            fullChildHashes,
+                            nibble,
+                            singleNeighbor,
+                            neighborNibble,
+                            forkPrefix,
+                            forkRoot,
+                            leafNeighborKey,
+                            leafNeighborValue
+                    ));
+
+                    // Check if child exists at this nibble
+                    if (fullChildHashes[nibble] == null) {
+                        // Non-inclusion - path doesn't exist
+                        long durationMs = System.currentTimeMillis() - startTime;
+                        metrics.recordProofGeneration(durationMs, steps.size(), false);
+                        return Optional.of(JmtProof.nonInclusionEmpty(steps));
+                    }
+
+                    // Navigate to child: increment depth to include this nibble in the path
+                    depth++;
+                    NibblePath childPath = NibblePath.fromRange(nibbles, 0, depth);
+                    currentEntryOpt = store.getNode(version, childPath);
+                } else {
+                    throw new IllegalStateException("Unknown node type: " + node.getClass());
+                }
+            }
+
+            // Path doesn't exist - non-inclusion proof
+            long durationMs = System.currentTimeMillis() - startTime;
+            metrics.recordProofGeneration(durationMs, steps.size(), false);
+            return Optional.of(JmtProof.nonInclusionEmpty(steps));
+        }
     }
 
     /**
@@ -710,11 +768,7 @@ public final class JellyfishMerkleTree {
         // Compute child path
         NibblePath childPath = prefixPath(keyNibbles, depth + 1);
 
-        // Find the existing child's version (or use current version if new child)
-        long childVersion = findChildVersion(childPath, cache, version);
-
-        // Generate child node key with correct version
-        NodeKey childKey = NodeKey.of(childPath, childVersion);
+        NodeKey childKey = resolveChildKey(childPath, internal, childNibble, cache, version);
 
         // Recurse into child
         NodeKey newChildKey = insertAt(childKey, keyNibbles, depth + 1, keyHash, valueHash, cache);
@@ -1000,28 +1054,41 @@ public final class JellyfishMerkleTree {
     }
 
     /**
-     * Finds the version of a child node by looking it up in the cache/storage.
+     * Resolves and authenticates a child node from the cache/storage.
      *
      * <p>Unlike Diem which stores child versions in a Child struct, we look up
-     * the existing child node from TreeCache/storage to find its version.
-     * This is necessary because our InternalNode only stores child hashes, not versions.
+     * the existing child node from TreeCache/storage to find its exact key. Because our
+     * InternalNode only stores child hashes, the resolved node's commitment must also match the
+     * parent before an update may continue. Missing or mismatched children fail closed.
      *
      * @param childPath     the full path to the child node
+     * @param parent        the parent node that commits to the child
+     * @param childNibble   the child position in the parent
      * @param cache         the tree cache
-     * @param parentVersion the parent's version (used as fallback if child not found)
-     * @return the child's version
+     * @param parentVersion the parent's version (used for a child that is not yet present)
+     * @return the exact child key, or a key for a new child when the parent has no such child
      */
-    private long findChildVersion(NibblePath childPath, TreeCache cache, long parentVersion) {
-        // Look up the existing child node to get its version
-        // We need to try multiple versions: first the parent version (most common case),
-        // then fall back to checking if the child exists from an earlier frozen transaction
+    private NodeKey resolveChildKey(NibblePath childPath,
+                                    JmtInternalNode parent,
+                                    int childNibble,
+                                    TreeCache cache,
+                                    long parentVersion) {
+        boolean childExpected = (parent.bitmap() & (1 << childNibble)) != 0;
         NodeKey childKey = NodeKey.of(childPath, parentVersion);
-        Optional<TreeCache.NodeEntry> childEntry = cache.getNode(childKey);
-        if (childEntry.isPresent()) {
-            return childEntry.get().nodeKey().version();
+        if (!childExpected) {
+            return childKey;
         }
-        // Child doesn't exist yet - will be created at current version
-        return parentVersion;
+        Optional<TreeCache.NodeEntry> childEntry = cache.getNode(childKey);
+        TreeCache.NodeEntry entry = childEntry.orElseThrow(() ->
+                new IllegalStateException("Persisted child is missing at path " + childPath));
+        int childPosition = calculateChildPosition(parent.bitmap(), childNibble);
+        byte[] expectedHash = parent.childHashes()[childPosition];
+        byte[] actualHash = computeNodeHash(entry.nodeKey(), entry.node());
+        if (!Arrays.equals(expectedHash, actualHash)) {
+            throw new IllegalStateException("Persisted child commitment mismatch at path "
+                    + childPath);
+        }
+        return entry.nodeKey();
     }
 
     /**
@@ -1079,20 +1146,29 @@ public final class JellyfishMerkleTree {
             throw new IllegalArgumentException("Commitment digest length " + nullHash.length
                     + " does not match hash function digest length " + digest.length);
         }
+        if (formatDescriptor.hashLength() != digest.length) {
+            throw new IllegalArgumentException("JMT profile hash length "
+                    + formatDescriptor.hashLength() + " does not match hash function digest length "
+                    + digest.length);
+        }
     }
 
-    private void validateCommitVersion(long version) {
+    private Optional<JmtStore.VersionedRoot> validateCommitVersion(long version) {
         Optional<JmtStore.VersionedRoot> latest = store.latestRoot();
         if (latest.isEmpty() || version > latest.get().version()) {
-            return;
+            return latest;
         }
-        // Replaying an existing immutable version is supported for crash recovery. Creating a new
-        // historical version is not: it forks history below the latest root and makes latest-value
-        // semantics backend/order dependent.
+        // Only the latest committed version may be replayed for crash recovery. Replaying an older
+        // version can regress latest-value state even if its historical root remains immutable.
+        if (version != latest.get().version()) {
+            throw new IllegalArgumentException("Version " + version
+                    + " is older than latest version " + latest.get().version());
+        }
         if (store.rootHash(version).isEmpty()) {
             throw new IllegalArgumentException("Version " + version
                     + " is not newer than latest version " + latest.get().version());
         }
+        return latest;
     }
 
     private static void requireVersion(long version) {
@@ -1160,10 +1236,22 @@ public final class JellyfishMerkleTree {
      * @param rootHash the root hash for this version
      * @param batch    the batch of nodes and stale markers
      */
-    private void commitBatchToStore(long version, byte[] rootHash, TreeUpdateBatch batch, List<ValueOperation> valueOps) {
-        JmtStore.CommitBatch storeBatch = store.beginCommit(version, JmtStore.CommitConfig.defaults());
+    private void commitBatchToStore(long version,
+                                    byte[] rootHash,
+                                    TreeUpdateBatch batch,
+                                    List<ValueOperation> valueOps,
+                                    Optional<JmtStore.VersionedRoot> expectedLatest) {
+        JmtStore.CommitConfig commitConfig = JmtStore.CommitConfig.expectingLatest(expectedLatest);
+        JmtStore.CommitBatch storeBatch = store.beginCommit(version, commitConfig);
 
         try {
+            Set<NodeKey> writtenNodes = batch.nodes().keySet();
+            for (StaleNodeIndex staleIndex : batch.staleIndices()) {
+                if (writtenNodes.contains(staleIndex.nodeKey())) {
+                    throw new IllegalStateException("Commit would mark a newly written node stale: "
+                            + staleIndex.nodeKey());
+                }
+            }
             // Write all nodes
             for (Map.Entry<NodeKey, NodeEntry> entry : batch.nodes().entrySet()) {
                 NodeEntry nodeEntry = entry.getValue();

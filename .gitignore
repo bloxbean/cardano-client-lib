@@ -169,3 +169,4 @@ rust/jniLibs
 /docs/public/_pagefind
 .jqwik-database
 **/.jqwik-database
+**/.cifuzz-corpus/

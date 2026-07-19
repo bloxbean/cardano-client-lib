@@ -5,7 +5,10 @@ import com.bloxbean.cardano.vds.jmt.TreeCache.NodeEntry;
 import com.bloxbean.cardano.vds.jmt.TreeCache.NodeStats;
 import com.bloxbean.cardano.vds.jmt.TreeCache.StaleNodeIndex;
 import com.bloxbean.cardano.vds.jmt.TreeCache.TreeUpdateBatch;
+import com.bloxbean.cardano.vds.jmt.store.JmtAccessCoordinator;
+import com.bloxbean.cardano.vds.jmt.store.JmtFormatDescriptor;
 import com.bloxbean.cardano.vds.jmt.store.JmtStore;
+import com.bloxbean.cardano.vds.jmt.store.JmtStoreInspection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -451,9 +454,38 @@ class TreeCacheTest {
     private static class MockJmtStore implements JmtStore {
         private final Map<NodeKey, JmtNode> storage = new HashMap<>();
         private final Map<Long, byte[]> roots = new HashMap<>();
+        private final JmtAccessCoordinator accessCoordinator = new JmtAccessCoordinator();
+        private JmtFormatDescriptor formatDescriptor;
 
         void putNodeDirectly(NodeKey key, JmtNode node) {
             storage.put(key, node);
+        }
+
+        @Override
+        public JmtAccessCoordinator accessCoordinator() {
+            return accessCoordinator;
+        }
+
+        @Override
+        public void ensureFormat(JmtFormatDescriptor descriptor) {
+            formatDescriptor = descriptor;
+        }
+
+        @Override
+        public Optional<JmtFormatDescriptor> formatDescriptor() {
+            return Optional.ofNullable(formatDescriptor);
+        }
+
+        @Override
+        public JmtStoreInspection inspect(int maxRecords) {
+            List<VersionedRoot> inspectedRoots = new ArrayList<>();
+            roots.forEach((version, root) -> inspectedRoots.add(new VersionedRoot(version, root)));
+            List<JmtStoreInspection.NodeRecord> inspectedNodes = new ArrayList<>();
+            storage.forEach((key, node) -> inspectedNodes.add(
+                    new JmtStoreInspection.NodeRecord(key, node)));
+            VersionedRoot latest = latestRoot().orElse(null);
+            return new JmtStoreInspection(inspectedRoots, latest, inspectedNodes,
+                    Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), false);
         }
 
         @Override
@@ -499,6 +531,11 @@ class TreeCacheTest {
 
         @Override
         public Optional<byte[]> getValue(byte[] keyHash) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<byte[]> getValueAt(byte[] keyHash, long version) {
             return Optional.empty();
         }
 

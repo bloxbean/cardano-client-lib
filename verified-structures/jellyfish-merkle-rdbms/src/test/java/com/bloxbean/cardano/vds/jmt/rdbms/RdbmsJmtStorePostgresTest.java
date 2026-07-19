@@ -6,6 +6,8 @@ import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.vds.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.JmtProofVerifier;
+import com.bloxbean.cardano.vds.jmt.store.JmtAccessLease;
+import com.bloxbean.cardano.vds.jmt.store.JmtConcurrentMutationException;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,6 +19,7 @@ import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -101,6 +104,7 @@ class RdbmsJmtStorePostgresTest {
 
     @AfterAll
     static void tearDownClass() throws Exception {
+        dbConfig.close();
         String baseJdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", PG_HOST, PG_PORT, PG_DATABASE);
         try (Connection conn = DriverManager.getConnection(baseJdbcUrl, PG_USER, PG_PASSWORD);
              Statement stmt = conn.createStatement()) {
@@ -122,14 +126,97 @@ class RdbmsJmtStorePostgresTest {
     void cleanTables() throws Exception {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
-            stmt.execute("TRUNCATE TABLE jmt_stale, jmt_values, jmt_nodes, jmt_roots, jmt_latest CASCADE");
+            stmt.execute("TRUNCATE TABLE jmt_stale, jmt_values, jmt_nodes, jmt_roots, "
+                    + "jmt_latest, jmt_metadata CASCADE");
         }
+    }
+
+    @Test
+    void postgresAdvisoryLocksFailFastAcrossStoreInstances() {
+        try (RdbmsJmtStore first = new RdbmsJmtStore(dbConfig);
+             RdbmsJmtStore second = new RdbmsJmtStore(dbConfig)) {
+            new JellyfishMerkleTree(first);
+            new JellyfishMerkleTree(second);
+
+            try (JmtAccessLease ignored = first.accessCoordinator()
+                    .tryAcquireUpdate("writer-a", 1)) {
+                JmtConcurrentMutationException conflict = assertThrows(
+                        JmtConcurrentMutationException.class,
+                        () -> second.accessCoordinator().tryAcquireUpdate("writer-b", 1));
+                assertTrue(conflict.getMessage().contains("external namespace lock"));
+
+                assertDoesNotThrow(() -> {
+                    try (JmtAccessLease read = second.accessCoordinator()
+                            .tryAcquireRead("proof", 0)) {
+                        assertNotNull(read);
+                    }
+                });
+
+                assertThrows(JmtConcurrentMutationException.class,
+                        () -> second.accessCoordinator().tryAcquireMaintenance("prune", 0));
+            }
+
+            assertDoesNotThrow(() -> {
+                try (JmtAccessLease ignored = second.accessCoordinator()
+                        .tryAcquireUpdate("writer-after-release", 1)) {
+                    // The transaction-scoped advisory lock was released with the first lease.
+                }
+            });
+        }
+    }
+
+    @Test
+    void postgresMaintenanceConflictsWithCrossConnectionRead() {
+        try (RdbmsJmtStore first = new RdbmsJmtStore(dbConfig);
+             RdbmsJmtStore second = new RdbmsJmtStore(dbConfig)) {
+            new JellyfishMerkleTree(first);
+            new JellyfishMerkleTree(second);
+
+            try (JmtAccessLease ignored = first.accessCoordinator().tryAcquireRead("full-check")) {
+                assertThrows(JmtConcurrentMutationException.class,
+                        () -> second.accessCoordinator().tryAcquireMaintenance("truncate", 0));
+            }
+        }
+    }
+
+    @Test
+    void postgresIndependentNamespacesDoNotContend() {
+        try (RdbmsJmtStore first = new RdbmsJmtStore(dbConfig, (byte) 0x11);
+             RdbmsJmtStore second = new RdbmsJmtStore(dbConfig, (byte) 0x12)) {
+            new JellyfishMerkleTree(first);
+            new JellyfishMerkleTree(second);
+
+            try (JmtAccessLease ignored = first.accessCoordinator()
+                    .tryAcquireUpdate("namespace-17", 1)) {
+                assertDoesNotThrow(() -> {
+                    try (JmtAccessLease independent = second.accessCoordinator()
+                            .tryAcquireUpdate("namespace-18", 1)) {
+                        assertNotNull(independent);
+                    }
+                });
+            }
+        }
+    }
+
+    @Test
+    void postgresOwnedPoolClosesCleanly() throws Exception {
+        String jdbcUrl = String.format("jdbc:postgresql://%s:%d/%s?currentSchema=%s",
+                PG_HOST, PG_PORT, PG_DATABASE, PG_SCHEMA);
+        DbConfig temporary = DbConfig.builder().jdbcUrl(jdbcUrl, PG_USER, PG_PASSWORD).build();
+        try {
+            try (RdbmsJmtStore store = new RdbmsJmtStore(temporary, (byte) 0x55)) {
+                new JellyfishMerkleTree(store);
+            }
+        } finally {
+            temporary.close();
+        }
+        assertThrows(SQLException.class, () -> temporary.dataSource().getConnection());
     }
 
     @Test
     void postgresBasicOperations() {
         try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("alice"), bytes("100"));
@@ -151,8 +238,8 @@ class RdbmsJmtStorePostgresTest {
         try (RdbmsJmtStore store1 = new RdbmsJmtStore(dbConfig, (byte) 0x01);
              RdbmsJmtStore store2 = new RdbmsJmtStore(dbConfig, (byte) 0x02)) {
 
-            JellyfishMerkleTree tree1 = new JellyfishMerkleTree(store1, COMMITMENTS, HASH);
-            JellyfishMerkleTree tree2 = new JellyfishMerkleTree(store2, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree1 = new JellyfishMerkleTree(store1);
+            JellyfishMerkleTree tree2 = new JellyfishMerkleTree(store2);
 
             Map<byte[], byte[]> updates1 = new LinkedHashMap<>();
             updates1.put(bytes("alice"), bytes("100"));
@@ -174,7 +261,7 @@ class RdbmsJmtStorePostgresTest {
     @Test
     void postgresPruningWorks() {
         try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             Map<byte[], byte[]> v1 = new LinkedHashMap<>();
             v1.put(bytes("alice"), bytes("100"));
@@ -210,7 +297,7 @@ class RdbmsJmtStorePostgresTest {
                 }
             }
 
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("test"), bytes("value"));
             updates.put(bytes("test1"), bytes("value2"));
@@ -230,7 +317,7 @@ class RdbmsJmtStorePostgresTest {
         int queriesPerVersion = 20;
 
         try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
             Random updateRng = new Random(PROPERTY_SEED ^ 0x55AAFF00L);
 
             List<JellyfishMerkleTree.CommitResult> snapshots = new ArrayList<>();

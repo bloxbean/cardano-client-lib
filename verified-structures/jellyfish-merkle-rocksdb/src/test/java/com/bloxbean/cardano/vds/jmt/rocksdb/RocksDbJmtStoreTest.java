@@ -6,6 +6,7 @@ import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.vds.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.store.JmtStore;
+import com.bloxbean.cardano.vds.jmt.store.JmtWriteConflictException;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -31,7 +32,7 @@ class RocksDbJmtStoreTest {
     @Test
     void commitPersistsRootsNodesAndValues() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-db").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("alice"), bytes("100"));
@@ -69,7 +70,7 @@ class RocksDbJmtStoreTest {
     @Test
     void crashMidCommitLeavesStoreUntouched() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-crash-db").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("alice"), bytes("100"));
@@ -97,6 +98,38 @@ class RocksDbJmtStoreTest {
     }
 
     @Test
+    void rawCommitReplayIsAWholeBatchNoOpAndOlderVersionsFail() {
+        try (RocksDbJmtStore store = new RocksDbJmtStore(
+                tempDir.resolve("jmt-raw-replay-db").toString())) {
+            new JellyfishMerkleTree(store);
+            byte[] keyHash = HASH.digest(bytes("alice"));
+            byte[] root1 = root(1);
+            byte[] root2 = root(2);
+
+            commitValue(store, 1L, root1, keyHash, bytes("100"));
+            commitValue(store, 2L, root2, keyHash, bytes("200"));
+
+            try (JmtStore.CommitBatch historical = store.beginCommit(
+                    1L, JmtStore.CommitConfig.defaults())) {
+                historical.putValue(keyHash, bytes("stale"));
+                historical.setRootHash(root1);
+                assertThrows(JmtWriteConflictException.class, historical::commit);
+            }
+            try (JmtStore.CommitBatch replay = store.beginCommit(
+                    2L, JmtStore.CommitConfig.defaults())) {
+                replay.putValue(keyHash, bytes("conflict"));
+                replay.setRootHash(root2);
+                assertDoesNotThrow(replay::commit);
+            }
+
+            assertEquals(2L, store.latestRoot().orElseThrow().version());
+            assertArrayEquals(root2, store.latestRoot().orElseThrow().rootHash());
+            assertArrayEquals(bytes("200"), store.getValue(keyHash).orElseThrow());
+            assertArrayEquals(bytes("100"), store.getValueAt(keyHash, 1L).orElseThrow());
+        }
+    }
+
+    @Test
     void pruneRetentionSurvivesRocksDbRestart() {
         Path dbPath = tempDir.resolve("jmt-retention-db");
 
@@ -104,7 +137,7 @@ class RocksDbJmtStoreTest {
 
         // Initial writes and prune
         try (RocksDbJmtStore store = new RocksDbJmtStore(dbPath.toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             Map<byte[], byte[]> v1 = new LinkedHashMap<>();
             v1.put(bytes("alice"), bytes("100"));
@@ -135,6 +168,25 @@ class RocksDbJmtStoreTest {
             assertArrayEquals(bytes("200"), reopened.getValue(HASH.digest(bytes("bob"))).orElseThrow());
             assertArrayEquals(bytes("50"), reopened.getValue(HASH.digest(bytes("carol"))).orElseThrow());
         }
+    }
+
+    private static void commitValue(RocksDbJmtStore store,
+                                    long version,
+                                    byte[] root,
+                                    byte[] keyHash,
+                                    byte[] value) {
+        try (JmtStore.CommitBatch batch = store.beginCommit(
+                version, JmtStore.CommitConfig.defaults())) {
+            batch.putValue(keyHash, value);
+            batch.setRootHash(root);
+            batch.commit();
+        }
+    }
+
+    private static byte[] root(int marker) {
+        byte[] root = new byte[32];
+        root[0] = (byte) marker;
+        return root;
     }
 
     @Test

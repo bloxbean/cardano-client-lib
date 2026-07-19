@@ -75,4 +75,21 @@ class NodeKeyTest {
         Arrays.fill(encoded, encoded.length - Long.BYTES, encoded.length, (byte) 0xFF);
         assertThrows(IllegalArgumentException.class, () -> NodeKey.fromBytes(encoded));
     }
+
+    @Test
+    void decodingRejectsNonCanonicalOddPathPadding() {
+        byte[] encoded = NodeKey.of(NibblePath.of(0xA), 1L).toBytes();
+        encoded[2] |= 0x0F;
+
+        assertThrows(IllegalArgumentException.class, () -> NodeKey.fromBytes(encoded));
+    }
+
+    @Test
+    void decodingRejectsPathLongerThanKeyHash() {
+        byte[] oversizedLength = new byte[1 + 1 + 33 + Long.BYTES];
+        oversizedLength[0] = 0x4E;
+        oversizedLength[1] = 65;
+
+        assertThrows(IllegalArgumentException.class, () -> NodeKey.fromBytes(oversizedLength));
+    }
 }

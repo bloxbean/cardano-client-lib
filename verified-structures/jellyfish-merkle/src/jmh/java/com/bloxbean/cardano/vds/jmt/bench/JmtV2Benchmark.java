@@ -187,9 +187,7 @@ public class JmtV2Benchmark {
     @Benchmark
     public void generateProof(Blackhole bh) {
         byte[] key = existingKeys.get(nextKeyIndex());
-        byte[] keyHash = hashFn.digest(key);
-
-        JmtProof proof = tree.getProof(keyHash, version).get();
+        JmtProof proof = tree.getProof(key, version).get();
         bh.consume(proof);
     }
 
@@ -202,8 +200,7 @@ public class JmtV2Benchmark {
         List<JmtProof> proofs = new ArrayList<>(10);
         for (int i = 0; i < 10; i++) {
             byte[] key = existingKeys.get(nextKeyIndex());
-            byte[] keyHash = hashFn.digest(key);
-            proofs.add(tree.getProof(keyHash, version).get());
+            proofs.add(tree.getProof(key, version).get());
         }
         bh.consume(proofs);
     }

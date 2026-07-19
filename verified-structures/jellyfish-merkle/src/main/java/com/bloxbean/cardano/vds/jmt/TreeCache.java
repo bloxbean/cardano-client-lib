@@ -99,6 +99,9 @@ public class TreeCache {
      */
     private final long baseVersion;
 
+    /** Whether a persisted pre-state exists (genesis version zero has none). */
+    private final boolean hasBaseVersion;
+
     /**
      * Reference to underlying persistent storage (read-only from TreeCache perspective).
      */
@@ -114,6 +117,7 @@ public class TreeCache {
         this.store = Objects.requireNonNull(store, "store");
         this.nextVersion = nextVersion;
         this.baseVersion = nextVersion > 0 ? nextVersion - 1 : 0;
+        this.hasBaseVersion = nextVersion > 0;
         this.nodeCache = new HashMap<>();
         this.staleNodeIndexCache = new HashSet<>();
         this.frozenCache = new FrozenTreeCache();
@@ -187,7 +191,13 @@ public class TreeCache {
         }
 
         // 3. Fall back to persistent storage
-        Optional<JmtStore.NodeEntry> storeEntry = store.getNode(version, path);
+        // A replay of version V must be calculated from V's pre-state, not from nodes already
+        // persisted by the first V commit. Otherwise the replay marks its own live V nodes stale.
+        if (!hasBaseVersion) {
+            return Optional.empty();
+        }
+        long visibleVersion = Math.min(version, baseVersion);
+        Optional<JmtStore.NodeEntry> storeEntry = store.getNode(visibleVersion, path);
         return storeEntry.map(e -> new NodeEntry(e.nodeKey(), e.node()));
     }
 

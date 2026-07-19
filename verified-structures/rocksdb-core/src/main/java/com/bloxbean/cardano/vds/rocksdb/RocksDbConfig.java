@@ -213,7 +213,10 @@ public final class RocksDbConfig {
      *
      * @param cfOptions  the ColumnFamilyOptions to configure
      * @param blockCache shared block cache (may be null)
-     * @return configured BlockBasedTableConfig if block cache settings were applied
+     * @return configured BlockBasedTableConfig if block cache or filter settings were applied.
+     *         If non-null, its {@link BlockBasedTableConfig#filterPolicy()} must remain open until
+     *         the database and the configured column-family options have been closed, and must then
+     *         be closed by the caller.
      */
     public BlockBasedTableConfig applyToCfOptions(ColumnFamilyOptions cfOptions, Cache blockCache) {
         switch (profile) {

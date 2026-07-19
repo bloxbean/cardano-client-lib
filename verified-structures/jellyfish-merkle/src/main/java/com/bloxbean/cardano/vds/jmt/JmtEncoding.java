@@ -13,12 +13,18 @@ import java.util.List;
  */
 public final class JmtEncoding {
 
+    private static final int MAX_ENCODED_NODE_BYTES = 64 * 1024;
+
     private JmtEncoding() {
         throw new AssertionError("Utility class");
     }
 
     public static JmtNode decode(byte[] encoded) {
         if (encoded == null) throw new IllegalArgumentException("encoded bytes cannot be null");
+        if (encoded.length > MAX_ENCODED_NODE_BYTES) {
+            throw new IllegalArgumentException("JMT node exceeds maximum encoded size");
+        }
+        BoundedCbor.validateSingleItem(encoded, 2, 20, MAX_ENCODED_NODE_BYTES);
         try {
             List<DataItem> items = new CborDecoder(new ByteArrayInputStream(encoded)).decode();
             if (items.size() != 1) {
@@ -51,10 +57,10 @@ public final class JmtEncoding {
                 default:
                     throw new IllegalArgumentException("Unhandled node tag: " + tag);
             }
-        } catch (RuntimeException e) {
+        } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to decode JMT node", e);
+            throw new IllegalArgumentException("Failed to decode JMT node", e);
         }
     }
 }

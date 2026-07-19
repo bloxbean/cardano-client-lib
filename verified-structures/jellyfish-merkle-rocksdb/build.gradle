@@ -16,6 +16,7 @@ dependencies {
 
     // Property-based testing (jqwik + shared arbitraries)
     testImplementation project(':test-support')
+    testImplementation(libs.jazzer.junit)
 }
 
 publishing {

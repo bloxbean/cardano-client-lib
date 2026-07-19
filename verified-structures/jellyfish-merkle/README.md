@@ -1,12 +1,17 @@
-# Jellyfish Merkle Tree (Experimental)
+# Jellyfish Merkle Tree
 
-Experimental Java authenticated radix-16 tree with JMT-style versioned storage, inspired by Diem's Jellyfish Merkle Tree.
+Java authenticated radix-16 tree with JMT-style versioned storage, inspired by Diem's Jellyfish
+Merkle Tree. The qualified production scope is serialized, off-chain state with one logical writer
+per namespace; see [ADR-002](adr/002-production-readiness-gates.md).
 
 ## Overview
 
 This implementation combines copy-on-write versioned storage with a custom radix-16 commitment and proof format. It is not commitment-compatible or wire-compatible with Diem/Aptos JMT.
 
-> **Compatibility warning:** the key-binding security fix changes every non-empty root. Do not open a tree created by the previous leaf commitment and continue writing to it. Rebuild into new tables/column families. See the [security, performance, and Cardano audit](docs/security-performance-audit.md).
+> **Format boundary:** persistent stores carry a mandatory
+> `classic-radix16-blake2b256-v1` descriptor and fail closed on missing or incompatible metadata.
+> Pre-release prototype data, if any exists outside this project, must be rebuilt. See the
+> [security, performance, and Cardano audit](docs/security-performance-audit.md).
 
 ## Key Features
 
@@ -244,9 +249,11 @@ tree.get("bob".getBytes(), 3L);   // Returns "200"
 ### Version Constraints
 
 - New versions must be monotonically increasing and non-negative.
-- Gaps are supported. A previously committed version may be replayed idempotently for recovery.
+- Gaps are supported. Only the latest committed version may be replayed for recovery; storage
+  treats that replay as an immutable whole-batch no-op.
 - Creating a new historical version below the latest version is rejected.
-- Writes, pruning, and rollback require external serialization, including across tree instances.
+- Writes, pruning, and rollback use fail-fast namespace coordination. RDBMS commits also
+  compare-and-set the latest root transactionally across independent store instances.
 
 ### Stale Node Tracking
 
@@ -415,9 +422,13 @@ See [docs/design-jmt.md](docs/design-jmt.md) for detailed architecture, algorith
 
 ## Thread Safety
 
-- **JellyfishMerkleTree**: NOT thread-safe for writes, requires external synchronization
+- **JellyfishMerkleTree**: one update lease per namespace; competing writes fail immediately with
+  `JmtConcurrentMutationException`
+- **Reads**: committed-version proofs may overlap a copy-on-write update
+- **Maintenance**: prune/rollback is exclusive and fails fast if a read or update is active
 - **TreeCache**: Not thread-safe (batch-local)
-- **JmtStore implementations**: Check specific backend documentation
+- **JmtStore implementations**: every tree/store wrapper for a namespace must share its coordinator;
+  PostgreSQL also enforces the rule across processes
 
 ## Comparison: JMT vs MPT
 
@@ -432,8 +443,9 @@ See [docs/design-jmt.md](docs/design-jmt.md) for detailed architecture, algorith
 | **Historical versions** | Native in JMT stores | Backend/application dependent |
 | **Direct value lookup** | Separate value index | API-dependent |
 
-**Recommendation**: use JMT experimentally for serialized, versioned off-chain state. Prefer MPF
-when Cardano on-chain proofs, insert/update/delete transitions, or an existing Aiken verifier are required.
+**Recommendation**: use the qualified RocksDB or PostgreSQL profile for serialized, versioned
+off-chain state after satisfying the deployment checklist in ADR-002. Prefer MPF when Cardano
+on-chain proofs, insert/update/delete transitions, or an existing Aiken verifier are required.
 
 ## Related Modules
 

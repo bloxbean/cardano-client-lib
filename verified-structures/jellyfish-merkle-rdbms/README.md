@@ -1,10 +1,11 @@
-# Jellyfish-Merkle RDBMS Backend (Experimental)
+# Jellyfish-Merkle RDBMS Backend
 
 Transactional persistence for the repository's custom, versioned radix-16 JMT implementation.
-PostgreSQL, H2, and SQLite dialects and DDL scripts are included.
+PostgreSQL, H2, and SQLite dialects and DDL scripts are included. PostgreSQL is the qualified
+production backend; H2 and SQLite remain development/test backends.
 
-> The key-binding security fix changes every non-empty root. Rebuild old trees into new tables or a
-> new table prefix. Read the
+> The first supported persistent format is `classic-radix16-blake2b256-v1`. Stores with missing or
+> incompatible format metadata fail closed. Read the
 > [JMT security/performance/Cardano audit](../jellyfish-merkle/docs/security-performance-audit.md).
 
 ## Schema setup
@@ -75,10 +76,18 @@ greatest surviving root.
 
 ## Concurrency
 
-Prepared statements are parameterized and each backend operation obtains its own connection, but
-tree writes are **single-writer**. Serialize `put`, prune, and rollback per namespace. For multiple
-processes, add a database lock or compare-and-set protocol around the expected latest version; a
-connection pool alone is not sufficient.
+Prepared statements are parameterized and each backend operation obtains its own connection.
+Tree writes remain **single-writer**, but the rule is enforced: the in-process coordinator fails
+competing updates immediately, and PostgreSQL uses namespace-scoped transaction advisory locks so
+separate JVMs cannot bypass it. PostgreSQL requires a pool with at least two connections (one held
+by the access lease and one used for data operations); the built-in Hikari configuration satisfies
+this requirement. Every commit also publishes its latest root with a transactional compare-and-set;
+if separate store instances calculated from the same base, only one transaction can commit and the
+loser's nodes, values, stale markers, and root are rolled back.
+
+Pruning removes roots below the retained horizon and persists a prune watermark. Rollback below
+that watermark is rejected. H2 and SQLite fail-fast maintenance coordination is process-local and
+is not qualified for multi-process production use.
 
 ## Indexes and performance
 

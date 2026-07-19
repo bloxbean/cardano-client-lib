@@ -69,6 +69,8 @@ public final class JmtLoadTester {
                 RocksDbJmtStore.Options storeOpts = RocksDbJmtStore.Options.builder()
                         .enableRollbackIndex(options.enableRollbackIndex)
                         .prunePolicy(options.prunePolicy)
+                        .disableWalForBatches(options.noWal)
+                        .syncOnCommit(!options.noWal)
                         .rocksDbConfig(RocksDbConfig.highThroughput())
                         .build();
 
@@ -203,10 +205,8 @@ public final class JmtLoadTester {
             // Optional proof generation exercise
             if (options.proofEvery > 0 && (totalCommits % options.proofEvery) == 0 && liveKeys != null && !liveKeys.isEmpty()) {
                 byte[] sampleKey = liveKeys.get(ThreadLocalRandom.current().nextInt(liveKeys.size()));
-                byte[] keyHash = hashFn.digest(sampleKey);
-
                 long proofStart = System.currentTimeMillis();
-                Optional<JmtProof> proofOpt = tree.getProof(keyHash, version);
+                Optional<JmtProof> proofOpt = tree.getProof(sampleKey, version);
                 long proofElapsed = System.currentTimeMillis() - proofStart;
                 if (proofOpt.isPresent()) {
                     totalProofTimeMs += proofElapsed;

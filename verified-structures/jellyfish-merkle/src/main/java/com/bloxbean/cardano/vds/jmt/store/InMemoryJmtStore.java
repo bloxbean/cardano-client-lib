@@ -24,11 +24,100 @@ import java.util.TreeMap;
  */
 public final class InMemoryJmtStore implements JmtStore {
 
+    private final JmtAccessCoordinator accessCoordinator = new JmtAccessCoordinator();
     private final NavigableMap<NodeKey, JmtNode> nodes = new TreeMap<>();
     private final Map<ByteArrayWrapper, byte[]> values = new HashMap<>();
     private final Map<ByteArrayWrapper, java.util.NavigableMap<Long, byte[]>> valuesByKey = new HashMap<>();
     private final NavigableMap<Long, byte[]> roots = new TreeMap<>();
     private final NavigableMap<Long, List<NodeKey>> staleByVersion = new TreeMap<>();
+    private JmtFormatDescriptor formatDescriptor;
+    private long pruneWatermark = -1;
+
+    @Override
+    public JmtAccessCoordinator accessCoordinator() {
+        return accessCoordinator;
+    }
+
+    @Override
+    public synchronized void ensureFormat(JmtFormatDescriptor descriptor) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        if (formatDescriptor == null) {
+            formatDescriptor = descriptor;
+        } else if (!formatDescriptor.equals(descriptor)) {
+            throw new JmtFormatMismatchException("In-memory JMT already uses " + formatDescriptor
+                    + "; requested " + descriptor);
+        }
+    }
+
+    @Override
+    public synchronized Optional<JmtFormatDescriptor> formatDescriptor() {
+        return Optional.ofNullable(formatDescriptor);
+    }
+
+    @Override
+    public synchronized JmtStoreInspection inspect(int maxRecords) {
+        if (maxRecords <= 0) {
+            throw new IllegalArgumentException("maxRecords must be > 0");
+        }
+        try (JmtAccessLease ignored = accessCoordinator.tryAcquireRead("inspect")) {
+            List<VersionedRoot> inspectedRoots = new ArrayList<>();
+            List<JmtStoreInspection.NodeRecord> inspectedNodes = new ArrayList<>();
+            List<JmtStoreInspection.ValueRecord> inspectedValues = new ArrayList<>();
+            List<JmtStoreInspection.StaleRecord> inspectedStale = new ArrayList<>();
+            int count = 0;
+            boolean truncated = false;
+
+            for (Map.Entry<Long, byte[]> root : roots.entrySet()) {
+                if (count++ >= maxRecords) {
+                    truncated = true;
+                    break;
+                }
+                inspectedRoots.add(new VersionedRoot(root.getKey(), root.getValue()));
+            }
+            if (!truncated) {
+                for (Map.Entry<NodeKey, JmtNode> node : nodes.entrySet()) {
+                    if (count++ >= maxRecords) {
+                        truncated = true;
+                        break;
+                    }
+                    inspectedNodes.add(new JmtStoreInspection.NodeRecord(
+                            node.getKey(), node.getValue()));
+                }
+            }
+            if (!truncated) {
+                valuesLoop:
+                for (Map.Entry<ByteArrayWrapper, NavigableMap<Long, byte[]>> history
+                        : valuesByKey.entrySet()) {
+                    for (Map.Entry<Long, byte[]> value : history.getValue().entrySet()) {
+                        if (count++ >= maxRecords) {
+                            truncated = true;
+                            break valuesLoop;
+                        }
+                        inspectedValues.add(new JmtStoreInspection.ValueRecord(
+                                history.getKey().bytes(), value.getKey(), value.getValue(),
+                                value.getValue() == null));
+                    }
+                }
+            }
+            if (!truncated) {
+                staleLoop:
+                for (Map.Entry<Long, List<NodeKey>> stale : staleByVersion.entrySet()) {
+                    for (NodeKey nodeKey : stale.getValue()) {
+                        if (count++ >= maxRecords) {
+                            truncated = true;
+                            break staleLoop;
+                        }
+                        inspectedStale.add(new JmtStoreInspection.StaleRecord(
+                                stale.getKey(), nodeKey));
+                    }
+                }
+            }
+            VersionedRoot inspectedLatest = roots.isEmpty() ? null
+                    : new VersionedRoot(roots.lastKey(), roots.get(roots.lastKey()));
+            return new JmtStoreInspection(inspectedRoots, inspectedLatest, inspectedNodes, inspectedValues,
+                    inspectedStale, Collections.emptyList(), truncated);
+        }
+    }
 
     @Override
     public synchronized Optional<VersionedRoot> latestRoot() {
@@ -59,9 +148,6 @@ public final class InMemoryJmtStore implements JmtStore {
         if (Long.compareUnsigned(candidate.getKey().version(), version) > 0) {
             return Optional.empty();
         }
-        if (isStale(candidate.getKey(), version)) {
-            return Optional.empty();
-        }
         return Optional.of(new NodeEntry(candidate.getKey(), candidate.getValue()));
     }
 
@@ -73,53 +159,12 @@ public final class InMemoryJmtStore implements JmtStore {
 
     @Override
     public synchronized Optional<NodeEntry> floorNode(long version, NibblePath path) {
-        Objects.requireNonNull(path, "path");
-        NodeKey searchKey = NodeKey.of(path, version);
-        Map.Entry<NodeKey, JmtNode> candidate = nodes.floorEntry(searchKey);
-        while (candidate != null) {
-            if (Long.compareUnsigned(candidate.getKey().version(), version) <= 0 &&
-                    !isStale(candidate.getKey(), version)) {
-                return Optional.of(new NodeEntry(candidate.getKey(), candidate.getValue()));
-            }
-            candidate = nodes.lowerEntry(candidate.getKey());
-        }
-        return Optional.empty();
+        return JmtStore.super.floorNode(version, path);
     }
 
     @Override
     public synchronized Optional<NodeEntry> ceilingNode(long version, NibblePath path) {
-        Objects.requireNonNull(path, "path");
-        // We need the smallest node whose PATH is >= requested path and whose version <= requested version,
-        // skipping nodes that are stale at the requested version. Since NodeKey ordering is (path, version),
-        // we must handle the version constraint explicitly, potentially stepping back to an older version for
-        // the same path before moving to the next path.
-
-        // Start at the first entry with path >= requested path (ignoring version for the initial probe)
-        NodeKey probe = NodeKey.of(path, 0L);
-        Map.Entry<NodeKey, JmtNode> candidate = nodes.ceilingEntry(probe);
-        while (candidate != null) {
-            NodeKey candKey = candidate.getKey();
-            // If the candidate's version is too new, try to find an older version for the same path
-            if (Long.compareUnsigned(candKey.version(), version) > 0) {
-                Map.Entry<NodeKey, JmtNode> older = nodes.floorEntry(NodeKey.of(candKey.path(), version));
-                if (older != null && older.getKey().path().equals(candKey.path())) {
-                    candKey = older.getKey();
-                    candidate = older;
-                } else {
-                    // Jump to the first entry of the next path strictly greater than the current one
-                    candidate = nodes.higherEntry(NodeKey.of(candKey.path(), Long.MAX_VALUE));
-                    continue;
-                }
-            }
-
-            if (!isStale(candKey, version)) {
-                return Optional.of(new NodeEntry(candKey, candidate.getValue()));
-            }
-
-            // Move to the next entry for this path/version ordering
-            candidate = nodes.higherEntry(candKey);
-        }
-        return Optional.empty();
+        return JmtStore.super.ceilingNode(version, path);
     }
 
     @Override
@@ -142,27 +187,16 @@ public final class InMemoryJmtStore implements JmtStore {
         return Optional.of(val.clone());
     }
 
-    private boolean leafExistsAt(byte[] keyHash, long version) {
-        com.bloxbean.cardano.vds.core.NibblePath path = com.bloxbean.cardano.vds.core.NibblePath.of(
-                com.bloxbean.cardano.vds.core.nibbles.Nibbles.toNibbles(keyHash));
-        NodeKey search = NodeKey.of(path, version);
-        java.util.Map.Entry<NodeKey, JmtNode> candidate = nodes.floorEntry(search);
-        if (candidate == null) return false;
-        if (!candidate.getKey().path().equals(path)) return false;
-        if (isStale(candidate.getKey(), version)) return false;
-        if (!(candidate.getValue() instanceof com.bloxbean.cardano.vds.jmt.JmtLeafNode)) return false;
-        com.bloxbean.cardano.vds.jmt.JmtLeafNode leaf = (com.bloxbean.cardano.vds.jmt.JmtLeafNode) candidate.getValue();
-        return java.util.Arrays.equals(leaf.keyHash(), keyHash);
-    }
-
     @Override
     public synchronized CommitBatch beginCommit(long version, CommitConfig config) {
         Objects.requireNonNull(config, "config");
-        return new InMemoryCommitBatch(version);
+        JmtAccessLease lease = accessCoordinator.tryAcquireUpdate("commit", version);
+        return new InMemoryCommitBatch(version, config, lease);
     }
 
     @Override
     public synchronized List<NodeKey> staleNodesUpTo(long versionInclusive) {
+        requireNonNegativeVersion(versionInclusive);
         if (staleByVersion.isEmpty()) {
             return Collections.emptyList();
         }
@@ -179,25 +213,46 @@ public final class InMemoryJmtStore implements JmtStore {
 
     @Override
     public synchronized int pruneUpTo(long versionInclusive) {
-        NavigableMap<Long, List<NodeKey>> head = staleByVersion.headMap(versionInclusive, true);
-        if (head.isEmpty()) {
-            return 0;
-        }
-        int pruned = 0;
-        List<Long> versionsToRemove = new ArrayList<>(head.keySet());
-        for (Long version : versionsToRemove) {
-            List<NodeKey> list = staleByVersion.get(version);
-            if (list == null) {
-                continue;
+        requireNonNegativeVersion(versionInclusive);
+        try (JmtAccessLease ignored = accessCoordinator.tryAcquireMaintenance(
+                "pruneUpTo", versionInclusive)) {
+            if (!roots.isEmpty() && versionInclusive > roots.lastKey()) {
+                throw new IllegalArgumentException("prune horizon exceeds latest version "
+                        + roots.lastKey());
             }
-            for (NodeKey nodeKey : list) {
-                if (nodes.remove(nodeKey) != null) {
-                    pruned++;
+            int pruned = 0;
+            NavigableMap<Long, List<NodeKey>> head = staleByVersion.headMap(
+                    versionInclusive, true);
+            List<Long> versionsToRemove = new ArrayList<>(head.keySet());
+            for (Long staleVersion : versionsToRemove) {
+                List<NodeKey> list = staleByVersion.get(staleVersion);
+                if (list != null) {
+                    for (NodeKey nodeKey : list) {
+                        if (nodes.remove(nodeKey) != null) {
+                            pruned++;
+                        }
+                    }
+                }
+                staleByVersion.remove(staleVersion);
+            }
+            for (NavigableMap<Long, byte[]> history : valuesByKey.values()) {
+                NavigableMap<Long, byte[]> oldValues = history.headMap(versionInclusive, true);
+                if (oldValues.size() > 1) {
+                    Long sentinel = oldValues.lastKey();
+                    List<Long> deletions = new ArrayList<>(oldValues.keySet());
+                    deletions.remove(sentinel);
+                    deletions.forEach(history::remove);
+                    pruned += deletions.size();
                 }
             }
-            staleByVersion.remove(version);
+            List<Long> oldRoots = new ArrayList<>(roots.headMap(versionInclusive, false).keySet());
+            oldRoots.forEach(roots::remove);
+            pruned += oldRoots.size();
+            if (pruned > 0) {
+                pruneWatermark = Math.max(pruneWatermark, versionInclusive);
+            }
+            return pruned;
         }
-        return pruned;
     }
 
     @Override
@@ -205,32 +260,39 @@ public final class InMemoryJmtStore implements JmtStore {
         if (version < 0) {
             throw new IllegalArgumentException("version must be >= 0");
         }
-        // Remove nodes with version > target
-        java.util.Iterator<NodeKey> nodeIterator = nodes.keySet().iterator();
-        while (nodeIterator.hasNext()) {
-            NodeKey nodeKey = nodeIterator.next();
-            if (Long.compareUnsigned(nodeKey.version(), version) > 0) {
-                nodeIterator.remove();
+        try (JmtAccessLease ignored = accessCoordinator.tryAcquireMaintenance(
+                "truncateAfter", version)) {
+            if (version < pruneWatermark) {
+                throw new IllegalStateException("Cannot truncate to version " + version
+                        + " below prune watermark " + pruneWatermark);
             }
-        }
+            // Remove nodes with version > target
+            java.util.Iterator<NodeKey> nodeIterator = nodes.keySet().iterator();
+            while (nodeIterator.hasNext()) {
+                NodeKey nodeKey = nodeIterator.next();
+                if (Long.compareUnsigned(nodeKey.version(), version) > 0) {
+                    nodeIterator.remove();
+                }
+            }
 
         // Adjust values history and current map
-        valuesByKey.forEach((key, history) -> history.tailMap(version, false).clear());
-        valuesByKey.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+            valuesByKey.forEach((key, history) -> history.tailMap(version, false).clear());
+            valuesByKey.entrySet().removeIf(entry -> entry.getValue().isEmpty());
 
-        values.clear();
-        valuesByKey.forEach((key, history) -> {
-            java.util.Map.Entry<Long, byte[]> latest = history.floorEntry(version);
-            if (latest != null && latest.getValue() != null) {
-                values.put(key, latest.getValue());
-            }
-        });
+            values.clear();
+            valuesByKey.forEach((key, history) -> {
+                java.util.Map.Entry<Long, byte[]> latest = history.floorEntry(version);
+                if (latest != null && latest.getValue() != null) {
+                    values.put(key, latest.getValue());
+                }
+            });
 
         // Roots
-        roots.tailMap(version, false).clear();
+            roots.tailMap(version, false).clear();
 
         // Stale markers
-        staleByVersion.tailMap(version, false).clear();
+            staleByVersion.tailMap(version, false).clear();
+        }
     }
 
     @Override
@@ -241,6 +303,9 @@ public final class InMemoryJmtStore implements JmtStore {
     private final class InMemoryCommitBatch implements CommitBatch {
 
         private final long version;
+        private final CommitConfig config;
+        private final JmtAccessLease lease;
+        private final Thread owner = Thread.currentThread();
         private final Map<NodeKey, JmtNode> nodeUpdates = new LinkedHashMap<>();
         private final Map<ByteArrayWrapper, byte[]> valueUpdates = new LinkedHashMap<>();
         private final List<ByteArrayWrapper> valueDeletes = new ArrayList<>();
@@ -248,8 +313,10 @@ public final class InMemoryJmtStore implements JmtStore {
         private byte[] rootHash;
         private boolean closed;
 
-        private InMemoryCommitBatch(long version) {
+        private InMemoryCommitBatch(long version, CommitConfig config, JmtAccessLease lease) {
             this.version = version;
+            this.config = config;
+            this.lease = lease;
         }
 
         @Override
@@ -291,25 +358,27 @@ public final class InMemoryJmtStore implements JmtStore {
         @Override
         public void commit() {
             ensureOpen();
-            apply();
-            closed = true;
+            try {
+                apply();
+            } finally {
+                closeInternal();
+            }
         }
 
         @Override
         public void close() {
             // Abandoning a batch (close without commit) MUST discard staged writes, matching the
             // abort semantics of the persistent backends. Applying here would leak partial commits.
-            closed = true;
+            closeInternal();
         }
 
         private void apply() {
             synchronized (InMemoryJmtStore.this) {
-                if (rootHash != null) {
-                    byte[] existingRoot = roots.get(version);
-                    if (existingRoot != null && !java.util.Arrays.equals(existingRoot, rootHash)) {
-                        throw new IllegalStateException("Version " + version
-                                + " already committed with a different root hash (divergent replay)");
-                    }
+                requireRootHash(rootHash);
+                Optional<VersionedRoot> latest = latestRoot();
+                Optional<byte[]> committedRoot = rootHash(version);
+                if (!config.shouldApply(version, rootHash, latest, committedRoot)) {
+                    return;
                 }
                 for (Map.Entry<NodeKey, JmtNode> entry : nodeUpdates.entrySet()) {
                     nodes.put(entry.getKey(), entry.getValue());
@@ -326,18 +395,37 @@ public final class InMemoryJmtStore implements JmtStore {
                             .put(version, null);
                 }
                 if (!staleNodes.isEmpty()) {
-                    staleByVersion.computeIfAbsent(version, ignored -> new ArrayList<>())
-                            .addAll(staleNodes);
+                    List<NodeKey> persisted = staleByVersion.computeIfAbsent(
+                            version, ignored -> new ArrayList<>());
+                    for (NodeKey staleNode : staleNodes) {
+                        if (!persisted.contains(staleNode)) {
+                            persisted.add(staleNode);
+                        }
+                    }
                 }
-                if (rootHash != null) {
-                    roots.put(version, rootHash.clone());
-                }
+                roots.put(version, rootHash.clone());
             }
         }
 
         private void ensureOpen() {
+            ensureOwner();
             if (closed) {
                 throw new IllegalStateException("CommitBatch already closed");
+            }
+        }
+
+        private void closeInternal() {
+            ensureOwner();
+            if (closed) {
+                return;
+            }
+            closed = true;
+            lease.close();
+        }
+
+        private void ensureOwner() {
+            if (Thread.currentThread() != owner) {
+                throw new IllegalStateException("CommitBatch must be used by its creating thread");
             }
         }
     }
@@ -349,6 +437,10 @@ public final class InMemoryJmtStore implements JmtStore {
         private ByteArrayWrapper(byte[] bytes) {
             this.bytes = Objects.requireNonNull(bytes, "bytes").clone();
             this.hash = java.util.Arrays.hashCode(this.bytes);
+        }
+
+        private byte[] bytes() {
+            return bytes.clone();
         }
 
         @Override
@@ -365,14 +457,18 @@ public final class InMemoryJmtStore implements JmtStore {
         }
     }
 
-    private boolean isStale(NodeKey key, long version) {
-        java.util.NavigableMap<Long, List<NodeKey>> head = staleByVersion.headMap(version, true);
-        if (head.isEmpty()) return false;
-        for (List<NodeKey> list : head.values()) {
-            if (list.contains(key)) {
-                return true;
-            }
+    private void requireRootHash(byte[] rootHash) {
+        int expectedLength = formatDescriptor == null ? JmtFormatDescriptor.KEY_HASH_LENGTH
+                : formatDescriptor.hashLength();
+        if (rootHash == null || rootHash.length != expectedLength) {
+            throw new IllegalStateException("Commit root hash must be exactly "
+                    + expectedLength + " bytes");
         }
-        return false;
+    }
+
+    private static void requireNonNegativeVersion(long version) {
+        if (version < 0) {
+            throw new IllegalArgumentException("version must be >= 0");
+        }
     }
 }

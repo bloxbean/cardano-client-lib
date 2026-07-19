@@ -34,6 +34,7 @@ import java.util.Objects;
 public final class NodeKey implements Comparable<NodeKey> {
 
     private static final byte PREFIX = 0x4E; // 'N'
+    private static final int MAX_PATH_NIBBLES = 64;
 
     private final NibblePath path;
     private final long version;
@@ -76,13 +77,20 @@ public final class NodeKey implements Comparable<NodeKey> {
         int nibbleLen = lenResult.value();
         offset = lenResult.nextOffset();
 
-        int packedBytesLen = (nibbleLen + 1) / 2;
-        if (packedBytesLen < 0 || offset + packedBytesLen + 8 != bytes.length) {
+        if (nibbleLen < 0 || nibbleLen > MAX_PATH_NIBBLES) {
+            throw new IllegalArgumentException("NodeKey path exceeds 256-bit key depth");
+        }
+        int packedBytesLen = (nibbleLen / 2) + (nibbleLen & 1);
+        if (offset > bytes.length - Long.BYTES
+                || packedBytesLen != bytes.length - offset - Long.BYTES) {
             throw new IllegalArgumentException("Invalid NodeKey path length");
         }
 
         byte[] packedPath = Arrays.copyOfRange(bytes, offset, offset + packedBytesLen);
         offset += packedBytesLen;
+        if ((nibbleLen & 1) == 1 && (packedPath[packedPath.length - 1] & 0x0F) != 0) {
+            throw new IllegalArgumentException("Non-canonical NodeKey path padding");
+        }
 
         byte[] versionBytes = Arrays.copyOfRange(bytes, offset, offset + 8);
         long version = ByteBuffer.wrap(versionBytes).getLong();

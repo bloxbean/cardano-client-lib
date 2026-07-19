@@ -3,8 +3,11 @@ package com.bloxbean.cardano.vds.jmt.rocksdb;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
+import com.bloxbean.cardano.vds.jmt.JmtProfile;
 import com.bloxbean.cardano.vds.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.commitment.CommitmentScheme;
+import com.bloxbean.cardano.vds.jmt.integrity.JmtIntegrityChecker;
+import com.bloxbean.cardano.vds.jmt.integrity.JmtIntegrityMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -36,7 +39,7 @@ class RocksDbJmtPruneTruncateTest {
     void pruneReclaimsValueHistoryForEveryKeyNotJustTheFirst() {
         String[] keys = {"alpha", "bravo", "charlie", "delta", "echo"};
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("prune-db").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             // 3 versions; every key rewritten in every version.
             for (long version = 1; version <= 3; version++) {
@@ -54,6 +57,9 @@ class RocksDbJmtPruneTruncateTest {
 
             store.pruneUpTo(2);
 
+            assertTrue(store.rootHash(1).isEmpty(),
+                    "structurally pruned versions must not retain queryable roots");
+
             for (String k : keys) {
                 byte[] kh = HASH.digest(bytes(k));
                 // version 1 history reclaimed for EVERY key (the bug left all but the first intact).
@@ -67,13 +73,71 @@ class RocksDbJmtPruneTruncateTest {
     }
 
     @Test
+    void latestReplayAndPruneCannotDeleteLiveNodes() {
+        Path dbPath = tempDir.resolve("replay-prune-db");
+        try (RocksDbJmtStore store = RocksDbJmtStore.open(
+                dbPath.toString(), RocksDbJmtStore.Options.production())) {
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
+            Map<byte[], byte[]> updates = new LinkedHashMap<>();
+            updates.put(bytes("alice"), bytes("100"));
+            updates.put(bytes("bob"), bytes("200"));
+            byte[] root = tree.put(1L, updates).rootHash();
+
+            JellyfishMerkleTree.CommitResult replay = tree.put(1L, updates);
+            assertArrayEquals(root, replay.rootHash());
+            assertTrue(replay.staleNodes().stream().noneMatch(replay.nodes()::containsKey));
+
+            store.pruneUpTo(1L);
+            assertTrue(tree.verifyProofWire(root, bytes("alice"), bytes("100"), true,
+                    tree.getProofWire(bytes("alice"), 1L).orElseThrow()));
+            assertTrue(new JmtIntegrityChecker(store, JmtProfile.classicBlake2b256V1())
+                    .check(JmtIntegrityMode.FULL).healthy());
+        }
+    }
+
+    @Test
+    void aggressivePruneNeverDeletesTheLiveHeadValue() {
+        RocksDbJmtStore.Options options = RocksDbJmtStore.Options.builder()
+                .prunePolicy(RocksDbJmtStore.ValuePrunePolicy.AGGRESSIVE)
+                .build();
+        try (RocksDbJmtStore store = RocksDbJmtStore.open(
+                tempDir.resolve("aggressive-db").toString(), options)) {
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
+            tree.put(1L, Map.of(bytes("alice"), bytes("100")));
+            tree.put(2L, Map.of(bytes("bob"), bytes("200")));
+
+            store.pruneUpTo(2L);
+
+            assertArrayEquals(bytes("100"), store.getValue(HASH.digest(bytes("alice"))).orElseThrow());
+        }
+    }
+
+    @Test
+    void pruneWatermarkRejectsUnsafeRollbackAndNegativeHorizon() {
+        RocksDbJmtStore.Options options = RocksDbJmtStore.Options.production();
+        Path dbPath = tempDir.resolve("watermark-db");
+        try (RocksDbJmtStore store = RocksDbJmtStore.open(dbPath.toString(), options)) {
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
+            tree.put(1L, Map.of(bytes("alice"), bytes("100")));
+            tree.put(2L, Map.of(bytes("alice"), bytes("200")));
+
+            assertThrows(IllegalArgumentException.class, () -> store.pruneUpTo(-1));
+            store.pruneUpTo(2L);
+            assertThrows(IllegalStateException.class, () -> store.truncateAfter(1L));
+        }
+        try (RocksDbJmtStore reopened = RocksDbJmtStore.open(dbPath.toString(), options)) {
+            assertThrows(IllegalStateException.class, () -> reopened.truncateAfter(1L));
+        }
+    }
+
+    @Test
     void truncateAfterRemovesAllFutureVersionsNotJustOne() {
         Path dbPath = tempDir.resolve("truncate-db");
         RocksDbJmtStore.Options opts = RocksDbJmtStore.Options.builder().enableRollbackIndex(true).build();
 
         byte[] root2;
         try (RocksDbJmtStore store = RocksDbJmtStore.open(dbPath.toString(), opts)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
             byte[] r2 = null;
             for (long version = 1; version <= 5; version++) {
                 Map<byte[], byte[]> updates = new LinkedHashMap<>();
@@ -114,7 +178,7 @@ class RocksDbJmtPruneTruncateTest {
             for (long v = 3; v <= 5; v++) {
                 assertTrue(reopened.rootHash(v).isEmpty());
             }
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(reopened, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(reopened);
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("key-3b"), bytes("val-3b"));
             JellyfishMerkleTree.CommitResult r3 = tree.put(3, updates);
@@ -126,7 +190,7 @@ class RocksDbJmtPruneTruncateTest {
     @Test
     void divergentReplayRejectedAndLatestPointerMonotonic() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("replay-db").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             Map<byte[], byte[]> a = new LinkedHashMap<>();
             a.put(bytes("alice"), bytes("100"));
@@ -143,10 +207,10 @@ class RocksDbJmtPruneTruncateTest {
             assertThrows(RuntimeException.class, () -> tree.put(1L, diverge));
             assertArrayEquals(root1, store.rootHash(1L).orElseThrow(), "original v1 root must be intact");
 
-            // Identical replay of the OLDER version 1 must not regress the latest pointer.
-            assertDoesNotThrow(() -> tree.put(1L, a));
+            // Older-version replay is rejected; only the latest version is a crash-replay target.
+            assertThrows(IllegalArgumentException.class, () -> tree.put(1L, a));
             assertEquals(2L, store.latestRoot().orElseThrow().version(),
-                    "latest pointer must stay at 2 after replaying version 1");
+                    "latest pointer must stay at 2 after rejecting version 1");
         }
     }
 
@@ -157,7 +221,7 @@ class RocksDbJmtPruneTruncateTest {
 
         byte[] root2;
         try (RocksDbJmtStore store = RocksDbJmtStore.open(dbPath.toString(), opts)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
             // Commit only at even versions 2, 4, 6 (gaps at odd versions).
             byte[] r2 = null;
             for (long version : new long[]{2, 4, 6}) {

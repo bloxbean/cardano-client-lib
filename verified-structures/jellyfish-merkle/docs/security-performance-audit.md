@@ -1,194 +1,212 @@
 # JMT Security, Performance, and Cardano Suitability Audit
 
-**Scope:** `jellyfish-merkle`, `jellyfish-merkle-rocksdb`, `jellyfish-merkle-rdbms`, and shared persistence code
+**Scope:** `jellyfish-merkle`, `jellyfish-merkle-rocksdb`, `jellyfish-merkle-rdbms`,
+`rdbms-core`, `rocksdb-core`, qualification tests, and operator tooling
+
 **Review date:** 2026-07-19
-**Review type:** independent source review, adversarial tests, property tests, and backend lifecycle tests
-**Status:** experimental; not approved for production or on-chain verification
+
+**Review type:** adversarial source review, regression construction, backend lifecycle testing,
+fuzzing, and independent-vector verification
+
+**Status:** conditionally production-ready for the bounded off-chain profiles in ADR-002
+
+This is a third-party-style engineering review performed during implementation. It is not a
+commissioned independent cryptographic certification and must not be represented as one.
 
 ## Executive verdict
 
-The remediation pass closes the confirmed proof-forgery defect and the confirmed RocksDB
-prune/rollback defects. Inclusion and non-inclusion proofs now bind the full key hash, malformed
-wire proofs are bounded and fail closed, and all three backends agree on the tested sequential
-workloads.
+No known proof-forgery or persistent-state corruption issue remains after the remediation and
+qualification pass. RocksDB and PostgreSQL are suitable for serialized, off-chain Cardano state
+when all deployment conditions in [ADR-002](../adr/002-production-readiness-gates.md) are met.
 
-The implementation should nevertheless remain **experimental**. The most important release
-blockers are operational rather than another known proof forgery: the new leaf commitment is
-incompatible with every tree created by the previous code and there is no persisted commitment
-scheme identifier; writes require a single external coordinator; PostgreSQL is not exercised by
-the default test run; and there is no Cardano/Aiken proof verifier or cross-language golden-vector
-suite.
+The word "production-ready" is deliberately narrow:
 
-This is a custom, Diem-inspired radix-16 authenticated tree. It is not wire-compatible or
-commitment-compatible with Aptos/Diem JMT. Documentation and API consumers must not assume that a
-proof from one implementation can be verified by the other.
+- one logical writer per tree namespace, enforced with fail-fast leases;
+- committed-version reads may overlap copy-on-write updates, while prune/rollback is exclusive;
+- the durable RocksDB production option profile, or PostgreSQL with its advisory-lock provider and
+  a connection pool of at least two connections;
+- an application-authenticated mapping from JMT version/root to Cardano chain point;
+- no native key deletion and no Cardano on-chain proof verification.
+
+High-value authorization remains conditional on an independent specialist review of the exact
+v1 commitment/proof profile. H2 and SQLite remain development/test backends.
 
 ## Threat model
 
-The proof verifier is assumed to receive attacker-controlled keys, values, object proofs, and CBOR
-proof bytes. The expected root must come from an authenticated source. Storage is assumed not to
-be malicious, but crashes, retries, pruning, chain rollback, and process restart are in scope.
-Compromise of the process, hash-function cryptanalysis, database administrator attacks, and a
-malicious root publisher are out of scope.
+The verifier may receive attacker-controlled keys, values, object proofs, and CBOR proof bytes.
+The expected root must come from an authenticated source. Accidental crashes, retries, concurrent
+calls, pruning, chain rollback, partial restoration, and process restart are in scope. A malicious
+root publisher, process compromise, database administrator compromise, and cryptanalysis of
+Blake2b-256 are outside the library threat model.
 
-## Findings
+## Security review
 
-### Closed by this remediation
+### Closed critical/high findings
 
 | Severity | Finding | Resolution |
-|---|---|---|
-| Critical | Leaf commitments omitted the key hash, permitting forged inclusion and non-inclusion proofs. | Leaf is now `H(0x00 || keyHash || valueHash)` and both verifiers derive the queried key hash themselves. |
-| Critical | Wire non-inclusion proofs could be presented as inclusion proofs. | Inclusion now requires a terminal leaf matching both queried key and supplied value. |
-| Critical | RocksDB prefix iterators truncated prune and rollback scans. | Maintenance uses namespace-bounded total-order scans; regression tests cover multiple keys and versions. |
-| High | RDBMS had no rollback and replay was not idempotent. | Transactional `truncateAfter`, immutable-root replay checks, and batched insert-or-ignore writes were added. |
-| High | In-memory abandoned batches committed staged writes. | Closing without `commit()` now discards the batch. |
-| High | Gapped versions marked a synthetic, nonexistent root version stale. | `TreeCache` resolves and stales the actual persisted root node key. |
-| Medium | In-memory divergent replay differed from persistent stores. | It now rejects a different root before mutating staged nodes or values. |
-| Medium | `truncateAfter(Long.MAX_VALUE)` overflowed in memory and erased history. | Exclusive `NavigableMap.tailMap(version, false)` ranges avoid arithmetic overflow. |
-| Medium | Proof/node CBOR accepted trailing items and wire proofs had no input bound. | Decoders require one top-level item; proof bytes are capped at 1 MiB and path nodes at digest-nibble depth plus a terminal leaf. |
-| Medium | Hash-size assumptions failed late and differently by backend. | Tree and persistent value stores now require the documented 32-byte key hash. |
+| --- | --- | --- |
+| Critical | Leaf commitments did not bind the key hash, allowing proof substitution. | The v1 leaf commitment is `H(0x00 || keyHash || valueHash)`; object and wire verifiers derive and bind the queried key. |
+| Critical | A wire non-inclusion proof could be presented as inclusion. | Inclusion requires a terminal leaf matching both the queried key and supplied value. |
+| Critical | Replaying a committed version could stale its own live nodes; a later prune physically deleted them. | Replay reads are clamped to pre-state, only the latest version may be replayed, write/stale overlap is rejected, and every backend makes a committed latest-version raw batch a whole-batch no-op. Genesis/latest replay-plus-prune and raw-SPI regressions are permanent tests. |
+| High | Missing or damaged child storage could be replaced with one new leaf, silently dropping the rest of a subtree. | A bitmap-present child must exist and recompute to the exact parent commitment before mutation continues. |
+| High | Two writers could calculate from the same base and both reach persistence. | `UPDATE` covers base validation, calculation, and commit; competing writers fail fast. PostgreSQL also arbitrates across processes. |
+| High | RocksDB prune/rollback prefix scans could omit records. | Namespace-bounded total-order scans and differential/backend regressions cover multi-key histories. |
+| High | Persistent stores could be opened under incompatible commitment or rollback-index assumptions. | Mandatory v1 format and feature metadata fail closed before a non-empty namespace is exposed. |
+| High | A prune followed by rollback below the retained horizon could expose an incomplete tree. | The prune watermark is persisted atomically; old roots are removed and unsafe rollback is rejected. |
 
-### Open release blockers and residual risks
+Additional hardening includes:
 
-#### High — no safe migration from the old commitment
+- duplicate byte-equivalent keys in one batch are rejected and public key/value arrays are copied;
+- every commit requires a correctly sized root; immutable-version/latest-only replay rules are
+  enforced at both tree and raw-store boundaries;
+- RDBMS publication uses a transactional compare-and-set on the observed latest root, so separate
+  store instances calculating from one base cannot both commit;
+- malformed/non-canonical varints and `NodeKey` encodings fail closed;
+- node/proof CBOR requires canonical lengths and has bounded depth, collection sizes, byte lengths,
+  and total wire size;
+- stable wire verification rejects extension nodes and uncommitted compressed-path metadata that
+  the tree never emits;
+- negative/future maintenance horizons and unsupported range SPI calls fail loudly;
+- RocksDB WAL/sync-invalid combinations are rejected, production mutations are synced, and native
+  block-cache/Bloom-filter resources follow database/options lifetime ordering;
+- RDBMS commit, auto-commit/isolation restoration, table-prefix keys, builder ownership, and
+  historical-value behavior have explicit regression coverage.
 
-Changing the leaf commitment changes every non-empty root. Continuing an old database creates a
-hybrid tree: untouched child hashes use the old leaf rule while updated paths use the new rule.
-Proofs for untouched keys can then fail against newly committed roots.
+### Concurrency model
 
-**Required release action:** use new/empty column families or tables and rebuild from authoritative
-state. Before a stable release, persist a format identifier containing at least the node encoding,
-commitment scheme, hash algorithm, and version. Opening a non-empty store with an unknown or
-mismatched identifier should fail.
+A namespace has one ordered history. Therefore, concurrent proof readers are supported, but
+concurrent writers are rejected rather than queued. The access matrix is:
 
-#### High — writes are single-writer only
+| Requested operation | May overlap |
+| --- | --- |
+| `READ` | other reads and one copy-on-write update |
+| `UPDATE` | reads, but no other update or maintenance |
+| `MAINTENANCE` | nothing |
 
-`put()` is a read/compute/commit sequence, not one storage transaction. Two tree instances can read
-the same base root and commit different later versions. RDBMS connection pooling and RocksDB's
-thread-safe API do not make the tree update protocol safe for concurrent writers. Prune and
-truncate must also not race with reads or writes.
+Compatibility applies between independent operations. Same-thread cross-mode nesting is rejected
+to avoid lock upgrades and PostgreSQL connection-pool exhaustion; same-mode store calls are
+reentrant.
 
-**Required usage rule:** one writer/coordinator per namespace; serialize commit, prune, and rollback.
-For multi-process RDBMS deployments, add an advisory/row lock or compare-and-set on the expected
-latest version inside the commit transaction.
+RocksDB normally has one process owner because of its directory lock. Wrappers around an externally
+owned handle must share an explicit coordinator. PostgreSQL uses namespace-scoped transaction
+advisory locks so separate JVMs have the same access semantics. H2/SQLite fail-fast leases are
+process-local, but transactional latest-root compare-and-set still prevents two cross-instance
+commits from the same base from both publishing. Cross-process maintenance exclusion remains a
+PostgreSQL-only qualification.
 
-#### Medium — roots and transitions are not authenticated by this library
+### Parser and proof assurance
 
-A valid proof says only that a claim matches a supplied root. It does not establish who published
-the root or that a new root is an authorized transition from the old one. Applications must bind
-roots to a signed checkpoint, consensus result, or validator-controlled Cardano UTxO datum.
+The Java golden-vector suite pins roots, nodes, inclusion proofs, non-inclusion proofs, and invalid
+cases for `classic-radix16-blake2b256-v1`. A separate Python verifier consumes the vectors without
+calling the Java commitment or encoding implementation. Coverage-guided targets exercise
+`NodeKey`, node CBOR, wire decoding/verification, and in-memory/RocksDB differential traces.
 
-#### Medium — deletion is not implemented by the tree API
+This combination is useful defense against implementation drift, but it is not formal verification.
+The custom radix-16 scheme is not commitment-compatible or wire-compatible with Diem/Aptos JMT.
 
-The persistence SPI contains tombstones, but `JellyfishMerkleTree` supports only insert/update.
-This prevents native non-membership after deleting an account or spent UTxO. Encoding a logical
-tombstone as a value proves inclusion of the tombstone, not cryptographic non-inclusion.
+## Residual security and usage constraints
 
-#### Medium — rollback is opt-in for RocksDB
+### Independent cryptographic review
 
-`RocksDbJmtStore.Options.enableRollbackIndex` defaults to `false`. A Cardano chain follower that
-must handle rollbacks needs it enabled from database creation. Enabling it later does not backfill
-old index entries.
+The current review found no remaining known forgery, but the commitment and proof formats are
+custom. If a root can release funds, authorize consensus-critical state, or protect similarly high
+value, commission an independent cryptographic review of domain separation, inclusion and
+non-inclusion rules, malleability, parser limits, rollback semantics, and the published vectors.
 
-#### Medium — floor/ceiling SPI is not portable
+### Root authentication
 
-The persisted `NodeKey` encoding groups paths by encoded length, while logical ordering compares
-nibble content first. RocksDB range implementations cannot provide the documented logical
-floor/ceiling behavior for mixed-depth paths. The tree core does not use these methods; they should
-be removed from the JMT SPI or implemented through a separate logical index before public use.
+A valid proof only establishes consistency with the supplied root. The library does not prove who
+published that root or whether a transition was authorized. The application must persist and
+authenticate `{chain point, JMT version, JMT root}` atomically with its chain-sync checkpoint or
+otherwise protect it with the relevant trust/consensus mechanism.
 
-#### Medium — no database corruption/integrity envelope
+### No native deletion
 
-Node and root records are not checksummed beyond RocksDB's internal protection or database storage
-guarantees. A damaged node is often detected only when decoding or when a generated proof fails.
-There is no full-store root audit command. Add an offline verifier that walks each retained root,
-recomputes commitments, checks key/path consistency, and verifies value hashes.
+The tree API supports insert/update, not deletion. A tombstone value proves inclusion of that
+tombstone; it is not a cryptographic non-membership proof. This is a material limitation for a UTxO
+set or any index whose semantic contract requires spent entries to become absent.
 
-#### Low — verification gaps
+### Retention boundary
 
-The default suite does not run PostgreSQL, there are no multi-process concurrency tests, no
-cross-language golden vectors, and no long-running crash/fault-injection campaign. Property tests
-cover small trees; deliberately crafted long common-prefix keys and million-key stores remain
-important coverage targets.
+Pruning intentionally makes roots below the horizon unavailable. Rollback below the persisted
+prune watermark fails. Operators must retain more history than the maximum Cardano rollback and
+operational recovery horizon, and must restore/re-sync rather than force a deeper rollback.
+
+### Replay contract
+
+Retrying the latest committed version with identical input is supported for crash recovery.
+Replaying an older committed version or changing a committed version's root is rejected. Callers
+must rollback first before constructing a different future.
 
 ## Performance assessment
 
 ### Strengths
 
-- Copy-on-write updates persist only changed paths and keep immutable historical nodes.
-- RocksDB commits nodes, values, roots, stale markers, and rollback indexes in one synced
-  `WriteBatch` by default.
-- RDBMS writes are batched and transactional.
-- Direct values are stored separately, making trusted value lookup cheaper than proof traversal.
-- Namespace-bounded maintenance avoids scanning unrelated RocksDB namespaces.
+- Copy-on-write updates persist changed paths while retaining immutable version history.
+- RocksDB commits nodes, values, roots, stale records, metadata, and rollback indexes in one synced
+  `WriteBatch` under the production profile.
+- RDBMS commits are batched and transactional; PostgreSQL locking is fail-fast rather than a hidden
+  indefinite wait.
+- Values are stored separately, so trusted point reads avoid proof construction.
+- The wire proof omits empty child slots and all operator scans are explicitly bounded or selectable.
 
-### Costs and bottlenecks
+### Costs and likely bottlenecks
 
-- Each branch commitment hashes a fixed `1 + 2 + 16 * 32 = 515` byte preimage. Even a branch with
-  one child pays for all sixteen slots. This is not Aptos/Diem's binary sparse-Merkle commitment.
-- The object proof allocates a 16-slot matrix at every level. The CBOR wire format omits null slots,
-  so its size depends on populated children, but verification expands every branch and hashes all
-  sixteen slots.
-- Proof generation performs extra neighbor-node reads to populate `BranchStep` metadata that the
-  current object and wire verifiers do not consume. Removing or lazily computing this metadata is
-  a worthwhile read-latency optimization after API compatibility is decided.
-- RDBMS proof generation opens independent connections/statements for node reads. It has no
-  snapshot transaction spanning root lookup, node traversal, and value lookup. Immutable versions
-  limit correctness risk, but round trips dominate latency.
-- Pruning is linear in retained namespace history. Run it in bounded background windows and expose
-  scanned/deleted counts and latency; do not run it synchronously on a block-ingestion hot path.
-- Claims such as “2M ops/sec”, fixed proof speedups, or O(1) database reads are not supported by a
-  reproducible benchmark in this repository. Real complexity includes LSM/SQL lookup and history
-  depth. Publish JMH/load-test hardware, dataset shape, durability settings, and percentiles before
-  making throughput claims.
+- Each internal commitment hashes a fixed `1 + 2 + 16 * 32 = 515` byte preimage, even for a sparse
+  branch. This favors simple deterministic verification over minimum CPU cost.
+- Object proof construction expands each visited branch to sixteen slots and currently performs
+  neighbor-node reads for metadata the verifiers do not require. Removing or lazily calculating
+  that metadata is the clearest proof-latency optimization.
+- RDBMS proof traversal performs multiple point queries. Network round trips will dominate for
+  deep paths; connection and statement metrics should be measured on the deployment topology.
+- `FULL` integrity checking materializes a bounded inspection snapshot and recomputes retained
+  roots. Schedule it off the ingestion hot path and set `maxRecords` to a safe operational bound.
+- Pruning is proportional to retained history and can build a large atomic backend batch. Use
+  conservative retention windows and measure memory, compaction pressure, and tail latency on the
+  real dataset.
+- Long common prefixes produce paths up to 64 nibbles; deterministic depth-63/64 regressions exist,
+  but production capacity planning should still use the application's real key distribution.
+
+Timing assertions were removed from unit tests. JMH and load tools now pass raw keys to proof APIs
+instead of accidentally double-hashing them. The repository makes no fixed throughput claim;
+publish hardware, dataset, batch size, history, durability options, and latency percentiles with
+any benchmark result.
 
 ## Cardano suitability
 
-### Good fit: off-chain, versioned state with an anchored root
+### Qualified fit: off-chain versioned state/index services
 
-Blake2b-256 matches an available Aiken/Plutus hash primitive, and a 32-byte root is inexpensive to
-place in a datum or checkpoint. A practical off-chain deployment should:
+The design is a reasonable fit for accounts, snapshots, registries, or append/update-oriented
+indexes when a 32-byte Blake2b root is anchored separately. A deployment should:
 
 1. Use one namespace and one serialized writer per logical state tree.
-2. Map JMT versions to a local monotonically increasing apply sequence; separately persist Cardano
-   block hash, slot, and block number for rollback lookup.
-3. Enable RocksDB rollback indexes at database creation, or use the transactional RDBMS rollback.
-4. Retain nodes and values beyond the application's rollback/security horizon before pruning.
-5. Authenticate the root and its update authority; never trust a root supplied alongside its proof.
-6. Rebuild into a new namespace for this commitment change.
+2. Use an internal monotonic apply sequence as the JMT version; store Cardano block hash, slot, and
+   block number separately because chain rollback makes those values unsuitable as a simple
+   ever-increasing version.
+3. Use `RocksDbJmtStore.Options.production()` or qualified PostgreSQL DDL/pooling.
+4. Commit the chain point and root association in the application's recovery protocol.
+5. Retain state beyond rollback/finality and backup-recovery horizons before pruning.
+6. Run a startup `QUICK` check and scheduled/offline `FULL` checks, alerting on any issue.
 
-The missing delete operation is a serious limitation for a UTxO set or any Cardano index whose
-entries disappear. The current API is better suited to append/update-oriented snapshots unless
-logical tombstones are acceptable to the application.
+### Not qualified: Cardano on-chain proof verification
 
-### Poor fit today: Cardano on-chain proof verification
+There is no Aiken/Plutus verifier, PlutusData codec, validator cost model, or transaction-size and
+execution-unit qualification. The generic nested CBOR proof is not the `Data` representation a
+validator naturally consumes, and the 515-byte branch preimage has non-trivial per-level cost.
 
-There is no Aiken implementation, PlutusData proof codec, validator, cost benchmark, or golden
-vector suite. The shipped wire format is generic CBOR containing nested CBOR byte strings, not the
-`Data` shape a validator naturally receives. The 515-byte branch preimage also makes each proof
-level more expensive than a commitment designed for on-chain execution.
+Use the repository's MPF/Aiken path when on-chain insert/update/delete proofs are required, or treat
+a JMT on-chain verifier as a separate protocol project with its own vectors, cost benchmarks, and
+independent audit.
 
-If on-chain membership, absence, insert, update, or delete is the goal, the repository's MPF module
-is the safer starting point. The Aiken MPF package already defines 32-byte roots and proof-driven
-operations. Cardano transaction size and execution-unit limits are protocol parameters, so any new
-JMT validator must be measured against the target network rather than assumed to fit.
+## Qualification evidence
 
-## Recommended release plan
+- deterministic core access/conflict, replay, corruption, deep-prefix, proof-soundness, and
+  integrity-checker tests;
+- in-memory, RocksDB, H2, SQLite, and PostgreSQL backend/property suites;
+- external-handle RocksDB coordination and cross-connection PostgreSQL contention tests;
+- child-JVM abrupt termination during commit and prune/truncate races followed by reopen checks;
+- Java/Python golden-vector agreement;
+- bounded Jazzer parser/proof campaigns and RocksDB differential operation traces;
+- mandatory PostgreSQL, vector, and fuzz jobs in CI.
 
-1. Keep all JMT artifacts marked experimental.
-2. Add and enforce a persisted format/commitment identifier; require rebuild from the old format.
-3. Define a single-writer protocol and add storage-level compare-and-set/locking.
-4. Decide whether deletion is a required feature; implement and audit it as one coherent change.
-5. Remove/fix floor/ceiling and remove unused proof-neighbor metadata or make it lazy.
-6. Run PostgreSQL in CI plus concurrency, crash/fault-injection, and crafted-prefix fuzz tests.
-7. Publish reproducible JMH and backend benchmarks before making performance claims.
-8. For Cardano on-chain use, either standardize on MPF or create a separate commitment/PlutusData
-   codec/Aiken package with shared golden vectors and an independent validator audit.
-
-## Primary references
-
-- [Diem Jellyfish Merkle Tree paper](https://developers.diem.com/papers/jellyfish-merkle-tree/2021-01-14.pdf)
-- [Aptos sparse Merkle proof verifier](https://github.com/aptos-labs/aptos-core/blob/main/types/src/proof/definition.rs)
-- [Aiken Merkle Patricia Forestry package](https://aiken-lang.github.io/merkle-patricia-forestry/)
-- [Aiken Blake2b-256 API](https://aiken-lang.github.io/stdlib/aiken/crypto.html)
-- [Cardano protocol parameter guide](https://docs.cardano.org/about-cardano/explore-more/parameter-guide)
+See [ADR-002](../adr/002-production-readiness-gates.md) for exact deployment gates and checklists.
