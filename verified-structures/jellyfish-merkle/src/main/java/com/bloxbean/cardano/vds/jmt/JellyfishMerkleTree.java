@@ -35,6 +35,8 @@ import java.util.*;
  */
 public final class JellyfishMerkleTree {
 
+    private static final int KEY_HASH_LENGTH = 32;
+
     private final JmtStore store;
     private final CommitmentScheme commitments;
     private final HashFunction hashFn;
@@ -79,6 +81,7 @@ public final class JellyfishMerkleTree {
         this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
         this.metrics = Objects.requireNonNull(metrics, "metrics");
         this.proofCodec = Objects.requireNonNull(proofCodec, "proofCodec");
+        validateDigestConfiguration();
     }
 
     /**
@@ -129,14 +132,14 @@ public final class JellyfishMerkleTree {
      * @throws NullPointerException if updates is null, any key is null, or any value is null
      */
     public CommitResult put(long version, Map<byte[], byte[]> updates) {
+        requireVersion(version);
         Objects.requireNonNull(updates, "updates");
+        validateCommitVersion(version);
 
         long startTime = System.currentTimeMillis();
 
         // 1. Create TreeCache for this version
         TreeCache cache = new TreeCache(store, version);
-        NodeKey initialRoot = cache.getRootNodeKey();
-
         // 2. Track value operations for the result
         List<ValueOperation> valueOps = new ArrayList<>(updates.size());
 
@@ -159,8 +162,8 @@ public final class JellyfishMerkleTree {
         if (rootEntryOpt.isPresent()) {
             rootHash = computeNodeHash(finalRoot, rootEntryOpt.get().node());
         } else {
-            // Empty tree - use zero hash
-            rootHash = new byte[32]; // All zeros
+            // Empty tree - use the commitment scheme's canonical placeholder.
+            rootHash = commitments.nullHash();
         }
 
         // 5. Freeze cache to capture state
@@ -250,6 +253,7 @@ public final class JellyfishMerkleTree {
      * @return the value if present at that version, empty otherwise
      */
     public Optional<byte[]> get(byte[] key, long version) {
+        requireVersion(version);
         Objects.requireNonNull(key, "key");
         byte[] keyHash = hashFn.digest(key);
 
@@ -306,6 +310,7 @@ public final class JellyfishMerkleTree {
      * @see JmtProofVerifier
      */
     public Optional<JmtProof> getProof(byte[] key, long version) {
+        requireVersion(version);
         Objects.requireNonNull(key, "key");
 
         long startTime = System.currentTimeMillis();
@@ -320,7 +325,6 @@ public final class JellyfishMerkleTree {
         int[] nibbles = Nibbles.toNibbles(keyHash);
 
         // Check if tree is empty at this version
-        NodeKey rootKey = NodeKey.of(NibblePath.EMPTY, version);
         Optional<JmtStore.NodeEntry> rootEntryOpt = store.getNode(version, NibblePath.EMPTY);
 
         if (rootEntryOpt.isEmpty()) {
@@ -882,8 +886,8 @@ public final class JellyfishMerkleTree {
         NibblePath newLeafPath = NibblePath.fromRaw(newLeafNibbles);
         createLeaf(newLeafPath, version, newKeyHash, newValueHash, cache);
 
-        byte[] existingHash = computeLeafHash(existingLeafPath, existingNibbles, existingValueHash);
-        byte[] newHash = computeLeafHash(newLeafPath, newNibbles, newValueHash);
+        byte[] existingHash = computeLeafHash(existingLeafPath, existingKeyHash, existingValueHash);
+        byte[] newHash = computeLeafHash(newLeafPath, newKeyHash, newValueHash);
 
         byte[][] childHashes = new byte[2][];
         if (existingChildNibble < newChildNibble) {
@@ -1057,19 +1061,44 @@ public final class JellyfishMerkleTree {
      * @return the computed leaf hash
      */
     private byte[] computeLeafHash(NibblePath leafPath, byte[] keyHash, byte[] valueHash) {
-        // Convert keyHash to full nibble path (64 nibbles for 32-byte hash)
-        int[] fullNibbles = Nibbles.toNibbles(keyHash);
-        return computeLeafHash(leafPath, fullNibbles, valueHash);
+        // The leaf commitment binds the full key hash (position-independent, Diem-style binding).
+        // leafPath is retained for call-site symmetry with computeNodeHash but is not hashed.
+        return commitments.commitLeaf(keyHash, valueHash);
     }
 
-    private byte[] computeLeafHash(NibblePath leafPath, int[] keyNibbles, byte[] valueHash) {
-        int pathLen = leafPath.length();
-        if (pathLen >= keyNibbles.length) {
-            return commitments.commitLeaf(NibblePath.EMPTY, valueHash);
+    private void validateDigestConfiguration() {
+        byte[] digest = Objects.requireNonNull(hashFn.digest(new byte[0]),
+                "hashFn must not return null");
+        byte[] nullHash = Objects.requireNonNull(commitments.nullHash(),
+                "commitments.nullHash() must not return null");
+        if (digest.length != KEY_HASH_LENGTH) {
+            throw new IllegalArgumentException("JMT requires a 32-byte key/value hash, got "
+                    + digest.length + " bytes");
         }
+        if (nullHash.length != digest.length) {
+            throw new IllegalArgumentException("Commitment digest length " + nullHash.length
+                    + " does not match hash function digest length " + digest.length);
+        }
+    }
 
-        NibblePath suffix = NibblePath.fromRange(keyNibbles, pathLen, keyNibbles.length - pathLen);
-        return commitments.commitLeaf(suffix, valueHash);
+    private void validateCommitVersion(long version) {
+        Optional<JmtStore.VersionedRoot> latest = store.latestRoot();
+        if (latest.isEmpty() || version > latest.get().version()) {
+            return;
+        }
+        // Replaying an existing immutable version is supported for crash recovery. Creating a new
+        // historical version is not: it forks history below the latest root and makes latest-value
+        // semantics backend/order dependent.
+        if (store.rootHash(version).isEmpty()) {
+            throw new IllegalArgumentException("Version " + version
+                    + " is not newer than latest version " + latest.get().version());
+        }
+    }
+
+    private static void requireVersion(long version) {
+        if (version < 0) {
+            throw new IllegalArgumentException("version must be >= 0");
+        }
     }
 
     private NibblePath prefixPath(int[] nibbles, int length) {

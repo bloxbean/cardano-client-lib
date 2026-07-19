@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +36,7 @@ public class RdbmsJmtStore implements JmtStore {
     private final byte keyPrefix;
     private final KeyCodec keyCodec;
     private static final byte NODE_KEY_PREFIX = 0x4E; // 'N'
+    private static final int KEY_HASH_LENGTH = 32;
 
     /**
      * Creates a JMT store with the specified configuration and namespace.
@@ -179,6 +181,7 @@ public class RdbmsJmtStore implements JmtStore {
 
     @Override
     public Optional<byte[]> getValue(byte[] keyHash) {
+        requireKeyHash(keyHash);
         // Latest value: greatest version for this key
         String sql = "SELECT value_data, is_tombstone FROM " + schema.valuesTable() +
                      " WHERE namespace = ? AND key_hash = ? " +
@@ -208,6 +211,7 @@ public class RdbmsJmtStore implements JmtStore {
 
     @Override
     public Optional<byte[]> getValueAt(byte[] keyHash, long version) {
+        requireKeyHash(keyHash);
         String sql = "SELECT value_data, is_tombstone FROM " + schema.valuesTable() +
                      " WHERE namespace = ? AND key_hash = ? AND version <= ? " +
                      "ORDER BY version DESC LIMIT 1";
@@ -344,8 +348,76 @@ public class RdbmsJmtStore implements JmtStore {
     }
 
     @Override
+    public void truncateAfter(long versionExclusive) {
+        if (versionExclusive < 0) {
+            throw new IllegalArgumentException("version must be >= 0");
+        }
+        // Rollback: delete everything strictly newer than versionExclusive in one transaction,
+        // then repoint the "latest" row at the greatest surviving root (<= versionExclusive).
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                deleteWhereVersionGreater(conn, schema.nodesTable(), "version", versionExclusive);
+                deleteWhereVersionGreater(conn, schema.valuesTable(), "version", versionExclusive);
+                deleteWhereVersionGreater(conn, schema.rootsTable(), "version", versionExclusive);
+                deleteWhereVersionGreater(conn, schema.staleTable(), "stale_since", versionExclusive);
+
+                // Recompute the latest pointer from the greatest surviving root.
+                Long survivingVersion = null;
+                byte[] survivingRoot = null;
+                String maxSql = "SELECT version, root_hash FROM " + schema.rootsTable() +
+                        " WHERE namespace = ? ORDER BY version DESC LIMIT 1";
+                try (PreparedStatement stmt = conn.prepareStatement(maxSql)) {
+                    stmt.setInt(1, keyPrefix & 0xFF);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            survivingVersion = rs.getLong("version");
+                            survivingRoot = keyCodec.getKey(rs, "root_hash");
+                        }
+                    }
+                }
+
+                if (survivingVersion != null) {
+                    String upsertSql = dialect.upsertLatestSql(schema.latestTable());
+                    try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
+                        stmt.setInt(1, keyPrefix & 0xFF);
+                        stmt.setLong(2, survivingVersion);
+                        keyCodec.setKey(stmt, 3, survivingRoot);
+                        stmt.executeUpdate();
+                    }
+                } else {
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "DELETE FROM " + schema.latestTable() + " WHERE namespace = ?")) {
+                        stmt.setInt(1, keyPrefix & 0xFF);
+                        stmt.executeUpdate();
+                    }
+                }
+
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to truncate RDBMS JMT store", e);
+        }
+    }
+
+    private void deleteWhereVersionGreater(Connection conn, String table, String versionColumn,
+                                           long versionExclusive) throws SQLException {
+        String sql = "DELETE FROM " + table + " WHERE namespace = ? AND " + versionColumn + " > ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, keyPrefix & 0xFF);
+            stmt.setLong(2, versionExclusive);
+            stmt.executeUpdate();
+        }
+    }
+
+    @Override
     public void close() {
-        // DataSource is managed externally, no cleanup needed here
+        // The DataSource lifecycle belongs to the DbConfig that created it: close that DbConfig
+        // (it is AutoCloseable) to release a pool this library opened via jdbcUrl()/simpleJdbcUrl().
+        // Externally supplied data sources are the caller's to manage.
     }
 
     private byte[] encodePath(NibblePath path) {
@@ -364,6 +436,12 @@ public class RdbmsJmtStore implements JmtStore {
             }
         }
         return NibblePath.fromBytes(encodedPath);
+    }
+
+    private static void requireKeyHash(byte[] keyHash) {
+        if (keyHash == null || keyHash.length != KEY_HASH_LENGTH) {
+            throw new IllegalArgumentException("keyHash must be exactly " + KEY_HASH_LENGTH + " bytes");
+        }
     }
 
     // ========== Inner Class: CommitBatch Implementation ==========
@@ -395,22 +473,24 @@ public class RdbmsJmtStore implements JmtStore {
         @Override
         public void putValue(byte[] keyHash, byte[] value) {
             // Deduplicate in-memory (last write wins)
-            java.nio.ByteBuffer key = java.nio.ByteBuffer.wrap(keyHash);
-            valueUpdates.put(key, value);
+            requireKeyHash(keyHash);
+            java.nio.ByteBuffer key = java.nio.ByteBuffer.wrap(Arrays.copyOf(keyHash, keyHash.length));
+            valueUpdates.put(key, Arrays.copyOf(value, value.length));
             valueDeletions.remove(key);
         }
 
         @Override
         public void deleteValue(byte[] keyHash) {
             // Deduplicate in-memory (last write wins)
-            java.nio.ByteBuffer key = java.nio.ByteBuffer.wrap(keyHash);
+            requireKeyHash(keyHash);
+            java.nio.ByteBuffer key = java.nio.ByteBuffer.wrap(Arrays.copyOf(keyHash, keyHash.length));
             valueUpdates.remove(key);
             valueDeletions.add(key);
         }
 
         @Override
         public void setRootHash(byte[] rootHash) {
-            this.rootHash = rootHash;
+            this.rootHash = rootHash == null ? null : Arrays.copyOf(rootHash, rootHash.length);
         }
 
         @Override
@@ -419,69 +499,70 @@ public class RdbmsJmtStore implements JmtStore {
                 conn.setAutoCommit(false);
 
                 try {
-                    // Write deduplicated nodes
-                    // Since we deduplicated in-memory, use plain INSERT (nodes are immutable)
-                    // Duplicates should only occur if same (path,version) already exists from previous commit
-                    for (java.util.Map.Entry<NodeKey, JmtNode> entry : nodeUpdates.entrySet()) {
-                        NodeKey nodeKey = entry.getKey();
-                        JmtNode node = entry.getValue();
-                        String sql = "INSERT INTO " + schema.nodesTable() +
-                                   " (namespace, node_path, version, node_data) VALUES (?, ?, ?, ?)";
-                        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                            stmt.setInt(1, keyPrefix & 0xFF);
-                            keyCodec.setKey(stmt, 2, encodePath(nodeKey.path()));
-                            stmt.setLong(3, nodeKey.version());
-                            keyCodec.setKey(stmt, 4, node.encode());
-                            try {
-                                stmt.executeUpdate();
-                            } catch (SQLException e) {
-                                // Ignore duplicate key errors (node already exists from previous commit)
-                                String sqlState = e.getSQLState();
-                                if (!"23505".equals(sqlState) && e.getErrorCode() != 23505) {
-                                    throw e;
-                                }
-                                // Otherwise silently ignore - node reused from previous version
+                    // Nodes are immutable and keyed by (namespace, node_path, version). Use an
+                    // insert-or-ignore so replaying an already-committed version (crash recovery)
+                    // is a no-op across all dialects, instead of relying on a Postgres-only SQLState.
+                    // Each table is written with a single batched statement.
+                    if (!nodeUpdates.isEmpty()) {
+                        String nodeSql = dialect.insertOrIgnoreSql(schema.nodesTable(),
+                                "namespace, node_path, version, node_data", "?, ?, ?, ?");
+                        try (PreparedStatement stmt = conn.prepareStatement(nodeSql)) {
+                            for (java.util.Map.Entry<NodeKey, JmtNode> entry : nodeUpdates.entrySet()) {
+                                NodeKey nodeKey = entry.getKey();
+                                stmt.setInt(1, keyPrefix & 0xFF);
+                                keyCodec.setKey(stmt, 2, encodePath(nodeKey.path()));
+                                stmt.setLong(3, nodeKey.version());
+                                keyCodec.setKey(stmt, 4, entry.getValue().encode());
+                                stmt.addBatch();
                             }
+                            stmt.executeBatch();
                         }
                     }
 
-                    // Write stale markers
-                    for (NodeKey nodeKey : staleNodes) {
-                        String sql = "INSERT INTO " + schema.staleTable() +
-                                     " (namespace, stale_since, node_path, node_version) VALUES (?, ?, ?, ?)";
-                        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                            stmt.setInt(1, keyPrefix & 0xFF);
-                            stmt.setLong(2, version);
-                            keyCodec.setKey(stmt, 3, encodePath(nodeKey.path()));
-                            stmt.setLong(4, nodeKey.version());
-                            stmt.executeUpdate();
+                    // Write stale markers (idempotent).
+                    if (!staleNodes.isEmpty()) {
+                        String staleSql = dialect.insertOrIgnoreSql(schema.staleTable(),
+                                "namespace, stale_since, node_path, node_version", "?, ?, ?, ?");
+                        try (PreparedStatement stmt = conn.prepareStatement(staleSql)) {
+                            for (NodeKey nodeKey : staleNodes) {
+                                stmt.setInt(1, keyPrefix & 0xFF);
+                                stmt.setLong(2, version);
+                                keyCodec.setKey(stmt, 3, encodePath(nodeKey.path()));
+                                stmt.setLong(4, nodeKey.version());
+                                stmt.addBatch();
+                            }
+                            stmt.executeBatch();
                         }
                     }
 
-                    // Write value updates
-                    for (java.util.Map.Entry<java.nio.ByteBuffer, byte[]> entry : valueUpdates.entrySet()) {
-                        String sql = "INSERT INTO " + schema.valuesTable() +
-                                     " (namespace, key_hash, version, value_data, is_tombstone) " +
-                                     "VALUES (?, ?, ?, ?, FALSE)";
-                        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                            stmt.setInt(1, keyPrefix & 0xFF);
-                            keyCodec.setKey(stmt, 2, entry.getKey().array());
-                            stmt.setLong(3, version);
-                            keyCodec.setKey(stmt, 4, entry.getValue());
-                            stmt.executeUpdate();
+                    // Write value updates (idempotent).
+                    if (!valueUpdates.isEmpty()) {
+                        String valueSql = dialect.insertOrIgnoreSql(schema.valuesTable(),
+                                "namespace, key_hash, version, value_data, is_tombstone", "?, ?, ?, ?, FALSE");
+                        try (PreparedStatement stmt = conn.prepareStatement(valueSql)) {
+                            for (java.util.Map.Entry<java.nio.ByteBuffer, byte[]> entry : valueUpdates.entrySet()) {
+                                stmt.setInt(1, keyPrefix & 0xFF);
+                                keyCodec.setKey(stmt, 2, entry.getKey().array());
+                                stmt.setLong(3, version);
+                                keyCodec.setKey(stmt, 4, entry.getValue());
+                                stmt.addBatch();
+                            }
+                            stmt.executeBatch();
                         }
                     }
 
-                    // Write value deletions
-                    for (java.nio.ByteBuffer keyHash : valueDeletions) {
-                        String sql = "INSERT INTO " + schema.valuesTable() +
-                                     " (namespace, key_hash, version, value_data, is_tombstone) " +
-                                     "VALUES (?, ?, ?, NULL, TRUE)";
-                        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                            stmt.setInt(1, keyPrefix & 0xFF);
-                            keyCodec.setKey(stmt, 2, keyHash.array());
-                            stmt.setLong(3, version);
-                            stmt.executeUpdate();
+                    // Write value deletions (idempotent tombstones).
+                    if (!valueDeletions.isEmpty()) {
+                        String tombstoneSql = dialect.insertOrIgnoreSql(schema.valuesTable(),
+                                "namespace, key_hash, version, value_data, is_tombstone", "?, ?, ?, NULL, TRUE");
+                        try (PreparedStatement stmt = conn.prepareStatement(tombstoneSql)) {
+                            for (java.nio.ByteBuffer keyHash : valueDeletions) {
+                                stmt.setInt(1, keyPrefix & 0xFF);
+                                keyCodec.setKey(stmt, 2, keyHash.array());
+                                stmt.setLong(3, version);
+                                stmt.addBatch();
+                            }
+                            stmt.executeBatch();
                         }
                     }
 
@@ -507,23 +588,60 @@ public class RdbmsJmtStore implements JmtStore {
         }
 
         private void storeRootHash(Connection conn) throws SQLException {
-            // Insert into roots table
-            String insertRootSql = "INSERT INTO " + schema.rootsTable() +
-                                   " (namespace, version, root_hash) VALUES (?, ?, ?)";
-            try (PreparedStatement stmt = conn.prepareStatement(insertRootSql)) {
+            // A committed version's root is immutable. Replaying the SAME version with the SAME root
+            // is an idempotent no-op; replaying it with a DIFFERENT root is a divergent commit that
+            // would leave roots/latest inconsistent, so reject it loudly (rolls back the transaction).
+            byte[] existingRoot = null;
+            String selectRootSql = "SELECT root_hash FROM " + schema.rootsTable() +
+                    " WHERE namespace = ? AND version = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(selectRootSql)) {
                 stmt.setInt(1, keyPrefix & 0xFF);
                 stmt.setLong(2, version);
-                keyCodec.setKey(stmt, 3, rootHash);
-                stmt.executeUpdate();
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        existingRoot = keyCodec.getKey(rs, "root_hash");
+                    }
+                }
+            }
+            if (existingRoot != null) {
+                if (!Arrays.equals(existingRoot, rootHash)) {
+                    throw new SQLException("Version " + version +
+                            " already committed with a different root hash (divergent replay)");
+                }
+                // identical replay: root row already present.
+            } else {
+                String insertRootSql = "INSERT INTO " + schema.rootsTable() +
+                        " (namespace, version, root_hash) VALUES (?, ?, ?)";
+                try (PreparedStatement stmt = conn.prepareStatement(insertRootSql)) {
+                    stmt.setInt(1, keyPrefix & 0xFF);
+                    stmt.setLong(2, version);
+                    keyCodec.setKey(stmt, 3, rootHash);
+                    stmt.executeUpdate();
+                }
             }
 
-            // Upsert into latest table
-            String upsertSql = dialect.upsertLatestSql(schema.latestTable());
-            try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
+            // The latest pointer is monotonic: only advance it. Replaying an OLDER already-committed
+            // version must not regress latestRoot() to that older state.
+            long currentLatest = -1L;
+            boolean haveLatest = false;
+            String latestSql = "SELECT latest_version FROM " + schema.latestTable() + " WHERE namespace = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(latestSql)) {
                 stmt.setInt(1, keyPrefix & 0xFF);
-                stmt.setLong(2, version);
-                keyCodec.setKey(stmt, 3, rootHash);
-                stmt.executeUpdate();
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        currentLatest = rs.getLong("latest_version");
+                        haveLatest = true;
+                    }
+                }
+            }
+            if (!haveLatest || Long.compareUnsigned(version, currentLatest) >= 0) {
+                String upsertSql = dialect.upsertLatestSql(schema.latestTable());
+                try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
+                    stmt.setInt(1, keyPrefix & 0xFF);
+                    stmt.setLong(2, version);
+                    keyCodec.setKey(stmt, 3, rootHash);
+                    stmt.executeUpdate();
+                }
             }
         }
 

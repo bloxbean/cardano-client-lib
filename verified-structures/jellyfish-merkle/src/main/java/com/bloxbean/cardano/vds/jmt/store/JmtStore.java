@@ -93,7 +93,7 @@ public interface JmtStore extends AutoCloseable {
 
     /**
      * Truncates the persisted state by removing nodes/values/roots whose version is greater than
-     * {@code version}. Implementations that support rollback must override this method; default
+     * {@code version}. Versions are non-negative. Implementations that support rollback must override this method; default
      * behaviour is to throw {@link UnsupportedOperationException}.
      */
     default void truncateAfter(long versionExclusive) {

@@ -27,8 +27,8 @@ import java.util.List;
  * Classic wire codec: proof is a CBOR array of ByteStrings, each a CBOR-encoded node
  * (JmtInternalNode/JmtLeafNode/JmtExtensionNode) along the path.
  *
- * <p>This is the default implementation compatible with Diem's JMT reference implementation.
- * The wire format is a CBOR array where each element is a CBOR-encoded node along the
+ * <p>This is the default format for this library. It is inspired by JMT path proofs but is not
+ * wire-compatible with Diem/Aptos. The wire format is a CBOR array where each element is a CBOR-encoded node along the
  * Merkle path from root to leaf.
  *
  * <p><b>Wire Format Structure:</b>
@@ -45,6 +45,8 @@ import java.util.List;
  * @since 0.8.0
  */
 public final class ClassicJmtProofCodec implements JmtProofCodec {
+
+    private static final int MAX_WIRE_BYTES = 1024 * 1024;
 
     @Override
     public byte[] toWire(JmtProof proof, byte[] key, HashFunction hashFn, CommitmentScheme cs) {
@@ -102,11 +104,28 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
     @Override
     public boolean verify(byte[] expectedRoot, byte[] key, byte[] valueOrNull, boolean including,
                           byte[] wire, HashFunction hashFn, CommitmentScheme cs) {
-        byte[] normalizedExpected = expectedRoot == null ? cs.nullHash() : expectedRoot;
-        List<JmtNode> nodes = decodeNodes(wire);
+        // A verifier consumes untrusted bytes: malformed or structurally invalid proofs are
+        // "invalid" (false), never an unchecked exception thrown at the caller.
+        try {
+            return verifyInternal(expectedRoot, key, valueOrNull, including, wire, hashFn, cs);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
 
+    private boolean verifyInternal(byte[] expectedRoot, byte[] key, byte[] valueOrNull, boolean including,
+                                   byte[] wire, HashFunction hashFn, CommitmentScheme cs) {
+        if (wire == null || wire.length > MAX_WIRE_BYTES) return false;
+        if (!including && valueOrNull != null) return false;
+        byte[] normalizedExpected = expectedRoot == null ? cs.nullHash() : expectedRoot;
         byte[] keyHash = hashFn.digest(key);
+        if (keyHash == null || keyHash.length == 0 || normalizedExpected.length != keyHash.length
+                || cs.nullHash().length != keyHash.length) {
+            return false;
+        }
         int[] keyNibbles = Nibbles.toNibbles(keyHash);
+        // At most one path node can consume each key nibble, plus one terminal leaf.
+        List<JmtNode> nodes = decodeNodes(wire, keyNibbles.length + 1);
 
         // Forward pass to determine depth at each internal and terminal condition
         int depth = 0;
@@ -122,8 +141,9 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
             JmtNode node = nodes.get(i);
             if (node instanceof JmtInternalNode) {
                 JmtInternalNode in = (JmtInternalNode) node;
+                if (depth >= keyNibbles.length) return false;
                 internalDepths[i] = depth;
-                int nib = depth < keyNibbles.length ? keyNibbles[depth] : 0;
+                int nib = keyNibbles[depth];
                 int bitmap = in.bitmap();
                 boolean hasChild = ((bitmap >>> nib) & 1) == 1;
                 if (!hasChild) {
@@ -141,6 +161,7 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
                 JmtExtensionNode ex = (JmtExtensionNode) node;
                 com.bloxbean.cardano.vds.core.nibbles.Nibbles.HP hp = Nibbles.unpackHP(ex.hpBytes());
                 int[] seg = hp.nibbles;
+                if (hp.isLeaf || seg.length == 0 || ex.childHash().length != keyHash.length) return false;
                 if (depth + seg.length > keyNibbles.length) return false;
                 for (int j = 0; j < seg.length; j++) {
                     if (keyNibbles[depth + j] != seg[j]) return false;
@@ -159,6 +180,18 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
             throw new IllegalArgumentException("Unsupported node type: " + node.getClass().getSimpleName());
         }
 
+        // Proof-type / claim consistency. An inclusion claim can ONLY be satisfied by a proof
+        // that terminates at the queried key's leaf; a non-inclusion (missing-branch / empty)
+        // proof must never be accepted as inclusion. Without this, a genuine NON_INCLUSION_EMPTY
+        // wire proof presented with including=true reconstructs the real root and forges inclusion
+        // of an absent key.
+        if (including && !terminalLeaf) {
+            return false;
+        }
+        if (!nodes.isEmpty() && !terminalLeaf && !terminalMissingBranch) {
+            return false;
+        }
+
         // Bottom-up recomputation
         byte[] computed = null;
         if (terminalLeaf) {
@@ -167,13 +200,19 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
                 if (!Arrays.equals(leafNode.keyHash(), keyHash)) return false;
                 byte[] valueHash = hashFn.digest(valueOrNull);
                 if (!Arrays.equals(valueHash, leafNode.valueHash())) return false;
-                int[] suffixNibs = Arrays.copyOfRange(keyNibbles, depth, keyNibbles.length);
-                computed = cs.commitLeaf(NibblePath.of(suffixNibs), valueHash);
+                // Leaf commitment binds the key hash; derive it from the queried key.
+                computed = cs.commitLeaf(keyHash, valueHash);
             } else {
-                if (Arrays.equals(leafNode.keyHash(), keyHash)) return false; // conflicting leaf must differ
+                // A leaf that matches the queried key proves PRESENCE — it cannot back a
+                // non-inclusion claim.
+                if (Arrays.equals(leafNode.keyHash(), keyHash)) return false;
+                // The conflicting leaf must lie on the queried key's path (shared prefix of length depth).
                 int[] ln = Nibbles.toNibbles(leafNode.keyHash());
-                int[] suffixNibs = Arrays.copyOfRange(ln, depth, ln.length);
-                computed = cs.commitLeaf(NibblePath.of(suffixNibs), leafNode.valueHash());
+                if (depth > keyNibbles.length || ln.length < depth) return false;
+                for (int i = 0; i < depth; i++) {
+                    if (ln[i] != keyNibbles[i]) return false;
+                }
+                computed = cs.commitLeaf(leafNode.keyHash(), leafNode.valueHash());
             }
         } else if (terminalMissingBranch) {
             computed = null; // child is absent; parent will see NULL at the required slot
@@ -217,13 +256,16 @@ public final class ClassicJmtProofCodec implements JmtProofCodec {
         return Arrays.equals(normalizedExpected, normalizedComputed);
     }
 
-    private static List<JmtNode> decodeNodes(byte[] wire) {
+    private static List<JmtNode> decodeNodes(byte[] wire, int maxNodes) {
         try {
             List<DataItem> items = new CborDecoder(new ByteArrayInputStream(wire)).decode();
-            if (items.isEmpty() || !(items.get(0) instanceof Array)) {
-                throw new IllegalArgumentException("Classic JMT proof must be a CBOR array");
+            if (items.size() != 1 || !(items.get(0) instanceof Array)) {
+                throw new IllegalArgumentException("Classic JMT proof must contain exactly one CBOR array");
             }
             Array arr = (Array) items.get(0);
+            if (arr.getDataItems().size() > maxNodes) {
+                throw new IllegalArgumentException("Classic JMT proof exceeds maximum path length");
+            }
             List<JmtNode> nodes = new ArrayList<>(arr.getDataItems().size());
             for (DataItem di : arr.getDataItems()) {
                 if (!(di instanceof ByteString)) {

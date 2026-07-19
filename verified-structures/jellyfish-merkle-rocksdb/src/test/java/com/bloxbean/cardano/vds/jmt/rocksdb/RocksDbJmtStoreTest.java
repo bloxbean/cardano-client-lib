@@ -6,6 +6,7 @@ import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.vds.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.store.JmtStore;
+import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -134,6 +135,13 @@ class RocksDbJmtStoreTest {
             assertArrayEquals(bytes("200"), reopened.getValue(HASH.digest(bytes("bob"))).orElseThrow());
             assertArrayEquals(bytes("50"), reopened.getValue(HASH.digest(bytes("carol"))).orElseThrow());
         }
+    }
+
+    @Test
+    void rejectsUnsupportedKeyPrefixInsteadOfSilentlyLosingIsolation() {
+        NamespaceOptions namespace = NamespaceOptions.keyPrefix((byte) 0x2A);
+        assertThrows(IllegalArgumentException.class,
+                () -> new RocksDbJmtStore(tempDir.resolve("unsupported-prefix").toString(), namespace));
     }
 
     private static byte[] bytes(String value) {

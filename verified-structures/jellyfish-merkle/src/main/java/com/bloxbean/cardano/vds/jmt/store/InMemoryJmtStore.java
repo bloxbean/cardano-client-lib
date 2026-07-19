@@ -202,6 +202,9 @@ public final class InMemoryJmtStore implements JmtStore {
 
     @Override
     public synchronized void truncateAfter(long version) {
+        if (version < 0) {
+            throw new IllegalArgumentException("version must be >= 0");
+        }
         // Remove nodes with version > target
         java.util.Iterator<NodeKey> nodeIterator = nodes.keySet().iterator();
         while (nodeIterator.hasNext()) {
@@ -212,7 +215,7 @@ public final class InMemoryJmtStore implements JmtStore {
         }
 
         // Adjust values history and current map
-        valuesByKey.forEach((key, history) -> history.tailMap(Long.valueOf(version + 1)).clear());
+        valuesByKey.forEach((key, history) -> history.tailMap(version, false).clear());
         valuesByKey.entrySet().removeIf(entry -> entry.getValue().isEmpty());
 
         values.clear();
@@ -224,10 +227,10 @@ public final class InMemoryJmtStore implements JmtStore {
         });
 
         // Roots
-        roots.tailMap(Long.valueOf(version + 1)).clear();
+        roots.tailMap(version, false).clear();
 
         // Stale markers
-        staleByVersion.tailMap(Long.valueOf(version + 1)).clear();
+        staleByVersion.tailMap(version, false).clear();
     }
 
     @Override
@@ -294,14 +297,20 @@ public final class InMemoryJmtStore implements JmtStore {
 
         @Override
         public void close() {
-            if (!closed) {
-                apply();
-                closed = true;
-            }
+            // Abandoning a batch (close without commit) MUST discard staged writes, matching the
+            // abort semantics of the persistent backends. Applying here would leak partial commits.
+            closed = true;
         }
 
         private void apply() {
             synchronized (InMemoryJmtStore.this) {
+                if (rootHash != null) {
+                    byte[] existingRoot = roots.get(version);
+                    if (existingRoot != null && !java.util.Arrays.equals(existingRoot, rootHash)) {
+                        throw new IllegalStateException("Version " + version
+                                + " already committed with a different root hash (divergent replay)");
+                    }
+                }
                 for (Map.Entry<NodeKey, JmtNode> entry : nodeUpdates.entrySet()) {
                     nodes.put(entry.getKey(), entry.getValue());
                 }

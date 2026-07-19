@@ -21,7 +21,9 @@ public final class JmtEncoding {
         if (encoded == null) throw new IllegalArgumentException("encoded bytes cannot be null");
         try {
             List<DataItem> items = new CborDecoder(new ByteArrayInputStream(encoded)).decode();
-            if (items.isEmpty()) throw new IllegalArgumentException("Empty CBOR payload");
+            if (items.size() != 1) {
+                throw new IllegalArgumentException("JMT node must contain exactly one CBOR item");
+            }
             DataItem di = items.get(0);
             if (!(di instanceof Array)) {
                 throw new IllegalArgumentException("Expected CBOR array, got " + di.getMajorType());
@@ -56,4 +58,3 @@ public final class JmtEncoding {
         }
     }
 }
-

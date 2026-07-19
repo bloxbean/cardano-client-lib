@@ -17,17 +17,21 @@ public interface CommitmentScheme {
     byte[] commitBranch(NibblePath prefix, byte[][] childHashes);
 
     /**
-     * Hashes a leaf node using the compressed suffix and the hashed value.
+     * Hashes a leaf node by binding both the key hash and the value hash.
      *
-     * @param suffix    remaining path from the branch to the leaf (HP suffix)
-     * @param valueHash digest of the value stored at the leaf
+     * <p>The key hash MUST be part of the leaf commitment (using the Diem-style
+     * {@code H(tag || keyHash || valueHash)}). Committing only to a path suffix
+     * leaves the leaf unbound to its key and makes inclusion/non-inclusion proofs
+     * forgeable, so this contract deliberately takes the full key hash.</p>
+     *
+     * @param keyHash   digest of the key stored at the leaf (never null)
+     * @param valueHash digest of the value stored at the leaf (never null)
      * @return commitment for the leaf node
      */
-    byte[] commitLeaf(NibblePath suffix, byte[] valueHash);
+    byte[] commitLeaf(byte[] keyHash, byte[] valueHash);
 
     /**
      * Commitment representing an empty subtree.
      */
     byte[] nullHash();
 }
-

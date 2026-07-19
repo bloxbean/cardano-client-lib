@@ -140,8 +140,13 @@ public class TreeCache {
             // The root will be created by the first insert
             return NodeKey.of(NibblePath.EMPTY, 0);
         } else {
-            // Root is from previous version
-            return NodeKey.of(NibblePath.EMPTY, version - 1);
+            // Resolve the actual root-node version visible immediately before the target version.
+            // Versions may contain gaps. Using the synthetic key (version - 1) still finds the
+            // correct node through a floor lookup, but later marks that nonexistent synthetic key
+            // stale. Returning the persisted NodeKey keeps stale tracking and pruning correct.
+            return store.getNode(version - 1, NibblePath.EMPTY)
+                    .map(JmtStore.NodeEntry::nodeKey)
+                    .orElseGet(() -> NodeKey.of(NibblePath.EMPTY, version - 1));
         }
     }
 

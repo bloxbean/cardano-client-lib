@@ -17,15 +17,17 @@ import javax.sql.DataSource;
  *
  * @since 0.8.0
  */
-public class DbConfig {
+public class DbConfig implements AutoCloseable {
     private final DataSource dataSource;
     private final SqlDialect dialect;
     private final String tablePrefix;
+    private final boolean ownsDataSource;
 
-    private DbConfig(DataSource dataSource, SqlDialect dialect, String tablePrefix) {
+    private DbConfig(DataSource dataSource, SqlDialect dialect, String tablePrefix, boolean ownsDataSource) {
         this.dataSource = dataSource;
         this.dialect = dialect;
         this.tablePrefix = tablePrefix == null ? "" : tablePrefix.trim();
+        this.ownsDataSource = ownsDataSource;
     }
 
     /**
@@ -45,7 +47,23 @@ public class DbConfig {
      * @return a DbConfig with default settings
      */
     public static DbConfig defaults(DataSource dataSource, SqlDialect dialect) {
-        return new DbConfig(dataSource, dialect, "");
+        return new DbConfig(dataSource, dialect, "", false);
+    }
+
+    /**
+     * Closes the underlying {@link DataSource} if this config created it (via
+     * {@link Builder#jdbcUrl} / {@link Builder#simpleJdbcUrl}). Externally supplied data sources
+     * (via {@link Builder#dataSource}) are left untouched — their lifecycle belongs to the caller.
+     */
+    @Override
+    public void close() {
+        if (ownsDataSource && dataSource instanceof AutoCloseable) {
+            try {
+                ((AutoCloseable) dataSource).close();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to close DataSource", e);
+            }
+        }
     }
 
     /**
@@ -82,6 +100,22 @@ public class DbConfig {
         private DataSource dataSource;
         private SqlDialect dialect;
         private String tablePrefix = "";
+        private boolean ownsDataSource = false;
+
+        /**
+         * If this builder previously created a pool it owns, close it before the reference is
+         * replaced by another {@code dataSource(...)} / {@code jdbcUrl(...)} call, so an overwrite
+         * never orphans a live connection pool.
+         */
+        private void closeOwnedDataSourceIfAny() {
+            if (ownsDataSource && dataSource instanceof AutoCloseable) {
+                try {
+                    ((AutoCloseable) dataSource).close();
+                } catch (Exception ignored) {
+                    // best-effort close of a to-be-discarded pool
+                }
+            }
+        }
 
         /**
          * Sets the JDBC data source.
@@ -90,7 +124,9 @@ public class DbConfig {
          * @return this builder
          */
         public Builder dataSource(DataSource dataSource) {
+            closeOwnedDataSourceIfAny();
             this.dataSource = dataSource;
+            this.ownsDataSource = false; // externally supplied; caller owns its lifecycle
             return this;
         }
 
@@ -125,6 +161,7 @@ public class DbConfig {
          * @return this builder with DataSource and Dialect configured
          */
         public Builder jdbcUrl(String jdbcUrl, String username, String password) {
+            closeOwnedDataSourceIfAny();
             // Create HikariCP DataSource
             HikariConfig hikariConfig = new HikariConfig();
             hikariConfig.setJdbcUrl(jdbcUrl);
@@ -135,6 +172,7 @@ public class DbConfig {
             hikariConfig.setConnectionTimeout(30000);
 
             this.dataSource = new HikariDataSource(hikariConfig);
+            this.ownsDataSource = true; // this config created the pool; it must close it
 
             // Auto-detect dialect from JDBC URL
             this.dialect = detectDialect(jdbcUrl);
@@ -149,7 +187,9 @@ public class DbConfig {
          * @return this builder with DataSource and Dialect configured
          */
         public Builder simpleJdbcUrl(String jdbcUrl) {
+            closeOwnedDataSourceIfAny();
             this.dataSource = new SimpleDataSource(jdbcUrl);
+            this.ownsDataSource = true; // this config created the data source
             this.dialect = detectDialect(jdbcUrl);
             return this;
         }
@@ -182,7 +222,7 @@ public class DbConfig {
             if (dialect == null) {
                 throw new IllegalStateException("dialect is required");
             }
-            return new DbConfig(dataSource, dialect, tablePrefix);
+            return new DbConfig(dataSource, dialect, tablePrefix, ownsDataSource);
         }
     }
 }
