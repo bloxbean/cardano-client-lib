@@ -232,8 +232,12 @@ public class QuickTxBuilder {
         }
         if (plan.getSignerRefs() != null && !plan.getSignerRefs().isEmpty()) {
             for (com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument.SignerRef sr : plan.getSignerRefs()) {
-                if (sr.getRef() != null && sr.getScope() != null) {
-                    context.withSignerRef(sr.getRef(), sr.getScope());
+                if (sr.getRef() != null) {
+                    // A portable signer ref may omit the scope (the schema makes it optional);
+                    // default to payment, matching TxPlan.withSigner(ref).
+                    String scope = (sr.getScope() != null && !sr.getScope().isBlank())
+                            ? sr.getScope() : SignerScopes.PAYMENT;
+                    context.withSignerRef(sr.getRef(), scope);
                 }
             }
         }
