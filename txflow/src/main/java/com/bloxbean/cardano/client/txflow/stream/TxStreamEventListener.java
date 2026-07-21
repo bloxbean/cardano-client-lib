@@ -2,16 +2,18 @@ package com.bloxbean.cardano.client.txflow.stream;
 
 /**
  * Structured stream event callbacks.
+ * <p>
+ * Listener callbacks are best-effort observers: the stream isolates every
+ * invocation, so a throwing listener can never fail a submission, kill the
+ * dispatcher, or wedge {@link TxFlowStream#drain()}.
  */
 public interface TxStreamEventListener {
-    /**
-     * Listener instance that ignores every callback.
-     */
+    /** Listener instance that ignores every callback. */
     TxStreamEventListener NOOP = new TxStreamEventListener() {
     };
 
     /**
-     * Called after an item has been accepted and its receipt has been created.
+     * Called after an item has been accepted and its receipt created.
      *
      * @param item accepted work item
      * @param receipt receipt associated with the item
@@ -20,7 +22,8 @@ public interface TxStreamEventListener {
     }
 
     /**
-     * Called whenever the latest item result changes.
+     * Called whenever the item projection advances, including read-through
+     * recovery repairs.
      *
      * @param result latest item result snapshot
      */
@@ -28,15 +31,17 @@ public interface TxStreamEventListener {
     }
 
     /**
-     * Called whenever the latest batch result changes.
+     * Called whenever a batch projection advances: window closed
+     * ({@code PLANNED}), plan dispatched ({@code RUNNING}), and the terminal
+     * status derived from the member items.
      *
-     * @param result latest batch result snapshot
+     * @param batch latest batch snapshot
      */
-    default void onBatchUpdated(TxStreamBatchResult result) {
+    default void onBatchUpdated(TxStreamBatchResult batch) {
     }
 
     /**
-     * Called after the stream worker has been started.
+     * Called after the stream has started.
      *
      * @param streamId stream id
      */
@@ -52,10 +57,34 @@ public interface TxStreamEventListener {
     }
 
     /**
-     * Called after the stream has closed its worker, source, and runner.
+     * Called after the stream has released its source and resources.
      *
      * @param streamId stream id
      */
     default void onStreamClosed(String streamId) {
+    }
+
+    /**
+     * Called when this instance becomes the {@link OwnershipStatus.State#ACTIVE
+     * ACTIVE} single-owner of the stream — at {@code start()} if it acquires the
+     * lease, or later when a standby takes over after the previous owner's crash
+     * or expiry (ADR 0004 iteration 3d). Only ever fired for a stream with
+     * ownership opted in.
+     *
+     * @param status the acquired ownership state (ACTIVE, with the held epoch)
+     */
+    default void onOwnershipAcquired(OwnershipStatus status) {
+    }
+
+    /**
+     * Called when this instance loses ACTIVE ownership — its lease renewal was
+     * fenced (a different instance took over) and it steps down to
+     * {@link OwnershipStatus.State#STANDBY STANDBY}, or it released ownership on
+     * close/abort. It stops dispatching immediately; in-flight engine executions
+     * it already started continue and are reconciled by the new owner.
+     *
+     * @param status the ownership state after the loss (STANDBY or RELEASED)
+     */
+    default void onOwnershipLost(OwnershipStatus status) {
     }
 }

@@ -1,43 +1,109 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
-import lombok.Getter;
-
 import java.time.Instant;
+import java.util.Objects;
 
 /**
- * Current or terminal result for a stream work item.
+ * Immutable point-in-time result for a stream work item.
  * <p>
- * Results are immutable snapshots. A receipt and the state store may observe
- * several snapshots for the same item as it moves through stream execution.
+ * An item produces a sequence of result snapshots as its projection advances.
+ * A transaction hash, once present on any snapshot, is never dropped from a
+ * later one.
  */
-@Getter
 public final class TxStreamItemResult {
     private final String streamId;
     private final String itemId;
     private final TxStreamItemStatus status;
-    private final String batchId;
-    private final String flowId;
+    private final String executionId;
     private final String stepId;
+    private final String laneName;
     private final String transactionHash;
-    private final Throwable failure;
+    private final Throwable error;
     private final Instant updatedAt;
 
     private TxStreamItemResult(Builder builder) {
-        this.streamId = builder.streamId;
-        this.itemId = builder.itemId;
-        this.status = builder.status;
-        this.batchId = builder.batchId;
-        this.flowId = builder.flowId;
+        this.streamId = Objects.requireNonNull(builder.streamId, "streamId");
+        this.itemId = Objects.requireNonNull(builder.itemId, "itemId");
+        this.status = Objects.requireNonNull(builder.status, "status");
+        this.executionId = builder.executionId;
         this.stepId = builder.stepId;
+        this.laneName = builder.laneName;
         this.transactionHash = builder.transactionHash;
-        this.failure = builder.failure;
-        this.updatedAt = builder.updatedAt != null ? builder.updatedAt : Instant.now();
+        this.error = builder.error;
+        this.updatedAt = Objects.requireNonNull(builder.updatedAt, "updatedAt");
     }
 
     /**
-     * Check whether this result is terminal.
+     * Returns the stream that accepted the item.
      *
-     * @return true for confirmed, failed, or cancelled items
+     * @return stream id
+     */
+    public String getStreamId() { return streamId; }
+
+    /**
+     * Returns the caller-visible item identity.
+     *
+     * @return item id
+     */
+    public String getItemId() { return itemId; }
+
+    /**
+     * Returns the item status at this snapshot.
+     *
+     * @return item status
+     */
+    public TxStreamItemStatus getStatus() { return status; }
+
+    /**
+     * Returns the deterministic engine execution identity bound to this item.
+     *
+     * @return execution id, or {@code null} before binding
+     */
+    public String getExecutionId() { return executionId; }
+
+    /**
+     * Returns the generated flow step identity carrying the item's transaction.
+     *
+     * @return step id, or {@code null} before binding
+     */
+    public String getStepId() { return stepId; }
+
+    /**
+     * Returns the user-facing label of the lane the item runs on.
+     *
+     * @return lane name, or {@code null} before binding
+     */
+    public String getLaneName() { return laneName; }
+
+    /**
+     * Returns the submitted transaction hash.
+     *
+     * @return transaction hash, or {@code null} when no transaction was submitted
+     */
+    public String getTransactionHash() { return transactionHash; }
+
+    /**
+     * Returns the failure associated with this snapshot.
+     *
+     * @return failure cause, or {@code null}
+     */
+    public Throwable getError() { return error; }
+
+    /**
+     * Returns the time this snapshot was projected.
+     *
+     * @return snapshot timestamp
+     */
+    public Instant getUpdatedAt() { return updatedAt; }
+
+    /**
+     * Reports whether this snapshot is final and immutable.
+     * <p>
+     * {@link TxStreamItemStatus#RECOVERY_REQUIRED} is deliberately not final:
+     * it settles the receipt's completion but remains repairable through
+     * read-through reconciliation.
+     *
+     * @return {@code true} for confirmed, failed, or cancelled items
      */
     public boolean isTerminal() {
         return status == TxStreamItemStatus.CONFIRMED
@@ -46,114 +112,141 @@ public final class TxStreamItemResult {
     }
 
     /**
-     * Check whether this item completed successfully.
+     * Reports whether the item completed successfully.
      *
-     * @return true when status is {@link TxStreamItemStatus#CONFIRMED}
+     * @return {@code true} only for {@link TxStreamItemStatus#CONFIRMED}
      */
     public boolean isSuccessful() {
         return status == TxStreamItemStatus.CONFIRMED;
     }
 
     /**
-     * Create an item result builder.
+     * Creates a result builder.
      *
      * @param streamId stream id
      * @param itemId item id
      * @param status item status
-     * @return builder
+     * @return result builder
      */
     public static Builder builder(String streamId, String itemId, TxStreamItemStatus status) {
-        return new Builder(streamId, itemId, status);
+        return new Builder().streamId(streamId).itemId(itemId).status(status);
     }
 
     /**
-     * Builder for immutable {@link TxStreamItemResult} snapshots.
+     * Creates a builder pre-populated with this snapshot's values.
+     *
+     * @return builder carrying every field of this result
      */
+    public Builder toBuilder() {
+        return new Builder()
+                .streamId(streamId)
+                .itemId(itemId)
+                .status(status)
+                .executionId(executionId)
+                .stepId(stepId)
+                .laneName(laneName)
+                .transactionHash(transactionHash)
+                .error(error)
+                .updatedAt(updatedAt);
+    }
+
+    @Override
+    public String toString() {
+        return "TxStreamItemResult{itemId='" + itemId + "', status=" + status
+                + ", executionId='" + executionId + "', transactionHash='" + transactionHash
+                + "', error=" + (error != null ? error.getMessage() : "null")
+                + ", updatedAt=" + updatedAt + '}';
+    }
+
+    /** Builder for immutable {@link TxStreamItemResult} snapshots. */
     public static final class Builder {
-        private final String streamId;
-        private final String itemId;
-        private final TxStreamItemStatus status;
-        private String batchId;
-        private String flowId;
+        private String streamId;
+        private String itemId;
+        private TxStreamItemStatus status;
+        private String executionId;
         private String stepId;
+        private String laneName;
         private String transactionHash;
-        private Throwable failure;
+        private Throwable error;
         private Instant updatedAt;
 
-        private Builder(String streamId, String itemId, TxStreamItemStatus status) {
-            this.streamId = streamId;
-            this.itemId = itemId;
-            this.status = status;
+        private Builder() {
         }
 
         /**
-         * Set the batch id that owns this item.
+         * Sets the stream id.
          *
-         * @param batchId generated batch id
+         * @param value stream id
          * @return this builder
          */
-        public Builder batchId(String batchId) {
-            this.batchId = batchId;
-            return this;
-        }
+        public Builder streamId(String value) { this.streamId = value; return this; }
 
         /**
-         * Set the generated bounded flow id.
+         * Sets the item id.
          *
-         * @param flowId generated flow id
+         * @param value item id
          * @return this builder
          */
-        public Builder flowId(String flowId) {
-            this.flowId = flowId;
-            return this;
-        }
+        public Builder itemId(String value) { this.itemId = value; return this; }
 
         /**
-         * Set the generated flow step id.
+         * Sets the item status.
          *
-         * @param stepId generated or original step id
+         * @param value item status
          * @return this builder
          */
-        public Builder stepId(String stepId) {
-            this.stepId = stepId;
-            return this;
-        }
+        public Builder status(TxStreamItemStatus value) { this.status = value; return this; }
 
         /**
-         * Set the transaction hash produced for this item.
+         * Sets the deterministic execution id.
          *
-         * @param transactionHash transaction hash
+         * @param value execution id
          * @return this builder
          */
-        public Builder transactionHash(String transactionHash) {
-            this.transactionHash = transactionHash;
-            return this;
-        }
+        public Builder executionId(String value) { this.executionId = value; return this; }
 
         /**
-         * Set the failure that affected this item.
+         * Sets the generated step id.
          *
-         * @param failure failure cause
+         * @param value step id
          * @return this builder
          */
-        public Builder failure(Throwable failure) {
-            this.failure = failure;
-            return this;
-        }
+        public Builder stepId(String value) { this.stepId = value; return this; }
 
         /**
-         * Set the timestamp for this snapshot.
+         * Sets the lane label.
          *
-         * @param updatedAt update timestamp
+         * @param value lane name
          * @return this builder
          */
-        public Builder updatedAt(Instant updatedAt) {
-            this.updatedAt = updatedAt;
-            return this;
-        }
+        public Builder laneName(String value) { this.laneName = value; return this; }
 
         /**
-         * Build the immutable item result.
+         * Sets the submitted transaction hash.
+         *
+         * @param value transaction hash
+         * @return this builder
+         */
+        public Builder transactionHash(String value) { this.transactionHash = value; return this; }
+
+        /**
+         * Sets the failure cause.
+         *
+         * @param value failure cause, or {@code null} to clear it
+         * @return this builder
+         */
+        public Builder error(Throwable value) { this.error = value; return this; }
+
+        /**
+         * Sets the snapshot timestamp.
+         *
+         * @param value projection time
+         * @return this builder
+         */
+        public Builder updatedAt(Instant value) { this.updatedAt = value; return this; }
+
+        /**
+         * Builds the immutable result snapshot.
          *
          * @return item result
          */
