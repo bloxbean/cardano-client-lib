@@ -1,0 +1,301 @@
+---
+title: "TxStream: Lanes, Batching & Throughput"
+description: "The UTXO concurrency model: lane policies, windows, planners, partitioned fan-out, and honest throughput expectations"
+---
+
+# TxStream: Lanes, Batching & Throughput
+
+Cardano's eUTXO model *is* TxStream's concurrency model. Two transactions that spend disjoint
+UTXOs can be in flight simultaneously; two transactions spending the same funds cannot. TxStream
+expresses that directly:
+
+- A **lane** is a funding scope — a funding address or funding reference whose UTXOs at most one
+  in-flight execution may spend at a time.
+- **Different lanes run concurrently; the same lane runs serial FIFO.** Throughput scales with
+  the number of disjoint funding scopes, not with thread counts.
+- Scheduling keys on the lane's **canonical spending identity, never its display name**: two lane
+  labels resolving to the same wallet are one lane wearing two names and share one FIFO. Labels
+  can never be used to sneak two writers onto one wallet.
+- The lane also constrains **coin selection**: an item's transaction is mechanically pinned to its
+  lane's funding scope (violations fail typed `TXSTREAM_LANE_SCOPE_VIOLATION`), and the lane is
+  declared as the engine's spending resource — the cross-process safety net if another process
+  ever runs against the same funds.
+
+> **Alias caveat:** for funding-*ref* lanes, identity is the reference string as given
+> (`ref:account://sender`), caller-asserted canonical. Two different references naming the same
+> wallet — or a ref lane and an address lane over the same wallet — are treated as distinct lanes
+> today; keeping such aliases from running concurrently is your responsibility.
+
+## Lane policies
+
+| Policy | Lane comes from | Use when |
+| --- | --- | --- |
+| `LanePolicy.single(lane)` / builder `.lane(...)` | one static configuration | One funding wallet, strict FIFO — the simplest correct start |
+| `LanePolicy.explicit()` + `laneResolver` | each item's `withLane(name)` | You route work to named funding scopes (treasury vs operations) |
+| `LanePolicy.byFundingAddress()` | each item's own `from`/`from_ref` | Items already carry their funding source; senders lane themselves |
+| `LanePolicy.partitioned(config)` | `hash(idempotencyKey) % N` over N app-owned addresses | Maximum throughput from one logical wallet — see the deep-dive below |
+
+**Explicit lanes** resolve names through a required `LaneIdentityResolver`, once per name at first
+use. An item without a lane fails typed `TXSTREAM_LANE_REQUIRED`; an unresolvable name fails that
+item typed `TXSTREAM_LANE_UNRESOLVED` (it cannot be a startup error — names arrive with items):
+
+```java
+try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
+        .lanes(LanePolicy.explicit())
+        .laneResolver(laneName -> {
+            switch (laneName) {
+                case "treasury":
+                    return ResolvedLane.ofFundingRef("treasury", "account://treasury");
+                case "operations":
+                    return ResolvedLane.ofFundingRef("operations", "account://operations");
+                default:
+                    return null;   // fails the item typed TXSTREAM_LANE_UNRESOLVED
+            }
+        })
+        .maxInFlight(8)
+        .executor(streamExecutor)
+        .build()) {
+    stream.start();
+
+    stream.submit(TxWorkItem.builder("treasury-pay-1")
+            .withTxPlan(treasuryPlan)
+            .withLane("treasury")
+            .build());
+    stream.submit(TxWorkItem.builder("ops-pay-1")
+            .withTxPlan(opsPlan)
+            .withLane("operations")   // different identity: runs concurrently
+            .build());
+}
+```
+
+**Funding-address-derived lanes** need no resolver and no per-item lane name — the transaction's
+own funding source is the lane, so same-sender items serialize and different senders parallelize
+for free. An item whose transaction names no funding source fails typed
+`TXSTREAM_LANE_UNDERIVABLE`; an item that names a lane must name the derived one or fails
+`TXSTREAM_LANE_MISMATCH` (that last rule applies under `single(...)` too — a lane name is never a
+silent label):
+
+```java
+TxFlowStream stream = TxFlowStream.builder("payouts", engine)
+        .lanes(LanePolicy.byFundingAddress())
+        .executor(streamExecutor)
+        .build();
+```
+
+Give the stream `executor` at least as many threads as you want concurrently dispatching lanes;
+dispatch for different lanes is submitted as independent tasks.
+
+## Windows and planners
+
+By default there is no windowing and the `perItem()` planner plans every accepted item
+immediately as its own single-step flow — maximum lane parallelism, true per-item idempotency.
+Multi-item planning is opt-in via a `WindowPolicy` plus a planner:
+
+- `WindowPolicy.count(n)` — close the window at n items; no timer needed.
+- `WindowPolicy.countOrTime(n, maxAge)` — n items or the oldest item's age, whichever first.
+- `WindowPolicy.time(maxAge)` — age only.
+
+Time-based policies require the builder's `maintenanceExecutor(ScheduledExecutorService)`: the
+stream owns no threads or timers, so window-age wakeups run on your scheduler (one scheduled
+wakeup per open window).
+
+```java
+ScheduledExecutorService maintenance = Executors.newSingleThreadScheduledExecutor();
+
+TxFlowStream perWindowStream = TxFlowStream.builder("payouts-window", engine)
+        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        .planner(TxStreamPlanner.perWindow())
+        .window(WindowPolicy.countOrTime(50, Duration.ofSeconds(10)))
+        .maintenanceExecutor(maintenance)   // required for time-based windows
+        .executor(streamExecutor)
+        .build();
+
+TxFlowStream batchingStream = TxFlowStream.builder("payouts-batch", engine)
+        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        .planner(TxStreamPlanner.batching(BatchingOptions.builder()
+                .maxItemsPerTransaction(20)
+                .allowNonPaymentSingletons(true)
+                .build()))
+        .window(WindowPolicy.count(20))
+        .executor(streamExecutor)
+        .build();
+```
+
+The three built-in planners:
+
+- **`perItem()`** (default) — one single-step flow per item. The only planner with per-item
+  exactly-once; sources that redeliver individual items should use this one.
+- **`perWindow()`** — one shared flow per *lane group* in the window; each item rides its own
+  step (its own transaction) of the shared execution. Fewer engine executions, per-item
+  transactions preserved. Flow-level dedup only.
+- **`batching(options)`** — merges compatible payment-shaped items within a lane group into
+  **one** transaction (one flow, one merged step; overflow beyond `maxItemsPerTransaction`
+  splits into further merged flows). Fewer on-chain transactions and lower total fees; merged
+  members share one fate — the batch confirms or fails together:
+
+```java
+TxStreamItemResult a = first.completion().toCompletableFuture().join();
+TxStreamItemResult b = second.completion().toCompletableFuture().join();
+// Merged members share one transaction, one execution, one step:
+boolean merged = a.getTransactionHash().equals(b.getTransactionHash())
+        && a.getExecutionId().equals(b.getExecutionId())
+        && a.getStepId().equals(b.getStepId());
+
+Optional<TxStreamBatchResult> batch = stream.getBatchStatus("batch-1");
+batch.ifPresent(result -> System.out.println(result.status()
+        + " executions=" + result.executionIds()));
+```
+
+> **What is NOT batchable, and what merging drops.** Only pure payments merge: an item carrying a
+> script, mint, staking, governance, metadata, `collectFrom`, reference inputs, or a
+> contract/datum-bearing output is not payment-shaped and runs unmerged as its own single-item
+> flow (or fails the window typed, with `allowNonPaymentSingletons(false)`). The merged
+> transaction is a minimal reconstruction from the members' payment outputs plus the lane's
+> funding source — **per-member transaction context is not carried**: extra signers, custom fee
+> payer, change address, validity windows, and attached metadata are dropped. Items needing any
+> of that belong under `perItem()` or `perWindow()`. Batching fails closed if it would produce an
+> unsignable merged transaction.
+
+> **Dedup warning:** `perWindow()` and `batching(...)` provide flow-level dedup only, and under
+> batching a re-batched payment is a **real second on-chain payment**. Read
+> [dedup scopes](./txstream-durability#dedup-scopes-what-exactly-once-actually-covers) before
+> using either with a redelivering source.
+
+Custom planners implement `TxStreamPlanner` — plan a closed window into executions, deriving flow
+and step ids from the context's `StableIdFactory` (determinism is an SPI obligation: the same
+items must produce a byte-identical plan, or redeliveries become `TXFLOW_IDEMPOTENCY_CONFLICT`
+failures). Plans are validated before dispatch (`TXSTREAM_PLAN_INVALID`,
+`TXSTREAM_PLAN_CROSS_LANE`); a planner that throws fails only that window's items
+(`TXSTREAM_PLANNER_FAILED`), never the stream.
+
+## Partitioned lanes: the fan-out deep-dive
+
+`LanePolicy.partitioned(...)` is the full UTXO throughput story for a single logical wallet: a
+one-time bootstrap execution splits the funding source into N disjoint lane UTXOs (application-
+owned addresses), items are assigned by `hash(idempotencyKey) % N` (stable across restarts), and
+the N lanes run concurrently — throughput scales with N, not block time.
+
+```java
+PartitionedLanes partitioning = PartitionedLanes.fromRef("account://treasury")
+        .laneAddresses(laneAddresses)       // order is stability-critical
+        .seedPerLane(Amount.ada(200))
+        .bootstrap(true)                    // one-time fan-out split on start()
+        .build();
+
+TxFlowStream stream = TxFlowStream.builder("payouts-partitioned", durableEngine)
+        .lanes(LanePolicy.partitioned(partitioning))
+        .stateStore(TxStreamStateStore.inMemoryDurable())  // durable: drift fails fast
+        .executor(streamExecutor)
+        .build();
+stream.start();
+
+BootstrapReport bootstrap = stream.bootstrap();
+if (bootstrap.outcome() == BootstrapReport.Outcome.MATCHED) {
+    // a prior run already split the wallet; nothing was re-submitted
+}
+```
+
+The bootstrap is one idempotent engine execution, run by `start()` before the stream opens for
+work; its claim is derived from the funding source, addresses, and seed, so a restart or a second
+instance `MATCHED`s instead of re-splitting. A failed bootstrap fails `start()` typed
+(`TXSTREAM_BOOTSTRAP_FAILED`) — nothing dispatches against unfunded lanes. A crash after the
+split was submitted but before it confirmed leaves the bootstrap execution non-terminal: the next
+`start()` reports `FAILED` and an operator must reconcile it (e.g. `engine.recover(...)`) before
+the stream opens. With `bootstrap(false)` the lanes are assumed pre-funded. Min-ADA per lane and
+consolidating lanes on shutdown are the caller's economics — the stream never manages keys.
+
+> **FUNDS-CRITICAL: the partitioned configuration must be byte-stable across restarts.** The
+> funding source, the per-lane seed, the lane count N, and the lane-address list **including its
+> order** all feed the bootstrap's idempotency claim — changing any of them mints a *new* claim,
+> i.e. a new split that **re-drains the funding wallet**; and the address order additionally
+> defines the `partitionIndex → lane` mapping, so reordering remaps every item's lane even with N
+> and the addresses unchanged. A **durable** partitioned stream persists the bootstrap
+> fingerprint and fails `start()` typed (`TXSTREAM_BOOTSTRAP_CONFIG_DRIFT`) on any drift, before
+> submitting a split. A **non-durable** stream has nowhere to persist the fingerprint and
+> **cannot detect drift — it will silently re-split**. Run partitioned streams durable unless you
+> are certain the configuration is generated deterministically.
+
+Template items currently require an explicit lane (`single` or `explicit`); under
+`byFundingAddress()`/`partitioned(...)` they fail typed `TXSTREAM_LANE_REQUIRED`.
+
+## Honest throughput expectations
+
+What the current built-ins actually deliver:
+
+- **Lanes are real parallelism** — N disjoint funding scopes give up to N concurrent in-flight
+  executions (devnet-validated), bounded by `maxInFlight`.
+- **Batching is real transaction reduction** — up to `maxItemsPerTransaction` payments per
+  on-chain transaction (devnet-validated: two payments merged into one transaction).
+- **Within one flow, the built-in planners build SEQUENTIAL flows**: a `perWindow()` flow of 50
+  items confirms its 50 steps one confirmation at a time, and a lane running `perItem()` flows
+  waits for each item's confirmation before dispatching the next. Intra-lane pipelining —
+  chaining a transaction off a previous transaction's *unconfirmed* outputs — is an engine
+  capability that is **not yet reachable through the built-in planners**. It is a roadmap item;
+  do not size a deployment assuming it.
+
+So today's levers, in order: **more lanes** (explicit or partitioned), then **batching** (fewer,
+larger transactions), then window sizing. If a lane must exceed roughly one transaction per
+confirmation interval and batching cannot absorb it, that is the signal to partition further.
+
+## Feeding a stream from java.util.concurrent.Flow
+
+For reactive pipelines, `TxWorkSource.fromPublisher(...)` bridges a `Flow.Publisher<TxWorkItem>`
+with real demand-based backpressure: the adapter prefetches a bounded number of items (default
+64), requests one more as each accepted item settles, and parks items while the buffer is full or
+the stream is an ownership standby (`PAUSED`) — items are never dropped and demand is never
+unbounded. `TxStreamFlowPublisher` is the outbound half: an event listener that publishes item
+results to `Flow` subscribers.
+
+```java
+SubmissionPublisher<TxWorkItem> publisher = new SubmissionPublisher<>();
+FlowWorkSource source = TxWorkSource.fromPublisher(publisher, 64);
+
+TxStreamFlowPublisher results = TxStreamFlowPublisher.terminalOnly();
+
+try (TxFlowStream stream = TxFlowStream.builder("payouts-reactive", engine)
+        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        .source(source)
+        .eventListener(results)
+        .executor(streamExecutor)
+        .build()) {
+    results.subscribe(resultSubscriber);   // Flow.Subscriber<TxStreamItemResult>
+    stream.start();
+
+    publisher.submit(TxWorkItem.builder("pay-1")
+            .withTxPlan(plan)
+            .build());
+    publisher.close();
+
+    source.terminated().toCompletableFuture().join();   // publisher finished
+    stream.drain();                                     // accepted work settles
+}
+```
+
+> **Subscribers must not block in `onNext` (Reactive Streams §2.2).** Delivery is inline on the
+> stream's callback thread — the thread that advanced the item's projection. A subscriber that
+> blocks inside `onNext` stalls that lane's further dispatch (other lanes, other subscribers, and
+> the item's own `completion()` are unaffected). A merely *slow* (under-requesting) subscriber is
+> different and safe: its bounded buffer (default 256) overflows and it is terminated with
+> `TxStreamSubscriberOverflowException` and dropped — it never back-pressures the stream.
+
+## Scalability notes
+
+- **`maxInFlight`** (default 16) caps concurrent executions across all lanes, on top of the
+  one-per-lane rule. Ready lanes are scheduled round-robin, so one lane's backlog cannot starve
+  the others.
+- **Lane maps are unbounded.** Resolved lane identities and their FIFO state are retained for the
+  stream's lifetime. Under `byFundingAddress()` with high-cardinality senders (many thousands of
+  distinct funding addresses through one stream), that map grows without bound — prefer a bounded
+  set of explicit or partitioned lanes for that shape.
+- **`maxBufferSize`** (default 1000) bounds accepted-but-undispatched items; `submit` blocks and
+  `trySubmit` reports `FULL` when it is reached. A count-only window larger than the buffer is
+  rejected at `build()` (it could never fill).
+- One stream instance per lane set: sharing a lane's funding scope across processes without
+  ownership mode is out of scope until the engine's cross-process busy-claim path lands; the
+  engine's spending-resource coordination is the safety net, not a throughput feature.
+
+## Continue
+
+- [TxStream Getting Started](./txstream-getting-started) — item identity, receipts, lifecycle.
+- [TxStream: Durability & Exactly-Once](./txstream-durability) — dedup scopes (mandatory reading
+  for `perWindow()`/`batching()`), re-attach, and HA.
