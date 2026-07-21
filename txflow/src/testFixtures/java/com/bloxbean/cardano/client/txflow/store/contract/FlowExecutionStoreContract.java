@@ -396,6 +396,78 @@ public abstract class FlowExecutionStoreContract {
         assertEquals(1, store.get("events").orElseThrow().compactedThroughSequence());
     }
 
+    @Test
+    void listExecutionsScopesToNamespaceFiltersStateAndPaginatesInStableOrder() {
+        store.createOrGet("tenant-a", "k1", snapshot("exec-a", "definition", "request"));
+        store.createOrGet("tenant-a", "k2", snapshot("exec-b", "definition", "request"));
+        store.createOrGet("tenant-a", "k3", snapshot("exec-c", "definition", "request"));
+        store.createOrGet("tenant-b", "k4", snapshot("exec-d", "definition", "request"));
+
+        // Namespace scoping: a namespace never sees another namespace's executions.
+        assertEquals(List.of("exec-a", "exec-b", "exec-c"),
+                ids(store.listExecutions("tenant-a", Set.of(), 10, null)));
+        assertEquals(List.of("exec-d"),
+                ids(store.listExecutions("tenant-b", null, 10, null)));
+        assertTrue(store.listExecutions("tenant-c", Set.of(), 10, null).isEmpty(),
+                "an unknown namespace returns an empty page");
+
+        // Keyset pagination: complete, in stable order, with no duplicates across pages.
+        List<FlowExecutionSnapshot> firstPage = store.listExecutions("tenant-a", Set.of(), 2, null);
+        assertEquals(List.of("exec-a", "exec-b"), ids(firstPage));
+        List<FlowExecutionSnapshot> secondPage = store.listExecutions("tenant-a", Set.of(), 2,
+                firstPage.get(firstPage.size() - 1).executionId());
+        assertEquals(List.of("exec-c"), ids(secondPage));
+        assertTrue(store.listExecutions("tenant-a", Set.of(), 2, "exec-c").isEmpty(),
+                "a cursor at the last key returns an empty page");
+
+        // State filtering: advance one execution and filter on its new state.
+        ExecutionLease lease = store.acquireExecutionLease(
+                "exec-b", "owner", NOW, Duration.ofMinutes(1));
+        store.append("exec-b", 0, MutationFence.executionOnly(lease),
+                List.of(event(1, "exec-b", FlowEventType.EXECUTION_STARTED)),
+                current -> current.withState(FlowExecutionState.RUNNING, NOW.plusSeconds(1),
+                        Map.of()));
+        assertEquals(List.of("exec-b"), ids(store.listExecutions(
+                "tenant-a", Set.of(FlowExecutionState.RUNNING), 10, null)));
+        assertEquals(List.of("exec-a", "exec-c"), ids(store.listExecutions(
+                "tenant-a", Set.of(FlowExecutionState.CREATED), 10, null)));
+        assertEquals(List.of("exec-a", "exec-b", "exec-c"), ids(store.listExecutions("tenant-a",
+                Set.of(FlowExecutionState.CREATED, FlowExecutionState.RUNNING), 10, null)));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> store.listExecutions("tenant-a", Set.of(), 0, null));
+    }
+
+    @Test
+    void voidingAClaimMakesItReClaimableAndProtectsStartedExecutions() {
+        store.createOrGet("tenant", "void-key", snapshot("void-exec", "definition", "request"));
+
+        store.deleteExecution("void-exec");
+        assertTrue(store.get("void-exec").isEmpty(), "a voided execution is removed");
+
+        // The voided tuple is re-claimable and starts a fresh execution.
+        IdempotencyClaimResult reclaimed = store.createOrGet(
+                "tenant", "void-key", snapshot("void-exec", "definition", "request"));
+        assertTrue(reclaimed.created(), "a voided claim is re-claimable as a new execution");
+
+        // Once an execution records journal events it is no longer voidable.
+        ExecutionLease lease = store.acquireExecutionLease(
+                "void-exec", "owner", NOW, Duration.ofMinutes(1));
+        store.append("void-exec", 0, MutationFence.executionOnly(lease),
+                List.of(event(1, "void-exec", FlowEventType.EXECUTION_STARTED)),
+                current -> current.withState(FlowExecutionState.RUNNING, NOW.plusSeconds(1),
+                        Map.of()));
+        assertCode("TXFLOW_EXECUTION_NOT_VOIDABLE", () -> store.deleteExecution("void-exec"));
+        assertTrue(store.get("void-exec").isPresent(),
+                "a started execution survives a rejected void");
+
+        assertCode("TXFLOW_EXECUTION_NOT_FOUND", () -> store.deleteExecution("missing-exec"));
+    }
+
+    private List<String> ids(List<FlowExecutionSnapshot> snapshots) {
+        return snapshots.stream().map(FlowExecutionSnapshot::executionId).toList();
+    }
+
     private FlowExecutionSnapshot snapshot(String id, String definition, String request) {
         return new FlowExecutionSnapshot(id, definition, request, FlowExecutionState.CREATED,
                 0, 0, 0, NOW, Map.of());

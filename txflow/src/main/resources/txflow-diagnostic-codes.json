@@ -34,6 +34,7 @@
     "TXFLOW_EXECUTION_FAILED": "Execution ended with a transaction-flow failure.",
     "TXFLOW_EXECUTION_ID_CONFLICT": "An execution ID is already associated with different fingerprints.",
     "TXFLOW_EXECUTION_NOT_FOUND": "The durable execution does not exist.",
+    "TXFLOW_EXECUTION_NOT_VOIDABLE": "A started execution with journal events cannot be voided.",
     "TXFLOW_EXPRESSION_IN_KEY": "Portable parameter expressions are forbidden in property names.",
     "TXFLOW_EXPRESSION_SYNTAX": "Expression syntax belongs to a different document version.",
     "TXFLOW_FIELD_TYPE": "A portable document field has the wrong scalar or container type.",

@@ -20,6 +20,7 @@ import com.bloxbean.cardano.client.txflow.recovery.FlowRecoveryRequest;
 import com.bloxbean.cardano.client.txflow.recovery.FlowRecoveryResult;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStatus;
+import com.bloxbean.cardano.client.txflow.store.EventReadResult;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionStore;
 import com.bloxbean.cardano.client.txflow.store.FlowStoreException;
@@ -39,6 +40,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
@@ -357,6 +359,95 @@ public final class FlowEngine {
         }
     }
 
+    /**
+     * Reports the fixed capabilities of this engine so callers can enforce their own invariants
+     * at construction time.
+     *
+     * <p>Read-only and constant for a given engine. In particular
+     * {@link EngineCapabilities#durableExecution()} is {@code true} exactly when a
+     * {@link FlowExecutionStore} is configured; a durable-mode caller (for example a stream whose
+     * crash recovery assumes "no stored execution ⇒ it never ran") should require it before
+     * pairing itself with this engine.</p>
+     *
+     * @return this engine's capability probe
+     */
+    public EngineCapabilities capabilities() {
+        return new EngineCapabilities(store != null);
+    }
+
+    /**
+     * Reads the durable snapshot of one execution, if this engine has a store
+     * and the execution is known to it.
+     *
+     * <p>This is a read-only projection seam: it never mutates store state,
+     * takes no lease, and is safe to call for executions owned by other
+     * processes. On an engine without a durable store it always returns
+     * empty — live executions started by this engine are observed through
+     * their {@link FlowExecutionHandle} instead.</p>
+     *
+     * @param executionId execution identifier to look up
+     * @return durable snapshot when present
+     */
+    public Optional<FlowExecutionSnapshot> executionSnapshot(String executionId) {
+        requireExecutionId(executionId);
+        if (store == null) return Optional.empty();
+        return store.get(executionId);
+    }
+
+    /**
+     * Reads a compaction-safe page of one stored execution's events together
+     * with the snapshot baseline they extend.
+     *
+     * <p>The store may compact terminal-prefix events. When {@code
+     * afterSequence} predates the snapshot's compaction watermark, the cursor
+     * is clamped to the watermark and the returned view reports
+     * {@link ExecutionEventView#rebaselined()} — the caller must project from
+     * the baseline snapshot and treat the events as post-baseline detail
+     * only, never as a complete history. A concurrent compaction between the
+     * snapshot read and the event read is retried with a fresh baseline, so
+     * callers never observe the store's {@code EVENTS_COMPACTED} failure.</p>
+     *
+     * @param executionId execution whose journal is read
+     * @param afterSequence exclusive, non-negative sequence cursor
+     * @param limit maximum number of events to return; must be positive
+     * @return baseline snapshot plus the event tail, or empty when the engine
+     *         has no durable store or the execution is unknown
+     */
+    public Optional<ExecutionEventView> executionEvents(String executionId, long afterSequence, int limit) {
+        requireExecutionId(executionId);
+        if (afterSequence < 0) throw new IllegalArgumentException("afterSequence cannot be negative");
+        if (limit < 1) throw new IllegalArgumentException("limit must be positive");
+        if (store == null) return Optional.empty();
+
+        FlowStoreException lastCompaction = null;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            Optional<FlowExecutionSnapshot> baseline = store.get(executionId);
+            if (baseline.isEmpty()) return Optional.empty();
+            boolean rebaselined = afterSequence < baseline.get().compactedThroughSequence();
+            long effectiveCursor = rebaselined
+                    ? baseline.get().compactedThroughSequence()
+                    : afterSequence;
+            try {
+                EventReadResult page = store.readEvents(executionId, effectiveCursor, limit);
+                return Optional.of(new ExecutionEventView(
+                        baseline.get(), page.events(), page.nextSequence(), rebaselined));
+            } catch (FlowStoreException e) {
+                // The watermark advanced between the snapshot and event reads;
+                // retry with a fresh baseline. Watermarks are monotonic, so
+                // this converges unless compaction outruns every retry.
+                if (!"EVENTS_COMPACTED".equals(e.getCode())) throw e;
+                lastCompaction = e;
+            }
+        }
+        throw lastCompaction;
+    }
+
+    private static void requireExecutionId(String executionId) {
+        if (executionId == null || executionId.isBlank()) {
+            throw new IllegalArgumentException("executionId cannot be null or blank");
+        }
+    }
+
     private FlowAttemptSnapshot resolveRecoveryAttempt(FlowRecoveryRequest request) {
         if (store == null) {
             throw new IllegalStateException("A FlowExecutionStore is required to recover by execution ID");
@@ -562,6 +653,7 @@ public final class FlowEngine {
                 ? new DurableLeaseGuard(store, clock, leaseDuration, maintenanceExecutor) : null;
         Instant started = clock.instant();
         boolean executionLeaseAcquired = false;
+        boolean voidBusyClaim = false;
         FlowResult legacy = null;
         try {
             if (store != null) {
@@ -689,12 +781,20 @@ public final class FlowEngine {
                     leaseHealthFailure ? FlowErrorCategory.PERSISTENCE : classify(failure),
                     Objects.toString(failure.getMessage(), failure.getClass().getSimpleName()),
                     null, recoveryRequired || resourceBusy);
+            // P3: resource-busy in durable mode must not persist a terminal FAILED under the
+            // caller's idempotency claim; a same-key retry would MATCH the stored failure forever.
+            // Instead the just-created, not-yet-started claim is voided after leases are released
+            // (below), so createOrGet by the same key later starts fresh. Execution-lease
+            // contention is excluded here (executionLeaseAcquired is false): that claim belongs to
+            // another live owner and must not be voided.
+            voidBusyClaim = resourceBusy && store != null && executionLeaseAcquired
+                    && !leaseHealthFailure;
             journal.record(recoveryRequired
                             ? FlowEventType.RECOVERY_REQUIRED : FlowEventType.EXECUTION_FAILED,
                     null, null, Map.of("message", String.valueOf(failure.getMessage())));
             FlowExecutionState failureState = recoveryRequired
                     ? FlowExecutionState.RECOVERY_REQUIRED : FlowExecutionState.FAILED;
-            if (store != null && executionLeaseAcquired && !leaseHealthFailure) {
+            if (store != null && executionLeaseAcquired && !leaseHealthFailure && !voidBusyClaim) {
                 try {
                     FlowExecutionState persistedState = failureState;
                     String failureCode = error.code();
@@ -727,6 +827,17 @@ public final class FlowEngine {
         } finally {
             if (store != null) {
                 leases.close();
+                if (voidBusyClaim) {
+                    // Leases are released above, so the not-yet-started execution and its claim can
+                    // be removed. Best-effort: the busy handle is already completed; if the void
+                    // cannot proceed the claim stays at CREATED (non-terminal) and a retry recovers
+                    // rather than matching a permanent failure.
+                    try {
+                        store.deleteExecution(request.getExecutionId());
+                    } catch (RuntimeException ignored) {
+                        // Voiding is a cleanup step and never changes the returned busy outcome.
+                    }
+                }
             }
             if (spendingAcquisition != null) spendingAcquisition.close();
             activeExecutions.remove(request.getExecutionId(), active);
