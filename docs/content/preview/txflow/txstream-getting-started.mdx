@@ -351,3 +351,6 @@ report.quiescence().toCompletableFuture().join();   // signalled executions sett
   `RECOVERY_REQUIRED` handling, and active/standby HA.
 - [TxStream: Lanes, Batching & Throughput](./txstream-throughput) — the UTXO concurrency model,
   lane policies, windows and planners, partitioned fan-out, and honest throughput expectations.
+- [TxStream: Smart Contracts](./txstream-contracts) — an order-escrow settlement tutorial with a
+  real Aiken vault: the portable script surface (`collectFrom` + validator attachment),
+  idempotent claims, and serializing contract-UTXO contention on one lane.

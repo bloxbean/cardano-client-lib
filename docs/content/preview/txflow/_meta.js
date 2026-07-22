@@ -9,6 +9,7 @@ export default {
   'txstream-getting-started': 'TxStream Getting Started',
   'txstream-durability': 'TxStream: Durability & Exactly-Once',
   'txstream-throughput': 'TxStream: Lanes & Throughput',
+  'txstream-contracts': 'TxStream: Smart Contracts',
   'legacy-flowexecutor': 'Legacy FlowExecutor',
   'building-flows': 'Legacy: Building Flows',
   'chaining-modes': 'Legacy: Chaining Modes',
