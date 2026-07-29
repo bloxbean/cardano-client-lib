@@ -1,0 +1,311 @@
+---
+title: "Durable Runtime"
+description: "Persist TxFlow attempts with H2 or PostgreSQL, fenced leases, and explicit recovery"
+---
+
+# Durable TxFlow Runtime
+
+> **Preview API**: the durable runtime and RDBMS extension may change before the stable release.
+
+`FlowEngine` can run without a store, with the process-local reference store, or with the optional
+JDBC store. Choose deliberately:
+
+| Configuration | Survives process restart | Intended use |
+|---|---:|---|
+| No `FlowExecutionStore` | No | Simple non-durable execution |
+| `InMemoryFlowExecutionStore` | No | Reference semantics, unit tests, and local experiments |
+| H2 file-backed `RdbmsFlowExecutionStore` | Yes | Single-JVM, local-disk restart recovery |
+| PostgreSQL `RdbmsFlowExecutionStore` | Yes | Shared durable state and multi-process state fencing |
+
+`InMemoryFlowExecutionStore` implements the same atomic claim, journal, lease, and fencing
+contract as durable adapters, but all of its state disappears with the JVM. Do not use it as a
+database substitute when recovery after a crash matters.
+
+## Dependency
+
+The relational store is an optional module and does not add database dependencies to the core
+`cardano-client-txflow` artifact:
+
+```gradle
+def cclVersion = "0.8.0-pre5-SNAPSHOT"
+
+dependencies {
+    implementation "com.bloxbean.cardano:cardano-client-txflow-store-rdbms:${cclVersion}"
+}
+```
+
+Maven:
+
+```xml
+<dependency>
+  <groupId>com.bloxbean.cardano</groupId>
+  <artifactId>cardano-client-txflow-store-rdbms</artifactId>
+  <version>0.8.0-pre5-SNAPSHOT</version>
+</dependency>
+```
+
+The extension includes H2 at runtime. It deliberately does **not** include the PostgreSQL JDBC
+driver or a connection pool; a PostgreSQL application supplies both.
+
+## Complete file-backed H2 wiring
+
+The following example wires a backend, a file-backed store, independently schedulable execution
+and lease-maintenance executors, and a durable request. Substitute your own `BackendService`,
+definition, bindings, and signer registry.
+
+```java
+ExecutorService flowTasks = Executors.newFixedThreadPool(8);
+ExecutorService leaseMaintenance = Executors.newFixedThreadPool(4);
+
+try (RdbmsFlowExecutionStore store = RdbmsFlowExecutionStore.builder()
+        .jdbcUrl("jdbc:h2:file:./data/txflow")
+        .schemaManagement(SchemaManagement.MIGRATE)
+        .build()) {
+
+    FlowEngine engine = FlowEngine.builder(
+                    new DefaultUtxoSupplier(backendService.getUtxoService()),
+                    new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                    new DefaultTransactionProcessor(backendService.getTransactionService()),
+                    new DefaultChainDataSupplier(backendService))
+            .executor(flowTasks)
+            .maintenanceExecutor(leaseMaintenance)
+            .signerRegistry(signerRegistry)
+            .store(store)
+            .leaseDuration(Duration.ofSeconds(30))
+            .ownerToken("payments-" + UUID.randomUUID())
+            .build();
+
+    FlowExecutionRequest request = FlowExecutionRequest.builder(definition)
+            .executionId(executionId)
+            .idempotency(tenantId, operationId)
+            .bindings(bindings)
+            .build();
+
+    FlowExecutionResult result = engine.executeSync(request);
+    if (!result.isSuccessful()) {
+        // Inspect result.state(), result.error(), and result.attempts().
+    }
+} finally {
+    flowTasks.shutdown();
+    leaseMaintenance.shutdown();
+}
+```
+
+Keep the store and both executors alive until every asynchronous handle has completed. Neither the
+engine nor the store shuts down application executors. The maintenance-pool size above is only an
+example. Bound and size it for the maximum concurrent renewal load, JDBC connection-acquisition
+latency, and the database pool; configure bounded acquisition timeouts and monitor queue/rejection
+rates. One blocked JDBC renewal must not delay every active execution past lease expiry. Avoid an
+unbounded cached pool as well as a single renewal thread.
+
+For builder-managed H2 URLs, the store:
+
+- uses simple, non-pooling `DriverManager` connections;
+- defaults to `SchemaManagement.MIGRATE`;
+- requires H2 2.x or later;
+- adds `WRITE_DELAY=0` unless the URL explicitly chooses another value; and
+- owns one anchor connection, which it closes when the store closes.
+
+The certified file profile is single JVM. H2 `AUTO_SERVER`, H2 network-server mode, and sharing one
+database file between processes are outside this compatibility claim. A non-zero `WRITE_DELAY`
+trades the tested process-restart durability profile for throughput. An application-supplied H2
+`DataSource` owns its own URL and must configure its durability settings itself.
+
+## JDBC URL and driver discovery
+
+URL mode is also available for command-line tools and small services. Keep credentials in separate
+builder values rather than embedding them in a logged URL:
+
+```java
+RdbmsFlowExecutionStore store = RdbmsFlowExecutionStore.builder()
+        .jdbcUrl(jdbcUrl)
+        .username(jdbcUsername)
+        .password(jdbcPassword)
+        // Usually omit this: JDBC 4 discovers a driver present on the classpath.
+        // .driverClassName("org.postgresql.Driver")
+        .dialect(PostgresDialect.INSTANCE)
+        .schemaManagement(SchemaManagement.VALIDATE)
+        .build();
+```
+
+Exactly one of `jdbcUrl(...)` and `dataSource(...)` is required. URL credentials and
+`driverClassName(...)` cannot accompany a `DataSource`, and a password requires a username. H2 and
+PostgreSQL dialects are detected from a recognized URL or database metadata unless explicitly
+selected. Unknown products fail fast. URL mode uses non-pooling `DriverManager` connections;
+prefer an application-managed pooled `DataSource` for normal PostgreSQL services.
+
+## PostgreSQL through an application `DataSource`
+
+Use an application-managed pool for normal PostgreSQL deployments. The pool must return ordinary
+local-transaction JDBC connections; do not supply connections enlisted in JTA or another ambient
+transaction.
+
+```java
+DataSource applicationPool = createApplicationPool();
+
+try (RdbmsFlowExecutionStore store = RdbmsFlowExecutionStore.builder()
+        .dataSource(applicationPool)
+        .dialect(PostgresDialect.INSTANCE)
+        .schemaManagement(SchemaManagement.VALIDATE)
+        .build()) {
+
+    FlowEngine engine = FlowEngine.builder(
+                    utxoSupplier,
+                    protocolParamsSupplier,
+                    transactionProcessor,
+                    chainDataSupplier)
+            .executor(flowTasks)
+            .maintenanceExecutor(leaseMaintenance)
+            .store(store)
+            .leaseDuration(Duration.ofSeconds(30))
+            .ownerToken(processUniqueOwnerToken)
+            .build();
+
+    FlowExecutionHandle handle = engine.start(request);
+    FlowExecutionResult result = handle.await();
+}
+
+// The application closes applicationPool separately during application shutdown.
+```
+
+The store borrows and closes a connection for each operation, but never closes the supplied
+`DataSource` or pool. Configure the PostgreSQL driver, pool sizing, acquisition timeouts, TLS,
+credentials, and credential rotation in the application. The automated certification profile is
+PostgreSQL 17.x, currently 17.6; qualify other major versions with the complete conformance and
+database integration suites before claiming support.
+
+For shared databases, run migrations with a schema-owner role, then run the application with a
+narrower runtime role and `VALIDATE`. Pin the connection's current schema/search path; TxFlow
+validates only that effective schema.
+
+## Thread and lifecycle ownership
+
+`RdbmsFlowExecutionStore` is synchronous: JDBC work runs on the calling thread. The store creates
+no executor, scheduler, worker thread, or hidden connection pool. It closes only resources it
+created—principally the H2 anchor connection—and rejects new operations after `close()`. It never
+closes an application `DataSource`.
+
+`FlowEngine` requires a caller-owned execution `Executor`. Durable mode additionally requires a
+caller-owned maintenance `Executor` so lease renewal remains schedulable while flow work blocks.
+The engine creates, owns, and shuts down neither executor. Driver and pool implementations may
+have their own housekeeping threads; those remain application/library configuration concerns.
+
+## Schema management
+
+`SchemaManagement` controls startup behavior:
+
+| Mode | Behavior | Typical use |
+|---|---|---|
+| `MIGRATE` | Checks migration history and checksums, applies pending forward migrations, then validates the schema | Embedded H2 or a controlled deployment migration phase |
+| `VALIDATE` | Requires the current compatible schema without modifying it | Application-managed PostgreSQL and normal runtime startup |
+| `NONE` | Skips schema/history/object migration and validation | An externally managed schema that was independently verified |
+
+URL configuration defaults to `MIGRATE`; an application-supplied `DataSource` defaults to
+`VALIDATE`. Choosing `MIGRATE` for a shared `DataSource` must be explicit. `NONE` still checks
+configured JDBC product/dialect compatibility (and PostgreSQL server encoding), but it is not a
+schema compatibility assertion: missing objects may fail only when exercised, while subtler drift
+may go undetected.
+
+The extension owns its migration resources, internal schema manager, and
+`txflow_schema_history`. These are not Flyway migrations and are not registered with an
+application's Flyway history. Do not add the packaged `db/txflow/<dialect>/V1__txflow_store.sql`
+resources to Flyway locations merely because their filenames use a familiar versioned shape; use
+the `SchemaManagement` modes above. An application may orchestrate when the extension runs
+`MIGRATE`, but the extension remains the owner of its schema history and checksums.
+
+With `MIGRATE` or `VALIDATE`, the store refuses a newer schema, a changed migration checksum, or
+pre-existing `txflow_*` objects without compatible migration history. Startup validation checks
+the required tables, columns, keys, indexes, timestamp precision/time-zone behavior, payload
+capacity, and identity comparison semantics. PostgreSQL additionally requires UTF-8 server
+encoding.
+
+## What durable mode guarantees
+
+Durable mode coordinates four related concerns:
+
+1. **Idempotency.** `createOrGet` atomically claims a namespace/key. Reusing it with the same
+   definition and execution-request fingerprints returns the existing logical execution; a
+   mismatch fails with `TXFLOW_IDEMPOTENCY_CONFLICT`. Execution IDs are independently checked and
+   cannot be attached to different fingerprints.
+2. **Atomic journals and snapshots.** A revision compare-and-set, ordered event append, lease
+   validation, and snapshot replacement commit in one store transaction.
+3. **Execution leases.** Only the current owner and fencing epoch may mutate an execution. Renewal
+   keeps the epoch; takeover after expiry receives a higher epoch.
+4. **Spending-resource leases.** Canonical spending identities are acquired in sorted order and
+   included in every mutation fence, preventing stale workers from updating durable state.
+
+The engine renews leases on the independent maintenance executor. Provision it so that blocked
+flow tasks, connection-pool waits, or spending-resource contention cannot starve renewal. On Java
+17 use application-owned platform-thread executors. A Java 21 application may supply virtual-thread
+executors through the same `Executor` API.
+
+## Restart recovery
+
+The durable snapshot retains the exact signed payload (or an external payload reference), its
+SHA-256 digest, Cardano transaction hash, validity bounds, spent inputs, inclusion history, and
+attempt state. After recreating the store and engine, recover an uncertain attempt by execution
+identity. Supply a fresh authoritative Cardano **slot**—not a block height or wall-clock value—and
+fail closed when it is unavailable; the engine does not independently establish that the supplied
+slot is current:
+
+```java
+FlowRecoveryResult recovery = engine.recover(FlowRecoveryRequest.builder()
+        .executionId(executionId)
+        .stepId("payment")
+        .attemptNumber(1)
+        .currentSlot(currentSlot)
+        .resubmitSafetyMargin(20)
+        .build());
+
+if (recovery.state() == AttemptState.RECOVERY_REQUIRED) {
+    // Stop automatic progress and route recovery.error() to an operator workflow.
+}
+```
+
+`stepId` and `attemptNumber` are optional at the API level; without them, the engine selects the
+highest attempt number among all matching steps. Operator and cross-process runbooks should require
+both selectors unless the target is demonstrably unambiguous.
+
+Recovery acquires the execution and recorded spending-resource leases, journals its progress,
+looks up the persisted transaction hash, and updates the attempt snapshot. It may resubmit only
+the verified **identical signed bytes**, and only while the recorded validity interval remains
+safely open when an upper validity slot was recorded. With no `validToSlot`, the stock coordinator
+can resubmit the identical payload without an expiry check. Controlled server deployments should
+use `FlowExecutionPolicy.builder().requireValidityInterval(true).build()`, obtain a fresh
+authoritative slot, and
+choose a deployment-specific safety margin. It never treats an empty backend lookup as permission
+to build a different transaction.
+
+The built-in `FlowEngine` persistence path stores signed CBOR inline. `SignedPayload.ExternalCbor`
+is supported by the store codec and recovery coordinator for a custom or pre-seeded persistence
+path; there is currently no `FlowEngine.Builder` switch that externalizes payloads automatically.
+When recovering such a custom record, provide `SignedPayloadResolver` through
+`FlowRecoveryRequest.payloadResolver(...)`; CCL verifies both the digest and Cardano transaction
+hash after loading the bytes.
+
+`recover(...)` reconciles and records one attempt. It does not restart remaining steps, rebuild a
+transaction, or resume the whole business flow. The application must interpret the result and
+invoke its higher-level continuation or operator workflow explicitly. An inconclusive result
+remains `RECOVERY_REQUIRED` with its history preserved.
+
+## Fencing limitation
+
+Database fencing protects TxFlow **state writes**. It cannot stop a partitioned stale process that
+already holds signed bytes from submitting them to Cardano, because the chain does not consult the
+database lease. Deployments that require race-free active-active spending must additionally
+serialize submission externally or implement a UTxO reservation/coordinator protocol.
+
+## Next steps and source references
+
+- [Operations and Testing](/docs/preview/txflow/operations-testing) covers uncertainty handling,
+  backup/restore, monitoring, and the verification matrix.
+- [Portable Authoring](/docs/preview/txflow/portable-authoring) covers flow definitions and
+  bindings.
+- [Execution Engine](/docs/preview/txflow/execution-engine) covers parsing, preflight, request
+  construction, and `FlowEngine` wiring.
+- [Policies, Results, and Observability](/docs/preview/txflow/policies-results-observability)
+  covers execution outcomes, cancellation, and ordinary retry behavior.
+- [RDBMS store README](https://github.com/bloxbean/cardano-client-lib/tree/master/txflow-extensions/txflow-store-rdbms)
+  is the module-level compatibility reference.
+- [ADR 0003](https://github.com/bloxbean/cardano-client-lib/blob/master/txflow/adr/0003-relational-durable-store-extension.md)
+  records the relational-store decisions and limits.

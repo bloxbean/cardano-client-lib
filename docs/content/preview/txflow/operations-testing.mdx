@@ -1,0 +1,356 @@
+---
+title: "Operations and Testing"
+description: "Operate, monitor, back up, restore, and verify the durable TxFlow runtime"
+---
+
+# TxFlow Operations and Testing
+
+> **Preview API**: qualify the durable runtime in your own deployment environment before production use.
+
+This guide is the day-two companion to [Durable Runtime](/docs/preview/txflow/durable-runtime).
+It covers database uncertainty, restart and restore procedures, security, monitoring, and the
+Java 17 test matrix.
+
+## Operational invariants
+
+Keep these rules in the deployment runbook:
+
+- Treat the execution snapshot, idempotency claim, event journal, signed attempt payload, lease
+  rows, global lease epoch, and migration history as one recovery boundary.
+- Never infer Cardano state from database state alone. A database restore cannot undo a
+  transaction that was already submitted to the network.
+- Do not manually update or delete TxFlow rows. Use the store API and terminal-only event
+  compaction.
+- Do not automatically retry a database operation whose commit or rollback outcome is uncertain.
+- Keep the flow executor and the lease-maintenance executor independently schedulable.
+- Database fencing protects state writes, not submission by a partitioned process that already
+  holds signed bytes.
+
+## Commit and rollback uncertainty
+
+The RDBMS store closes the affected JDBC connection and reports a stable code when the driver
+cannot establish the transaction outcome:
+
+| Code | Meaning | Immediate action |
+|---|---|---|
+| `TXFLOW_STORE_COMMIT_UNCERTAIN` | The database may have committed before the driver reported failure | Stop automatic retry and reconcile authoritative state |
+| `TXFLOW_STORE_ROLLBACK_UNCERTAIN` | The driver could not confirm rollback after an operation failed | Stop automatic retry and reconcile authoritative state |
+
+Both codes mean **unknown**, not failed. Preserve the execution ID, application idempotency pair,
+operation name, timestamp, SQL state, vendor code, and relevant backend observations in the
+incident record.
+
+### Execution-store operation runbook
+
+After database connectivity is stable:
+
+1. Load the execution by its stable execution ID and inspect its revision, lifecycle state,
+   attempts, and journal tail.
+2. Preserve the original idempotency namespace/key and all request fields. If a later retry is
+   authorized, the same canonical request must resolve to the existing claim; a fingerprint
+   conflict must not be overridden or repaired by editing tables.
+3. For every signed or submission-uncertain attempt, reconcile the persisted transaction hash
+   against Cardano chain state. Do not create a new body merely because one backend lookup is
+   empty or temporarily unavailable.
+4. Obtain a fresh authoritative Cardano slot—not block height or wall-clock time—and fail closed
+   if it is unavailable. `FlowEngine` trusts the request's `currentSlot`; it does not establish
+   freshness itself.
+5. Use `FlowEngine.recover(FlowRecoveryRequest)` with explicit step and attempt selectors when
+   reconciliation is required. It can resubmit only verified identical signed bytes. The safety
+   margin is enforced only when `validToSlot` was persisted; require validity intervals by policy
+   for controlled recovery.
+6. Resume business processing only after the database and chain observations establish the
+   allowed next state. Route an inconclusive result to an operator as `RECOVERY_REQUIRED`.
+
+Do not blindly repeat external transaction submission. The original submission may have reached
+the node even when the local database transition or response did not complete cleanly.
+
+### Schema-management runbook
+
+An uncertainty code can also be raised while `RdbmsFlowExecutionStore.builder().build()` is
+applying or validating the schema. There is no execution ID to reconcile in that case.
+
+1. Stop additional application instances from attempting migration.
+2. Inspect `txflow_schema_history`, the actual `txflow_*` objects, and database server logs using
+   the schema-owner role.
+3. After connectivity is stable, run startup with `SchemaManagement.VALIDATE` to establish whether
+   the current schema is complete and compatible.
+4. Do not rerun `MIGRATE` until the previous migration outcome is understood. Do not edit the
+   checksum or history row to force acceptance.
+5. Restore or repair only through a version-specific, reviewed migration procedure.
+
+The extension uses its own schema manager and `txflow_schema_history`; it does not register these
+migrations with application Flyway. Do not add the packaged dialect resources to Flyway's
+locations or create parallel Flyway history for them. The `V1__txflow_store.sql` filename is an
+internal versioned resource name, not an instruction to execute it through Flyway.
+
+## Restart and recovery procedure
+
+For an ordinary process restart:
+
+1. Reopen the same H2 file or connect to the same PostgreSQL schema.
+2. Build the store with `VALIDATE` in shared deployments. File-backed builder-managed H2 may use
+   its default `MIGRATE` mode.
+3. Recreate `FlowEngine` with a new process-unique owner token and independently available flow
+   and maintenance executors.
+4. Find non-terminal or recovery-required executions through your application index or known
+   execution IDs. `FlowExecutionStore` intentionally has no unbounded "scan everything" method.
+5. Obtain a fresh authoritative Cardano slot and reconcile the selected persisted attempt with an
+   explicit recovery request. Require `stepId` and `attemptNumber` unless the target is provably
+   unambiguous:
+
+```java
+FlowRecoveryResult result = engine.recover(FlowRecoveryRequest.builder()
+        .executionId(executionId)
+        .stepId(stepId)
+        .attemptNumber(attemptNumber)
+        .currentSlot(currentSlot)
+        .resubmitSafetyMargin(safetyMarginSlots)
+        .payloadResolver(externalPayloadResolver) // omit for inline CBOR
+        .build());
+```
+
+An observed transaction becomes `SUBMITTED` or `IN_BLOCK`. An identical resubmission becomes
+`SUBMITTED`. Missing payloads, digest/hash mismatches, expired recorded validity, failed
+observation, or failed identical submission remain `RECOVERY_REQUIRED`; they never authorize an
+implicit rebuild. The coordinator checks expiry only when `validToSlot` is present, so controlled
+deployments should require validity intervals and fail closed if a fresh slot is unavailable. This
+call reconciles one attempt and records the result; it does not automatically resume the remaining
+flow steps.
+
+## Backup, restore, and retention
+
+### Backup
+
+Back up all of these objects as one transactionally consistent unit:
+
+- `txflow_schema_history`
+- `txflow_execution`
+- `txflow_idempotency`
+- `txflow_event`
+- `txflow_execution_lease`
+- `txflow_resource_lease`
+- `txflow_lease_epoch`
+
+For PostgreSQL, use the platform's consistent snapshot/backup tooling and test restore into an
+isolated database. For file-backed H2, close the store/database before copying files or use H2's
+supported online backup facility. Copying live H2 files is not a supported backup method.
+
+### Restore
+
+After restoring an older backup:
+
+1. Quiesce or revoke every pre-restore application instance, database connection, and writer. Do
+   not allow an old process to mutate the restored database.
+2. Restore into an isolated environment and start replacement workers with fresh owner tokens and
+   transaction submission disabled.
+3. Run schema `VALIDATE`.
+4. Reconcile every non-terminal or previously submitted execution with Cardano chain state.
+5. Reconnect traffic and re-enable execution only when idempotency claims, snapshots, journals,
+   and chain observations agree on a safe continuation.
+
+Never restore only a snapshot table or only the journal. Partial restore can invalidate both
+idempotency and fencing assumptions. Never reset `txflow_lease_epoch`; monotonically increasing
+epochs are what make stale owners rejectable.
+
+### Retention
+
+Use `FlowExecutionStore.compactEvents(executionId, throughSequence)` only after the execution is
+terminal. Compaction advances an inclusive watermark and never resets event sequence allocation.
+A consumer that presents a cursor older than the watermark receives `EVENTS_COMPACTED` and must
+reload the snapshot as its new baseline.
+
+Do not manually delete claims, executions, events, leases, or the global epoch row. Define a
+separate, reviewed policy before deleting whole terminal executions; the current store contract
+exposes event compaction, not arbitrary execution deletion.
+
+## Security and database ownership
+
+### Credentials and transport
+
+- Prefer a configured `DataSource` for PostgreSQL. Keep credentials out of logged or persisted
+  JDBC URLs and rotate them through the pool/driver configuration.
+- Configure PostgreSQL TLS in the driver or pool. The extension does not create a TLS policy.
+- Protect H2 files with operating-system permissions and configure H2 encryption when encryption
+  at rest is required.
+- Treat inline signed CBOR and execution bindings as application data covered by backup,
+  retention, and access-control policies.
+- Durable sensitive parameters require `secureBindingReference(...)`. The raw value is not stored,
+  but the snapshot retains the external reference and an unsalted SHA-256 fingerprint of its string
+  form. Treat the database and backups as sensitive; low-entropy values may be guessable offline.
+  The application remains responsible for the referenced secret manager.
+
+JDBC causes exposed by the adapter retain SQL state and vendor code, but replace driver messages
+because those messages can contain credentials or complete URLs. Use protected database logs for
+detailed investigation.
+
+### Least privilege
+
+Use a schema-owner role for `MIGRATE`. It needs `USAGE` and `CREATE` on the selected schema and must
+own the TxFlow objects so later migrations can alter them. Use a narrower role for normal
+`VALIDATE` operation. For PostgreSQL, its grants have this shape:
+
+```sql
+GRANT USAGE ON SCHEMA application_schema TO txflow_runtime;
+
+GRANT SELECT, INSERT, UPDATE
+    ON application_schema.txflow_execution TO txflow_runtime;
+GRANT SELECT, INSERT
+    ON application_schema.txflow_idempotency TO txflow_runtime;
+GRANT SELECT, INSERT, DELETE
+    ON application_schema.txflow_event TO txflow_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE
+    ON application_schema.txflow_execution_lease,
+       application_schema.txflow_resource_lease TO txflow_runtime;
+GRANT SELECT, UPDATE
+    ON application_schema.txflow_lease_epoch TO txflow_runtime;
+GRANT SELECT
+    ON application_schema.txflow_schema_history TO txflow_runtime;
+```
+
+Do not grant destructive DDL to the runtime role. Pin its current schema/search path and reassess
+the grants whenever a later migration introduces an object or operation.
+
+## Diagnostics and monitoring
+
+Handle `FlowStoreException.getCode()` programmatically; do not parse messages. The complete
+machine-readable catalog is published with `txflow` as
+[`txflow-diagnostic-codes.json`](https://github.com/bloxbean/cardano-client-lib/blob/master/txflow/src/main/resources/txflow-diagnostic-codes.json).
+
+Useful operational groups include:
+
+| Group | Codes to alert or classify |
+|---|---|
+| Unknown transaction result | `TXFLOW_STORE_COMMIT_UNCERTAIN`, `TXFLOW_STORE_ROLLBACK_UNCERTAIN` |
+| Availability/concurrency | `TXFLOW_STORE_UNAVAILABLE`, `TXFLOW_STORE_SERIALIZATION_FAILURE`, `TXFLOW_RDBMS_UNIQUE_CONFLICT` |
+| Durable integrity | `TXFLOW_STORE_CORRUPT`, `TXFLOW_STORE_CODEC_*`, `TXFLOW_EVENT_SEQUENCE`, `EVENTS_COMPACTED` |
+| Schema | `TXFLOW_SCHEMA_*`, `TXFLOW_DIALECT_*`, `TXFLOW_STORE_CONFIGURATION_FAILED` |
+| Ownership/fencing | `TXFLOW_LEASE_*`, `TXFLOW_RESOURCE_LEASE_*`, `TXFLOW_STALE_FENCE`, `TXFLOW_STALE_RESOURCE_FENCE` |
+| Runtime fail-stop | `TXFLOW_RECOVERY_REQUIRED`, `TXFLOW_TERMINAL_PERSISTENCE_FAILED`, `TXFLOW_EXECUTOR_REJECTION_PERSISTENCE_FAILED` |
+
+The store does not create a metrics registry or monitoring thread. Instrument the application and
+database for:
+
+- pool acquisition time, active/queued connections, transaction latency, and database availability;
+- serialization failures, deadlocks, and unique-contention rates;
+- both uncertainty codes, terminal-persistence failures, and executions entering
+  `RECOVERY_REQUIRED`;
+- lease conflicts, expiry, renewal failures, and stale-fence rejections;
+- journal growth, compaction watermark/cursor gaps, backup age, and restore-test age; and
+- executor queue/rejection rates, especially on the independent maintenance executor.
+
+For H2, also monitor disk capacity and file/backup health. For PostgreSQL, use server logs and
+platform metrics to correlate SQL state and vendor code without exposing driver messages.
+
+## Java 17 verification matrix
+
+The repository build and certification baseline is Java 17. Confirm the selected JVM before
+running tests:
+
+```shell
+java -version
+./gradlew --version
+```
+
+Run the TxFlow unit suite and the H2/RDBMS unit layer:
+
+```shell
+./gradlew :txflow:test
+./gradlew :txflow-extensions:txflow-store-rdbms:test
+```
+
+Run H2 close/reopen, forced child-JVM termination, concurrency, and the PostgreSQL Testcontainers
+layer with:
+
+```shell
+./gradlew :txflow-extensions:txflow-store-rdbms:integrationTest
+```
+
+Focused commands are useful while diagnosing a failure:
+
+```shell
+./gradlew :txflow-extensions:txflow-store-rdbms:integrationTest \
+  --tests '*H2AbruptRestartIntegrationTest'
+
+./gradlew :txflow-extensions:txflow-store-rdbms:integrationTest \
+  --tests '*PostgresFlowExecutionStoreContractTest'
+```
+
+The PostgreSQL layer starts a real PostgreSQL 17.6 server with Testcontainers. Docker must be
+available; the certification suite fails rather than silently skipping PostgreSQL when Docker is
+unavailable. No separately operated PostgreSQL credentials are required for this suite.
+
+## External Yaci DevKit suite
+
+The TxFlow network integration tests use an externally running Yaci DevKit. The current suite
+expects the Blockfrost-compatible API at `http://localhost:8080/api/v1/`; rollback scenarios also
+use the admin API at `http://localhost:10000/`.
+
+Run the full TxFlow integration suite with:
+
+```shell
+./gradlew :txflow:integrationTest
+```
+
+Run the strict rollback matrix or the portable YAML/`FlowEngine` path in isolation with:
+
+```shell
+./gradlew :txflow:integrationTest \
+  --tests '*RollbackStrategyIntegrationTest'
+
+./gradlew :txflow:integrationTest \
+  --tests '*TxFlowYamlIntegrationTest'
+```
+
+Use an isolated DevKit instance. These tests fund addresses, take snapshots, roll back chain
+state, and wait for backend/indexer recovery. The external Yaci matrix validates real submission,
+confirmation, rollback, same-hash reconciliation, and rebuild behavior; it complements rather
+than replaces the RDBMS crash, migration, and concurrency suites.
+
+## Qualifying a custom store
+
+`txflow` publishes the reusable JUnit contract as a test-fixtures variant. Add it to the custom
+adapter's test configuration:
+
+```gradle
+def cclVersion = "0.8.0-pre5-SNAPSHOT"
+
+dependencies {
+    testImplementation(testFixtures(
+        "com.bloxbean.cardano:cardano-client-txflow:${cclVersion}"))
+}
+```
+
+Provide a fresh, empty adapter for each test:
+
+```java
+class MyFlowExecutionStoreContractTest extends FlowExecutionStoreContract {
+    @Override
+    protected FlowExecutionStore createStore(AdjustableClock clock) throws Exception {
+        return MyFlowExecutionStore.createFresh(clock);
+    }
+}
+```
+
+The contract exercises atomic idempotency and execution-ID conflicts, revision/event ordering,
+all-or-nothing append, execution and resource lease fencing, contention/takeover, UTF-8 identity
+limits, event pagination, and compaction. Passing it is necessary but not sufficient for a new
+database compatibility claim. Also add database-specific tests for migration locking and upgrade,
+real transaction isolation, error classification, commit/rollback uncertainty, process crash and
+reopen, schema drift, payload corruption, and concurrent independent store instances.
+
+See the published
+[`FlowExecutionStoreContract`](https://github.com/bloxbean/cardano-client-lib/blob/master/txflow/src/testFixtures/java/com/bloxbean/cardano/client/txflow/store/contract/FlowExecutionStoreContract.java)
+and the certified H2/PostgreSQL tests for reference.
+
+## Release-readiness checklist
+
+- Java 17 unit, H2 integration, PostgreSQL Testcontainers, and external Yaci matrices are green.
+- Backup and restore have been exercised in an isolated environment.
+- Schema migration and runtime roles are separated and `VALIDATE` is used at normal startup.
+- Flow and maintenance executors, pool limits, timeouts, and shutdown order are documented.
+- Alerts exist for uncertainty, recovery-required, terminal-persistence, lease-renewal, and
+  executor-rejection failures.
+- The deployment accepts the active-active submission limitation or adds external serialization.
+- Secrets, JDBC URLs, signed payloads, H2 files, database backups, and logs follow the
+  application's security and retention policy.

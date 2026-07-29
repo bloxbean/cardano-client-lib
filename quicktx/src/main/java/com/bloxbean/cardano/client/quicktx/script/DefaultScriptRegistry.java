@@ -29,7 +29,8 @@ public class DefaultScriptRegistry implements ScriptRegistry {
         if (script == null)
             throw new TxBuildException("script cannot be null");
 
-        scriptsByRef.put(ref, script);
+        String normalizedRef = ref.trim();
+        scriptsByRef.put(normalizedRef, script);
         scriptsByHash.put(scriptHash(script), script);
         return this;
     }
@@ -52,7 +53,7 @@ public class DefaultScriptRegistry implements ScriptRegistry {
         if (ref == null || ref.isBlank()) {
             return Optional.empty();
         }
-        return Optional.ofNullable(scriptsByRef.get(ref));
+        return Optional.ofNullable(scriptsByRef.get(ref.trim()));
     }
 
     @Override

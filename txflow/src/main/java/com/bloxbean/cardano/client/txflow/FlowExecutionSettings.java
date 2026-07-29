@@ -1,36 +1,112 @@
 package com.bloxbean.cardano.client.txflow;
 
-import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
-import com.bloxbean.cardano.client.txflow.exec.RollbackStrategy;
-import lombok.Builder;
-import lombok.Getter;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.RollbackPolicy;
+import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
+import com.bloxbean.cardano.client.txflow.config.ValidityPolicy;
 
 /**
- * Optional flow-level execution settings carried by a {@link TxFlow}.
- * <p>
- * These settings describe how a flow should be executed when the executor has
- * not provided an explicit override. Null fields mean the setting was not
- * provided by the flow.
+ * @deprecated Import {@link com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings}
+ * instead. This forwarding subclass is retained for pre-release source compatibility.
  */
-@Getter
-@Builder(toBuilder = true)
-public class FlowExecutionSettings {
+@Deprecated
+public class FlowExecutionSettings
+        extends com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings {
+    private static final FlowExecutionSettings EMPTY = builder().build();
 
-    private static final FlowExecutionSettings EMPTY = FlowExecutionSettings.builder().build();
+    /**
+     * Creates the forwarding value used by the compatibility builder.
+     *
+     * @param chainingMode requested chaining mode
+     * @param confirmationConfig requested confirmation settings
+     * @param rollbackStrategy legacy rollback strategy
+     * @param retryPolicy requested retry policy
+     * @param rollbackPolicy portable rollback policy
+     * @param validityPolicy requested validity policy
+     */
+    protected FlowExecutionSettings(ChainingMode chainingMode,
+                                    ConfirmationConfig confirmationConfig,
+                                    RollbackStrategy rollbackStrategy,
+                                    RetryPolicy retryPolicy,
+                                    RollbackPolicy rollbackPolicy,
+                                    ValidityPolicy validityPolicy) {
+        super(chainingMode, confirmationConfig, rollbackStrategy, retryPolicy,
+                rollbackPolicy, validityPolicy);
+    }
 
-    private final ChainingMode chainingMode;
-    private final ConfirmationConfig confirmationConfig;
-    private final RollbackStrategy rollbackStrategy;
-    private final RetryPolicy retryPolicy;
+    /**
+     * Creates the deprecated forwarding builder.
+     *
+     * @return compatibility builder producing this forwarding type
+     */
+    public static FlowExecutionSettingsBuilder builder() {
+        return new FlowExecutionSettingsBuilder();
+    }
 
+    /**
+     * Returns a shared value containing no flow-level overrides.
+     *
+     * @return empty compatibility settings
+     */
     public static FlowExecutionSettings empty() {
         return EMPTY;
     }
 
-    public boolean hasAnySetting() {
-        return chainingMode != null
-                || confirmationConfig != null
-                || rollbackStrategy != null
-                || retryPolicy != null;
+    @Override
+    public FlowExecutionSettingsBuilder toBuilder() {
+        return builder()
+                .chainingMode(getChainingMode())
+                .confirmationConfig(getConfirmationConfig())
+                .rollbackStrategy(getRollbackStrategy())
+                .retryPolicy(getRetryPolicy())
+                .rollbackPolicy(getRollbackPolicy())
+                .validityPolicy(getValidityPolicy());
+    }
+
+    /** @deprecated Use the builder in the config package. */
+    @Deprecated
+    public static class FlowExecutionSettingsBuilder extends
+            com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings.FlowExecutionSettingsBuilder {
+        @Override
+        public FlowExecutionSettingsBuilder chainingMode(ChainingMode value) {
+            super.chainingMode(value);
+            return this;
+        }
+
+        @Override
+        public FlowExecutionSettingsBuilder confirmationConfig(ConfirmationConfig value) {
+            super.confirmationConfig(value);
+            return this;
+        }
+
+        @Override
+        public FlowExecutionSettingsBuilder rollbackStrategy(RollbackStrategy value) {
+            super.rollbackStrategy(value);
+            return this;
+        }
+
+        @Override
+        public FlowExecutionSettingsBuilder retryPolicy(RetryPolicy value) {
+            super.retryPolicy(value);
+            return this;
+        }
+
+        @Override
+        public FlowExecutionSettingsBuilder rollbackPolicy(RollbackPolicy value) {
+            super.rollbackPolicy(value);
+            return this;
+        }
+
+        @Override
+        public FlowExecutionSettingsBuilder validityPolicy(ValidityPolicy value) {
+            super.validityPolicy(value);
+            return this;
+        }
+
+        @Override
+        public FlowExecutionSettings build() {
+            return new FlowExecutionSettings(chainingMode, confirmationConfig,
+                    rollbackStrategy, retryPolicy, rollbackPolicy, validityPolicy);
+        }
     }
 }

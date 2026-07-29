@@ -179,6 +179,11 @@ public class QuickTxBuilder {
      * Create TxContext from a TxPlan with automatic property mapping.
      * This method maps TxPlan context properties to the corresponding TxContext methods.
      *
+     * <p>The context retains the plan's transaction objects. Registry resolution during a build
+     * may populate resolved policy or script material on their intents, so callers must not build
+     * the same mutable plan concurrently. Create an execution-local plan copy when a definition
+     * is reused across threads.</p>
+     *
      * @param plan the transaction plan with transactions and context properties
      * @return TxContext with all properties applied
      */
@@ -254,6 +259,8 @@ public class QuickTxBuilder {
 
     /**
      * Compose from a TxPlan and configure registries for ref resolution.
+     * The returned context has the same execution-local ownership requirement documented by
+     * {@link #compose(TxPlan)}.
      */
     public TxContext compose(TxPlan plan, SignerRegistry signerRegistry, ScriptRegistry scriptRegistry) {
         TxContext ctx = compose(plan);

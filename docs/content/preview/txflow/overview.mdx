@@ -1,85 +1,122 @@
 ---
 title: "TxFlow Overview"
-description: "Multi-step Cardano transaction orchestration with UTXO chaining and rollback handling"
+description: "Portable, policy-controlled Cardano transaction workflow execution"
 ---
 
-# TxFlow — Overview
+# TxFlow
 
-> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+TxFlow turns a reusable transaction workflow into an observable execution. It handles the parts
+that become difficult when several Cardano transactions must be coordinated: parameter binding,
+dependency outputs, UTxO spending contention, confirmation, rollback, retries, idempotency, and
+crash recovery.
 
-## The Problem
+The current API is built around a deliberately separated lifecycle:
 
-When a Cardano workflow requires multiple related transactions (e.g., deposit then release, mint then distribute),
-each subsequent transaction may depend on UTXOs produced by a previous one. Manually managing this involves:
-
-- Tracking which UTXOs were produced by each transaction
-- Waiting for confirmations before building the next transaction
-- Handling chain reorganizations that invalidate previous transactions
-- Implementing retry logic for transient network failures
-
-TxFlow automates all of this with a declarative builder API.
-
-## Core Concepts
-
-```
-TxFlow              Top-level container: ID, description, ordered list of steps
-  FlowStep          Single transaction step: ID, tx definition, dependencies
-    StepDependency  UTXO dependency on a previous step's outputs
-
-FlowExecutor        Orchestrates execution: builds, submits, confirms, retries
-  FlowHandle        Async monitoring: status, progress, cancellation
-  FlowResult        Aggregated result: status, tx hashes, duration, errors
-```
-
-## Dependency
-
-```gradle
-dependencies {
-    implementation 'com.bloxbean.cardano:txflow:0.8.0-preview1'
-
-    // Backend provider (choose one)
-    implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.8.0-preview1'
-}
+```text
+portable YAML or JSON
+        |
+        v
+ TxFlowCodec  -- diagnostics --> author/operator
+        |
+        v
+ TxFlow definition + run-specific FlowBindings
+        |
+        v
+ FlowEngine preflight --> compiled TxPlan per step
+        |
+        v
+ FlowExecutionRequest --> handle, events, terminal result
+        |
+        +-------------> optional durable execution store and recovery
 ```
 
-The `txflow` module transitively includes `quicktx`, `core`, `function`, and `backend`.
+## Requirements and status
 
-## Minimal Example
+- Java 17 is the build and runtime baseline.
+- `txflow.cardano-client.dev/v1alpha1` is the current portable document contract.
+- `TxFlowCodec`, `FlowExecutionRequest`, and `FlowEngine` are the canonical APIs for new code.
+- `FlowExecutor` and the preview `version: "1.0"` document remain compatibility APIs.
+- Applications provide and own executors. Java 21 applications may pass a virtual-thread
+  executor without changing the TxFlow API.
 
-```java
-// Define a two-step flow
-TxFlow flow = TxFlow.builder("simple-transfer")
-    .withDescription("Send ADA then send a token")
-    .addStep(FlowStep.builder("send-ada")
-        .withTxContext(builder -> builder
-            .compose(new Tx()
-                .payToAddress(receiver, Amount.ada(10))
-                .from(sender))
-            .withSigner(SignerProviders.signerFrom(account)))
-        .build())
-    .addStep(FlowStep.builder("send-token")
-        .dependsOn("send-ada")  // Uses UTXOs from step 1
-        .withTxContext(builder -> builder
-            .compose(new Tx()
-                .payToAddress(receiver, Amount.asset(policyId, assetName, 1))
-                .from(sender))
-            .withSigner(SignerProviders.signerFrom(account)))
-        .build())
-    .build();
+The portable contract is still alpha and can evolve before a stable schema version. Persisted
+execution behavior is nevertheless conservative: an uncertain submission or chain observation
+does not become a successful result, and does not authorize building a different transaction.
 
-// Execute synchronously
-FlowExecutor executor = FlowExecutor.create(backendService);
-FlowResult result = executor.executeSync(flow);
+## Definition versus execution
 
-if (result.isSuccessful()) {
-    System.out.println("All tx hashes: " + result.getTransactionHashes());
-}
-```
+A `TxFlow` definition contains ordered steps, portable parameters, execution defaults, and
+logical resource references. Each step embeds QuickTx's single-transaction projection (`tx` plus
+optional `context`). During compilation, TxFlow wraps the bound projection in a
+`TransactionDocument` and creates the step's one-transaction executable `TxPlan`; there is not a
+separate competing transaction definition owned by the runtime.
 
-## What's Next
+A `FlowExecutionRequest` supplies values that belong to one run:
 
-- [Building Flows](/docs/preview/txflow/building-flows) — TxFlow/FlowStep builder API, step dependencies, UTXO chaining
-- [Chaining Modes](/docs/preview/txflow/chaining-modes) — SEQUENTIAL, PIPELINED, BATCH execution strategies
-- [Confirmation & Rollback](/docs/preview/txflow/confirmation-rollback) — Confirmation tracking and rollback strategies
-- [Retry, Execution & Results](/docs/preview/txflow/retry-execution-results) — RetryPolicy, FlowExecutor, FlowResult
-- [Advanced Topics](/docs/preview/txflow/advanced) — FlowListener, registry, persistence, Spring Boot, virtual threads
+- parameter bindings;
+- an execution ID;
+- an optional application idempotency namespace and key;
+- identities of shared spending resources;
+- external references for sensitive values.
+
+`FlowEngine` supplies server- or application-owned infrastructure: backend interfaces, signer and
+script registries, resource policy, executors, and an optional durable store. Keeping these out of
+the portable document prevents definitions from carrying private keys, live objects, or backend
+credentials.
+
+## Execution safety model
+
+TxFlow follows a few safety rules throughout the runtime:
+
+1. Parse and compile errors are structured diagnostics, not partial execution.
+2. A matching execution or idempotency claim refers to one canonical request fingerprint; a
+   different request is rejected.
+3. Shared spending resources are serialized unless a server policy explicitly allows an opt-out.
+4. Accepted or unknown submission outcomes are reconciled by transaction hash before any retry.
+5. A rollback or uncertain observation cannot fall through to success.
+6. Durable recovery can resubmit only the identical verified signed payload while its validity
+   interval remains safe.
+7. `RECOVERY_REQUIRED` is distinct from a conclusive `FAILED` result and requires reconciliation.
+
+Durable store leases fence TxFlow state mutations. They cannot prevent a partitioned process from
+submitting bytes it already signed, so active-active deployments also need external UTxO
+reservation or equivalent submission serialization.
+
+## Pick a persistence profile
+
+| Profile | Store | Intended use |
+| --- | --- | --- |
+| No store | none | Short-lived execution where process loss can be handled externally |
+| In-memory | `InMemoryFlowExecutionStore` | Tests and reference contract behavior |
+| Embedded durable | RDBMS extension with file-backed H2 | One application JVM with restart recovery |
+| Service database | RDBMS extension with PostgreSQL | Pooled deployments and multi-process durable state |
+
+The relational extension owns no thread or connection pool. H2 is included for the embedded
+profile; PostgreSQL users provide a driver and normally an application-managed `DataSource`.
+
+## Guide
+
+Follow these pages in order for a new integration:
+
+1. [Getting Started](./getting-started) — dependencies, a portable flow, backend adapters, and the
+   first execution.
+2. [Portable Authoring](./portable-authoring) — parameters, expressions, resources, step outputs,
+   schema boundaries, and diagnostics.
+3. [Execution Engine](./execution-engine) — constructing `FlowEngine`, preflight, request identity,
+   handles, cancellation, and caller-owned executors.
+4. [Policies, Results & Observability](./policies-results-observability) — confirmation, retry,
+   rollback, terminal states, events, and operational interpretation.
+5. [Durable Runtime](./durable-runtime) — H2, PostgreSQL, idempotency, leases, fencing, recovery,
+   schema management, and secure bindings.
+6. [Operations & Testing](./operations-testing) — deployment checklist, monitoring, backup and
+   restore, unit/integration tests, and custom-store qualification.
+
+Maintaining an older integration? Start with [Legacy `FlowExecutor`](./legacy-flowexecutor). The
+older topic pages are retained for compatibility work, but new applications should not use them as
+the primary design guide.
+
+## Module documentation
+
+The source tree also contains `txflow/README.md`, the portable-contract ADR, durable-store ADR,
+migration notes, and the implementation-level store contract. Those files are useful for
+contributors and adapter authors; this guide stays focused on application usage.

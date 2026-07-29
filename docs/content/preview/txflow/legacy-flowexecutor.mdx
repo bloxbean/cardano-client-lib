@@ -1,0 +1,64 @@
+---
+title: "Legacy FlowExecutor"
+description: "Compatibility guide and migration map for preview TxFlow integrations"
+---
+
+# Legacy `FlowExecutor`
+
+`FlowExecutor` and the preview `version: "1.0"` YAML format remain available for applications that
+already use them. They are compatibility APIs, not the recommended starting point for new TxFlow
+integrations. New applications should start with [Getting Started](./getting-started) and use
+`TxFlowCodec`, `FlowExecutionRequest`, and `FlowEngine`.
+
+## Why the current API is separate
+
+The preview API combines reusable definition data, Java runtime objects, and execution behavior.
+That is convenient in a single process, but it is difficult to validate at a service boundary or
+recover safely after a restart. The current API separates those concerns:
+
+| Preview concept | Current concept |
+| --- | --- |
+| Legacy YAML or Java builder containing runtime details | Portable v1alpha1 definition |
+| Flow variables | Declared parameters plus run-specific `FlowBindings` |
+| `dependsOn` for both ordering and implicit UTxO use | `needs` for ordering; `flow_output` for explicit consumption |
+| Embedded signer/factory objects | Logical references resolved by application registries |
+| `FlowExecutor` configuration | Immutable `FlowEngine` configuration and `FlowExecutionPolicy` |
+| `FlowListener` callbacks | Ordered `FlowEvent` records on the execution handle/store |
+| `FlowStateStore` snapshot compatibility | Fenced `FlowExecutionStore` snapshots, attempts, and journal |
+| `FlowResult` | `FlowExecutionResult`, including `RECOVERY_REQUIRED` |
+
+The codec can read preview documents and emits `TXFLOW_LEGACY_FORMAT`. It rejects portable
+expression syntax in a legacy document and does not silently encode Java factories, predicates,
+or other values that have no portable representation.
+
+## Migration sequence
+
+1. Parse the existing file with `TxFlowCodec` and capture all diagnostics.
+2. Move the document to `api_version: txflow.cardano-client.dev/v1alpha1`, `kind: TxFlow`,
+   `metadata`, and `spec`.
+3. Declare every run-time value under `spec.parameters` and bind it with `FlowBindings`.
+4. Replace `${name}` with `${{ inputs.name }}`.
+5. Replace implicit cross-step UTxO use with named outputs and `flow_output` selectors.
+6. Move signers, scripts, and sensitive infrastructure into application-owned registries.
+7. Preflight with `FlowEngine`, then add execution identity, idempotency, and spending-resource
+   controls.
+8. If restart recovery is needed, move to `FlowExecutionStore`; do not adapt a legacy snapshot
+   store as if it supplied durable journal and fencing semantics.
+
+Run old and new paths against the same deterministic fixtures before switching production
+traffic. Pay particular attention to transaction hashes, output selection, retry classification,
+rollback outcomes, and any partial-success state.
+
+## Compatibility topic pages
+
+The following pages describe the preview API and are retained for maintainers of existing code:
+
+- [Building Flows](./building-flows)
+- [Chaining Modes](./chaining-modes)
+- [Confirmation & Rollback](./confirmation-rollback)
+- [Retry, Execution & Results](./retry-execution-results)
+- [Advanced Topics](./advanced)
+
+These pages do not define the portable v1alpha1 or durable runtime contract. When a statement
+differs from the current guide, use the current guide for new code and the compatibility page only
+to understand the old integration.

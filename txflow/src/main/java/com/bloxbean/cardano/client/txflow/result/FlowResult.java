@@ -4,6 +4,7 @@ import lombok.Getter;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.*;
 
 /**
@@ -148,42 +149,95 @@ public class FlowResult {
         private Instant startedAt;
         private Instant completedAt;
         private Throwable error;
+        private Clock clock = Clock.systemUTC();
 
         private Builder(String flowId) {
             this.flowId = flowId;
         }
 
+        /**
+         * Sets the aggregate lifecycle status.
+         *
+         * @param status flow status
+         * @return this builder
+         */
         public Builder withStatus(FlowStatus status) {
             this.status = status;
             return this;
         }
 
+        /**
+         * Appends one step result in execution order.
+         *
+         * @param result completed step result
+         * @return this builder
+         */
         public Builder addStepResult(FlowStepResult result) {
             this.stepResults.add(result);
             return this;
         }
 
+        /**
+         * Replaces the ordered step results.
+         *
+         * @param results step results in execution order
+         * @return this builder
+         */
         public Builder withStepResults(List<FlowStepResult> results) {
             this.stepResults.clear();
             this.stepResults.addAll(results);
             return this;
         }
 
+        /**
+         * Sets the execution start timestamp.
+         *
+         * @param startedAt start timestamp
+         * @return this builder
+         */
         public Builder startedAt(Instant startedAt) {
             this.startedAt = startedAt;
             return this;
         }
 
+        /**
+         * Sets an explicit terminal timestamp.
+         *
+         * @param completedAt terminal timestamp
+         * @return this builder
+         */
         public Builder completedAt(Instant completedAt) {
             this.completedAt = completedAt;
             return this;
         }
 
+        /**
+         * Attaches the failure that terminated the flow.
+         *
+         * @param error terminal failure
+         * @return this builder
+         */
         public Builder withError(Throwable error) {
             this.error = error;
             return this;
         }
 
+        /**
+         * Configures the clock used only when a terminal timestamp was not supplied.
+         *
+         * @param clock source of generated terminal timestamps
+         * @return this builder
+         */
+        public Builder clock(Clock clock) {
+            this.clock = Objects.requireNonNull(clock, "clock");
+            return this;
+        }
+
+        /**
+         * Builds the result without changing its configured status or timestamps.
+         *
+         * @return immutable aggregate result
+         */
         public FlowResult build() {
             return new FlowResult(this);
         }
@@ -196,7 +250,7 @@ public class FlowResult {
         public FlowResult success() {
             this.status = FlowStatus.COMPLETED;
             if (completedAt == null) {
-                completedAt = Instant.now();
+                completedAt = clock.instant();
             }
             return build();
         }
@@ -211,7 +265,7 @@ public class FlowResult {
             this.status = FlowStatus.FAILED;
             this.error = error;
             if (completedAt == null) {
-                completedAt = Instant.now();
+                completedAt = clock.instant();
             }
             return build();
         }

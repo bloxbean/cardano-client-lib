@@ -106,10 +106,13 @@ public class ProgressListener implements FlowListener {
 
 // Usage with UI callback
 FlowHandle handle = executor
+    .withExecutor(applicationExecutor)
     .withListener(new ProgressListener(update -> {
         Platform.runLater(() -> progressBar.setProgress(update.percent / 100.0));
     }))
     .execute(flow);
+
+// The application shuts down applicationExecutor during its own lifecycle.
 ```
 
 ## Composite Listener Pattern

@@ -1,0 +1,471 @@
+---
+title: "Portable TxFlow Authoring"
+description: "Author safe, reusable TxFlow v1alpha1 YAML and JSON definitions"
+---
+
+# Portable TxFlow Authoring
+
+Portable TxFlow is a versioned YAML/JSON contract for reusable, ordered transaction workflows. It
+contains transaction intent and logical resource names, but no execution ID, runtime parameter
+values, signer keys, database credentials, or backend connection details.
+
+This page describes `txflow.cardano-client.dev/v1alpha1`. The legacy `version: "1.0"` format uses
+a different envelope and expression syntax. The codec can read that format for migration, but new
+portable documents should not mix the two contracts.
+
+## Document envelope
+
+Every portable document has four required top-level fields:
+
+```yaml
+api_version: txflow.cardano-client.dev/v1alpha1
+kind: TxFlow
+metadata:
+  name: treasury-distribution
+  description: Distribute treasury funds to approved recipients
+  version: 1.0.0
+  annotations:
+    owner: treasury-service
+spec:
+  network: preview
+  steps:
+    - id: transaction
+      transaction:
+        tx:
+          intents: []
+```
+
+| Field | Meaning |
+| --- | --- |
+| `api_version` | Contract identifier. `v1alpha1` is the only version enabled by the default parser. |
+| `kind` | Must be `TxFlow`. It distinguishes a flow from a standalone QuickTx plan. |
+| `metadata.name` | Stable definition name; it is not an execution/run identifier. |
+| `metadata.description` | Optional human-readable description with no execution semantics. |
+| `metadata.version` | Optional application-managed definition version. |
+| `metadata.annotations` | Optional string-to-string metadata. It has no execution semantics. |
+| `spec.network` | Optional logical network name checked by resource and server policy preflight. |
+| `spec.parameters` | Optional typed runtime input declarations. |
+| `spec.execution` | Optional requested execution settings; server policy remains authoritative. |
+| `spec.steps` | Non-empty ordered list of single-transaction steps. |
+
+Both flow-level `metadata.description` and step-level `description` values round-trip through the
+portable codec. Annotations remain the right place for machine-readable ownership or classification
+metadata.
+
+Steps run in document order in `v1alpha1`. IDs must be unique. Dependencies and output references
+must name earlier steps; dangling references, cycles, duplicate `needs`, and forward references are
+rejected.
+
+## Parameters and `FlowBindings`
+
+Declare values that change between executions under `spec.parameters`:
+
+```yaml
+spec:
+  parameters:
+    beneficiary:
+      type: address
+      required: true
+      max_length: 200
+    amount:
+      type: integer
+      minimum: 1000000
+      maximum: 100000000
+    include_metadata:
+      type: boolean
+      default: false
+    asset:
+      type: asset_unit
+      required: true
+    note:
+      type: string
+      default: distribution
+      max_length: 80
+```
+
+Supported types are `string`, `integer`, `boolean`, `address`, and `asset_unit`. `address` and
+`asset_unit` are semantically named string types at this layer. Integer values must fit a Java
+`long`. A required parameter cannot also declare a default. `minimum`/`maximum` constrain integers;
+`max_length` constrains string-valued parameters.
+
+Supply values independently for each run:
+
+```java
+FlowBindings bindings = FlowBindings.builder()
+        .put("beneficiary", beneficiaryAddress)
+        .put("amount", 5_000_000L)
+        .put("asset", policyId + assetNameHex)
+        .build();
+```
+
+`FlowBindings` accepts non-null strings, booleans, and integral `Byte`, `Short`, `Integer`, or
+`Long` values. Duplicate or blank binding names fail immediately. During compilation, an unknown
+binding, missing required value, type mismatch, or constraint violation is returned as a diagnostic.
+
+### Expressions preserve types
+
+Portable expressions use only the `inputs` namespace:
+
+```yaml
+address: '${{ inputs.beneficiary }}'
+quantity: '${{ inputs.amount }}'
+```
+
+When the entire scalar is one expression, the compiler inserts the native bound value. In the
+example, `quantity` becomes a JSON/YAML integer rather than text. String inputs may also be
+interpolated into a larger string:
+
+```yaml
+label: 'distribution-${{ inputs.note }}'
+```
+
+Integers and booleans cannot be interpolated into larger text. Expressions cannot appear in map
+keys. Undefined expressions fail compilation. Binding walks the parsed node tree and never performs
+raw text replacement, so a value cannot inject new YAML structure.
+
+The legacy `${name}` form is rejected in portable documents. Conversely, `${{ inputs.name }}` is
+rejected in legacy documents, making accidental format mixing visible.
+
+Marking a parameter `sensitive: true` changes durable-runtime handling, not its scalar type. A
+durable `FlowExecutionRequest` must associate every resolved sensitive value—whether explicitly
+bound or taken from a declared default—with an external secure reference. The store persists the
+reference, a value fingerprint, and a redacted display rather than the raw value. See
+[Durable runtime](./durable-runtime).
+
+## Steps and `needs`
+
+Each step has an ID, an optional description, optional `needs`, optional named outputs, and exactly
+one `transaction`:
+
+```yaml
+steps:
+  - id: prepare
+    transaction:
+      tx:
+        intents: []
+  - id: submit
+    description: Runs after prepare
+    needs: [prepare]
+    transaction:
+      tx:
+        intents: []
+```
+
+`needs` is an ordering/dependency declaration. It does **not** select, expose, or spend any output
+from the named step. Use a `flow_output` input reference when the later transaction must consume a
+specific earlier output.
+
+The portable contract is deliberately an ordered transaction graph, not a general parallel DAG.
+Declaring `needs` documents the business dependency and contributes to graph validation; it does not
+reorder the `steps` list.
+
+## Transaction ownership: TxFlow embeds one QuickTx transaction projection
+
+The object under `step.transaction` is owned by the QuickTx serialization contract:
+
+```yaml
+transaction:
+  tx:
+    from_ref: account://treasury
+    change_address: addr_test1...
+    inputs: []
+    intents: []
+    scripts: []
+  context:
+    fee_payer_ref: account://treasury
+    collateral_payer_ref: account://collateral
+    valid_from_slot: 1000
+    valid_to_slot: 1300
+    signers:
+      - ref: account://treasury
+        scope: payment
+```
+
+The ownership boundary is concrete:
+
+- `TxFlowCodec` retains this object as an unbound `TransactionTemplate`.
+- `TxFlowCompiler` applies typed inputs and resource/policy preflight to a copy.
+- The compiler projects the bound `tx` and optional `context` into QuickTx's
+  `TransactionDocument`, then creates a fresh `TxPlan` containing exactly one transaction.
+- QuickTx owns intent deserialization, transaction composition, signer/script registries, and the
+  resulting transaction body. TxFlow owns step ordering, named outputs, execution, retry,
+  confirmation, rollback, persistence, and recovery.
+
+The initial QuickTx schema retains the historical `tx.from_wallet` field, but the current `TxPlan`
+projection cannot materialize a wallet name safely. Compilation therefore rejects that field with
+`TXFLOW_TRANSACTION_FROM_WALLET_UNSUPPORTED` before producing an execution fingerprint. Use a
+logical `from_ref` and resolve it through the application's TxFlow resource catalog instead.
+
+Compilation also materializes the embedded QuickTx model with a compiler-local strict mapper.
+Fields unknown to the concrete transaction or intent type fail with
+`TXFLOW_TRANSACTION_FIELD_UNKNOWN`, and each materialized intent runs its existing QuickTx model
+validation before fingerprinting. This strictness is scoped to portable TxFlow compilation; it does
+not change standalone legacy QuickTx deserialization behavior.
+
+A standalone `TxPlan` can contain a transaction list. Portable TxFlow `v1alpha1` intentionally
+allows only one transaction per step. When writing portable output from Java, a step with a
+multi-transaction `TxPlan` or a Java `TxContext` factory fails with `FlowEncodingException` instead
+of silently losing behavior.
+
+### Current JSON Schema boundary
+
+`txflow-v1alpha1.schema.json` references
+`quicktx-transaction-v1alpha1.schema.json#/$defs/transaction`. The QuickTx schema covers the
+embedded, single-transaction structural projection represented by `TransactionDocument`—the `tx`
+fields and optional transaction `context`.
+
+It is **not yet an exhaustive schema for every `TxIntent` implementation**. In particular,
+`inputs`, `intents`, and `scripts` are currently broad object schemas (regular intent/script entries
+require a `type`, but subtype-specific required fields are not fully described). QuickTx's runtime
+`TxIntent` registrations support payment, metadata, minting, staking, pools, governance, input
+collection, script collection/minting, reference inputs, and script attachments beyond what the
+schema constrains field by field.
+
+Therefore, a document passing an external JSON Schema validator is not proof that every intent can
+be deserialized and composed. Treat the published schema as editor/structural validation, then run
+`TxFlowCodec` parsing, compiler preflight, and transaction-focused tests. Expanding the schema into
+type-discriminated definitions for all supported intentions is tracked in
+[issue #636](https://github.com/bloxbean/cardano-client-lib/issues/636), separately from the
+`v1alpha1` runtime implementation.
+
+## Named outputs and `flow_output`
+
+Publish a producer transaction output under a flow-local name:
+
+```yaml
+- id: fund
+  outputs:
+    staging:
+      select:
+        output_index: 0
+      expect: exactly_one
+  transaction:
+    tx:
+      from_ref: account://treasury
+      intents:
+        - type: payment
+          address: addr_test1_staging...
+          amounts:
+            - unit: lovelace
+              quantity: 5000000
+```
+
+`output_index` is zero-based. Portable `v1alpha1` supports only index selection with
+`expect: exactly_one`; execution fails if that output is absent.
+
+A later step explicitly consumes it through QuickTx's input-reference model:
+
+```yaml
+- id: forward
+  needs: [fund]
+  transaction:
+    tx:
+      inputs:
+        - type: collect_from
+          refs:
+            - flow_output:
+                step: fund
+                output: staging
+      intents:
+        - type: payment
+          address: '${{ inputs.beneficiary }}'
+          amounts:
+            - unit: lovelace
+              quantity: 3000000
+    context:
+      fee_payer_ref: account://treasury
+      signers:
+        - ref: account://treasury
+          scope: payment
+```
+
+The compiler verifies that `fund` exists, precedes `forward`, and publishes `staging`. At each
+execution attempt, TxFlow replaces the logical reference with the concrete transaction hash and
+output index captured from that run. The reusable definition is left unchanged.
+
+`flow_output` is supported in QuickTx input-intent locations materialized by TxFlow, including
+ordinary collection, script collection, and reference inputs. It is the consumption edge;
+`needs: [fund]` is still useful to state the ordering/business dependency explicitly but is not a
+substitute for it.
+
+## Transaction context and logical resources
+
+`spec.execution` and `step.transaction.context` have different owners:
+
+- `spec.execution` requests TxFlow behavior such as chaining mode, confirmation, rollback, retry,
+  and validity policy. Server `FlowExecutionPolicy` may cap numeric requests or reject semantic
+  choices.
+- `transaction.context` is QuickTx transaction composition context: fee/collateral payer, signer
+  references, required signer hashes, absolute validity slots, and deposit settings.
+
+Prefer logical resource URIs over embedding application secrets:
+
+```yaml
+tx:
+  from_ref: account://treasury
+  scripts:
+    - type: validator
+      role: spend
+      script_ref: script://approved/escrow
+context:
+  fee_payer_ref: account://treasury
+  collateral_payer_ref: account://collateral
+  signers:
+    - ref: account://treasury
+      scope: payment
+```
+
+TxFlow recognizes textual `ref` and `*_ref` fields containing `://`. A resource URI must have a
+scheme and host, such as `account://treasury`, `policy://nft`, or
+`script://approved/escrow`. The normalized identity uses a lower-case scheme plus host and path;
+query, fragment, user-info, and port must not distinguish resources because they are discarded.
+
+During preflight, the application-owned `FlowResourceCatalog` can verify that each logical resource
+exists, belongs to the requested network, and advertises the required `SPEND`, `SIGN`, `MINT`, or
+`SCRIPT` capability. Its optional `spendingIdentity` becomes the contention key. The catalog holds
+metadata only; actual signer and script material is resolved through QuickTx's `SignerRegistry` and
+`ScriptRegistry` at execution time.
+
+An absent catalog does not make a reference resolvable: it merely skips catalog-backed existence,
+network, and capability checks. Resource-prefix policy still applies, and the relevant QuickTx
+registry must still resolve the reference before composition. Server deployments should normally
+configure both a restrictive policy and a catalog.
+
+## Requested execution settings
+
+Execution settings are definition requests, not authority. A representative portable section is:
+
+```yaml
+execution:
+  mode: SEQUENTIAL
+  confirmation:
+    min_confirmations: 3
+    check_interval: 2s
+    timeout: 5m
+  retry:
+    max_attempts: 3
+    backoff: exponential
+    initial_delay: 1s
+    max_delay: 20s
+    jitter: 0.15
+  rollback:
+    action: RECONCILE_AND_REBUILD
+    monitoring_horizon: UNTIL_FLOW_TERMINAL
+    rebuild_scope: INVALIDATED_CLOSURE
+    max_recovery_cycles: 3
+    reinclusion_window: 90s
+    minimum_consistent_absence_observations: 2
+  validity:
+    window: 20m
+    resubmit_safety_margin: 60
+```
+
+`confirmation.preset` may be `defaults`, `devnet`, `testnet`, or `quick`; explicit portable
+confirmation fields override the preset. Presets contribute only `min_confirmations`,
+`check_interval`, and `timeout`. Legacy backend-restart/wait fields are intentionally not part of
+the portable contract.
+
+Durations accept a non-negative integer followed by `ms`, `s`, `m`, or `h`, or an ISO-8601
+duration. Owning configuration builders reject zero/negative values where the policy requires a
+positive duration. See [Policies, results, and observability](./policies-results-observability) for
+effective settings and rollback semantics.
+
+## Safe YAML and JSON parsing
+
+Use bounded options for any document that crosses a trust boundary:
+
+```java
+FlowParseOptions options = FlowParseOptions.builder()
+        .maxDocumentBytes(1_000_000)
+        .maxAliases(0)
+        .maxNestingDepth(64)
+        .maxSteps(200)
+        .unknownFieldPolicy(UnknownFieldPolicy.REJECT)
+        .supportedApiVersions(Set.of(
+                FlowSchemaVersion.V1ALPHA1.getIdentifier()))
+        .build();
+
+FlowParseResult result = TxFlowCodec.standard().parse(source, options);
+```
+
+`FlowParseOptions.serverDefaults()` uses a 3,000,000-byte UTF-8 limit, at most 50 YAML collection
+aliases, nesting depth 100, at most 1,000 steps, unknown-field rejection, and an allowlist containing
+only `v1alpha1`. Tighten those limits for your service rather than increasing them to accommodate
+untrusted input.
+
+The standard codec also rejects duplicate YAML/JSON keys and multi-document YAML streams. It
+returns expected syntax and authoring failures as `FlowDiagnostic` values. Each diagnostic carries
+a stable code, severity, document path, and—when the parser supplies them—line, column, and step ID.
+Do not branch on the human-readable message.
+
+Unknown-field behavior is explicit:
+
+- `REJECT` is the safe server default;
+- `WARN` continues and emits `TXFLOW_UNKNOWN_FIELD`; and
+- `IGNORE` drops unknown envelope fields without a diagnostic.
+
+Use `WARN` or `IGNORE` only as a deliberate compatibility policy. The in-memory `TxFlow` model does
+not preserve unknown fields for a later round trip.
+
+`TxFlowCodec.detect(source)` is best-effort classification (`TX_FLOW`, `TX_PLAN`, or `UNKNOWN`), not
+validation. Always call `parse(...)` before accepting a document.
+
+## Write YAML or JSON
+
+The portable writer supports both syntaxes:
+
+```java
+TxFlowCodec codec = TxFlowCodec.standard();
+
+String yaml = codec.write(definition,
+        FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1));
+String json = codec.write(definition,
+        FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+```
+
+Use `TxFlowCodec.write` when you need a portable document. `TxFlow.toYaml()` is retained for the
+historical format. Legacy writing supports YAML only.
+
+Writing fails rather than projecting away behavior that has no portable representation. Java
+transaction factories, every legacy `StepDependency` strategy, step-level retry overrides, legacy
+flow or `TxPlan` variables, steps containing zero or multiple QuickTx transactions, legacy
+`RollbackStrategy`, non-default legacy confirmation compatibility fields, and non-default
+`retryOnTimeout`/`retryOnNetworkError` filters are not silently serialized. Use `RollbackPolicy`,
+migrate dependency selection to `needs` plus named `flow_output` references, and migrate variables
+to parameters plus `FlowBindings`. Reparse generated output with the same production parse options
+in build-time conformance tests.
+
+The schemas are available on the classpath as:
+
+```text
+/schema/txflow-v1alpha1.schema.json
+/schema/quicktx-transaction-v1alpha1.schema.json
+```
+
+An external schema validator must resolve the TxFlow schema's QuickTx `$ref` to the second resource.
+The Java codec does not replace compiler preflight or QuickTx runtime validation.
+
+## Portable versus legacy at a glance
+
+| Concern | Portable `v1alpha1` | Legacy compatibility format |
+| --- | --- | --- |
+| Envelope | `api_version`, `kind`, `metadata`, `spec` | `version`, optional `context`, `flow` |
+| Runtime values | Typed `FlowBindings` | Definition variables and `${name}` text substitution |
+| Ordering | `needs` | `depends_on` also mixed with UTxO availability |
+| Exact output use | Named `outputs` plus `flow_output` | Implicit pending-UTxO behavior |
+| Transaction | One embedded QuickTx transaction per step | TxPlan/Java factory compatibility paths |
+| Execution API | Immutable `FlowEngine` and `FlowExecutionRequest` | Mutable `FlowExecutor` facade |
+| Diagnostics | Structured parser/compiler diagnostics | Compatibility warnings and exceptions |
+
+The codec reports `TXFLOW_LEGACY_FORMAT` when it reads the old envelope. Migrate intentionally;
+portable encoding refuses constructs it cannot represent.
+
+## Next steps
+
+- [Getting started](./getting-started) — build and run the first portable flow.
+- [Execution engine](./execution-engine) — requests, executors, resources, idempotency, and recovery.
+- [Policies, results, and observability](./policies-results-observability) — control effective
+  settings and consume structured outcomes.
+- [Durable runtime](./durable-runtime) — persist executions safely with H2 or PostgreSQL.
+- [Operations and testing](./operations-testing) — schema fixtures, Yaci tests, diagnostics, and
+  deployment validation.

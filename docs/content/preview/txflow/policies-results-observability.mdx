@@ -1,0 +1,410 @@
+---
+title: "Policies, Results, and Observability"
+description: "Retry, confirmation, rollback, results, cancellation, recovery, and diagnostics for FlowEngine"
+---
+
+# Policies, Results, and Observability
+
+> **Preview API:** This page describes `FlowEngine`, `FlowExecutionHandle`, and the portable
+> execution policy. The similarly named `FlowExecutor`, `FlowHandle`, and `FlowListener` APIs are
+> the legacy facade.
+
+Portable definitions may request execution behavior, but the application remains the authority.
+`FlowExecutionPolicy` evaluates those requests during compilation and either accepts them, caps a
+numeric value with a warning, or rejects the definition with a diagnostic.
+
+## Portable requests and server policy
+
+A definition can request chaining, retry, confirmation, rollback, and validity settings:
+
+```yaml
+spec:
+  execution:
+    mode: SEQUENTIAL
+    retry:
+      max_attempts: 4
+      backoff: exponential
+      initial_delay: 1s
+      max_delay: 20s
+      jitter: 0.2
+    confirmation:
+      min_confirmations: 6
+      check_interval: 3s
+      timeout: 10m
+    rollback:
+      action: RECONCILE_AND_REBUILD
+      monitoring_horizon: UNTIL_FLOW_TERMINAL
+      rebuild_scope: INVALIDATED_CLOSURE
+      max_recovery_cycles: 3
+      reinclusion_window: 2m
+      minimum_consistent_absence_observations: 2
+    validity:
+      window: 30m
+      resubmit_safety_margin: 60
+```
+
+The engine does not blindly trust these values. Configure a policy at the service boundary:
+
+```java
+FlowExecutionPolicy policy = FlowExecutionPolicy.builder()
+        .maxSteps(25)
+        .allowedNetworks(Set.of("preview"))
+        .allowedModes(Set.of(ChainingMode.SEQUENTIAL))
+        .requireValidityInterval(true)
+        .maxValidityWindowSlots(3_600)
+        .maxRetryAttempts(5)
+        .maxConfirmationTimeout(Duration.ofMinutes(30))
+        .maxRollbackRecoveryCycles(3)
+        .allowedRollbackActions(Set.of(
+                RollbackAction.FAIL,
+                RollbackAction.RECONCILE_AND_REBUILD,
+                RollbackAction.PAUSE_FOR_RECOVERY))
+        .allowedRollbackHorizons(Set.of(
+                RollbackMonitoringHorizon.UNTIL_FLOW_TERMINAL))
+        .strictSettings(true)
+        .build();
+```
+
+With `strictSettings(false)` (the default), cappable execution requests—retry attempts,
+confirmation timeout, rollback recovery cycles, and the duration-based validity preference—are
+capped and reported as warnings. With `strictSettings(true)`, those differences are errors.
+Structural limits such as step count, explicit absolute-slot validity limits, disallowed modes,
+networks, resource prefixes, rollback actions, and monitoring horizons are always errors.
+
+## Spending-resource contention
+
+The compiler derives canonical spending identities from catalog descriptors, and a request may
+add more with `spendingResource(...)`. `FlowExecutionPolicy` decides what happens when executions
+overlap:
+
+| `SpendingContentionPolicy` | Behavior |
+|---|---|
+| `SERIALIZE` | Fairly wait up to `maxQueueWait`; defaults to a two-minute bound |
+| `REJECT` | Fail immediately with a resource-busy result |
+| `ALLOW` | Do not coordinate overlapping spending identities |
+
+```java
+FlowExecutionPolicy policy = FlowExecutionPolicy.builder()
+        .spendingContention(SpendingContentionPolicy.SERIALIZE)
+        .maxQueueWait(Duration.ofSeconds(30))
+        .allowConcurrentSpendingOptOut(false)
+        .build();
+```
+
+The in-process coordinator acquires multiple identities in sorted order. A durable engine also
+holds fenced resource leases for cooperating workers that use the same store. Neither mechanism
+reserves an on-chain UTxO against a partitioned stale worker.
+
+`FlowExecutionRequest.allowConcurrentSpending(true)` bypasses coordination only when
+`allowConcurrentSpendingOptOut(true)` permits it. Treat both `ALLOW` and the per-request opt-out as
+expert settings; concurrent builders may select and submit transactions spending the same UTxO.
+
+## Retry is phase-aware
+
+`RetryPolicy` controls the maximum attempt count, fixed/linear/exponential backoff, delay bounds,
+and jitter. It does not make every failure retryable.
+
+```java
+RetryPolicy retry = RetryPolicy.builder()
+        .maxAttempts(4)
+        .backoffStrategy(BackoffStrategy.EXPONENTIAL)
+        .initialDelay(Duration.ofSeconds(1))
+        .maxDelay(Duration.ofSeconds(20))
+        .retryOnTimeout(true)
+        .retryOnNetworkError(true)
+        .jitterFactor(0.2)
+        .build();
+```
+
+The safe action depends on both execution phase and `SubmissionOutcome`:
+
+| Known fact | Safe default |
+|---|---|
+| Typed transient network/timeout failure before signing or submission | Rebuild the step, within the attempt bound |
+| A transaction hash is known and retry is allowed | Retry or reconcile the same transaction identity |
+| Submission outcome is `UNKNOWN` | Reconcile the known hash before any retry or rebuild |
+| Submission outcome is `ACCEPTED` | Observe/reconcile; acceptance is not confirmation |
+| Submission outcome is `REJECTED` | Fail unless a higher-level policy explicitly starts a new operation |
+| Validation, policy, build, signing, or unclassified failure | Fail conservatively |
+
+Unknown submission is a safety state: a timeout after sending bytes does not prove that the
+network rejected them. TxFlow never authorizes a fresh transaction merely because the submission
+call did not return a usable answer.
+
+The compatibility method `RetryPolicy.isRetryable(Throwable)` has no phase information. It admits
+known `IOException` and timeout causes according to policy, but rejects an untyped
+`RuntimeException` conservatively. Backend adapters should preserve typed transient causes.
+
+## Submission and confirmation are separate
+
+`SubmissionOutcome.ACCEPTED` means only that the submission adapter reported success. Confirmation
+requires observing the transaction on-chain and, when configured, reaching the requested depth.
+
+```java
+ConfirmationConfig confirmation = ConfirmationConfig.builder()
+        .minConfirmations(6)
+        .checkInterval(Duration.ofSeconds(3))
+        .timeout(Duration.ofMinutes(10))
+        .requiredAuthoritativeAbsences(2)
+        .build();
+```
+
+The production-oriented defaults are depth 10, five-second polling, a 30-minute timeout, and two
+consecutive authoritative absences before rollback. `testnet()`, `devnet()`, and `quick()` are
+convenience presets; verify them against the risk and block cadence of your deployment.
+
+If a portable definition has no confirmation configuration, the legacy execution core used by
+the engine falls back to simple on-chain polling rather than confirmation-depth tracking. Configure
+confirmation explicitly whenever rollback handling or a defined safety depth is required.
+
+An observation adapter controls whether absence is authoritative. A transaction that disappears
+from an indexer is only *suspected* rolled back when the backend cannot prove absence. Ambiguous
+observations remain pending and eventually become `RECOVERY_REQUIRED`; they are never treated as
+permission to rebuild.
+
+## Rollback policy
+
+Rollback is distinct from an ordinary retry and begins only after authoritative evidence reaches
+the configured consecutive-absence threshold.
+
+| `RollbackAction` | Behavior |
+|---|---|
+| `FAIL` | End with a rollback-specific failure |
+| `WAIT_FOR_REINCLUSION` | Keep the same transaction hash and wait within `reinclusionWindow` |
+| `RECONCILE_AND_REBUILD` | Reconcile first, then rebuild only work proven invalid |
+| `PAUSE_FOR_RECOVERY` | Stop automated progress and return `RECOVERY_REQUIRED` |
+
+`RollbackMonitoringHorizon.UNTIL_STEP_CONFIRMED` stops monitoring after the step's target depth.
+`UNTIL_FLOW_TERMINAL` continues checking included attempts until the whole flow is terminal.
+
+`RollbackRebuildScope.AFFECTED_STEP` starts with the rolled-back step, but dependent work may still
+need invalidation. `INVALIDATED_CLOSURE` includes the producer and every transaction that consumes
+its invalidated outputs. TxFlow will widen a rebuild when a narrower scope cannot be safe.
+
+The policy's `maxRecoveryCycles` bounds automation. Exhaustion or an inconclusive reconciliation
+does not silently become success; it fails or requires explicit recovery according to the observed
+state and policy.
+
+## Terminal results
+
+`FlowExecutionHandle.await()` returns a `FlowExecutionResult` for every normal terminal outcome.
+Use `isSuccessful()` only as a convenience for the exact `COMPLETED` state; otherwise branch on
+`state()`.
+
+```java
+FlowExecutionResult result = handle.await();
+
+switch (result.state()) {
+    case COMPLETED -> recordSuccess(result.executionId(), result.steps());
+    case RECOVERY_REQUIRED -> scheduleReconciliation(
+            result.executionId(), result.attempts(), result.error());
+    case CANCELLED -> recordCancellation(result.executionId());
+    default -> recordFailure(result.executionId(), result.state(), result.error());
+}
+```
+
+The result contains:
+
+| Accessor | Meaning |
+|---|---|
+| `executionId()` | Request correlation and durable lookup identity |
+| `definitionFingerprint()` | SHA-256 identity of the compiled portable plan |
+| `state()` | Terminal or recovery-required execution state |
+| `steps()` | Immutable `FlowStepResult` values observed by this run |
+| `attempts()` | Durable `FlowAttemptSnapshot` values; empty without a store |
+| `error()` | Stable `FlowError`, or `null` after successful completion |
+| `startedAt()` / `completedAt()` | Execution timestamps |
+
+`FlowStepResult` retains the step ID, status, known transaction hash, produced UTxOs, spent inputs,
+result-observation time, and the original step-level throwable. In pipelined and batch failures, a
+submitted but not yet confirmed step is `IN_PROGRESS`, not successful; a transaction that was only
+built is omitted. Durable `FlowAttemptSnapshot` adds the attempt number, exact signed payload
+identity, validity bounds, input identities, inclusion history, and stable error code needed for
+recovery.
+
+### Execution states
+
+| State | Meaning |
+|---|---|
+| `COMPLETED` | Every required step completed successfully |
+| `PARTIALLY_COMPLETED` | At least one step reached the effective confirmation policy before a later conclusive failure |
+| `FAILED` | Execution ended with a conclusive failure |
+| `ROLLED_BACK` | Execution ended after an authoritative rollback outcome |
+| `CANCELLED` | Cooperative cancellation reached a safe boundary |
+| `RECOVERY_REQUIRED` | State is uncertain; reconcile before retry or rebuild |
+
+`CREATED`, `COMPILING`, `QUEUED`, and `RUNNING` are durable lifecycle states that may appear in
+stored snapshots. They are not successful terminal results.
+
+### Structured errors
+
+`FlowError.code()` is the stable, specific value for program logic. `category()` is a coarser
+dimension for metrics and routing: validation, policy, resource, build, sign, submission, network,
+backend unavailable, confirmation, rollback, persistence, recovery, cancellation, or internal.
+
+```java
+FlowError error = result.error();
+if (error != null) {
+    metrics.increment("txflow.failure", Map.of(
+            "code", error.code(),
+            "category", error.category().name()));
+}
+```
+
+`retryable()` is advisory context, not permission to submit a replacement transaction. In
+particular, reconcile `RECOVERY_REQUIRED` and unknown-submission outcomes by transaction hash
+before creating any new attempt.
+
+## Ordered events
+
+`FlowExecutionHandle` exposes immutable snapshots of per-execution events. Sequence numbers start
+at one, increase within one execution, and are not globally ordered across executions.
+
+```java
+long cursor = 0;
+for (FlowEvent event : handle.getEventsAfter(cursor)) {
+    publishEvent(event.executionId(), event.sequence(), event.type(), event.details());
+    cursor = event.sequence();
+}
+```
+
+Persist the last successfully consumed sequence as an exclusive cursor. Calling
+`getEventsAfter(cursor)` again returns only newer handle events. With a durable store, use
+`FlowExecutionStore.readEvents(executionId, cursor, limit)` for restart-safe consumption. If it
+reports `EVENTS_COMPACTED`, reload the latest execution snapshot and establish a new baseline.
+
+Important event groups include:
+
+- execution: `EXECUTION_CREATED`, `COMPILATION_COMPLETED`, `EXECUTION_QUEUED`,
+  `EXECUTION_STARTED`, and terminal execution events;
+- transaction attempt: `TRANSACTION_PREPARED`, `TRANSACTION_SUBMITTING`,
+  `TRANSACTION_SUBMITTED`, inclusion/depth/confirmation, and rollback events;
+- recovery: `RECOVERY_STARTED`, `RECOVERY_COMPLETED`, and `RECOVERY_REQUIRED`.
+
+Consumers should tolerate event types added in future releases. Event `details` are useful
+diagnostic attributes, but the typed event and terminal result remain the contract.
+
+### What about `FlowListener`?
+
+`FlowListener` is configured with `FlowExecutor.withListener(...)`; it is not a method on
+`FlowEngine.Builder`. `FlowEngine` internally translates execution callbacks into ordered
+`FlowEvent` values. Portable-runtime applications should consume handle or durable-store events
+instead of attempting to attach a `FlowListener` to the engine.
+
+Likewise, `FlowRegistry` tracks legacy `FlowHandle` instances. Track portable executions by their
+`executionId`, handle, event stream, and—when configured—`FlowExecutionStore`.
+
+## Cooperative cancellation
+
+Cancellation is a signal checked at safe execution, waiting, and retry boundaries. It does not
+interrupt the executor thread, close application resources, roll back the Cardano chain, or undo
+a transaction that has already been submitted.
+
+```java
+CancellationResult cancellation = handle.requestCancel("application shutdown");
+if (cancellation == CancellationResult.REQUESTED) {
+    FlowExecutionResult terminal = handle.await();
+    // The request was acknowledged earlier; terminal confirms where execution stopped.
+}
+```
+
+Possible acknowledgements are `REQUESTED`, `ALREADY_REQUESTED`, and `ALREADY_TERMINAL`. The
+boolean `cancel()` method is shorthand for a reasonless request and returns `true` only for the
+first accepted signal. Always await or otherwise observe the terminal result after requesting
+cancellation.
+
+## Parse and compile diagnostics
+
+Syntax and expected authoring problems are values, not control-flow exceptions:
+
+```java
+FlowParseResult parsed = TxFlowCodec.standard()
+        .parse(source, FlowParseOptions.serverDefaults());
+report(parsed.getDiagnostics());
+if (parsed.hasErrors()) {
+    return;
+}
+
+FlowCompilationResult compiled = engine.preflight(
+        FlowExecutionRequest.builder(parsed.requireFlow())
+                .bindings(bindings)
+                .build());
+report(compiled.getDiagnostics());
+if (compiled.hasErrors()) {
+    return;
+}
+```
+
+Each `FlowDiagnostic` has a stable code, severity, message, JSONPath-like document path, optional
+source line/column, and optional step ID. Log or return the code and location; avoid exposing
+secret binding values in diagnostic text.
+
+Invalid Java API arguments can still throw immediately—for example, a blank execution ID, only
+one half of an idempotency pair, an invalid duration, or an unsupported binding value. Once
+`start` returns a handle, expected execution rejection is represented in its terminal result.
+
+## Explicit recovery
+
+When a durable result is `RECOVERY_REQUIRED`, recover the persisted attempt rather than rebuilding
+blindly. Obtain a fresh authoritative Cardano **slot**—not a block height or wall-clock value—and
+fail closed if it is unavailable. The engine trusts `currentSlot`; it does not establish freshness
+itself. Supply a safety margin before the recorded validity upper bound:
+
+```java
+FlowRecoveryResult recovery = engine.recover(FlowRecoveryRequest.builder()
+        .executionId(result.executionId())
+        .currentSlot(currentSlot)
+        .resubmitSafetyMargin(60)
+        .build());
+```
+
+`stepId` and `attemptNumber` select a particular persisted attempt. They are optional in the Java
+API, but operator and cross-process recovery should require both unless the target is provably
+unambiguous; otherwise the engine chooses the highest attempt number among all matching steps.
+Recovery acquires durable execution and resource leases, observes the known hash, and may resubmit
+only verified identical signed CBOR. Its expiry check applies only when `validToSlot` is present,
+so controlled deployments should require validity intervals through server policy.
+
+The built-in `FlowEngine` persistence path stores signed CBOR inline. If a custom or pre-seeded
+store record uses `SignedPayload.ExternalCbor`, provide an application-owned
+`SignedPayloadResolver` on the recovery request:
+
+```java
+FlowRecoveryResult recovery = engine.recover(FlowRecoveryRequest.builder()
+        .executionId(executionId)
+        .currentSlot(currentSlot)
+        .resubmitSafetyMargin(60)
+        .payloadResolver(reference -> signedPayloadStore.load(reference))
+        .build());
+```
+
+TxFlow verifies both the recorded SHA-256 digest and Cardano transaction hash after loading the
+bytes. A resolver retrieves bytes; it is not a trust bypass.
+
+`FlowRecoveryResult` reports the reconciled `AttemptState`, transaction hash, whether this call
+resubmitted the identical payload, an optional structured error, and newly observed inclusion
+metadata. Treat `AttemptState.RECOVERY_REQUIRED` as still unresolved.
+
+Recovery reconciles one persisted transaction attempt. It does not automatically resume every
+remaining step of a stopped multi-step flow; the application must interpret the recovery result
+and apply its workflow policy before taking another action.
+
+## Production limitations
+
+- Store leases and fencing prevent stale workers from mutating TxFlow's durable state. They cannot
+  stop a partitioned stale process from submitting already-signed bytes to Cardano. Active-active
+  deployments needing that guarantee require external spending serialization or a UTxO
+  reservation coordinator.
+- Cooperative cancellation cannot reverse a submitted or confirmed transaction.
+- Indexer absence is not proof of rollback unless the backend adapter declares authoritative
+  absence. Uncertainty remains `RECOVERY_REQUIRED`.
+- The in-memory execution store, in-memory idempotency claims, handle event list, and legacy
+  registry do not survive a process restart.
+- Explicit recovery reconciles a persisted attempt; it is not a general automatic continuation
+  service for every remaining step after a process restart.
+- Resource catalogs contain public metadata. Signer keys, scripts, secure bindings, payload
+  storage, access control, and credential rotation remain application responsibilities.
+- The engine owns no threads. Keep its caller-owned task and maintenance executors alive, bounded,
+  observable, and shut down by the application.
+
+Start with [Executing Portable Flows](/docs/preview/txflow/execution-engine) for end-to-end wiring.
