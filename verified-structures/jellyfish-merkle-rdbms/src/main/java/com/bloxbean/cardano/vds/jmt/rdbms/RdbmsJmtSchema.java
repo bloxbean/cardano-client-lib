@@ -17,6 +17,7 @@ final class RdbmsJmtSchema {
     private static final String CF_ROOTS = "jmt_roots";
     private static final String CF_LATEST = "jmt_latest";
     private static final String CF_STALE = "jmt_stale";
+    private static final String CF_METADATA = "jmt_metadata";
 
     private final TableNameResolver resolver;
 
@@ -62,5 +63,12 @@ final class RdbmsJmtSchema {
      */
     String staleTable() {
         return resolver.resolve(CF_STALE);
+    }
+
+    /**
+     * Returns the persistent format metadata table name.
+     */
+    String metadataTable() {
+        return resolver.resolve(CF_METADATA);
     }
 }

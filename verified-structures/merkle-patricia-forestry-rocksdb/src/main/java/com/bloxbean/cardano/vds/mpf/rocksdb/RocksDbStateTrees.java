@@ -70,6 +70,7 @@ public final class RocksDbStateTrees implements StateTrees {
     private final ColumnFamilyHandle cfRoots;
     private final Cache blockCache;           // may be null
     private final ColumnFamilyOptions columnFamilyOptions;
+    private final Filter filterPolicy;        // may be null
 
     private final RocksDbNodeStore nodeStore;
     private final RocksDbRootsIndex rootsIndex;
@@ -182,6 +183,7 @@ public final class RocksDbStateTrees implements StateTrees {
 
         Cache localBlockCache = null;
         ColumnFamilyOptions localCfOptions = null;
+        Filter localFilterPolicy = null;
         DBOptions localDbOptions = null;
         RocksDB localDb = null;
         java.util.List<ColumnFamilyHandle> cfHandles = new java.util.ArrayList<>();
@@ -197,7 +199,8 @@ public final class RocksDbStateTrees implements StateTrees {
 
             localCfOptions = new ColumnFamilyOptions();
             localCfOptions.useFixedLengthPrefixExtractor(1);
-            config.applyToCfOptions(localCfOptions, localBlockCache);
+            BlockBasedTableConfig tableConfig = config.applyToCfOptions(localCfOptions, localBlockCache);
+            localFilterPolicy = tableConfig == null ? null : tableConfig.filterPolicy();
 
             java.util.List<ColumnFamilyDescriptor> cfDescriptors = new java.util.ArrayList<>();
             int nodesColumnFamilyIndex = -1, rootsColumnFamilyIndex = -1;
@@ -233,6 +236,7 @@ public final class RocksDbStateTrees implements StateTrees {
 
             this.blockCache = localBlockCache;
             this.columnFamilyOptions = localCfOptions;
+            this.filterPolicy = localFilterPolicy;
             this.options = localDbOptions;
             this.db = localDb;
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
@@ -254,6 +258,7 @@ public final class RocksDbStateTrees implements StateTrees {
                 closeQuietly(localDb);
                 closeQuietly(localDbOptions);
                 closeQuietly(localCfOptions);
+                closeQuietly(localFilterPolicy);
                 closeQuietly(localBlockCache);
             }
         }
@@ -535,6 +540,11 @@ public final class RocksDbStateTrees implements StateTrees {
             columnFamilyOptions.close();
         } catch (Exception e) {
             log.warn("Failed to close ColumnFamilyOptions", e);
+        }
+        try {
+            if (filterPolicy != null) filterPolicy.close();
+        } catch (Exception e) {
+            log.warn("Failed to close Bloom filter policy", e);
         }
         try {
             if (blockCache != null) blockCache.close();

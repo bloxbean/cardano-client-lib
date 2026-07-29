@@ -10,8 +10,12 @@ import java.util.Arrays;
  * Classic JMT commitments using simple, fixed preimages with node-type tags.
  * <p>
  * Preimages:
- * - Leaf:     H( 0x00 || suffixNibbles || valueHash )
+ * - Leaf:     H( 0x00 || keyHash || valueHash )
  * - Internal: H( 0x01 || bitmap(2B, BE) || child[0] || ... || child[15] )  (NULL for absent)
+ * <p>
+ * The leaf preimage uses Diem-style full-key binding. The overall radix-16 branch commitment and
+ * proof format are custom and are not compatible with Diem/Aptos JMT. Committing only to a path suffix
+ * would leave the leaf unbound to its key and make inclusion/non-inclusion proofs forgeable.
  * <p>
  * Extension nodes (if any) are handled by the Classic proof codec during verification.
  */
@@ -64,17 +68,18 @@ public final class ClassicJmtCommitmentScheme implements CommitmentScheme {
     }
 
     @Override
-    public byte[] commitLeaf(NibblePath suffix, byte[] valueHash) {
+    public byte[] commitLeaf(byte[] keyHash, byte[] valueHash) {
+        if (keyHash == null || keyHash.length != digestLength) {
+            throw new IllegalArgumentException("keyHash must be digest-sized");
+        }
         if (valueHash == null || valueHash.length != digestLength) {
             throw new IllegalArgumentException("valueHash must be digest-sized");
         }
-        // Zero-allocation access using get() instead of getNibbles()
-        int suffixLen = suffix.length();
-        byte[] suffixBytes = new byte[suffixLen];
-        for (int i = 0; i < suffixLen; i++) {
-            suffixBytes[i] = (byte) (suffix.get(i) & 0x0F);
-        }
-        return hashFn.digest(Bytes.concat(new byte[]{TAG_LEAF}, suffixBytes, Arrays.copyOf(valueHash, valueHash.length)));
+        // H(0x00 || keyHash || valueHash) — the key hash is bound so the leaf commitment
+        // uniquely identifies (key, value); this is what makes proofs unforgeable.
+        return hashFn.digest(Bytes.concat(new byte[]{TAG_LEAF},
+                Arrays.copyOf(keyHash, keyHash.length),
+                Arrays.copyOf(valueHash, valueHash.length)));
     }
 
     @Override
@@ -82,4 +87,3 @@ public final class ClassicJmtCommitmentScheme implements CommitmentScheme {
         return Arrays.copyOf(nullHash, nullHash.length);
     }
 }
-

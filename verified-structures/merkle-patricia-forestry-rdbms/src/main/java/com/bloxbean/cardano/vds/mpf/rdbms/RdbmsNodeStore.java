@@ -146,7 +146,8 @@ public class RdbmsNodeStore implements NodeStore, AutoCloseable {
         String sql = dialect.insertOrIgnoreSql(
             schema.nodesTable(),
             "namespace, node_hash, node_data",
-            "?, ?, ?"
+            "?, ?, ?",
+            "namespace, node_hash"
         );
 
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -274,7 +275,8 @@ public class RdbmsNodeStore implements NodeStore, AutoCloseable {
             String sql = dialect.insertOrIgnoreSql(
                 schema.nodesTable(),
                 "namespace, node_hash, node_data",
-                "?, ?, ?"
+                "?, ?, ?",
+                "namespace, node_hash"
             );
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 for (Map.Entry<byte[], byte[]> e : nodes.entrySet()) {

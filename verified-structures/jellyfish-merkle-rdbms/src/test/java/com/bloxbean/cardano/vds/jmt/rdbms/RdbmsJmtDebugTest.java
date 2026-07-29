@@ -51,7 +51,7 @@ class RdbmsJmtDebugTest {
     @Test
     void debug_simple_insert_and_query() throws Exception {
         try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             // Version 0: Insert key1
             byte[] key1 = "key1".getBytes(StandardCharsets.UTF_8);
@@ -101,7 +101,7 @@ class RdbmsJmtDebugTest {
     @Test
     void debug_multiple_versions() throws Exception {
         try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             byte[] key1 = "key1".getBytes(StandardCharsets.UTF_8);
             byte[] value1v0 = "value1_v0".getBytes(StandardCharsets.UTF_8);
@@ -147,7 +147,7 @@ class RdbmsJmtDebugTest {
     void debug_randomized_like_property_test() throws Exception {
         // Reproduce the exact scenario from the property test
         try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             // Generate keys the same way as property test
             java.util.Random rng = new java.util.Random(0xCAFE);

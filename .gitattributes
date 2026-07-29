@@ -1,0 +1,2 @@
+# Coverage-guided fuzz regression inputs are arbitrary binary data.
+verified-structures/**/src/test/resources/**/*Inputs/** binary

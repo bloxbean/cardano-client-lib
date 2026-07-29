@@ -36,7 +36,7 @@ class RdbmsJmtComparisonTest {
     private static final HashFunction HASH = Blake2b256::digest;
     private static final CommitmentScheme COMMITMENTS = new ClassicJmtCommitmentScheme(HASH);
     // Fixed seed (0xCAFE) ensures identical test data across RDBMS and in-memory stores for comparison
-    private static final Random RNG = new Random(0xCAFE); // NOSONAR - deterministic testing requires fixed seed
+    private final Random rng = new Random(0xCAFE); // NOSONAR - deterministic per-test seed
 
     private DbConfig dbConfig;
 
@@ -103,9 +103,9 @@ class RdbmsJmtComparisonTest {
         RocksDbJmtStore rocksDbStore = new RocksDbJmtStore(rocksDbDir.getAbsolutePath());
 
         try {
-            JellyfishMerkleTree rdbmsTree = new JellyfishMerkleTree(rdbmsStore, COMMITMENTS, HASH);
-            JellyfishMerkleTree memoryTree = new JellyfishMerkleTree(memoryStore, COMMITMENTS, HASH);
-            JellyfishMerkleTree rocksDbTree = new JellyfishMerkleTree(rocksDbStore, COMMITMENTS, HASH);
+            JellyfishMerkleTree rdbmsTree = new JellyfishMerkleTree(rdbmsStore);
+            JellyfishMerkleTree memoryTree = new JellyfishMerkleTree(memoryStore);
+            JellyfishMerkleTree rocksDbTree = new JellyfishMerkleTree(rocksDbStore);
 
             List<VersionSnapshot> snapshots = new ArrayList<>();
 
@@ -168,7 +168,7 @@ class RdbmsJmtComparisonTest {
                 // Compare queries
                 System.out.println("\nQuerying " + queriesPerVersion + " random keys:");
                 for (int i = 0; i < queriesPerVersion; i++) {
-                    byte[] key = keyPool.get(RNG.nextInt(keyPool.size()));
+                    byte[] key = keyPool.get(rng.nextInt(keyPool.size()));
                     byte[] keyHash = HASH.digest(key);
 
                     if (keyCount <= 20) {
@@ -330,18 +330,18 @@ class RdbmsJmtComparisonTest {
     private List<byte[]> generateKeys(int count) {
         List<byte[]> keys = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            String s = "jmt-key-" + i + "-" + RNG.nextInt(1_000_000);
+            String s = "jmt-key-" + i + "-" + rng.nextInt(1_000_000);
             keys.add(s.getBytes(StandardCharsets.UTF_8));
         }
         return keys;
     }
 
     private Map<byte[], byte[]> randomUpdates(List<byte[]> keyPool, int maxUpdates) {
-        int n = 1 + RNG.nextInt(Math.max(1, maxUpdates));
+        int n = 1 + rng.nextInt(Math.max(1, maxUpdates));
         Map<byte[], byte[]> updates = new LinkedHashMap<>();
         for (int i = 0; i < n; i++) {
-            byte[] key = keyPool.get(RNG.nextInt(keyPool.size()));
-            String val = "v-" + RNG.nextInt(100_000);
+            byte[] key = keyPool.get(rng.nextInt(keyPool.size()));
+            String val = "v-" + rng.nextInt(100_000);
             updates.put(key, val.getBytes(StandardCharsets.UTF_8));
         }
         return updates;

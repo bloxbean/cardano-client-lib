@@ -84,18 +84,25 @@ public interface SqlDialect {
     boolean supportsReturning();
 
     /**
-     * Returns an INSERT OR IGNORE statement for idempotent inserts.
+     * Returns a duplicate-tolerant statement for immutable, idempotent inserts.
+     *
+     * <p>Callers must ensure that a repeated unique key represents the same logical payload or
+     * reject the conflict before executing this statement. This is especially important on H2,
+     * whose typed {@code MERGE ... KEY} form rewrites the matched row.</p>
      *
      * <p>The statement format varies by database:
      * <ul>
      *   <li>PostgreSQL: {@code INSERT ... ON CONFLICT DO NOTHING}</li>
-     *   <li>H2/SQLite: {@code INSERT OR IGNORE}</li>
+     *   <li>H2: {@code MERGE ... KEY}</li>
+     *   <li>SQLite: {@code INSERT OR IGNORE}</li>
      * </ul>
      *
      * @param tableName the table name
      * @param columns comma-separated column names
      * @param placeholders comma-separated value placeholders (e.g., "?, ?, ?")
-     * @return the INSERT OR IGNORE SQL statement
+     * @param keyColumns comma-separated primary/unique key columns
+     * @return the duplicate-tolerant insert SQL statement
      */
-    String insertOrIgnoreSql(String tableName, String columns, String placeholders);
+    String insertOrIgnoreSql(String tableName, String columns, String placeholders,
+                             String keyColumns);
 }

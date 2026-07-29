@@ -14,8 +14,22 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -24,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>Tests concurrent access patterns:
  * <ul>
- *   <li>Concurrent writes (commits)</li>
+ *   <li>A single ordered writer (commits)</li>
  *   <li>Concurrent reads (proof generation)</li>
  *   <li>Mixed read/write workload</li>
  * </ul>
@@ -33,15 +47,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * <pre>
  * # Via Gradle - 1-hour sustained write test with concurrent reads
  * ./gradlew :verified-structures:load-tools:run \
- *     --args="jmt-concurrent --duration=3600 --write-threads=4 --read-threads=8 --batch=1000 --rocksdb=/tmp/jmt-concurrent"
+ *     --args="jmt-concurrent --duration=3600 --write-threads=1 --read-threads=8 --batch=1000 --rocksdb=/tmp/jmt-concurrent"
  *
  * # Via fat JAR (build first: ./gradlew :verified-structures:load-tools:shadowJar)
  * java -jar cardano-client-vds-load-tools-VERSION-all.jar \
- *     jmt-concurrent --duration=1800 --write-threads=8 --read-threads=2 --batch=500 --rocksdb=/tmp/jmt-write-heavy
+ *     jmt-concurrent --duration=1800 --write-threads=1 --read-threads=2 --batch=500 --rocksdb=/tmp/jmt-write-heavy
  *
  * # Read-heavy workload
  * ./gradlew :verified-structures:load-tools:run \
- *     --args="jmt-concurrent --duration=1800 --write-threads=2 --read-threads=16 --batch=1000 --rocksdb=/tmp/jmt-read-heavy"
+ *     --args="jmt-concurrent --duration=1800 --write-threads=1 --read-threads=16 --batch=1000 --rocksdb=/tmp/jmt-read-heavy"
  * </pre>
  */
 public final class JmtConcurrentLoadTester {
@@ -166,12 +180,11 @@ public final class JmtConcurrentLoadTester {
                             continue;
                         }
 
-                        byte[] keyHash = hashFn.digest(key);
                         long currentVersion = version.get();
 
                         if (currentVersion > 0) {
                             long readStart = System.currentTimeMillis();
-                            Optional<JmtProof> proof = tree.getProof(keyHash, currentVersion);
+                            Optional<JmtProof> proof = tree.getProof(key, currentVersion);
                             long readElapsed = System.currentTimeMillis() - readStart;
 
                             if (proof.isPresent()) {
@@ -320,7 +333,7 @@ public final class JmtConcurrentLoadTester {
 
         static ConcurrentLoadOptions parse(String[] args) {
             int duration = 3600; // 1 hour default
-            int writeThreads = 4;
+            int writeThreads = 1;
             int readThreads = 8;
             int batchSize = 1000;
             int valueSize = 128;
@@ -344,6 +357,13 @@ public final class JmtConcurrentLoadTester {
                 }
             }
 
+            if (writeThreads != 1) {
+                throw new IllegalArgumentException("JMT requires exactly one ordered writer; --write-threads must be 1");
+            }
+            if (duration <= 0 || readThreads < 0 || batchSize <= 0 || valueSize < 0) {
+                throw new IllegalArgumentException("duration and batch must be positive; read-threads and value-size cannot be negative");
+            }
+
             return new ConcurrentLoadOptions(duration, writeThreads, readThreads, batchSize, valueSize, rocksPath);
         }
 
@@ -352,7 +372,7 @@ public final class JmtConcurrentLoadTester {
             System.out.println("Usage: JmtConcurrentLoadTester [options]\n");
             System.out.println("Options:");
             System.out.println("  --duration=N          Duration in seconds (default: 3600 = 1 hour)");
-            System.out.println("  --write-threads=N     Number of concurrent write threads (default: 4)");
+            System.out.println("  --write-threads=1     Exactly one ordered writer is required (default: 1)");
             System.out.println("  --read-threads=N      Number of concurrent read threads (default: 8)");
             System.out.println("  --batch=N             Updates per batch commit (default: 1000)");
             System.out.println("  --value-size=N        Value size in bytes (default: 128)");
@@ -361,13 +381,13 @@ public final class JmtConcurrentLoadTester {
             System.out.println("Examples:");
             System.out.println();
             System.out.println("  # 1-hour balanced workload");
-            System.out.println("  JmtConcurrentLoadTester --duration=3600 --write-threads=4 --read-threads=8");
+            System.out.println("  JmtConcurrentLoadTester --duration=3600 --write-threads=1 --read-threads=8");
             System.out.println();
             System.out.println("  # Write-heavy workload");
-            System.out.println("  JmtConcurrentLoadTester --duration=1800 --write-threads=8 --read-threads=2");
+            System.out.println("  JmtConcurrentLoadTester --duration=1800 --write-threads=1 --read-threads=2");
             System.out.println();
             System.out.println("  # Read-heavy workload");
-            System.out.println("  JmtConcurrentLoadTester --duration=1800 --write-threads=2 --read-threads=16");
+            System.out.println("  JmtConcurrentLoadTester --duration=1800 --write-threads=1 --read-threads=16");
             System.exit(0);
         }
     }

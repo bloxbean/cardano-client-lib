@@ -61,7 +61,6 @@ public final class JmtExtensionNode implements JmtNode {
         }
         byte[] hp = ((ByteString) array.getDataItems().get(1)).getBytes();
         byte[] child = ((ByteString) array.getDataItems().get(2)).getBytes();
-        return new JmtExtensionNode(hp, child);
+        return JmtExtensionNode.of(hp, child);
     }
 }
-

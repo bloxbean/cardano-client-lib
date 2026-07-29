@@ -7,6 +7,7 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigInteger;
 import java.util.Arrays;
 
 /**
@@ -78,7 +79,11 @@ public final class JmtInternalNode implements JmtNode {
         if (array.getDataItems().size() < 2) {
             throw new IllegalArgumentException("Internal node array too small");
         }
-        int bitmap = ((UnsignedInteger) array.getDataItems().get(1)).getValue().intValue();
+        BigInteger bitmapValue = ((UnsignedInteger) array.getDataItems().get(1)).getValue();
+        if (bitmapValue.bitLength() > 16) {
+            throw new IllegalArgumentException("Internal node bitmap exceeds 16 bits");
+        }
+        int bitmap = bitmapValue.intValue();
         int childCount = Integer.bitCount(bitmap & 0xFFFF);
         if (array.getDataItems().size() < 2 + childCount) {
             throw new IllegalArgumentException("Internal node missing child hashes");

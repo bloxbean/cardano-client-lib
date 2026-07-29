@@ -28,35 +28,52 @@ public final class JmtProofVerifier {
 
         byte[] keyHash = hashFn.digest(key);
         int[] nibbles = Nibbles.toNibbles(keyHash);
-        List<JmtProof.BranchStep> steps = proof.steps();
 
-        switch (proof.type()) {
-            case INCLUSION:
-                if (value == null) return false;
-                return verifyInclusion(rootHash, value, proof, hashFn, commitments, keyHash, nibbles);
-            case NON_INCLUSION_EMPTY:
-                return verifyEmpty(rootHash, proof, commitments, nibbles);
-            case NON_INCLUSION_DIFFERENT_LEAF:
-                return verifyDifferentLeaf(rootHash, proof, commitments, keyHash, nibbles);
-            default:
-                throw new IllegalStateException("Unhandled proof type: " + proof.type());
+        // Fail LOUDLY on genuine misconfiguration (a caller bug, not attacker input): the hash
+        // function's digest length must match the commitment scheme's. Detecting this before the
+        // catch below means such a setup error is not silently reported as "proof invalid".
+        int schemeDigestLength = commitments.nullHash().length;
+        if (keyHash.length != schemeDigestLength) {
+            throw new IllegalArgumentException("hashFn digest length " + keyHash.length
+                    + " does not match commitment scheme digest length " + schemeDigestLength);
+        }
+        if (rootHash.length != schemeDigestLength) return false;
+
+        // The proof contents are untrusted: a malformed/structurally invalid proof is "invalid"
+        // (false), never an unchecked exception surfaced to the caller.
+        try {
+            switch (proof.type()) {
+                case INCLUSION:
+                    if (value == null) return false;
+                    return verifyInclusion(rootHash, value, proof, hashFn, commitments, keyHash, nibbles);
+                case NON_INCLUSION_EMPTY:
+                    return verifyEmpty(rootHash, proof, commitments, nibbles);
+                case NON_INCLUSION_DIFFERENT_LEAF:
+                    return verifyDifferentLeaf(rootHash, proof, commitments, keyHash, nibbles);
+                default:
+                    return false;
+            }
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 
     private static boolean verifyInclusion(byte[] rootHash, byte[] value, JmtProof proof,
                                            HashFunction hashFn, CommitmentScheme commitments,
                                            byte[] keyHash, int[] nibbles) {
-        if (!Arrays.equals(keyHash, proof.leafKeyHash())) return false;
+        if (proof.steps().size() > nibbles.length) return false;
         byte[] valueHash = hashFn.digest(value);
-        if (!Arrays.equals(valueHash, proof.valueHash())) return false;
-
-        byte[] hash = commitments.commitLeaf(proof.suffix(), valueHash);
+        // Derive the leaf commitment from the QUERIED key + supplied value. We never trust
+        // proof.suffix()/proof.leafKeyHash(): a sound proof is one whose reconstruction from
+        // the queried key alone reproduces the trusted root.
+        byte[] hash = commitments.commitLeaf(keyHash, valueHash);
         hash = ascend(hash, proof.steps(), commitments, nibbles);
         return Arrays.equals(rootHash, hash);
     }
 
     private static boolean verifyEmpty(byte[] rootHash, JmtProof proof,
                                        CommitmentScheme commitments, int[] nibbles) {
+        if (proof.steps().size() > nibbles.length) return false;
         byte[] hash = commitments.nullHash();
         hash = ascend(hash, proof.steps(), commitments, nibbles);
         return Arrays.equals(rootHash, hash);
@@ -65,8 +82,25 @@ public final class JmtProofVerifier {
     private static boolean verifyDifferentLeaf(byte[] rootHash, JmtProof proof,
                                                CommitmentScheme commitments,
                                                byte[] keyHash, int[] nibbles) {
-        if (Arrays.equals(keyHash, proof.conflictingKeyHash())) return false;
-        byte[] hash = commitments.commitLeaf(proof.conflictingSuffix(), proof.conflictingValueHash());
+        byte[] conflictingKeyHash = proof.conflictingKeyHash();
+        byte[] conflictingValueHash = proof.conflictingValueHash();
+        if (conflictingKeyHash == null || conflictingValueHash == null) return false;
+        if (conflictingKeyHash.length != keyHash.length
+                || conflictingValueHash.length != keyHash.length) {
+            return false;
+        }
+        // The conflicting leaf must be a DIFFERENT key that lies on the queried key's path.
+        if (Arrays.equals(keyHash, conflictingKeyHash)) return false;
+        int depth = proof.steps().size();
+        if (depth > nibbles.length) return false;
+        int[] conflictingNibbles = Nibbles.toNibbles(conflictingKeyHash);
+        if (conflictingNibbles.length < depth) return false;
+        for (int i = 0; i < depth; i++) {
+            if (conflictingNibbles[i] != nibbles[i]) return false;
+        }
+        // Leaf commitment binds the conflicting key hash, so it cannot be swapped for the
+        // real leaf of a present key without failing the != check above.
+        byte[] hash = commitments.commitLeaf(conflictingKeyHash, conflictingValueHash);
         hash = ascend(hash, proof.steps(), commitments, nibbles);
         return Arrays.equals(rootHash, hash);
     }
@@ -82,6 +116,14 @@ public final class JmtProofVerifier {
                 throw new IllegalArgumentException("Branch step must contain 16 child hashes");
             }
             int nibble = nibbles[i];
+            if (step.prefix().length() != i || step.childIndex() != nibble) {
+                throw new IllegalArgumentException("Branch step does not match queried key path");
+            }
+            for (int prefixIndex = 0; prefixIndex < i; prefixIndex++) {
+                if (step.prefix().get(prefixIndex) != nibbles[prefixIndex]) {
+                    throw new IllegalArgumentException("Branch prefix does not match queried key");
+                }
+            }
             if (childHashes[nibble] != null || !Arrays.equals(hash, nullHash)) {
                 childHashes[nibble] = Arrays.copyOf(hash, hash.length);
             }

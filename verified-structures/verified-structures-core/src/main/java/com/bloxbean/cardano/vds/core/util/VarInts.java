@@ -31,13 +31,22 @@ public final class VarInts {
      */
     public static ReadResult readUnsignedInt(byte[] bytes, int offset) {
         if (bytes == null) throw new IllegalArgumentException("bytes cannot be null");
+        if (offset < 0 || offset >= bytes.length) {
+            throw new IllegalArgumentException("Invalid VarInt offset: " + offset);
+        }
         int idx = offset;
         int shift = 0;
         int value = 0;
         while (idx < bytes.length) {
             int b = bytes[idx++] & 0xFF;
+            if (shift == 28 && (b & 0xF8) != 0) {
+                throw new IllegalArgumentException("VarInt exceeds signed integer range");
+            }
             value |= (b & 0x7F) << shift;
             if ((b & 0x80) == 0) {
+                if (idx - offset > 1 && (b & 0x7F) == 0) {
+                    throw new IllegalArgumentException("Non-canonical VarInt encoding");
+                }
                 return new ReadResult(value, idx);
             }
             shift += 7;

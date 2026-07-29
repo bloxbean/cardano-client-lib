@@ -32,6 +32,7 @@ apache-common-text="org.apache.commons:commons-text:1.15.0"
 
 # jqwik (Property-based testing)
 jqwik = "net.jqwik:jqwik:1.9.3"
+jazzer-junit = "com.code-intelligence:jazzer-junit:0.30.0"
 
 # JMH (Java Microbenchmark Harness) for performance testing
 jmh-core = "org.openjdk.jmh:jmh-core:1.37"

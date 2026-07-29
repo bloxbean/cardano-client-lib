@@ -54,9 +54,8 @@ class JmtMetricsExampleTest {
         );
 
         // Record proof generation metrics
-        byte[] keyHash = HASH.digest("alice".getBytes());
         long proofStart = System.currentTimeMillis();
-        Optional<JmtProof> proof = tree.getProof(keyHash, 1);
+        Optional<JmtProof> proof = tree.getProof("alice".getBytes(), 1);
         long proofDuration = System.currentTimeMillis() - proofStart;
 
         assertTrue(proof.isPresent());

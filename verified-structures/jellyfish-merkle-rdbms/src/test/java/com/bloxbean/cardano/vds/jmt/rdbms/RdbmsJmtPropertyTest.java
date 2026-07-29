@@ -42,7 +42,7 @@ class RdbmsJmtPropertyTest {
     private static final HashFunction HASH = Blake2b256::digest;
     private static final CommitmentScheme COMMITMENTS = new ClassicJmtCommitmentScheme(HASH);
     // Using fixed seed (0xCAFE) intentionally for reproducible test data generation
-    private static final Random RNG = new Random(0xCAFE); // NOSONAR - deterministic testing requires fixed seed
+    private final Random rng = new Random(0xCAFE); // NOSONAR - deterministic per-test seed
 
     private DbConfig dbConfig;
     private String jdbcUrl;
@@ -93,7 +93,7 @@ class RdbmsJmtPropertyTest {
 
         // Phase 1: Build multiple versions with random updates
         try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             for (long v = 0; v < versions; v++) {
                 Map<byte[], byte[]> updates = randomUpdates(keyPool, maxUpdatesPerVersion);
@@ -132,7 +132,7 @@ class RdbmsJmtPropertyTest {
 
         // Phase 4: Reopen and verify persistence
         try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             // Verify latest version after reopen
             VersionSnapshot latestSnapshot = snapshots.get(snapshots.size() - 1);
@@ -144,7 +144,7 @@ class RdbmsJmtPropertyTest {
 
             // Verify a few historical versions persist
             for (int i = 0; i < Math.min(5, snapshots.size()); i++) {
-                VersionSnapshot snapshot = snapshots.get(RNG.nextInt(snapshots.size()));
+                VersionSnapshot snapshot = snapshots.get(rng.nextInt(snapshots.size()));
                 byte[] historicalRoot = store.rootHash(snapshot.version).orElseThrow();
                 assertArrayEquals(snapshot.rootHash, historicalRoot,
                         "Historical root at version " + snapshot.version + " should persist");
@@ -164,7 +164,7 @@ class RdbmsJmtPropertyTest {
         List<VersionSnapshot> snapshots = new ArrayList<>();
 
         try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             for (long v = 0; v < versions; v++) {
                 Map<byte[], byte[]> updates = randomUpdates(keyPool, maxUpdatesPerVersion);
@@ -226,7 +226,7 @@ class RdbmsJmtPropertyTest {
         List<VersionSnapshot> snapshots = new ArrayList<>();
 
         try (RdbmsJmtStore store = new RdbmsJmtStore(sqliteConfig)) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             for (long v = 0; v < versions; v++) {
                 Map<byte[], byte[]> updates = randomUpdates(keyPool, maxUpdatesPerVersion);
@@ -250,13 +250,13 @@ class RdbmsJmtPropertyTest {
         }
     }
 
-    private static void assertRandomProofs(JellyfishMerkleTree tree,
+    private void assertRandomProofs(JellyfishMerkleTree tree,
                                           RdbmsJmtStore store,
                                           VersionSnapshot snapshot,
                                           List<byte[]> keyPool,
                                           int queries) {
         for (int i = 0; i < queries; i++) {
-            byte[] key = keyPool.get(RNG.nextInt(keyPool.size()));
+            byte[] key = keyPool.get(rng.nextInt(keyPool.size()));
 
             // Get value at this version
             Optional<byte[]> valueOpt = tree.get(key, snapshot.version);
@@ -314,18 +314,18 @@ class RdbmsJmtPropertyTest {
         }
     }
 
-    private static void verifyHistoricalVersions(JellyfishMerkleTree tree,
+    private void verifyHistoricalVersions(JellyfishMerkleTree tree,
                                                  RdbmsJmtStore store,
                                                  List<VersionSnapshot> snapshots,
                                                  List<byte[]> keyPool,
                                                  int versionsToCheck) {
         int checksPerformed = 0;
         for (int i = 0; i < versionsToCheck && i < snapshots.size(); i++) {
-            int idx = RNG.nextInt(snapshots.size());
+            int idx = rng.nextInt(snapshots.size());
             VersionSnapshot snapshot = snapshots.get(idx);
 
             // Pick a random key and verify at this historical version
-            byte[] key = keyPool.get(RNG.nextInt(keyPool.size()));
+            byte[] key = keyPool.get(rng.nextInt(keyPool.size()));
             Optional<byte[]> historicalValue = tree.get(key, snapshot.version);
             Optional<JmtProof> proofOpt = tree.getProof(key, snapshot.version);
 
@@ -347,10 +347,10 @@ class RdbmsJmtPropertyTest {
         assertTrue(checksPerformed > 0, "Should perform at least one historical verification");
     }
 
-    private static boolean existsMultiLevelProof(JellyfishMerkleTree tree, long version, List<byte[]> keyPool) {
+    private boolean existsMultiLevelProof(JellyfishMerkleTree tree, long version, List<byte[]> keyPool) {
         int checks = Math.min(keyPool.size(), 80);
         for (int i = 0; i < checks; i++) {
-            byte[] key = keyPool.get(RNG.nextInt(keyPool.size()));
+            byte[] key = keyPool.get(rng.nextInt(keyPool.size()));
             Optional<JmtProof> proofOpt = tree.getProof(key, version);
             if (proofOpt.isEmpty()) continue;
 
@@ -363,21 +363,21 @@ class RdbmsJmtPropertyTest {
         return false;
     }
 
-    private static List<byte[]> generateKeys(int count) {
+    private List<byte[]> generateKeys(int count) {
         List<byte[]> keys = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            String s = "jmt-key-" + i + "-" + RNG.nextInt(1_000_000);
+            String s = "jmt-key-" + i + "-" + rng.nextInt(1_000_000);
             keys.add(s.getBytes(StandardCharsets.UTF_8));
         }
         return keys;
     }
 
-    private static Map<byte[], byte[]> randomUpdates(List<byte[]> keyPool, int maxUpdates) {
-        int n = 1 + RNG.nextInt(Math.max(1, maxUpdates));
+    private Map<byte[], byte[]> randomUpdates(List<byte[]> keyPool, int maxUpdates) {
+        int n = 1 + rng.nextInt(Math.max(1, maxUpdates));
         Map<byte[], byte[]> updates = new LinkedHashMap<>();
         for (int i = 0; i < n; i++) {
-            byte[] key = keyPool.get(RNG.nextInt(keyPool.size()));
-            String val = "v-" + RNG.nextInt(100_000);
+            byte[] key = keyPool.get(rng.nextInt(keyPool.size()));
+            String val = "v-" + rng.nextInt(100_000);
             updates.put(key, val.getBytes(StandardCharsets.UTF_8));
         }
         return updates;
