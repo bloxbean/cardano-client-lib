@@ -1,11 +1,13 @@
 package com.bloxbean.cardano.client.txflow.store;
 
 import com.bloxbean.cardano.client.txflow.exec.FlowEvent;
+import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -50,12 +52,67 @@ public interface FlowExecutionStore {
                                        FlowExecutionSnapshot initialSnapshot);
 
     /**
+     * Removes a not-yet-started execution and its idempotency claim atomically so the claim
+     * becomes re-claimable.
+     *
+     * <p>This voids a claim that must not remain bound to a stalled execution — for example when
+     * spending-resource contention rejects an execution after the durable claim was created but
+     * before any journal event was written. After a successful call, a later
+     * {@link #createOrGet(String, String, FlowExecutionSnapshot)} for the same tuple starts a fresh
+     * execution rather than matching the voided one.</p>
+     *
+     * <p>Only a not-yet-started execution may be voided: one whose event journal is empty
+     * ({@link FlowExecutionSnapshot#lastSequence()} is zero). An execution that has recorded any
+     * event or attempt has made observable progress and is protected — the store rejects the void
+     * with {@code TXFLOW_EXECUTION_NOT_VOIDABLE}. Voiding removes the execution snapshot, its
+     * claim, and any leases it holds in one atomic operation.</p>
+     *
+     * @param executionId execution to void together with its claim
+     * @throws IllegalArgumentException when {@code executionId} violates {@link FlowStoreTextPolicy}
+     * @throws FlowStoreException {@code TXFLOW_EXECUTION_NOT_FOUND} when the execution is unknown,
+     *         or {@code TXFLOW_EXECUTION_NOT_VOIDABLE} when it has already recorded journal events
+     */
+    void deleteExecution(String executionId);
+
+    /**
      * Loads the latest snapshot for an execution.
      *
      * @param executionId durable execution identity
      * @return the snapshot, or an empty value when the execution is unknown
      */
     Optional<FlowExecutionSnapshot> get(String executionId);
+
+    /**
+     * Enumerates executions whose idempotency claim lives in one namespace, for restart
+     * re-attachment and operational scans.
+     *
+     * <p>Scope is the idempotency namespace, not the execution row: an execution is returned only
+     * when the claim that created it belongs to {@code idempotencyNamespace}. Executions claimed in
+     * other namespaces are never returned, so a caller that owns a namespace sees only its own
+     * executions.</p>
+     *
+     * <p>This is a read-only scan. It takes no lease, mutates no state, and is safe to call for
+     * executions owned by other processes.</p>
+     *
+     * <p>Results are ordered by {@code executionId} ascending — a stable total order — and paginated
+     * by keyset on that same key: pass {@code null} for {@code afterExecutionId} to start from the
+     * beginning, then pass the last returned {@code executionId} to fetch the strictly greater
+     * remainder. A page shorter than {@code limit} (including an empty page) means the scan is
+     * exhausted. Because the order is stable and the cursor is exclusive, iterating pages visits
+     * every matching execution exactly once with no duplicates.</p>
+     *
+     * @param idempotencyNamespace non-blank claim namespace to scope the scan to
+     * @param states states to include; a {@code null} or empty set includes every state
+     * @param limit maximum number of executions to return; must be positive
+     * @param afterExecutionId exclusive keyset cursor, or {@code null} to start from the beginning
+     * @return an immutable page of snapshots ordered by {@code executionId} ascending
+     * @throws IllegalArgumentException when {@code idempotencyNamespace} or a non-null
+     *         {@code afterExecutionId} violates {@link FlowStoreTextPolicy}, or {@code limit} is not
+     *         positive
+     */
+    List<FlowExecutionSnapshot> listExecutions(String idempotencyNamespace,
+                                               Set<FlowExecutionState> states, int limit,
+                                               String afterExecutionId);
 
     /**
      * Atomically appends journal events and applies a fenced snapshot transition.

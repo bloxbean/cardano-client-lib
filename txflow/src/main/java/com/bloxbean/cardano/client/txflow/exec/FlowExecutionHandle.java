@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow.exec;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -106,6 +107,22 @@ public final class FlowExecutionHandle {
         synchronized (events) {
             return events.stream().filter(event -> event.sequence() > sequence).toList();
         }
+    }
+
+    /**
+     * Returns a read-only stage that completes with the terminal result.
+     *
+     * <p>The stage is a view, not the execution: completing, cancelling, or
+     * obstructing it never affects the underlying execution or other
+     * observers. Use {@link #requestCancel(String)} to cancel the execution
+     * itself. Callbacks registered without an explicit executor run on the
+     * completing thread; long or blocking continuations should supply their
+     * own executor via the async variants.</p>
+     *
+     * @return non-cancelling completion stage for the terminal result
+     */
+    public CompletionStage<FlowExecutionResult> completion() {
+        return completion.minimalCompletionStage();
     }
 
     /**

@@ -1,16 +1,19 @@
 package com.bloxbean.cardano.client.txflow.store;
 
 import com.bloxbean.cardano.client.txflow.exec.FlowEvent;
+import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
 
 import java.time.Duration;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
 
@@ -77,10 +80,59 @@ public final class InMemoryFlowExecutionStore implements FlowExecutionStore {
     }
 
     @Override
+    public synchronized void deleteExecution(String executionId) {
+        FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        FlowExecutionSnapshot snapshot = requireSnapshot(executionId);
+        if (snapshot.lastSequence() > 0
+                || !journals.getOrDefault(executionId, List.of()).isEmpty()) {
+            throw new FlowStoreException("TXFLOW_EXECUTION_NOT_VOIDABLE",
+                    "Only a not-yet-started execution without journal events may be voided");
+        }
+        snapshots.remove(executionId);
+        journals.remove(executionId);
+        idempotency.values().removeIf(id -> id.equals(executionId));
+        executionLeases.remove(executionId);
+        resourceLeases.values().removeIf(lease -> lease.executionId().equals(executionId));
+    }
+
+    @Override
     public Optional<FlowExecutionSnapshot> get(String executionId) {
         FlowStoreTextPolicy.requireIdentifier(executionId, "executionId",
                 FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
         return Optional.ofNullable(snapshots.get(executionId));
+    }
+
+    @Override
+    public synchronized List<FlowExecutionSnapshot> listExecutions(String idempotencyNamespace,
+                                                                   Set<FlowExecutionState> states,
+                                                                   int limit,
+                                                                   String afterExecutionId) {
+        FlowStoreTextPolicy.requireIdentifier(idempotencyNamespace, "idempotency namespace",
+                FlowStoreTextPolicy.MAX_NAMESPACE_BYTES);
+        if (limit < 1) throw new IllegalArgumentException("limit must be positive");
+        if (afterExecutionId != null) {
+            FlowStoreTextPolicy.requireIdentifier(afterExecutionId, "afterExecutionId",
+                    FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        }
+        boolean allStates = states == null || states.isEmpty();
+        List<String> scoped = new ArrayList<>();
+        for (Map.Entry<ClaimIdentity, String> entry : idempotency.entrySet()) {
+            if (idempotencyNamespace.equals(entry.getKey().namespace())) {
+                scoped.add(entry.getValue());
+            }
+        }
+        scoped.sort(Comparator.naturalOrder());
+        List<FlowExecutionSnapshot> page = new ArrayList<>();
+        for (String executionId : scoped) {
+            if (afterExecutionId != null && executionId.compareTo(afterExecutionId) <= 0) continue;
+            FlowExecutionSnapshot snapshot = snapshots.get(executionId);
+            if (snapshot == null) continue;
+            if (!allStates && !states.contains(snapshot.state())) continue;
+            page.add(snapshot);
+            if (page.size() >= limit) break;
+        }
+        return List.copyOf(page);
     }
 
     @Override

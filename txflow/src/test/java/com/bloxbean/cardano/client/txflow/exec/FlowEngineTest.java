@@ -346,7 +346,7 @@ class FlowEngineTest {
     }
 
     @Test
-    void durableResourceLeaseContentionIsRetryableResourceBusy() {
+    void durableResourceLeaseContentionIsRetryableResourceBusyAndVoidsTheClaim() {
         InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
                 Clock.fixed(NOW, ZoneOffset.UTC)));
         doThrow(new FlowStoreException(
@@ -366,10 +366,45 @@ class FlowEngineTest {
         assertEquals("TXFLOW_RESOURCE_BUSY", result.error().code());
         assertEquals(FlowErrorCategory.RESOURCE, result.error().category());
         assertTrue(result.error().retryable());
-        assertEquals(FlowExecutionState.FAILED,
-                store.get("resource-contention").orElseThrow().state());
-        assertEquals("TXFLOW_RESOURCE_BUSY",
-                store.get("resource-contention").orElseThrow().data().get("failure_code"));
+        // P3: the busy execution's claim is voided rather than persisted as a terminal failure,
+        // so a same-key retry is not permanently stuck matching a stored FAILED.
+        assertTrue(store.get("resource-contention").isEmpty());
+    }
+
+    @Test
+    void resourceBusyVoidsTheClaimSoASameKeyRetryRunsFresh() {
+        InMemoryFlowExecutionStore store = spy(new InMemoryFlowExecutionStore(
+                Clock.fixed(NOW, ZoneOffset.UTC)));
+        // The first attempt contends for the wallet; a later attempt does not.
+        doThrow(new FlowStoreException(
+                "TXFLOW_RESOURCE_LEASE_CONFLICT", "another execution owns wallet"))
+                .doCallRealMethod()
+                .when(store).acquireResourceLease(eq("wallet"), eq("contended"),
+                        anyString(), any(), any());
+        QueuedExecutor executor = new QueuedExecutor();
+        FlowEngine engine = engineBuilder().executor(executor)
+                .maintenanceExecutor(Runnable::run).store(store).build();
+        FlowExecutionRequest request = FlowExecutionRequest.builder(definition())
+                .executionId("contended").idempotency("stream", "order-1")
+                .spendingResource("wallet").build();
+
+        FlowExecutionHandle loser = engine.start(request);
+        executor.runNext();
+
+        FlowExecutionResult busy = loser.await();
+        assertEquals(FlowExecutionState.FAILED, busy.state());
+        assertEquals("TXFLOW_RESOURCE_BUSY", busy.error().code());
+        assertTrue(busy.error().retryable());
+        assertTrue(store.get("contended").isEmpty(), "the busy claim is voided");
+
+        // The same idempotency key re-claims a fresh, running execution instead of matching a
+        // stored terminal failure. A voided claim yields a queued (not-yet-done) handle.
+        FlowExecutionHandle retry = engine.start(request);
+        assertFalse(loser == retry);
+        assertFalse(retry.isDone(),
+                "a voided claim re-runs; it is not a completed stored-terminal handle");
+        assertTrue(store.get("contended").isPresent(),
+                "the retry created a fresh durable claim");
     }
 
     @Test

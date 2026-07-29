@@ -32,6 +32,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.UnaryOperator;
 
@@ -154,11 +155,90 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
     }
 
     @Override
+    public void deleteExecution(String executionId) {
+        requireText(executionId, "executionId",
+                FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        inTransaction("void execution", connection -> {
+            FlowExecutionSnapshot current = requireSnapshot(connection, executionId, true);
+            if (current.lastSequence() > 0) {
+                throw new FlowStoreException("TXFLOW_EXECUTION_NOT_VOIDABLE",
+                        "Only a not-yet-started execution without journal events may be voided");
+            }
+            // Delete children before the parent execution to respect foreign keys. The event
+            // table is empty for a not-yet-started execution but is cleared defensively.
+            deleteByExecution(connection, "txflow_resource_lease", executionId);
+            deleteByExecution(connection, "txflow_execution_lease", executionId);
+            deleteByExecution(connection, "txflow_event", executionId);
+            deleteByExecution(connection, "txflow_idempotency", executionId);
+            deleteByExecution(connection, "txflow_execution", executionId);
+            return null;
+        });
+    }
+
+    @Override
     public Optional<FlowExecutionSnapshot> get(String executionId) {
         requireText(executionId, "executionId",
                 FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
         return inTransaction("read execution", connection ->
                 Optional.ofNullable(readSnapshot(connection, executionId, false)));
+    }
+
+    @Override
+    public List<FlowExecutionSnapshot> listExecutions(String idempotencyNamespace,
+                                                      Set<FlowExecutionState> states, int limit,
+                                                      String afterExecutionId) {
+        requireText(idempotencyNamespace, "idempotency namespace",
+                FlowStoreTextPolicy.MAX_NAMESPACE_BYTES);
+        if (limit < 1) throw new IllegalArgumentException("limit must be positive");
+        if (afterExecutionId != null) {
+            requireText(afterExecutionId, "afterExecutionId",
+                    FlowStoreTextPolicy.MAX_EXECUTION_ID_BYTES);
+        }
+        // The namespace lives on the idempotency claim, not the execution row, so scope by joining
+        // claim -> execution. The claim primary key (namespace_id, claim_key) covers the namespace
+        // predicate and the execution primary key covers the join and the executionId keyset order,
+        // so the certified V1 schema serves this read without a new column or index.
+        List<FlowExecutionState> stateFilter = states == null ? List.of() : List.copyOf(states);
+        StringBuilder sql = new StringBuilder("SELECT e.execution_id, e.definition_fingerprint, "
+                + "e.request_fingerprint, e.execution_state, e.revision_no, e.last_sequence, "
+                + "e.compacted_through, e.updated_at, e.data_format, e.data_version, e.data_payload "
+                + "FROM txflow_idempotency i JOIN txflow_execution e "
+                + "ON e.execution_id = i.execution_id WHERE i.namespace_id = ?");
+        if (!stateFilter.isEmpty()) {
+            sql.append(" AND e.execution_state IN (");
+            sql.append("?, ".repeat(stateFilter.size()));
+            sql.setLength(sql.length() - 2);
+            sql.append(')');
+        }
+        if (afterExecutionId != null) sql.append(" AND e.execution_id > ?");
+        sql.append(" ORDER BY e.execution_id LIMIT ?");
+        return inTransaction("list executions", connection -> {
+            List<FlowExecutionSnapshot> results = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+                int index = 1;
+                statement.setString(index++, idempotencyNamespace);
+                for (FlowExecutionState state : stateFilter) {
+                    statement.setString(index++, state.name());
+                }
+                if (afterExecutionId != null) statement.setString(index++, afterExecutionId);
+                statement.setInt(index, limit);
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        results.add(decodeSnapshotRow(rows));
+                    }
+                }
+            }
+            return results;
+        });
+    }
+
+    private void deleteByExecution(Connection connection, String table, String executionId)
+            throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM " + table + " WHERE execution_id = ?")) {
+            statement.setString(1, executionId);
+            statement.executeUpdate();
+        }
     }
 
     @Override
@@ -536,20 +616,23 @@ public final class RdbmsFlowExecutionStore implements FlowExecutionStore, AutoCl
             statement.setString(1, executionId);
             try (ResultSet row = statement.executeQuery()) {
                 if (!row.next()) return null;
-                String format = row.getString("data_format");
-                int version = row.getInt("data_version");
-                verifyPayloadEnvelope(format, version);
-                FlowExecutionSnapshot snapshot;
-                try {
-                    snapshot = codec.decodeSnapshot(
-                            readPayload(row, "data_payload"), version);
-                } catch (FlowStoreException failure) {
-                    throw mapEnvelopeMismatch(failure);
-                }
-                verifySnapshotColumns(row, snapshot);
-                return snapshot;
+                return decodeSnapshotRow(row);
             }
         }
+    }
+
+    private FlowExecutionSnapshot decodeSnapshotRow(ResultSet row) throws SQLException {
+        String format = row.getString("data_format");
+        int version = row.getInt("data_version");
+        verifyPayloadEnvelope(format, version);
+        FlowExecutionSnapshot snapshot;
+        try {
+            snapshot = codec.decodeSnapshot(readPayload(row, "data_payload"), version);
+        } catch (FlowStoreException failure) {
+            throw mapEnvelopeMismatch(failure);
+        }
+        verifySnapshotColumns(row, snapshot);
+        return snapshot;
     }
 
     private FlowExecutionSnapshot requireSnapshot(Connection connection, String executionId,

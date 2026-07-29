@@ -289,6 +289,43 @@ deployments should use
 `FlowExecutionPolicy.builder().requireValidityInterval(true).build()` and obtain a fresh slot
 from an authoritative source before recovery.
 
+## TxStream (streaming submission)
+
+`TxFlowStream` (package `com.bloxbean.cardano.client.txflow.stream`) is the streaming submission
+API on top of `FlowEngine`: it accepts a continuous feed of work items, executes each as an
+idempotent engine execution on **lanes** (a lane is a funding scope; different lanes run
+concurrently, one lane runs serial FIFO), and reports status as an honest projection of engine
+truth — `SUBMITTED` is never asserted before the backend, a known transaction hash is never
+dropped, and an uncertain outcome is `RECOVERY_REQUIRED`, never a false failure. Reach for it
+when submitting many transactions over time where each must land exactly once and survive
+failures; use plain QuickTx for one-off transactions and a `TxFlow` definition for one multi-step
+workflow.
+
+```java
+try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
+        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        .executor(streamExecutor)
+        .build()) {
+    stream.start();
+
+    TxStreamReceipt receipt = stream.submit(TxWorkItem.builder("payment-1")
+            .withTxPlan(plan)                     // portable payload
+            .withIdempotencyKey("order-1")        // redelivery attaches, never double-pays
+            .build());
+
+    TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
+}   // close() drains accepted work gracefully; nothing is cancelled
+```
+
+Optional layers: count/time windows with `perWindow()`/`batching(...)` planners (transaction
+merging), partitioned fan-out lanes, a durable stream store (`RdbmsTxStreamStateStore`) with
+restart re-attach, and active/standby ownership for HA. The multi-item planners give flow-level
+dedup only — read the durability guide before pairing them with a redelivering source. Guides:
+
+- [TxStream Getting Started](../docs/content/preview/txflow/txstream-getting-started.mdx)
+- [TxStream: Durability & Exactly-Once](../docs/content/preview/txflow/txstream-durability.mdx)
+- [TxStream: Lanes, Batching & Throughput](../docs/content/preview/txflow/txstream-throughput.mdx)
+
 ## Documentation map
 
 - [Current public guide](../docs/content/preview/txflow/overview.mdx)

@@ -1,0 +1,406 @@
+---
+title: "TxStream: Smart Contracts"
+description: "Order-escrow settlement with a real Aiken vault: locking and claiming contract UTXOs through the stream, idempotently, with contract contention serialized on one lane"
+---
+
+# TxStream: Smart Contracts
+
+This tutorial builds an **order-escrow settlement service** on TxStream with a real Aiken
+validator. Funds for each order are locked at a vault script with an inline datum naming the
+operator; when a fulfillment event arrives (a queue message), the service claims the order's
+escrow UTXO through the stream. The two things the stream adds over hand-rolled contract
+submission are exactly the two things that hurt most in production:
+
+- **Idempotent settlement** — the fulfillment event id is the item's idempotency key, so a
+  redelivered event *attaches* to the existing claim instead of double-claiming the escrow.
+- **Serialized contract contention** — every claim against the vault rides ONE explicit lane
+  keyed on the contract, so concurrent fulfillment events settle FIFO instead of racing to spend
+  the same contract UTXOs (the eUTXO race everyone otherwise hand-rolls with locks and retries).
+
+Everything below is lifted from the shipped integration test
+`txflow/src/it/java/com/bloxbean/cardano/client/txflow/stream/TxFlowStreamContractIntegrationTest.java`,
+which runs this exact scenario against a Yaci DevKit devnet.
+
+## The vault validator
+
+The contract is the repo's `address_check` Aiken validator
+(`annotation-processor/src/it/resources/blueprint/address_check/validators/address_check.ak`) —
+an escrow-in-miniature:
+
+```rust
+use aiken/collection/list
+use cardano/address.{Address, VerificationKey}
+use cardano/transaction.{OutputReference, Transaction}
+
+pub type Vault {
+  admin: Address,
+}
+
+pub type Redeemer {
+  marker: ByteArray,
+}
+
+validator address_check {
+  spend(
+    datum: Option<Vault>,
+    _redeemer: Redeemer,
+    _own_ref: OutputReference,
+    self: Transaction,
+  ) {
+    expect Some(datum) = datum
+    expect VerificationKey(vk_hash) = datum.admin.payment_credential
+    list.has(self.extra_signatories, vk_hash)
+  }
+}
+```
+
+- **Datum** `Vault { admin: Address }`: each escrow UTXO carries, inline, the address of the
+  operator allowed to release it. An Aiken `Address` is a constr structure — a payment credential
+  (`VerificationKey(hash)` or `Script(hash)`) plus an optional stake credential.
+- **Redeemer** `Redeemer { marker: ByteArray }`: a trivial one-field constr; the validator
+  ignores its content.
+- **The check**: spending an escrow UTXO is valid only when the admin's verification-key hash is
+  in the transaction's `extra_signatories` — i.e. the transaction *declares the admin as a
+  required signer* and the admin actually signs.
+
+Compiling with `aiken build` produces a [CIP-57](https://cips.cardano.org/cip/CIP-57) blueprint
+(`plutus.json`) whose validator entry carries the `compiledCode` hex and `plutusVersion` (`v3`
+here). The tutorial loads the compiled code straight from that blueprint — no Aiken toolchain
+needed at runtime:
+
+```java
+// Load the vault validator from the blueprint's compiledCode and derive
+// its script address.
+vaultScript = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(
+        VAULT_COMPILED_CODE, PlutusVersion.v3);
+scriptAddress = AddressProvider.getEntAddress(vaultScript, Networks.testnet()).toBech32();
+// ONE lane per contract: every claim against this vault shares the
+// lane, so contended escrow UTXOs are settled FIFO instead of racing.
+escrowLane = "escrow:" + scriptAddress;
+```
+
+`VAULT_COMPILED_CODE` is the blueprint's `compiledCode` string.
+`PlutusBlueprintUtil.getPlutusScriptFromCompiledCode` applies the double-CBOR wrapping CCL's
+`PlutusScript.cborHex` expects — pass the blueprint hex as-is, never pre-wrap it yourself.
+
+The datum and redeemer are plain `ConstrPlutusData`. The `Address` constr shape below matches the
+blueprint-generated converters proven on devnet by the annotation-processor's
+`AddressCheckDevnetTest` — getting this encoding right is the one genuinely fiddly part, so copy
+it rather than re-deriving it:
+
+```java
+/**
+ * Datum {@code Vault { admin: Address }}. An Aiken {@code Address} is a
+ * constr structure — the shape below matches the generated blueprint
+ * converters proven on devnet by AddressCheckDevnetTest:
+ * Vault = Constr 0 [Address];
+ * Address = Constr 0 [PaymentCredential, Option&lt;StakeCredential&gt;];
+ * PaymentCredential.VerificationKey = Constr 0 [bytes(keyHash)];
+ * Option None = Constr 1 [].
+ */
+private PlutusData vaultDatum(byte[] adminKeyHash) {
+    ConstrPlutusData paymentCredential = ConstrPlutusData.of(0, BytesPlutusData.of(adminKeyHash));
+    ConstrPlutusData noStakeCredential = ConstrPlutusData.of(1);
+    ConstrPlutusData adminAddress = ConstrPlutusData.of(0, paymentCredential, noStakeCredential);
+    return ConstrPlutusData.of(0, adminAddress);
+}
+
+/** Redeemer {@code Redeemer { marker: ByteArray }} = Constr 0 [bytes]. */
+private PlutusData claimRedeemer(String marker) {
+    return ConstrPlutusData.of(0,
+            BytesPlutusData.of(marker.getBytes(StandardCharsets.UTF_8)));
+}
+```
+
+## The stream: one explicit lane per contract
+
+The stream uses `LanePolicy.explicit()` with a resolver that maps the contract's lane name to the
+operator's funding reference (the operator wallet funds fees, collateral, and the locks). The
+engine's signer registry knows `account://operator`:
+
+```java
+engine = FlowEngine.builder(
+                utxoSupplier,
+                new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                new DefaultTransactionProcessor(backendService.getTransactionService()),
+                new DefaultChainDataSupplier(backendService))
+        .executor(engineExecutor)
+        .maintenanceExecutor(maintenanceExecutor)
+        .store(new InMemoryFlowExecutionStore())
+        .signerRegistry(new DefaultSignerRegistry()
+                .addAccount(OPERATOR_REF, operator))
+        .build();
+```
+
+```java
+try (TxFlowStream stream = TxFlowStream.builder("escrow-settlement", engine)
+        .lanes(LanePolicy.explicit())
+        .laneResolver(laneName -> escrowLane.equals(laneName)
+                ? ResolvedLane.ofFundingRef(escrowLane, OPERATOR_REF)
+                : null)
+        .executor(streamExecutor)
+        .maxBufferSize(10)
+        .build()) {
+    stream.start();
+    // ...
+}
+```
+
+Two honest notes on this lane design:
+
+- **What actually serializes is the lane's canonical spending identity** — here
+  `ref:account://operator`. Naming the lane after the contract is for receipts and routing; if
+  you added a second lane label over the same operator wallet, it would share this lane's FIFO
+  (labels can never sneak two writers onto one wallet). The claim serialization you want for one
+  contract falls out of the design *because* all of that contract's claims share one lane. In a
+  service settling several vaults, give each vault its own operator wallet and lane and the
+  contracts settle concurrently while each stays internally FIFO.
+- **Lane funding scope is enforced, not documented**: each item's transaction must draw from the
+  lane's declared source (`from_ref account://operator`), or the item fails typed
+  `TXSTREAM_LANE_SCOPE_VIOLATION`.
+
+## Locking escrows through the stream
+
+Each order's lock is an ordinary portable payment-to-contract plan: `payToContract` with the
+inline `Vault` datum, funded by the operator. It streams like any other item:
+
+```java
+/**
+ * Lock plan: pay the order's escrow amount to the vault with the inline
+ * {@code Vault { admin }} datum, funded by the operator.
+ */
+private TxPlan lockPlan(Amount amount, PlutusData vaultDatum) {
+    return TxPlan.from(new Tx()
+                    .payToContract(scriptAddress, amount, vaultDatum)
+                    .fromRef(OPERATOR_REF))
+            .withSigner(OPERATOR_REF);
+}
+```
+
+```java
+// --- 1. LOCK: two order escrows through the stream (perItem) ---
+TxStreamReceipt lock1 = stream.submit(TxWorkItem.builder("lock-order-1")
+        .withTxPlan(lockPlan(Amount.ada(5), vaultDatum))
+        .withLane(escrowLane)
+        .withIdempotencyKey("lock-order-1")
+        .build());
+TxStreamReceipt lock2 = stream.submit(TxWorkItem.builder("lock-order-2")
+        .withTxPlan(lockPlan(Amount.ada(6), vaultDatum))
+        .withLane(escrowLane)
+        .withIdempotencyKey("lock-order-2")
+        .build());
+```
+
+When a fulfillment event arrives later, find the order's escrow UTXO at the script address. All
+escrows for one vault share the same inline datum (the admin), so find them by datum and map each
+to its order by the lock transaction hash the service recorded:
+
+```java
+List<Utxo> escrows = ScriptUtxoFinders.findAllByInlineDatum(
+        utxoSupplier, scriptAddress, vaultDatum);
+Utxo escrow1 = byTxHash(escrows, lock1Result.getTransactionHash());
+Utxo escrow2 = byTxHash(escrows, lock2Result.getTransactionHash());
+```
+
+(If your datum is unique per order — e.g. it embeds an order id — `findFirstByInlineDatum` finds
+the exact UTXO directly.)
+
+## Claiming through the stream: the portable script surface
+
+**The stream accepts only portable payloads.** At `submit`, every item is checked by the portable
+validator and re-encoded through the portable flow codec; payloads that carry Java behavior the
+codec cannot represent — a legacy `ScriptTx`-composing `withTxContext` factory, or any
+`TxContext` lambda — are rejected typed `TXSTREAM_NON_PORTABLE_ITEM`. The reason is durability
+and idempotency, not pedantry: the stream fingerprints the item's *content* for redelivery
+comparison and (in durable mode) persists the encoded flow for restart re-attach. A Java lambda
+has no content to fingerprint or persist.
+
+The portable path is the **unified `Tx` script surface**: `collectFrom(utxo, redeemer)` records a
+`script_collect_from` intent (UTXO reference plus structured redeemer), and
+`attachSpendingValidator(script)` records a `validator` attachment intent that serializes the
+script inline as `cbor_hex` + `version`. Both survive the plan's YAML round-trip and the portable
+flow encoding intact:
+
+```java
+/**
+ * Claim plan on the portable script surface of the unified {@link Tx}:
+ * spend the escrow UTXO with a redeemer, attach the validator inline
+ * (serialized as cbor_hex + version), pay the beneficiary, and fund
+ * fee/change from the operator. Collateral and the admin's required signer
+ * ride the plan's portable context.
+ */
+private TxPlan claimPlan(String orderId, Utxo escrowUtxo, Amount payout) {
+    Tx claim = new Tx()
+            .collectFrom(escrowUtxo, claimRedeemer(orderId))
+            .payToAddress(beneficiary.baseAddress(), payout)
+            .attachSpendingValidator(vaultScript)
+            .fromRef(OPERATOR_REF);
+    return TxPlan.from(claim)
+            .withSigner(OPERATOR_REF)
+            .collateralPayerRef(OPERATOR_REF)
+            // The vault checks extra_signatories for the admin's key hash.
+            .withRequiredSigners(HexUtil.encodeHexString(
+                    operator.getBaseAddress().getPaymentCredentialHash().get()));
+}
+```
+
+This is real output — the exact portable YAML that claim plan serializes to (and that the stream
+re-encodes and, in durable mode, persists):
+
+```yaml
+version: 1.0
+context:
+  collateral_payer_ref: account://operator
+  required_signers:
+  - c88b0842103eb87b347dd876c805a13ca7e135ce3e8bdfb308fe216b
+  signers:
+  - ref: account://operator
+    scope: payment
+transaction:
+- tx:
+    from_ref: account://operator
+    inputs:
+    - type: script_collect_from
+      utxo_refs:
+      - tx_hash: d5deb18908c95d445a17a4275e00a97f1abdb85a24e3e1cb9e2f8b40b1e30f4c
+        output_index: 0
+      redeemer:
+        constructor: 0
+        fields:
+        - bytes: 6f726465722d31
+    intents:
+    - type: payment
+      address: addr_test1qpcf5ursqpwx2tp8maeah00rxxdfpvf8h65k4hk3chac0fvu28duly863yqhgjtl8an2pkksd6mlzv0qv4nejh5u2zjsshr90k
+      amounts:
+      - unit: lovelace
+        quantity: 5000000
+    scripts:
+    - type: validator
+      role: spend
+      cbor_hex: 5901035901000101...  # the double-wrapped compiled code, elided
+      version: v3
+```
+
+The claim shape's portability is pinned by a deterministic unit test that needs no devnet:
+`txflow/src/test/java/com/bloxbean/cardano/client/txflow/stream/TxFlowStreamContractClaimRoundTripTest.java`
+asserts the `TxPlan` YAML round-trip keeps both script intents (and that the structured redeemer
+decodes back to the byte-identical `PlutusData`), that `PortableFlowValidator` accepts the
+single-step flow, and that the portable codec's write → parse → compile pipeline — exactly what
+`submit` and the engine run — materializes the same shape.
+
+> **Note on the UTXO reference:** the plan serializes the escrow UTXO as a `(tx_hash,
+> output_index)` reference; the engine's UTXO supplier re-resolves it at build time. Amounts,
+> address, and inline datum do not ride the plan — the chain is the source of truth.
+
+### Collateral and the required signer
+
+Script transactions need two context wirings that ordinary payments don't, and both are portable
+plan context (visible in the YAML above), not Java configuration:
+
+- **Collateral**: `collateralPayerRef("account://operator")` names the wallet whose UTXOs back
+  collateral, resolved through the engine's signer registry at build time.
+- **Required signer**: the vault checks `extra_signatories`, which only contains credentials the
+  transaction *declares*. `withRequiredSigners(hex)` takes the admin's payment-credential hash as
+  a hex string and lands it in the transaction body's required signers; the registry's
+  `account://operator` payment signer then actually signs. Declaring without signing (or signing
+  without declaring) fails the script — you need both lines.
+
+## Idempotent settlement on the contract lane
+
+Each fulfillment event becomes one claim item: same contract lane, event id as idempotency key.
+
+```java
+/**
+ * One claim work item per fulfillment event: same contract lane (FIFO),
+ * fulfillment event id as the idempotency key.
+ */
+private TxWorkItem claimItem(String orderId, Utxo escrowUtxo, Amount payout) {
+    return TxWorkItem.builder("claim-" + orderId)
+            .withTxPlan(claimPlan(orderId, escrowUtxo, payout))
+            .withLane(escrowLane)
+            .withIdempotencyKey("fulfill-" + orderId)
+            .build();
+}
+```
+
+```java
+TxStreamReceipt claim1 = stream.submit(claimItem("order-1", escrow1, Amount.ada(5)));
+TxStreamReceipt claim2 = stream.submit(claimItem("order-2", escrow2, Amount.ada(6)));
+```
+
+Both claims are funded by the same lane, so they dispatch strictly FIFO: claim 2 waits for
+claim 1's confirmation. Neither can steal the other's escrow UTXO (each names its own), and
+neither can race the operator wallet's fee/collateral UTXOs — the two classic contract-service
+races are gone by construction rather than by retry loops.
+
+When the queue redelivers a fulfillment event — same event id, same content — the stream returns
+the *same receipt* instead of running a second claim:
+
+```java
+// --- 4. Idempotency: a redelivered fulfillment event attaches to
+// the existing claim instead of double-claiming the escrow ---
+TxStreamReceipt redelivered = stream.submit(claimItem("order-1", escrow1, Amount.ada(5)));
+assertSame(claim1, redelivered);
+```
+
+Attachment requires identical content: the redelivered item's fingerprint (id, key, lane,
+metadata, and the portable payload encoding) must match. Build claim plans deterministically from
+the event — same escrow UTXO, same redeemer, same amounts — and redelivery is free; a *different*
+payload under a reused key is a typed conflict, never a silent second spend.
+
+The integration test closes the loop with on-chain assertions: both claims `CONFIRMED` with
+distinct transaction hashes, and both payouts present at the beneficiary address.
+
+### Attaching by reference instead of inline
+
+Inline attachment (`cbor_hex` in every plan) is the simplest portable shape and the right default
+for one vault. If many plans share large scripts, attach by logical reference instead:
+`attachSpendingValidator(ScriptRef.ref("validator://vault"))` serializes as
+`script_ref: validator://vault` (no `cbor_hex`), and the engine resolves it at build time from a
+registry you wire once:
+
+```java
+FlowEngine engine = FlowEngine.builder(utxoSupplier, protocolParamsSupplier,
+                transactionProcessor, chainDataSupplier)
+        .scriptRegistry(new DefaultScriptRegistry()
+                .addPlutusScript("validator://vault", vaultScript))
+        // ... executor, store, signerRegistry as above
+        .build();
+```
+
+The plan then carries a name, not bytes — the same portability trade the signer registry makes
+for keys. (This tutorial's test uses inline attachment; the by-ref shape is covered by
+`quicktx`'s `ScriptRegistryAttachmentTest`.)
+
+## Honest caveats
+
+- **Batching never merges script transactions.** The `batching(...)` planner merges only pure
+  payment-shaped items; an item carrying `collectFrom`, a script attachment, a mint, or a
+  datum-bearing output always runs as its own transaction (or fails the window typed, with
+  `allowNonPaymentSingletons(false)`). Contract items get the stream's idempotency and lane
+  serialization — not fee amortization.
+- **Plutus minting has no policy-reference overload yet.** `mintAssets(PolicyRef, ...)` is
+  native-script-only; for Plutus minting use the inline `mintAsset(PlutusScript, ...)` overloads
+  (portable via the attachment's `cbor_hex`), or name the `policyId` string explicitly and attach
+  the mint validator by `ScriptRef` through the script registry.
+- **Script cost evaluation runs through the engine's `TransactionProcessor`** (the backend's
+  evaluate endpoint — supported by Yaci DevKit and Blockfrost). There is no per-item evaluator
+  hook on the stream; if your backend cannot evaluate, script items fail at build.
+- **Runtime `Utxo` objects serialize as references.** A claim plan built from a found `Utxo`
+  round-trips as `(tx_hash, output_index)`; if that UTXO is spent before dispatch, the claim
+  fails honestly rather than double-spending.
+- **Run the scenario yourself against a devnet.** The integration test needs a running
+  [Yaci DevKit](https://devkit.yaci.xyz/) at `http://localhost:8080/api/v1/`:
+
+```
+./gradlew :txflow:integrationTest --tests TxFlowStreamContractIntegrationTest -Dyaci.integration.test=true
+```
+
+## Continue
+
+- [TxStream Getting Started](./txstream-getting-started) — item identity, receipts, lifecycle.
+- [TxStream: Lanes, Batching & Throughput](./txstream-throughput) — the lane model this tutorial
+  leans on, and what is (not) batchable.
+- [TxStream: Durability & Exactly-Once](./txstream-durability) — persist the stream so claims
+  survive restarts; dedup scopes.
+- [Portable Authoring](./portable-authoring) — the full portable intent surface beyond scripts.
