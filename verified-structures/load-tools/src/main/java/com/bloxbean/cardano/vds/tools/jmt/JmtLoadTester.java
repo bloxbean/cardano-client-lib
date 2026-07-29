@@ -1,11 +1,8 @@
 package com.bloxbean.cardano.vds.tools.jmt;
 
-import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
+import com.bloxbean.cardano.vds.jmt.JmtProfile;
 import com.bloxbean.cardano.vds.jmt.JmtProof;
-import com.bloxbean.cardano.vds.jmt.commitment.ClassicJmtCommitmentScheme;
-import com.bloxbean.cardano.vds.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.store.InMemoryJmtStore;
 import com.bloxbean.cardano.vds.jmt.store.JmtStore;
 import com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbConfig;
@@ -52,13 +49,12 @@ public final class JmtLoadTester {
 
     public static void main(String[] args) throws Exception {
         LoadOptions options = LoadOptions.parse(args);
-        HashFunction hashFn = Blake2b256::digest;
-        CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hashFn);
+        JmtProfile profile = JmtProfile.classicBlake2b256V1();
 
         if (options.inMemory) {
             // In-memory mode
             InMemoryJmtStore store = new InMemoryJmtStore();
-            runLoad(store, hashFn, commitments, options);
+            runLoad(store, profile, options);
         } else {
             // RocksDB mode
             if (Files.notExists(options.rocksDbPath)) {
@@ -76,7 +72,7 @@ public final class JmtLoadTester {
 
                 try (RocksDbJmtStore store = RocksDbJmtStore.open(
                         options.rocksDbPath.toString(), storeOpts)) {
-                    runLoad(store, hashFn, commitments, options);
+                    runLoad(store, profile, options);
                 }
             } catch (UnsatisfiedLinkError | RuntimeException e) {
                 System.err.println("RocksDB JNI not available or failed to open: " + e.getMessage());
@@ -88,9 +84,8 @@ public final class JmtLoadTester {
 
     private static final int MAX_UPDATE_POOL = 100_000;  // Cap update key pool to 100K keys
 
-    private static void runLoad(JmtStore store, HashFunction hashFn,
-                                 CommitmentScheme commitments, LoadOptions options) {
-        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, commitments, hashFn);
+    private static void runLoad(JmtStore store, JmtProfile profile, LoadOptions options) {
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, profile);
         Random random = new SecureRandom();
 
         long version = 0;
