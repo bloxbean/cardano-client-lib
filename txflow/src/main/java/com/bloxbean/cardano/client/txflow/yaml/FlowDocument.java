@@ -4,13 +4,18 @@ import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.txflow.BackoffStrategy;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
+import com.bloxbean.cardano.client.txflow.FlowExecutionSettings;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.SelectionStrategy;
 import com.bloxbean.cardano.client.txflow.StepDependency;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.exec.RollbackStrategy;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -58,6 +63,7 @@ import java.util.*;
 @Data
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder({"version", "context", "flow"})
 @Slf4j
 public class FlowDocument {
 
@@ -76,8 +82,32 @@ public class FlowDocument {
     @JsonProperty("version")
     private String version = "1.0";
 
+    @JsonProperty("context")
+    private ExecutionContext context;
+
     @JsonProperty("flow")
     private FlowContent flow;
+
+    /**
+     * Flow-level execution context.
+     */
+    @Data
+    @NoArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonPropertyOrder({"chaining_mode", "confirmation", "rollback_strategy", "retry"})
+    public static class ExecutionContext {
+        @JsonProperty("chaining_mode")
+        private String chainingMode;
+
+        @JsonProperty("confirmation")
+        private JsonNode confirmation;
+
+        @JsonProperty("rollback_strategy")
+        private String rollbackStrategy;
+
+        @JsonProperty("retry")
+        private RetryEntry retry;
+    }
 
     /**
      * Flow content with steps and variables.
@@ -193,6 +223,49 @@ public class FlowDocument {
     }
 
     /**
+     * Flow-level confirmation configuration.
+     */
+    @Data
+    @NoArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ConfirmationEntry {
+        @JsonProperty("preset")
+        private String preset;
+
+        @JsonProperty("min_confirmations")
+        private Integer minConfirmations;
+
+        @JsonProperty("check_interval")
+        private String checkInterval;
+
+        @JsonProperty("timeout")
+        private String timeout;
+
+        @JsonProperty("max_rollback_retries")
+        private Integer maxRollbackRetries;
+
+        @JsonProperty("wait_for_backend_after_rollback")
+        private Boolean waitForBackendAfterRollback;
+
+        @JsonProperty("post_rollback_wait_attempts")
+        private Integer postRollbackWaitAttempts;
+
+        @JsonProperty("post_rollback_utxo_sync_delay")
+        private String postRollbackUtxoSyncDelay;
+
+        boolean isEmpty() {
+            return preset == null
+                    && minConfirmations == null
+                    && checkInterval == null
+                    && timeout == null
+                    && maxRollbackRetries == null
+                    && waitForBackendAfterRollback == null
+                    && postRollbackWaitAttempts == null
+                    && postRollbackUtxoSyncDelay == null;
+        }
+    }
+
+    /**
      * Create a FlowDocument from a TxFlow.
      *
      * @param flow the TxFlow to convert
@@ -200,6 +273,9 @@ public class FlowDocument {
      */
     public static FlowDocument fromFlow(TxFlow flow) {
         FlowDocument doc = new FlowDocument();
+        if (flow.getExecutionSettings() != null && flow.getExecutionSettings().hasAnySetting()) {
+            doc.setContext(toExecutionContext(flow.getExecutionSettings()));
+        }
 
         FlowContent content = new FlowContent();
         content.setId(flow.getId());
@@ -234,19 +310,7 @@ public class FlowDocument {
 
             // Convert retry policy
             if (step.hasRetryPolicy()) {
-                RetryPolicy policy = step.getRetryPolicy();
-                RetryEntry retryEntry = new RetryEntry();
-                retryEntry.setMaxAttempts(policy.getMaxAttempts());
-                retryEntry.setBackoff(policy.getBackoffStrategy().name().toLowerCase());
-                retryEntry.setInitialDelay(formatDuration(policy.getInitialDelay()));
-                retryEntry.setMaxDelay(formatDuration(policy.getMaxDelay()));
-                if (!policy.isRetryOnTimeout()) {
-                    retryEntry.setRetryOnTimeout(false);
-                }
-                if (!policy.isRetryOnNetworkError()) {
-                    retryEntry.setRetryOnNetworkError(false);
-                }
-                stepContent.setRetry(retryEntry);
+                stepContent.setRetry(toRetryEntry(step.getRetryPolicy()));
             }
 
             // Convert transaction - only TxPlan can be serialized to YAML
@@ -269,6 +333,50 @@ public class FlowDocument {
         doc.setFlow(content);
 
         return doc;
+    }
+
+    private static ExecutionContext toExecutionContext(FlowExecutionSettings settings) {
+        ExecutionContext context = new ExecutionContext();
+        if (settings.getChainingMode() != null) {
+            context.setChainingMode(settings.getChainingMode().name());
+        }
+        if (settings.getConfirmationConfig() != null) {
+            context.setConfirmation(YAML_MAPPER.valueToTree(toConfirmationEntry(settings.getConfirmationConfig())));
+        }
+        if (settings.getRollbackStrategy() != null) {
+            context.setRollbackStrategy(settings.getRollbackStrategy().name());
+        }
+        if (settings.getRetryPolicy() != null) {
+            context.setRetry(toRetryEntry(settings.getRetryPolicy()));
+        }
+        return context;
+    }
+
+    private static RetryEntry toRetryEntry(RetryPolicy policy) {
+        RetryEntry retryEntry = new RetryEntry();
+        retryEntry.setMaxAttempts(policy.getMaxAttempts());
+        retryEntry.setBackoff(policy.getBackoffStrategy().name().toLowerCase(Locale.ROOT));
+        retryEntry.setInitialDelay(formatDuration(policy.getInitialDelay()));
+        retryEntry.setMaxDelay(formatDuration(policy.getMaxDelay()));
+        if (!policy.isRetryOnTimeout()) {
+            retryEntry.setRetryOnTimeout(false);
+        }
+        if (!policy.isRetryOnNetworkError()) {
+            retryEntry.setRetryOnNetworkError(false);
+        }
+        return retryEntry;
+    }
+
+    private static ConfirmationEntry toConfirmationEntry(ConfirmationConfig config) {
+        ConfirmationEntry entry = new ConfirmationEntry();
+        entry.setMinConfirmations(config.getMinConfirmations());
+        entry.setCheckInterval(formatDuration(config.getCheckInterval()));
+        entry.setTimeout(formatDuration(config.getTimeout()));
+        entry.setMaxRollbackRetries(config.getMaxRollbackRetries());
+        entry.setWaitForBackendAfterRollback(config.isWaitForBackendAfterRollback());
+        entry.setPostRollbackWaitAttempts(config.getPostRollbackWaitAttempts());
+        entry.setPostRollbackUtxoSyncDelay(formatDuration(config.getPostRollbackUtxoSyncDelay()));
+        return entry;
     }
 
     /**
@@ -307,6 +415,10 @@ public class FlowDocument {
 
         TxFlow.Builder builder = TxFlow.builder(flow.getId())
                 .withDescription(flow.getDescription());
+
+        if (context != null) {
+            builder.withExecutionSettings(parseExecutionSettings(context));
+        }
 
         if (flow.getVariables() != null) {
             builder.withVariables(flow.getVariables());
@@ -357,15 +469,10 @@ public class FlowDocument {
      * Parse a selection strategy string to enum.
      */
     private SelectionStrategy parseStrategy(String strategy) {
-        if (strategy == null || strategy.isEmpty()) {
+        if (strategy == null || strategy.trim().isEmpty()) {
             return SelectionStrategy.ALL;
         }
-        try {
-            return SelectionStrategy.valueOf(strategy.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            log.warn("Unknown selection strategy: {}, defaulting to ALL", strategy);
-            return SelectionStrategy.ALL;
-        }
+        return parseEnumStrict(SelectionStrategy.class, strategy, "strategy");
     }
 
     /**
@@ -375,16 +482,19 @@ public class FlowDocument {
         RetryPolicy.RetryPolicyBuilder builder = RetryPolicy.builder();
 
         if (entry.getMaxAttempts() != null) {
+            requirePositive(entry.getMaxAttempts(), "max_attempts");
             builder.maxAttempts(entry.getMaxAttempts());
         }
         if (entry.getBackoff() != null) {
-            builder.backoffStrategy(parseBackoffStrategy(entry.getBackoff()));
+            builder.backoffStrategy(parseBackoffStrategyStrict(entry.getBackoff()));
         }
         if (entry.getInitialDelay() != null) {
-            builder.initialDelay(parseDuration(entry.getInitialDelay()));
+            builder.initialDelay(requireNonNegative(
+                    parseDurationStrict(entry.getInitialDelay(), "initial_delay"), "initial_delay"));
         }
         if (entry.getMaxDelay() != null) {
-            builder.maxDelay(parseDuration(entry.getMaxDelay()));
+            builder.maxDelay(requireNonNegative(
+                    parseDurationStrict(entry.getMaxDelay(), "max_delay"), "max_delay"));
         }
         if (entry.getRetryOnTimeout() != null) {
             builder.retryOnTimeout(entry.getRetryOnTimeout());
@@ -396,30 +506,166 @@ public class FlowDocument {
         return builder.build();
     }
 
+    private FlowExecutionSettings parseExecutionSettings(ExecutionContext context) {
+        FlowExecutionSettings.FlowExecutionSettingsBuilder builder = FlowExecutionSettings.builder();
+
+        if (context.getChainingMode() != null) {
+            builder.chainingMode(parseEnumStrict(ChainingMode.class, context.getChainingMode(), "chaining_mode"));
+        }
+        if (context.getConfirmation() != null) {
+            builder.confirmationConfig(parseConfirmationConfig(context.getConfirmation()));
+        }
+        if (context.getRollbackStrategy() != null) {
+            builder.rollbackStrategy(parseEnumStrict(RollbackStrategy.class, context.getRollbackStrategy(), "rollback_strategy"));
+        }
+        if (context.getRetry() != null) {
+            builder.retryPolicy(parseRetryPolicy(context.getRetry()));
+        }
+
+        return builder.build();
+    }
+
+    private ConfirmationConfig parseConfirmationConfig(JsonNode node) {
+        if (node == null || node.isNull()) {
+            throw new IllegalArgumentException("context.confirmation cannot be null. Omit it for simple confirmation mode.");
+        }
+
+        if (node.isTextual()) {
+            String preset = node.asText();
+            if (preset == null || preset.trim().isEmpty()) {
+                throw new IllegalArgumentException("context.confirmation preset cannot be blank");
+            }
+            return confirmationPreset(preset);
+        }
+
+        if (!node.isObject()) {
+            throw new IllegalArgumentException("context.confirmation must be a preset string or an object");
+        }
+
+        ConfirmationEntry entry = YAML_MAPPER.convertValue(node, ConfirmationEntry.class);
+        if (entry.isEmpty()) {
+            throw new IllegalArgumentException("context.confirmation object cannot be empty");
+        }
+
+        ConfirmationConfig base = entry.getPreset() != null
+                ? confirmationPreset(entry.getPreset())
+                : ConfirmationConfig.defaults();
+
+        ConfirmationConfig.ConfirmationConfigBuilder builder = ConfirmationConfig.builder()
+                .minConfirmations(base.getMinConfirmations())
+                .checkInterval(base.getCheckInterval())
+                .timeout(base.getTimeout())
+                .maxRollbackRetries(base.getMaxRollbackRetries())
+                .waitForBackendAfterRollback(base.isWaitForBackendAfterRollback())
+                .postRollbackWaitAttempts(base.getPostRollbackWaitAttempts())
+                .postRollbackUtxoSyncDelay(base.getPostRollbackUtxoSyncDelay());
+
+        if (entry.getMinConfirmations() != null) {
+            requireNonNegative(entry.getMinConfirmations(), "min_confirmations");
+            builder.minConfirmations(entry.getMinConfirmations());
+        }
+        if (entry.getCheckInterval() != null) {
+            builder.checkInterval(requirePositive(
+                    parseDurationStrict(entry.getCheckInterval(), "check_interval"), "check_interval"));
+        }
+        if (entry.getTimeout() != null) {
+            builder.timeout(requirePositive(
+                    parseDurationStrict(entry.getTimeout(), "timeout"), "timeout"));
+        }
+        if (entry.getMaxRollbackRetries() != null) {
+            requireNonNegative(entry.getMaxRollbackRetries(), "max_rollback_retries");
+            builder.maxRollbackRetries(entry.getMaxRollbackRetries());
+        }
+        if (entry.getWaitForBackendAfterRollback() != null) {
+            builder.waitForBackendAfterRollback(entry.getWaitForBackendAfterRollback());
+        }
+        if (entry.getPostRollbackWaitAttempts() != null) {
+            requirePositive(entry.getPostRollbackWaitAttempts(), "post_rollback_wait_attempts");
+            builder.postRollbackWaitAttempts(entry.getPostRollbackWaitAttempts());
+        }
+        if (entry.getPostRollbackUtxoSyncDelay() != null) {
+            builder.postRollbackUtxoSyncDelay(requireNonNegative(parseDurationStrict(
+                    entry.getPostRollbackUtxoSyncDelay(), "post_rollback_utxo_sync_delay"),
+                    "post_rollback_utxo_sync_delay"));
+        }
+
+        return builder.build();
+    }
+
+    private ConfirmationConfig confirmationPreset(String preset) {
+        if (preset == null || preset.trim().isEmpty()) {
+            throw new IllegalArgumentException("confirmation preset cannot be blank");
+        }
+
+        switch (preset.trim().toLowerCase(Locale.ROOT)) {
+            case "defaults":
+                return ConfirmationConfig.defaults();
+            case "devnet":
+                return ConfirmationConfig.devnet();
+            case "testnet":
+                return ConfirmationConfig.testnet();
+            case "quick":
+                return ConfirmationConfig.quick();
+            default:
+                throw new IllegalArgumentException("Unknown confirmation preset: " + preset);
+        }
+    }
+
     /**
      * Parse a backoff strategy string to enum.
      */
-    private BackoffStrategy parseBackoffStrategy(String strategy) {
-        if (strategy == null || strategy.isEmpty()) {
-            return BackoffStrategy.EXPONENTIAL;
+    private BackoffStrategy parseBackoffStrategyStrict(String strategy) {
+        return parseEnumStrict(BackoffStrategy.class, strategy, "backoff");
+    }
+
+    private <E extends Enum<E>> E parseEnumStrict(Class<E> enumType, String value, String fieldName) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " cannot be blank");
         }
         try {
-            return BackoffStrategy.valueOf(strategy.toUpperCase());
+            return Enum.valueOf(enumType, value.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            log.warn("Unknown backoff strategy: {}, defaulting to EXPONENTIAL", strategy);
-            return BackoffStrategy.EXPONENTIAL;
+            throw new IllegalArgumentException("Unknown " + fieldName + ": " + value, e);
         }
+    }
+
+    private int requirePositive(int value, String fieldName) {
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " must be positive");
+        }
+        return value;
+    }
+
+    private int requireNonNegative(int value, String fieldName) {
+        if (value < 0) {
+            throw new IllegalArgumentException(fieldName + " cannot be negative");
+        }
+        return value;
+    }
+
+    private Duration requirePositive(Duration duration, String fieldName) {
+        if (duration.isZero() || duration.isNegative()) {
+            throw new IllegalArgumentException(fieldName + " must be positive");
+        }
+        return duration;
+    }
+
+    private Duration requireNonNegative(Duration duration, String fieldName) {
+        if (duration.isNegative()) {
+            throw new IllegalArgumentException(fieldName + " cannot be negative");
+        }
+        return duration;
     }
 
     /**
      * Parse a duration string (e.g., "1s", "500ms", "2m") to Duration.
      */
-    private Duration parseDuration(String durationStr) {
-        if (durationStr == null || durationStr.isEmpty()) {
-            return Duration.ofSeconds(1);
+    private Duration parseDurationStrict(String durationStr, String fieldName) {
+        if (durationStr == null || durationStr.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " cannot be blank");
         }
 
-        durationStr = durationStr.trim().toLowerCase();
+        durationStr = durationStr.trim().toLowerCase(Locale.ROOT);
 
         try {
             if (durationStr.endsWith("ms")) {
@@ -437,8 +683,7 @@ public class FlowDocument {
                 return Duration.ofSeconds(s);
             }
         } catch (NumberFormatException e) {
-            log.warn("Invalid duration format: {}, defaulting to 1s", durationStr);
-            return Duration.ofSeconds(1);
+            throw new IllegalArgumentException("Invalid duration for " + fieldName + ": " + durationStr, e);
         }
     }
 

@@ -4,7 +4,12 @@ import com.bloxbean.cardano.client.api.ChainDataSupplier;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.TxResult;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
+import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.TxFlow;
@@ -23,8 +28,11 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -54,6 +62,30 @@ class FlowExecutorTest {
                         .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .build();
+    }
+
+    private QuickTxBuilder.TxContext failingTxContext(String message) {
+        QuickTxBuilder.TxContext txContext = mock(QuickTxBuilder.TxContext.class);
+        when(txContext.withTxInspector(any())).thenReturn(txContext);
+        when(txContext.completeAndWait(any(Duration.class), any(Duration.class), any()))
+                .thenReturn(TxResult.fromResult(Result.error(message)));
+        return txContext;
+    }
+
+    private Function<QuickTxBuilder, QuickTxBuilder.TxContext> blockingFactory(
+            QuickTxBuilder.TxContext txContext, CountDownLatch started, CountDownLatch release) {
+        return builder -> {
+            started.countDown();
+            try {
+                if (!release.await(5, TimeUnit.SECONDS)) {
+                    throw new RuntimeException("Timed out waiting to release test flow");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+            return txContext;
+        };
     }
 
     // ==================== HIGH-3: Validate rollback strategy requires ConfirmationConfig ====================
@@ -94,6 +126,186 @@ class FlowExecutorTest {
         // Should not throw — FAIL_IMMEDIATELY doesn't require ConfirmationConfig
         // It will fail later during execution, but the validation should pass
         assertDoesNotThrow(() -> executor.execute(flow));
+    }
+
+    @Test
+    void testExecuteSync_flowRollbackStrategy_withoutConfirmationConfig_throwsIllegalState() {
+        TxFlow flow = TxFlow.builder("flow-context-no-confirmation")
+                .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> executor.executeSync(flow));
+        assertTrue(ex.getMessage().contains("REBUILD_ENTIRE_FLOW"));
+        assertTrue(ex.getMessage().contains("context.confirmation"));
+    }
+
+    @Test
+    void testExecuteSync_flowRollbackStrategy_withFlowConfirmation_passesValidation() {
+        TxFlow flow = TxFlow.builder("flow-context-confirmation")
+                .withConfirmationConfig(ConfirmationConfig.quick())
+                .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+
+        assertDoesNotThrow(() -> executor.executeSync(flow));
+    }
+
+    @Test
+    void testExecuteSync_explicitExecutorRollbackDefault_overridesFlowRollbackStrategy() {
+        executor.withRollbackStrategy(null);
+
+        TxFlow flow = TxFlow.builder("executor-rollback-default")
+                .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+
+        assertDoesNotThrow(() -> executor.executeSync(flow));
+    }
+
+    @Test
+    void testExecuteSync_explicitNullConfirmation_overridesFlowConfirmation() {
+        executor.withConfirmationConfig(null);
+
+        TxFlow flow = TxFlow.builder("executor-null-confirmation")
+                .withConfirmationConfig(ConfirmationConfig.quick())
+                .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> executor.executeSync(flow));
+        assertTrue(ex.getMessage().contains("REBUILD_ENTIRE_FLOW"));
+        assertTrue(ex.getMessage().contains("context.confirmation"));
+    }
+
+    @Test
+    void testEffectiveChainingMode_flowContextAppliesWhenExecutorUnset() throws Exception {
+        TxFlow flow = TxFlow.builder("flow-chaining")
+                .withChainingMode(ChainingMode.BATCH)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+
+        assertEquals(ChainingMode.BATCH, executor.effectiveSettings(flow).getChainingMode());
+    }
+
+    @Test
+    void testEffectiveChainingMode_explicitExecutorDefaultOverridesFlowContext() throws Exception {
+        executor.withChainingMode(null);
+
+        TxFlow flow = TxFlow.builder("executor-chaining-default")
+                .withChainingMode(ChainingMode.BATCH)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+
+        assertEquals(ChainingMode.SEQUENTIAL, executor.effectiveSettings(flow).getChainingMode());
+    }
+
+    @Test
+    void testExecute_concurrentFlowsWithDifferentContexts_doNotContaminateChainingMode() throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch started = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        executor.withExecutor(pool);
+
+        QuickTxBuilder.TxContext sequentialContext = failingTxContext("sequential connection timeout");
+        QuickTxBuilder.TxContext batchContext = failingTxContext("batch connection timeout");
+
+        TxFlow sequentialFlow = TxFlow.builder("concurrent-sequential")
+                .withChainingMode(ChainingMode.SEQUENTIAL)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(blockingFactory(sequentialContext, started, release))
+                        .build())
+                .build();
+
+        TxFlow batchFlow = TxFlow.builder("concurrent-batch")
+                .withChainingMode(ChainingMode.BATCH)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(blockingFactory(batchContext, started, release))
+                        .build())
+                .build();
+
+        try {
+            FlowHandle sequentialHandle = executor.execute(sequentialFlow);
+            FlowHandle batchHandle = executor.execute(batchFlow);
+
+            assertTrue(started.await(5, TimeUnit.SECONDS), "Both flows should start before release");
+            release.countDown();
+
+            sequentialHandle.await(Duration.ofSeconds(5));
+            batchHandle.await(Duration.ofSeconds(5));
+
+            verify(sequentialContext, atLeastOnce())
+                    .completeAndWait(any(Duration.class), any(Duration.class), any());
+            verify(sequentialContext, never()).buildAndSign();
+            verify(batchContext, atLeastOnce()).buildAndSign();
+            verify(batchContext, never())
+                    .completeAndWait(any(Duration.class), any(Duration.class), any());
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void testExecuteSync_stepRetryPolicyOverridesFlowDefaultRetryPolicy() {
+        QuickTxBuilder.TxContext txContext = failingTxContext("connection timeout");
+        RetryPolicy flowRetry = RetryPolicy.builder()
+                .maxAttempts(3)
+                .backoffStrategy(BackoffStrategy.FIXED)
+                .initialDelay(Duration.ZERO)
+                .maxDelay(Duration.ZERO)
+                .build();
+        RetryPolicy stepRetry = RetryPolicy.noRetry();
+
+        TxFlow flow = TxFlow.builder("step-retry-wins")
+                .withDefaultRetryPolicy(flowRetry)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> txContext)
+                        .withRetryPolicy(stepRetry)
+                        .build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertTrue(result.isFailed());
+        verify(txContext, times(1))
+                .completeAndWait(any(Duration.class), any(Duration.class), any());
+    }
+
+    @Test
+    void testExecuteSync_flowDefaultRetryPolicyAppliesWhenStepHasNoRetryPolicy() {
+        QuickTxBuilder.TxContext txContext = failingTxContext("connection timeout");
+        RetryPolicy flowRetry = RetryPolicy.builder()
+                .maxAttempts(2)
+                .backoffStrategy(BackoffStrategy.FIXED)
+                .initialDelay(Duration.ZERO)
+                .maxDelay(Duration.ZERO)
+                .build();
+
+        TxFlow flow = TxFlow.builder("flow-retry-default")
+                .withDefaultRetryPolicy(flowRetry)
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> txContext)
+                        .build())
+                .build();
+
+        FlowResult result = executor.executeSync(flow);
+
+        assertTrue(result.isFailed());
+        verify(txContext, times(2))
+                .completeAndWait(any(Duration.class), any(Duration.class), any());
     }
 
     // ==================== HIGH-5: Reject duplicate flow ID execution ====================
