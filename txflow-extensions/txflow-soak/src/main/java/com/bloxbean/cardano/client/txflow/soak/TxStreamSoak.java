@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.txflow.soak;
 
 import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
@@ -17,6 +18,7 @@ import com.bloxbean.cardano.client.txflow.store.rdbms.RdbmsFlowExecutionStore;
 import com.bloxbean.cardano.client.txflow.stream.EmitResult;
 import com.bloxbean.cardano.client.txflow.stream.TxFlowStream;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamStats;
 import com.bloxbean.cardano.client.txflow.stream.TxWorkItem;
 
@@ -47,7 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class TxStreamSoak {
 
-    private static final String DEFAULT_MNEMONIC =
+    static final String DEFAULT_MNEMONIC =
             "test test test test test test test test test test test test "
                     + "test test test test test test test test test test test sauce";
 
@@ -55,7 +57,7 @@ public final class TxStreamSoak {
     private static final String DEVKIT_ADMIN_URL = "http://localhost:10000/local-cluster/api";
 
     private static final int LANE_ACCOUNT_BASE = 900;
-    private static final int RECIPIENT_BASE = 1000;
+    static final int RECIPIENT_BASE = 1000;
 
     public static void main(String[] args) throws Exception {
         SoakOptions options = SoakOptions.parse(args);
@@ -98,6 +100,7 @@ public final class TxStreamSoak {
         // The batching hazard is real but lives elsewhere: resubmitting the same logical
         // payment under a DIFFERENT item id, which is a new claim and a genuine second payment.
         String onRestart = options.string("on-restart", "resubmit");
+        boolean utxoGate = options.flag("utxo-gate", true);
 
         Duration crashEvery = options.has("chaos-crash") ? options.duration("chaos-crash", "10m") : null;
         Duration rollbackEvery = options.has("chaos-rollback") ? options.duration("chaos-rollback", "15m") : null;
@@ -237,6 +240,8 @@ public final class TxStreamSoak {
 
         int exitCode;
         AtomicLong submitted = new AtomicLong();
+        LaneGate[] replayGates = new LaneGate[funding.size()];
+        for (int i = 0; i < replayGates.length; i++) replayGates[i] = new LaneGate();
         try (StreamCluster cluster = new StreamCluster(streamId, engine, jdbcUrl, funding.lanes(),
                 streamExec, maintenance, plannerName, windowSize, maxInFlight, maxBuffer,
                 instances > 1);
@@ -258,13 +263,15 @@ public final class TxStreamSoak {
 
             if (resuming) {
                 replayInterrupted(cluster, journal, funding, ledger, network, mnemonic,
-                        onRestart, plannerName);
+                        onRestart, plannerName, replayGates);
             }
             System.out.println();
 
             submitLoop(cluster, ledger, journal, funding, backend, devkit, devnet, network,
                     mnemonic, recipientCount, duration, rate, topupAda, chaos, stopping,
-                    submitted, dataDir);
+                    submitted, dataDir,
+                    utxoGate ? new DefaultUtxoSupplier(backend.getUtxoService()) : null,
+                    replayGates);
 
             System.out.println();
             System.out.println("draining...");
@@ -282,7 +289,7 @@ public final class TxStreamSoak {
             System.out.println("report written  : " + dataDir.resolve("report.txt"));
             System.out.println("samples written : " + dataDir.resolve("samples.csv"));
 
-            exitCode = report.isClean() ? 0 : 1;
+            exitCode = report.isClean() && report.isConclusive() ? 0 : 1;
         } finally {
             journal.close();
             engineExec.shutdown();
@@ -294,16 +301,72 @@ public final class TxStreamSoak {
 
     // ------------------------------------------------------------------ submission
 
+    /**
+     * Per-lane submission gate against backend UTXO lag.
+     *
+     * <p>The first preprod soak rejected 672 of 1439 items with the node's
+     * "All inputs are spent" — the engine built lane tx N+1 from a Blockfrost UTXO view
+     * that had not yet caught up with tx N. The gate holds the next submission on a lane
+     * until the previous confirmed transaction's outputs are actually queryable
+     * ({@link UtxoSupplier#getTxOutput}), i.e. until the backend view includes the tx the
+     * next build will chain on. Disable with {@code --utxo-gate=false} to soak the
+     * ungated behaviour deliberately.
+     */
+    private static final class LaneGate {
+        volatile java.util.concurrent.CompletableFuture<TxStreamItemResult> pending;
+        volatile boolean verified = true;
+    }
+
+    private static boolean laneReady(LaneGate gate, UtxoSupplier supplier) {
+        java.util.concurrent.CompletableFuture<TxStreamItemResult> f = gate.pending;
+        if (f == null) return true;
+        if (!f.isDone()) return false;
+        if (gate.verified) return true;
+        TxStreamItemResult r;
+        try {
+            r = f.join();
+        } catch (RuntimeException settlementFailure) {
+            gate.verified = true;         // receipt contract settles with values; be defensive
+            return true;
+        }
+        String hash = r.getTransactionHash();
+        // CONFIRMED must become visible before the lane builds again. RECOVERY_REQUIRED
+        // gets the same treatment: the transaction was submitted and may land any moment —
+        // releasing the lane immediately is exactly how the next build ends up spending a
+        // UTXO set the pending transaction is about to invalidate. A conclusive FAILED or
+        // CANCELLED (post core-fix, FAILED really is conclusive) left nothing on chain.
+        boolean mayBeOnChain = hash != null
+                && (r.getStatus() == TxStreamItemStatus.CONFIRMED
+                    || r.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED);
+        if (!mayBeOnChain) {
+            gate.verified = true;
+            return true;
+        }
+        try {
+            // Output 0 visible means the backend has indexed the tx — including the
+            // change output the next build on this lane will spend.
+            if (supplier.getTxOutput(hash, 0).isPresent()) {
+                gate.verified = true;
+                return true;
+            }
+        } catch (Exception ignored) {
+            // backend hiccup: treat as not yet visible
+        }
+        return false;
+    }
+
     private static void submitLoop(StreamCluster cluster, ExpectedLedger ledger,
                                    SoakJournal journal, FundingPlan funding,
                                    BackendService backend, DevKitAdmin devkit, boolean devnet,
                                    Network network, String mnemonic, int recipientCount,
                                    Duration duration, double rate, double topupAda,
                                    ChaosSchedule chaos, AtomicBoolean stopping,
-                                   AtomicLong submittedCounter, Path dataDir) throws Exception {
+                                   AtomicLong submittedCounter, Path dataDir,
+                                   UtxoSupplier gateSupplier, LaneGate[] gates) throws Exception {
         long intervalNanos = (long) (1_000_000_000L / Math.max(rate, 0.0001));
         Instant startedAt = Instant.now();
         Instant deadline = startedAt.plus(duration);
+        long gateWaits = 0;
         long seq = journal.highestSequence();
         long backpressure = 0;
         long nextProgress = System.currentTimeMillis();
@@ -317,6 +380,24 @@ public final class TxStreamSoak {
             FundingPlan.Lane lane = funding.laneFor(seq);
             BigInteger lovelace = BigInteger.valueOf(1_200_000 + (seq % 50) * 1_000);
             String orderId = "SOAK-" + seq;
+
+            // Hold this lane until its previous transaction is visible to the backend.
+            if (gateSupplier != null) {
+                LaneGate gate = gates[lane.index()];
+                long gateDeadline = System.currentTimeMillis() + 300_000;   // 5 min safety valve
+                while (!laneReady(gate, gateSupplier) && !stopping.get()
+                        && Instant.now().isBefore(deadline)) {
+                    if (System.currentTimeMillis() > gateDeadline) {
+                        System.out.println("  [gate] " + lane.name()
+                                + " previous tx still not visible after 5m — proceeding anyway");
+                        gate.verified = true;
+                        break;
+                    }
+                    gateWaits++;
+                    Thread.sleep(250);
+                }
+                if (stopping.get() || !Instant.now().isBefore(deadline)) break;
+            }
 
             // Journal BEFORE submitting: an intent we failed to record is indistinguishable
             // from work the stream lost.
@@ -346,8 +427,14 @@ public final class TxStreamSoak {
                 switch (emit.getStatus()) {
                     case OK:
                     case DUPLICATE_ATTACHED:
-                        emit.getReceipt().completion().toCompletableFuture()
-                                .thenAccept(r -> ledger.recordOutcome(orderId, r));
+                        java.util.concurrent.CompletableFuture<TxStreamItemResult> completion =
+                                emit.getReceipt().completion().toCompletableFuture();
+                        completion.thenAccept(r -> ledger.recordOutcome(orderId, r));
+                        if (gateSupplier != null) {
+                            LaneGate gate = gates[lane.index()];
+                            gate.pending = completion;
+                            gate.verified = false;
+                        }
                         break;
                     case FULL:
                     case PAUSED:
@@ -372,13 +459,13 @@ public final class TxStreamSoak {
                 TxFlowStream s = cluster.active();
                 TxStreamStats st = s == null ? null : s.getStats();
                 System.out.printf("  t+%-6s submitted=%-7d confirmed=%-7d failed=%-4d inflight=%-3d "
-                                + "backpressure=%-5d heap=%.0fMB%n",
+                                + "backpressure=%-5d gatewaits=%-6d heap=%.0fMB%n",
                         humanize(Duration.between(startedAt, Instant.now())),
                         submittedCounter.get(),
                         st == null ? 0 : st.confirmedItemCount(),
                         st == null ? 0 : st.failedItemCount(),
                         st == null ? 0 : st.inFlightCount(),
-                        backpressure, SoakMetrics.heapAfterGc() / 1024.0 / 1024.0);
+                        backpressure, gateWaits, SoakMetrics.heapAfterGc() / 1024.0 / 1024.0);
                 nextProgress = System.currentTimeMillis() + 30_000;
             }
 
@@ -456,7 +543,8 @@ public final class TxStreamSoak {
     private static void replayInterrupted(StreamCluster cluster, SoakJournal journal,
                                           FundingPlan funding, ExpectedLedger ledger,
                                           Network network, String mnemonic,
-                                          String onRestart, String plannerName) {
+                                          String onRestart, String plannerName,
+                                          LaneGate[] gates) {
         TxFlowStream stream = cluster.active();
         if (stream == null) return;
 
@@ -497,15 +585,18 @@ public final class TxStreamSoak {
             EmitResult emit = stream.trySubmit(item.build());
             switch (emit.getStatus()) {
                 case OK:
-                    replayed++;
-                    emit.getReceipt().completion().toCompletableFuture()
-                            .thenAccept(r -> ledger.recordOutcome(intent.orderId(), r));
+                case DUPLICATE_ATTACHED: {
+                    if (emit.getStatus() == EmitResult.Status.OK) replayed++; else attached++;
+                    java.util.concurrent.CompletableFuture<TxStreamItemResult> completion =
+                            emit.getReceipt().completion().toCompletableFuture();
+                    completion.thenAccept(r -> ledger.recordOutcome(intent.orderId(), r));
+                    // Replayed work is in flight on this lane exactly like fresh work:
+                    // the first post-restart submission must gate behind it, not race it.
+                    LaneGate gate = gates[Math.floorMod(intent.lane(), gates.length)];
+                    gate.pending = completion;
+                    gate.verified = false;
                     break;
-                case DUPLICATE_ATTACHED:
-                    attached++;
-                    emit.getReceipt().completion().toCompletableFuture()
-                            .thenAccept(r -> ledger.recordOutcome(intent.orderId(), r));
-                    break;
+                }
                 case CONFLICT:
                     // The store already registered this id, so it was planned before the crash.
                     // Refusing it here is the uniqueness guard working, not an error.
@@ -567,7 +658,11 @@ public final class TxStreamSoak {
         out.append(String.format("  confirmed            %d%n", r.confirmed()));
         out.append(String.format("  failed               %d%n", r.failed()));
         out.append(String.format("  cancelled            %d%n", r.cancelled()));
-        out.append(String.format("  recovery required    %d%n", r.recoveryRequired()));
+        out.append(String.format("  recovery required    %d%s%n", r.recoveryRequired(),
+                r.unresolvedRecovery() > 0
+                        ? "   (" + r.unresolvedRecovery() + " UNRESOLVED — not proven on chain;"
+                            + " reconcile before trusting this run)"
+                        : r.recoveryRequired() > 0 ? "   (all resolved on chain)" : ""));
         out.append(String.format("  non-terminal         %d%n", r.nonTerminal()));
         out.append(String.format("  never registered     %d   %s%n", r.neverRegistered(),
                 r.neverRegistered() == 0 ? ""
@@ -591,14 +686,46 @@ public final class TxStreamSoak {
         }
         out.append('\n');
 
+        if (!r.failureKinds().isEmpty()) {
+            out.append("  -- failure reasons --\n");
+            r.failureKinds().entrySet().stream()
+                    .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                    .forEach(e -> {
+                        out.append(String.format("  %-24s %d%n", e.getKey(), e.getValue()));
+                        String sample = r.failureSamples().get(e.getKey());
+                        if (sample != null) {
+                            out.append("      e.g. ").append(sample.length() > 160
+                                    ? sample.substring(0, 160) + " ..." : sample).append('\n');
+                        }
+                    });
+            out.append('\n');
+        }
+
         appendFindings(out, "LOST / NOT ON CHAIN", r.missingOnChain());
         appendFindings(out, "DOUBLE PAID", r.doublePaid());
         appendFindings(out, "UNDER PAID", r.underPaid());
+        appendFindings(out, "PAID BUT NOT REPORTED CONFIRMED", r.paidButNotConfirmed());
+        if (!r.paidButNotConfirmed().isEmpty()) {
+            out.append("      These transactions landed on chain; the money is counted and\n");
+            out.append("      conserves. The discrepancy is the reported STATUS — evidence of\n");
+            out.append("      the library settling an uncertain disposition as FAILED, not of\n");
+            out.append("      a double payment. Do not retry these items.\n");
+        }
 
         out.append(line).append('\n');
-        out.append(r.isClean()
-                ? "  RESULT: CLEAN — nothing lost, nothing paid twice, nothing left behind\n"
-                : "  RESULT: DISCREPANCIES FOUND — see above\n");
+        if (!r.isConclusive()) {
+            out.append("  RESULT: INCONCLUSIVE — the on-chain check budget ran out before every\n");
+            out.append("  planned lookup completed. Raise --max-tx-checks and reconcile again;\n");
+            out.append("  the verdict below is what the partial evidence supports.\n");
+        }
+        if (r.isClean()) {
+            out.append(r.paidButNotConfirmed().isEmpty()
+                    ? "  RESULT: CLEAN — nothing lost, nothing paid twice, nothing left behind\n"
+                    : "  RESULT: CLEAN (money conserved) — but " + r.paidButNotConfirmed().size()
+                        + " item(s) were paid on chain without being reported CONFIRMED\n");
+        } else {
+            out.append("  RESULT: DISCREPANCIES FOUND — see above\n");
+        }
         out.append(line).append('\n');
         return out.toString();
     }
@@ -671,6 +798,11 @@ public final class TxStreamSoak {
         out.println("  --window=10            window size for perWindow / batching");
         out.println("  --max-in-flight=8      concurrent executions cap");
         out.println("  --max-buffer=1000      stream buffer before backpressure");
+        out.println("  --utxo-gate=true       hold each lane until its previous tx's outputs are");
+        out.println("                         visible to the backend (getTxOutput) before submitting");
+        out.println("                         the next item. Prevents 'All inputs are spent'");
+        out.println("                         rejections from UTXO-view lag. Set false to soak the");
+        out.println("                         ungated pipeline deliberately.");
         out.println("  --instances=1          stream instances sharing the stream id (2 = active/standby)");
         out.println("  --on-restart=resubmit  resubmit | skip   what to do with work a crash interrupted.");
         out.println("                         resubmit replays under the SAME order id. Safe under any");

@@ -14,6 +14,7 @@ package com.bloxbean.cardano.client.txflow.soak;
  *
  * Available tools:
  *   txstream   - sustained TxStream submission with end-of-run reconciliation
+ *   reconcile  - post-mortem reconciliation of an existing run's data directory
  *   help       - show this message
  * </pre>
  *
@@ -53,6 +54,9 @@ public final class Tools {
             case "txstream":
                 TxStreamSoak.main(toolArgs);
                 break;
+            case "reconcile":
+                ReconcileTool.main(toolArgs);
+                break;
             default:
                 System.err.println("Unknown tool: " + tool);
                 System.err.println();
@@ -72,6 +76,7 @@ public final class Tools {
         System.out.println();
         System.out.println("Tools:");
         System.out.println("  txstream   sustained TxStream submission + reconciliation");
+        System.out.println("  reconcile  post-mortem reconciliation of an existing run's --data dir");
         System.out.println("  help       show this message");
         System.out.println();
         System.out.println("Run a tool with --help for its options, e.g.:");

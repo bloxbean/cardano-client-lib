@@ -66,14 +66,24 @@ Exit codes: **0** clean · **1** discrepancies · **2** insufficient funding.
 
 ## Picking a rate
 
-A lane confirms at most one transaction per block, so:
+A lane confirms at most one transaction per block — and the *next* transaction on a lane can
+only build once the backend's UTXO view has caught up with the previous one, which costs
+roughly another block on a public network. So:
 
-> **`rate ≤ lanes ÷ blockTimeSeconds`**
+> **`rate ≤ lanes ÷ (2 × blockTimeSeconds)`**
 
 | Network | block time | 4 lanes → sane rate |
 |---|---|---|
-| Yaci DevKit | ~1s | ~4/sec |
-| preprod / mainnet | ~20s | ~0.2/sec |
+| Yaci DevKit | ~1s | ~2/sec |
+| preprod / mainnet | ~20s | ~0.1/sec |
+
+The first preprod soak used the old `lanes ÷ blockTime` guidance and was ~2× over-driven:
+672 of 1439 items were rejected by the node with `All inputs are spent` because each lane's
+next transaction was built from a Blockfrost UTXO view that had not yet caught up with the
+previous one. The `--utxo-gate` (on by default) now prevents this structurally: each lane
+holds its next submission until the previous confirmed transaction's outputs are actually
+queryable via `UtxoSupplier.getTxOutput`. With the gate on, an over-driven rate degrades into
+waiting rather than into rejected transactions.
 
 Over-driving is not an error — it builds a backlog, then `trySubmit` starts returning `FULL`
 and the backpressure counter climbs. That is the stream refusing work correctly. You just want
@@ -207,6 +217,28 @@ allocation and says nothing about retention.
   *accelerates*, or that never plateaus once retention should be evicting, is not.
 - **Backpressure counts rising** means `trySubmit` is returning `FULL` — the stream is
   correctly refusing work rather than queueing without bound.
+
+## Post-mortem reconciliation
+
+A run's verdict can be recomputed at any time from its `--data` directory — the journal, the
+H2 store, and the chain are all still there:
+
+```bash
+java -jar cardano-client-txflow-soak.jar reconcile --data=/tmp/soak-preprod-1
+```
+
+Same network options/env vars as `txstream`. This is how a run gets re-judged after a tool
+fix without re-running two hours of load, and how a crashed run gets its final answer.
+
+### PAID BUT NOT REPORTED CONFIRMED
+
+The reconciler chain-checks every non-confirmed item that retained a transaction hash. One
+that **is** on chain is counted in the expected totals and listed under
+`PAID BUT NOT REPORTED CONFIRMED` — the money conserves; the discrepancy is the reported
+status. This is deliberately not called `DOUBLE PAID`: it is evidence of a status mislabel
+(e.g. a confirmation timeout settled as `FAILED` — the library-side fix makes those
+`RECOVERY_REQUIRED`), not of a duplicate payment. The one thing it must never trigger is a
+retry: the payment already landed.
 
 ## Restart behaviour
 

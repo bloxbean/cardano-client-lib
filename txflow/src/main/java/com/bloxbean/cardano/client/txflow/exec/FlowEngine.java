@@ -700,7 +700,7 @@ public final class FlowEngine {
                             transactionProcessor, chainDataSupplier)
                     .withSignerRegistry(signerRegistry)
                     .withScriptRegistry(scriptRegistry)
-                    .withListener(eventListener(journal));
+                    .withListener(eventListener(journal, compiled));
             if (store != null) {
                 facade.withPersistencePort(new DurableExecutionPersistence(
                         journal, compiled.getExplicitConsumers()));
@@ -720,6 +720,14 @@ public final class FlowEngine {
             ReconciliationUncertainException reconciliationFailure = findCause(
                     legacy.getError(), ReconciliationUncertainException.class);
             if (reconciliationFailure != null) state = FlowExecutionState.RECOVERY_REQUIRED;
+            // A confirmation timeout is an uncertain disposition, not a proven failure:
+            // the transaction was submitted (the exception only exists post-submission)
+            // and may still confirm after the wait gave up. Terminal FAILED here would
+            // be a false verdict — and an invitation to retry a payment that can still
+            // land. Same elevation the reconciliation-uncertain case already gets.
+            boolean confirmationTimeout = findCause(
+                    legacy.getError(), ConfirmationTimeoutException.class) != null;
+            if (confirmationTimeout) state = FlowExecutionState.RECOVERY_REQUIRED;
             boolean pauseRollback = findCause(legacy.getError(), RollbackException.class) != null
                     && compiled.getExecutionPlan().getExecutionSettings().getRollbackPolicy() != null
                     && compiled.getExecutionPlan().getExecutionSettings().getRollbackPolicy().action()
@@ -735,13 +743,23 @@ public final class FlowEngine {
                                 "Execution cancelled") : "Execution cancelled",
                         null, false);
             } else {
+                // retryable is per-request truth, not a blanket convention: re-driving the
+                // SAME request is safe only where a claim exists to attach to — a durable
+                // store (every execution gets an internal execution-id claim) or an
+                // explicit idempotency key (retained in the in-memory claim map). A
+                // keyless request on a non-durable engine has no such guard: a re-start()
+                // is a fresh execution and can pay twice, so retryable must be false
+                // there. Reconciliation (engine.recover, durable only) remains the honest
+                // next step for an uncertain disposition either way.
+                boolean safeToRedrive = store != null || request.getIdempotencyKey() != null;
                 error = legacy.getError() != null
                         ? new FlowError(persistenceFailure != null ? persistenceFailure.getCode()
-                                : reconciliationFailure != null || pauseRollback
+                                : reconciliationFailure != null || pauseRollback || confirmationTimeout
                                     ? "TXFLOW_RECOVERY_REQUIRED" : "TXFLOW_EXECUTION_FAILED",
                                 pauseRollback ? FlowErrorCategory.RECOVERY : classify(legacy.getError()),
                                 legacy.getError().getMessage(), null,
-                                reconciliationFailure != null || pauseRollback)
+                                (reconciliationFailure != null || pauseRollback || confirmationTimeout)
+                                        && safeToRedrive)
                         : null;
             }
             FlowExecutionResult result = new FlowExecutionResult(request.getExecutionId(),
@@ -859,7 +877,7 @@ public final class FlowEngine {
         return true;
     }
 
-    private FlowListener eventListener(ExecutionJournalSession journal) {
+    private FlowListener eventListener(ExecutionJournalSession journal, CompiledTxFlow compiled) {
         return new FlowListener() {
             @Override public void onStepStarted(FlowStep step, int index, int total) {
                 journal.record(FlowEventType.STEP_STARTED, step.getId(), null,
@@ -903,11 +921,33 @@ public final class FlowEngine {
                                         ? Objects.toString(result.getError().getMessage(), "unknown")
                                         : "unknown"));
             }
+            @Override public void onStepUncertain(FlowStep step, com.bloxbean.cardano.client.txflow.result.FlowStepResult result) {
+                journal.record(FlowEventType.RECOVERY_REQUIRED, step.getId(),
+                        result.getTransactionHash(), Map.of("message",
+                                result.getError() != null
+                                        ? Objects.toString(result.getError().getMessage(), "unknown")
+                                        : "unknown"));
+            }
             @Override public void onFlowCompleted(TxFlow flow, FlowResult result) {
                 journal.record(FlowEventType.EXECUTION_COMPLETED, null, null, Map.of());
             }
+            @Override public void onFlowUncertain(TxFlow flow, FlowResult result) {
+                // Matches the RECOVERY_REQUIRED state run() will persist — a durable
+                // consumer must never read EXECUTION_FAILED for an execution whose
+                // snapshot says RECOVERY_REQUIRED.
+                journal.record(FlowEventType.RECOVERY_REQUIRED, null, null, Map.of());
+            }
             @Override public void onFlowFailed(TxFlow flow, FlowResult result) {
-                FlowEventType type = findCause(result.getError(), ReconciliationUncertainException.class) != null
+                // Uncertain dispositions arrive via onFlowUncertain; the remaining
+                // RECOVERY_REQUIRED-snapshot shape on this path is a rollback under a
+                // PAUSE_FOR_RECOVERY policy, which run() also persists as
+                // RECOVERY_REQUIRED — keep the journal event in agreement.
+                boolean pausedRollback =
+                        findCause(result.getError(), RollbackException.class) != null
+                        && compiled.getExecutionPlan().getExecutionSettings().getRollbackPolicy() != null
+                        && compiled.getExecutionPlan().getExecutionSettings().getRollbackPolicy().action()
+                        == com.bloxbean.cardano.client.txflow.config.RollbackAction.PAUSE_FOR_RECOVERY;
+                FlowEventType type = pausedRollback
                         ? FlowEventType.RECOVERY_REQUIRED
                         : result.getStatus() == FlowStatus.CANCELLED
                             ? FlowEventType.EXECUTION_CANCELLED : FlowEventType.EXECUTION_FAILED;

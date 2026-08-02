@@ -48,10 +48,17 @@ public final class ExpectedLedger {
 
         boolean isConfirmed() { return status == TxStreamItemStatus.CONFIRMED; }
 
+        /**
+         * Settled for accounting purposes. RECOVERY_REQUIRED belongs here: it settles the
+         * receipt (the stream's documented point-in-time answer) and the reconciler resolves
+         * its real disposition against the chain — counting it as "non-terminal" would fail
+         * a run for the library doing exactly what its contract says.
+         */
         boolean isTerminal() {
             return status == TxStreamItemStatus.CONFIRMED
                     || status == TxStreamItemStatus.FAILED
-                    || status == TxStreamItemStatus.CANCELLED;
+                    || status == TxStreamItemStatus.CANCELLED
+                    || status == TxStreamItemStatus.RECOVERY_REQUIRED;
         }
     }
 
@@ -78,11 +85,21 @@ public final class ExpectedLedger {
 
     /** Record the stream's own verdict for an item. Safe to call from receipt callbacks. */
     public void recordOutcome(String orderId, TxStreamItemResult result) {
+        recordOutcome(orderId, result.getStatus(), result.getTransactionHash(),
+                result.getError() == null ? null : String.valueOf(result.getError()));
+    }
+
+    /**
+     * Raw-value variant for post-mortem reconciliation, where statuses come straight out of
+     * the durable store rather than from live receipts.
+     */
+    public void recordOutcome(String orderId, TxStreamItemStatus status, String txHash,
+                              String error) {
         Entry entry = entries.get(orderId);
         if (entry == null) return;
-        entry.status = result.getStatus();
-        entry.txHash = result.getTransactionHash();
-        entry.error = result.getError() == null ? null : String.valueOf(result.getError());
+        entry.status = status;
+        entry.txHash = txHash;
+        entry.error = error;
         settled.incrementAndGet();
     }
 

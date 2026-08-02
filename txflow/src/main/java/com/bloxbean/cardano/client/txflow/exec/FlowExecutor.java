@@ -738,6 +738,9 @@ public class FlowExecutor implements AutoCloseable {
      * @param previousResult the result from a previous failed execution
      * @return the flow result
      * @throws IllegalArgumentException if previousResult is null, flow IDs mismatch, or previous result was successful
+     * @throws IllegalStateException if the previous result contains a submission-pending step
+     *         ({@link FlowStatus#IN_PROGRESS} with a transaction hash) whose on-chain outcome is
+     *         unknown — reconcile that transaction on chain before resuming
      * @throws FlowExecutionException if flow validation fails
      */
     public FlowResult resumeSync(TxFlow flow, FlowResult previousResult) {
@@ -780,7 +783,9 @@ public class FlowExecutor implements AutoCloseable {
      * @return a handle for monitoring the resumed execution
      * @throws IllegalArgumentException if previousResult is null, flow IDs mismatch, or previous result was successful
      * @throws FlowExecutionException if flow validation fails
-     * @throws IllegalStateException if the flow is already executing
+     * @throws IllegalStateException if the flow is already executing, or if the previous result
+     *         contains a submission-pending step ({@link FlowStatus#IN_PROGRESS} with a transaction
+     *         hash) whose on-chain outcome is unknown — reconcile that transaction on chain before resuming
      */
     public FlowHandle resume(TxFlow flow, FlowResult previousResult) {
         EffectiveFlowExecutionSettings settings = effectiveSettings(flow);
@@ -967,12 +972,12 @@ public class FlowExecutor implements AutoCloseable {
                             return cancelledFlowResult(
                                     flow, resultBuilder, hooks, stepResult.getError());
                         }
-                        listener.onStepFailed(step, stepResult);
+                        notifyStepTerminal(step, stepResult);
                         resultBuilder.completedAt(scheduler.now());
                         FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
                                 .withError(stepResult.getError())
                                 .build();
-                        listener.onFlowFailed(flow, failedResult);
+                        notifyFlowTerminal(flow, failedResult);
                         hooks.onFlowFailed(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
@@ -1018,7 +1023,7 @@ public class FlowExecutor implements AutoCloseable {
                         resultBuilder.completedAt(scheduler.now());
                         FlowResult failedResult = resultBuilder.failure(
                                 new FlowExecutionException("Flow restart limit reached after rollback", e));
-                        listener.onFlowFailed(flow, failedResult);
+                        notifyFlowTerminal(flow, failedResult);
                         hooks.onFlowFailed(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
@@ -1038,7 +1043,7 @@ public class FlowExecutor implements AutoCloseable {
                             withRolledBackAttemptFailure(attemptStepResults, e));
                     resultBuilder.completedAt(scheduler.now());
                     FlowResult failedResult = resultBuilder.failure(e);
-                    listener.onFlowFailed(flow, failedResult);
+                    notifyFlowTerminal(flow, failedResult);
                     hooks.onFlowFailed(flow, FlowStatus.FAILED);
                     return failedResult;
                 }
@@ -1046,7 +1051,7 @@ public class FlowExecutor implements AutoCloseable {
                 log.error("Flow execution failed", e);
                 resultBuilder.completedAt(scheduler.now());
                 FlowResult failedResult = resultBuilder.failure(e);
-                listener.onFlowFailed(flow, failedResult);
+                notifyFlowTerminal(flow, failedResult);
                 hooks.onFlowFailed(flow, FlowStatus.FAILED);
                 return failedResult;
             }
@@ -1058,7 +1063,7 @@ public class FlowExecutor implements AutoCloseable {
                 .completedAt(scheduler.now());
         FlowResult failedResult = errorBuilder.failure(
                 new FlowExecutionException("Flow execution failed: exceeded maximum restart attempts"));
-        listener.onFlowFailed(flow, failedResult);
+        notifyFlowTerminal(flow, failedResult);
         hooks.onFlowFailed(flow, FlowStatus.FAILED);
         return failedResult;
     }
@@ -1115,26 +1120,90 @@ public class FlowExecutor implements AutoCloseable {
             return cancelledFlowResult(flow, resultBuilder, hooks, error);
         }
 
-        listener.onStepFailed(step, terminalStep);
+        notifyStepTerminal(step, terminalStep);
         FlowResult terminal = resultBuilder.withStatus(FlowStatus.FAILED)
                 .withError(error)
                 .completedAt(scheduler.now())
                 .build();
-        listener.onFlowFailed(flow, terminal);
+        notifyFlowTerminal(flow, terminal);
         hooks.onFlowFailed(flow, FlowStatus.FAILED);
         return terminal;
+    }
+
+    /**
+     * Routes a step's terminal notification honestly: a submission-pending step (uncertain
+     * disposition — the transaction may still confirm) is reported through
+     * {@link FlowListener#onStepUncertain}, never {@link FlowListener#onStepFailed}. A
+     * failure callback for a payment that may have landed invites the exact retry-and-
+     * double-pay response the pending status exists to prevent.
+     */
+    /**
+     * Routes the flow-level terminal notification honestly. A flow whose failure is an
+     * uncertain transaction disposition (confirmation timeout, or reconciliation that
+     * stayed uncertain) is reported through {@link FlowListener#onFlowUncertain} — the
+     * submitted transaction may still confirm, and a failure callback would invite
+     * refund/retry handling for a payment that may have landed. Everything else keeps
+     * {@link FlowListener#onFlowFailed}.
+     */
+    private void notifyFlowTerminal(TxFlow flow, FlowResult result) {
+        if (isUncertainFlowError(result.getError())) {
+            listener.onFlowUncertain(flow, result);
+        } else {
+            listener.onFlowFailed(flow, result);
+        }
+    }
+
+    /** Whether the failure's cause chain marks an uncertain transaction disposition. */
+    private static boolean isUncertainFlowError(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof ConfirmationTimeoutException
+                    || current instanceof ReconciliationUncertainException) {
+                return true;
+            }
+            if (current.getCause() == current) break;
+        }
+        return false;
+    }
+
+    private void notifyStepTerminal(FlowStep step, FlowStepResult result) {
+        if (result.getStatus() == FlowStatus.IN_PROGRESS) {
+            listener.onStepUncertain(step, result);
+        } else {
+            listener.onStepFailed(step, result);
+        }
     }
 
     private FlowStepResult confirmationStepResult(
             FlowStepResult submittedStep, ConfirmationOutcome confirmation,
             Throwable error) {
-        if (confirmation.getType() == ConfirmationOutcome.Type.CANCELLED) {
+        if (isUncertainDisposition(confirmation)) {
             return FlowStepResult.submissionPendingAt(
                     submittedStep.getStepId(), submittedStep.getTransactionHash(),
                     submittedStep.getOutputUtxos(), submittedStep.getSpentInputs(),
                     error, scheduler.now());
         }
         return failedAfterSubmission(submittedStep, error);
+    }
+
+    /**
+     * Whether the confirmation outcome leaves the submitted transaction's disposition
+     * genuinely unknown. A cancelled or timed-out wait, and a wait whose reconciliation
+     * stayed uncertain, all mean the transaction was submitted and may still confirm —
+     * so the step must settle as submission-pending ({@code IN_PROGRESS} with the hash
+     * retained), never as {@code FAILED}. A {@code FAILED} here would invite a retry of a
+     * payment that can still land, which is exactly the double-payment this contract
+     * exists to prevent. Only a proven rollback or a conclusive failure may fail the step.
+     */
+    private static boolean isUncertainDisposition(ConfirmationOutcome confirmation) {
+        return confirmation.getType() == ConfirmationOutcome.Type.CANCELLED
+                || confirmation.getType() == ConfirmationOutcome.Type.TIMEOUT
+                || confirmation.getType() == ConfirmationOutcome.Type.RECOVERY_REQUIRED
+                // Some rollback policies preserve the ROLLED_BACK outcome so rollback
+                // persistence and hooks still run, while carrying reconciliation uncertainty
+                // in the error chain (for example, an exhausted same-hash reinclusion window).
+                // That remains an uncertain disposition: the transaction may still reappear,
+                // so the step must not emit a failure signal.
+                || isUncertainFlowError(confirmation.getError());
     }
 
     private FlowResult cancelledFlowResult(
@@ -1146,7 +1215,7 @@ public class FlowExecutor implements AutoCloseable {
                 .withError(cancellation)
                 .completedAt(scheduler.now())
                 .build();
-        listener.onFlowFailed(flow, result);
+        notifyFlowTerminal(flow, result);
         hooks.onFlowFailed(flow, FlowStatus.CANCELLED);
         return result;
     }
@@ -1356,12 +1425,12 @@ public class FlowExecutor implements AutoCloseable {
                             return cancelledFlowResult(
                                     flow, resultBuilder, hooks, stepResult.getError());
                         }
-                        listener.onStepFailed(step, stepResult);
+                        notifyStepTerminal(step, stepResult);
                         resultBuilder.completedAt(scheduler.now());
                         FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
                                 .withError(stepResult.getError())
                                 .build();
-                        listener.onFlowFailed(flow, failedResult);
+                        notifyFlowTerminal(flow, failedResult);
                         hooks.onFlowFailed(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
@@ -1438,7 +1507,7 @@ public class FlowExecutor implements AutoCloseable {
                     resultBuilder.completedAt(scheduler.now());
                     FlowResult failedResult = resultBuilder.failure(
                             new FlowExecutionException("Flow restart limit reached after rollback in PIPELINED mode", e));
-                    listener.onFlowFailed(flow, failedResult);
+                    notifyFlowTerminal(flow, failedResult);
                     hooks.onFlowFailed(flow, FlowStatus.FAILED);
                     return failedResult;
                 }
@@ -1470,7 +1539,7 @@ public class FlowExecutor implements AutoCloseable {
                         stepResults, submittedStepIndices, confirmedStepIndices));
                 resultBuilder.completedAt(scheduler.now());
                 FlowResult failedResult = resultBuilder.failure(e);
-                listener.onFlowFailed(flow, failedResult);
+                notifyFlowTerminal(flow, failedResult);
                 hooks.onFlowFailed(flow, FlowStatus.FAILED);
                 return failedResult;
             }
@@ -1482,7 +1551,7 @@ public class FlowExecutor implements AutoCloseable {
                 .completedAt(scheduler.now());
         FlowResult failedResult = errorBuilder.failure(
                 new FlowExecutionException("PIPELINED flow execution failed: exceeded maximum restart attempts"));
-        listener.onFlowFailed(flow, failedResult);
+        notifyFlowTerminal(flow, failedResult);
         hooks.onFlowFailed(flow, FlowStatus.FAILED);
         return failedResult;
     }
@@ -2115,7 +2184,10 @@ public class FlowExecutor implements AutoCloseable {
             FlowStep step, UncertainSubmissionException uncertain, Throwable failure) {
         Transaction transaction = uncertain.getTransaction();
         String transactionHash = uncertain.getTransactionHash();
-        return FlowStepResult.failureAfterSubmissionAt(step.getId(), transactionHash,
+        // Same rule as confirmation timeouts: the submission may have been accepted, so
+        // this settles as submission-pending (IN_PROGRESS, hash retained), never FAILED —
+        // a FAILED result here becomes a STEP_FAILED signal for a payment that may land.
+        return FlowStepResult.submissionPendingAt(step.getId(), transactionHash,
                 captureOutputUtxos(transaction, transactionHash),
                 captureSpentInputs(transaction), failure, scheduler.now());
     }
@@ -2189,8 +2261,10 @@ public class FlowExecutor implements AutoCloseable {
                                     rollback.getBlockHeight(), confirmation.getError().getMessage());
                         }
                         Throwable error = confirmationFailure(step, txHash, confirmation);
-                        FlowStepResult terminalStep = confirmation.getType()
-                                == ConfirmationOutcome.Type.CANCELLED
+                        // Same rule as the sequential path: an uncertain disposition
+                        // (cancelled / timeout / reconciliation-uncertain) settles as
+                        // submission-pending with the hash, never as FAILED.
+                        FlowStepResult terminalStep = isUncertainDisposition(confirmation)
                                 ? FlowStepResult.submissionPendingAt(
                                         stepId, txHash, outputUtxos, spentInputs,
                                         error, scheduler.now())
@@ -2570,14 +2644,14 @@ public class FlowExecutor implements AutoCloseable {
                     } else {
                         FlowStepResult failedResult = FlowStepResult.failure(step.getId(), buildResult.getError());
                         stepResults.add(failedResult);
-                        listener.onStepFailed(step, failedResult);
+                        notifyStepTerminal(step, failedResult);
                         resultBuilder.withStepResults(observableStepResults(
                                 stepResults, submittedStepIndices, confirmedStepIndices));
                         resultBuilder.completedAt(scheduler.now());
                         FlowResult flowFailed = resultBuilder.withStatus(FlowStatus.FAILED)
                                 .withError(failedResult.getError())
                                 .build();
-                        listener.onFlowFailed(flow, flowFailed);
+                        notifyFlowTerminal(flow, flowFailed);
                         hooks.onFlowFailed(flow, FlowStatus.FAILED);
                         return flowFailed;
                     }
@@ -2622,14 +2696,14 @@ public class FlowExecutor implements AutoCloseable {
                             FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
                                     new RuntimeException("Transaction submission failed: " + result.getResponse()));
                             stepResults.set(i, failedResult);
-                            listener.onStepFailed(step, failedResult);
+                            notifyStepTerminal(step, failedResult);
                             resultBuilder.withStepResults(observableStepResults(
                                     stepResults, submittedStepIndices, confirmedStepIndices));
                             resultBuilder.completedAt(scheduler.now());
                             FlowResult flowFailed = resultBuilder.withStatus(FlowStatus.FAILED)
                                     .withError(failedResult.getError())
                                     .build();
-                            listener.onFlowFailed(flow, flowFailed);
+                            notifyFlowTerminal(flow, flowFailed);
                             hooks.onFlowFailed(flow, FlowStatus.FAILED);
                             return flowFailed;
                         }
@@ -2638,14 +2712,14 @@ public class FlowExecutor implements AutoCloseable {
                         submittedStep = reconcileUncertainSubmission(step, context, uncertain);
                         if (!submittedStep.isSuccessful()) {
                             stepResults.set(i, submittedStep);
-                            listener.onStepFailed(step, submittedStep);
+                            notifyStepTerminal(step, submittedStep);
                             resultBuilder.withStepResults(observableStepResults(
                                     stepResults, submittedStepIndices, confirmedStepIndices));
                             resultBuilder.completedAt(scheduler.now());
                             FlowResult flowFailed = resultBuilder.withStatus(FlowStatus.FAILED)
                                     .withError(submittedStep.getError())
                                     .build();
-                            listener.onFlowFailed(flow, flowFailed);
+                            notifyFlowTerminal(flow, flowFailed);
                             hooks.onFlowFailed(flow, FlowStatus.FAILED);
                             return flowFailed;
                         }
@@ -2740,7 +2814,7 @@ public class FlowExecutor implements AutoCloseable {
                     resultBuilder.completedAt(scheduler.now());
                     FlowResult failedResult = resultBuilder.failure(
                             new FlowExecutionException("Flow restart limit reached after rollback in BATCH mode", e));
-                    listener.onFlowFailed(flow, failedResult);
+                    notifyFlowTerminal(flow, failedResult);
                     hooks.onFlowFailed(flow, FlowStatus.FAILED);
                     return failedResult;
                 }
@@ -2772,7 +2846,7 @@ public class FlowExecutor implements AutoCloseable {
                         stepResults, submittedStepIndices, confirmedStepIndices));
                 resultBuilder.completedAt(scheduler.now());
                 FlowResult failedResult = resultBuilder.failure(e);
-                listener.onFlowFailed(flow, failedResult);
+                notifyFlowTerminal(flow, failedResult);
                 hooks.onFlowFailed(flow, FlowStatus.FAILED);
                 return failedResult;
             }
@@ -2784,7 +2858,7 @@ public class FlowExecutor implements AutoCloseable {
                 .completedAt(scheduler.now());
         FlowResult failedResult = errorBuilder.failure(
                 new FlowExecutionException("BATCH flow execution failed: exceeded maximum restart attempts"));
-        listener.onFlowFailed(flow, failedResult);
+        notifyFlowTerminal(flow, failedResult);
         hooks.onFlowFailed(flow, FlowStatus.FAILED);
         return failedResult;
     }
@@ -3001,6 +3075,22 @@ public class FlowExecutor implements AutoCloseable {
         }
         if (previousResult.isSuccessful()) {
             throw new IllegalArgumentException("Previous execution was successful, nothing to resume");
+        }
+        // Uncertain-disposition contract: a submission-pending step (IN_PROGRESS with a
+        // transaction hash) has an unknown on-chain outcome — confirmation timed out or
+        // reconciliation could not decide. Re-executing it would rebuild and resubmit a
+        // payment that may still confirm, so resume refuses until the operator reconciles
+        // the pending transaction on chain.
+        for (FlowStepResult stepResult : previousResult.getStepResults()) {
+            if (stepResult.getStatus() == FlowStatus.IN_PROGRESS
+                    && stepResult.getTransactionHash() != null) {
+                throw new IllegalStateException("Cannot resume flow '" + flow.getId()
+                        + "': step '" + stepResult.getStepId() + "' has a submission-pending transaction "
+                        + stepResult.getTransactionHash() + " whose outcome is unknown."
+                        + " Re-executing it could duplicate a transaction that may still confirm."
+                        + " Verify the transaction on chain first: if it confirmed, run the remaining"
+                        + " steps as a new flow; resume only once the transaction can no longer land.");
+            }
         }
     }
 

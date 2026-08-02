@@ -798,7 +798,10 @@ class FlowEngineTest {
         assertEquals(FlowExecutionState.RECOVERY_REQUIRED, result.state());
         assertEquals("TXFLOW_RECOVERY_REQUIRED", result.error().code());
         assertEquals(FlowErrorCategory.RECOVERY, result.error().category());
-        assertTrue(result.error().retryable());
+        // This request is keyless on a non-durable engine: no claim survives completion,
+        // so a same-request retry starts fresh work. retryable is per-request truth and
+        // must be false here; the durable variant below stays true.
+        assertFalse(result.error().retryable());
     }
 
     @Test
@@ -843,6 +846,23 @@ class FlowEngineTest {
         assertFalse(result.steps().get(0).isSuccessful());
         assertTrue(result.steps().get(0).getError()
                 instanceof ReconciliationUncertainException);
+        // The submission may have been accepted: the step settles submission-pending
+        // (IN_PROGRESS with the hash), never FAILED, and the journal must not carry a
+        // failure lifecycle for it — a STEP_FAILED here is the same unsafe retry signal
+        // the confirmation-timeout fix removed.
+        assertEquals(com.bloxbean.cardano.client.txflow.result.FlowStatus.IN_PROGRESS,
+                result.steps().get(0).getStatus());
+        assertEquals(hash, result.steps().get(0).getTransactionHash());
+        var events = handle.getEvents();
+        assertFalse(events.stream().anyMatch(e -> e.type() == FlowEventType.STEP_FAILED),
+                "uncertain submission must not journal STEP_FAILED, got: " + events);
+        assertFalse(events.stream().anyMatch(e -> e.type() == FlowEventType.EXECUTION_FAILED),
+                "events must agree with the RECOVERY_REQUIRED snapshot, got: " + events);
+        assertTrue(events.stream().anyMatch(e ->
+                        e.type() == FlowEventType.RECOVERY_REQUIRED
+                        && "step".equals(e.stepId())
+                        && hash.equals(e.transactionHash())),
+                "step-scoped RECOVERY_REQUIRED with id+hash missing, got: " + events);
         assertEquals(1, result.attempts().size());
         assertEquals(AttemptState.SUBMITTING, result.attempts().get(0).state());
         assertEquals(FlowExecutionState.RECOVERY_REQUIRED,
@@ -1115,6 +1135,131 @@ class FlowEngineTest {
 
         queued.runNext();
         return handle.await();
+    }
+
+    @Test
+    void confirmationTimeoutSettlesRecoveryRequiredNotFailed() throws Exception {
+        // Regression for the preprod soak finding: a submitted transaction whose
+        // confirmation wait timed out was settled FAILED — and later confirmed on
+        // chain. A timeout is an uncertain disposition, so the execution must end
+        // RECOVERY_REQUIRED with the hash retained, never FAILED. A FAILED verdict
+        // here invites the caller to retry a payment that can still land.
+        Transaction transaction = batchTransaction(91);
+        String hash = TransactionUtil.getTxHash(transaction);
+        QuickTxBuilder.TxContext txContext = mock(QuickTxBuilder.TxContext.class);
+        AtomicReference<Consumer<Transaction>> inspector = new AtomicReference<>();
+        when(txContext.withTxInspector(any())).thenAnswer(invocation -> {
+            inspector.set(invocation.getArgument(0));
+            return txContext;
+        });
+        when(txContext.completeAndWait(any(), any(), any())).thenAnswer(invocation -> {
+            inspector.get().accept(transaction);
+            Result<String> accepted = Result.success("submitted");
+            accepted.withValue(hash);
+            return TxResult.fromResult(accepted);
+        });
+        TxFlow executable = TxFlow.builder("confirmation-timeout-recovery")
+                .withExecutionSettings(
+                        com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings.builder()
+                                .confirmationConfig(
+                                        com.bloxbean.cardano.client.txflow.config.ConfirmationConfig
+                                                .builder()
+                                                .minConfirmations(1)
+                                                .checkInterval(java.time.Duration.ofMillis(20))
+                                                .timeout(java.time.Duration.ofMillis(120))
+                                                .build())
+                                .build())
+                .addStep(FlowStep.builder("step")
+                        .withTxContext(ignored -> txContext).build())
+                .build();
+        ChainDataSupplier chain = mock(ChainDataSupplier.class);
+        when(chain.getChainTipHeight()).thenReturn(100L);
+        when(chain.getTransactionInfo(hash)).thenReturn(Optional.empty());   // never observed
+
+        FlowEngine engine = FlowEngine.builder(mock(UtxoSupplier.class),
+                        mock(ProtocolParamsSupplier.class), mock(TransactionProcessor.class), chain)
+                .executor(Runnable::run)
+                .compiler(compilerFor(executable)).build();
+        FlowExecutionResult result = engine.start(FlowExecutionRequest.builder(executable)
+                .executionId("confirmation-timeout").build()).await();
+
+        assertEquals(FlowExecutionState.RECOVERY_REQUIRED, result.state());
+        assertEquals("TXFLOW_RECOVERY_REQUIRED", result.error().code());
+        // retryable is per-request truth: this request is KEYLESS on a NON-durable
+        // engine, so nothing would attach a retry to this execution — a re-start()
+        // is fresh work and can pay twice. Hence false. Durable or keyed requests
+        // (see the durable reconciliation test) genuinely attach and stay true.
+        assertFalse(result.error().retryable());
+        assertEquals(1, result.steps().size());
+        assertEquals(hash, result.steps().get(0).getTransactionHash());
+        assertEquals(com.bloxbean.cardano.client.txflow.result.FlowStatus.IN_PROGRESS,
+                result.steps().get(0).getStatus());
+    }
+
+    @Test
+    void confirmationTimeoutJournalsRecoveryRequiredEventsNotFailureEvents() throws Exception {
+        // The Codex review point: durable event consumers and custom listeners must not see
+        // a failure lifecycle (STEP_FAILED / EXECUTION_FAILED) for an execution whose final
+        // snapshot is RECOVERY_REQUIRED — they would act on a false failure (alert, refund,
+        // retry) for a payment that may still confirm.
+        Transaction transaction = batchTransaction(92);
+        String hash = TransactionUtil.getTxHash(transaction);
+        QuickTxBuilder.TxContext txContext = mock(QuickTxBuilder.TxContext.class);
+        AtomicReference<Consumer<Transaction>> inspector = new AtomicReference<>();
+        when(txContext.withTxInspector(any())).thenAnswer(invocation -> {
+            inspector.set(invocation.getArgument(0));
+            return txContext;
+        });
+        when(txContext.completeAndWait(any(), any(), any())).thenAnswer(invocation -> {
+            inspector.get().accept(transaction);
+            Result<String> accepted = Result.success("submitted");
+            accepted.withValue(hash);
+            return TxResult.fromResult(accepted);
+        });
+        TxFlow executable = TxFlow.builder("confirmation-timeout-events")
+                .withExecutionSettings(
+                        com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings.builder()
+                                .confirmationConfig(
+                                        com.bloxbean.cardano.client.txflow.config.ConfirmationConfig
+                                                .builder()
+                                                .minConfirmations(1)
+                                                .checkInterval(java.time.Duration.ofMillis(20))
+                                                .timeout(java.time.Duration.ofMillis(120))
+                                                .build())
+                                .build())
+                .addStep(FlowStep.builder("step")
+                        .withTxContext(ignored -> txContext).build())
+                .build();
+        ChainDataSupplier chain = mock(ChainDataSupplier.class);
+        when(chain.getChainTipHeight()).thenReturn(100L);
+        when(chain.getTransactionInfo(hash)).thenReturn(Optional.empty());
+
+        FlowEngine engine = FlowEngine.builder(mock(UtxoSupplier.class),
+                        mock(ProtocolParamsSupplier.class), mock(TransactionProcessor.class), chain)
+                .executor(Runnable::run)
+                .compiler(compilerFor(executable)).build();
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(executable)
+                .executionId("confirmation-timeout-events").build());
+        assertEquals(FlowExecutionState.RECOVERY_REQUIRED, handle.await().state());
+
+        var events = handle.getEvents();
+        var eventTypes = events.stream().map(FlowEvent::type).toList();
+        assertFalse(eventTypes.contains(FlowEventType.STEP_FAILED),
+                "a submission-pending step is not a failed step, got: " + eventTypes);
+        assertFalse(eventTypes.contains(FlowEventType.EXECUTION_FAILED),
+                "events must agree with the RECOVERY_REQUIRED snapshot, got: " + eventTypes);
+        // The STEP-scoped recovery event must actually be delivered (a composite listener
+        // that fails to forward onStepUncertain swallows it — the original bug), and it
+        // must carry the step id and the submitted hash for durable consumers.
+        assertTrue(events.stream().anyMatch(e ->
+                        e.type() == FlowEventType.RECOVERY_REQUIRED
+                        && "step".equals(e.stepId())
+                        && hash.equals(e.transactionHash())),
+                "step-scoped RECOVERY_REQUIRED with id+hash missing, got: " + events);
+        // And the flow-scoped one, matching the persisted snapshot.
+        assertTrue(events.stream().anyMatch(e ->
+                        e.type() == FlowEventType.RECOVERY_REQUIRED && e.stepId() == null),
+                "flow-scoped RECOVERY_REQUIRED missing, got: " + events);
     }
 
     private TxFlowCompiler compilerFor(TxFlow executable) {

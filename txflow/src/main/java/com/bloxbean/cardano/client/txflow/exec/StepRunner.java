@@ -116,10 +116,13 @@ final class StepRunner {
         List<TransactionInput> spentInputs = transaction.getBody() != null
                 && transaction.getBody().getInputs() != null
                 ? transaction.getBody().getInputs() : List.of();
-        return FlowStepResult.failureAfterSubmission(
+        // Uncertain disposition: the submission may have been accepted, so the step
+        // settles submission-pending (IN_PROGRESS, hash retained), never FAILED.
+        return FlowStepResult.submissionPendingAt(
                 step.getId(), uncertain.getTransactionHash(), List.of(), spentInputs,
                 new ReconciliationUncertainException(
-                        uncertain.getTransactionHash(), uncertain));
+                        uncertain.getTransactionHash(), uncertain),
+                scheduler.now());
     }
 
     private FlowStepResult cancelled(FlowStep step) {

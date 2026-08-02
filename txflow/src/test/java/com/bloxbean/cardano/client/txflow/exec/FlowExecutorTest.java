@@ -329,9 +329,15 @@ class FlowExecutorTest {
 
         assertEquals(FlowStatus.FAILED, result.getStatus());
         assertInstanceOf(ReconciliationUncertainException.class, result.getError());
-        assertEquals("step1", result.getFailedStep().orElseThrow().getStepId());
-        assertInstanceOf(ReconciliationUncertainException.class,
-                result.getFailedStep().orElseThrow().getError());
+        // Uncertain submission = uncertain disposition: the step settles
+        // submission-pending (IN_PROGRESS, hash retained), never FAILED — same
+        // contract as confirmation timeouts.
+        assertTrue(result.getFailedStep().isEmpty());
+        assertEquals(1, result.getStepResults().size());
+        FlowStepResult pending = result.getStepResults().get(0);
+        assertEquals("step1", pending.getStepId());
+        assertEquals(FlowStatus.IN_PROGRESS, pending.getStatus());
+        assertInstanceOf(ReconciliationUncertainException.class, pending.getError());
     }
 
     @Test
@@ -355,9 +361,15 @@ class FlowExecutorTest {
 
         assertEquals(FlowStatus.FAILED, result.getStatus());
         assertInstanceOf(ReconciliationUncertainException.class, result.getError());
-        assertEquals("step1", result.getFailedStep().orElseThrow().getStepId());
-        assertInstanceOf(ReconciliationUncertainException.class,
-                result.getFailedStep().orElseThrow().getError());
+        // Uncertain submission = uncertain disposition: the step settles
+        // submission-pending (IN_PROGRESS, hash retained), never FAILED — same
+        // contract as confirmation timeouts.
+        assertTrue(result.getFailedStep().isEmpty());
+        assertEquals(1, result.getStepResults().size());
+        FlowStepResult pending = result.getStepResults().get(0);
+        assertEquals("step1", pending.getStepId());
+        assertEquals(FlowStatus.IN_PROGRESS, pending.getStatus());
+        assertInstanceOf(ReconciliationUncertainException.class, pending.getError());
     }
 
     @Test
@@ -381,10 +393,18 @@ class FlowExecutorTest {
         assertEquals(FlowStatus.FAILED, result.getStatus());
         assertInstanceOf(ConfirmationTimeoutException.class, result.getError());
         assertEquals(0, result.getCompletedStepCount());
-        assertEquals("step1", result.getFailedStep().orElseThrow().getStepId());
-        assertInstanceOf(ConfirmationTimeoutException.class,
-                result.getFailedStep().orElseThrow().getError());
-        assertEquals("tx1", result.getFailedStep().orElseThrow().getTransactionHash());
+        // A timed-out confirmation is an uncertain disposition: the transaction was
+        // submitted and may still land, so the step settles submission-pending
+        // (IN_PROGRESS with the hash retained), never FAILED — a FAILED step would
+        // invite a fresh-build retry of a payment that can still confirm.
+        assertTrue(result.getFailedStep().isEmpty());
+        assertEquals(1, result.getStepResults().size());
+        FlowStepResult pending = result.getStepResults().get(0);
+        assertEquals("step1", pending.getStepId());
+        assertEquals(FlowStatus.IN_PROGRESS, pending.getStatus());
+        assertFalse(pending.isSuccessful());
+        assertInstanceOf(ConfirmationTimeoutException.class, pending.getError());
+        assertEquals("tx1", pending.getTransactionHash());
         assertEquals(0, secondStepBuilds.get());
     }
 
@@ -421,12 +441,15 @@ class FlowExecutorTest {
 
         assertEquals(FlowStatus.FAILED, result.getStatus());
         assertEquals(1, result.getStepResults().size());
-        FlowStepResult failed = result.getFailedStep().orElseThrow();
-        assertEquals(transactionHash, failed.getTransactionHash());
-        assertEquals(1, failed.getOutputUtxos().size());
-        assertEquals(transactionHash, failed.getOutputUtxos().get(0).getTxHash());
-        assertEquals(3, failed.getSpentInputs().get(0).getIndex());
-        assertInstanceOf(ConfirmationTimeoutException.class, failed.getError());
+        // Timeout = uncertain disposition: submission-pending, details preserved.
+        assertTrue(result.getFailedStep().isEmpty());
+        FlowStepResult pending = result.getStepResults().get(0);
+        assertEquals(FlowStatus.IN_PROGRESS, pending.getStatus());
+        assertEquals(transactionHash, pending.getTransactionHash());
+        assertEquals(1, pending.getOutputUtxos().size());
+        assertEquals(transactionHash, pending.getOutputUtxos().get(0).getTxHash());
+        assertEquals(3, pending.getSpentInputs().get(0).getIndex());
+        assertInstanceOf(ConfirmationTimeoutException.class, pending.getError());
     }
 
     @Test
@@ -453,12 +476,15 @@ class FlowExecutorTest {
 
         assertEquals(FlowStatus.FAILED, result.getStatus());
         assertEquals(1, result.getStepResults().size());
-        FlowStepResult failed = result.getFailedStep().orElseThrow();
-        assertEquals(transactionHash, failed.getTransactionHash());
-        assertEquals(1, failed.getOutputUtxos().size());
-        assertEquals(transactionHash, failed.getOutputUtxos().get(0).getTxHash());
-        assertEquals(4, failed.getSpentInputs().get(0).getIndex());
-        assertInstanceOf(ConfirmationTimeoutException.class, failed.getError());
+        // Timeout = uncertain disposition: submission-pending, details preserved.
+        assertTrue(result.getFailedStep().isEmpty());
+        FlowStepResult pending = result.getStepResults().get(0);
+        assertEquals(FlowStatus.IN_PROGRESS, pending.getStatus());
+        assertEquals(transactionHash, pending.getTransactionHash());
+        assertEquals(1, pending.getOutputUtxos().size());
+        assertEquals(transactionHash, pending.getOutputUtxos().get(0).getTxHash());
+        assertEquals(4, pending.getSpentInputs().get(0).getIndex());
+        assertInstanceOf(ConfirmationTimeoutException.class, pending.getError());
     }
 
     @ParameterizedTest
@@ -875,9 +901,22 @@ class FlowExecutorTest {
         ScriptedChainBackend chain = new ScriptedChainBackend()
                 .then(included(100, 100, "block-a"), absent(101), absent(102),
                         absent(103), absent(104));
+        AtomicInteger uncertainSteps = new AtomicInteger();
+        AtomicInteger failedSteps = new AtomicInteger();
         executor = FlowExecutor.create(utxoSupplier, protocolParamsSupplier,
                         transactionProcessor, chain)
-                .withScheduler(scheduler);
+                .withScheduler(scheduler)
+                .withListener(new FlowListener() {
+                    @Override
+                    public void onStepUncertain(FlowStep step, FlowStepResult result) {
+                        uncertainSteps.incrementAndGet();
+                    }
+
+                    @Override
+                    public void onStepFailed(FlowStep step, FlowStepResult result) {
+                        failedSteps.incrementAndGet();
+                    }
+                });
 
         FlowResult result = executor.executeSync(
                 portableWaitFlow("wait-exhausted", Duration.ofSeconds(2)));
@@ -886,6 +925,13 @@ class FlowExecutorTest {
         assertInstanceOf(RollbackException.class, result.getError());
         assertInstanceOf(ReconciliationUncertainException.class, result.getError().getCause());
         assertTrue(result.getError().getCause().getCause().getMessage().contains("within PT2S"));
+        assertTrue(result.getFailedStep().isEmpty());
+        assertEquals(1, result.getStepResults().size());
+        FlowStepResult pending = result.getStepResults().get(0);
+        assertEquals(FlowStatus.IN_PROGRESS, pending.getStatus());
+        assertEquals("same-hash", pending.getTransactionHash());
+        assertEquals(1, uncertainSteps.get());
+        assertEquals(0, failedSteps.get());
         assertEquals(Duration.ofSeconds(4), scheduler.getDelays().stream()
                 .reduce(Duration.ZERO, Duration::plus));
     }
@@ -1609,6 +1655,36 @@ class FlowExecutorTest {
 
         handle.cancel();
         blockLatch.countDown();
+    }
+
+    @Test
+    void testResumeSync_submissionPendingStep_refusesResume() {
+        TxFlow flow = createSimpleFlow("resume-pending-guard");
+
+        // Previous run ended with an uncertain disposition: the step's transaction was
+        // submitted but its outcome is unknown (confirmation timeout). The step result is
+        // submission-pending (IN_PROGRESS + hash), not failed.
+        String pendingHash = "e".repeat(64);
+        FlowResult uncertainResult = FlowResult.builder("resume-pending-guard")
+                .withStatus(FlowStatus.FAILED)
+                .startedAt(Instant.now())
+                .completedAt(Instant.now())
+                .addStepResult(FlowStepResult.submissionPendingAt("step1", pendingHash,
+                        List.of(), List.of(), new ConfirmationTimeoutException(pendingHash), Instant.now()))
+                .withError(new ConfirmationTimeoutException(pendingHash))
+                .build();
+
+        // Resume must refuse: re-executing the pending step could duplicate a transaction
+        // that may still confirm.
+        IllegalStateException syncEx = assertThrows(IllegalStateException.class,
+                () -> executor.resumeSync(flow, uncertainResult));
+        assertTrue(syncEx.getMessage().contains("step1"));
+        assertTrue(syncEx.getMessage().contains(pendingHash));
+        assertTrue(syncEx.getMessage().contains("submission-pending"));
+
+        IllegalStateException asyncEx = assertThrows(IllegalStateException.class,
+                () -> executor.resume(flow, uncertainResult));
+        assertTrue(asyncEx.getMessage().contains("submission-pending"));
     }
 
     // ==================== P2-3: close() cancels active handles ====================
