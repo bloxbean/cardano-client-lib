@@ -265,11 +265,12 @@ contract):
 | No step result, flow `FAILED` or `PARTIALLY_COMPLETED` | FAILED — safe because engine semantics guarantee **no step of a FAILED flow confirmed** (uncertain flows are elevated to RECOVERY_REQUIRED instead, see §6) |
 | Flow `RECOVERY_REQUIRED` (or anything else) | RECOVERY_REQUIRED |
 
-`templateFlowStatus`: `COMPLETED`→CONFIRMED, `FAILED`/`ROLLED_BACK`→FAILED,
-`CANCELLED`→CANCELLED, `PARTIALLY_COMPLETED`/`RECOVERY_REQUIRED`/default→RECOVERY_REQUIRED.
-Note: this mapping never consults step results, so a submitted-then-cancelled template
-item projects `CANCELLED` rather than `RECOVERY_REQUIRED` — a known asymmetry with the
-member path; see "Cancellation during confirmation" in §6.
+Template projection first checks step and durable-attempt evidence through
+`templateTerminalStatus` / `templateSnapshotStatus`: a `CANCELLED` flow with any
+submitted-but-undecided transaction projects `RECOVERY_REQUIRED`. Only after that check
+does the state-only `templateFlowStatus` mapping apply: `COMPLETED`→CONFIRMED,
+`FAILED`/`ROLLED_BACK`→FAILED, `CANCELLED`→CANCELLED,
+`PARTIALLY_COMPLETED`/`RECOVERY_REQUIRED`/default→RECOVERY_REQUIRED.
 
 All projection writes funnel through `project(state, target, mutator, …)`, which
 enforces monotonic advancement and store persistence.
@@ -384,27 +385,19 @@ runs.
   `memberTerminalStatus` checks step `IN_PROGRESS` first, so a submitted-then-cancelled
   member still projects `RECOVERY_REQUIRED` (the transaction may land and must be
   reconciled); members that never submitted project `CANCELLED`.
-- **Stream projection (template items) — known asymmetry**: `projectTemplateTerminal`
-  derives the status purely from the flow state via `templateFlowStatus`, which maps
-  `CANCELLED` → `CANCELLED` without consulting step results. A submitted-then-cancelled
-  **template** item therefore projects `CANCELLED`, not `RECOVERY_REQUIRED` — the
-  submitted hash is still retained on the projection, but the status does not flag the
-  item for reconciliation. This is inconsistent with the member path and with
-  `templateFlowStatus`'s own honest-answer principle (its javadoc maps
-  `PARTIALLY_COMPLETED` to `RECOVERY_REQUIRED` because "some transactions may still
-  confirm"); when no transaction was submitted, `CANCELLED` is correct. Treat this as a
-  candidate gap pending a maintainer decision, not as intentional design — if you
-  change it, template projection would need to prioritize submitted-but-undecided
-  evidence the way `memberTerminalStatus` prioritizes `IN_PROGRESS`, with tests.
+- **Stream projection (template items)**: `templateTerminalStatus` checks live pending
+  step/attempt evidence and `templateSnapshotStatus` checks durable attempt evidence
+  before the state-only mapping. A submitted-then-cancelled template therefore projects
+  `RECOVERY_REQUIRED` consistently across live completion, restart/reattach, and
+  read-through reconciliation; a template cancelled before submission remains
+  terminal `CANCELLED`.
 - **Resume**: the resume guard refuses these results too — the pending step is
   `IN_PROGRESS` + hash, and re-executing it carries the same double-pay risk.
 
 ### Repair paths
 
 - **Durable engine path**: restart → `stream.reattach()` / `engine.recover(...)` —
-  submitted-but-undecided items come back `RECOVERY_REQUIRED` (except for the known
-  cancelled-template asymmetry above, which currently returns `CANCELLED` with the
-  hash retained); `reconcile(itemId)`
+  submitted-but-undecided items come back `RECOVERY_REQUIRED`; `reconcile(itemId)`
   consults the engine snapshot and advances the projection when authoritative.
   Check the retained hash on chain before any manual resubmission — blind resubmission
   double-pays.
@@ -496,7 +489,7 @@ to RECOVERY_REQUIRED, notify uncertain.
 |---|---|
 | Uncertain settlement (engine state, journal events, retryable) | `FlowEngineTest`: `confirmationTimeoutSettlesRecoveryRequiredNotFailed`, `confirmationTimeoutJournalsRecoveryRequiredEventsNotFailureEvents`, `batchUnknownSubmissionObservationFailureIsDurablyRecoveryRequired`, `reconciliationUncertaintyNestedUnderRollbackMapsToRecoveryRequired` |
 | Uncertain settlement (executor, listeners, pending step results) | `FlowExecutorTest`: timeout trio, uncertain-submission tests, `portableWaitForReinclusionExhaustsAtWindowNotRecoveryCycleCount`, `testResumeSync_submissionPendingStep_refusesResume` |
-| Stream projection & lifecycle | `stream/` tests around `EngineTxFlowStream` (acceptance, dedup, claim-key reuse, reattach, reconcile) |
+| Stream projection & lifecycle | `stream/` tests around `EngineTxFlowStream` (acceptance, dedup, claim-key reuse, reattach, reconcile), including `TxFlowStreamTemplateTest.submittedThenCancelledTemplateRequiresRecoveryUntilAttemptIsResolved` and `durablePresentCancelledTemplateWithSubmittedAttemptReattachesRecoveryRequired` |
 | Durable stores | `txflow-store-rdbms` tests (`RdbmsSchemaManagerTest`, store round-trips) |
 | End-to-end under chaos (crash / rollback / failover, chain-as-oracle reconciliation) | `txflow-extensions/txflow-soak` (see its README; run against Yaci DevKit or preprod) |
 

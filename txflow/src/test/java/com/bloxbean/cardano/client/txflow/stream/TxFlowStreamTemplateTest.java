@@ -20,6 +20,7 @@ import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -491,6 +492,43 @@ class TxFlowStreamTemplateTest {
     }
 
     @Test
+    void durablePresentCancelledTemplateWithSubmittedAttemptReattachesRecoveryRequired() {
+        SharedDurableTxStreamStore store = new SharedDurableTxStreamStore();
+        StubEngineGateway gateway = durableEngine();
+
+        store.suppressConfirmOutcome = true; // binding stays DISPATCHING across the simulated crash
+        TxFlowStream a = durableMultiStepBuilder(gateway, store).build();
+        a.start();
+        TxStreamReceipt receiptA = a.submit(templateItem("pay-1", RECEIVER, 5L));
+        String executionId = receiptA.executionId().orElseThrow();
+        gateway.putSnapshot(executionId, FlowExecutionState.CANCELLED,
+                attemptData(STEP_ID, AttemptState.SUBMITTED, "tx-pending"));
+        store.suppressConfirmOutcome = false;
+
+        try (TxFlowStream b = durableMultiStepBuilder(gateway, store).build()) {
+            ReattachReport report = b.reattach();
+            assertEquals(1, report.reattachedItems());
+            assertEquals(1, report.recoveryRequired());
+
+            TxStreamItemResult reattached = b.getItemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, reattached.getStatus());
+            assertEquals("tx-pending", reattached.getTransactionHash());
+
+            // The same unresolved snapshot must not downgrade the repairable item
+            // to terminal CANCELLED during read-through reconciliation.
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
+                    b.reconcile("pay-1").orElseThrow().getStatus());
+
+            // Once the attempt itself is conclusively cancelled, CANCELLED is honest.
+            gateway.putSnapshot(executionId, FlowExecutionState.CANCELLED,
+                    attemptData(STEP_ID, AttemptState.CANCELLED, "tx-pending"));
+            TxStreamItemResult resolved = b.reconcile("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.CANCELLED, resolved.getStatus());
+            assertEquals("tx-pending", resolved.getTransactionHash());
+        }
+    }
+
+    @Test
     void multiStepTemplateCompletedIsConfirmedAcrossLiveAndSnapshotPaths() {
         StubEngineGateway gateway = new StubEngineGateway();
         try (TxFlowStream stream = multiStepBuilder("payouts", gateway).build()) {
@@ -637,6 +675,41 @@ class TxFlowStreamTemplateTest {
                     List.of(), null, StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals(TxStreamItemStatus.CANCELLED,
                     receipt.completion().toCompletableFuture().join().getStatus());
+        }
+    }
+
+    @Test
+    void submittedThenCancelledTemplateRequiresRecoveryUntilAttemptIsResolved() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        try (TxFlowStream stream = builder("payouts", gateway).build()) {
+            stream.start();
+            TxStreamReceipt receipt = stream.submit(templateItem("pay-1", RECEIVER, 5L));
+            String executionId = receipt.executionId().orElseThrow();
+            String hash = "tx-pending";
+            gateway.lastHandle().submittedEvent(STEP_ID, hash);
+            gateway.lastHandle().complete(new FlowExecutionResult(
+                    executionId, "fp", FlowExecutionState.CANCELLED,
+                    List.of(FlowStepResult.submissionPendingAt(
+                            STEP_ID, hash, List.of(), List.of(),
+                            new CancellationException("confirmation cancelled"),
+                            StubEngineGateway.NOW)),
+                    null, StubEngineGateway.NOW, StubEngineGateway.NOW));
+
+            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.getStatus());
+            assertEquals(hash, outcome.getTransactionHash());
+            assertFalse(outcome.isTerminal(),
+                    "a transaction that may still land must remain repairable");
+
+            gateway.putSnapshot(executionId, FlowExecutionState.CANCELLED,
+                    attemptData(STEP_ID, AttemptState.SUBMITTED, hash));
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
+                    stream.reconcile("pay-1").orElseThrow().getStatus());
+
+            gateway.putSnapshot(executionId, FlowExecutionState.CANCELLED,
+                    attemptData(STEP_ID, AttemptState.CANCELLED, hash));
+            assertEquals(TxStreamItemStatus.CANCELLED,
+                    stream.reconcile("pay-1").orElseThrow().getStatus());
         }
     }
 
