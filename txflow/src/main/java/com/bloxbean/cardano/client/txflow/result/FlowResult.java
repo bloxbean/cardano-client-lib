@@ -115,7 +115,7 @@ public class FlowResult {
      * the transaction hash retained) rather than {@code FAILED}, because the submitted
      * transaction's disposition is unknown and may still confirm — retrying it as if it had
      * conclusively failed is how double payments happen. For such flows this method returns
-     * empty; inspect {@link #getStepResults()} and {@link #getError()} instead.
+     * empty; inspect {@code getStepResults()} and {@code getError()} instead.
      *
      * @return the failed step result, or empty if flow didn't fail (or failed without a
      *         conclusively failed step — see above)
