@@ -6,7 +6,9 @@ end-to-end path of a work item, the exactly-once machinery, and the invariants t
 not be broken. Read it before opening `EngineTxFlowStream.java` (~5,000 lines).
 
 Related docs: [DESIGN_AND_USAGE.md](DESIGN_AND_USAGE.md) (user-facing API),
-[DURABLE_RUNTIME.md](DURABLE_RUNTIME.md) (engine durability),
+[TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md) (FlowEngine internals —
+claims, leases, journal, recovery, and the canonical uncertain-disposition contract),
+[DURABLE_RUNTIME.md](DURABLE_RUNTIME.md) (store contract in outline),
 [Flowexecutor-code-flow.md](Flowexecutor-code-flow.md) (portable executor),
 ADR `adr/txflow/002-txflowstream-concept.md` (original concept).
 
@@ -311,6 +313,11 @@ report as `EmitResult` instead of throwing.
 
 ## 6. Uncertainty: the RECOVERY_REQUIRED contract
 
+> The canonical, engine-level statement of this contract lives in
+> [TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md) §7 (including how `run()`
+> elevates state, the journal-agreement rule, and `StepRunner`'s uncertain-submission
+> path). This section covers the contract as the **stream** experiences and projects it.
+
 This is the most important invariant in the codebase, hardened after a production-style
 preprod soak run found timeout items settled `FAILED` while their transactions were on
 chain (a reconciler then "double paid" them).
@@ -506,7 +513,8 @@ soak via the fat jar in `txflow-extensions/txflow-soak`.
    the vocabulary.
 4. `EngineTxFlowStream.accept(...)` → `dispatch(...)` → `onExecutionComplete(...)` →
    `memberTerminalStatus(...)` — the spine of §4, in code.
-5. `FlowEngine.start(...)` and [DURABLE_RUNTIME.md](DURABLE_RUNTIME.md).
+5. `FlowEngine.start(...)` with [TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md)
+   and [DURABLE_RUNTIME.md](DURABLE_RUNTIME.md).
 6. `FlowExecutor.isUncertainDisposition(...)` and the `notify*Terminal` choke points.
 7. ADRs: `adr/txflow/002-txflowstream-concept.md`,
    `adr/004-txflow-production-readiness-rollback-design.md`.
