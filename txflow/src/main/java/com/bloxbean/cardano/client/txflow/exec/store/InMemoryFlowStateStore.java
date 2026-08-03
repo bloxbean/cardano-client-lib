@@ -4,7 +4,7 @@ import com.bloxbean.cardano.client.txflow.result.FlowStatus;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.time.Instant;
+import java.time.Clock;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
  * // With auto-cleanup (remove completed flows after 5 minutes)
  * FlowStateStore store = InMemoryFlowStateStore.builder()
  *     .withAutoCleanup(Duration.ofMinutes(5))
+ *     .withCleanupExecutor(applicationExecutor)
  *     .build();
  * }</pre>
  * <p>
@@ -46,29 +47,46 @@ import java.util.stream.Collectors;
 public class InMemoryFlowStateStore implements FlowStateStore {
 
     private final ConcurrentMap<String, FlowStateSnapshot> flows = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService cleanupExecutor;
+    private final Executor cleanupExecutor;
     private final Duration autoCleanupDelay;
+    private final Clock clock;
 
     /**
      * Create a new InMemoryFlowStateStore with no auto-cleanup.
      */
     public InMemoryFlowStateStore() {
-        this(null);
+        this(null, null, Clock.systemUTC());
     }
 
     /**
-     * Create a new InMemoryFlowStateStore with optional auto-cleanup.
+     * Create a store without auto-cleanup. A non-zero delay requires the
+     * executor-accepting constructor so the application owns scheduling resources.
      *
-     * @param autoCleanupDelay delay after completion before removing flows, or null to disable
+     * @param autoCleanupDelay null or zero to disable cleanup
+     * @deprecated use {@link #InMemoryFlowStateStore(Duration, Executor)} when enabling cleanup
      */
+    @Deprecated
     public InMemoryFlowStateStore(Duration autoCleanupDelay) {
+        this(autoCleanupDelay, null, Clock.systemUTC());
+    }
+
+    /**
+     * Create a store using an application-managed executor for delayed cleanup work.
+     * The executor is never shut down by this store, so Java 21 applications may pass
+     * a virtual-thread executor.
+     */
+    public InMemoryFlowStateStore(Duration autoCleanupDelay, Executor cleanupExecutor) {
+        this(autoCleanupDelay, cleanupExecutor, Clock.systemUTC());
+    }
+
+    /**
+     * Create a store with application-owned scheduling and an injectable clock.
+     */
+    public InMemoryFlowStateStore(Duration autoCleanupDelay, Executor cleanupExecutor, Clock clock) {
         this.autoCleanupDelay = autoCleanupDelay;
+        this.clock = Objects.requireNonNull(clock, "clock cannot be null");
         if (autoCleanupDelay != null && !autoCleanupDelay.isZero()) {
-            this.cleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "flow-state-store-cleanup");
-                t.setDaemon(true);
-                return t;
-            });
+            this.cleanupExecutor = Objects.requireNonNull(cleanupExecutor, "cleanupExecutor cannot be null");
         } else {
             this.cleanupExecutor = null;
         }
@@ -154,7 +172,7 @@ public class InMemoryFlowStateStore implements FlowStateStore {
             }
 
             snapshot.setStatus(status);
-            snapshot.setCompletedAt(Instant.now());
+            snapshot.setCompletedAt(clock.instant());
 
             // Update completed step count
             if (snapshot.getSteps() != null) {
@@ -261,22 +279,9 @@ public class InMemoryFlowStateStore implements FlowStateStore {
     }
 
     /**
-     * Shutdown the store and release resources.
-     * <p>
-     * This stops the auto-cleanup executor if enabled.
+     * Clear the store. Application-managed executors are not shut down.
      */
     public void shutdown() {
-        if (cleanupExecutor != null) {
-            cleanupExecutor.shutdown();
-            try {
-                if (!cleanupExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                    cleanupExecutor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                cleanupExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-        }
         clear();
     }
 
@@ -290,13 +295,13 @@ public class InMemoryFlowStateStore implements FlowStateStore {
     }
 
     private void scheduleCleanup(String flowId) {
-        cleanupExecutor.schedule(() -> {
+        CompletableFuture.delayedExecutor(autoCleanupDelay.toMillis(), TimeUnit.MILLISECONDS, cleanupExecutor).execute(() -> {
             FlowStateSnapshot snapshot = flows.get(flowId);
             if (snapshot != null && !snapshot.isInProgress()) {
                 flows.remove(flowId);
                 log.debug("Auto-cleaned flow after completion: {}", flowId);
             }
-        }, autoCleanupDelay.toMillis(), TimeUnit.MILLISECONDS);
+        });
     }
 
     /**
@@ -372,6 +377,8 @@ public class InMemoryFlowStateStore implements FlowStateStore {
      */
     public static class Builder {
         private Duration autoCleanupDelay;
+        private Executor cleanupExecutor;
+        private Clock clock = Clock.systemUTC();
 
         /**
          * Enable auto-cleanup of completed flows after the specified delay.
@@ -384,13 +391,25 @@ public class InMemoryFlowStateStore implements FlowStateStore {
             return this;
         }
 
+        /** Configure the application-managed executor used by delayed cleanup tasks. */
+        public Builder withCleanupExecutor(Executor executor) {
+            this.cleanupExecutor = Objects.requireNonNull(executor, "executor cannot be null");
+            return this;
+        }
+
+        /** Configure the clock used for persisted completion timestamps. */
+        public Builder withClock(Clock clock) {
+            this.clock = Objects.requireNonNull(clock, "clock cannot be null");
+            return this;
+        }
+
         /**
          * Build the store.
          *
          * @return a new InMemoryFlowStateStore
          */
         public InMemoryFlowStateStore build() {
-            return new InMemoryFlowStateStore(autoCleanupDelay);
+            return new InMemoryFlowStateStore(autoCleanupDelay, cleanupExecutor, clock);
         }
     }
 }

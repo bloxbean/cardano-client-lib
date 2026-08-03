@@ -1,0 +1,294 @@
+---
+title: "TxFlow Getting Started"
+description: "Parse, preflight, and execute a portable TxFlow definition with Java 17"
+---
+
+# TxFlow Getting Started
+
+TxFlow turns an ordered set of QuickTx transactions into one observable execution. A portable
+definition is reusable: runtime values, execution identity, backend services, signers, policy, and
+durability remain application-owned.
+
+This guide uses the portable `v1alpha1` contract and `FlowEngine`. The historical
+`version: "1.0"` / `flow:` document and `FlowExecutor` APIs are compatibility surfaces, not the
+recommended starting point for new applications.
+
+> **Baseline:** TxFlow is built and tested on Java 17. `FlowEngine` accepts caller-owned
+> `Executor` instances rather than creating threads. A Java 21 application can therefore supply a
+> virtual-thread executor without changing TxFlow code.
+
+## Add the dependencies
+
+The published module name includes the repository-wide `cardano-client-` prefix. For the current
+development line:
+
+```gradle
+def cclVersion = "0.8.0-pre5-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
+}
+
+dependencies {
+    implementation "com.bloxbean.cardano:cardano-client-txflow:${cclVersion}"
+
+    // Choose a backend implementation. BFBackendService can target a compatible Yaci endpoint.
+    implementation "com.bloxbean.cardano:cardano-client-backend-blockfrost:${cclVersion}"
+}
+```
+
+The equivalent Maven coordinates are:
+
+```xml
+<dependency>
+  <groupId>com.bloxbean.cardano</groupId>
+  <artifactId>cardano-client-txflow</artifactId>
+  <version>0.8.0-pre5-SNAPSHOT</version>
+</dependency>
+<dependency>
+  <groupId>com.bloxbean.cardano</groupId>
+  <artifactId>cardano-client-backend-blockfrost</artifactId>
+  <version>0.8.0-pre5-SNAPSHOT</version>
+</dependency>
+```
+
+For a snapshot Maven build, also enable the snapshot repository:
+
+```xml
+<repositories>
+  <repository>
+    <id>central-snapshots</id>
+    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+    <releases><enabled>false</enabled></releases>
+    <snapshots><enabled>true</enabled></snapshots>
+  </repository>
+</repositories>
+```
+
+Use the matching release version and omit the snapshot repository when consuming a release.
+`cardano-client-txflow` already exposes its required CCL modules, including QuickTx and the backend
+interfaces; the second dependency selects one concrete backend provider.
+
+## Author a portable flow
+
+Save this as `payment-flow.yaml`:
+
+```yaml
+api_version: txflow.cardano-client.dev/v1alpha1
+kind: TxFlow
+metadata:
+  name: payment
+  version: 1.0.0
+spec:
+  network: preview
+  parameters:
+    beneficiary:
+      type: address
+      required: true
+    amount:
+      type: integer
+      minimum: 1000000
+      maximum: 100000000
+  execution:
+    confirmation:
+      min_confirmations: 1
+      check_interval: 2s
+      timeout: 2m
+  steps:
+    - id: pay
+      transaction:
+        tx:
+          from_ref: account://sender
+          intents:
+            - type: payment
+              address: '${{ inputs.beneficiary }}'
+              amounts:
+                - unit: lovelace
+                  quantity: '${{ inputs.amount }}'
+        context:
+          signers:
+            - ref: account://sender
+              scope: payment
+```
+
+Each step contains exactly one embedded QuickTx transaction projection (`tx` plus optional
+`context`). TxFlow owns the flow envelope, ordering, named outputs, binding, and execution
+lifecycle. During compilation, TxFlow wraps the projection in QuickTx's `TransactionDocument`,
+then QuickTx materializes the executable one-transaction `TxPlan`. See
+[Portable authoring](./portable-authoring) for the complete boundary and multi-step output
+references.
+
+## Parse and inspect diagnostics
+
+Use `TxFlowCodec` for application input. It preserves warnings and structured errors that the
+`TxFlow.fromYaml(...)` convenience method cannot expose before throwing.
+
+```java
+String source = Files.readString(Path.of("payment-flow.yaml"), StandardCharsets.UTF_8);
+
+FlowParseOptions parseOptions = FlowParseOptions.serverDefaults();
+FlowParseResult parsed = TxFlowCodec.standard().parse(source, parseOptions);
+
+List<FlowDiagnostic> parseDiagnostics = parsed.getDiagnostics();
+// Send parseDiagnostics to your logger or API response. Do not discard warnings.
+
+if (parsed.hasErrors()) {
+    throw new IllegalArgumentException("Invalid TxFlow document: " + parseDiagnostics);
+}
+
+TxFlow definition = parsed.requireFlow();
+```
+
+`parse(...)` performs bounded YAML/JSON decoding plus portable envelope and graph checks. For a
+validation-only endpoint, `TxFlowValidator.standard().validate(source)` exposes the same parser
+diagnostics without returning a definition. Parameter binding, resource lookup, and server policy
+belong to the later compilation/preflight phase.
+
+## Supply runtime bindings
+
+Portable parameters are not replaced in the YAML text. The compiler binds values in the parsed
+transaction tree, preserving native integer and boolean values.
+
+```java
+FlowBindings bindings = FlowBindings.builder()
+        .put("beneficiary", receiverAddress)
+        .put("amount", 5_000_000L)
+        .build();
+```
+
+Unknown, missing, incorrectly typed, and out-of-range bindings become compilation diagnostics.
+The reusable `TxFlow` definition is not mutated.
+
+## Connect the backend and runtime resources
+
+`FlowEngine` needs four small backend interfaces:
+
+- `UtxoSupplier` for transaction input lookup;
+- `ProtocolParamsSupplier` for current protocol parameters;
+- `TransactionProcessor` for submission; and
+- `ChainDataSupplier` for inclusion, confirmation, and rollback observation.
+
+The standard backend adapters construct them from a `BackendService`:
+
+```java
+BackendService backendService = new BFBackendService(backendUrl, projectId);
+
+UtxoSupplier utxoSupplier =
+        new DefaultUtxoSupplier(backendService.getUtxoService());
+ProtocolParamsSupplier protocolParamsSupplier =
+        new DefaultProtocolParamsSupplier(backendService.getEpochService());
+TransactionProcessor transactionProcessor =
+        new DefaultTransactionProcessor(backendService.getTransactionService());
+ChainDataSupplier chainDataSupplier = new DefaultChainDataSupplier(backendService);
+```
+
+The YAML names `account://sender`; it does not contain a key. Register private signing material in
+QuickTx's signer registry and public preflight metadata in the TxFlow resource catalog. In this
+snippet, `senderAccount` is an `Account` loaded through your application's secret-management path:
+
+```java
+DefaultSignerRegistry signerRegistry = new DefaultSignerRegistry()
+        .addAccount("account://sender", senderAccount);
+
+InMemoryFlowResourceCatalog resources = new InMemoryFlowResourceCatalog()
+        .register(new ResourceDescriptor(
+                ResourceRef.of("account://sender"),
+                "preview",
+                Set.of(ResourceCapability.SPEND, ResourceCapability.SIGN),
+                "address:" + senderAccount.baseAddress()));
+```
+
+`spendingIdentity` is the stable contention key. Aliases that spend the same account should use the
+same identity so concurrent executions are serialized by default. The in-memory catalog stores only
+public metadata; signer keys remain in the signer registry.
+
+## Build the engine, preflight, and start
+
+The application owns the executor and decides its lifecycle. The Java 17 example uses a bounded
+platform-thread pool:
+
+```java
+ExecutorService flowTasks = Executors.newFixedThreadPool(4);
+
+try {
+    FlowExecutionPolicy policy = FlowExecutionPolicy.builder()
+            .allowedNetworks(Set.of("preview"))
+            .allowedResourcePrefixes(Set.of("account://"))
+            .build();
+
+    FlowEngine engine = FlowEngine.builder(
+                    utxoSupplier,
+                    protocolParamsSupplier,
+                    transactionProcessor,
+                    chainDataSupplier)
+            .executor(flowTasks)
+            .resources(resources)
+            .policy(policy)
+            .signerRegistry(signerRegistry)
+            .build();
+
+    FlowExecutionRequest request = FlowExecutionRequest.builder(definition)
+            .executionId("payment-2026-07-16-0001")
+            .bindings(bindings)
+            .idempotency("payments", "order-18473")
+            .build();
+
+    FlowCompilationResult preflight = engine.preflight(request);
+    List<FlowDiagnostic> preflightDiagnostics = preflight.getDiagnostics();
+    // Send preflightDiagnostics to the same application diagnostic sink.
+    if (preflight.hasErrors()) {
+        throw new IllegalArgumentException("TxFlow preflight failed: "
+                + preflightDiagnostics);
+    }
+
+    FlowExecutionHandle handle = engine.start(request);
+    FlowExecutionResult result = handle.await();
+
+    if (!result.isSuccessful()) {
+        throw new IllegalStateException("TxFlow ended as " + result.state()
+                + "; error=" + result.error());
+    }
+} finally {
+    flowTasks.shutdown();
+}
+```
+
+Preflight compiles a bound, policy-checked, one-transaction `TxPlan` for each step and produces a
+deterministic definition fingerprint. `start(...)` intentionally compiles again: it never assumes a
+previous preflight result still represents the submitted request.
+
+Without a `FlowExecutionStore`, idempotency and active-execution tracking are process-local. For
+restart recovery or multiple application instances, configure the RDBMS store and a separately
+provisioned maintenance executor. See [Durable runtime](./durable-runtime).
+
+On Java 21, the same builder accepts a virtual-thread executor created and closed by the
+application. TxFlow depends only on `Executor` and never detects, creates, or shuts down a thread
+implementation.
+
+## The execution pipeline
+
+The safe application path is:
+
+1. `TxFlowCodec.parse` decodes YAML or JSON and reports structural and graph diagnostics.
+2. `FlowBindings` supplies run-specific portable scalar values.
+3. `TxFlowCompiler`—directly or through `FlowEngine.preflight`—binds values, applies server policy,
+   resolves resource metadata, validates explicit output references, and materializes QuickTx
+   plans.
+4. `FlowEngine.start` claims execution/idempotency identities, coordinates spending resources,
+   and dispatches work on the caller's executor.
+5. `FlowExecutionHandle` exposes ordered events, cooperative cancellation, and the terminal
+   `FlowExecutionResult`.
+
+## Continue reading
+
+- [Portable authoring](./portable-authoring) — document fields, typed bindings, TxPlan ownership,
+  named outputs, resource references, and safe parsing.
+- [Execution engine](./execution-engine) — engine construction, executors, requests, idempotency,
+  cancellation, and recovery.
+- [Policies, results, and observability](./policies-results-observability) — effective settings,
+  error states, events, retries, confirmations, and rollback behavior.
+- [Durable runtime](./durable-runtime) — H2/PostgreSQL configuration, leases, persistence, and
+  restart recovery.
+- [Operations and testing](./operations-testing) — Yaci integration testing, deployment checks,
+  diagnostics, and operational limits.

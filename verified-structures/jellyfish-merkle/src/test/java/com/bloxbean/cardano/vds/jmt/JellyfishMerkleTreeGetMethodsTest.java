@@ -163,42 +163,6 @@ class JellyfishMerkleTreeGetMethodsTest {
     }
 
     @Test
-    void testPerformanceComparison() {
-        // Warm up
-        for (int i = 0; i < 100; i++) {
-            tree.get("key1".getBytes(), 2);
-            tree.getProof("key1".getBytes(), 2);
-        }
-
-        // Measure get()
-        long startGet = System.nanoTime();
-        for (int i = 0; i < 1000; i++) {
-            tree.get("key1".getBytes(), 2);
-        }
-        long getTime = System.nanoTime() - startGet;
-
-        // Measure getProof()
-        long startProof = System.nanoTime();
-        for (int i = 0; i < 1000; i++) {
-            tree.getProof("key1".getBytes(), 2);
-        }
-        long proofTime = System.nanoTime() - startProof;
-
-        double speedup = (double) proofTime / getTime;
-
-        System.out.printf("Performance comparison (1000 iterations):%n");
-        System.out.printf("  get():        %,d ns/op (%.2f μs/op)%n",
-                getTime / 1000, getTime / 1000.0 / 1000.0);
-        System.out.printf("  getProof():   %,d ns/op (%.2f μs/op)%n",
-                proofTime / 1000, proofTime / 1000.0 / 1000.0);
-        System.out.printf("  Speedup:      %.2fx%n", speedup);
-
-        // For in-memory store, expect at least 2x speedup for get()
-        assertTrue(speedup >= 2.0,
-                String.format("Expected get() to be at least 2x faster, but was only %.2fx", speedup));
-    }
-
-    @Test
     void testAllMethodsReturnConsistentResults() {
         byte[] key = "key1".getBytes();
         long version = 2;

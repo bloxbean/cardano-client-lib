@@ -1,0 +1,374 @@
+---
+title: "Executing Portable Flows"
+description: "Parse, preflight, and run portable TxFlow definitions with FlowEngine"
+---
+
+# Executing Portable Flows
+
+> **Preview API:** Portable TxFlow documents and `FlowEngine` may change before a stable release.
+
+`FlowEngine` is the current entry point for portable TxFlow. It separates a reusable definition
+from the values and execution identity of each run:
+
+```text
+YAML or JSON -> TxFlowCodec -> TxFlow definition
+                                  +
+                         FlowExecutionRequest
+                                  |
+                         compile and preflight
+                                  |
+                            FlowEngine.start
+                                  |
+                    FlowExecutionHandle / result
+```
+
+`FlowEngine` is thread-safe after construction. Its configuration is immutable, and every
+accepted request runs on an application-owned `Executor`.
+
+## `FlowEngine` and the legacy facade
+
+The two execution APIs serve different contracts and should not be mixed in one example:
+
+| Portable runtime | Legacy facade |
+|---|---|
+| `FlowEngine` | `FlowExecutor` |
+| `FlowExecutionRequest` | A `TxFlow` passed directly to `execute` or `executeSync` |
+| `FlowExecutionHandle` | `FlowHandle` |
+| `FlowExecutionResult` and `FlowExecutionState` | `FlowResult` and `FlowStatus` |
+| Ordered `FlowEvent` values | `FlowListener` callbacks and optional `FlowRegistry` |
+| `FlowExecutionStore` for fenced durable execution | `FlowStateStore` for legacy snapshots |
+
+`FlowEngine` compiles portable transaction templates before execution. Passing an uncompiled
+portable template directly to `FlowExecutor` is rejected. Continue to use `FlowExecutor` for an
+existing Java-first or legacy integration, but use `FlowEngine` for new portable/server-side
+execution and durable recovery.
+
+## 1. Parse a definition
+
+Use bounded server defaults when a document can come from outside the process. The parser rejects
+unknown TxFlow envelope, execution, parameter, step, and output fields by default; limits document
+size, YAML aliases, nesting, and step count; and returns expected authoring failures as diagnostics.
+The embedded QuickTx transaction projection has its own evolving subtype contract, so compiler and
+transaction-focused validation remain required after envelope parsing.
+
+```java
+String source = """
+        api_version: txflow.cardano-client.dev/v1alpha1
+        kind: TxFlow
+        metadata:
+          name: customer-payment
+          version: "1"
+        spec:
+          network: preview
+          parameters:
+            beneficiary: {type: address, required: true}
+            amount: {type: integer, required: true, minimum: 1000000}
+          steps:
+            - id: pay
+              transaction:
+                tx:
+                  from_ref: account://treasury
+                  intents:
+                    - type: payment
+                      address: '${{ inputs.beneficiary }}'
+                      amounts:
+                        - unit: lovelace
+                          quantity: '${{ inputs.amount }}'
+                context:
+                  signers:
+                    - {ref: account://treasury, scope: payment}
+        """;
+
+TxFlowCodec codec = TxFlowCodec.standard();
+FlowParseResult parsed = codec.parse(source, FlowParseOptions.serverDefaults());
+if (parsed.hasErrors()) {
+    throw new IllegalArgumentException("Invalid TxFlow: " + parsed.getDiagnostics());
+}
+TxFlow definition = parsed.requireFlow();
+```
+
+Keep the `TxFlow` definition reusable. Supply run-specific data through `FlowBindings`; do not
+rewrite the YAML or interpolate raw source text.
+
+```java
+FlowBindings bindings = FlowBindings.builder()
+        .put("beneficiary", "addr_test1...")
+        .put("amount", 5_000_000L)
+        .build();
+```
+
+Bindings accept only portable scalars: `String`, `Boolean`, and integral Java types through
+`Long`. Compilation checks required values, declared types, numeric bounds, and string lengths.
+Exact `${{ inputs.name }}` expressions retain the binding's native type; only string inputs may be
+embedded within a larger string.
+
+## 2. Separate resource metadata from runtime material
+
+A portable document names accounts, policies, and scripts with logical URIs. It must not contain
+private keys or other secret material. TxFlow uses three distinct application-owned facilities:
+
+- `FlowResourceCatalog` exposes non-secret metadata for compile-time existence, network,
+  capability, and spending-contention checks.
+- `SignerRegistry` resolves signer references while QuickTx builds and signs a transaction.
+- `ScriptRegistry` resolves scripts by logical reference or hash at execution time.
+
+For example, the catalog can describe the same account that an application registers with
+QuickTx's signer registry:
+
+```java
+InMemoryFlowResourceCatalog resources = new InMemoryFlowResourceCatalog()
+        .register(new ResourceDescriptor(
+                ResourceRef.of("account://treasury"),
+                "preview",
+                Set.of(ResourceCapability.SPEND, ResourceCapability.SIGN),
+                "preview:treasury-wallet"));
+
+DefaultSignerRegistry signers = new DefaultSignerRegistry()
+        .addAccount("account://treasury", treasuryAccount);
+
+DefaultScriptRegistry scripts = new DefaultScriptRegistry();
+// Register only the script references used by this deployment:
+// scripts.addScript("script://escrow/spend-v1", escrowScript);
+```
+
+The descriptor's `spendingIdentity` is a canonical lock identity, not a display alias. Two
+different resource references that can spend the same UTxOs should use the same identity.
+Capabilities are `SPEND`, `SIGN`, `MINT`, and `SCRIPT`.
+
+The catalog does not sign transactions, and a registry does not authorize a document. Configure
+both the catalog and a server-owned `FlowExecutionPolicy` when accepting portable definitions from
+other users.
+
+```java
+FlowExecutionPolicy serverPolicy = FlowExecutionPolicy.builder()
+        .allowedNetworks(Set.of("preview"))
+        .allowedResourcePrefixes(Set.of("account://", "script://", "policy://"))
+        .maxSteps(25)
+        .maxRetryAttempts(5)
+        .maxConfirmationTimeout(Duration.ofMinutes(30))
+        .build();
+```
+
+An empty network or resource-prefix allow-list in `FlowExecutionPolicy` means unrestricted, not
+deny-all. Set explicit allow-lists at a multi-tenant or untrusted-input boundary.
+
+## 3. Build the engine
+
+The four required backend interfaces are deliberately independent of a particular backend module:
+
+- `UtxoSupplier` supplies address and transaction UTxOs.
+- `ProtocolParamsSupplier` supplies current protocol parameters.
+- `TransactionProcessor` submits signed transaction CBOR.
+- `ChainDataSupplier` supplies chain-tip and transaction observations.
+
+On Java 17, use an application-managed platform-thread executor sized for the expected blocking
+I/O. This non-durable example needs only the task executor:
+
+```java
+ExecutorService flowTasks = Executors.newFixedThreadPool(16);
+
+FlowEngine engine = FlowEngine.builder(
+                utxoSupplier,
+                protocolParamsSupplier,
+                transactionProcessor,
+                chainDataSupplier)
+        .executor(flowTasks)
+        .resources(resources)
+        .policy(serverPolicy)
+        .signerRegistry(signers)
+        .scriptRegistry(scripts)
+        .build();
+```
+
+The application that creates `flowTasks` must shut it down during application shutdown. The
+engine never creates, closes, or shuts down an executor. Because `executeSync` dispatches to this
+executor and then waits, do not invoke it from a saturated worker pool that is also the engine's
+task executor.
+
+### Durable engine configuration
+
+Adding a `FlowExecutionStore` enables durable snapshots, attempts, ordered events, idempotency
+claims, and fenced execution/resource leases. Durable mode also requires a separately supplied
+maintenance executor so lease renewal remains schedulable while flow tasks wait on Cardano or on a
+spending resource.
+
+```java
+ExecutorService flowTasks = Executors.newFixedThreadPool(16);
+ExecutorService leaseMaintenance = Executors.newFixedThreadPool(2);
+
+FlowEngine engine = FlowEngine.builder(
+                utxoSupplier,
+                protocolParamsSupplier,
+                transactionProcessor,
+                chainDataSupplier)
+        .executor(flowTasks)
+        .maintenanceExecutor(leaseMaintenance)
+        .resources(resources)
+        .policy(serverPolicy)
+        .signerRegistry(signers)
+        .scriptRegistry(scripts)
+        .store(flowExecutionStore)
+        .leaseDuration(Duration.ofSeconds(30))
+        .ownerToken(processUniqueOwnerToken)
+        .build();
+```
+
+Use an owner token that is unique to the running worker/process. Do not use `Runnable::run` or the
+same bounded executor for both roles in a durable production deployment: a blocked flow task must
+not starve lease renewal.
+
+`InMemoryFlowExecutionStore` is a semantic reference and test implementation; it is not durable
+across a restart. Use a durable store implementation when restart recovery is required.
+
+## 4. Create an execution request
+
+`FlowExecutionRequest` is immutable. Its fields have the following roles:
+
+| Builder method | Meaning |
+|---|---|
+| `executionId(value)` | Stable correlation and durable lookup ID; a UUID is generated if omitted |
+| `bindings(value)` | Run-specific typed parameter values |
+| `idempotency(namespace, key)` | Logical operation identity; namespace and key must be supplied together |
+| `spendingResource(identity)` | Additional canonical resource to serialize beyond catalog-derived identities |
+| `allowConcurrentSpending(true)` | Explicitly bypass spending serialization, only if server policy permits it |
+| `secureBindingReference(name, ref)` | Opaque external reference for a sensitive parameter in durable mode |
+
+```java
+FlowExecutionRequest request = FlowExecutionRequest.builder(definition)
+        .executionId("payment-018f5ec0")
+        .bindings(bindings)
+        .idempotency("merchant-42", "checkout-17381")
+        .spendingResource("preview:treasury-wallet")
+        .build();
+```
+
+Keep every fingerprint-affecting field stable when retrying the same logical request. Reusing an
+idempotency identity with the same compiled definition, bindings, secure references, spending
+resources, and concurrency choice returns the existing logical execution. Reusing it with a
+different request fails with `TXFLOW_IDEMPOTENCY_CONFLICT`.
+
+While an execution ID is active, an identical request returns the same handle. The same execution
+ID with a different request fingerprint or idempotency identity fails with
+`TXFLOW_EXECUTION_ID_CONFLICT`.
+
+Without a store, execution-ID collision protection lasts only while that run is active. Use an
+explicit idempotency pair when callers may replay an operation after it has completed. Durable
+mode also creates a separate internal execution-ID claim, so a stored execution is not silently
+recreated.
+
+Without a durable store, idempotency claims exist only in this engine instance and are bounded by
+`maxInMemoryIdempotencyClaims` (default 10,000). They do not survive a process restart and are not
+evicted; once the bound is reached, new claim identities fail until a new engine is created or a
+durable store is used.
+
+Store-facing identities reject blank text, NUL, malformed Unicode, and oversized UTF-8 values.
+The request limits are 512 bytes for an execution ID, 255 for an idempotency namespace, 512 for
+an idempotency key, and 1,024 for each spending-resource identity. These are byte limits, not Java
+`String.length()` limits.
+
+### Sensitive bindings
+
+Mark a parameter `sensitive: true` in the portable definition. Initial compilation still needs a
+resolved value, normally supplied in `FlowBindings` (or by a declared default), but durable mode
+additionally requires an opaque external reference:
+
+```java
+FlowExecutionRequest request = FlowExecutionRequest.builder(definition)
+        .executionId("credentialed-operation-7")
+        .bindings(FlowBindings.builder()
+                .put("api_token", secretValue)
+                .build())
+        .secureBindingReference("api_token", "vault://txflow/api-token/7")
+        .build();
+```
+
+The durable snapshot does not store the raw binding, but it does store the reference, a redacted
+display, and an unsalted SHA-256 fingerprint of the binding's string form. Treat the database and
+backups as sensitive; low-entropy values may be guessable offline. Secret storage, access control,
+rotation, and log redaction remain application concerns. `SecureBindingResolver` is an application
+adapter type, but the current `FlowEngine.Builder` does not accept one; do not assume the engine
+will fetch an initial binding automatically.
+
+## 5. Preflight, then start
+
+Preflight performs deterministic binding, graph, output-reference, resource, and server-policy
+checks without building, signing, or submitting a transaction.
+
+```java
+FlowCompilationResult preflight = engine.preflight(request);
+if (preflight.hasErrors()) {
+    for (FlowDiagnostic diagnostic : preflight.getDiagnostics()) {
+        auditDiagnostic(diagnostic.code(), diagnostic.documentPath(), diagnostic.message());
+    }
+    throw new IllegalArgumentException("TxFlow preflight failed");
+}
+
+FlowExecutionHandle handle = engine.start(request);
+```
+
+`start` validates and compiles again, then dispatches accepted work to the configured task
+executor. Expected compilation, policy, idempotency, collision, and executor-rejection failures
+are represented by an already-completed handle; always inspect the terminal result.
+
+For a caller that intentionally blocks, `executeSync(request)` is shorthand for
+`start(request).await()`. The flow still runs on the configured task executor.
+
+```java
+FlowExecutionResult result = engine.executeSync(request);
+if (!result.isSuccessful()) {
+    FlowError error = result.error();
+    handleExecutionFailure(result.state(), error != null ? error.code() : "unknown");
+}
+```
+
+## Java 21 virtual threads
+
+TxFlow itself is built for Java 17 and refers only to `Executor`. An application running on Java
+21 or newer can therefore use virtual threads without a different TxFlow artifact:
+
+```java
+try (ExecutorService flowTasks = Executors.newVirtualThreadPerTaskExecutor();
+     ExecutorService leaseMaintenance = Executors.newVirtualThreadPerTaskExecutor()) {
+
+    FlowEngine engine = FlowEngine.builder(
+                    utxoSupplier,
+                    protocolParamsSupplier,
+                    transactionProcessor,
+                    chainDataSupplier)
+            .executor(flowTasks)
+            .maintenanceExecutor(leaseMaintenance)
+            .store(flowExecutionStore)
+            .resources(resources)
+            .policy(serverPolicy)
+            .signerRegistry(signers)
+            .build();
+
+    FlowExecutionResult result = engine.executeSync(request);
+}
+```
+
+The executors remain logically independent even when both use virtual threads. The application
+owns their lifecycle and must keep them alive until every submitted execution and lease-renewal
+task has stopped.
+
+## Builder reference
+
+Beyond the required backend services, `FlowEngine.Builder` supports:
+
+| Method | Use |
+|---|---|
+| `executor(Executor)` | Required caller-owned flow-task executor |
+| `maintenanceExecutor(Executor)` | Required when a store is configured; durable lease renewal |
+| `clock(Clock)` | Application/test wall clock for execution and persisted timestamps |
+| `compiler(TxFlowCompiler)` | Replace the standard compiler |
+| `resources(FlowResourceCatalog)` | Compile-time resource metadata |
+| `policy(FlowExecutionPolicy)` | Server-owned limits and authorization |
+| `signerRegistry(SignerRegistry)` | Runtime signer-reference resolution |
+| `scriptRegistry(ScriptRegistry)` | Runtime script-reference resolution |
+| `store(FlowExecutionStore)` | Durable snapshots, journal, idempotency, and leases |
+| `leaseDuration(Duration)` | Positive lease lifetime; default 30 seconds |
+| `ownerToken(String)` | Non-blank durable worker identity; otherwise generated |
+| `maxInMemoryIdempotencyClaims(int)` | Positive non-durable claim bound; default 10,000 |
+
+See [Policies, Results, and Observability](/docs/preview/txflow/policies-results-observability)
+for retry, confirmation, rollback, events, cancellation, and recovery behavior.

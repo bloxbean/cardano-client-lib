@@ -1,12 +1,18 @@
 package com.bloxbean.cardano.client.txflow;
 
 import com.bloxbean.cardano.client.txflow.yaml.FlowDocument;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
+import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
+import com.bloxbean.cardano.client.txflow.codec.FlowParseOptions;
+import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
+import com.bloxbean.cardano.client.txflow.model.ParameterSpec;
 import lombok.Getter;
 
 import java.util.*;
 
 /**
- * Top-level container for a multi-step transaction flow.
+ * Reusable definition of an ordered, multi-transaction workflow.
  * <p>
  * TxFlow orchestrates the execution of multiple transaction steps with
  * UTXO dependency management between steps. It supports:
@@ -16,6 +22,10 @@ import java.util.*;
  *     <li>Sequential execution with confirmation waiting</li>
  *     <li>YAML serialization/deserialization</li>
  * </ul>
+ * Portable definitions keep runtime parameter values separate and are compiled
+ * into a run-specific plan by
+ * {@link com.bloxbean.cardano.client.txflow.compile.TxFlowCompiler}. Execution
+ * state, leases, and events belong to the runtime rather than this definition.
  *
  * <h2>Example Usage:</h2>
  * <pre>{@code
@@ -46,12 +56,24 @@ public class TxFlow {
     private final String description;
     private final Map<String, Object> variables;
     private final List<FlowStep> steps;
+    private final FlowExecutionSettings executionSettings;
+    private final String definitionVersion;
+    private final String network;
+    private final Map<String, String> annotations;
+    private final Map<String, ParameterSpec> parameters;
 
     private TxFlow(Builder builder) {
         this.id = builder.id;
         this.description = builder.description;
         this.variables = Collections.unmodifiableMap(new HashMap<>(builder.variables));
         this.steps = Collections.unmodifiableList(new ArrayList<>(builder.steps));
+        this.executionSettings = builder.executionSettings != null
+                ? builder.executionSettings
+                : FlowExecutionSettings.empty();
+        this.definitionVersion = builder.definitionVersion;
+        this.network = builder.network;
+        this.annotations = Collections.unmodifiableMap(new LinkedHashMap<>(builder.annotations));
+        this.parameters = Collections.unmodifiableMap(new LinkedHashMap<>(builder.parameters));
     }
 
     /**
@@ -106,9 +128,20 @@ public class TxFlow {
         // Check dependency references
         Set<String> allStepIds = new HashSet<>(seenIds);
         for (FlowStep step : steps) {
+            if (!step.hasTxPlan() && !step.hasTxContextFactory() && !step.hasTransactionTemplate()) {
+                errors.add("Step '" + step.getId() + "' has no transaction definition");
+            }
+            if (new HashSet<>(step.getNeeds()).size() != step.getNeeds().size()) {
+                errors.add("Step '" + step.getId() + "' contains duplicate needs entries");
+            }
             for (String depId : step.getDependencyStepIds()) {
                 if (!allStepIds.contains(depId)) {
                     errors.add("Step '" + step.getId() + "' depends on non-existent step: " + depId);
+                }
+            }
+            for (String neededId : step.getNeeds()) {
+                if (!allStepIds.contains(neededId)) {
+                    errors.add("Step '" + step.getId() + "' needs non-existent step: " + neededId);
                 }
             }
         }
@@ -133,6 +166,12 @@ public class TxFlow {
                             "'. Dependencies must be on earlier steps.");
                 }
             }
+            for (String neededId : step.getNeeds()) {
+                Integer neededIndex = stepOrder.get(neededId);
+                if (neededIndex != null && neededIndex >= stepIndex) {
+                    errors.add("Step '" + step.getId() + "' needs later step '" + neededId + "'.");
+                }
+            }
         }
 
         return new ValidationResult(errors.isEmpty(), errors);
@@ -146,7 +185,9 @@ public class TxFlow {
     private String detectCycle() {
         Map<String, List<String>> graph = new HashMap<>();
         for (FlowStep step : steps) {
-            graph.put(step.getId(), step.getDependencyStepIds());
+            List<String> predecessors = new ArrayList<>(step.getDependencyStepIds());
+            predecessors.addAll(step.getNeeds());
+            graph.put(step.getId(), predecessors);
         }
 
         Set<String> visited = new HashSet<>();
@@ -208,7 +249,12 @@ public class TxFlow {
      * @return the deserialized TxFlow
      */
     public static TxFlow fromYaml(String yaml) {
-        return FlowDocument.fromYaml(yaml).toFlow();
+        try {
+            return TxFlowCodec.standard().parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
+        } catch (IllegalStateException failure) {
+            throw new IllegalArgumentException(
+                    "Failed to deserialize YAML to FlowDocument: " + failure.getMessage(), failure);
+        }
     }
 
     /**
@@ -261,6 +307,11 @@ public class TxFlow {
         private String description;
         private final Map<String, Object> variables = new HashMap<>();
         private final List<FlowStep> steps = new ArrayList<>();
+        private FlowExecutionSettings executionSettings = FlowExecutionSettings.empty();
+        private String definitionVersion;
+        private String network;
+        private final Map<String, String> annotations = new LinkedHashMap<>();
+        private final Map<String, ParameterSpec> parameters = new LinkedHashMap<>();
 
         private Builder(String id) {
             if (id == null || id.isEmpty()) {
@@ -277,6 +328,57 @@ public class TxFlow {
          */
         public Builder withDescription(String description) {
             this.description = description;
+            return this;
+        }
+
+        /**
+         * Sets the application-owned version of this flow definition.
+         *
+         * <p>This is independent of the portable document's schema version.</p>
+         *
+         * @param definitionVersion application definition version
+         * @return this builder
+         */
+        public Builder withDefinitionVersion(String definitionVersion) {
+            this.definitionVersion = definitionVersion;
+            return this;
+        }
+
+        /**
+         * Declares the Cardano network expected by this definition.
+         *
+         * @param network portable network identifier
+         * @return this builder
+         */
+        public Builder withNetwork(String network) {
+            this.network = network;
+            return this;
+        }
+
+        /**
+         * Adds non-executable metadata preserved by the portable codec.
+         *
+         * @param name annotation name
+         * @param value annotation value
+         * @return this builder
+         */
+        public Builder addAnnotation(String name, String value) {
+            this.annotations.put(name, value);
+            return this;
+        }
+
+        /**
+         * Declares a runtime parameter accepted by this reusable definition.
+         *
+         * @param parameter parameter declaration
+         * @return this builder
+         * @throws IllegalArgumentException if the parameter name is already declared
+         */
+        public Builder addParameter(ParameterSpec parameter) {
+            Objects.requireNonNull(parameter, "parameter");
+            if (parameters.putIfAbsent(parameter.getName(), parameter) != null) {
+                throw new IllegalArgumentException("Duplicate parameter: " + parameter.getName());
+            }
             return this;
         }
 
@@ -303,6 +405,81 @@ public class TxFlow {
             if (variables != null) {
                 this.variables.putAll(variables);
             }
+            return this;
+        }
+
+        /**
+         * Set flow-level execution settings.
+         *
+         * @param executionSettings execution settings for this flow
+         * @return this builder
+         */
+        public Builder withExecutionSettings(FlowExecutionSettings executionSettings) {
+            this.executionSettings = executionSettings != null
+                    ? executionSettings
+                    : FlowExecutionSettings.empty();
+            return this;
+        }
+
+        /**
+         * Alias for {@link #withExecutionSettings(FlowExecutionSettings)} for YAML context parity.
+         *
+         * @param executionSettings execution settings for this flow
+         * @return this builder
+         */
+        public Builder withContext(FlowExecutionSettings executionSettings) {
+            return withExecutionSettings(executionSettings);
+        }
+
+        /**
+         * Set the flow-level chaining mode.
+         *
+         * @param chainingMode chaining mode
+         * @return this builder
+         */
+        public Builder withChainingMode(ChainingMode chainingMode) {
+            this.executionSettings = this.executionSettings.toBuilder()
+                    .chainingMode(chainingMode)
+                    .build();
+            return this;
+        }
+
+        /**
+         * Set the flow-level confirmation configuration.
+         *
+         * @param confirmationConfig confirmation configuration
+         * @return this builder
+         */
+        public Builder withConfirmationConfig(ConfirmationConfig confirmationConfig) {
+            this.executionSettings = this.executionSettings.toBuilder()
+                    .confirmationConfig(confirmationConfig)
+                    .build();
+            return this;
+        }
+
+        /**
+         * Set the flow-level rollback strategy.
+         *
+         * @param rollbackStrategy rollback strategy
+         * @return this builder
+         */
+        public Builder withRollbackStrategy(RollbackStrategy rollbackStrategy) {
+            this.executionSettings = this.executionSettings.toBuilder()
+                    .rollbackStrategy(rollbackStrategy)
+                    .build();
+            return this;
+        }
+
+        /**
+         * Set the flow-level default retry policy for steps that do not define one.
+         *
+         * @param retryPolicy default retry policy
+         * @return this builder
+         */
+        public Builder withDefaultRetryPolicy(RetryPolicy retryPolicy) {
+            this.executionSettings = this.executionSettings.toBuilder()
+                    .retryPolicy(retryPolicy)
+                    .build();
             return this;
         }
 

@@ -1,0 +1,138 @@
+{
+  "schema" : "jmt-golden-vectors-v1",
+  "profile" : "classic-radix16-blake2b256-v1",
+  "hash" : "blake2b-256",
+  "hashLength" : 32,
+  "operations" : [ {
+    "version" : 0,
+    "root" : "e38af4efbed10b42fdae15083bf6c76845159df970f14c0593043b554fc7cfa5",
+    "updates" : [ {
+      "key" : "616c696365",
+      "value" : "313030",
+      "keyHash" : "e11d814979372c883b50bdb0ffadb1eaf0898bf54fd4fbf298af126fbabbda4c",
+      "valueHash" : "2f65d4117479347b9303a40b203651f60baee0278ea49c5a58228019f40c5e48"
+    } ],
+    "encodedNodes" : [ {
+      "path" : "NibblePath{}",
+      "version" : 0,
+      "cbor" : "8341015820e11d814979372c883b50bdb0ffadb1eaf0898bf54fd4fbf298af126fbabbda4c58202f65d4117479347b9303a40b203651f60baee0278ea49c5a58228019f40c5e48"
+    } ]
+  }, {
+    "version" : 1,
+    "root" : "4f5e7c9bc8aebab3b72fafd02ff586bf6bce1f4fb67074400bc9672c97a4b665",
+    "updates" : [ {
+      "key" : "626f62",
+      "value" : "323030",
+      "keyHash" : "87683da837137691170e1aaa3902a07fe1639cc709f4602b0e1b72f19773f4cd",
+      "valueHash" : "7eae6ab88aa56a1b4cb1aab1ac48d6d2cc3e98c2881d6cb8e7e7013be445216d"
+    }, {
+      "key" : "6361726f6c",
+      "value" : "333030",
+      "keyHash" : "0ffac5d09d8da217bd00de0e9a591da7a7141459dc983d1279ad41877123df9e",
+      "valueHash" : "2c1a1ae5d660ebcd2d88841a20b9ae05b7317320c9f1673504e4d1b03eafb637"
+    } ],
+    "encodedNodes" : [ {
+      "path" : "NibblePath{}",
+      "version" : 1,
+      "cbor" : "85410019410158205d2ceb7a70388652d83a26468aac4e82e20d2fff7ff36ee16536cc9faa2d2e655820386bc222d6ae7089ef79b4eaf0031d72940dc7eac3db6a856969b6dd1f0f4dba5820e38af4efbed10b42fdae15083bf6c76845159df970f14c0593043b554fc7cfa5"
+    }, {
+      "path" : "NibblePath{0}",
+      "version" : 1,
+      "cbor" : "83410158200ffac5d09d8da217bd00de0e9a591da7a7141459dc983d1279ad41877123df9e58202c1a1ae5d660ebcd2d88841a20b9ae05b7317320c9f1673504e4d1b03eafb637"
+    }, {
+      "path" : "NibblePath{8}",
+      "version" : 1,
+      "cbor" : "834101582087683da837137691170e1aaa3902a07fe1639cc709f4602b0e1b72f19773f4cd58207eae6ab88aa56a1b4cb1aab1ac48d6d2cc3e98c2881d6cb8e7e7013be445216d"
+    }, {
+      "path" : "NibblePath{e}",
+      "version" : 1,
+      "cbor" : "8341015820e11d814979372c883b50bdb0ffadb1eaf0898bf54fd4fbf298af126fbabbda4c58202f65d4117479347b9303a40b203651f60baee0278ea49c5a58228019f40c5e48"
+    } ]
+  }, {
+    "version" : 3,
+    "root" : "be2b23537062cd8d33a2e5227bafb0d04c105366d622fc2c21e43dd33c974ebe",
+    "updates" : [ {
+      "key" : "616c696365",
+      "value" : "313530",
+      "keyHash" : "e11d814979372c883b50bdb0ffadb1eaf0898bf54fd4fbf298af126fbabbda4c",
+      "valueHash" : "31a60dd3439799b5badec3fedf8526a606920a9bc8e5ffd1f9ee979525c848ce"
+    }, {
+      "key" : "64617665",
+      "value" : "343030",
+      "keyHash" : "b12a0a02616f404b9d323fdf02726911eda379b9da2966809814008007511116",
+      "valueHash" : "bbb6509af5727ae104075d926770960880d70f03e474bef80d0a0ca8a394effc"
+    } ],
+    "encodedNodes" : [ {
+      "path" : "NibblePath{}",
+      "version" : 3,
+      "cbor" : "86410019490158205d2ceb7a70388652d83a26468aac4e82e20d2fff7ff36ee16536cc9faa2d2e655820386bc222d6ae7089ef79b4eaf0031d72940dc7eac3db6a856969b6dd1f0f4dba5820016441a59a020feb5a6efca4f7ff265bc392aaa6dee94b73609aef297e4bf66b58200b812dfe9323c5662d0f694d82e6f32a72fc1ba6f45e183e64d701889a380138"
+    }, {
+      "path" : "NibblePath{b}",
+      "version" : 3,
+      "cbor" : "8341015820b12a0a02616f404b9d323fdf02726911eda379b9da29668098140080075111165820bbb6509af5727ae104075d926770960880d70f03e474bef80d0a0ca8a394effc"
+    }, {
+      "path" : "NibblePath{e}",
+      "version" : 3,
+      "cbor" : "8341015820e11d814979372c883b50bdb0ffadb1eaf0898bf54fd4fbf298af126fbabbda4c582031a60dd3439799b5badec3fedf8526a606920a9bc8e5ffd1f9ee979525c848ce"
+    } ]
+  } ],
+  "proofs" : [ {
+    "id" : "inclusion-v0-alice",
+    "version" : 0,
+    "root" : "e38af4efbed10b42fdae15083bf6c76845159df970f14c0593043b554fc7cfa5",
+    "key" : "616c696365",
+    "value" : "313030",
+    "including" : true,
+    "type" : "INCLUSION",
+    "wire" : "8158478341015820e11d814979372c883b50bdb0ffadb1eaf0898bf54fd4fbf298af126fbabbda4c58202f65d4117479347b9303a40b203651f60baee0278ea49c5a58228019f40c5e48",
+    "expectedValid" : true
+  }, {
+    "id" : "inclusion-v3-alice",
+    "version" : 3,
+    "root" : "be2b23537062cd8d33a2e5227bafb0d04c105366d622fc2c21e43dd33c974ebe",
+    "key" : "616c696365",
+    "value" : "313530",
+    "including" : true,
+    "type" : "INCLUSION",
+    "wire" : "82588e86410019490158205d2ceb7a70388652d83a26468aac4e82e20d2fff7ff36ee16536cc9faa2d2e655820386bc222d6ae7089ef79b4eaf0031d72940dc7eac3db6a856969b6dd1f0f4dba5820016441a59a020feb5a6efca4f7ff265bc392aaa6dee94b73609aef297e4bf66b58200b812dfe9323c5662d0f694d82e6f32a72fc1ba6f45e183e64d701889a38013858478341015820e11d814979372c883b50bdb0ffadb1eaf0898bf54fd4fbf298af126fbabbda4c582031a60dd3439799b5badec3fedf8526a606920a9bc8e5ffd1f9ee979525c848ce",
+    "expectedValid" : true
+  }, {
+    "id" : "inclusion-v3-bob",
+    "version" : 3,
+    "root" : "be2b23537062cd8d33a2e5227bafb0d04c105366d622fc2c21e43dd33c974ebe",
+    "key" : "626f62",
+    "value" : "323030",
+    "including" : true,
+    "type" : "INCLUSION",
+    "wire" : "82588e86410019490158205d2ceb7a70388652d83a26468aac4e82e20d2fff7ff36ee16536cc9faa2d2e655820386bc222d6ae7089ef79b4eaf0031d72940dc7eac3db6a856969b6dd1f0f4dba5820016441a59a020feb5a6efca4f7ff265bc392aaa6dee94b73609aef297e4bf66b58200b812dfe9323c5662d0f694d82e6f32a72fc1ba6f45e183e64d701889a3801385847834101582087683da837137691170e1aaa3902a07fe1639cc709f4602b0e1b72f19773f4cd58207eae6ab88aa56a1b4cb1aab1ac48d6d2cc3e98c2881d6cb8e7e7013be445216d",
+    "expectedValid" : true
+  }, {
+    "id" : "non-inclusion-v3-zoe",
+    "version" : 3,
+    "root" : "be2b23537062cd8d33a2e5227bafb0d04c105366d622fc2c21e43dd33c974ebe",
+    "key" : "7a6f65",
+    "value" : null,
+    "including" : false,
+    "type" : "NON_INCLUSION_EMPTY",
+    "wire" : "81588e86410019490158205d2ceb7a70388652d83a26468aac4e82e20d2fff7ff36ee16536cc9faa2d2e655820386bc222d6ae7089ef79b4eaf0031d72940dc7eac3db6a856969b6dd1f0f4dba5820016441a59a020feb5a6efca4f7ff265bc392aaa6dee94b73609aef297e4bf66b58200b812dfe9323c5662d0f694d82e6f32a72fc1ba6f45e183e64d701889a380138",
+    "expectedValid" : true
+  }, {
+    "id" : "invalid-wrong-value",
+    "version" : 3,
+    "root" : "be2b23537062cd8d33a2e5227bafb0d04c105366d622fc2c21e43dd33c974ebe",
+    "key" : "616c696365",
+    "value" : "313531",
+    "including" : true,
+    "wire" : "82588e86410019490158205d2ceb7a70388652d83a26468aac4e82e20d2fff7ff36ee16536cc9faa2d2e655820386bc222d6ae7089ef79b4eaf0031d72940dc7eac3db6a856969b6dd1f0f4dba5820016441a59a020feb5a6efca4f7ff265bc392aaa6dee94b73609aef297e4bf66b58200b812dfe9323c5662d0f694d82e6f32a72fc1ba6f45e183e64d701889a38013858478341015820e11d814979372c883b50bdb0ffadb1eaf0898bf54fd4fbf298af126fbabbda4c582031a60dd3439799b5badec3fedf8526a606920a9bc8e5ffd1f9ee979525c848ce",
+    "expectedValid" : false
+  }, {
+    "id" : "invalid-truncated-wire",
+    "version" : 3,
+    "root" : "be2b23537062cd8d33a2e5227bafb0d04c105366d622fc2c21e43dd33c974ebe",
+    "key" : "616c696365",
+    "value" : "313530",
+    "including" : true,
+    "wire" : "82588e86410019490158205d2ceb7a70388652d83a26468aac4e82e20d2fff7ff36ee16536cc9faa2d2e655820386bc222d6ae7089ef79b4eaf0031d72940dc7eac3db6a856969b6dd1f0f4dba5820016441a59a020feb5a6efca4f7ff265bc392aaa6dee94b73609aef297e4bf66b58200b812dfe9323c5662d0f694d82e6f32a72fc1ba6f45e183e64d701889a38013858478341015820e11d814979372c883b50bdb0ffadb1eaf0898bf54fd4fbf298af126fbabbda4c582031a60dd3439799b5badec3fedf8526a606920a9bc8e5ffd1f9ee979525c848",
+    "expectedValid" : false
+  } ]
+}

@@ -29,7 +29,8 @@ java -jar verified-structures/load-tools/build/libs/cardano-client-vds-load-tool
 **Available Tools:**
 - `jmt` - Jellyfish Merkle Tree with RocksDB backend
 - `jmt-rdbms` - Jellyfish Merkle Tree with H2/SQLite/PostgreSQL backend
-- `jmt-concurrent` - JMT concurrent load testing with multiple threads
+- `jmt-concurrent` - One ordered JMT writer with concurrent proof readers
+- `jmt-integrity` - Read-only integrity checking for an existing RocksDB JMT
 - `mpt` - Merkle Patricia Trie with RocksDB backend
 - `mpt-rdbms` - Merkle Patricia Trie with H2/SQLite/PostgreSQL backend
 - `gc` - Garbage collection tool for MPT
@@ -97,21 +98,45 @@ Tests JMT with RocksDB backend for sustained write performance, proof generation
 - `--progress=N` - Progress reporting interval (default: 100,000)
 - `--memory` - Use in-memory store instead of RocksDB
 
-#### 2. JmtConcurrentLoadTester - Concurrent Write Testing
+#### 2. JmtConcurrentLoadTester - Single-Writer / Concurrent-Read Testing
 
-Tests JMT under concurrent write load with multiple threads.
+Tests the supported production access pattern: exactly one ordered writer with concurrent proof
+readers. Passing more than one writer fails immediately because a JMT namespace has one logical
+history.
 
 ```bash
-# Concurrent test with 4 threads
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtConcurrentLoadTester --threads=4 --records=1000000 --batch=1000 --rocksdb=/tmp/jmt-concurrent"
+# One writer and eight proof readers
+./gradlew :verified-structures:load-tools:run --args="jmt-concurrent --duration=3600 --write-threads=1 --read-threads=8 --batch=1000 --rocksdb=/tmp/jmt-concurrent"
 
-# High concurrency test
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtConcurrentLoadTester --threads=16 --records=10000000 --batch=5000 --rocksdb=/tmp/jmt-concurrent-high"
+# Read-heavy test
+./gradlew :verified-structures:load-tools:run --args="jmt-concurrent --duration=1800 --write-threads=1 --read-threads=16 --batch=500 --rocksdb=/tmp/jmt-concurrent-read-heavy"
 ```
 
 **Key Options:**
-- `--threads=N` - Number of concurrent writer threads (default: 4)
-- All options from `JmtLoadTester` are supported
+- `--duration=N` - Duration in seconds (default: 3600)
+- `--write-threads=1` - Exactly one ordered writer (required)
+- `--read-threads=N` - Concurrent proof readers (default: 8)
+- `--batch=N` - Updates per commit (default: 1000)
+- `--value-size=N` - Value size in bytes (default: 128)
+- `--rocksdb=PATH` - RocksDB directory
+
+#### JmtIntegrityCli - Existing-store integrity checking
+
+The integrity command is read-only, refuses to create a database at a missing path, and returns
+exit code `0` for a healthy store, `1` for an unhealthy/unopenable store, and `2` for invalid
+arguments.
+
+```bash
+# Full check of every retained root in the production rollback-index profile
+./gradlew :verified-structures:load-tools:run --args="jmt-integrity --rocksdb=/var/lib/app/jmt --mode=full --all-versions --rollback-index=true"
+
+# Bounded startup check of the latest retained root
+./gradlew :verified-structures:load-tools:run --args="jmt-integrity --rocksdb=/var/lib/app/jmt --mode=quick --max-records=1000000"
+```
+
+The `--namespace`, `--from-version`, `--to-version`, `--quick-node-sample`, and
+`--max-records` options can bound or select the inspection. The rollback-index flag must match the
+feature recorded when the store was created; a mismatch fails closed.
 
 #### 3. RdbmsJmtLoadTester - RDBMS Backend Testing
 

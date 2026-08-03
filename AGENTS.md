@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Modules
-- Root is a Gradle multi-module Java 11 project. Key modules include `core`, `core-api`, `function`, `quicktx`, `cip/*`, `backend` + `backend-modules/*`, `watcher`, `tx-dsl`, `groovy-dsl`, and `integration-test`.
+- Root is a Gradle multi-module Java 17 project. Key modules include `core`, `core-api`, `function`, `quicktx`, `cip/*`, `backend` + `backend-modules/*`, `watcher`, `tx-dsl`, `groovy-dsl`, and `integration-test`.
 - Source layout: `src/main/java`, unit tests in `src/test/java`, integration tests in `src/it/java` (and the `integration-test` module).
 - Artifacts publish as `cardano-client-<module>`.
 
@@ -12,7 +12,7 @@
 - Integration tests: `./gradlew integrationTest` or `./gradlew :watcher:integrationTest` (uses `src/it/java`).
 - Publish to local Maven: `./gradlew publishToMavenLocal`
 - Useful properties: `-PskipSigning`, `-Psigning.password=...`; env for CI/publish: `MAVEN_USERNAME`, `MAVEN_PASSWORD`.
-- JDK: Use Java 11 (`./gradlew -v` to verify).
+- JDK: Use Java 17 (`./gradlew -v` to verify).
 
 ## Coding Style & Naming
 - Language: Java. Follow standard Java conventions.
@@ -33,7 +33,7 @@
 - Style: Prefer Conventional Commits (e.g., `feat:`, `fix:`, `refactor:`, `docs:`). Use present tense, imperative mood.
 - Branches: `feature/<short-topic>` or `fix/<issue-id>`.
 - PRs: include a clear summary, rationale, linked issues (`Closes #123`), tests for changes, and docs updates (README/ADR) when behavior/API changes. Add screenshots for diagrams/visual outputs when relevant.
-- CI: Jenkins uses Java 11 and Gradle (`clean build`, then `publish`). Keep main green; do not break `./gradlew build`.
+- CI: Uses Java 17 and Gradle (`clean build`, then `publish`). Keep main green; do not break `./gradlew build`.
 
 ## Security & Configuration
 - Never commit secrets. Use env vars for credentials (`MAVEN_USERNAME`, `MAVEN_PASSWORD`, `SIGNING_PASSWORD`).

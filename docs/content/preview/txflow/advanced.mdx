@@ -1,11 +1,13 @@
 ---
-title: "Advanced Topics"
-description: "FlowListener, FlowRegistry, state persistence, Spring Boot, virtual threads"
+title: "Legacy: Advanced Topics"
+description: "Compatibility reference for preview listeners, registry, and state persistence"
 ---
 
-# Advanced Topics
+# Legacy: Advanced Topics
 
-> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+> **Compatibility API:** This page documents preview listeners, registry, and persistence types.
+> For the durable current runtime, see [Durable Runtime](./durable-runtime) and
+> [Operations & Testing](./operations-testing).
 
 ## FlowListener
 
@@ -94,9 +96,13 @@ FlowExecutor executor = FlowExecutor.create(backendService)
 `FlowRegistry` provides centralized in-memory tracking of all active flows.
 
 ```java
-FlowRegistry registry = new InMemoryFlowRegistry();
+FlowRegistry registry = InMemoryFlowRegistry.builder()
+    .withAutoCleanup(Duration.ofMinutes(5))
+    .withCleanupExecutor(applicationCleanupExecutor)
+    .build();
 
 FlowExecutor executor = FlowExecutor.create(backendService)
+    .withExecutor(applicationExecutor)
     .withRegistry(registry);  // Flows auto-register on execute()
 
 // Query flows
@@ -106,6 +112,10 @@ registry.getFlow("escrow-flow");
 registry.size();
 registry.activeCount();
 ```
+
+Auto-cleanup requires an application-managed cleanup executor; the registry never falls back to
+a shared pool and never shuts the executor down. Omit `withAutoCleanup(...)` if cleanup is not
+needed. Java 21+ applications may use a virtual-thread executor.
 
 ### FlowLifecycleListener
 
@@ -152,14 +162,31 @@ public interface FlowStateStore {
 }
 ```
 
+When using `InMemoryFlowStateStore` with auto-cleanup, supply the cleanup executor explicitly:
+
+```java
+FlowStateStore stateStore = InMemoryFlowStateStore.builder()
+    .withAutoCleanup(Duration.ofMinutes(5))
+    .withCleanupExecutor(applicationCleanupExecutor)
+    .build();
+```
+
+The application owns and shuts down `applicationCleanupExecutor`. Java 21+ applications may
+supply a virtual-thread executor.
+
 The executor persists state on key transitions: flow started, transaction submitted/confirmed/rolled back,
 flow completed.
 
 ### Recovery on Startup
 
-Recovery requires reconstructing the `TxFlow` object and passing the previous `FlowResult` to `executor.resume()`:
+Recovery requires reconstructing the `TxFlow` object and passing the previous `FlowResult` to
+`executor.resume()`. The executor shown here is configured with an application-managed
+`asyncExecutor`:
 
 ```java
+FlowExecutor executor = FlowExecutor.create(backendService)
+    .withExecutor(asyncExecutor);
+
 // Load pending flows from store
 List<FlowStateSnapshot> pending = stateStore.loadPendingFlows();
 
@@ -176,6 +203,7 @@ for (FlowStateSnapshot snapshot : pending) {
 
 ```java
 FlowExecutor executor = FlowExecutor.create(backendService)
+    .withExecutor(asyncExecutor)
     .withConfirmationConfig(ConfirmationConfig.defaults())
     .withStateStore(myStateStore)
     .withRegistry(new InMemoryFlowRegistry());
@@ -203,9 +231,16 @@ public class CardanoConfig {
         return new BFBackendService(backendUrl, apiKey);
     }
 
+    @Bean(destroyMethod = "shutdown")
+    public ExecutorService txFlowExecutorService() {
+        return Executors.newCachedThreadPool();
+    }
+
     @Bean
-    public FlowExecutor flowExecutor(BackendService backendService) {
+    public FlowExecutor flowExecutor(BackendService backendService,
+                                     ExecutorService txFlowExecutorService) {
         return FlowExecutor.create(backendService)
+            .withExecutor(txFlowExecutorService)
             .withConfirmationConfig(ConfirmationConfig.defaults())
             .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW);
     }
@@ -279,13 +314,15 @@ TxFlow supports virtual threads through the `withExecutor(Executor)` API. No lib
 
 ```java
 FlowExecutor executor = FlowExecutor.create(backendService)
-    .withExecutor(Executors.newVirtualThreadPerTaskExecutor())
+    .withExecutor(applicationVirtualThreadExecutor)
     .withConfirmationConfig(ConfirmationConfig.defaults());
 
 // Each execute() call runs on its own virtual thread
 FlowHandle handle1 = executor.execute(flow1);
 FlowHandle handle2 = executor.execute(flow2);
 // ... can handle thousands more
+
+// Close applicationVirtualThreadExecutor when the application stops.
 ```
 
 ### Scaling
@@ -297,9 +334,9 @@ FlowHandle handle2 = executor.execute(flow2);
 | 1,000 | Thread pool limits | Works fine |
 | 10,000 | Difficult | Works fine |
 
-### Java 11 Alternative
+### Java 17 Alternative
 
-For Java 11 applications needing high concurrency:
+For Java 17 applications needing high concurrency:
 
 ```java
 ExecutorService executor = new ThreadPoolExecutor(
@@ -311,5 +348,5 @@ FlowExecutor flowExecutor = FlowExecutor.create(backendService)
     .withExecutor(executor);
 ```
 
-TxFlow targets Java 11 for maximum compatibility. The library itself doesn't use virtual threads, but applications
-running on Java 21+ can provide a virtual thread executor.
+TxFlow targets Java 17. The library itself doesn't use virtual-thread APIs, but applications
+running on Java 21+ can provide a virtual-thread executor.

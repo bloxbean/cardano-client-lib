@@ -16,6 +16,7 @@ import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
@@ -31,6 +32,7 @@ import lombok.*;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Objects;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
@@ -53,6 +55,9 @@ public class MintingIntent implements TxIntent {
     @JsonIgnore
     private Script script;
 
+    @JsonIgnore
+    private boolean policyRefResolved;
+
     /**
      * List of assets to mint (can have negative quantities for burning).
      */
@@ -65,6 +70,12 @@ public class MintingIntent implements TxIntent {
      */
     @JsonProperty("receiver")
     private String receiver;
+
+    /**
+     * Runtime policy reference resolved through SignerRegistry during build.
+     */
+    @JsonProperty("policy_ref")
+    private String policyRef;
 
     // Serialization fields - computed from runtime objects or set during deserialization
     /**
@@ -91,6 +102,9 @@ public class MintingIntent implements TxIntent {
      */
     @JsonProperty("script_hex")
     public String getScriptHex() {
+        if (hasPolicyRef()) {
+            return null;
+        }
         if (script != null) {
             try {
                 return HexUtil.encodeHexString(script.serializeScriptBody());
@@ -107,6 +121,9 @@ public class MintingIntent implements TxIntent {
      */
     @JsonProperty("script_type")
     public Integer getScriptType() {
+        if (hasPolicyRef()) {
+            return null;
+        }
         if (script != null) {
             return script.getScriptType();
         }
@@ -137,6 +154,17 @@ public class MintingIntent implements TxIntent {
             .build();
     }
 
+    /**
+     * Factory method to create MintingIntention from a runtime policy reference.
+     */
+    public static MintingIntent fromPolicyRef(String policyRef, List<Asset> assets, String receiver) {
+        return MintingIntent.builder()
+            .policyRef(policyRef)
+            .assets(assets)
+            .receiver(receiver)
+            .build();
+    }
+
 
     /**
      * Check if this has a specific receiver address.
@@ -146,6 +174,41 @@ public class MintingIntent implements TxIntent {
     }
 
 
+    /**
+     * Check if this has a runtime policy reference.
+     */
+    @JsonIgnore
+    public boolean hasPolicyRef() {
+        return policyRef != null && !policyRef.isBlank();
+    }
+
+    @JsonIgnore
+    public boolean hasScriptHexField() {
+        return scriptHex != null && !scriptHex.isBlank();
+    }
+
+    @JsonIgnore
+    public boolean hasScriptTypeField() {
+        return scriptType != null;
+    }
+
+    @JsonIgnore
+    public boolean hasSerializedScriptFields() {
+        return hasScriptHexField() || hasScriptTypeField();
+    }
+
+    /**
+     * Resolve the runtime policy reference to its native policy script.
+     */
+    @JsonIgnore
+    public void resolvePolicy(Policy policy) {
+        if (policy == null || policy.getPolicyScript() == null) {
+            throw new TxBuildException("Resolved policy_ref has no policy script");
+        }
+        this.script = policy.getPolicyScript();
+        this.policyRefResolved = true;
+    }
+
 
     @Override
     public void validate() {
@@ -153,9 +216,31 @@ public class MintingIntent implements TxIntent {
             throw new IllegalStateException("Minting intention requires assets");
         }
 
-        // Check that we have either runtime script or serialized data
-        if (script == null && (scriptHex == null || scriptHex.isEmpty() || scriptType == null)) {
-            throw new IllegalStateException("Minting intention requires either runtime script or script hex with type");
+        if (policyRef != null && policyRef.isBlank()) {
+            throw new IllegalStateException("Minting intention policy_ref cannot be blank");
+        }
+
+        boolean hasPolicyRef = hasPolicyRef();
+        boolean hasRuntimeScript = script != null;
+        boolean hasScriptHex = hasScriptHexField();
+        boolean hasScriptType = hasScriptTypeField();
+        boolean hasCompleteScriptFields = hasScriptHex && hasScriptType;
+
+        if (hasPolicyRef && (hasScriptHex || hasScriptType)) {
+            throw new IllegalStateException("Minting intention policy_ref cannot be combined with script_hex or script_type");
+        }
+
+        if (hasPolicyRef && hasRuntimeScript && !policyRefResolved) {
+            throw new IllegalStateException("Minting intention policy_ref cannot be combined with a runtime script");
+        }
+
+        if (!hasPolicyRef && (hasScriptHex != hasScriptType)) {
+            throw new IllegalStateException("Minting intention requires script_hex and script_type together");
+        }
+
+        // Check that we have either runtime script, serialized data, or a runtime policy ref.
+        if (!hasPolicyRef && !hasRuntimeScript && !hasCompleteScriptFields) {
+            throw new IllegalStateException("Minting intention requires either runtime script, script hex with type, or policy_ref");
         }
     }
 
@@ -167,12 +252,16 @@ public class MintingIntent implements TxIntent {
 
         String resolvedReceiver = VariableResolver.resolve(receiver, variables);
         String resolvedScriptHex = VariableResolver.resolve(scriptHex, variables);
+        String resolvedPolicyRef = VariableResolver.resolve(policyRef, variables);
 
         // Check if any variables were resolved
-        if (!java.util.Objects.equals(resolvedReceiver, receiver) || !java.util.Objects.equals(resolvedScriptHex, scriptHex)) {
+        if (!java.util.Objects.equals(resolvedReceiver, receiver) ||
+                !Objects.equals(resolvedScriptHex, scriptHex) ||
+                !Objects.equals(resolvedPolicyRef, policyRef)) {
             return this.toBuilder()
                 .receiver(resolvedReceiver)
                 .scriptHex(resolvedScriptHex)
+                .policyRef(resolvedPolicyRef)
                 .build();
         }
 

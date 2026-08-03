@@ -3,14 +3,28 @@ package com.bloxbean.cardano.client.txflow;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
-import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
 import com.bloxbean.cardano.client.txflow.exec.FlowListener;
+import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
+import com.bloxbean.cardano.client.txflow.exec.FlowExecutionRequest;
+import com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult;
+import com.bloxbean.cardano.client.txflow.codec.FlowParseOptions;
+import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
+import com.bloxbean.cardano.client.txflow.model.FlowBindings;
+import com.bloxbean.cardano.client.txflow.recovery.FlowRecoveryRequest;
+import com.bloxbean.cardano.client.txflow.recovery.FlowRecoveryResult;
+import com.bloxbean.cardano.client.txflow.store.AttemptState;
+import com.bloxbean.cardano.client.txflow.store.InMemoryFlowExecutionStore;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import org.junit.jupiter.api.*;
@@ -40,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>
  * Prerequisites:
  * - Yaci DevKit running at http://localhost:8080/api/v1/
- * - Run with: ./gradlew :txflow:integrationTest --tests TxFlowYamlIntegrationTest -Dyaci.integration.test=true
+ * - Run with: ./gradlew :txflow:integrationTest --tests TxFlowYamlIntegrationTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TxFlowYamlIntegrationTest {
@@ -105,6 +119,68 @@ public class TxFlowYamlIntegrationTest {
     }
 
     // ==================== Category 1: Programmatic TxPlan (Builder API) ====================
+
+    @Test
+    @Order(0)
+    void portableYaml_bindCompileAndExecute_success() {
+        String yaml = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: portable-integration}
+                spec:
+                  network: preview
+                  parameters:
+                    beneficiary: {type: address, required: true}
+                  execution:
+                    confirmation: {min_confirmations: 1, check_interval: 1s, timeout: 2m}
+                    rollback:
+                      action: FAIL
+                      monitoring_horizon: UNTIL_FLOW_TERMINAL
+                      minimum_consistent_absence_observations: 2
+                  steps:
+                    - id: payment
+                      transaction:
+                        tx:
+                          from_ref: account://sender
+                          intents:
+                            - type: payment
+                              address: '${{ inputs.beneficiary }}'
+                              amounts:
+                                - {unit: lovelace, quantity: 2000000}
+                        context:
+                          signers:
+                            - {ref: account://sender, scope: payment}
+                """;
+        TxFlow definition = TxFlowCodec.standard()
+                .parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
+        FlowEngine engine = FlowEngine.builder(
+                        new DefaultUtxoSupplier(backendService.getUtxoService()),
+                        new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                        new DefaultTransactionProcessor(backendService.getTransactionService()),
+                        new DefaultChainDataSupplier(backendService))
+                .executor(Runnable::run)
+                .maintenanceExecutor(Runnable::run)
+                .signerRegistry(signerRegistry)
+                .store(new InMemoryFlowExecutionStore())
+                .build();
+        FlowExecutionResult result = engine.start(FlowExecutionRequest.builder(definition)
+                        .executionId("portable-yaci-execution")
+                        .bindings(FlowBindings.builder()
+                                .put("beneficiary", receiverAccount.baseAddress()).build())
+                        .build())
+                .await();
+        assertTrue(result.isSuccessful(), () -> result.error() != null
+                ? result.error().message() : "portable execution failed");
+        assertEquals(1, result.steps().size());
+        assertEquals(1, result.attempts().size());
+
+        FlowRecoveryResult recovery = engine.recover(new FlowRecoveryRequest(
+                result.attempts().get(0), 0, 0, null));
+        assertEquals(AttemptState.IN_BLOCK, recovery.state());
+        assertEquals(result.attempts().get(0).signedPayload().transactionHash(),
+                recovery.transactionHash());
+        assertNotNull(recovery.inclusion());
+    }
 
     @Test
     @Order(1)
@@ -561,12 +637,81 @@ public class TxFlowYamlIntegrationTest {
         System.out.println("\n=== Test 9 completed successfully! ===\n");
     }
 
+    @Test
+    @Order(10)
+    void yamlString_flowExecutionContextBatchMode_success() throws Exception {
+        System.out.println("=== Test 10: YAML String - Flow Execution Context BATCH Mode ===");
+
+        String yaml = """
+                version: "1.0"
+                context:
+                  chaining_mode: BATCH
+                  confirmation: quick
+                flow:
+                  id: yaml-context-batch
+                  description: BATCH mode and confirmation configured from YAML context
+                  steps:
+                    - step:
+                        id: step1
+                        description: Sender to Receiver
+                        tx:
+                          from_ref: account://sender
+                          intents:
+                            - type: payment
+                              address: %s
+                              amounts:
+                                - unit: lovelace
+                                  quantity: 2500000
+                        context:
+                          signers:
+                            - ref: account://sender
+                              scope: payment
+                    - step:
+                        id: step2
+                        description: Receiver to Relay
+                        depends_on:
+                          - from_step: step1
+                            strategy: all
+                        tx:
+                          from_ref: account://receiver
+                          intents:
+                            - type: payment
+                              address: %s
+                              amounts:
+                                - unit: lovelace
+                                  quantity: 1200000
+                        context:
+                          signers:
+                            - ref: account://receiver
+                              scope: payment
+                """.formatted(receiverAccount.baseAddress(), relayAccount.baseAddress());
+
+        TxFlow flow = TxFlow.fromYaml(yaml);
+
+        assertEquals(ChainingMode.BATCH, flow.getExecutionSettings().getChainingMode());
+        assertNotNull(flow.getExecutionSettings().getConfirmationConfig());
+        assertEquals(1, flow.getExecutionSettings().getConfirmationConfig().getMinConfirmations());
+
+        FlowResult result = FlowExecutor.create(backendService)
+                .withSignerRegistry(signerRegistry)
+                .withListener(new LoggingFlowListener())
+                .executeSync(flow);
+
+        assertTrue(result.isSuccessful(), "YAML context BATCH flow should succeed: " +
+                (result.getError() != null ? result.getError().getMessage() : "no error"));
+        assertEquals(2, result.getCompletedStepCount());
+        assertEquals(2, result.getTransactionHashes().size());
+
+        System.out.println("Tx hashes: " + result.getTransactionHashes());
+        System.out.println("\n=== Test 10 completed successfully! ===\n");
+    }
+
     // ==================== Category 5: YAML Resource Files ====================
 
     @Test
-    @Order(10)
+    @Order(11)
     void yamlResourceFile_loadAndExecute_success() throws Exception {
-        System.out.println("=== Test 10: YAML Resource File - Load and Execute ===");
+        System.out.println("=== Test 11: YAML Resource File - Load and Execute ===");
 
         // Load YAML from classpath resource
         String yaml = loadResource("/flows/two-step-chain.yaml");
@@ -597,15 +742,15 @@ public class TxFlowYamlIntegrationTest {
         assertEquals(2, result.getTransactionHashes().size());
 
         System.out.println("Tx hashes: " + result.getTransactionHashes());
-        System.out.println("\n=== Test 10 completed successfully! ===\n");
+        System.out.println("\n=== Test 11 completed successfully! ===\n");
     }
 
     // ==================== Category 6: UTXO Selection DSL ====================
 
     @Test
-    @Order(11)
+    @Order(12)
     void txPlan_indexedUtxoSelection_success() throws Exception {
-        System.out.println("=== Test 11: TxPlan - Indexed UTXO Selection ===");
+        System.out.println("=== Test 12: TxPlan - Indexed UTXO Selection ===");
 
         // Step 1: Sender sends two separate payments to Receiver (3 ADA + 2 ADA)
         // This creates two distinct outputs at the receiver address
@@ -649,13 +794,13 @@ public class TxFlowYamlIntegrationTest {
         assertEquals(2, result.getTransactionHashes().size());
 
         System.out.println("Tx hashes: " + result.getTransactionHashes());
-        System.out.println("\n=== Test 11 completed successfully! ===\n");
+        System.out.println("\n=== Test 12 completed successfully! ===\n");
     }
 
     @Test
-    @Order(12)
+    @Order(13)
     void yamlString_indexedUtxoSelection_success() throws Exception {
-        System.out.println("=== Test 12: YAML String - Indexed UTXO Selection ===");
+        System.out.println("=== Test 13: YAML String - Indexed UTXO Selection ===");
 
         String yaml = """
                 version: "1.0"
@@ -725,13 +870,13 @@ public class TxFlowYamlIntegrationTest {
         assertEquals(2, result.getTransactionHashes().size());
 
         System.out.println("Tx hashes: " + result.getTransactionHashes());
-        System.out.println("\n=== Test 12 completed successfully! ===\n");
+        System.out.println("\n=== Test 13 completed successfully! ===\n");
     }
 
     @Test
-    @Order(13)
+    @Order(14)
     void yamlString_changeOutputDependency_success() throws Exception {
-        System.out.println("=== Test 13: YAML String - Change Output Dependency ===");
+        System.out.println("=== Test 14: YAML String - Change Output Dependency ===");
 
         // Step 1: Sender sends 2 ADA to Receiver. This creates a change output back to Sender.
         // Step 2: Sender sends 1 ADA to Relay. With strategy: all, step1's change output
@@ -797,7 +942,7 @@ public class TxFlowYamlIntegrationTest {
         assertEquals(2, result.getTransactionHashes().size());
 
         System.out.println("Tx hashes: " + result.getTransactionHashes());
-        System.out.println("\n=== Test 13 completed successfully! ===\n");
+        System.out.println("\n=== Test 14 completed successfully! ===\n");
     }
 
     // ==================== Helpers ====================

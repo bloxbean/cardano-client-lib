@@ -1,8 +1,8 @@
 name: Integration Tests (Devnet)
 
 # Runs integration tests that require a local Cardano devnet (yaci-devkit).
-# These tests generate code from blueprint JSON via annotation processor,
-# then deploy, lock, and unlock funds against a real Cardano devnet.
+# These tests exercise generated blueprint validators and TxFlow stream execution
+# against a real Cardano devnet.
 
 on:
   push:
@@ -67,6 +67,13 @@ jobs:
       - name: Run integration tests
         run: ./gradlew :annotation-processor:integrationTest :annotation-processor:integrationTestNoRegistry -PskipSigning=true --info --stacktrace
 
+      - name: Run TxFlow stream integration tests
+        run: >-
+          ./gradlew :txflow:integrationTest
+          --tests "com.bloxbean.cardano.client.txflow.stream.TxFlowStreamIntegrationTest"
+          --tests "com.bloxbean.cardano.client.txflow.stream.TxFlowStreamContractIntegrationTest"
+          -PskipSigning=true --info --stacktrace
+
       # Upload Gradle HTML test report and JUnit XML results as artifacts
       # so full stack traces are available even when the job fails
       - name: Upload test reports
@@ -86,3 +93,12 @@ jobs:
           path: |
             annotation-processor/build/reports/tests/integrationTestNoRegistry/
             annotation-processor/build/test-results/integrationTestNoRegistry/
+
+      - name: Upload TxFlow stream test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: txflow-stream-test-reports
+          path: |
+            txflow/build/reports/tests/integrationTest/
+            txflow/build/test-results/integrationTest/

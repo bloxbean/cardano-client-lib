@@ -13,6 +13,11 @@ dependencies {
     testImplementation(libs.micrometer.core)
     testImplementation(libs.micrometer.registry.prometheus)
 
+    // Property-based testing (jqwik + shared arbitraries)
+    testImplementation project(':test-support')
+    testImplementation(libs.jackson.databind)
+    testImplementation(libs.jazzer.junit)
+
     jmh(libs.jmh.core)
     jmh(libs.jmh.generator.annprocess)
 }

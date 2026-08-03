@@ -169,3 +169,8 @@ rust/jniLibs
 /docs/public/_pagefind
 .jqwik-database
 **/.jqwik-database
+**/.cifuzz-corpus/
+
+# txflow-soak run output: H2 store, journal, samples.csv, report.txt
+soak-data/
+**/soak-data/

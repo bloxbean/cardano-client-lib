@@ -32,6 +32,7 @@ apache-common-text="org.apache.commons:commons-text:1.15.0"
 
 # jqwik (Property-based testing)
 jqwik = "net.jqwik:jqwik:1.9.3"
+jazzer-junit = "com.code-intelligence:jazzer-junit:0.30.0"
 
 # JMH (Java Microbenchmark Harness) for performance testing
 jmh-core = "org.openjdk.jmh:jmh-core:1.37"
@@ -49,3 +50,5 @@ hikaricp = "com.zaxxer:HikariCP:7.0.2"
 postgresql = "org.postgresql:postgresql:42.7.10"
 h2database = "com.h2database:h2:2.4.240"
 sqlite-jdbc = "org.xerial:sqlite-jdbc:3.51.2.0"
+testcontainers-postgresql = "org.testcontainers:testcontainers-postgresql:2.0.5"
+testcontainers-junit-jupiter = "org.testcontainers:testcontainers-junit-jupiter:2.0.5"

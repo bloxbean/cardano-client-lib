@@ -17,6 +17,7 @@ final class RocksDbJmtSchema {
     static final String CF_VALUES = "values_jmt";
     static final String CF_ROOTS = "roots_jmt";
     static final String CF_STALE = "stale_jmt";
+    static final String CF_METADATA = "metadata_jmt";
     static final String CF_NODES_BY_VERSION = "nodes_by_ver_jmt";
     static final String CF_VALUES_BY_VERSION = "values_by_ver_jmt";
 
@@ -42,6 +43,7 @@ final class RocksDbJmtSchema {
                 cfPrefix + CF_VALUES,
                 cfPrefix + CF_ROOTS,
                 cfPrefix + CF_STALE,
+                cfPrefix + CF_METADATA,
                 cfPrefix + CF_NODES_BY_VERSION,
                 cfPrefix + CF_VALUES_BY_VERSION,
                 opts.keyPrefix()  // Always present!
@@ -54,16 +56,19 @@ final class RocksDbJmtSchema {
         private final String values;
         private final String roots;
         private final String stale;
+        private final String metadata;
         private final String nodesByVersion;
         private final String valuesByVersion;
         private final byte keyPrefix;  // Always present, not nullable!
 
         private ColumnFamilies(String nodes, String values, String roots, String stale,
+                               String metadata,
                                String nodesByVersion, String valuesByVersion, byte keyPrefix) {
             this.nodes = nodes;
             this.values = values;
             this.roots = roots;
             this.stale = stale;
+            this.metadata = metadata;
             this.nodesByVersion = nodesByVersion;
             this.valuesByVersion = valuesByVersion;
             this.keyPrefix = keyPrefix;
@@ -83,6 +88,10 @@ final class RocksDbJmtSchema {
 
         String stale() {
             return stale;
+        }
+
+        String metadata() {
+            return metadata;
         }
 
         String nodesByVersion() {

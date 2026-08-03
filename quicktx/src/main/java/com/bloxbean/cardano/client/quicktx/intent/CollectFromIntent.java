@@ -11,6 +11,7 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
@@ -39,6 +40,7 @@ public class CollectFromIntent implements TxInputIntent {
      * Serializable UTXO references for YAML/JSON.
      */
     @JsonProperty("utxo_refs")
+    @JsonAlias("refs")
     private List<UtxoRef> utxoRefs;
 
     @JsonProperty("utxo_refs")

@@ -1,0 +1,39 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
+}
+
+dependencies {
+    implementation project(':txflow')
+    implementation project(':txflow-extensions:txflow-store-rdbms')
+
+    // Backend used to talk to a devnet/testnet. BFBackendService also speaks to
+    // Yaci DevKit's Blockfrost-compatible endpoint.
+    implementation project(':backend-modules:blockfrost')
+
+    // Durable stores exercised by the soak run
+    implementation(libs.h2database)
+    implementation(libs.postgresql)
+
+    implementation(libs.slf4j.api)
+    runtimeOnly(libs.slf4j.reload4j)
+}
+
+application {
+    mainClass = 'com.bloxbean.cardano.client.txflow.soak.Tools'
+}
+
+// Standalone fat JAR, mirroring verified-structures:load-tools. This developer/operator
+// tool is intentionally excluded from Maven publishing by the root build.
+shadowJar {
+    archiveBaseName.set('cardano-client-txflow-soak')
+    archiveClassifier.set('all')
+    archiveVersion.set(project.version)
+
+    mergeServiceFiles()
+
+    manifest {
+        attributes 'Main-Class': 'com.bloxbean.cardano.client.txflow.soak.Tools'
+    }
+}

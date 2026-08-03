@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -177,6 +179,22 @@ class FlowResultTest {
     }
 
     @Test
+    void terminalAndStepTimestampsCanBeDeterministic() {
+        Instant now = Instant.parse("2026-07-13T15:00:00Z");
+        FlowResult flow = FlowResult.builder("flow-1")
+                .clock(Clock.fixed(now, ZoneOffset.UTC))
+                .success();
+        FlowStepResult step = FlowStepResult.successAt(
+                "step-1", "hash", List.of(), List.of(), now);
+        FlowStepResult failed = FlowStepResult.failureAt(
+                "step-2", new RuntimeException("failed"), now);
+
+        assertEquals(now, flow.getCompletedAt());
+        assertEquals(now, step.getCompletedAt());
+        assertEquals(now, failed.getCompletedAt());
+    }
+
+    @Test
     void testBuilderFailure_setsStatusErrorAndCompletedAt() {
         RuntimeException error = new RuntimeException("something went wrong");
         FlowResult result = FlowResult.builder("flow-1")
@@ -262,6 +280,23 @@ class FlowResultTest {
         assertTrue(result.getSpentInputs().isEmpty());
         assertEquals(error, result.getError());
         assertNotNull(result.getCompletedAt());
+    }
+
+    @Test
+    void testFailureAfterSubmissionFactory_preservesTransactionDetails() {
+        RuntimeException error = new RuntimeException("confirmation failed");
+        Utxo output = Utxo.builder().txHash("tx-hash").outputIndex(0).build();
+        TransactionInput input = new TransactionInput("abcd1234", 2);
+
+        FlowStepResult result = FlowStepResult.failureAfterSubmission(
+                "step-1", "tx-hash", List.of(output), List.of(input), error);
+
+        assertFalse(result.isSuccessful());
+        assertEquals(FlowStatus.FAILED, result.getStatus());
+        assertEquals("tx-hash", result.getTransactionHash());
+        assertEquals(List.of(output), result.getOutputUtxos());
+        assertEquals(List.of(input), result.getSpentInputs());
+        assertSame(error, result.getError());
     }
 
     @Test

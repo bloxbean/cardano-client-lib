@@ -99,6 +99,9 @@ public class TreeCache {
      */
     private final long baseVersion;
 
+    /** Whether a persisted pre-state exists (genesis version zero has none). */
+    private final boolean hasBaseVersion;
+
     /**
      * Reference to underlying persistent storage (read-only from TreeCache perspective).
      */
@@ -114,6 +117,7 @@ public class TreeCache {
         this.store = Objects.requireNonNull(store, "store");
         this.nextVersion = nextVersion;
         this.baseVersion = nextVersion > 0 ? nextVersion - 1 : 0;
+        this.hasBaseVersion = nextVersion > 0;
         this.nodeCache = new HashMap<>();
         this.staleNodeIndexCache = new HashSet<>();
         this.frozenCache = new FrozenTreeCache();
@@ -140,8 +144,13 @@ public class TreeCache {
             // The root will be created by the first insert
             return NodeKey.of(NibblePath.EMPTY, 0);
         } else {
-            // Root is from previous version
-            return NodeKey.of(NibblePath.EMPTY, version - 1);
+            // Resolve the actual root-node version visible immediately before the target version.
+            // Versions may contain gaps. Using the synthetic key (version - 1) still finds the
+            // correct node through a floor lookup, but later marks that nonexistent synthetic key
+            // stale. Returning the persisted NodeKey keeps stale tracking and pruning correct.
+            return store.getNode(version - 1, NibblePath.EMPTY)
+                    .map(JmtStore.NodeEntry::nodeKey)
+                    .orElseGet(() -> NodeKey.of(NibblePath.EMPTY, version - 1));
         }
     }
 
@@ -182,7 +191,13 @@ public class TreeCache {
         }
 
         // 3. Fall back to persistent storage
-        Optional<JmtStore.NodeEntry> storeEntry = store.getNode(version, path);
+        // A replay of version V must be calculated from V's pre-state, not from nodes already
+        // persisted by the first V commit. Otherwise the replay marks its own live V nodes stale.
+        if (!hasBaseVersion) {
+            return Optional.empty();
+        }
+        long visibleVersion = Math.min(version, baseVersion);
+        Optional<JmtStore.NodeEntry> storeEntry = store.getNode(visibleVersion, path);
         return storeEntry.map(e -> new NodeEntry(e.nodeKey(), e.node()));
     }
 

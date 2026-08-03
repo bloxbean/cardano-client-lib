@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow.exec;
 
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 
@@ -68,6 +69,37 @@ public interface FlowListener {
     }
 
     /**
+     * Called when a step's submitted transaction ends the flow with an <em>uncertain</em>
+     * disposition — a confirmation timeout, or reconciliation that stayed uncertain. (A
+     * cancelled wait takes the cancellation path and never reaches this callback.) The
+     * transaction was submitted and may still confirm; the step result carries the hash and
+     * settles as {@code IN_PROGRESS}, never {@code FAILED}.
+     *
+     * <p>This is deliberately not {@link #onStepFailed}: a listener that alerts, refunds, or
+     * retries on step failure must not do so here — the honest response is reconciliation
+     * (does the transaction exist on chain?), not a fresh payment.
+     *
+     * @param step the step whose transaction disposition is unknown
+     * @param result submission-pending step result with the transaction hash retained
+     */
+    default void onStepUncertain(FlowStep step, FlowStepResult result) {
+    }
+
+    /**
+     * Called instead of {@link #onFlowFailed} when the flow terminates because of an
+     * <em>uncertain</em> transaction disposition (confirmation timeout, or reconciliation
+     * that stayed uncertain). The legacy {@code FlowResult} still encodes the flow as
+     * {@code FAILED} — {@code FlowStatus} has no recovery state — but the submitted
+     * transaction may yet confirm, so failure handling (alerting, refunding, rebuilding the
+     * payment) must not run here. Reconcile against the chain first.
+     *
+     * @param flow the flow whose outcome is uncertain
+     * @param result terminal result; the pending step retains its transaction hash
+     */
+    default void onFlowUncertain(TxFlow flow, FlowResult result) {
+    }
+
+    /**
      * Called when a transaction is submitted for a step.
      *
      * @param step the step
@@ -123,6 +155,20 @@ public interface FlowListener {
      * @param previousBlockHeight the block height where the transaction was previously included
      */
     default void onTransactionRolledBack(FlowStep step, String transactionHash, long previousBlockHeight) {
+    }
+
+    /**
+     * Called when a previously included transaction can no longer be observed, but
+     * the configured backend cannot authoritatively prove that it was rolled back.
+     * This is an informational signal only; execution continues reconciling until
+     * the transaction is confirmed, authoritatively rolled back, or becomes uncertain.
+     *
+     * @param step the step whose transaction is temporarily absent
+     * @param transactionHash the transaction hash
+     * @param previousBlockHeight the last observed inclusion height
+     */
+    default void onTransactionRollbackSuspected(FlowStep step, String transactionHash,
+                                                long previousBlockHeight) {
     }
 
     /**
@@ -289,6 +335,30 @@ class CompositeFlowListener implements FlowListener {
     }
 
     @Override
+    public void onStepUncertain(FlowStep step, FlowStepResult result) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onStepUncertain(step, result);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onStepUncertain: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onFlowUncertain(TxFlow flow, FlowResult result) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onFlowUncertain(flow, result);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onFlowUncertain: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
     public void onTransactionSubmitted(FlowStep step, String transactionHash) {
         for (FlowListener listener : listeners) {
             try {
@@ -343,6 +413,19 @@ class CompositeFlowListener implements FlowListener {
                 listener.onTransactionRolledBack(step, transactionHash, previousBlockHeight);
             } catch (Exception e) {
                 log.warn("Listener {} threw exception in onTransactionRolledBack: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onTransactionRollbackSuspected(FlowStep step, String transactionHash,
+                                               long previousBlockHeight) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onTransactionRollbackSuspected(step, transactionHash, previousBlockHeight);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onTransactionRollbackSuspected: {}",
                         listener.getClass().getSimpleName(), e.getMessage(), e);
             }
         }

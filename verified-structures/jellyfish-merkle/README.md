@@ -1,32 +1,39 @@
-# Jellyfish Merkle Tree (Experimental)
+# Jellyfish Merkle Tree
 
-High-performance Java implementation of the Jellyfish Merkle Tree (JMT), inspired by Diem's JMT implementation.
+Java authenticated radix-16 tree with JMT-style versioned storage, inspired by Diem's Jellyfish
+Merkle Tree. The qualified production scope is serialized, off-chain state with one logical writer
+per namespace; see [ADR-002](adr/002-production-readiness-gates.md).
 
 ## Overview
 
-The Jellyfish Merkle Tree is a space-efficient sparse Merkle tree optimized for versioned state storage in blockchain systems. Originally developed for Diem, this implementation uses the same algorithms and data structures with Java-native performance optimizations.
+This implementation combines copy-on-write versioned storage with a custom radix-16 commitment and proof format. It is not commitment-compatible or wire-compatible with Diem/Aptos JMT.
+
+> **Format boundary:** persistent stores carry a mandatory
+> `classic-radix16-blake2b256-v1` descriptor and fail closed on missing or incompatible metadata.
+> Pre-release prototype data, if any exists outside this project, must be rebuilt. See the
+> [security, performance, and Cardano audit](docs/security-performance-audit.md).
 
 ## Key Features
 
-- **Versioned State** - Multi-version concurrency control with full history
+- **Versioned State** - Historical roots and values (single writer required)
 - **Batch Commits** - Atomic insertion of multiple key-value pairs
 - **Cryptographic Proofs** - Inclusion/exclusion proofs for trustless verification
 - **Sparse Design** - Efficient storage for sparse key spaces (256-bit keys)
 - **Stale Node Tracking** - Automatic garbage collection metadata
-- **Diem-Inspired** - Follows Diem's JMT architecture and algorithms
-- **High Performance** - ~2M ops/sec on commodity hardware
+- **Diem-Inspired** - Copy-on-write nodes, versioned keys, and stale-node tracking
 
 ## When to Use
 
 ### Use Jellyfish Merkle Tree When:
-- Building blockchain state storage (like Diem)
-- Need versioned state with rollback capability
+- Building off-chain, versioned authenticated state
+- Need versioned state with backend-supported rollback
 - Batch insertions are common
-- Cryptographic audit trails required
+- Roots are authenticated independently by the application
 - State synchronization between nodes
 
 ### Don't Use JMT When:
-- Need prefix queries → use [MerklePatriciaTrie](../merkle-patricia-trie/)
+- Need prefix queries or native key deletion
+- Need Cardano on-chain proof verification → use the repository's MPF implementation
 - Single-version only → MPT may be simpler
 - Keys are not uniformly distributed
 
@@ -40,7 +47,7 @@ import com.bloxbean.cardano.vds.jmt.store.JmtStore;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 
-// Setup storage (use RocksDB for production)
+// Setup lightweight storage for tests/examples
 JmtStore store = new InMemoryJmtStore();
 HashFunction hashFn = Blake2b256::digest;
 
@@ -84,6 +91,7 @@ if (proof.isPresent()) {
     byte[] value = p.value();
 
     // Verify proof independently
+    CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hashFn);
     boolean valid = JmtProofVerifier.verify(
         rootHashV2,
         "alice".getBytes(),
@@ -212,7 +220,8 @@ for (int i = 0; i < 1000; i++) {
 }
 ```
 
-**Performance**: Batch of 1000 updates is ~100x faster than 1000 individual commits.
+Batching normally reduces storage and path-rewrite overhead. Measure the actual backend with the
+same durability, key distribution, history, and batch sizes used in production.
 
 ## Versioning Model
 
@@ -239,9 +248,12 @@ tree.get("bob".getBytes(), 3L);   // Returns "200"
 
 ### Version Constraints
 
-- Versions must be monotonically increasing: v1 < v2 < v3 < ...
-- Versions must be positive: version ≥ 0
-- No gaps allowed (implementation-dependent)
+- New versions must be monotonically increasing and non-negative.
+- Gaps are supported. Only the latest committed version may be replayed for recovery; storage
+  treats that replay as an immutable whole-batch no-op.
+- Creating a new historical version below the latest version is rejected.
+- Writes, pruning, and rollback use fail-fast namespace coordination. RDBMS commits also
+  compare-and-set the latest root transactionally across independent store instances.
 
 ### Stale Node Tracking
 
@@ -304,10 +316,10 @@ if (valid) {
 ## Performance Characteristics
 
 ### Time Complexity
-- Insert (batch): O(k × log₁₆ n) amortized, where k is batch size, n is tree size
-- Get (latest): O(1) - direct value lookup
-- Get (versioned): O(1) - direct value lookup with version
-- Get proof: O(log₁₆ n) - tree traversal with neighbor loading
+- Insert (batch): proportional to the changed radix paths, with copy-on-write persistence
+- Get (latest/versioned): one backend value-history lookup, without tree traversal
+- Get proof: one node lookup per traversed level plus current neighbor metadata reads
+- Proof verification: one fixed 515-byte branch hash per proof level for Blake2b-256
 
 ### Space Complexity
 - Per version: O(k) where k is number of changes
@@ -410,9 +422,13 @@ See [docs/design-jmt.md](docs/design-jmt.md) for detailed architecture, algorith
 
 ## Thread Safety
 
-- **JellyfishMerkleTree**: NOT thread-safe for writes, requires external synchronization
+- **JellyfishMerkleTree**: one update lease per namespace; competing writes fail immediately with
+  `JmtConcurrentMutationException`
+- **Reads**: committed-version proofs may overlap a copy-on-write update
+- **Maintenance**: prune/rollback is exclusive and fails fast if a read or update is active
 - **TreeCache**: Not thread-safe (batch-local)
-- **JmtStore implementations**: Check specific backend documentation
+- **JmtStore implementations**: every tree/store wrapper for a namespace must share its coordinator;
+  PostgreSQL also enforces the rule across processes
 
 ## Comparison: JMT vs MPT
 
@@ -422,12 +438,14 @@ See [docs/design-jmt.md](docs/design-jmt.md) for detailed architecture, algorith
 | **Batch operations** | Optimized | Not optimized |
 | **Prefix queries** | No | Yes |
 | **Version support** | Native | External |
-| **Proof size** | Smaller | Larger |
-| **Insert performance** | Faster (batched) | Slower |
-| **Query performance** | Faster (direct lookup) | Slower (tree traversal) |
-| **Space efficiency** | Better (sparse) | Worse (dense) |
+| **Cardano on-chain verifier** | Not provided | Provided by the MPF/Aiken package |
+| **Deletion** | Not implemented | Supported by MPF |
+| **Historical versions** | Native in JMT stores | Backend/application dependent |
+| **Direct value lookup** | Separate value index | API-dependent |
 
-**Recommendation**: Use JMT for blockchain state storage, MPT for indexing/queries.
+**Recommendation**: use the qualified RocksDB or PostgreSQL profile for serialized, versioned
+off-chain state after satisfying the deployment checklist in ADR-002. Prefer MPF when Cardano
+on-chain proofs, insert/update/delete transitions, or an existing Aiken verifier are required.
 
 ## Related Modules
 

@@ -4,15 +4,19 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.BackoffStrategy;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.SelectionStrategy;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for TxFlow YAML serialization.
@@ -350,5 +354,307 @@ class FlowYamlSerializationTest {
         RetryPolicy policy = step1.get().getRetryPolicy();
         assertThat(policy.getInitialDelay()).isEqualTo(Duration.ofMillis(500));
         assertThat(policy.getMaxDelay()).isEqualTo(Duration.ofMinutes(2));
+    }
+
+    @Test
+    void fromYaml_shouldParseFlowExecutionContext() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "context:\n" +
+                "  chaining_mode: batch\n" +
+                "  confirmation:\n" +
+                "    preset: quick\n" +
+                "    min_confirmations: 0\n" +
+                "    check_interval: 250ms\n" +
+                "    timeout: 7s\n" +
+                "    max_rollback_retries: 0\n" +
+                "    wait_for_backend_after_rollback: false\n" +
+                "    post_rollback_wait_attempts: 2\n" +
+                "    post_rollback_utxo_sync_delay: 500ms\n" +
+                "  rollback_strategy: notify_only\n" +
+                "  retry:\n" +
+                "    max_attempts: 4\n" +
+                "    backoff: fixed\n" +
+                "    initial_delay: 250ms\n" +
+                "    retry_on_timeout: false\n" +
+                "flow:\n" +
+                "  id: context-flow\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1_sender\n" +
+                "          intents:\n" +
+                "            - type: payment\n" +
+                "              receiver: addr1_receiver\n" +
+                "              amount:\n" +
+                "                lovelace: 1000000\n";
+
+        // When
+        TxFlow flow = TxFlow.fromYaml(yaml);
+
+        // Then
+        assertThat(flow.getExecutionSettings().getChainingMode()).isEqualTo(ChainingMode.BATCH);
+        assertThat(flow.getExecutionSettings().getRollbackStrategy()).isEqualTo(RollbackStrategy.NOTIFY_ONLY);
+
+        ConfirmationConfig confirmationConfig = flow.getExecutionSettings().getConfirmationConfig();
+        assertThat(confirmationConfig).isNotNull();
+        assertThat(confirmationConfig.getMinConfirmations()).isZero();
+        assertThat(confirmationConfig.getMaxRollbackRetries()).isZero();
+        assertThat(confirmationConfig.isWaitForBackendAfterRollback()).isFalse();
+        assertThat(confirmationConfig.getCheckInterval()).isEqualTo(Duration.ofMillis(250));
+        assertThat(confirmationConfig.getTimeout()).isEqualTo(Duration.ofSeconds(7));
+        assertThat(confirmationConfig.getPostRollbackWaitAttempts()).isEqualTo(2);
+        assertThat(confirmationConfig.getPostRollbackUtxoSyncDelay()).isEqualTo(Duration.ofMillis(500));
+
+        RetryPolicy retryPolicy = flow.getExecutionSettings().getRetryPolicy();
+        assertThat(retryPolicy).isNotNull();
+        assertThat(retryPolicy.getMaxAttempts()).isEqualTo(4);
+        assertThat(retryPolicy.getBackoffStrategy()).isEqualTo(BackoffStrategy.FIXED);
+        assertThat(retryPolicy.getInitialDelay()).isEqualTo(Duration.ofMillis(250));
+        assertThat(retryPolicy.isRetryOnTimeout()).isFalse();
+    }
+
+    @Test
+    void toYaml_shouldSerializeFlowExecutionContextWithStableRootOrder() {
+        // Given
+        TxPlan plan = TxPlan.from(new Tx()
+                .from("addr1_sender")
+                .payToAddress("addr1_receiver", Amount.ada(1)));
+
+        ConfirmationConfig confirmationConfig = ConfirmationConfig.builder()
+                .minConfirmations(0)
+                .checkInterval(Duration.ofMillis(500))
+                .timeout(Duration.ofSeconds(45))
+                .maxRollbackRetries(0)
+                .waitForBackendAfterRollback(false)
+                .postRollbackWaitAttempts(2)
+                .postRollbackUtxoSyncDelay(Duration.ofMillis(250))
+                .requiredAuthoritativeAbsences(5)
+                .build();
+
+        TxFlow flow = TxFlow.builder("context-roundtrip-flow")
+                .withChainingMode(ChainingMode.BATCH)
+                .withConfirmationConfig(confirmationConfig)
+                .withRollbackStrategy(RollbackStrategy.NOTIFY_ONLY)
+                .withDefaultRetryPolicy(RetryPolicy.builder()
+                        .maxAttempts(2)
+                        .backoffStrategy(BackoffStrategy.LINEAR)
+                        .initialDelay(Duration.ofSeconds(2))
+                        .maxDelay(Duration.ofSeconds(6))
+                        .build())
+                .addStep(FlowStep.builder("step1")
+                        .withTxPlan(plan)
+                        .build())
+                .build();
+
+        // When
+        String yaml = flow.toYaml();
+        TxFlow restored = TxFlow.fromYaml(yaml);
+
+        // Then
+        assertThat(yaml.indexOf("context:")).isLessThan(yaml.indexOf("flow:"));
+        assertThat(yaml).contains("chaining_mode: BATCH");
+        assertThat(yaml).contains("rollback_strategy: NOTIFY_ONLY");
+        assertThat(yaml).contains("max_rollback_retries: 0");
+        assertThat(yaml).contains("wait_for_backend_after_rollback: false");
+        assertThat(yaml).contains("post_rollback_utxo_sync_delay: 250ms");
+        assertThat(yaml).contains("required_authoritative_absences: 5");
+        assertThat(restored.getExecutionSettings().getChainingMode()).isEqualTo(ChainingMode.BATCH);
+        assertThat(restored.getExecutionSettings().getRollbackStrategy()).isEqualTo(RollbackStrategy.NOTIFY_ONLY);
+        assertThat(restored.getExecutionSettings().getConfirmationConfig().getMinConfirmations()).isZero();
+        assertThat(restored.getExecutionSettings().getConfirmationConfig()
+                .getRequiredAuthoritativeAbsences()).isEqualTo(5);
+        assertThat(restored.getExecutionSettings().getRetryPolicy().getBackoffStrategy()).isEqualTo(BackoffStrategy.LINEAR);
+    }
+
+    @Test
+    void fromYaml_shouldRejectContextMaxRollbackRetriesAlias() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "context:\n" +
+                "  max_rollback_retries: 0\n" +
+                "flow:\n" +
+                "  id: invalid-context-alias\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1\n";
+
+        // Then
+        assertThatThrownBy(() -> TxFlow.fromYaml(yaml))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Failed to deserialize YAML to FlowDocument");
+    }
+
+    @Test
+    void fromYaml_shouldRejectEmptyConfirmationObject() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "context:\n" +
+                "  confirmation: {}\n" +
+                "flow:\n" +
+                "  id: empty-confirmation\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1\n";
+
+        // Then
+        assertThatThrownBy(() -> TxFlow.fromYaml(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("context.confirmation object cannot be empty");
+    }
+
+    @Test
+    void fromYaml_shouldRejectInvalidFlowLevelRetryStrictly() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "context:\n" +
+                "  retry:\n" +
+                "    backoff: sometimes\n" +
+                "flow:\n" +
+                "  id: invalid-flow-retry\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1\n";
+
+        // Then
+        assertThatThrownBy(() -> TxFlow.fromYaml(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown backoff: sometimes");
+    }
+
+    @Test
+    void fromYaml_shouldRejectInvalidStepRetryStrictly() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "flow:\n" +
+                "  id: invalid-step-retry\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        retry:\n" +
+                "          initial_delay: soon\n" +
+                "        tx:\n" +
+                "          from: addr1\n";
+
+        // Then
+        assertThatThrownBy(() -> TxFlow.fromYaml(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid duration for initial_delay: soon");
+    }
+
+    @Test
+    void fromYaml_shouldRejectInvalidDependencyStrategyStrictly() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "flow:\n" +
+                "  id: invalid-dependency-strategy\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1\n" +
+                "    - step:\n" +
+                "        id: step2\n" +
+                "        depends_on:\n" +
+                "          - from_step: step1\n" +
+                "            strategy: frist\n" +
+                "        tx:\n" +
+                "          from: addr2\n";
+
+        // Then
+        assertThatThrownBy(() -> TxFlow.fromYaml(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown strategy: frist");
+    }
+
+    @Test
+    void fromYaml_shouldRejectInvalidConfirmationBounds() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "context:\n" +
+                "  confirmation:\n" +
+                "    check_interval: 0s\n" +
+                "flow:\n" +
+                "  id: invalid-confirmation-bounds\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1\n";
+
+        // Then
+        assertThatThrownBy(() -> TxFlow.fromYaml(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("check_interval must be positive");
+    }
+
+    @Test
+    void fromYaml_shouldRejectNegativeRollbackRetryCount() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "context:\n" +
+                "  confirmation:\n" +
+                "    max_rollback_retries: -1\n" +
+                "flow:\n" +
+                "  id: invalid-rollback-retries\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1\n";
+
+        // Then
+        assertThatThrownBy(() -> TxFlow.fromYaml(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("max_rollback_retries cannot be negative");
+    }
+
+    @Test
+    void fromYaml_shouldRejectInvalidRetryBounds() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "context:\n" +
+                "  retry:\n" +
+                "    max_attempts: 0\n" +
+                "flow:\n" +
+                "  id: invalid-retry-bounds\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1\n";
+
+        // Then
+        assertThatThrownBy(() -> TxFlow.fromYaml(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("max_attempts must be positive");
+    }
+
+    @Test
+    void fromYaml_shouldRejectNegativeRetryDelay() {
+        // Given
+        String yaml = "version: \"1.0\"\n" +
+                "context:\n" +
+                "  retry:\n" +
+                "    initial_delay: -1s\n" +
+                "flow:\n" +
+                "  id: invalid-retry-delay\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1\n";
+
+        // Then
+        assertThatThrownBy(() -> TxFlow.fromYaml(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("initial_delay cannot be negative");
     }
 }

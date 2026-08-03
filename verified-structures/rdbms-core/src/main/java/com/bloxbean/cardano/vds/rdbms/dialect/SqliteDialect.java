@@ -55,7 +55,8 @@ public class SqliteDialect implements SqlDialect {
     }
 
     @Override
-    public String insertOrIgnoreSql(String tableName, String columns, String placeholders) {
+    public String insertOrIgnoreSql(String tableName, String columns, String placeholders,
+                                    String keyColumns) {
         return String.format(
             "INSERT OR IGNORE INTO %s (%s) VALUES (%s)",
             tableName, columns, placeholders

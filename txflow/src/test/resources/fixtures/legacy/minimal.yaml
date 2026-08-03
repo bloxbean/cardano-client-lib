@@ -1,0 +1,8 @@
+version: "1.0"
+flow:
+  id: legacy-minimal
+  steps:
+    - step:
+        id: transaction
+        tx:
+          intents: []

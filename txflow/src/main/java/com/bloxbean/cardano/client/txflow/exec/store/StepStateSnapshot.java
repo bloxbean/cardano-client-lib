@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.time.Clock;
 
 /**
  * Snapshot of a flow step's execution state for persistence.
@@ -91,11 +92,15 @@ public class StepStateSnapshot {
      * @return a new snapshot in SUBMITTED state
      */
     public static StepStateSnapshot submitted(String stepId, String txHash) {
+        return submitted(stepId, txHash, Clock.systemUTC().instant());
+    }
+
+    public static StepStateSnapshot submitted(String stepId, String txHash, Instant submittedAt) {
         return StepStateSnapshot.builder()
                 .stepId(stepId)
                 .transactionHash(txHash)
                 .state(TransactionState.SUBMITTED)
-                .submittedAt(Instant.now())
+                .submittedAt(submittedAt)
                 .build();
     }
 

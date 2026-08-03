@@ -9,7 +9,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
-import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
 import com.bloxbean.cardano.client.txflow.exec.FlowHandle;
 import com.bloxbean.cardano.client.txflow.exec.registry.FlowLifecycleListener;
@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>
  * Prerequisites:
  * - Yaci DevKit running at http://localhost:8080/api/v1/
- * - Run with: ./gradlew :txflow:integrationTest -Dyaci.integration.test=true --tests TxFlowScalabilityIntegrationTest
+ * - Run with: ./gradlew :txflow:integrationTest --tests TxFlowScalabilityIntegrationTest
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TxFlowScalabilityIntegrationTest {
@@ -52,6 +52,7 @@ public class TxFlowScalabilityIntegrationTest {
     // Number of accounts to create and test with
     private static final int TOTAL_ACCOUNTS = 200;
     private static final int NUM_PARALLEL_FLOWS = 100;
+    private static final int MAX_CONCURRENT_FLOWS = 16;
 
     // Amount to top-up each account with (5 ADA)
     private static final long TOPUP_AMOUNT_LOVELACE = 5_000_000L;
@@ -60,6 +61,7 @@ public class TxFlowScalabilityIntegrationTest {
 
     private BFBackendService backendService;
     private QuickTxBuilder quickTxBuilder;
+    private ExecutorService asyncExecutor;
 
     // Funder account (index 0 from Yaci DevKit - has lots of ADA)
     private Account funderAccount;
@@ -73,6 +75,10 @@ public class TxFlowScalabilityIntegrationTest {
     @BeforeEach
     void setUp() {
         System.out.println("\n=== TxFlow Scalability Integration Test Setup ===");
+
+        // The application owns and sizes the execution pool. Keep Yaci load bounded so this
+        // test measures flow concurrency instead of overwhelming the local HTTP/indexer stack.
+        asyncExecutor = Executors.newFixedThreadPool(MAX_CONCURRENT_FLOWS);
 
         // Initialize backend service
         backendService = new BFBackendService(YACI_BASE_URL, "dummy-project-id");
@@ -220,6 +226,7 @@ public class TxFlowScalabilityIntegrationTest {
 
         // Create flow executor with registry
         FlowExecutor executor = FlowExecutor.create(backendService)
+                .withExecutor(asyncExecutor)
                 .withRegistry(flowRegistry)
                 .withChainingMode(ChainingMode.BATCH)
                 .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build());
@@ -388,6 +395,7 @@ public class TxFlowScalabilityIntegrationTest {
         });
 
         FlowExecutor executor = FlowExecutor.create(backendService)
+                .withExecutor(asyncExecutor)
                 .withRegistry(registry)
                 .withChainingMode(ChainingMode.BATCH);
 
@@ -482,6 +490,7 @@ public class TxFlowScalabilityIntegrationTest {
         });
 
         FlowExecutor executor = FlowExecutor.create(backendService)
+                .withExecutor(asyncExecutor)
                 .withRegistry(registry)
                 .withChainingMode(ChainingMode.BATCH)
                 .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(180)).build());
@@ -635,6 +644,9 @@ public class TxFlowScalabilityIntegrationTest {
     void tearDown() {
         if (flowRegistry != null) {
             flowRegistry.shutdown();
+        }
+        if (asyncExecutor != null) {
+            asyncExecutor.shutdownNow();
         }
         System.out.println("Test cleanup completed\n");
     }

@@ -34,7 +34,7 @@ class JellyfishMerkleTreeRocksDbTest {
     @Test
     void testBasicInsert_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-basic").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("key1"), bytes("value1"));
@@ -59,7 +59,7 @@ class JellyfishMerkleTreeRocksDbTest {
     @Test
     void testMultipleInserts_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-multiple").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("alice"), bytes("100"));
@@ -82,7 +82,7 @@ class JellyfishMerkleTreeRocksDbTest {
     @Test
     void testSequentialVersions_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-sequential").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             // Version 0
             Map<byte[], byte[]> updates0 = new LinkedHashMap<>();
@@ -113,7 +113,7 @@ class JellyfishMerkleTreeRocksDbTest {
     @Test
     void testUpdateSameKey_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-update").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             // Initial insert
             Map<byte[], byte[]> updates0 = new LinkedHashMap<>();
@@ -143,7 +143,7 @@ class JellyfishMerkleTreeRocksDbTest {
     @Test
     void testLargerBatch_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-large").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             for (int i = 0; i < 100; i++) {
@@ -170,7 +170,7 @@ class JellyfishMerkleTreeRocksDbTest {
     @Test
     void testPruneStaleNodes_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-prune").toString())) {
-            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
             // Version 0: Insert
             Map<byte[], byte[]> updates0 = new LinkedHashMap<>();

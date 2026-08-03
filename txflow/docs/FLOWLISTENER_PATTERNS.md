@@ -4,7 +4,7 @@ This guide documents all FlowListener callbacks and common usage patterns.
 
 ## Available Callbacks
 
-FlowListener provides 16 callback methods organized by category:
+FlowListener provides 18 callback methods organized by category:
 
 ### Flow-Level Callbacks
 
@@ -12,7 +12,8 @@ FlowListener provides 16 callback methods organized by category:
 |----------|-------------|----------|
 | `onFlowStarted(flow)` | Flow execution begins | Logging, metrics |
 | `onFlowCompleted(flow, result)` | Flow completes successfully | Cleanup, notifications |
-| `onFlowFailed(flow, result)` | Flow fails | Error handling, alerts |
+| `onFlowFailed(flow, result)` | Flow fails conclusively (or is cancelled) | Error handling, alerts |
+| `onFlowUncertain(flow, result)` | Flow ends with an uncertain disposition — a submitted tx may still confirm | Reconciliation, ops alerting |
 | `onFlowRestarting(flow, attempt, max, reason)` | Flow restarts after rollback | Audit logging |
 
 ### Step-Level Callbacks
@@ -21,7 +22,8 @@ FlowListener provides 16 callback methods organized by category:
 |----------|-------------|----------|
 | `onStepStarted(step, index, total)` | Step execution begins | Progress tracking |
 | `onStepCompleted(step, result)` | Step completes successfully | State updates |
-| `onStepFailed(step, result)` | Step fails | Error handling |
+| `onStepFailed(step, result)` | Step fails conclusively | Error handling |
+| `onStepUncertain(step, result)` | Step settles submission-pending (`IN_PROGRESS` + tx hash, outcome unknown) | Reconciliation |
 | `onStepRetry(step, attempt, max, error)` | Before step retry | Retry tracking |
 | `onStepRetryExhausted(step, attempts, error)` | All retries failed | Escalation |
 | `onStepRebuilding(step, attempt, max, reason)` | Step rebuilding after rollback | Audit logging |
@@ -34,8 +36,29 @@ FlowListener provides 16 callback methods organized by category:
 | `onTransactionConfirmed(step, txHash)` | Tx reaches confirmation threshold | Completion handling |
 | `onTransactionInBlock(step, txHash, height)` | Tx included in block | Block tracking |
 | `onConfirmationDepthChanged(step, txHash, depth, status)` | Confirmation depth updates | Progress UI |
-| `onTransactionFinalized(step, txHash)` | Tx reaches finality | Final confirmation |
+| `onTransactionRollbackSuspected(step, txHash, height)` | Reorg suspected, not yet authoritative | Early warning |
 | `onTransactionRolledBack(step, txHash, height)` | Chain reorg removes tx | Alert, recovery |
+
+### Failed vs Uncertain
+
+`onStepFailed`/`onFlowFailed` and `onStepUncertain`/`onFlowUncertain` are **mutually
+exclusive** per terminal outcome. Failed means conclusively failed — the transaction
+is proven not to be (and never will be) on chain. Uncertain means submitted with an
+unknown outcome (confirmation timeout, uncertain submission or reconciliation): the
+step result carries the hash with status `IN_PROGRESS`, and the correct reaction is
+to **reconcile the hash on chain, never to blindly retry** — retrying a transaction
+that may still land is how double payments happen. See
+[TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md) §7 for the full contract.
+
+```java
+FlowListener reconciliationListener = new FlowListener() {
+    @Override
+    public void onStepUncertain(FlowStep step, FlowStepResult result) {
+        // Do NOT mark the payment failed and do NOT resubmit.
+        opsQueue.enqueueReconciliation(step.getId(), result.getTransactionHash());
+    }
+};
+```
 
 ## Basic Usage
 
@@ -106,10 +129,13 @@ public class ProgressListener implements FlowListener {
 
 // Usage with UI callback
 FlowHandle handle = executor
+    .withExecutor(applicationExecutor)
     .withListener(new ProgressListener(update -> {
         Platform.runLater(() -> progressBar.setProgress(update.percent / 100.0));
     }))
     .execute(flow);
+
+// The application shuts down applicationExecutor during its own lifecycle.
 ```
 
 ## Composite Listener Pattern

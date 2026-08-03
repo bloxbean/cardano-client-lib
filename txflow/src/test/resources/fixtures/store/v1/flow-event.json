@@ -1,0 +1,1 @@
+{"format":"ccl.txflow.store","version":1,"kind":"flow_event","payload":{"sequence":1,"execution_id":"execution-1","type":"EXECUTION_CREATED","timestamp":"2026-07-14T01:02:03.456Z","step_id":null,"transaction_hash":null,"details":{}}}

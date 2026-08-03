@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.vds.tools;
 
 import com.bloxbean.cardano.vds.tools.jmt.JmtConcurrentLoadTester;
+import com.bloxbean.cardano.vds.tools.jmt.JmtIntegrityCli;
 import com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester;
 import com.bloxbean.cardano.vds.tools.jmt.RdbmsJmtLoadTester;
 import com.bloxbean.cardano.vds.tools.mpf.GcTool;
@@ -21,6 +22,7 @@ import com.bloxbean.cardano.vds.tools.mpf.RdbmsMptLoadTester;
  *   jmt              - JMT with RocksDB backend
  *   jmt-rdbms        - JMT with H2/SQLite/PostgreSQL backend
  *   jmt-concurrent   - JMT concurrent load testing
+ *   jmt-integrity    - Validate an existing RocksDB JMT store
  *   mpt              - MPT with RocksDB backend
  *   mpt-rdbms        - MPT with H2/SQLite/PostgreSQL backend
  *   gc               - Garbage collection tool for MPT
@@ -75,6 +77,13 @@ public final class Tools {
                 JmtConcurrentLoadTester.main(toolArgs);
                 break;
 
+            case "jmt-integrity":
+                int exitCode = JmtIntegrityCli.run(toolArgs, System.out, System.err);
+                if (exitCode != 0) {
+                    System.exit(exitCode);
+                }
+                break;
+
             case "mpt":
                 System.out.println("=== MPT Load Tester (RocksDB) ===\n");
                 MptLoadTester.main(toolArgs);
@@ -110,6 +119,7 @@ public final class Tools {
         System.out.println("  jmt              - Jellyfish Merkle Tree with RocksDB backend");
         System.out.println("  jmt-rdbms        - Jellyfish Merkle Tree with H2/SQLite/PostgreSQL backend");
         System.out.println("  jmt-concurrent   - JMT concurrent load testing with multiple threads");
+        System.out.println("  jmt-integrity    - Validate an existing RocksDB JMT store");
         System.out.println("  mpt              - Merkle Patricia Trie with RocksDB backend");
         System.out.println("  mpt-rdbms        - Merkle Patricia Trie with H2/SQLite/PostgreSQL backend");
         System.out.println("  gc               - Garbage collection tool for MPT (refcount/mark-sweep)");
@@ -139,6 +149,10 @@ public final class Tools {
         System.out.println("  # JMT concurrent testing with 8 threads");
         System.out.println("  java -jar cardano-client-vds-load-tools.jar jmt-concurrent \\");
         System.out.println("      --threads=8 --records=1000000 --batch=1000 --rocksdb=/tmp/jmt-concurrent");
+        System.out.println();
+        System.out.println("  # Full integrity check of a production RocksDB JMT");
+        System.out.println("  java -jar cardano-client-vds-load-tools.jar jmt-integrity \\");
+        System.out.println("      --rocksdb=/var/lib/cardano/jmt --mode=full --all-versions");
         System.out.println();
         System.out.println("  # Run garbage collection on MPT");
         System.out.println("  java -jar cardano-client-vds-load-tools.jar gc \\");

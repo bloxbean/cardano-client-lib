@@ -7,6 +7,11 @@ This document provides a comprehensive walkthrough of the `FlowExecutor` impleme
 confirmation tracking, retry policies, and resume capability. Use this document as a reference when
 maintaining or extending the executor.
 
+Related internals docs: [TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md) for the durable
+`FlowEngine` layered on top (claims, leases, journal, recovery — and the canonical statement of the
+uncertain-disposition contract), and [TXSTREAM_INTERNALS.md](TXSTREAM_INTERNALS.md) for the
+`TxFlowStream` runtime above that.
+
 ---
 
 ## 1. High-Level Architecture Overview
@@ -383,6 +388,27 @@ to prevent double-spend when steps share the same address (especially in PIPELIN
        │              return Optional.empty()
 ```
 
+### Uncertain Outcomes (submitted, disposition unknown)
+
+Not every non-confirmed outcome is a failure. A confirmation **timeout**, a
+**cancellation** mid-confirmation, and reconciliation that stayed **uncertain** all
+mean the transaction was submitted and *may still confirm*. `isUncertainDisposition`
+checks both channels that can carry this:
+
+1. `ConfirmationOutcome.Type` ∈ {`TIMEOUT`, `CANCELLED`, `RECOVERY_REQUIRED`}
+2. `ConfirmationTimeoutException` / `ReconciliationUncertainException` anywhere in
+   the error cause chain (some rollback policies keep a `ROLLED_BACK` outcome while
+   carrying the uncertainty in the chain — e.g. an exhausted reinclusion window)
+
+For an uncertain disposition the step settles via
+`FlowStepResult.submissionPendingAt(...)` — status `IN_PROGRESS` with the hash
+retained — **never `FAILED`** (a FAILED verdict invites retrying a payment that can
+still land). The legacy `FlowResult` is then `FAILED` with an **empty
+`getFailedStep()`**, and listeners receive `onStepUncertain`/`onFlowUncertain`
+instead of the failed callbacks. Cancellation is a partial case (step pending, but
+flow status `CANCELLED` and no uncertain callbacks). Full contract:
+[TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md) §7.
+
 ---
 
 ## 6. Rollback Strategies
@@ -588,7 +614,8 @@ in a previous run. Works across all three chaining modes.
        ├─ validateResumeArgs(flow, previousResult):
        │    ├─ previousResult != null
        │    ├─ flow.id == previousResult.flowId
-       │    └─ !previousResult.isSuccessful()  ← nothing to resume if already succeeded
+       │    ├─ !previousResult.isSuccessful()  ← nothing to resume if already succeeded
+       │    └─ no submission-pending step     ← IN_PROGRESS + hash ⇒ IllegalStateException
        │
        ├─ verifyPreviousSteps(flow, previousResult):
        │    │
@@ -616,6 +643,17 @@ in a previous run. Works across all three chaining modes.
             ├─ For skipped steps: reuse previous result, skip build/submit
             └─ For remaining steps: execute normally
 ```
+
+### Submission-Pending Steps Refuse Resume
+
+If any step result in `previousResult` is `IN_PROGRESS` **with a transaction hash**
+(an uncertain disposition — confirmation timed out or reconciliation could not
+decide), resume throws `IllegalStateException` instead of re-executing. Rebuilding
+that step could duplicate a transaction that may still confirm. Verify the pending
+hash on chain first: if it confirmed, run the remaining steps as a new flow; resume
+only once the transaction can no longer land. (Durable engine executions use
+`engine.recover(...)` instead — see
+[TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md) §8.)
 
 ### Contiguous Prefix Rule
 
@@ -691,7 +729,7 @@ FlowExecutor executor = FlowExecutor.create(backendService)
     // or: FlowExecutor.create(utxoSupplier, protocolParamsSupplier, transactionProcessor, chainDataSupplier)
     .withSignerRegistry(registry)          // for TxPlan/YAML workflows
     .withListener(listener)                // lifecycle callbacks
-    .withExecutor(customExecutor)          // custom thread pool (default: virtual threads on Java 21+)
+    .withExecutor(customExecutor)          // application-managed executor
     .withTxInspector(tx -> ...)            // inspect built transactions
     .withChainingMode(ChainingMode.PIPELINED)
     .withDefaultRetryPolicy(RetryPolicy.defaults())
@@ -707,16 +745,19 @@ FlowExecutor executor = FlowExecutor.create(backendService)
 |--------------------------------|---------------------------------------------------------|
 | `onFlowStarted(flow)`         | Flow execution begins                                   |
 | `onFlowCompleted(flow, result)`| Flow completed successfully                            |
-| `onFlowFailed(flow, result)`  | Flow failed or cancelled                                |
+| `onFlowFailed(flow, result)`  | Flow failed conclusively, or was cancelled              |
+| `onFlowUncertain(flow, result)` | Flow ended with an uncertain disposition (submitted tx may still confirm) — never together with `onFlowFailed` |
 | `onFlowRestarting(flow, attempt, max, reason)` | REBUILD_ENTIRE_FLOW restart beginning |
 | `onStepStarted(step, index, total)` | Step execution begins                             |
 | `onStepCompleted(step, result)` | Step completed successfully                           |
-| `onStepFailed(step, result)`   | Step failed                                            |
+| `onStepFailed(step, result)`   | Step failed conclusively                               |
+| `onStepUncertain(step, result)` | Step settled submission-pending (`IN_PROGRESS` + hash) — never together with `onStepFailed` |
 | `onTransactionSubmitted(step, txHash)` | Transaction submitted to mempool               |
 | `onTransactionConfirmed(step, txHash)` | Transaction confirmed on-chain                 |
 | `onTransactionInBlock(step, txHash, blockHeight)` | First seen in a block (enhanced mode) |
 | `onConfirmationDepthChanged(step, txHash, depth, status)` | Confirmation depth progressed |
 | `onTransactionRolledBack(step, txHash, prevBlockHeight)` | Rollback detected           |
+| `onTransactionRollbackSuspected(step, txHash, prevBlockHeight)` | Rollback suspected but not yet authoritative |
 | `onStepRetry(step, attempt, max, error)` | Before retry attempt                       |
 | `onStepRetryExhausted(step, total, error)` | All retries exhausted                    |
 | `onStepRebuilding(step, attempt, max, reason)` | REBUILD_FROM_FAILED rebuilding step   |
@@ -749,7 +790,8 @@ do not abort flow execution.
 - `FlowExecutionContext` uses `ConcurrentHashMap` for step results
 - `activeFlowIds` and `activeHandles` are `ConcurrentHashMap.newKeySet()` backed sets
 - Duplicate flow ID detection: `activeFlowIds.add(id)` returns false if already present
-- Default executor: virtual threads (Java 21+) or cached daemon thread pool (Java 11-20)
+- Default executor: JVM common pool; TxFlow does not create or own executor services
+- Java 21+ applications can supply a virtual-thread-per-task executor
 - `ConfirmationTracker.trackedTransactions` is a `ConcurrentMap`
 - `FlowHandle` fields use `volatile` and `AtomicInteger` for thread-safe status reporting
 

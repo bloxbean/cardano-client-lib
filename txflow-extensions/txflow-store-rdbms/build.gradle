@@ -1,0 +1,25 @@
+dependencies {
+    api project(':txflow')
+
+    // Included at runtime for the out-of-the-box embedded profile. PostgreSQL
+    // drivers remain application-owned and are used here only by integration tests.
+    runtimeOnly libs.h2database
+
+    testImplementation libs.h2database
+    testImplementation testFixtures(project(':txflow'))
+    integrationTestImplementation libs.h2database
+    integrationTestImplementation libs.postgresql
+    integrationTestImplementation libs.testcontainers.postgresql
+    integrationTestImplementation libs.testcontainers.junit.jupiter
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client TxFlow RDBMS Store'
+                description = 'Cardano Client Lib - JDBC durable store for TxFlow'
+            }
+        }
+    }
+}

@@ -3,6 +3,8 @@ package com.bloxbean.cardano.client.txflow.exec;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
+import com.bloxbean.cardano.client.txflow.FlowStep;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,8 +22,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class FlowExecutionContext {
     private final String flowId;
+    private final String executionId;
     private final Map<String, Object> variables;
     private final Map<String, FlowStepResult> stepResults = new ConcurrentHashMap<>();
+    private final Map<String, Utxo> namedOutputs = new ConcurrentHashMap<>();
+    private final Map<TxPlan, String> planSnapshots = Collections.synchronizedMap(new IdentityHashMap<>());
 
     /**
      * Create a new FlowExecutionContext for the given flow.
@@ -39,8 +44,22 @@ public class FlowExecutionContext {
      * @param variables initial variables for the flow
      */
     public FlowExecutionContext(String flowId, Map<String, Object> variables) {
+        this(flowId, UUID.randomUUID().toString(), variables);
+    }
+
+    FlowExecutionContext(String flowId, String executionId, Map<String, Object> variables) {
         this.flowId = flowId;
+        this.executionId = Objects.requireNonNull(executionId, "executionId");
         this.variables = new ConcurrentHashMap<>(variables != null ? variables : Collections.emptyMap());
+    }
+
+    String getExecutionId() {
+        return executionId;
+    }
+
+    String snapshotPlan(TxPlan plan) {
+        Objects.requireNonNull(plan, "plan");
+        return planSnapshots.computeIfAbsent(plan, TxPlan::toYaml);
     }
 
     /**
@@ -89,6 +108,26 @@ public class FlowExecutionContext {
      */
     public void recordStepResult(String stepId, FlowStepResult result) {
         stepResults.put(stepId, result);
+    }
+
+    void recordStepResult(FlowStep step, FlowStepResult result) {
+        recordStepResult(step.getId(), result);
+        if (result != null && result.isSuccessful()) {
+            step.getOutputBindings().forEach((name, selector) -> {
+                List<Utxo> selected = selector.select(result.getOutputUtxos());
+                if (selected.size() == 1) {
+                    namedOutputs.put(outputKey(step.getId(), name), selected.get(0));
+                }
+            });
+        }
+    }
+
+    Optional<Utxo> getNamedOutput(String stepId, String outputName) {
+        return Optional.ofNullable(namedOutputs.get(outputKey(stepId, outputName)));
+    }
+
+    private String outputKey(String stepId, String outputName) {
+        return stepId + "\u0000" + outputName;
     }
 
     /**

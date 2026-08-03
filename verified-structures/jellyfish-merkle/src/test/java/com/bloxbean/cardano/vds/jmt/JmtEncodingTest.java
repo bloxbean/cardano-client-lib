@@ -1,7 +1,15 @@
 package com.bloxbean.cardano.vds.jmt;
 
+import co.nstant.in.cbor.CborEncoder;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.ByteString;
+import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import org.junit.jupiter.api.Test;
+
+import java.io.ByteArrayOutputStream;
+import java.math.BigInteger;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -62,5 +70,51 @@ class JmtEncodingTest {
         byte[] bogus = new byte[]{(byte) 0x82, 0x41, 0x05, 0x41, 0x00}; // [tag=?, ...]
         assertThrows(RuntimeException.class, () -> JmtEncoding.decode(bogus));
     }
-}
 
+    @Test
+    void decodingRejectsTrailingCborItem() {
+        byte[] encoded = JmtLeafNode.of(Blake2b256.digest("key".getBytes()),
+                Blake2b256.digest("value".getBytes())).encode();
+        byte[] withTrailingArray = Arrays.copyOf(encoded, encoded.length + 1);
+        withTrailingArray[withTrailingArray.length - 1] = (byte) 0x80;
+        assertThrows(IllegalArgumentException.class, () -> JmtEncoding.decode(withTrailingArray));
+    }
+
+    @Test
+    void decodingRejectsBitmapWiderThan16Bits() throws Exception {
+        Array node = new Array();
+        node.add(new ByteString(new byte[]{(byte) NodeTag.INTERNAL.tag()}));
+        node.add(new UnsignedInteger(BigInteger.ONE.shiftLeft(16)));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        new CborEncoder(output).encode(node);
+        assertThrows(IllegalArgumentException.class, () -> JmtEncoding.decode(output.toByteArray()));
+    }
+
+    @Test
+    void decodingRejectsHugeDeclaredContainerBeforeObjectAllocation() {
+        byte[] hugeArray = new byte[]{(byte) 0x9A, 0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
+
+        assertThrows(IllegalArgumentException.class, () -> JmtEncoding.decode(hugeArray));
+    }
+
+    @Test
+    void decodingRejectsIndefiniteLengthAndHugeDeclaredByteString() {
+        assertThrows(IllegalArgumentException.class,
+                () -> JmtEncoding.decode(new byte[]{(byte) 0x9F, (byte) 0xFF}));
+        assertThrows(IllegalArgumentException.class,
+                () -> JmtEncoding.decode(new byte[]{(byte) 0x5A, 0x7F,
+                        (byte) 0xFF, (byte) 0xFF, (byte) 0xFF}));
+    }
+
+    @Test
+    void decodingRejectsNonCanonicalCborLengths() {
+        byte[] canonical = JmtLeafNode.of(Blake2b256.digest("key".getBytes()),
+                Blake2b256.digest("value".getBytes())).encode();
+        byte[] nonCanonicalArray = new byte[canonical.length + 1];
+        nonCanonicalArray[0] = (byte) 0x98;
+        nonCanonicalArray[1] = 0x03;
+        System.arraycopy(canonical, 1, nonCanonicalArray, 2, canonical.length - 1);
+
+        assertThrows(IllegalArgumentException.class, () -> JmtEncoding.decode(nonCanonicalArray));
+    }
+}

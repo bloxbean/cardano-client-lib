@@ -1,224 +1,87 @@
-# Jellyfish Merkle Tree - RocksDB Backend
+# Jellyfish-Merkle RocksDB Backend
 
-RocksDB persistence for Jellyfish Merkle Tree with versioned state storage.
+RocksDB persistence for the repository's custom, versioned radix-16 JMT implementation.
 
-## Overview
+> The first supported persistent format is `classic-radix16-blake2b256-v1`. Stores with missing or
+> incompatible format/feature metadata fail closed. Read the
+> [JMT security/performance/Cardano audit](../jellyfish-merkle/docs/security-performance-audit.md).
 
-Production-ready RocksDB backend for JMT, optimized for blockchain state storage with multi-version support, efficient batch writes, and stale node tracking for garbage collection.
-
-## Key Features
-
-- **Versioned Storage** - Full multi-version history with efficient lookups
-- **Batch Commits** - Atomic insertion of large update sets
-- **Stale Node Tracking** - Metadata for garbage collection
-- **High Performance** - Optimized RocksDB configuration for JMT workloads
-- **Proof Generation** - Efficient proof creation from stored state
-- **Load Testing Tools** - Performance benchmarking utilities
-
-## Quick Start
+## Usage
 
 ```java
-import com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtStore;
-import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
-import com.bloxbean.cardano.vds.rocksdb.resources.RocksDbResources;
+import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
+import com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtStore;
 
-// Initialize RocksDB
-RocksDbResources resources = RocksDbResources.create(Paths.get("data/jmt"));
-RocksDbJmtStore store = new RocksDbJmtStore(resources.getDb());
+import java.util.LinkedHashMap;
+import java.util.Map;
 
-// Create tree
-HashFunction hashFn = Blake2b256::digest;
-JellyfishMerkleTree tree = new JellyfishMerkleTree(store, hashFn);
+RocksDbJmtStore.Options options = RocksDbJmtStore.Options.production();
 
-// Batch insert (version 1)
-Map<byte[], byte[]> updates = new HashMap<>();
-updates.put("alice".getBytes(), "balance:100".getBytes());
-updates.put("bob".getBytes(), "balance:200".getBytes());
+try (RocksDbJmtStore store = RocksDbJmtStore.open("data/jmt", options)) {
+    HashFunction hashFn = Blake2b256::digest;
+    JellyfishMerkleTree tree = new JellyfishMerkleTree(store, hashFn);
 
-CommitResult result = tree.put(1L, updates);
-byte[] rootHashV1 = result.rootHash();
+    Map<byte[], byte[]> updates = new LinkedHashMap<>();
+    updates.put("alice".getBytes(), "balance:100".getBytes());
+    byte[] root = tree.put(1L, updates).rootHash();
 
-// Query
-Optional<byte[]> value = tree.get("alice".getBytes());
-
-// Generate proof
-Optional<JmtProof> proof = tree.getProof("alice".getBytes(), 1L);
-
-// Cleanup
-resources.close();
-```
-
-## Storage Schema
-
-RocksDB stores JMT data in a versioned schema:
-
-```
-Nodes:  (version, nibble_path) → JmtNode (CBOR)
-Values: (key_hash, version) → value
-Roots:  version → root_hash
-Stale:  (version, nibble_path) → deleted_flag
-```
-
-### Column Families
-
-```
-nodes_cf:  Versioned nodes (Internal + Leaf)
-values_cf: Key-value data
-roots_cf:  Version → root hash mapping
-stale_cf:  Stale node markers for GC
-```
-
-## API Overview
-
-### RocksDbJmtStore
-
-```java
-// Constructor
-RocksDbJmtStore(RocksDB db)
-RocksDbJmtStore(RocksDB db, RocksDbConfig config)
-
-// JmtStore interface
-CommitBatch beginCommit(long version, CommitConfig config)
-Optional<NodeEntry> getNode(long version, NibblePath path)
-Optional<byte[]> getValue(byte[] keyHash)
-Optional<byte[]> getValueAt(byte[] keyHash, long version)
-Optional<byte[]> rootHash(long version)
-
-// Lifecycle
-void close()
-```
-
-### CommitBatch Operations
-
-```java
-CommitBatch batch = store.beginCommit(1L, CommitConfig.defaults());
-
-try {
-    // Add nodes
-    batch.putNode(nodeKey, node);
-
-    // Mark stale nodes
-    batch.markStale(oldNodeKey);
-
-    // Store values
-    batch.putValue(keyHash, value);
-
-    // Set root
-    batch.setRootHash(rootHash);
-
-    // Atomic commit
-    batch.commit();
-} finally {
-    batch.close();
+    byte[] wire = tree.getProofWire("alice".getBytes(), 1L).orElseThrow();
+    boolean valid = tree.verifyProofWire(
+            root, "alice".getBytes(), "balance:100".getBytes(), true, wire);
 }
 ```
 
-## Configuration
+The string-path constructors and `open` factories own the RocksDB instance and close its column
+families/resources from `close()`. `attach(...)` binds to a caller-owned `RocksDB` instance; the
+caller remains responsible for the database and for any supplied column-family handles.
 
-### RocksDbConfig
+## Options
 
-```java
-RocksDbConfig config = RocksDbConfig.builder()
-    .nodesCfName("jmt_nodes")
-    .valuesCfName("jmt_values")
-    .rootsCfName("jmt_roots")
-    .staleCfName("jmt_stale")
-    .enableStaleTracking(true)
-    .build();
+- `namespace(String)`: prefixes the JMT column-family names. The `NamespaceOptions` constructor
+  currently uses only its column-family prefix; custom key-prefix support is not implemented.
+- `enableRollbackIndex(boolean)`: creates and maintains node/value indexes by version. Default is
+  `false`; `truncateAfter` throws when disabled.
+- `prunePolicy(SAFE|AGGRESSIVE)`: safe mode keeps the latest value sentinel at/below the prune
+  boundary; aggressive mode removes all such value history.
+- `syncOnCommit`, `syncOnPrune`, `syncOnTruncate`: default to `true` for durability.
+- `disableWalForBatches(true)`: unsafe benchmarking option that permits torn state after a crash;
+  it cannot be combined with sync commits and must not be used for durable chain state.
+- `rocksDbConfig(...)`: selects/tunes the shared RocksDB configuration.
 
-RocksDbJmtStore store = new RocksDbJmtStore(db, config);
-```
-
-### Performance Tuning
-
-```java
-// Write-optimized configuration
-Options options = new Options()
-    .setWriteBufferSize(128 * 1024 * 1024)  // 128 MB
-    .setMaxWriteBufferNumber(4)
-    .setCompressionType(CompressionType.LZ4_COMPRESSION);
-
-RocksDbResources resources = RocksDbResources.builder()
-    .path(path)
-    .options(options)
-    .build();
-```
-
-## Load Testing
-
-Built-in tools for performance testing:
-
-```bash
-# Concurrent load test
-java -cp ... com.bloxbean.cardano.vds.jmt.rocksdb.tools.JmtConcurrentLoadTester \
-  /tmp/jmt 1000000 100 4
-
-# Arguments:
-# - /tmp/jmt: Database path
-# - 1000000: Total keys
-# - 100: Batch size
-# - 4: Concurrent threads
-```
-
-```bash
-# Single-threaded load test
-java -cp ... com.bloxbean.cardano.vds.jmt.rocksdb.tools.JmtLoadTester \
-  /tmp/jmt 100000 1000
-```
-
-## Stale Node Tracking
-
-RocksDB backend automatically tracks stale nodes for garbage collection:
+## Lifecycle operations
 
 ```java
-CommitResult result = tree.put(2L, updates);
+// Remove stale nodes and old value history through version 1_000.
+int removed = store.pruneUpTo(1_000L);
 
-// Nodes that became stale
-List<NodeKey> staleNodes = result.staleNodes();
-
-// Can be deleted to reclaim space
-for (NodeKey nodeKey : staleNodes) {
-    store.deleteNode(nodeKey);
-}
+// Remove roots, nodes, values, and stale markers after version 900.
+// Requires enableRollbackIndex(true).
+store.truncateAfter(900L);
 ```
 
-## Multi-Version Queries
+The shared coordinator serializes updates and excludes maintenance for each namespace. A competing
+writer does not block: it throws `JmtConcurrentMutationException` before touching storage. Every
+wrapper around an externally owned RocksDB handle must be given the same explicit coordinator;
+the safe `attach(...)` API requires it.
 
-```java
-// Latest version (fastest)
-Optional<byte[]> latest = tree.get("alice".getBytes());
+Pruning removes roots below the retained horizon and persists a prune watermark. Rollback below
+that watermark is rejected rather than exposing an incomplete historical tree.
 
-// Specific version
-Optional<byte[]> historical = tree.get("alice".getBytes(), 1L);
+## Storage layout
 
-// Root hash at version
-Optional<byte[]> rootV1 = store.rootHash(1L);
+- `nodes_jmt`: `namespace || NodeKey -> encoded node`
+- `values_jmt`: `namespace || keyHash || version -> value/tombstone`
+- `roots_jmt`: per-version roots plus latest-root metadata
+- `stale_jmt`: `staleSince || NodeKey`
+- `nodes_by_ver_jmt`, `values_by_ver_jmt`: optional rollback indexes
 
-// Proof at version
-Optional<JmtProof> proof = tree.getProof("alice".getBytes(), 1L);
-```
+Values use 32-byte key hashes. Commits use one RocksDB `WriteBatch` for nodes, values, stale
+markers, roots, latest metadata, and enabled rollback indexes.
 
-## Gradle Dependency
+## Gradle
 
 ```gradle
-dependencies {
-    implementation 'com.bloxbean.cardano:jellyfish-merkle-rocksdb:0.8.0'
-}
+implementation "com.bloxbean.cardano:jellyfish-merkle-rocksdb:0.8.0"
 ```
-
-## Design Documentation
-
-- [JMT RocksDB Design](docs/design-jmt-rocksdb.md)
-- [Core JMT](../jellyfish-merkle/docs/design-jmt.md)
-
-## Thread Safety
-
-- **RocksDbJmtStore**: Thread-safe for reads, coordinate writes
-- **CommitBatch**: NOT thread-safe, use per-thread instances
-
-## Related Modules
-
-- [jellyfish-merkle](../jellyfish-merkle/) - JMT core
-- [rocksdb-core](../rocksdb-core/) - RocksDB utilities
-- [jellyfish-merkle-rdbms](../jellyfish-merkle-rdbms/) - SQL backend

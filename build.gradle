@@ -103,10 +103,21 @@ if (isReleaseVersion && !project.hasProperty("skipSigning")) {
     }
 }
 
+// These projects are built with the repository but are not library artifacts and must not
+// be published to Maven repositories. Add future build-only modules here by project path.
+def mavenPublicationExcludedProjectPaths = [
+        ':integration-test',
+        ':txflow-extensions:txflow-soak'
+] as Set
+
 subprojects {
+    def isMavenPublishedProject = !mavenPublicationExcludedProjectPaths.contains(path)
+
     apply plugin: 'java-library'
-    apply plugin: 'maven-publish'
-    apply plugin: 'signing'
+    if (isMavenPublishedProject) {
+        apply plugin: 'maven-publish'
+        apply plugin: 'signing'
+    }
 
     repositories {
         mavenCentral()
@@ -229,7 +240,7 @@ subprojects {
         codegenTestRuntimeOnly.extendsFrom testRuntimeOnly
     }
 
-    if (!name.equalsIgnoreCase("integration-test")) {
+    if (isMavenPublishedProject) {
         publishing {
             publications {
                 mavenJava(MavenPublication) {
@@ -270,7 +281,7 @@ subprojects {
 
     ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
-    if (isReleaseVersion && !project.hasProperty("skipSigning")) {
+    if (isMavenPublishedProject && isReleaseVersion && !project.hasProperty("skipSigning")) {
         signing {
             sign publishing.publications
         }

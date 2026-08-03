@@ -24,10 +24,17 @@ import java.util.Objects;
  * <p>Path bytes pack two nibbles per byte and omit any Hex-Prefix metadata.
  * Versions are stored as unsigned 64-bit values in big-endian order so that
  * lexicographic ordering matches numeric ordering.</p>
+ *
+ * <p><b>Ordering note:</b> {@link #compareTo(NodeKey)} orders by path content (nibble by nibble),
+ * whereas this byte encoding is length-prefixed and therefore groups by path length first. The two
+ * orders differ for mixed-depth paths, so range-based stores must not rely on raw byte order to
+ * implement logical floor/ceiling over paths; exact-path lookups (the only thing the tree core
+ * needs) remain correct because same-path keys stay contiguous.</p>
  */
 public final class NodeKey implements Comparable<NodeKey> {
 
     private static final byte PREFIX = 0x4E; // 'N'
+    private static final int MAX_PATH_NIBBLES = 64;
 
     private final NibblePath path;
     private final long version;
@@ -70,16 +77,26 @@ public final class NodeKey implements Comparable<NodeKey> {
         int nibbleLen = lenResult.value();
         offset = lenResult.nextOffset();
 
-        int packedBytesLen = (nibbleLen + 1) / 2;
-        if (packedBytesLen < 0 || offset + packedBytesLen + 8 > bytes.length) {
+        if (nibbleLen < 0 || nibbleLen > MAX_PATH_NIBBLES) {
+            throw new IllegalArgumentException("NodeKey path exceeds 256-bit key depth");
+        }
+        int packedBytesLen = (nibbleLen / 2) + (nibbleLen & 1);
+        if (offset > bytes.length - Long.BYTES
+                || packedBytesLen != bytes.length - offset - Long.BYTES) {
             throw new IllegalArgumentException("Invalid NodeKey path length");
         }
 
         byte[] packedPath = Arrays.copyOfRange(bytes, offset, offset + packedBytesLen);
         offset += packedBytesLen;
+        if ((nibbleLen & 1) == 1 && (packedPath[packedPath.length - 1] & 0x0F) != 0) {
+            throw new IllegalArgumentException("Non-canonical NodeKey path padding");
+        }
 
         byte[] versionBytes = Arrays.copyOfRange(bytes, offset, offset + 8);
         long version = ByteBuffer.wrap(versionBytes).getLong();
+        if (version < 0) {
+            throw new IllegalArgumentException("version must be >= 0");
+        }
 
         if (nibbleLen == 0) {
             return new NodeKey(NibblePath.EMPTY, version);

@@ -55,32 +55,12 @@ public class H2Dialect implements SqlDialect {
     }
 
     @Override
-    public String insertOrIgnoreSql(String tableName, String columns, String placeholders) {
-        // For H2, MERGE INTO uses the PRIMARY KEY to determine insert vs update
-        // This provides "last write wins" semantics matching RocksDB batch.put() and Map.put()
-        // We specify KEY to explicitly indicate which columns form the unique key
-        String[] cols = columns.split(",\\s*");
-        String[] keyColumns;
-
-        // Determine key columns based on table name
-        if (tableName.contains("jmt_nodes")) {
-            // JMT nodes: PRIMARY KEY (namespace, node_path, version)
-            keyColumns = new String[]{"namespace", "node_path", "version"};
-        } else if (tableName.contains("mpt_nodes")) {
-            // MPT nodes: PRIMARY KEY (namespace, node_hash) - no versioning
-            keyColumns = new String[]{"namespace", "node_hash"};
-        } else if (tableName.contains("values")) {
-            // jmt_values: PRIMARY KEY (namespace, key_hash, version)
-            keyColumns = new String[]{"namespace", "key_hash", "version"};
-        } else {
-            // Default: use all columns as key (will insert or update all)
-            keyColumns = cols;
-        }
-
-        String keyClause = String.join(", ", keyColumns);
+    public String insertOrIgnoreSql(String tableName, String columns, String placeholders,
+                                    String keyColumns) {
+        // Callers supply keys explicitly; inferring them from a prefixed table name is ambiguous.
         return String.format(
             "MERGE INTO %s (%s) KEY(%s) VALUES (%s)",
-            tableName, columns, keyClause, placeholders
+            tableName, columns, keyColumns, placeholders
         );
     }
 

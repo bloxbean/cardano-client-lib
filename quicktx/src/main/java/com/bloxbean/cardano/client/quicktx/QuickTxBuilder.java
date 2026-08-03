@@ -18,16 +18,25 @@ import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.*;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.quicktx.intent.MintingIntent;
+import com.bloxbean.cardano.client.quicktx.intent.NativeScriptAttachmentIntent;
+import com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntent;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.quicktx.script.DefaultScriptRegistry;
+import com.bloxbean.cardano.client.quicktx.script.ScriptRegistry;
+import com.bloxbean.cardano.client.quicktx.signing.SignerBinding;
+import com.bloxbean.cardano.client.quicktx.signing.SignerRegistry;
+import com.bloxbean.cardano.client.quicktx.signing.SignerScopes;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.bloxbean.cardano.hdwallet.Wallet;
 import com.bloxbean.cardano.hdwallet.util.HDWalletAddressIterator;
-import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
-import com.bloxbean.cardano.client.util.HexUtil;
-import com.bloxbean.cardano.client.quicktx.signing.SignerRegistry;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -170,6 +179,11 @@ public class QuickTxBuilder {
      * Create TxContext from a TxPlan with automatic property mapping.
      * This method maps TxPlan context properties to the corresponding TxContext methods.
      *
+     * <p>The context retains the plan's transaction objects. Registry resolution during a build
+     * may populate resolved policy or script material on their intents, so callers must not build
+     * the same mutable plan concurrently. Create an execution-local plan copy when a definition
+     * is reused across threads.</p>
+     *
      * @param plan the transaction plan with transactions and context properties
      * @return TxContext with all properties applied
      */
@@ -218,8 +232,12 @@ public class QuickTxBuilder {
         }
         if (plan.getSignerRefs() != null && !plan.getSignerRefs().isEmpty()) {
             for (com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument.SignerRef sr : plan.getSignerRefs()) {
-                if (sr.getRef() != null && sr.getScope() != null) {
-                    context.withSignerRef(sr.getRef(), sr.getScope());
+                if (sr.getRef() != null) {
+                    // A portable signer ref may omit the scope (the schema makes it optional);
+                    // default to payment, matching TxPlan.withSigner(ref).
+                    String scope = (sr.getScope() != null && !sr.getScope().isBlank())
+                            ? sr.getScope() : SignerScopes.PAYMENT;
+                    context.withSignerRef(sr.getRef(), scope);
                 }
             }
         }
@@ -240,6 +258,18 @@ public class QuickTxBuilder {
     public TxContext compose(TxPlan plan, SignerRegistry registry) {
         TxContext ctx = compose(plan);
         if (registry != null) ctx.withSignerRegistry(registry);
+        return ctx;
+    }
+
+    /**
+     * Compose from a TxPlan and configure registries for ref resolution.
+     * The returned context has the same execution-local ownership requirement documented by
+     * {@link #compose(TxPlan)}.
+     */
+    public TxContext compose(TxPlan plan, SignerRegistry signerRegistry, ScriptRegistry scriptRegistry) {
+        TxContext ctx = compose(plan);
+        if (signerRegistry != null) ctx.withSignerRegistry(signerRegistry);
+        if (scriptRegistry != null) ctx.withScriptRegistry(scriptRegistry);
         return ctx;
     }
 
@@ -287,6 +317,7 @@ public class QuickTxBuilder {
 
         // Optional per-context override for registry
         private SignerRegistry contextSignerRegistry;
+        private ScriptRegistry contextScriptRegistry;
 
         // Additional signer refs (ref + scope)
         private class SignerRef {
@@ -297,6 +328,7 @@ public class QuickTxBuilder {
             }
         }
         private List<SignerRef> signerRefs;
+        private Set<String> resolvedSignerRefKeys;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -404,6 +436,16 @@ public class QuickTxBuilder {
         }
 
         /**
+         * Override the builder-level script registry for this composition.
+         * Logical script_ref values require a registry. Hash-based Plutus script_hash
+         * values can also be resolved through a configured ScriptSupplier.
+         */
+        public TxContext withScriptRegistry(ScriptRegistry registry) {
+            this.contextScriptRegistry = registry;
+            return this;
+        }
+
+        /**
          * Set the fee payer using a reference (e.g., account://..., wallet://...).
          */
         public TxContext feePayerRef(String ref) {
@@ -507,6 +549,11 @@ public class QuickTxBuilder {
         private Tuple<TxBuilderContext, TxBuilder> _build() {
             // Resolve references (fromRef, payer refs, additional signer refs) before building
             SignerRegistry effectiveRegistry = this.contextSignerRegistry;
+            boolean hasScriptReferences = hasScriptReferences();
+            ScriptRegistry effectiveScriptRegistry = hasScriptReferences ? effectiveScriptRegistry() : null;
+            if (this.resolvedSignerRefKeys == null)
+                this.resolvedSignerRefKeys = new HashSet<>();
+            Set<String> resolvedSignerRefs = this.resolvedSignerRefKeys;
 
             if (effectiveRegistry != null) {
                 // Resolve tx-level fromRef for regular Txs and add payment signer
@@ -562,18 +609,12 @@ public class QuickTxBuilder {
                     }
                 }
 
+                resolvePolicyRefs(effectiveRegistry, resolvedSignerRefs);
+
                 // Resolve additional signer refs
                 if (this.signerRefs != null && !this.signerRefs.isEmpty()) {
                     for (SignerRef sr : this.signerRefs) {
-                        var bindingOpt = effectiveRegistry.resolve(sr.ref);
-                        if (bindingOpt.isEmpty())
-                            throw new TxBuildException("Unable to resolve signer ref: " + sr.ref);
-                        var binding = bindingOpt.get();
-                        try {
-                            this.withSigner(binding.signerFor(sr.scope));
-                        } catch (Exception e) {
-                            throw new TxBuildException("Failed to create signer for ref: " + sr.ref + ", scope: " + sr.scope, e);
-                        }
+                        resolveSignerRef(effectiveRegistry, sr.ref, sr.scope, resolvedSignerRefs);
                     }
                 }
             } else {
@@ -584,6 +625,8 @@ public class QuickTxBuilder {
                         if (ref != null && !ref.isBlank())
                             throw new TxBuildException("fromRef set but no SignerRegistry configured");
                     }
+                    if (hasPolicyRefs(tx))
+                        throw new TxBuildException("policy_ref set but no SignerRegistry configured");
                 }
                 if (this.feePayerRef != null)
                     throw new TxBuildException("feePayerRef set but no SignerRegistry configured");
@@ -591,6 +634,12 @@ public class QuickTxBuilder {
                     throw new TxBuildException("collateralPayerRef set but no SignerRegistry configured");
                 if (this.signerRefs != null && !this.signerRefs.isEmpty())
                     throw new TxBuildException("signer refs set but no SignerRegistry configured");
+            }
+
+            if (hasScriptReferences && effectiveScriptRegistry != null) {
+                resolveScriptReferences(effectiveScriptRegistry);
+            } else if (hasScriptReferences) {
+                throw new TxBuildException("script_ref/script_hash set but no ScriptRegistry or ScriptSupplier configured");
             }
 
             TxBuilder txBuilder = (context, txn) -> {
@@ -771,6 +820,223 @@ public class QuickTxBuilder {
             }
 
             return new Tuple<>(txBuilderContext, txBuilder);
+        }
+
+        private void resolvePolicyRefs(SignerRegistry registry, Set<String> resolvedSignerRefs) {
+            for (AbstractTx tx : txList) {
+                for (var intent : tx.getIntentions()) {
+                    if (intent instanceof MintingIntent) {
+                        resolvePolicyRef((MintingIntent) intent, registry, resolvedSignerRefs);
+                    }
+                }
+            }
+        }
+
+        private void resolvePolicyRef(MintingIntent intent, SignerRegistry registry, Set<String> resolvedSignerRefs) {
+            String policyRef = intent.getPolicyRef();
+            if (policyRef == null) {
+                return;
+            }
+
+            policyRef = policyRef.trim();
+            if (policyRef.isEmpty()) {
+                throw new TxBuildException("policy_ref cannot be blank");
+            }
+            intent.setPolicyRef(policyRef);
+
+            if (intent.hasSerializedScriptFields()) {
+                throw new TxBuildException("policy_ref cannot be combined with script_hex or script_type");
+            }
+            if (intent.getScript() != null && !intent.isPolicyRefResolved()) {
+                throw new TxBuildException("policy_ref cannot be combined with a runtime script");
+            }
+
+            var bindingOpt = registry.resolve(policyRef);
+            if (bindingOpt.isEmpty()) {
+                throw new TxBuildException("Unable to resolve policy_ref: " + policyRef);
+            }
+
+            SignerBinding binding = bindingOpt.get();
+            var policyOpt = binding.asPolicy();
+            if (policyOpt.isEmpty()) {
+                throw new TxBuildException("Resolved policy_ref does not expose a policy script: " + policyRef);
+            }
+
+            intent.resolvePolicy(policyOpt.get());
+            addSignerForBinding(policyRef, SignerScopes.POLICY, binding, resolvedSignerRefs);
+        }
+
+        private void resolveScriptReferences(ScriptRegistry registry) {
+            for (AbstractTx tx : txList) {
+                for (var intent : tx.getIntentions()) {
+                    if (intent instanceof ScriptValidatorAttachmentIntent) {
+                        resolveValidatorScriptReference((ScriptValidatorAttachmentIntent) intent, registry);
+                    } else if (intent instanceof NativeScriptAttachmentIntent) {
+                        resolveNativeScriptReference((NativeScriptAttachmentIntent) intent, registry);
+                    }
+                }
+            }
+        }
+
+        private ScriptRegistry effectiveScriptRegistry() {
+            if (this.contextScriptRegistry != null) {
+                return this.contextScriptRegistry;
+            }
+
+            ScriptSupplier effectiveScriptSupplier = this.scriptSupplier != null ? this.scriptSupplier : backendScriptSupplier;
+            if (effectiveScriptSupplier != null) {
+                // Hash-based Plutus lookups can reuse the existing ScriptSupplier. Logical script_ref
+                // values still need an explicit ScriptRegistry because ScriptSupplier is hash-only.
+                return new DefaultScriptRegistry().withScriptSupplier(effectiveScriptSupplier);
+            }
+
+            return null;
+        }
+
+        private void resolveValidatorScriptReference(ScriptValidatorAttachmentIntent intent, ScriptRegistry registry) {
+            if (!intent.hasScriptReference()) {
+                return;
+            }
+            if (intent.hasScriptRef() && intent.hasScriptHash()) {
+                throw new TxBuildException("ValidatorAttachment requires only one of script_ref or script_hash");
+            }
+
+            Script script = resolveScriptReference(intent.getScriptRef(), intent.getScriptHash(), registry);
+            if (!(script instanceof PlutusScript)) {
+                throw new TxBuildException("Resolved validator script reference is not a PlutusScript");
+            }
+
+            intent.resolveScript((PlutusScript) script);
+        }
+
+        private void resolveNativeScriptReference(NativeScriptAttachmentIntent intent, ScriptRegistry registry) {
+            if (!intent.hasScriptReference()) {
+                return;
+            }
+            if (intent.hasScriptRef() && intent.hasScriptHash()) {
+                throw new TxBuildException("NativeScriptAttachment requires only one of script_ref or script_hash");
+            }
+
+            Script script = resolveScriptReference(intent.getScriptRef(), intent.getScriptHash(), registry);
+            if (!(script instanceof NativeScript)) {
+                throw new TxBuildException("Resolved native script reference is not a NativeScript");
+            }
+
+            intent.resolveScript((NativeScript) script);
+        }
+
+        private Script resolveScriptReference(String scriptRef, String scriptHash, ScriptRegistry registry) {
+            if (scriptRef != null) {
+                String resolvedRef = scriptRef.trim();
+                if (resolvedRef.isEmpty()) {
+                    throw new TxBuildException("script_ref cannot be blank");
+                }
+
+                return registry.resolve(resolvedRef)
+                        .orElseThrow(() -> new TxBuildException("Unable to resolve script_ref: " + resolvedRef));
+            }
+
+            String resolvedHash = normalizeScriptHash(scriptHash);
+            Script script = registry.resolveByHash(resolvedHash)
+                    .orElseThrow(() -> new TxBuildException("Unable to resolve script_hash: " + resolvedHash));
+            verifyScriptHash(resolvedHash, script);
+            return script;
+        }
+
+        private String normalizeScriptHash(String scriptHash) {
+            if (scriptHash == null || scriptHash.isBlank()) {
+                throw new TxBuildException("script_hash cannot be blank");
+            }
+
+            String normalized = scriptHash.trim().toLowerCase(Locale.ROOT);
+            try {
+                byte[] hashBytes = HexUtil.decodeHexString(normalized);
+                if (hashBytes.length != 28) {
+                    throw new TxBuildException("script_hash must be 28 bytes");
+                }
+            } catch (Exception e) {
+                if (e instanceof TxBuildException) {
+                    throw (TxBuildException) e;
+                }
+                throw new TxBuildException("script_hash must be hex encoded", e);
+            }
+
+            return normalized;
+        }
+
+        private void verifyScriptHash(String expectedHash, Script script) {
+            try {
+                String actualHash = script.getPolicyId();
+                if (!expectedHash.equalsIgnoreCase(actualHash)) {
+                    throw new TxBuildException("Resolved script hash mismatch. Expected: " + expectedHash + ", actual: " + actualHash);
+                }
+            } catch (TxBuildException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new TxBuildException("Unable to calculate resolved script hash", e);
+            }
+        }
+
+        private boolean hasPolicyRefs(AbstractTx tx) {
+            for (var intent : tx.getIntentions()) {
+                if (intent instanceof MintingIntent && ((MintingIntent) intent).getPolicyRef() != null) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean hasScriptReferences(AbstractTx tx) {
+            for (var intent : tx.getIntentions()) {
+                if (intent instanceof ScriptValidatorAttachmentIntent) {
+                    ScriptValidatorAttachmentIntent validatorIntent = (ScriptValidatorAttachmentIntent) intent;
+                    if (validatorIntent.getScriptRef() != null || validatorIntent.getScriptHash() != null) {
+                        return true;
+                    }
+                } else if (intent instanceof NativeScriptAttachmentIntent) {
+                    NativeScriptAttachmentIntent nativeIntent = (NativeScriptAttachmentIntent) intent;
+                    if (nativeIntent.getScriptRef() != null || nativeIntent.getScriptHash() != null) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private boolean hasScriptReferences() {
+            for (AbstractTx tx : txList) {
+                if (hasScriptReferences(tx)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void resolveSignerRef(SignerRegistry registry, String ref, String scope, Set<String> resolvedSignerRefs) {
+            var bindingOpt = registry.resolve(ref);
+            if (bindingOpt.isEmpty())
+                throw new TxBuildException("Unable to resolve signer ref: " + ref);
+
+            addSignerForBinding(ref, scope, bindingOpt.get(), resolvedSignerRefs);
+        }
+
+        private void addSignerForBinding(String ref, String scope, SignerBinding binding, Set<String> resolvedSignerRefs) {
+            String signerKey = signerKey(ref, scope);
+            if (!resolvedSignerRefs.add(signerKey)) {
+                return;
+            }
+
+            try {
+                this.withSigner(binding.signerFor(scope));
+            } catch (Exception e) {
+                throw new TxBuildException("Failed to create signer for ref: " + ref + ", scope: " + scope, e);
+            }
+        }
+
+        private String signerKey(String ref, String scope) {
+            String normalizedRef = ref == null ? "" : ref.trim();
+            String normalizedScope = scope == null ? "" : scope.trim().toLowerCase(Locale.ROOT);
+            return normalizedRef + "|" + normalizedScope;
         }
 
         private int getTotalSigners() {
@@ -1131,6 +1397,10 @@ public class QuickTxBuilder {
          * Use the given {@link ScriptSupplier} to get script for the transaction
          * For example: To calculate tier reference script fee when reference scripts are used in the transaction, script supplier can be used
          * to get the reference scripts through the UtxoSupplier.
+         * <p>
+         * QuickTx also uses this supplier as a hash-only fallback for script attachment
+         * intents that use script_hash. Logical script_ref values still require
+         * {@link #withScriptRegistry(ScriptRegistry)}.
          *
          * @param scriptSupplier
          * @return

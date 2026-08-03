@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardano-client.dev/schemas/quicktx/transaction/v1alpha1",
+  "title": "QuickTx embedded transaction v1alpha1",
+  "$defs": {
+    "flowOutputRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["flow_output"],
+      "properties": {
+        "flow_output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["step", "output"],
+          "properties": {
+            "step": { "type": "string", "minLength": 1 },
+            "output": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "utxoRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tx_hash", "output_index"],
+      "properties": {
+        "tx_hash": { "type": "string" },
+        "output_index": { "type": ["integer", "string"] }
+      }
+    },
+    "inputRef": {
+      "oneOf": [
+        { "$ref": "#/$defs/utxoRef" },
+        { "$ref": "#/$defs/flowOutputRef" }
+      ]
+    },
+    "transaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tx"],
+      "properties": {
+        "tx": { "$ref": "#/$defs/tx" },
+        "context": { "$ref": "#/$defs/context" }
+      }
+    },
+    "tx": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string" },
+        "from_ref": { "type": "string" },
+        "from_wallet": { "type": "string" },
+        "change_address": { "type": "string" },
+        "change_datum": { "type": "string" },
+        "change_datum_hash": { "type": "string" },
+        "inputs": { "type": "array", "items": { "type": "object" } },
+        "intents": { "type": "array", "items": { "type": "object", "required": ["type"] } },
+        "scripts": { "type": "array", "items": { "type": "object", "required": ["type"] } }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fee_payer": { "type": "string" },
+        "fee_payer_ref": { "type": "string" },
+        "collateral_payer": { "type": "string" },
+        "collateral_payer_ref": { "type": "string" },
+        "required_signers": { "type": "array", "items": { "type": "string" } },
+        "valid_from_slot": { "type": "integer", "minimum": 0 },
+        "valid_to_slot": { "type": "integer", "minimum": 0 },
+        "signers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ref"],
+            "properties": {
+              "ref": { "type": "string" },
+              "scope": { "type": "string" }
+            }
+          }
+        },
+        "deposit_payer": { "type": "string" },
+        "deposit_mode": { "type": "string" }
+      }
+    }
+  }
+}

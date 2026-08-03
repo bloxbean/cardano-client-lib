@@ -4,7 +4,7 @@ A modular collection of cryptographically verifiable data structures for blockch
 
 ## Overview
 
-This library provides production-ready implementations of Merkle-based authenticated data structures with support for multiple persistence layers (RocksDB, PostgreSQL, H2, SQLite) and both single-version and multi-version storage modes.
+This library provides experimental Merkle-based authenticated data structures with support for multiple persistence layers (RocksDB, PostgreSQL, H2, SQLite) and both single-version and multi-version storage modes. Production suitability is module-specific; review each module's limitations and migration notes.
 
 ## Modules
 
@@ -85,9 +85,8 @@ resources.close();
 // Add dependency
 implementation 'com.bloxbean.cardano:jellyfish-merkle-rocksdb:0.8.0'
 
-// Initialize storage
-RocksDbResources resources = RocksDbResources.create(Paths.get("jmt-data"));
-RocksDbJmtStore store = new RocksDbJmtStore(resources.getDb());
+// Initialize a dedicated RocksDB store (the store owns and closes the database)
+RocksDbJmtStore store = new RocksDbJmtStore("jmt-data");
 
 // Create tree
 HashFunction hashFn = Blake2b256::digest;
@@ -105,7 +104,7 @@ byte[] rootHash = result.rootHash();
 Optional<JmtProof> proof = tree.getProof("alice".getBytes(), 1L);
 
 // Cleanup
-resources.close();
+store.close();
 ```
 
 ## Gradle Dependencies
@@ -156,7 +155,7 @@ verified-structures-core (interfaces & utilities)
 ## Performance
 
 - **MPF**: Optimized for prefix queries and key recovery
-- **JMT**: Optimized for versioned state with ~2M ops/sec on commodity hardware
+- **JMT**: Designed for batched, versioned off-chain state; benchmark on the target workload and durability settings
 - **RocksDB**: Best for single-node deployments with high throughput
 - **RDBMS**: Best for distributed systems requiring SQL queries
 
@@ -170,7 +169,7 @@ verified-structures-core (interfaces & utilities)
 
 ### Jellyfish Merkle Tree
 - Blockchain state storage (Diem-inspired architecture)
-- Multi-version concurrency control
+- Multi-version historical reads with externally serialized writes
 - Cryptographic audit trails
 - State synchronization between nodes
 

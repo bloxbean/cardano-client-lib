@@ -146,4 +146,19 @@ class ConfirmationConfigTest {
         assertTrue(quickConfig.isWaitForBackendAfterRollback(),
                 "Quick/dev should wait for backend after rollback");
     }
+
+    @Test
+    void invalidBoundsFailAtBuildTime() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ConfirmationConfig.builder().minConfirmations(-1).build());
+        assertThrows(IllegalArgumentException.class,
+                () -> ConfirmationConfig.builder().checkInterval(Duration.ZERO).build());
+        assertThrows(IllegalArgumentException.class,
+                () -> ConfirmationConfig.builder().timeout(Duration.ofDays(366)).build());
+        assertThrows(IllegalArgumentException.class,
+                () -> ConfirmationConfig.builder().maxRollbackRetries(101).build());
+        assertThrows(IllegalArgumentException.class,
+                () -> ConfirmationConfig.builder()
+                        .postRollbackUtxoSyncDelay(Duration.ofSeconds(-1)).build());
+    }
 }

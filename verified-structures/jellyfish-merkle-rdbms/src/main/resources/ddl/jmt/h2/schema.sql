@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS jmt_latest (
     updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- JMT Format/Profile Metadata
+CREATE TABLE IF NOT EXISTS jmt_metadata (
+    namespace        SMALLINT NOT NULL PRIMARY KEY,
+    format_data      VARBINARY NOT NULL,
+    rollback_enabled BOOLEAN NOT NULL,
+    prune_watermark  BIGINT,
+    updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 
 -- JMT Stale Nodes Table
 -- Tracks nodes marked for deletion (for pruning)

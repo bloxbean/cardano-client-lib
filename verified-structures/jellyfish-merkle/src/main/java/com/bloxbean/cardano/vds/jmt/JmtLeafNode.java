@@ -64,7 +64,6 @@ public final class JmtLeafNode implements JmtNode {
         }
         byte[] key = ((ByteString) array.getDataItems().get(1)).getBytes();
         byte[] value = ((ByteString) array.getDataItems().get(2)).getBytes();
-        return new JmtLeafNode(key, value);
+        return JmtLeafNode.of(key, value);
     }
 }
-

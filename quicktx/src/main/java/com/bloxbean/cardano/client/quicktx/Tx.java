@@ -127,6 +127,61 @@ public class Tx extends AbstractTx<Tx> {
     }
 
     /**
+     * Add a mint asset to the transaction using a typed runtime policy reference.
+     *
+     * @param policyRef policy reference
+     * @param asset     asset to mint
+     * @return Tx
+     */
+    public Tx mintAssets(@NonNull PolicyRef policyRef, Asset asset) {
+        return mintAssets(policyRef, List.of(asset), null);
+    }
+
+    /**
+     * Add a mint asset to the transaction using a typed runtime policy reference.
+     *
+     * @param policyRef policy reference
+     * @param asset     asset to mint
+     * @param receiver  receiver address
+     * @return Tx
+     */
+    public Tx mintAssets(@NonNull PolicyRef policyRef, Asset asset, String receiver) {
+        return mintAssets(policyRef, List.of(asset), receiver);
+    }
+
+    /**
+     * Add mint assets to the transaction using a typed runtime policy reference.
+     *
+     * @param policyRef policy reference
+     * @param assets    assets to mint
+     * @return Tx
+     */
+    public Tx mintAssets(@NonNull PolicyRef policyRef, List<Asset> assets) {
+        return mintAssets(policyRef, assets, null);
+    }
+
+    /**
+     * Add mint assets to the transaction using a typed runtime policy reference.
+     *
+     * @param policyRef policy reference
+     * @param assets    assets to mint
+     * @param receiver  receiver address
+     * @return Tx
+     */
+    public Tx mintAssets(@NonNull PolicyRef policyRef, List<Asset> assets, String receiver) {
+        MintingIntent intention = MintingIntent.fromPolicyRef(policyRef.getRef(), assets, receiver);
+
+        if (intentions == null) {
+            intentions = new ArrayList<>();
+        }
+        intentions.add(intention);
+
+        hasMultiAssetMinting = true;
+
+        return this;
+    }
+
+    /**
      * Attaches a NativeScript to the current transaction.
      * This method ensures that the given NativeScript is added to
      * the set of native scripts associated with the transaction.
@@ -139,6 +194,20 @@ public class Tx extends AbstractTx<Tx> {
             intentions = new ArrayList<>();
         }
         intentions.add(NativeScriptAttachmentIntent.of(script));
+        return this;
+    }
+
+    /**
+     * Attaches a NativeScript resolved from a runtime script reference or hash.
+     *
+     * @param scriptRef script reference or hash
+     * @return the current Tx instance
+     */
+    public Tx attachNativeScript(@NonNull ScriptRef scriptRef) {
+        if (intentions == null) {
+            intentions = new ArrayList<>();
+        }
+        intentions.add(NativeScriptAttachmentIntent.of(scriptRef));
         return this;
     }
 
@@ -985,6 +1054,16 @@ public class Tx extends AbstractTx<Tx> {
     }
 
     /**
+     * Attach a spending validator resolved from a runtime script reference or hash.
+     *
+     * @param scriptRef script reference or hash
+     * @return Tx
+     */
+    public Tx attachSpendingValidator(@NonNull ScriptRef scriptRef) {
+        return attachValidator(RedeemerTag.Spend, scriptRef);
+    }
+
+    /**
      * Attach a minting validator script to the transaction
      *
      * @param plutusScript plutus script
@@ -994,6 +1073,16 @@ public class Tx extends AbstractTx<Tx> {
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(ScriptValidatorAttachmentIntent.of(RedeemerTag.Mint, plutusScript));
         return this;
+    }
+
+    /**
+     * Attach a minting validator resolved from a runtime script reference or hash.
+     *
+     * @param scriptRef script reference or hash
+     * @return Tx
+     */
+    public Tx attachMintValidator(@NonNull ScriptRef scriptRef) {
+        return attachValidator(RedeemerTag.Mint, scriptRef);
     }
 
     /**
@@ -1009,6 +1098,16 @@ public class Tx extends AbstractTx<Tx> {
     }
 
     /**
+     * Attach a certificate validator resolved from a runtime script reference or hash.
+     *
+     * @param scriptRef script reference or hash
+     * @return Tx
+     */
+    public Tx attachCertificateValidator(@NonNull ScriptRef scriptRef) {
+        return attachValidator(RedeemerTag.Cert, scriptRef);
+    }
+
+    /**
      * Attach a reward validator script to the transaction
      *
      * @param plutusScript plutus script
@@ -1018,6 +1117,16 @@ public class Tx extends AbstractTx<Tx> {
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(ScriptValidatorAttachmentIntent.of(RedeemerTag.Reward, plutusScript));
         return this;
+    }
+
+    /**
+     * Attach a reward validator resolved from a runtime script reference or hash.
+     *
+     * @param scriptRef script reference or hash
+     * @return Tx
+     */
+    public Tx attachRewardValidator(@NonNull ScriptRef scriptRef) {
+        return attachValidator(RedeemerTag.Reward, scriptRef);
     }
 
     /**
@@ -1033,6 +1142,16 @@ public class Tx extends AbstractTx<Tx> {
     }
 
     /**
+     * Attach a proposing validator resolved from a runtime script reference or hash.
+     *
+     * @param scriptRef script reference or hash
+     * @return Tx
+     */
+    public Tx attachProposingValidator(@NonNull ScriptRef scriptRef) {
+        return attachValidator(RedeemerTag.Proposing, scriptRef);
+    }
+
+    /**
      * Attach a voting validator script to the transaction
      *
      * @param plutusScript plutus script
@@ -1041,6 +1160,25 @@ public class Tx extends AbstractTx<Tx> {
     public Tx attachVotingValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(ScriptValidatorAttachmentIntent.of(RedeemerTag.Voting, plutusScript));
+        return this;
+    }
+
+    /**
+     * Attach a voting validator resolved from a runtime script reference or hash.
+     *
+     * @param scriptRef script reference or hash
+     * @return Tx
+     */
+    public Tx attachVotingValidator(@NonNull ScriptRef scriptRef) {
+        return attachValidator(RedeemerTag.Voting, scriptRef);
+    }
+
+    /**
+     * Attach a validator by role using a runtime script reference or hash.
+     */
+    private Tx attachValidator(RedeemerTag role, ScriptRef scriptRef) {
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(ScriptValidatorAttachmentIntent.of(role, scriptRef));
         return this;
     }
 
