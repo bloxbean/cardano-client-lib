@@ -110,7 +110,15 @@ public class FlowResult {
     /**
      * Get the failed step result if the flow failed.
      *
-     * @return the failed step result, or empty if flow didn't fail
+     * <p>Note: a flow can be {@link #isFailed() failed} with no failed step. A confirmation
+     * wait that times out settles its step as submission-pending ({@code IN_PROGRESS} with
+     * the transaction hash retained) rather than {@code FAILED}, because the submitted
+     * transaction's disposition is unknown and may still confirm — retrying it as if it had
+     * conclusively failed is how double payments happen. For such flows this method returns
+     * empty; inspect {@code getStepResults()} and {@code getError()} instead.
+     *
+     * @return the failed step result, or empty if flow didn't fail (or failed without a
+     *         conclusively failed step — see above)
      */
     public Optional<FlowStepResult> getFailedStep() {
         return stepResults.stream()

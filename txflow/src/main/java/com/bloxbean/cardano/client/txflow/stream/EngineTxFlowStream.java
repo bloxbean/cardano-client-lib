@@ -3543,24 +3543,23 @@ final class EngineTxFlowStream implements TxFlowStream {
             log.warn("TxFlowStream[{}] re-attach binding confirmation failed for item '{}'",
                     streamId, member.itemId(), confirmFailure);
         }
-        // BUG-T1: a whole-flow template item's status derives from the flow's
-        // OVERALL state (templateFlowStatus), symmetric with the live terminal
-        // pass (projectTemplateTerminal) — never snapshotStatus, which maps a
-        // PARTIALLY_COMPLETED flow to FAILED and would permanently misreport a
-        // multi-step template whose remaining transactions may still confirm.
+        // A whole-flow template normally derives status from the flow's OVERALL
+        // state, but a CANCELLED snapshot with a submitted-but-undecided attempt
+        // remains RECOVERY_REQUIRED. This mirrors the live terminal pass and
+        // avoids making an uncertain transaction terminally CANCELLED on restart.
         TxStreamItemStatus target = state.wholeFlow
-                ? templateFlowStatus(snapshot.state())
+                ? templateSnapshotStatus(snapshot)
                 : shared
                         ? memberSnapshotStatus(snapshot, state)
                         : snapshotStatus(snapshot.state());
         String hash = hashFromSnapshotData(snapshot.data(), shared ? state.stepId : null);
-        // A RECOVERY_REQUIRED target (a whole-flow PARTIALLY_COMPLETED /
-        // still-running template) is a settling-but-repairable status, not a
-        // terminal fast-forward — route it through the honest "still uncertain"
-        // surface below, the same as a per-member null. The non-whole-flow
-        // paths never yield RECOVERY_REQUIRED here (snapshotStatus /
-        // memberSnapshotStatus return null while non-terminal), so their
-        // behaviour is unchanged.
+        // A RECOVERY_REQUIRED target (a whole-flow PARTIALLY_COMPLETED,
+        // submitted-then-CANCELLED, or still-running template) is a
+        // settling-but-repairable status, not a terminal fast-forward — route
+        // it through the honest "still uncertain" surface below, the same as a
+        // per-member null. The non-whole-flow paths never yield
+        // RECOVERY_REQUIRED here (snapshotStatus / memberSnapshotStatus return
+        // null while non-terminal), so their behaviour is unchanged.
         if (target != null && target != TxStreamItemStatus.RECOVERY_REQUIRED) {
             TxStreamItemStatus finalTarget = target;
             String finalHash = hash;
@@ -3570,15 +3569,18 @@ final class EngineTxFlowStream implements TxFlowStream {
                                     : reattachedTerminalError(finalTarget, record.executionId())),
                     true);
         } else {
-            // Running (or a partially-completed template), but this process
-            // cannot watch a foreign-process execution push-based (iteration 3).
-            // Surface RECOVERY_REQUIRED — honest, settles the promise, and
-            // read-through repairs it once the engine reports a terminal outcome.
+            // This process cannot watch a foreign-process execution push-based
+            // (iteration 3). Surface RECOVERY_REQUIRED — honest, settles the
+            // promise, and read-through repairs it once the engine reports an
+            // authoritative transaction outcome.
             String finalHash = hash;
+            String uncertainty = snapshot.state() == FlowExecutionState.CANCELLED
+                    ? " was cancelled with a submitted transaction whose outcome is unknown;"
+                    : " is still running after restart;";
             TxStreamException uncertain = new TxStreamException("TXSTREAM_REATTACH_UNCONFIRMED",
-                    "Execution '" + record.executionId() + "' is still running after restart;"
+                    "Execution '" + record.executionId() + "'" + uncertainty
                             + " this process re-attaches by read-through, not live watching —"
-                            + " reconcile once the engine reports its outcome");
+                            + " reconcile once the engine reports the transaction outcome");
             project(state, TxStreamItemStatus.RECOVERY_REQUIRED,
                     builder -> builder.transactionHash(finalHash).error(uncertain), true);
         }
@@ -3956,7 +3958,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             project(state, TxStreamItemStatus.SUBMITTED,
                     builder -> builder.transactionHash(submittedHash), false);
         }
-        TxStreamItemStatus target = templateFlowStatus(result.state());
+        TxStreamItemStatus target = templateTerminalStatus(result, snapshots);
         Throwable error = target == TxStreamItemStatus.CONFIRMED ? null
                 : terminalError(null, result);
         String finalHash = hash;
@@ -3964,11 +3966,69 @@ final class EngineTxFlowStream implements TxFlowStream {
     }
 
     /**
-     * Maps a whole-flow terminal engine state onto a template item's status.
+     * Maps a whole-flow terminal engine result onto a template item's status.
+     * A cancelled flow whose result or durable snapshot still contains a
+     * submitted-but-undecided transaction remains {@code RECOVERY_REQUIRED};
+     * cancellation is terminal only when no such evidence exists.
+     */
+    private TxStreamItemStatus templateTerminalStatus(
+            FlowExecutionResult result, SnapshotLookup snapshots) {
+        if (result.state() == FlowExecutionState.CANCELLED
+                && (result.steps().stream()
+                        .anyMatch(step -> step.getStatus() == FlowStatus.IN_PROGRESS)
+                    || hasUndecidedTemplateAttempt(result.attempts())
+                    || snapshots.get()
+                        .map(this::hasUndecidedTemplateAttempt)
+                        .orElse(false))) {
+            return TxStreamItemStatus.RECOVERY_REQUIRED;
+        }
+        return templateFlowStatus(result.state());
+    }
+
+    /** Snapshot equivalent of {@link #templateTerminalStatus}. */
+    private TxStreamItemStatus templateSnapshotStatus(FlowExecutionSnapshot snapshot) {
+        if (snapshot.state() == FlowExecutionState.CANCELLED
+                && hasUndecidedTemplateAttempt(snapshot)) {
+            return TxStreamItemStatus.RECOVERY_REQUIRED;
+        }
+        return templateFlowStatus(snapshot.state());
+    }
+
+    private boolean hasUndecidedTemplateAttempt(FlowExecutionSnapshot snapshot) {
+        List<FlowAttemptSnapshot> attempts = new ArrayList<>();
+        for (Object value : snapshot.data().values()) {
+            if (!(value instanceof Map)) continue;
+            for (Object candidate : ((Map<?, ?>) value).values()) {
+                if (candidate instanceof FlowAttemptSnapshot) {
+                    attempts.add((FlowAttemptSnapshot) candidate);
+                }
+            }
+        }
+        return hasUndecidedTemplateAttempt(attempts);
+    }
+
+    private boolean hasUndecidedTemplateAttempt(List<FlowAttemptSnapshot> attempts) {
+        return attempts.stream().anyMatch(attempt -> {
+            switch (attempt.state()) {
+                case SUBMITTING:
+                case SUBMITTED:
+                case IN_BLOCK:
+                case ROLLED_BACK:
+                case RECOVERY_REQUIRED:
+                    return true;
+                default:
+                    return false;
+            }
+        });
+    }
+
+    /**
+     * State-only whole-flow mapping used after submitted-attempt evidence has
+     * been considered by {@link #templateTerminalStatus} or
+     * {@link #templateSnapshotStatus}.
      * PARTIALLY_COMPLETED and RECOVERY_REQUIRED both become
-     * {@code RECOVERY_REQUIRED} (some transactions may still confirm — the
-     * honest answer); COMPLETED is {@code CONFIRMED}; FAILED/ROLLED_BACK is
-     * {@code FAILED}; CANCELLED is {@code CANCELLED}.
+     * {@code RECOVERY_REQUIRED}; COMPLETED is {@code CONFIRMED};
+     * FAILED/ROLLED_BACK is {@code FAILED}; CANCELLED is {@code CANCELLED}.
      */
     private TxStreamItemStatus templateFlowStatus(FlowExecutionState flowState) {
         switch (flowState) {
@@ -4572,14 +4632,11 @@ final class EngineTxFlowStream implements TxFlowStream {
         if (snapshot.isEmpty()) {
             return current;
         }
-        // BUG-T1: whole-flow template items reconcile through templateFlowStatus,
-        // symmetric with the live terminal pass and the present-snapshot
-        // re-attach — a PARTIALLY_COMPLETED template stays RECOVERY_REQUIRED
-        // (equal to current → no-op) instead of being fast-forwarded to a false
-        // FAILED, while a later COMPLETED still repairs it to CONFIRMED (the
-        // isFinal short-circuit above never blocks a non-final RECOVERY_REQUIRED).
+        // Whole-flow templates use the same snapshot-aware mapping as re-attach:
+        // PARTIALLY_COMPLETED remains recoverable, and CANCELLED cannot become
+        // terminal while a submitted attempt is still undecided.
         TxStreamItemStatus target = state.wholeFlow
-                ? templateFlowStatus(snapshot.get().state())
+                ? templateSnapshotStatus(snapshot.get())
                 : state.sharedExecution
                         ? memberSnapshotStatus(snapshot.get(), state)
                         : snapshotStatus(snapshot.get().state());

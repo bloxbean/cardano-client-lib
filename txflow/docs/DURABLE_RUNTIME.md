@@ -1,5 +1,10 @@
 # Durable TxFlow runtime
 
+> This is the contract-level outline. For the code-level maintainer walkthrough of
+> `FlowEngine` (claims, leases/fencing, journal, attempt lifecycle, recovery, and the
+> uncertain-disposition contract), see
+> [TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md).
+
 `FlowEngine` separates reusable definitions from executions. Applications parse with
 `TxFlowCodec`, compile/preflight with `TxFlowCompiler`, and start a `FlowExecutionRequest` with a
 unique execution ID. The application supplies transaction services, resource catalogs, policy,

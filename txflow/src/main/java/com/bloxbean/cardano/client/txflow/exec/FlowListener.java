@@ -69,6 +69,37 @@ public interface FlowListener {
     }
 
     /**
+     * Called when a step's submitted transaction ends the flow with an <em>uncertain</em>
+     * disposition — a confirmation timeout, or reconciliation that stayed uncertain. (A
+     * cancelled wait takes the cancellation path and never reaches this callback.) The
+     * transaction was submitted and may still confirm; the step result carries the hash and
+     * settles as {@code IN_PROGRESS}, never {@code FAILED}.
+     *
+     * <p>This is deliberately not {@link #onStepFailed}: a listener that alerts, refunds, or
+     * retries on step failure must not do so here — the honest response is reconciliation
+     * (does the transaction exist on chain?), not a fresh payment.
+     *
+     * @param step the step whose transaction disposition is unknown
+     * @param result submission-pending step result with the transaction hash retained
+     */
+    default void onStepUncertain(FlowStep step, FlowStepResult result) {
+    }
+
+    /**
+     * Called instead of {@link #onFlowFailed} when the flow terminates because of an
+     * <em>uncertain</em> transaction disposition (confirmation timeout, or reconciliation
+     * that stayed uncertain). The legacy {@code FlowResult} still encodes the flow as
+     * {@code FAILED} — {@code FlowStatus} has no recovery state — but the submitted
+     * transaction may yet confirm, so failure handling (alerting, refunding, rebuilding the
+     * payment) must not run here. Reconcile against the chain first.
+     *
+     * @param flow the flow whose outcome is uncertain
+     * @param result terminal result; the pending step retains its transaction hash
+     */
+    default void onFlowUncertain(TxFlow flow, FlowResult result) {
+    }
+
+    /**
      * Called when a transaction is submitted for a step.
      *
      * @param step the step
@@ -298,6 +329,30 @@ class CompositeFlowListener implements FlowListener {
                 listener.onStepFailed(step, result);
             } catch (Exception e) {
                 log.warn("Listener {} threw exception in onStepFailed: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onStepUncertain(FlowStep step, FlowStepResult result) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onStepUncertain(step, result);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onStepUncertain: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onFlowUncertain(TxFlow flow, FlowResult result) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onFlowUncertain(flow, result);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onFlowUncertain: {}",
                         listener.getClass().getSimpleName(), e.getMessage(), e);
             }
         }
