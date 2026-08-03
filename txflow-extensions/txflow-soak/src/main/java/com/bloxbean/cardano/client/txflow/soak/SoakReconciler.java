@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntFunction;
@@ -36,6 +37,26 @@ import java.util.function.IntFunction;
  * of the things being tested; the chain is the authority.
  */
 public final class SoakReconciler {
+
+    /**
+     * Explicit ownership allowlist. Keep this aligned with the TxFlow and TxStream migrations;
+     * database metadata must never become executable SQL.
+     */
+    private static final Map<String, String> STORE_TABLE_COUNT_QUERIES = Map.ofEntries(
+            Map.entry("txflow_schema_history", "SELECT COUNT(*) FROM txflow_schema_history"),
+            Map.entry("txflow_execution", "SELECT COUNT(*) FROM txflow_execution"),
+            Map.entry("txflow_idempotency", "SELECT COUNT(*) FROM txflow_idempotency"),
+            Map.entry("txflow_event", "SELECT COUNT(*) FROM txflow_event"),
+            Map.entry("txflow_execution_lease", "SELECT COUNT(*) FROM txflow_execution_lease"),
+            Map.entry("txflow_resource_lease", "SELECT COUNT(*) FROM txflow_resource_lease"),
+            Map.entry("txflow_lease_epoch", "SELECT COUNT(*) FROM txflow_lease_epoch"),
+            Map.entry("txstream_schema_history", "SELECT COUNT(*) FROM txstream_schema_history"),
+            Map.entry("txstream_item", "SELECT COUNT(*) FROM txstream_item"),
+            Map.entry("txstream_binding", "SELECT COUNT(*) FROM txstream_binding"),
+            Map.entry("txstream_planned", "SELECT COUNT(*) FROM txstream_planned"),
+            Map.entry("txstream_batch", "SELECT COUNT(*) FROM txstream_batch"),
+            Map.entry("txstream_bootstrap", "SELECT COUNT(*) FROM txstream_bootstrap"),
+            Map.entry("txstream_ownership", "SELECT COUNT(*) FROM txstream_ownership"));
 
     public record Report(long submitted, long confirmed, long failed, long cancelled,
                          long recoveryRequired, long unresolvedRecovery,
@@ -271,10 +292,11 @@ public final class SoakReconciler {
                 while (rs.next()) tables.add(rs.getString(1));
             }
             for (String table : tables) {
-                String lower = table.toLowerCase();
-                if (!lower.startsWith("txflow") && !lower.startsWith("txstream")) continue;
+                String lower = table.toLowerCase(Locale.ROOT);
+                String countQuery = STORE_TABLE_COUNT_QUERIES.get(lower);
+                if (countQuery == null) continue;
                 try (Statement st = conn.createStatement();
-                     ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM \"" + table + "\"")) {
+                     ResultSet rs = st.executeQuery(countQuery)) {
                     if (rs.next()) counts.put(lower, rs.getLong(1));
                 }
             }

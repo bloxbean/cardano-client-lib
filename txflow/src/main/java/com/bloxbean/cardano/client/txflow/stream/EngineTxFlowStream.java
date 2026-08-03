@@ -972,10 +972,10 @@ final class EngineTxFlowStream implements TxFlowStream {
         LaneFundingScope funding = partitioning.fundingSource();
         input.append(funding.kind()).append(':').append(funding.source());
         for (String laneAddress : partitioning.laneAddresses()) {
-            input.append(' ').append(laneAddress);
+            input.append('\0').append(laneAddress);
         }
         Amount seed = partitioning.seedPerLane();
-        input.append(' ').append(seed.getUnit()).append(':').append(seed.getQuantity());
+        input.append('\0').append(seed.getUnit()).append(':').append(seed.getQuantity());
         return "bootstrap:" + partitionLanes.size() + ":"
                 + StreamIdentities.fingerprint40(input.toString());
     }
