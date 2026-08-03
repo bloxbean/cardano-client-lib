@@ -33,7 +33,7 @@
 - Style: Prefer Conventional Commits (e.g., `feat:`, `fix:`, `refactor:`, `docs:`). Use present tense, imperative mood.
 - Branches: `feature/<short-topic>` or `fix/<issue-id>`.
 - PRs: include a clear summary, rationale, linked issues (`Closes #123`), tests for changes, and docs updates (README/ADR) when behavior/API changes. Add screenshots for diagrams/visual outputs when relevant.
-- CI: Jenkins uses Java 17 and Gradle (`clean build`, then `publish`). Keep main green; do not break `./gradlew build`.
+- CI: Uses Java 17 and Gradle (`clean build`, then `publish`). Keep main green; do not break `./gradlew build`.
 
 ## Security & Configuration
 - Never commit secrets. Use env vars for credentials (`MAVEN_USERNAME`, `MAVEN_PASSWORD`, `SIGNING_PASSWORD`).
