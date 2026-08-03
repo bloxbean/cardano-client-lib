@@ -102,10 +102,6 @@ public class NativeScriptAttachmentIntent implements TxScriptAttachmentIntent {
 
     @Override
     public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
-        if (variables == null || variables.isEmpty()) {
-            return this;
-        }
-
         String resolvedScriptRef = VariableResolver.resolve(scriptRef, variables);
         String resolvedScriptHash = VariableResolver.resolve(scriptHash, variables);
 
