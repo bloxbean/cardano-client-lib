@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.quicktx.intent.NativeScriptAttachmentIntent;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import org.junit.jupiter.api.Test;
@@ -28,5 +29,12 @@ class NativeScriptAttachmentIntentTest {
 
         assertThat(deTx.getIntentions()).isNotEmpty();
         assertThat(deTx.getIntentions().stream().anyMatch(i -> "native_script".equals(i.getType()))).isTrue();
+        NativeScriptAttachmentIntent restoredIntent = deTx.getIntentions().stream()
+                .filter(NativeScriptAttachmentIntent.class::isInstance)
+                .map(NativeScriptAttachmentIntent.class::cast)
+                .findFirst()
+                .orElseThrow();
+        assertThat(restoredIntent.getScript()).isNotNull();
+        assertThat(restoredIntent.getScript().getPolicyId()).isEqualTo(script.getPolicyId());
     }
 }
