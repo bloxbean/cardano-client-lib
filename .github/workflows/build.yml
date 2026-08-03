@@ -85,6 +85,34 @@ jobs:
             verified-structures/jellyfish-merkle-rdbms/build/reports/tests/test/
             verified-structures/jellyfish-merkle-rdbms/build/test-results/test/
 
+  txflow-rdbms:
+    name: TxFlow RDBMS qualification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Run TxFlow RDBMS integration suite
+        run: >-
+          ./gradlew :txflow-extensions:txflow-store-rdbms:integrationTest
+          -PskipSigning=true --stacktrace
+      - name: Upload TxFlow RDBMS test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: txflow-rdbms-test-report
+          path: |
+            txflow-extensions/txflow-store-rdbms/build/reports/tests/integrationTest/
+            txflow-extensions/txflow-store-rdbms/build/test-results/integrationTest/
+
   jmt-fuzz:
     name: JMT bounded fuzz qualification
     runs-on: ubuntu-latest
