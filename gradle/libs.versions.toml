@@ -1,6 +1,7 @@
 [libraries]
 koios-java = "io.github.cardano-community:koios-java-client:1.21.0"
 ogmios-java = "io.adabox:ogmios-java-client:1.0.0"
+nexus-java = "io.github.gero-labs:nexus-java-client:1.1.0"
 
 slf4j-api = "org.slf4j:slf4j-api:2.0.17"
 slf4j-reload4j = "org.slf4j:slf4j-reload4j:2.0.17"
