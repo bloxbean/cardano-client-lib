@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
+import com.bloxbean.cardano.client.backend.nexus.NexusBackendService;
 import com.bloxbean.cardano.client.backend.ogmios.http.OgmiosBackendService;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
@@ -24,6 +25,7 @@ public class BaseITTest {
     protected static String KOIOS = "koios";
     protected static String OGMIOS = "ogmios";
     protected static String DEVKIT = "devkit";
+    protected static String NEXUS = "nexus";
     protected static String backendType = BLOCKFROST;
 
     public BackendService getBackendService() {
@@ -39,6 +41,15 @@ public class BaseITTest {
             return new OgmiosBackendService(com.bloxbean.cardano.client.backend.ogmios.Constants.OGMIOS_DANDELION_TESTNET_URL);
         } else if (DEVKIT.equals(backendType)) {
             return new BFBackendService("http://localhost:8080/api/v1/", "Dummy");
+        } else if (NEXUS.equals(backendType)) {
+            String nexusApiKey = System.getProperty("NEXUS_API_KEY");
+            if (nexusApiKey == null || nexusApiKey.isEmpty()) {
+                nexusApiKey = System.getenv("NEXUS_API_KEY");
+            }
+            return new NexusBackendService(
+                    com.bloxbean.cardano.client.backend.nexus.Constants.PREPROD_URL,
+                    nexusApiKey,
+                    adlabs.nexus.client.util.Network.PREPROD);
         } else
             return null;
     }
