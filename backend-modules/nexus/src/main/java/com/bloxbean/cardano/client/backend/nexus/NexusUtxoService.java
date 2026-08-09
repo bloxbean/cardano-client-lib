@@ -51,8 +51,14 @@ public class NexusUtxoService implements UtxoService {
     @Override
     public Result<List<Utxo>> getUtxos(String address, String unit, int count, int page) throws ApiException {
         try {
-            return NexusResultMapper.map(addressService.getAddressUtxosByAsset(network, address, unit, page, count),
+            Result<List<Utxo>> result = NexusResultMapper.map(
+                    addressService.getAddressUtxosByAsset(network, address, unit, page, count),
                     utxos -> toUtxos(address, utxos));
+            // Blockfrost returns 404 when the address holds none of the asset; match that for parity.
+            if (result.isSuccessful() && (result.getValue() == null || result.getValue().isEmpty())) {
+                return Result.error("Not Found").code(404);
+            }
+            return result;
         } catch (adlabs.nexus.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }

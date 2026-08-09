@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class BlockServiceIT extends BaseITTest {
 
@@ -38,6 +39,10 @@ public class BlockServiceIT extends BaseITTest {
 
     @Test
     public void testGetBlockByNumber() throws ApiException {
+        if (backendType.equals(NEXUS)) { // Nexus has no block-by-number endpoint
+            assertThrows(UnsupportedOperationException.class, () -> service.getBlockByNumber(new BigInteger("357982")));
+            return;
+        }
         Result<Block> block = service.getBlockByNumber(new BigInteger("357982"));
 
         assertNotNull(block.getValue());

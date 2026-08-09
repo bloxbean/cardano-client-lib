@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.backend.nexus;
 
-import adlabs.nexus.client.backend.api.asset.model.PaymentAddress;
+import adlabs.nexus.client.backend.api.asset.model.AssetHolder;
 import adlabs.nexus.client.util.Network;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
@@ -79,11 +79,14 @@ public class NexusAssetService implements AssetService {
         }
     }
 
+    // Max page size the Nexus holders endpoint accepts.
+    private static final int HOLDERS_MAX_PAGE_SIZE = 100;
+
     @Override
     public Result<List<AssetAddress>> getAllAssetAddresses(String asset) throws ApiException {
-        String[] parts = splitUnit(asset);
         try {
-            return NexusResultMapper.map(assetService.getNftAddress(network, parts[0], parts[1]), this::toAssetAddresses);
+            return NexusResultMapper.map(assetService.getAssetHolders(network, asset, 1, HOLDERS_MAX_PAGE_SIZE),
+                    this::toAssetAddresses);
         } catch (adlabs.nexus.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
@@ -94,23 +97,22 @@ public class NexusAssetService implements AssetService {
         return getAssetAddresses(asset, count, page, null);
     }
 
-    // Nexus has no order param for asset addresses; order is ignored.
+    // Holders endpoint is paginated server-side; Nexus has no order param, so order is ignored.
     @Override
     public Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page, OrderEnum order) throws ApiException {
-        String[] parts = splitUnit(asset);
         try {
-            return NexusResultMapper.map(assetService.getNftAddress(network, parts[0], parts[1]),
-                    list -> NexusPagination.subList(toAssetAddresses(list), count, page));
+            return NexusResultMapper.map(assetService.getAssetHolders(network, asset, page, count),
+                    this::toAssetAddresses);
         } catch (adlabs.nexus.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
     }
 
-    private List<AssetAddress> toAssetAddresses(List<PaymentAddress> addresses) {
+    // The holders endpoint carries per-address quantity (unlike the old NFT-address endpoint).
+    private List<AssetAddress> toAssetAddresses(List<AssetHolder> holders) {
         List<AssetAddress> result = new ArrayList<>();
-        for (PaymentAddress a : addresses) {
-            // SDK getNftAddress returns holder addresses only; no per-address quantity is available.
-            result.add(AssetAddress.builder().address(a.getPaymentAddress()).quantity(null).build());
+        for (AssetHolder h : holders) {
+            result.add(AssetAddress.builder().address(h.getAddress()).quantity(h.getQuantity()).build());
         }
         return result;
     }

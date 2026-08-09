@@ -73,6 +73,25 @@ public class NexusAddressService implements com.bloxbean.cardano.client.backend.
         return getTransactions(address, count, page);
     }
 
+    // Nexus has no block-range filter on the paged endpoint; fetch the full history (already
+    // block-filtered + ordered by getAllTransactions), then page client-side to match Blockfrost.
+    @Override
+    public Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page, OrderEnum order, String fromBlockHeight, String toBlockHeight) throws ApiException {
+        Integer from = (fromBlockHeight == null || fromBlockHeight.isEmpty()) ? null : Integer.valueOf(fromBlockHeight);
+        Integer to = (toBlockHeight == null || toBlockHeight.isEmpty()) ? null : Integer.valueOf(toBlockHeight);
+        Result<List<AddressTransactionContent>> all = getAllTransactions(address, order, from, to);
+        if (!all.isSuccessful()) {
+            return all;
+        }
+        List<AddressTransactionContent> list = all.getValue();
+        int fromIdx = Math.max(0, (page - 1) * count);
+        if (fromIdx >= list.size()) {
+            return Result.success("OK").withValue(new ArrayList<>()).code(200);
+        }
+        int toIdx = Math.min(list.size(), fromIdx + count);
+        return Result.success("OK").withValue(new ArrayList<>(list.subList(fromIdx, toIdx))).code(200);
+    }
+
     // Nexus history is paginated server-side; loop until hasNext is false, capped to avoid an infinite loop on a misbehaving flag.
     @Override
     public Result<List<AddressTransactionContent>> getAllTransactions(String address, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException {

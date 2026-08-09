@@ -15,6 +15,7 @@ import java.math.BigInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class EpochServiceIT extends BaseITTest {
 
@@ -41,6 +42,10 @@ public class EpochServiceIT extends BaseITTest {
 
     @Test
     public void testGetLatestEpochByNumber() throws ApiException {
+        if (backendType.equals(NEXUS)) { // Nexus has no epoch-by-number endpoint
+            assertThrows(UnsupportedOperationException.class, () -> epochService.getEpoch(32));
+            return;
+        }
         Result<EpochContent> result = epochService.getEpoch(32);
 
         EpochContent epochContent = result.getValue();

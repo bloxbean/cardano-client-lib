@@ -57,6 +57,11 @@ public class NexusTransactionService implements TransactionService {
         for (String txnHash : txnHashCollection) {
             Result<TransactionContent> r = getTransaction(txnHash);
             if (!r.isSuccessful()) {
+                // A malformed hash (400) is a caller error and throws, matching Blockfrost;
+                // a valid-but-unknown hash (404) surfaces as an unsuccessful Result.
+                if (r.code() == 400) {
+                    throw new ApiException("Invalid transaction hash in request: " + txnHash);
+                }
                 return Result.error(r.getResponse()).code(r.code());
             }
             result.add(r.getValue());

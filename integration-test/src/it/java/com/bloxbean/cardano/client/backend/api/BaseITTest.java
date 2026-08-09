@@ -26,7 +26,8 @@ public class BaseITTest {
     protected static String OGMIOS = "ogmios";
     protected static String DEVKIT = "devkit";
     protected static String NEXUS = "nexus";
-    protected static String backendType = BLOCKFROST;
+    // Select the backend under test via -DBACKEND_TYPE=nexus|koios|ogmios|devkit (default blockfrost).
+    protected static String backendType = System.getProperty("BACKEND_TYPE", BLOCKFROST);
 
     public BackendService getBackendService() {
         if (BLOCKFROST.equals(backendType)) {
