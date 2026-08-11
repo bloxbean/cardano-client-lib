@@ -95,52 +95,61 @@ public class NexusAddressService implements com.bloxbean.cardano.client.backend.
     // Nexus history is paginated server-side; loop until hasNext is false, capped to avoid an infinite loop on a misbehaving flag.
     @Override
     public Result<List<AddressTransactionContent>> getAllTransactions(String address, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException {
-        List<AddressTransactionContent> all = new ArrayList<>();
-        boolean truncatedByCap = false;
+        Result<List<AddressTransactionContent>> fetched;
         try {
-            int page = 1;
-            while (page <= ALL_TRANSACTIONS_MAX_PAGES) {
-                adlabs.nexus.client.backend.api.base.Result<TransactionHistoryResponse> pageResult =
-                        addressService.getAddressTransactionHistory(network, address, page, ALL_TRANSACTIONS_PAGE_SIZE);
-                if (!pageResult.isSuccessful()) {
-                    return Result.error(pageResult.getResponse()).code(pageResult.getCode());
-                }
-                TransactionHistoryResponse body = pageResult.getValue();
-                if (body != null && body.getTransactions() != null) {
-                    all.addAll(toAddressTransactionContentsFromHistory(body.getTransactions()));
-                }
-                Pagination pagination = body == null ? null : body.getPagination();
-                boolean hasNext = pagination != null && Boolean.TRUE.equals(pagination.getHasNext());
-                if (!hasNext) {
-                    break;
-                }
-                if (page == ALL_TRANSACTIONS_MAX_PAGES) {
-                    truncatedByCap = true;
-                }
-                page++;
-            }
+            fetched = fetchAllHistoryPages(address);
         } catch (adlabs.nexus.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
-
-        if (truncatedByCap) {
-            log.warn("getAllTransactions truncated at {} pages ({} txs) for address {}; more pages were available",
-                    ALL_TRANSACTIONS_MAX_PAGES, ALL_TRANSACTIONS_MAX_PAGES * ALL_TRANSACTIONS_PAGE_SIZE, address);
+        if (!fetched.isSuccessful()) {
+            return fetched;
         }
 
-        List<AddressTransactionContent> filtered = filterByBlockHeight(all, fromBlockHeight, toBlockHeight);
+        List<AddressTransactionContent> filtered = filterByBlockHeight(fetched.getValue(), fromBlockHeight, toBlockHeight);
         if (order == OrderEnum.desc) {
             Collections.reverse(filtered);
         }
         return Result.success("OK").withValue(filtered).code(200);
     }
 
+    // Walks the server-side history pages into a single list; an unsuccessful page short-circuits to an error Result.
+    private Result<List<AddressTransactionContent>> fetchAllHistoryPages(String address) throws adlabs.nexus.client.backend.api.base.exception.ApiException {
+        List<AddressTransactionContent> all = new ArrayList<>();
+        boolean truncatedByCap = false;
+        int page = 1;
+        while (page <= ALL_TRANSACTIONS_MAX_PAGES) {
+            adlabs.nexus.client.backend.api.base.Result<TransactionHistoryResponse> pageResult =
+                    addressService.getAddressTransactionHistory(network, address, page, ALL_TRANSACTIONS_PAGE_SIZE);
+            if (!pageResult.isSuccessful()) {
+                return Result.error(pageResult.getResponse()).code(pageResult.getCode());
+            }
+            TransactionHistoryResponse body = pageResult.getValue();
+            if (body != null && body.getTransactions() != null) {
+                all.addAll(toAddressTransactionContentsFromHistory(body.getTransactions()));
+            }
+            Pagination pagination = body == null ? null : body.getPagination();
+            if (pagination == null || !Boolean.TRUE.equals(pagination.getHasNext())) {
+                break;
+            }
+            truncatedByCap = (page == ALL_TRANSACTIONS_MAX_PAGES);
+            page++;
+        }
+
+        if (truncatedByCap) {
+            log.warn("getAllTransactions truncated at {} pages ({} txs) for address {}; more pages were available",
+                    ALL_TRANSACTIONS_MAX_PAGES, ALL_TRANSACTIONS_MAX_PAGES * ALL_TRANSACTIONS_PAGE_SIZE, address);
+        }
+        return Result.success("OK").withValue(all).code(200);
+    }
+
     private List<AddressTransactionContent> filterByBlockHeight(List<AddressTransactionContent> txs, Integer fromBlockHeight, Integer toBlockHeight) {
         List<AddressTransactionContent> result = new ArrayList<>();
         for (AddressTransactionContent tx : txs) {
-            if (fromBlockHeight != null && tx.getBlockHeight() < fromBlockHeight) continue;
-            if (toBlockHeight != null && tx.getBlockHeight() > toBlockHeight) continue;
-            result.add(tx);
+            boolean belowFrom = fromBlockHeight != null && tx.getBlockHeight() < fromBlockHeight;
+            boolean aboveTo = toBlockHeight != null && tx.getBlockHeight() > toBlockHeight;
+            if (!belowFrom && !aboveTo) {
+                result.add(tx);
+            }
         }
         return result;
     }

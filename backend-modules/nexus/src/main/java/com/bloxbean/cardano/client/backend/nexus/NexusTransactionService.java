@@ -128,12 +128,21 @@ public class NexusTransactionService implements TransactionService {
         // Nexus has no per-block tx index or Plutus valid-contract flag in this model; leave unmapped.
         tc.setIndex(null);
         tc.setValidContract(null);
-        tc.setUtxoCount(tx.getInputs() == null && tx.getOutputs() == null ? null :
-                (tx.getInputs() == null ? 0 : tx.getInputs().size()) + (tx.getOutputs() == null ? 0 : tx.getOutputs().size()));
+        tc.setUtxoCount(utxoCount(tx));
         tc.setWithdrawalCount(tx.getWithdrawals() == null ? null : tx.getWithdrawals().size());
         // Line-item count (number of mint/burn actions, Blockfrost-style) — deliberately not koios's abs-quantity sum.
         tc.setAssetMintOrBurnCount(tx.getAssetsMinted() == null ? null : tx.getAssetsMinted().size());
         return tc;
+    }
+
+    // Total UTxO count = inputs + outputs; null only when the model carries neither collection.
+    private Integer utxoCount(adlabs.nexus.client.backend.api.transaction.model.Transaction tx) {
+        if (tx.getInputs() == null && tx.getOutputs() == null) {
+            return null;
+        }
+        int inputs = tx.getInputs() == null ? 0 : tx.getInputs().size();
+        int outputs = tx.getOutputs() == null ? 0 : tx.getOutputs().size();
+        return inputs + outputs;
     }
 
     private TxContentUtxo toTxContentUtxo(adlabs.nexus.client.backend.api.transaction.model.TransactionUtxos txUtxos) {
