@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.client.backend.nexus;
 
 import adlabs.nexus.client.backend.api.asset.model.AssetDetailedInformation;
+import adlabs.nexus.client.backend.api.asset.model.AssetHolder;
 import adlabs.nexus.client.backend.api.asset.model.AssetMetadata;
-import adlabs.nexus.client.backend.api.asset.model.PaymentAddress;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.Asset;
@@ -14,6 +14,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -172,41 +173,53 @@ class NexusAssetServiceTest {
     }
 
     // ---- getAllAssetAddresses / getAssetAddresses ----
+    // Backed by the SDK holders endpoint: getAssetHolders(network, unit, page, size) -> List<AssetHolder>.
+    // The full unit (policyId + assetName) is passed straight through — no client-side split — and the
+    // endpoint paginates server-side while carrying a per-address quantity.
 
-    private static List<PaymentAddress> threePaymentAddressRows() {
+    private static List<AssetHolder> threeHolderRows() {
         return List.of(
-                PaymentAddress.builder().paymentAddress("addr1aaa").stakeAddress("stake1aaa").build(),
-                PaymentAddress.builder().paymentAddress("addr1bbb").stakeAddress("stake1bbb").build(),
-                PaymentAddress.builder().paymentAddress("addr1ccc").stakeAddress("stake1ccc").build()
+                AssetHolder.builder().address("addr1aaa").quantity("10").build(),
+                AssetHolder.builder().address("addr1bbb").quantity("20").build(),
+                AssetHolder.builder().address("addr1ccc").quantity("30").build()
         );
     }
 
+    // getAllAssetAddresses fetches the first page at the max holders page size and maps address + quantity.
+    private static final int HOLDERS_MAX_PAGE_SIZE = 100;
+
     @Test
-    void getAllAssetAddresses_splitsUnitAndMapsFullList_quantityNull() throws Exception {
+    void getAllAssetAddresses_passesFullUnitAndMapsAddressWithQuantity() throws Exception {
         var sdkAssetSvc = mock(adlabs.nexus.client.backend.api.asset.AssetService.class);
-        when(sdkAssetSvc.getNftAddress(eq(NET), eq(POLICY_ID), eq(ASSET_NAME)))
-                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, threePaymentAddressRows()));
+        when(sdkAssetSvc.getAssetHolders(eq(NET), eq(UNIT), eq(1), eq(HOLDERS_MAX_PAGE_SIZE)))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, threeHolderRows()));
 
         var svc = new NexusAssetService(sdkAssetSvc, NET);
         Result<List<AssetAddress>> r = svc.getAllAssetAddresses(UNIT);
 
-        verify(sdkAssetSvc, times(1)).getNftAddress(NET, POLICY_ID, ASSET_NAME);
+        verify(sdkAssetSvc, times(1)).getAssetHolders(NET, UNIT, 1, HOLDERS_MAX_PAGE_SIZE);
         assertThat(r.isSuccessful()).isTrue();
         assertThat(r.getValue()).extracting(AssetAddress::getAddress)
                 .containsExactly("addr1aaa", "addr1bbb", "addr1ccc");
-        assertThat(r.getValue()).allSatisfy(a -> assertThat(a.getQuantity()).isNull());
+        assertThat(r.getValue()).extracting(AssetAddress::getQuantity)
+                .containsExactly("10", "20", "30");
     }
 
     @Test
-    void getAssetAddresses_paginatesPage1AndPage2() throws Exception {
+    void getAssetAddresses_delegatesPaginationServerSide() throws Exception {
         var sdkAssetSvc = mock(adlabs.nexus.client.backend.api.asset.AssetService.class);
-        when(sdkAssetSvc.getNftAddress(eq(NET), eq(POLICY_ID), eq(ASSET_NAME)))
-                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, threePaymentAddressRows()));
+        // (count, page) map to the SDK's (page, size): page 1 -> first two rows, page 2 -> the third.
+        when(sdkAssetSvc.getAssetHolders(eq(NET), eq(UNIT), eq(1), eq(2)))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, threeHolderRows().subList(0, 2)));
+        when(sdkAssetSvc.getAssetHolders(eq(NET), eq(UNIT), eq(2), eq(2)))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, threeHolderRows().subList(2, 3)));
 
         var svc = new NexusAssetService(sdkAssetSvc, NET);
         Result<List<AssetAddress>> page1 = svc.getAssetAddresses(UNIT, 2, 1);
         Result<List<AssetAddress>> page2 = svc.getAssetAddresses(UNIT, 2, 2);
 
+        verify(sdkAssetSvc, times(1)).getAssetHolders(NET, UNIT, 1, 2);
+        verify(sdkAssetSvc, times(1)).getAssetHolders(NET, UNIT, 2, 2);
         assertThat(page1.getValue()).extracting(AssetAddress::getAddress)
                 .containsExactly("addr1aaa", "addr1bbb");
         assertThat(page2.getValue()).extracting(AssetAddress::getAddress)
@@ -214,28 +227,31 @@ class NexusAssetServiceTest {
     }
 
     @Test
-    void getAssetAddresses_withOrder_delegatesSamePagination() throws Exception {
+    void getAssetAddresses_withOrder_ignoresOrderAndDelegatesSamePagination() throws Exception {
         var sdkAssetSvc = mock(adlabs.nexus.client.backend.api.asset.AssetService.class);
-        when(sdkAssetSvc.getNftAddress(eq(NET), eq(POLICY_ID), eq(ASSET_NAME)))
-                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, threePaymentAddressRows()));
+        // Nexus has no order param, so the order arg is ignored and the same (page, size) call is made.
+        when(sdkAssetSvc.getAssetHolders(eq(NET), eq(UNIT), eq(1), eq(2)))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, threeHolderRows().subList(0, 2)));
 
         var svc = new NexusAssetService(sdkAssetSvc, NET);
         Result<List<AssetAddress>> r = svc.getAssetAddresses(UNIT, 2, 1, OrderEnum.desc);
 
+        verify(sdkAssetSvc, times(1)).getAssetHolders(NET, UNIT, 1, 2);
         assertThat(r.getValue()).extracting(AssetAddress::getAddress)
                 .containsExactly("addr1aaa", "addr1bbb");
     }
 
     @Test
-    void getAllAssetAddresses_policyIdOnlyUnit_splitsWithEmptyAssetName() throws Exception {
+    void getAllAssetAddresses_policyIdOnlyUnit_passedThroughUnsplit() throws Exception {
         var sdkAssetSvc = mock(adlabs.nexus.client.backend.api.asset.AssetService.class);
-        when(sdkAssetSvc.getNftAddress(eq(NET), eq(POLICY_ID), eq("")))
-                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, threePaymentAddressRows()));
+        // The holders endpoint accepts the full unit; a policy-id-only unit is forwarded as-is (no split).
+        when(sdkAssetSvc.getAssetHolders(eq(NET), eq(POLICY_ID), eq(1), eq(HOLDERS_MAX_PAGE_SIZE)))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, threeHolderRows()));
 
         var svc = new NexusAssetService(sdkAssetSvc, NET);
         Result<List<AssetAddress>> r = svc.getAllAssetAddresses(POLICY_ID);
 
-        verify(sdkAssetSvc, times(1)).getNftAddress(NET, POLICY_ID, "");
+        verify(sdkAssetSvc, times(1)).getAssetHolders(NET, POLICY_ID, 1, HOLDERS_MAX_PAGE_SIZE);
         assertThat(r.isSuccessful()).isTrue();
         assertThat(r.getValue()).hasSize(3);
     }
@@ -243,7 +259,7 @@ class NexusAssetServiceTest {
     @Test
     void getAllAssetAddresses_sdkApiException_rethrownAsBloxbean() throws Exception {
         var sdkAssetSvc = mock(adlabs.nexus.client.backend.api.asset.AssetService.class);
-        when(sdkAssetSvc.getNftAddress(any(), any(), any()))
+        when(sdkAssetSvc.getAssetHolders(any(), any(), anyInt(), anyInt()))
                 .thenThrow(new adlabs.nexus.client.backend.api.base.exception.ApiException("addresses boom"));
 
         var svc = new NexusAssetService(sdkAssetSvc, NET);
