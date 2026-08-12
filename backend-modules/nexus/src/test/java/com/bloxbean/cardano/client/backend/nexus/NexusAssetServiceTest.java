@@ -185,6 +185,14 @@ class NexusAssetServiceTest {
         );
     }
 
+    private static List<AssetHolder> holderRows(int n) {
+        List<AssetHolder> rows = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            rows.add(AssetHolder.builder().address("addr1_" + i).quantity(String.valueOf(i)).build());
+        }
+        return rows;
+    }
+
     // getAllAssetAddresses fetches the first page at the max holders page size and maps address + quantity.
     private static final int HOLDERS_MAX_PAGE_SIZE = 100;
 
@@ -203,6 +211,40 @@ class NexusAssetServiceTest {
                 .containsExactly("addr1aaa", "addr1bbb", "addr1ccc");
         assertThat(r.getValue()).extracting(AssetAddress::getQuantity)
                 .containsExactly("10", "20", "30");
+    }
+
+    @Test
+    void getAllAssetAddresses_walksAllPagesUntilShortPage() throws Exception {
+        var sdkAssetSvc = mock(adlabs.nexus.client.backend.api.asset.AssetService.class);
+        // A full first page (HOLDERS_MAX_PAGE_SIZE rows) must trigger a second fetch; the short second
+        // page ends the walk. A single page-1 fetch would have truncated to the first 100 holders.
+        List<AssetHolder> fullPage = holderRows(HOLDERS_MAX_PAGE_SIZE);
+        List<AssetHolder> shortPage = holderRows(30);
+        when(sdkAssetSvc.getAssetHolders(eq(NET), eq(UNIT), eq(1), eq(HOLDERS_MAX_PAGE_SIZE)))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, fullPage));
+        when(sdkAssetSvc.getAssetHolders(eq(NET), eq(UNIT), eq(2), eq(HOLDERS_MAX_PAGE_SIZE)))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, shortPage));
+
+        var svc = new NexusAssetService(sdkAssetSvc, NET);
+        Result<List<AssetAddress>> r = svc.getAllAssetAddresses(UNIT);
+
+        verify(sdkAssetSvc, times(1)).getAssetHolders(NET, UNIT, 1, HOLDERS_MAX_PAGE_SIZE);
+        verify(sdkAssetSvc, times(1)).getAssetHolders(NET, UNIT, 2, HOLDERS_MAX_PAGE_SIZE);
+        assertThat(r.isSuccessful()).isTrue();
+        assertThat(r.getValue()).hasSize(HOLDERS_MAX_PAGE_SIZE + 30);
+    }
+
+    @Test
+    void getAllAssetAddresses_unsuccessfulPage_propagatesError() throws Exception {
+        var sdkAssetSvc = mock(adlabs.nexus.client.backend.api.asset.AssetService.class);
+        when(sdkAssetSvc.getAssetHolders(eq(NET), eq(UNIT), eq(1), eq(HOLDERS_MAX_PAGE_SIZE)))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.error(404, "not found"));
+
+        var svc = new NexusAssetService(sdkAssetSvc, NET);
+        Result<List<AssetAddress>> r = svc.getAllAssetAddresses(UNIT);
+
+        assertThat(r.isSuccessful()).isFalse();
+        assertThat(r.code()).isEqualTo(404);
     }
 
     @Test

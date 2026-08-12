@@ -79,17 +79,37 @@ public class NexusAssetService implements AssetService {
         }
     }
 
-    // Max page size the Nexus holders endpoint accepts.
+    // Max page size the Nexus holders endpoint accepts, and a hard safety cap bounding the page-loop below.
     private static final int HOLDERS_MAX_PAGE_SIZE = 100;
+    private static final int HOLDERS_MAX_PAGES = 1000;
 
+    // The holders endpoint is paginated and returns a bare list (no hasNext flag), so walk pages until a
+    // short (< page size) page marks the end, accumulating all holders. A single page-1 fetch would have
+    // silently truncated any asset with more than HOLDERS_MAX_PAGE_SIZE holders.
     @Override
     public Result<List<AssetAddress>> getAllAssetAddresses(String asset) throws ApiException {
+        List<AssetAddress> all = new ArrayList<>();
         try {
-            return NexusResultMapper.map(assetService.getAssetHolders(network, asset, 1, HOLDERS_MAX_PAGE_SIZE),
-                    this::toAssetAddresses);
+            int page = 1;
+            boolean more = true;
+            while (more && page <= HOLDERS_MAX_PAGES) {
+                adlabs.nexus.client.backend.api.base.Result<List<AssetHolder>> pageResult =
+                        assetService.getAssetHolders(network, asset, page, HOLDERS_MAX_PAGE_SIZE);
+                if (!pageResult.isSuccessful()) {
+                    return Result.error(pageResult.getResponse()).code(pageResult.getCode());
+                }
+                List<AssetHolder> holders = pageResult.getValue();
+                int fetched = holders == null ? 0 : holders.size();
+                if (fetched > 0) {
+                    all.addAll(toAssetAddresses(holders));
+                }
+                more = fetched == HOLDERS_MAX_PAGE_SIZE;
+                page++;
+            }
         } catch (adlabs.nexus.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
+        return Result.success("OK").withValue(all).code(200);
     }
 
     @Override
