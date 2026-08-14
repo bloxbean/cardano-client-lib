@@ -87,6 +87,10 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getPolicyAssets_DESC() throws ApiException {
         AssetService service = getBackendService().getAssetService();
+        if (backendType.equals(NEXUS)) { // Nexus has no assets-by-policy endpoint
+            assertThrows(UnsupportedOperationException.class, () -> service.getPolicyAssets("0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9ef", 100, 1, OrderEnum.desc));
+            return;
+        }
         Result<List<PolicyAsset>> result = service.getPolicyAssets("0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9ef", 100, 1, OrderEnum.desc);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
@@ -98,6 +102,10 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getPolicyAssets_ASC() throws ApiException {
         AssetService service = getBackendService().getAssetService();
+        if (backendType.equals(NEXUS)) { // Nexus has no assets-by-policy endpoint
+            assertThrows(UnsupportedOperationException.class, () -> service.getPolicyAssets("b3723bcb8a451492c839fbcd322de2403a6c53d0e74006de39cb6ff0", 100, 1, OrderEnum.asc));
+            return;
+        }
         Result<List<PolicyAsset>> result = service.getPolicyAssets("b3723bcb8a451492c839fbcd322de2403a6c53d0e74006de39cb6ff0", 100, 1, OrderEnum.asc);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
@@ -109,6 +117,10 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getAllPolicyAssets() throws ApiException {
         AssetService service = getBackendService().getAssetService();
+        if (backendType.equals(NEXUS)) { // Nexus has no assets-by-policy endpoint
+            assertThrows(UnsupportedOperationException.class, () -> service.getAllPolicyAssets("d611714cf0a96bfc6e0eeb9e8b6b04a1f3653cf9290dae604e4757e8"));
+            return;
+        }
         Result<List<PolicyAsset>> result = service.getAllPolicyAssets("d611714cf0a96bfc6e0eeb9e8b6b04a1f3653cf9290dae604e4757e8");
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
@@ -121,6 +133,10 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getAssetTransactions() throws ApiException {
         AssetService service = getBackendService().getAssetService();
+        if (backendType.equals(NEXUS)) { // Nexus has no asset-transactions endpoint
+            assertThrows(UnsupportedOperationException.class, () -> service.getTransactions("0be55d262b29f564998ff81efe21bdc0022621c12f15af08d0f2ddb17cbbed4218ca44ca5a744aef7cf8b0287869b6ed5ce8fd47b012b0a21e509edc", 1, 1, OrderEnum.desc));
+            return;
+        }
         Result<List<AssetTransactionContent>> result = service.getTransactions("0be55d262b29f564998ff81efe21bdc0022621c12f15af08d0f2ddb17cbbed4218ca44ca5a744aef7cf8b0287869b6ed5ce8fd47b012b0a21e509edc", 1, 1, OrderEnum.desc);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));

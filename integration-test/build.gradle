@@ -4,5 +4,6 @@ dependencies {
     implementation project(':backend-modules:blockfrost')
     implementation project(':backend-modules:koios')
     implementation project(':backend-modules:ogmios')
+    implementation project(':backend-modules:nexus')
 }
 

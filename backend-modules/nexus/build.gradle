@@ -1,0 +1,16 @@
+dependencies {
+    api project(':core')
+    api project(':backend')
+    api libs.nexus.java
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Nexus Backend'
+                description = 'Cardano Client Lib - Nexus Backend Module'
+            }
+        }
+    }
+}

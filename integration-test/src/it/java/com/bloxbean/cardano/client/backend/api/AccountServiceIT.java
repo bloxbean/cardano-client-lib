@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccountServiceIT extends BaseITTest {
@@ -43,6 +44,10 @@ class AccountServiceIT extends BaseITTest {
     @Test
     void testGetAccountHistory() throws ApiException {
         String stakeAddress = "stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm";
+        if (backendType.equals(NEXUS)) { // Nexus has no account-history endpoint
+            assertThrows(UnsupportedOperationException.class, () -> accountService.getAccountHistory(stakeAddress, 50, 1));
+            return;
+        }
         Result<List<AccountHistory>> result = accountService.getAccountHistory(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountHistory> accountRewardsHistories = result.getValue();
@@ -71,6 +76,10 @@ class AccountServiceIT extends BaseITTest {
     @Test
     void testGetAccountAssets() throws ApiException {
         String stakeAddress = "stake_test1upxeg0r67z4wca682l28ghg69jxaxgswdmpvnher7at697qmhymyp";
+        if (backendType.equals(NEXUS)) { // Nexus has no per-account assets endpoint
+            assertThrows(UnsupportedOperationException.class, () -> accountService.getAccountAssets(stakeAddress, 50, 1));
+            return;
+        }
         Result<List<AccountAsset>> result = accountService.getAccountAssets(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountAsset> accountAssets = result.getValue();
@@ -80,6 +89,10 @@ class AccountServiceIT extends BaseITTest {
     @Test
     void testGetAllAccountAssets() throws ApiException {
         String stakeAddress = "stake_test1upxeg0r67z4wca682l28ghg69jxaxgswdmpvnher7at697qmhymyp";
+        if (backendType.equals(NEXUS)) { // Nexus has no per-account assets endpoint
+            assertThrows(UnsupportedOperationException.class, () -> accountService.getAllAccountAssets(stakeAddress));
+            return;
+        }
         Result<List<AccountAsset>> result = accountService.getAllAccountAssets(stakeAddress);
         assertTrue(result.isSuccessful());
         List<AccountAsset> accountAssets = result.getValue();

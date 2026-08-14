@@ -206,6 +206,8 @@ subprojects {
                         testTask.configure {
                             // set a system property for the test JVM(s)
                             systemProperty('BF_PROJECT_ID', findProperty("BF_PROJECT_ID"))
+                            systemProperty('BACKEND_TYPE', findProperty("BACKEND_TYPE"))
+                            systemProperty('NEXUS_API_KEY', findProperty("NEXUS_API_KEY"))
                         }
                     }
                 }
