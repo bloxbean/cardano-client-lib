@@ -678,63 +678,87 @@ After `maxRetainedSettledItems` (default 10k) the live map and claim-key index d
 
 ## 20. Error-code map
 
-Codes are string literals on `TxStreamException` (no public constants class yet). Grouped by phase.
+Core codes are public constants on `TxStreamCodes`; compare those constants with
+`TxStreamException.getCode()` instead of copying literals. Extension modules own
+their own catalogs. The core catalog is source-scanned during tests, so a new
+literal cannot ship uncatalogued and a removed code cannot leave an orphan
+constant.
 
 **Acceptance / content**
 
-| Code | Meaning |
-|---|---|
-| `TXSTREAM_INVALID_ITEM` | Item content violates policy (blank ids, store text policy, …) |
-| `TXSTREAM_NON_PORTABLE_ITEM` | Payload cannot be compiled by the engine |
-| `TXSTREAM_DUPLICATE_ITEM` | Same item id, different fingerprint |
-| `TXSTREAM_IDEMPOTENCY_KEY_REUSE` | Key already bound to a different live item id |
-| `TXSTREAM_REGISTRATION_FAILED` | Authoritative `registerItem` failed |
-| `TXSTREAM_TEMPLATE_UNKNOWN` | Item references an unregistered template |
-| `TXSTREAM_LANE_REQUIRED` | Explicit/template policy needs a lane name |
-| `TXSTREAM_LANE_MISMATCH` | Named lane ≠ configured / derived lane |
-| `TXSTREAM_LANE_UNRESOLVED` | Resolver failed or returned null (not retained) |
-| `TXSTREAM_LANE_UNDERIVABLE` | No single `from` / `from_ref` to derive a lane |
-| `TXSTREAM_LANE_SCOPE_OVERLAP` | Two identities claim overlapping funding scopes |
-| `TXSTREAM_LANE_SCOPE_VIOLATION` | Transaction draws outside the lane's funding scope |
+| Code | Meaning | Caller action |
+|---|---|---|
+| `TXSTREAM_INVALID_ITEM` | Identity/content violates the stream contract | Fix the item; the rejected id may be retried with corrected content |
+| `TXSTREAM_NON_PORTABLE_ITEM` | Payload cannot be represented by the portable engine contract | Replace Java factories or unsupported values with portable plans/resources |
+| `TXSTREAM_DUPLICATE_ITEM` | Same item id is registered with different content | Reuse the original content or allocate a genuinely new stable item id |
+| `TXSTREAM_IDEMPOTENCY_KEY_REUSE` | Key belongs to another item id | Attach to the original item; do not invent a new key and blindly resubmit |
+| `TXSTREAM_REGISTRATION_FAILED` | Authoritative item registration failed | Repair/check the store, then retry the same item safely |
+| `TXSTREAM_TEMPLATE_UNKNOWN` | Referenced template is not registered | Register the intended template or fix its id |
+| `TXSTREAM_TEMPLATE_DRIFT` | Registered template differs from durable state | Restore the original definition or perform an explicit migration |
+| `TXSTREAM_LANE_REQUIRED` | Policy/template requires an explicit lane | Supply a valid lane or select a derivable lane policy |
+| `TXSTREAM_LANE_MISMATCH` | Supplied lane disagrees with configured/derived funding | Correct the lane; never route around the funding mismatch |
+| `TXSTREAM_LANE_UNRESOLVED` | Resolver failed or returned no lane | Repair resolver/configuration, then retry the rejected item |
+| `TXSTREAM_LANE_UNDERIVABLE` | No single `from` or `from_ref` exists | Add one funding source or configure an explicit lane |
+| `TXSTREAM_LANE_AMBIGUOUS` | Both `from` and `from_ref` are present | Keep exactly one funding representation |
+| `TXSTREAM_LANE_SCOPE_OVERLAP` | Configured lanes claim overlapping funding scopes | Remove the alias/overlap so one canonical identity owns the scope |
+| `TXSTREAM_LANE_SCOPE_VIOLATION` | Transaction draws outside its resolved lane | Correct transaction funding or lane configuration |
+| `TXSTREAM_NON_PERSISTABLE_SECRET` | Durable work contains an inline secret | Replace it with a server-owned secure reference |
 
 **Planning / dispatch**
 
-| Code | Meaning |
-|---|---|
-| `TXSTREAM_PLANNER_FAILED` | Planner threw or returned null |
-| `TXSTREAM_PLAN_INVALID` | Duplicate mappings, orphan steps, bad claim key |
-| `TXSTREAM_PLAN_CROSS_LANE` | One planned flow spans lanes |
-| `TXSTREAM_PLAN_OMITTED` | Planner dropped an accepted item |
-| `TXSTREAM_BATCH_INELIGIBLE_ITEM` | Non-payment item with reject-mode batching |
-| `TXSTREAM_BINDING_FAILED` | Write-ahead bind failed (fail-closed, no start) |
-| `TXSTREAM_NON_PERSISTABLE_SECRET` | Inline sensitive binding in durable mode |
-| `TXSTREAM_PLANNED_ENCODE_FAILED` / `_WRITE_FAILED` | Durable planned-record persistence |
-| `TXSTREAM_DISPATCH_FAILED` | Engine `start` failed or unexpected pre-start error |
-| `TXSTREAM_EXECUTION_UNOBSERVABLE` | Start succeeded; observer could not be registered |
-| `TXSTREAM_EXECUTION_FAILED` | Engine completion path itself broke |
-| `TXSTREAM_PROJECTION_FAILED` | Terminal projection threw for one member |
+| Code | Meaning | Caller action |
+|---|---|---|
+| `TXSTREAM_PLANNER_FAILED` | Planner threw, returned null, or could not plan | Fix planner/input; inspect the cause before retrying |
+| `TXSTREAM_PLAN_INVALID` | Mapping, step, or claim invariant is invalid | Fix the custom planner; no execution was dispatched |
+| `TXSTREAM_PLAN_CROSS_LANE` | One planned flow spans funding lanes | Partition output into one flow per canonical lane |
+| `TXSTREAM_PLAN_OMITTED` | Planner omitted an accepted member | Fix planner completeness; inspect the omitted item's receipt |
+| `TXSTREAM_BATCH_INELIGIBLE_ITEM` | Reject-mode batching received a non-payment item | Use singleton fallback, `perItem`, or payment-shaped input |
+| `TXSTREAM_BINDING_FAILED` | Write-ahead execution binding failed | Repair durable storage; confirm no engine start before retrying |
+| `TXSTREAM_BINDING_MISSING` | Required durable binding is absent | Reconcile/repair durable state; do not construct a fresh payment blindly |
+| `TXSTREAM_PLANNED_ENCODE_FAILED` | Planned execution could not be encoded | Fix codec-incompatible planner output |
+| `TXSTREAM_PLANNED_WRITE_FAILED` | Planned execution could not be persisted | Repair storage and retry only after checking durable state |
+| `TXSTREAM_DISPATCH_FAILED` | Engine start failed before a safely observed run | Inspect cause/store claim before deciding whether retry is safe |
+| `TXSTREAM_EXECUTION_UNOBSERVABLE` | Start succeeded but observer registration failed | Reconcile by execution id; do not resubmit |
+| `TXSTREAM_EXECUTION_FAILED` | Engine completion/observation path failed | Inspect engine state and transaction hash before recovery |
+| `TXSTREAM_EXECUTION_CANCELLED` | Engine execution was cancelled | Treat as cancelled unless a submitted hash requires reconciliation |
+| `TXSTREAM_PROJECTION_FAILED` | Engine result could not be projected to an item | Inspect execution and durable step mapping; repair projection |
 
 **Lifecycle / HA / recovery**
 
-| Code | Meaning |
-|---|---|
-| `TXSTREAM_CLOSED` | Not accepting (including blocking submit on STANDBY) |
-| `TXSTREAM_ABORTED` | Stream abort cancelled this item |
-| `TXSTREAM_UNHEALTHY` | Dispatcher died before the item could run |
-| `TXSTREAM_INTERRUPTED` | Thread interrupted in `submit` / `drain` |
-| `TXSTREAM_TIMEOUT` | `awaitDrain` deadline |
-| `TXSTREAM_DRAIN_FAILED` | Unexpected drain failure |
-| `TXSTREAM_ITEM_CANCELLED` / `TXSTREAM_EXECUTION_CANCELLED` | Caller cancel |
-| `TXSTREAM_OWNERSHIP_FENCED` | Lease renewal lost |
-| `TXSTREAM_OWNERSHIP_LOST` | Queued work settled on step-down |
-| `TXSTREAM_BOOTSTRAP_FAILED` / `_CONFIG_DRIFT` | Partitioned fan-out |
-| `TXSTREAM_ABANDONED` | Accepted before crash, never bound |
-| `TXSTREAM_REATTACH_*` | Reattach could not confirm / step missing |
-| `TXSTREAM_TEMPLATE_DRIFT` | Re-registered template definition changed |
-| `TXSTREAM_SOURCE_FAILED` | Work publisher `onError` |
-| `TXSTREAM_SUBSCRIBER_OVERFLOW` | Downstream Flow subscriber |
+| Code | Meaning | Caller action |
+|---|---|---|
+| `TXSTREAM_CLOSED` | Stream is new, draining, or closed and not accepting | Start/open it, or route work to a live stream |
+| `TXSTREAM_NOT_ACTIVE` | Ownership-enabled stream is temporarily standby | Route to the active owner or retry after takeover; do not close the source as terminal |
+| `TXSTREAM_ABORTED` | Abort cancelled unresolved work | Inspect receipts/report; reconcile any signalled submitted executions |
+| `TXSTREAM_UNHEALTHY` | Dispatcher cannot safely run work | Stop intake, inspect root cause, and recover/restart deliberately |
+| `TXSTREAM_INTERRUPTED` | Blocking wait/submission was interrupted | Interruption is restored; propagate or handle cancellation policy |
+| `TXSTREAM_TIMEOUT` | Caller wait/drain budget expired | Inspect the latest projection; timeout does not imply transaction failure |
+| `TXSTREAM_DRAIN_FAILED` | Drain failed unexpectedly | Inspect cause and outstanding receipts before shutdown/retry |
+| `TXSTREAM_ITEM_CANCELLED` | Item reached the cancelled outcome | Do not assume a known submitted hash vanished; reconcile when present |
+| `TXSTREAM_ITEM_FAILED` | Item failed without a more specific code | Inspect nested cause and hash before choosing correction/retry |
+| `TXSTREAM_ITEM_UNKNOWN` | Requested item id is not known | Verify id/retention/store and use the authoritative source of record |
+| `TXSTREAM_RECOVERY_REQUIRED` | Submitted transaction outcome is uncertain | **Do not resubmit**; call `reconcile`/`awaitResolution` with the same id |
+| `TXSTREAM_OWNERSHIP_FENCED` | Store rejected a stale ownership epoch | Stop writes and let the current owner reconcile |
+| `TXSTREAM_OWNERSHIP_LOST` | Instance stepped down and settled queued work | Route to the new owner; reconcile already-started executions |
+| `TXSTREAM_BOOTSTRAP_FAILED` | Partitioned-lane fan-out failed | Inspect bootstrap execution/store before retrying |
+| `TXSTREAM_BOOTSTRAP_CONFIG_DRIFT` | Partition configuration differs from durable state | Restore matching configuration or perform explicit migration |
+| `TXSTREAM_ABANDONED` | Crash left accepted work without a binding | Reconcile source/durable registration; never infer it did not submit |
+| `TXSTREAM_REATTACH_CANCELLED` | Reattached execution is cancelled | Apply cancellation policy; reconcile a retained hash if any |
+| `TXSTREAM_REATTACH_FAILED` | Reattachment failed without a specific diagnosis | Inspect durable engine snapshot and cause |
+| `TXSTREAM_REATTACH_STEP_MISSING` | Stored item maps to a missing engine step | Repair incompatible/corrupt durable state |
+| `TXSTREAM_REATTACH_UNCONFIRMED` | Reattachment cannot prove confirmation | Reconcile; do not resubmit |
+| `TXSTREAM_SOURCE_FAILED` | Attached publisher called `onError` | Repair/restart the source; accepted receipts remain authoritative |
+| `TXSTREAM_SUBSCRIBER_OVERFLOW` | Downstream subscriber exceeded bounded delivery | Increase/drain downstream capacity or resubscribe from authoritative state |
 
-Store-layer codes (`TXSTREAM_STORE_*`, `TXSTREAM_ITEM_UNKNOWN`, `TXSTREAM_BINDING_MISSING`) surface from SPI implementations.
+**Core store codec**
+
+| Code | Meaning | Caller action |
+|---|---|---|
+| `TXSTREAM_STORE_CODEC_CORRUPT` | Persisted value is structurally corrupt | Quarantine/repair the record; do not guess transaction state |
+| `TXSTREAM_STORE_CODEC_DECODE_FAILED` | Persisted value could not be decoded | Inspect data and codec cause; migrate or repair explicitly |
+| `TXSTREAM_STORE_CODEC_ENCODE_FAILED` | Runtime value could not be encoded | Fix unsupported content before persistence/retry |
+| `TXSTREAM_STORE_CODEC_UNSUPPORTED` | Persisted codec shape is unsupported | Use a supported representation or explicit migration |
+| `TXSTREAM_STORE_CODEC_UNSUPPORTED_VERSION` | Persisted codec version is unsupported | Upgrade/downgrade with a reviewed data migration |
 
 ---
 

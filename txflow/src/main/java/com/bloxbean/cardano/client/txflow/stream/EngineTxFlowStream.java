@@ -1144,6 +1144,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                     CompletableFuture.allOf(outstanding.toArray(new CompletableFuture[0]))
                             .minimalCompletionStage());
             abortReport = report;
+            safeListener(() -> listener.onStreamAborted(streamId, report));
             TxStreamException cause = new TxStreamException("TXSTREAM_ABORTED",
                     reason != null ? reason : "Stream aborted");
             for (ItemState state : buffered) {

@@ -68,6 +68,20 @@ public interface TxStreamEventListener {
     }
 
     /**
+     * Called exactly once after an abort report is published and before
+     * {@link #onStreamClosed(String)}. The report is immutable, but its
+     * {@link AbortReport#quiescence()} stage may still be incomplete because
+     * cancellation is cooperative. Reentrant calls to
+     * {@link TxFlowStream#abort(String)} return this same report and do not
+     * trigger another callback.
+     *
+     * @param streamId stream id
+     * @param report published abort report
+     */
+    default void onStreamAborted(String streamId, AbortReport report) {
+    }
+
+    /**
      * Called after the stream has released its source and resources.
      *
      * @param streamId stream id
