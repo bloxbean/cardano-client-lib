@@ -52,7 +52,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * <pre>{@code
  * try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
  *         .lane(ResolvedLane.ofAddress("payouts", senderAddress))
- *         .executor(streamExecutor)              // caller-owned, required
+ *         .executor(streamExecutor)              // optional caller-owned override
  *         .build()) {
  *     stream.start();
  *
@@ -861,6 +861,11 @@ public interface TxFlowStream extends AutoCloseable {
          * creates or owns threads, mirroring {@link FlowEngine}. Dispatch for
          * different lanes is submitted as independent tasks, so a
          * multi-threaded executor lets lanes dispatch concurrently.
+         * When omitted from a stream built with
+         * {@link TxFlowStream#builder(String, FlowEngine)}, the stream inherits
+         * the engine's caller-owned execution executor without taking
+         * ownership. A custom engine gateway that cannot expose a dispatcher
+         * still requires this method.
          *
          * @param value caller-owned executor
          * @return this builder
@@ -995,8 +1000,14 @@ public interface TxFlowStream extends AutoCloseable {
                                     + " caller-owned scheduler (the stream never owns threads)");
                 }
             }
-            Objects.requireNonNull(executor,
-                    "executor must be supplied (caller-owned, like FlowEngine)");
+            if (executor == null) {
+                executor = gateway.executionExecutor().orElseThrow(() ->
+                        new IllegalStateException(
+                                "executor must be supplied because the configured engine gateway "
+                                        + "does not expose one; configure executor(Executor), or "
+                                        + "build the stream from a FlowEngine to inherit its "
+                                        + "caller-owned execution executor"));
+            }
             return new EngineTxFlowStream(this);
         }
     }

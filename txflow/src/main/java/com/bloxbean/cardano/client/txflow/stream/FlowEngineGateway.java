@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 
 /**
  * Production {@link EngineGateway} delegating to a caller-owned
@@ -32,6 +33,11 @@ final class FlowEngineGateway implements EngineGateway {
     @Override
     public boolean durableExecution() {
         return engine.capabilities().durableExecution();
+    }
+
+    @Override
+    public Optional<Executor> executionExecutor() {
+        return Optional.of(engine.executionExecutor());
     }
 
     @Override
