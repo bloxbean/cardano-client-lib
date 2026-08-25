@@ -1862,6 +1862,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         }
         step.getDependencies().forEach(builder::dependsOn);
         step.getNeeds().forEach(builder::needs);
+        step.getFundingFrom().forEach(builder::fundsFrom);
         step.getOutputBindings().forEach(builder::bindOutput);
         return builder.build();
     }

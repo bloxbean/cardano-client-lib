@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.intent.PaymentIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 
@@ -51,7 +52,37 @@ final class BuiltInPlanners {
      * any submission order produce a byte-identical plan. Flow-level dedup
      * only (Decision 3).
      */
-    static final TxStreamPlanner PER_WINDOW = context -> {
+    static final TxStreamPlanner PER_WINDOW = context -> planPerWindow(context, null);
+
+    /** Per-window planning with explicitly requested engine pipelining. */
+    private static final TxStreamPlanner PER_WINDOW_PIPELINED =
+            context -> planPerWindow(context, ChainingMode.PIPELINED);
+
+    /**
+     * Returns a per-window planner for the supported planner-local chaining
+     * modes. The legacy/default sequential planner deliberately leaves the
+     * execution setting absent so existing flow fingerprints and idempotency
+     * claims remain byte-for-byte compatible.
+     */
+    static TxStreamPlanner perWindow(ChainingMode chainingMode) {
+        if (chainingMode == null) {
+            throw new IllegalArgumentException(
+                    "TxStream perWindow chainingMode must be SEQUENTIAL or PIPELINED");
+        }
+        switch (chainingMode) {
+            case SEQUENTIAL:
+                return PER_WINDOW;
+            case PIPELINED:
+                return PER_WINDOW_PIPELINED;
+            default:
+                throw new IllegalArgumentException(
+                        "TxStream perWindow supports only SEQUENTIAL and PIPELINED; "
+                                + chainingMode + " is not supported");
+        }
+    }
+
+    private static TxStreamPlan planPerWindow(TxStreamPlanningContext context,
+                                               ChainingMode chainingMode) {
         // Lane groups keyed and ordered by canonical spending identity.
         Map<String, List<TxWorkItem>> groups = new TreeMap<>();
         for (TxWorkItem item : context.items()) {
@@ -69,8 +100,12 @@ final class BuiltInPlanners {
             List<String> sortedKeys = new ArrayList<>(byClaimKey.keySet());
             String flowClaimKey = StreamIdentities.windowClaimKey(sortedKeys);
             TxFlow.Builder flowBuilder = TxFlow.builder(context.ids().flowId(sortedKeys));
+            if (chainingMode != null) {
+                flowBuilder.withChainingMode(chainingMode);
+            }
             List<TxStreamPlannedItem> mappings = new ArrayList<>(byClaimKey.size());
             String laneName = null;
+            String previousGeneratedStepId = null;
             for (Map.Entry<String, TxWorkItem> member : byClaimKey.entrySet()) {
                 TxStreamPlanningContext.PlanningSeed seed =
                         context.seed(member.getValue().getItemId());
@@ -78,14 +113,23 @@ final class BuiltInPlanners {
                     laneName = seed.lane.laneName();
                 }
                 String stepId = context.ids().stepId(member.getKey());
-                flowBuilder.addStep(copyStepWithId(seed.enforcedStep, stepId));
+                // Pipelining one funding lane requires an explicit dependency
+                // chain so each later build can consume the preceding
+                // transaction's expected change output. Merely setting the
+                // engine mode filters spent base UTxOs but cannot make pending
+                // outputs visible to an otherwise independent step.
+                String pipelineFunding = chainingMode == ChainingMode.PIPELINED
+                        ? previousGeneratedStepId : null;
+                flowBuilder.addStep(copyStepWithId(
+                        seed.enforcedStep, stepId, pipelineFunding));
                 mappings.add(new TxStreamPlannedItem(member.getValue().getItemId(), stepId));
+                previousGeneratedStepId = stepId;
             }
             executions.add(new PlannedExecution(flowBuilder.build(), laneName,
                     flowClaimKey, mappings));
         }
         return TxStreamPlan.of(executions);
-    };
+    }
 
     /**
      * Builds the {@code batching(...)} planner (ADR 0004 Decision 6): within
@@ -331,6 +375,11 @@ final class BuiltInPlanners {
      * they are rejected at submit-time portability validation.
      */
     private static FlowStep copyStepWithId(FlowStep step, String newId) {
+        return copyStepWithId(step, newId, null);
+    }
+
+    private static FlowStep copyStepWithId(FlowStep step, String newId,
+                                           String additionalFundingStep) {
         FlowStep.Builder builder = FlowStep.builder(newId);
         if (step.getTxPlan() != null) {
             builder.withTxPlan(step.getTxPlan());
@@ -345,6 +394,10 @@ final class BuiltInPlanners {
             builder.withRetryPolicy(step.getRetryPolicy());
         }
         step.getDependencies().forEach(builder::dependsOn);
+        step.getFundingFrom().forEach(builder::fundsFrom);
+        if (additionalFundingStep != null) {
+            builder.fundsFrom(additionalFundingStep);
+        }
         step.getNeeds().forEach(builder::needs);
         step.getOutputBindings().forEach(builder::bindOutput);
         return builder.build();

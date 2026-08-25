@@ -35,7 +35,11 @@
  * with a multi-item planner (for example
  * {@link com.bloxbean.cardano.client.txflow.stream.TxStreamPlanner#perWindow()})
  * groups a window of items into shared multi-step flows, each item riding its
- * own step and projecting from its own step's outcome. An item may instead be
+ * own step and projecting from its own step's outcome. Generated per-window
+ * flows can opt into planner-local pipelining through
+ * {@link com.bloxbean.cardano.client.txflow.stream.TxStreamPlanner#perWindow(com.bloxbean.cardano.client.txflow.ChainingMode)};
+ * this never overrides per-item, batching, custom-planner, or template flow
+ * settings. An item may instead be
  * a reference to a pre-registered parameterized template
  * ({@link com.bloxbean.cardano.client.txflow.stream.TxWorkItem.Builder#withTemplate}
  * against a definition registered with

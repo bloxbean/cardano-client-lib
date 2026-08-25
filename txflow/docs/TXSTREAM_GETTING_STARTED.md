@@ -122,6 +122,32 @@ introduced:
 | Maintenance | None on direct stream builder | Timed/durable features require an explicit scheduler; `FlowRuntime` supplies its owned scheduler |
 | Confirmation | Poll every 2 seconds; 60-second engine execution timeout | The receipt timeout is a separate caller budget |
 
+## Opt in to pipelined windows
+
+The default `perItem()` planner is the safest starting point. When several
+transactions from one funding source should form one dependent flow, close them
+as a window and put the chaining choice on that planner:
+
+```java
+TxFlowStream stream = TxFlowStream.builder("payouts", engine)
+        .planner(TxStreamPlanner.perWindow(ChainingMode.PIPELINED))
+        .window(WindowPolicy.count(4))
+        .open();
+```
+
+`perWindow()` and `perWindow(ChainingMode.SEQUENTIAL)` retain the existing
+confirmation-between-steps behavior. `PIPELINED` submits the generated steps
+as a deterministic dependency chain without waiting for confirmation between
+them, so an early transaction failure can also invalidate later transactions
+that spend its expected outputs. It does not alter per-item, batching,
+custom-planner, or registered-template flows.
+`ChainingMode.BATCH` is intentionally rejected for this API.
+
+Per-window identity covers the exact member set, not each item independently.
+If a source can redeliver individual items, retain `perItem()` or deduplicate
+upstream; a redelivered item in a differently composed window is a new flow and
+can produce a second payment.
+
 ## Where to go next
 
 - Direct `FlowEngine` construction is the production/server path when the

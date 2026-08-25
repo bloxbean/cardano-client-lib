@@ -3,6 +3,9 @@ package com.bloxbean.cardano.client.txflow.stream;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
+import com.bloxbean.cardano.client.txflow.FlowStep;
+import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionRequest;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
@@ -20,6 +23,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,6 +39,99 @@ class TxFlowStreamPerWindowPlannerTest {
     private static final String SENDER_B = "addr_test1vpqsenderb";
     private static final String RECEIVER = "addr_test1vpqreceiver";
     private static final String NAMESPACE = StreamIdentities.namespace("payouts");
+
+    // ------------------------------------------------------------------
+    // Planner-local chaining mode
+    // ------------------------------------------------------------------
+
+    @Test
+    void defaultAndExplicitSequentialAreTheSameCompatibilityPlanner() {
+        assertSame(TxStreamPlanner.perWindow(),
+                TxStreamPlanner.perWindow(ChainingMode.SEQUENTIAL));
+
+        FlowExecutionRequest legacy = runOneWindow(new StubEngineGateway(),
+                List.of("pay-1", "pay-2"), TxStreamPlanner.perWindow());
+        FlowExecutionRequest explicit = runOneWindow(new StubEngineGateway(),
+                List.of("pay-1", "pay-2"),
+                TxStreamPlanner.perWindow(ChainingMode.SEQUENTIAL));
+
+        assertEquals(legacy.getDefinition().getId(), explicit.getDefinition().getId());
+        assertEquals(legacy.getDefinition().getStepIds(),
+                explicit.getDefinition().getStepIds(),
+                "explicit sequential must preserve the legacy definition identity");
+        assertEquals(legacy.getExecutionId(), explicit.getExecutionId());
+        assertEquals(legacy.getIdempotencyKey(), explicit.getIdempotencyKey());
+        assertNull(explicit.getDefinition().getExecutionSettings().getChainingMode(),
+                "legacy sequential stays implicit for request compatibility");
+    }
+
+    @Test
+    void pipelinedModeIsAppliedToTheGeneratedMultiStepFlow() {
+        FlowExecutionRequest request = runOneWindow(new StubEngineGateway(),
+                List.of("pay-1", "pay-2"),
+                TxStreamPlanner.perWindow(ChainingMode.PIPELINED));
+
+        assertEquals(2, request.getDefinition().getSteps().size());
+        assertEquals(ChainingMode.PIPELINED,
+                request.getDefinition().getExecutionSettings().getChainingMode());
+        assertTrue(request.getDefinition().getSteps().get(0).getFundingFrom().isEmpty());
+        assertEquals(request.getDefinition().getSteps().get(0).getId(),
+                request.getDefinition().getSteps().get(1).getFundingFrom().get(0),
+                "same-lane pipelining must expose the previous pending change output");
+    }
+
+    @Test
+    void perWindowRejectsNullAndBatchInsteadOfDowngrading() {
+        assertThrows(IllegalArgumentException.class, () -> TxStreamPlanner.perWindow(null));
+        IllegalArgumentException unsupported = assertThrows(IllegalArgumentException.class,
+                () -> TxStreamPlanner.perWindow(ChainingMode.BATCH));
+        assertTrue(unsupported.getMessage().contains("only SEQUENTIAL and PIPELINED"));
+    }
+
+    @Test
+    void plannerLocalModeDoesNotChangeOtherBuiltInOrCustomPlannerFlows() {
+        StubEngineGateway perItemGateway = new StubEngineGateway();
+        try (TxFlowStream stream = singleLaneBuilder(perItemGateway,
+                TxStreamPlanner.perItem()).build()) {
+            stream.start();
+            stream.submit(planItem("per-item"));
+            assertNull(perItemGateway.started.get(0).getDefinition()
+                    .getExecutionSettings().getChainingMode());
+            completeAllStepsConfirmed(perItemGateway, 0);
+        }
+
+        StubEngineGateway batchingGateway = new StubEngineGateway();
+        try (TxFlowStream stream = singleLaneBuilder(batchingGateway,
+                TxStreamPlanner.batching()).build()) {
+            stream.start();
+            stream.submit(planItem("batched"));
+            assertNull(batchingGateway.started.get(0).getDefinition()
+                    .getExecutionSettings().getChainingMode());
+            completeAllStepsConfirmed(batchingGateway, 0);
+        }
+
+        TxStreamPlanner custom = context -> {
+            TxWorkItem item = context.items().get(0);
+            TxStreamPlanningContext.PlanningSeed seed = context.seed(item.getItemId());
+            FlowStep step = seed.enforcedStep;
+            TxFlow flow = TxFlow.builder(context.ids().flowId(List.of(seed.claimKey)))
+                    .withChainingMode(ChainingMode.BATCH)
+                    .addStep(step)
+                    .build();
+            return TxStreamPlan.of(List.of(new PlannedExecution(flow, seed.lane.laneName(),
+                    seed.claimKey,
+                    List.of(new TxStreamPlannedItem(item.getItemId(), step.getId())))));
+        };
+        StubEngineGateway customGateway = new StubEngineGateway();
+        try (TxFlowStream stream = singleLaneBuilder(customGateway, custom).build()) {
+            stream.start();
+            stream.submit(planItem("custom"));
+            assertEquals(ChainingMode.BATCH, customGateway.started.get(0).getDefinition()
+                    .getExecutionSettings().getChainingMode(),
+                    "custom planners retain ownership of their flow settings");
+            completeAllStepsConfirmed(customGateway, 0);
+        }
+    }
 
     // ------------------------------------------------------------------
     // Lane partitioning
@@ -266,7 +364,12 @@ class TxFlowStreamPerWindowPlannerTest {
     // ------------------------------------------------------------------
 
     private FlowExecutionRequest runOneWindow(StubEngineGateway gateway, List<String> itemIds) {
-        try (TxFlowStream stream = singleLaneBuilder(gateway)
+        return runOneWindow(gateway, itemIds, TxStreamPlanner.perWindow());
+    }
+
+    private FlowExecutionRequest runOneWindow(StubEngineGateway gateway, List<String> itemIds,
+                                              TxStreamPlanner planner) {
+        try (TxFlowStream stream = singleLaneBuilder(gateway, planner)
                 .window(WindowPolicy.count(itemIds.size())).build()) {
             stream.start();
             for (String itemId : itemIds) {
@@ -297,9 +400,14 @@ class TxFlowStreamPerWindowPlannerTest {
     }
 
     private TxFlowStream.Builder singleLaneBuilder(StubEngineGateway gateway) {
+        return singleLaneBuilder(gateway, TxStreamPlanner.perWindow());
+    }
+
+    private TxFlowStream.Builder singleLaneBuilder(StubEngineGateway gateway,
+                                                   TxStreamPlanner planner) {
         return new TxFlowStream.Builder("payouts", gateway)
                 .lane(ResolvedLane.ofAddress("payouts-lane", SENDER_A))
-                .planner(TxStreamPlanner.perWindow())
+                .planner(planner)
                 .executor(Runnable::run)
                 .clock(Clock.fixed(StubEngineGateway.NOW, ZoneOffset.UTC));
     }

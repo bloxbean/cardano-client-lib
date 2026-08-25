@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow.stream;
 
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -47,6 +48,26 @@ class TxFlowStreamTemplateTest {
     // ------------------------------------------------------------------
     // One registered definition, many parameterized invocations
     // ------------------------------------------------------------------
+
+    @Test
+    void perWindowPipeliningDoesNotOverrideRegisteredTemplateSettings() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        TxFlow batchTemplate = template(ChainingMode.BATCH);
+        try (TxFlowStream stream = baseBuilder("payouts", gateway)
+                .lane(ResolvedLane.ofAddress("payouts-lane", SENDER))
+                .planner(TxStreamPlanner.perWindow(ChainingMode.PIPELINED))
+                .template(TEMPLATE_ID, batchTemplate)
+                .build()) {
+            stream.start();
+            stream.submit(templateItem("pay-1", RECEIVER, 5L));
+
+            assertSame(batchTemplate, gateway.started.get(0).getDefinition());
+            assertEquals(ChainingMode.BATCH, gateway.started.get(0).getDefinition()
+                    .getExecutionSettings().getChainingMode(),
+                    "planner-local settings apply only to generated per-window flows");
+            gateway.lastHandle().completeConfirmed(STEP_ID, "tx");
+        }
+    }
 
     @Test
     void nItemsWithDifferentBindingsRunNExecutionsOffOneRegisteredDefinition() {
@@ -811,6 +832,10 @@ class TxFlowStreamTemplateTest {
 
     /** A parameterized, portable payout template with a single "pay" step. */
     private TxFlow template() {
+        return template(null);
+    }
+
+    private TxFlow template(ChainingMode chainingMode) {
         String yaml = "api_version: txflow.cardano-client.dev/v1alpha1\n"
                 + "kind: TxFlow\n"
                 + "metadata: {name: payout-template}\n"
@@ -818,6 +843,8 @@ class TxFlowStreamTemplateTest {
                 + "  parameters:\n"
                 + "    receiver: {type: address, required: true}\n"
                 + "    amount: {type: integer, required: true}\n"
+                + (chainingMode != null
+                ? "  execution: {mode: " + chainingMode + "}\n" : "")
                 + "  steps:\n"
                 + "    - id: " + STEP_ID + "\n"
                 + "      transaction:\n"
