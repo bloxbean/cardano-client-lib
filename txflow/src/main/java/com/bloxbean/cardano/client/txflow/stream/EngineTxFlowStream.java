@@ -1249,8 +1249,20 @@ final class EngineTxFlowStream implements TxFlowStream {
                                 + " ownership lease holder); submit to the ACTIVE owner");
             case CLOSED:
             default:
-                throw new TxStreamException("TXSTREAM_CLOSED",
-                        "Stream '" + streamId + "' is not accepting work");
+                throw notAcceptingFailure();
+        }
+    }
+
+    private TxStreamException notAcceptingFailure() {
+        synchronized (stateLock) {
+            if (!started && !closed) {
+                return new TxStreamException("TXSTREAM_CLOSED",
+                        "Stream '" + streamId + "' has not been started; call start() after "
+                                + "build(), or use TxFlowStream.open(...) / Builder.open() to "
+                                + "build and start with failure cleanup");
+            }
+            return new TxStreamException("TXSTREAM_CLOSED",
+                    "Stream '" + streamId + "' is not accepting work");
         }
     }
 

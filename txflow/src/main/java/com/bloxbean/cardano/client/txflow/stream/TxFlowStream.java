@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
 import com.bloxbean.cardano.client.txflow.store.FlowStoreTextPolicy;
@@ -223,6 +224,18 @@ public interface TxFlowStream extends AutoCloseable {
     TxStreamReceipt submit(TxWorkItem item);
 
     /**
+     * Submits a common single-transaction plan using the item id as its
+     * idempotency key.
+     *
+     * @param itemId stable caller-visible item and idempotency identity
+     * @param plan portable transaction plan
+     * @return receipt for the accepted item
+     */
+    default TxStreamReceipt submit(String itemId, TxPlan plan) {
+        return submit(TxWorkItem.fromTxPlan(itemId, plan));
+    }
+
+    /**
      * Submits one work item without blocking for buffer capacity.
      * <p>
      * Unlike {@link #submit(TxWorkItem)}, this method never throws for a
@@ -239,6 +252,18 @@ public interface TxFlowStream extends AutoCloseable {
      *         rejection when registration fails
      */
     EmitResult trySubmit(TxWorkItem item);
+
+    /**
+     * Attempts non-blocking submission of a common single-transaction plan
+     * using the item id as its idempotency key.
+     *
+     * @param itemId stable caller-visible item and idempotency identity
+     * @param plan portable transaction plan
+     * @return non-blocking submission outcome
+     */
+    default EmitResult trySubmit(String itemId, TxPlan plan) {
+        return trySubmit(TxWorkItem.fromTxPlan(itemId, plan));
+    }
 
     /**
      * Cancels one item with a typed outcome (ADR 0004 Decision 7.5).
@@ -438,6 +463,19 @@ public interface TxFlowStream extends AutoCloseable {
      */
     static Builder builder(String streamId, FlowEngine engine) {
         return new Builder(streamId, new FlowEngineGateway(engine));
+    }
+
+    /**
+     * Builds and starts a stream using the supplied engine and safe defaults.
+     * If startup fails, the partially started stream is aborted before the
+     * original failure is rethrown.
+     *
+     * @param streamId stable stream id; defines the idempotency namespace
+     * @param engine caller-owned flow engine
+     * @return started stream
+     */
+    static TxFlowStream open(String streamId, FlowEngine engine) {
+        return builder(streamId, engine).open();
     }
 
     /**
@@ -1008,6 +1046,30 @@ public interface TxFlowStream extends AutoCloseable {
                                         + "caller-owned execution executor"));
             }
             return new EngineTxFlowStream(this);
+        }
+
+        /**
+         * Builds and starts the stream, aborting the partially started instance
+         * if any startup stage fails. The original startup failure remains
+         * primary and a cleanup failure is attached as suppressed.
+         *
+         * @return built and started stream
+         */
+        public TxFlowStream open() {
+            TxFlowStream stream = build();
+            try {
+                stream.start();
+                return stream;
+            } catch (RuntimeException | Error failure) {
+                try {
+                    stream.abort("Stream startup failed");
+                } catch (RuntimeException | Error cleanupFailure) {
+                    if (cleanupFailure != failure) {
+                        failure.addSuppressed(cleanupFailure);
+                    }
+                }
+                throw failure;
+            }
         }
     }
 }

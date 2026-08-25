@@ -23,6 +23,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -153,6 +154,31 @@ class TxFlowStreamPartitionedTest {
                             .allMatch(request -> request.getIdempotencyKey().startsWith("bootstrap:")),
                     "no item is dispatched against unfunded lanes when the bootstrap fails");
         }
+    }
+
+    @Test
+    void openAbortsExactlyOnceWhenBootstrapFails() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        gateway.immediateResult = request -> request.getIdempotencyKey().startsWith("bootstrap:")
+                ? failed(request) : null;
+        AtomicInteger closedEvents = new AtomicInteger();
+        TxStreamEventListener listener = new TxStreamEventListener() {
+            @Override
+            public void onStreamClosed(String streamId) {
+                closedEvents.incrementAndGet();
+            }
+        };
+
+        TxStreamException failure = assertThrows(TxStreamException.class,
+                () -> partitioned(gateway, twoLaneConfig(true))
+                        .eventListener(listener)
+                        .open());
+
+        assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.getCode());
+        assertEquals(1, closedEvents.get(), "the failed open must abort exactly once");
+        assertTrue(gateway.started.stream()
+                        .allMatch(request -> request.getIdempotencyKey().startsWith("bootstrap:")),
+                "startup cleanup must not dispatch work against unfunded lanes");
     }
 
     @Test
