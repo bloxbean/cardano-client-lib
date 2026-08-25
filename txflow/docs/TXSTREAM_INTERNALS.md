@@ -53,6 +53,7 @@ Everything lives in `txflow/src/main/java/com/bloxbean/cardano/client/txflow/`:
 
 | Path | Role |
 |---|---|
+| `FlowRuntime.java` | Optional managed composition root: owns one ordinary engine, its executors, and streams opened for beginner/script use; contains no transaction behavior |
 | `stream/TxFlowStream.java` | Public interface + `Builder`. Lifecycle: `start()`, `reattach()`, `bootstrap()`, `submit()`, `trySubmit()`, `cancelItem()`, `getItemStatus()`, `reconcile()`, `drain()` |
 | `stream/EngineTxFlowStream.java` | **The implementation.** One large file, by design: item acceptance, lanes, windows, dispatch, projection, reattach all share tightly-coupled state guarded by the same locks |
 | `stream/TxStreamPlanner.java`, `BuiltInPlanners.java` | Planner SPI + `perItem()` / `perWindow()` / `batching()` |
@@ -128,8 +129,17 @@ sequenceDiagram
 
     C->>S: submit(item) / trySubmit(item)
     S->>S: accept(): dedup by itemId, capacity, prepare() (lane + claim key)
-    S->>St: registerItem(record)  — authoritative, BEFORE planning
-    S-->>C: TxStreamReceipt (ACCEPTED)
+    alt eager validation rejects
+        S-->>C: throw typed / REJECTED (no receipt or state)
+    else prepared
+        S->>St: registerItem(record) — authoritative, BEFORE receipt publication
+        alt registration rejects
+            S-->>C: throw typed / REJECTED (no receipt or state)
+        else registered
+            S-->>C: TxStreamReceipt (ACCEPTED)
+        end
+    end
+    Note over S,Chain: Remaining path exists only after receipt publication
     S->>S: acceptIntoWindow() → window closes (WindowPolicy)
     S->>S: planner.plan(context) → PlannedExecution(s)
     S->>St: recordBinding(item → flowId/stepId)
@@ -160,20 +170,21 @@ Order matters here; each step exists to close a specific race:
 2. **Capacity**: a semaphore bounds buffered items. `submit()` blocks;
    `trySubmit()` returns `EmitResult` `FULL` without blocking.
 3. **`prepare(item)`**: resolves the lane (`LanePolicy`/`LaneIdentityResolver`),
-   computes the content fingerprint and the **claim key**. Failures here are typed
-   *content* outcomes (`TXSTREAM_INVALID_ITEM`, validation failures) — except
-   `TXSTREAM_LANE_UNRESOLVED`, which is transient infrastructure: it settles the item
-   typed but retains nothing, so a later redelivery retries fresh instead of attaching
-   to a poisoned failure.
+   computes the content fingerprint and the **claim key**. Any eager no-work failure
+   is a rejection: blocking `submit()` throws its typed cause and `trySubmit()` returns
+   `REJECTED`. It creates no receipt, item projection, retention entry, accepted/failed
+   counter, or `onItemAccepted` callback; `onItemRejected` fires once. A corrected
+   redelivery therefore retries fresh under the same item id.
 4. **Claim-key uniqueness across live items**: reusing an idempotency key under a *new*
    item id is rejected (`TXSTREAM_IDEMPOTENCY_KEY_REUSE`) — redelivery must reuse the
    original item id, or (after the original id settled `CANCELLED`) a new item id may
    carry the original key so the engine claim still deduplicates.
 5. **`stateStore.registerItem(...)` — the authoritative write, and it happens BEFORE
-   planning.** This is deliberate and planner-independent: the store is the dedup guard.
-   If registration fails, the accept **fails closed** (the item is rejected, never
-   half-admitted). If this ordering is ever reversed, restart-time dedup breaks for
-   items that were planned but not yet registered.
+   receipt publication and planning.** Same-item acceptance is striped so concurrent
+   submissions cannot attach to an unregistered provisional state. The store is the
+   dedup guard. If registration fails, acceptance **fails closed** (the item is rejected,
+   never half-admitted). Reversing this ordering would expose a receipt for work that
+   does not authoritatively exist and would break restart-time dedup.
 
 ### 4.2 Windowing and planning
 

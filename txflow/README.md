@@ -12,10 +12,17 @@ TxFlow requires Java 17. Applications own every executor supplied to the runtime
 running on Java 21 can therefore use virtual threads without TxFlow taking a compile-time
 dependency on Java 21 or creating hidden thread pools.
 
+For continuous transaction submission, start with
+[TxStream Getting Started](docs/TXSTREAM_GETTING_STARTED.md). Its managed `FlowRuntime` path needs
+only a backend, an account reference, and a transaction plan; direct `FlowEngine` construction
+below remains the advanced/server path with caller-owned resources.
+
 ## Choose the right API
 
 | Use case | API | Status |
 | --- | --- | --- |
+| First TxStream payment, scripts, and small applications | `FlowRuntime`, `TxFlowStream` | Recommended managed front door |
+| Server-owned continuous submission | `FlowEngine`, `TxFlowStream` | Recommended explicit-resource front door |
 | New portable or server-side flows | `TxFlowCodec`, `FlowExecutionRequest`, `FlowEngine` | Current |
 | Programmatic definition construction | `TxFlow`, `FlowStep`, exactly-one-transaction `TxPlan` | Supported portable subset |
 | Existing preview integrations | `FlowExecutor`, `FlowResult`, legacy YAML | Compatibility API |

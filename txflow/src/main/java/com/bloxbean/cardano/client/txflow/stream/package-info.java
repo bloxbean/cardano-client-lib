@@ -1,6 +1,29 @@
 /**
  * Streaming transaction workflows on the {@code FlowEngine} durable runtime.
  * <p>
+ * The managed beginner path uses
+ * {@link com.bloxbean.cardano.client.txflow.FlowRuntime} to own one ordinary
+ * engine, its executors, and opened streams. The default lane is derived from
+ * each plan's funding source, and the common submission overload uses the item
+ * id as its idempotency key:
+ * <pre>{@code
+ * try (FlowRuntime runtime = FlowRuntime.builder(backend)
+ *         .account("account://sender", sender)
+ *         .build();
+ *      TxFlowStream stream = runtime.open("payouts")) {
+ *     TxPlan plan = TxPlan.from(new Tx()
+ *                     .payToAddress(receiver, Amount.ada(2))
+ *                     .fromRef("account://sender"))
+ *             .withSigner("account://sender");
+ *     TxStreamItemResult result = stream.submit("order-0042", plan)
+ *             .awaitConfirmed(Duration.ofMinutes(5));
+ * }
+ * }</pre>
+ * Direct engine and stream builders remain the advanced/server path and never
+ * take ownership of caller-supplied executors. See the module's
+ * {@code TXSTREAM_GETTING_STARTED.md} for typed uncertainty recovery and the
+ * effective defaults.
+ * <p>
  * A {@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream} accepts
  * portable {@link com.bloxbean.cardano.client.txflow.stream.TxWorkItem}s and
  * plans them into idempotent engine executions on lanes — a lane is a funding
@@ -52,6 +75,10 @@
  * is opted in — push-repaired by a periodic stream-owned observer that runs on
  * the caller-owned maintenance scheduler, so a durable
  * {@code RECOVERY_REQUIRED} item is repaired after an operator runs
- * {@code engine.recover(...)} without anyone polling.
+ * {@code engine.recover(...)} without anyone polling. Eager validation and
+ * authoritative registration failures are rejected before any receipt or item
+ * state is created; blocking submission throws the typed cause and
+ * non-blocking submission returns
+ * {@link com.bloxbean.cardano.client.txflow.stream.EmitResult.Status#REJECTED}.
  */
 package com.bloxbean.cardano.client.txflow.stream;
