@@ -22,6 +22,17 @@ public interface TxStreamEventListener {
     }
 
     /**
+     * Called when submission is rejected before an item record or receipt is
+     * created. The callback is observational only: listener failures are
+     * isolated and cannot change the rejection outcome.
+     *
+     * @param itemId rejected caller-visible item id
+     * @param cause typed rejection cause
+     */
+    default void onItemRejected(String itemId, TxStreamException cause) {
+    }
+
+    /**
      * Called whenever the item projection advances, including read-through
      * recovery repairs.
      *

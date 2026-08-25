@@ -16,7 +16,6 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -103,7 +102,7 @@ class TxFlowStreamDxBaselineTest {
     }
 
     @Test
-    void portabilityValidationCurrentlyReturnsAnAcceptedFailedReceipt() {
+    void portabilityValidationRejectsWithoutAcceptanceOrRetention() {
         StubEngineGateway gateway = new StubEngineGateway();
         List<String> acceptedItems = new ArrayList<>();
         TxStreamEventListener listener = new TxStreamEventListener() {
@@ -120,17 +119,14 @@ class TxFlowStreamDxBaselineTest {
                             .withTxContext(quickTxBuilder -> null)
                             .build());
 
-            TxStreamReceipt receipt = stream.submit(nonPortable);
-            TxStreamItemResult result = receipt.completion().toCompletableFuture().join();
+            TxStreamException result = assertThrows(TxStreamException.class,
+                    () -> stream.submit(nonPortable));
 
-            assertEquals(TxStreamItemStatus.FAILED, result.getStatus());
-            assertEquals("TXSTREAM_NON_PORTABLE_ITEM",
-                    assertInstanceOf(TxStreamException.class, result.getError()).getCode());
-            assertEquals(List.of("factory-item"), acceptedItems);
-            assertEquals(1, stream.getStats().acceptedItemCount());
-            assertEquals(1, stream.getStats().failedItemCount());
-            assertSame(receipt, stream.submit(nonPortable),
-                    "the current retained validation failure attaches on redelivery");
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", result.getCode());
+            assertTrue(acceptedItems.isEmpty());
+            assertEquals(0, stream.getStats().acceptedItemCount());
+            assertEquals(0, stream.getStats().failedItemCount());
+            assertTrue(stream.getItemStatus("factory-item").isEmpty());
             assertTrue(gateway.started.isEmpty());
         }
     }
