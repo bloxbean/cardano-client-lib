@@ -57,6 +57,7 @@ Everything lives in `txflow/src/main/java/com/bloxbean/cardano/client/txflow/`:
 | `stream/TxFlowStream.java` | Public interface + `Builder`. Lifecycle: `start()`, `reattach()`, `bootstrap()`, `submit()`, `trySubmit()`, `cancelItem()`, `getItemStatus()`, `reconcile()`, `drain()` |
 | `stream/EngineTxFlowStream.java` | **The implementation.** One large file, by design: item acceptance, lanes, windows, dispatch, projection, reattach all share tightly-coupled state guarded by the same locks |
 | `stream/TxStreamPlanner.java`, `BuiltInPlanners.java` | Planner SPI + `perItem()` / `perWindow()` / planner-local `perWindow(PIPELINED)` / `batching()` |
+| `stream/TxStreamCodes.java`, `TxStreamEventListener.java` | Public core error catalog and isolated lifecycle/item observer contract |
 | `stream/LanePolicy.java`, `ResolvedLane.java`, `PartitionedLanes.java`, `LaneIdentityResolver.java` | Lane identity and resolution |
 | `stream/WindowPolicy.java` | Window close rules: `count(n)`, `time(d)`, `countOrTime(n, d)` |
 | `stream/StableIdFactory.java` | Deterministic flow/step id derivation (ADR 0004 Decision 3) |
@@ -287,6 +288,17 @@ does the state-only `templateFlowStatus` mapping apply: `COMPLETED`→CONFIRMED,
 
 All projection writes funnel through `project(state, target, mutator, …)`, which
 enforces monotonic advancement and store persistence.
+
+### 4.7 Abort lifecycle notification
+
+The first `abort(reason)` freezes and publishes one immutable `AbortReport` under
+the abort lock. `onStreamAborted(streamId, report)` then fires exactly once before
+`onStreamClosed`; its quiescence stage may still be incomplete because in-flight
+engine cancellation is cooperative. The report is published before the callback,
+so a listener that reenters `abort(...)` receives the same report and cannot widen
+it or duplicate either lifecycle notification. Every callback runs through
+`safeListener`, so a throwing abort listener cannot suppress close notification or
+change cancellation behavior.
 
 ---
 
