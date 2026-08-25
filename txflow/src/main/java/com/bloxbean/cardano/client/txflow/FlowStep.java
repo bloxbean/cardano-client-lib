@@ -64,6 +64,7 @@ public class FlowStep {
     private final List<StepDependency> dependencies;
     private final RetryPolicy retryPolicy;
     private final List<String> needs;
+    private final List<String> fundingFrom;
     private final TransactionTemplate transactionTemplate;
     private final Map<String, FlowOutputSelector> outputBindings;
 
@@ -75,6 +76,7 @@ public class FlowStep {
         this.dependencies = Collections.unmodifiableList(new ArrayList<>(builder.dependencies));
         this.retryPolicy = builder.retryPolicy;
         this.needs = Collections.unmodifiableList(new ArrayList<>(builder.needs));
+        this.fundingFrom = Collections.unmodifiableList(new ArrayList<>(builder.fundingFrom));
         this.transactionTemplate = builder.transactionTemplate;
         this.outputBindings = Collections.unmodifiableMap(new LinkedHashMap<>(builder.outputBindings));
     }
@@ -170,6 +172,7 @@ public class FlowStep {
         private final List<StepDependency> dependencies = new ArrayList<>();
         private RetryPolicy retryPolicy;
         private final List<String> needs = new ArrayList<>();
+        private final List<String> fundingFrom = new ArrayList<>();
         private TransactionTemplate transactionTemplate;
         private final Map<String, FlowOutputSelector> outputBindings = new LinkedHashMap<>();
 
@@ -273,6 +276,28 @@ public class FlowStep {
                 throw new IllegalArgumentException("needed step ID cannot be blank");
             }
             this.needs.add(stepId);
+            return this;
+        }
+
+        /**
+         * Makes outputs from an earlier step available to this step's normal
+         * address-based funding selection.
+         *
+         * <p>This is a portable funding relationship, not an exact input
+         * reference: the flow-aware UTxO supplier exposes only predecessor
+         * outputs whose address matches the address QuickTx is currently
+         * funding. It also establishes ordering. Use a named
+         * {@code flow_output} reference when a transaction must consume one
+         * exact output.</p>
+         *
+         * @param stepId earlier step whose pending outputs may fund this step
+         * @return this builder
+         */
+        public Builder fundsFrom(String stepId) {
+            if (stepId == null || stepId.isBlank()) {
+                throw new IllegalArgumentException("funding step ID cannot be blank");
+            }
+            this.fundingFrom.add(stepId);
             return this;
         }
 

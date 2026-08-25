@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -215,5 +216,24 @@ class FlowUtxoSupplierTest {
         assertEquals(explicit, supplier.getTxOutput(TX_HASH_2, 0).orElseThrow());
         assertTrue(supplier.getAll(ADDR).isEmpty(),
                 "explicit flow_output access must not act like an address dependency");
+    }
+
+    @Test
+    void portableFundingRelationshipExposesOnlyMatchingAddressOutputs() {
+        String otherAddress = "addr_test1vpqother";
+        Utxo matching = utxo(TX_HASH_2, 0, ADDR);
+        Utxo foreign = utxo(TX_HASH_2, 1, otherAddress);
+        context.recordStepResult("producer", FlowStepResult.success(
+                "producer", TX_HASH_2, List.of(matching, foreign), Collections.emptyList()));
+        when(baseSupplier.getAll(anyString())).thenReturn(List.of());
+        when(baseSupplier.getTxOutput(anyString(), anyInt())).thenReturn(Optional.empty());
+
+        FlowUtxoSupplier supplier = new FlowUtxoSupplier(
+                baseSupplier, context, List.of(), Set.of(), List.of("producer"));
+
+        assertEquals(List.of(matching), supplier.getAll(ADDR));
+        assertEquals(List.of(foreign), supplier.getAll(otherAddress));
+        assertTrue(supplier.getTxOutput(TX_HASH_2, 0).isEmpty(),
+                "funding availability must not grant exact-output lookup authority");
     }
 }

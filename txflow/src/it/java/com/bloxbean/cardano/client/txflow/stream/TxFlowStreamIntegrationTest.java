@@ -11,8 +11,11 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.YaciDevKitUtil;
+import com.bloxbean.cardano.client.txflow.exec.FlowEvent;
+import com.bloxbean.cardano.client.txflow.exec.FlowEventType;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
 import com.bloxbean.cardano.client.txflow.store.InMemoryFlowExecutionStore;
 import org.junit.jupiter.api.AfterEach;
@@ -262,6 +265,65 @@ class TxFlowStreamIntegrationTest {
             assertEquals(2, stats.confirmedItemCount());
             assertEquals(0, stats.failedItemCount());
             assertTrue(stream.isHealthy());
+        }
+    }
+
+    @Test
+    void pipelinedPerWindowSubmitsTheWholeWindowBeforeConfirmation() throws Exception {
+        try (TxFlowStream stream = TxFlowStream.builder("stream-it-window-pipelined", engine)
+                .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+                .planner(TxStreamPlanner.perWindow(ChainingMode.PIPELINED))
+                .window(WindowPolicy.count(2))
+                .executor(streamExecutor)
+                .maxBufferSize(10)
+                .build()) {
+            stream.start();
+
+            TxStreamReceipt first = stream.submit(TxWorkItem.builder("pipeline-payment-1")
+                    .withTxPlan(paymentPlan(Amount.ada(1.5)))
+                    .withIdempotencyKey("pipeline-order-1")
+                    .build());
+            TxStreamReceipt second = stream.submit(TxWorkItem.builder("pipeline-payment-2")
+                    .withTxPlan(paymentPlan(Amount.ada(1.25)))
+                    .withIdempotencyKey("pipeline-order-2")
+                    .build());
+
+            TxStreamItemResult firstResult = first.completion().toCompletableFuture()
+                    .get(180, TimeUnit.SECONDS);
+            TxStreamItemResult secondResult = second.completion().toCompletableFuture()
+                    .get(180, TimeUnit.SECONDS);
+            stream.awaitDrain(Duration.ofSeconds(60));
+
+            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.getStatus(),
+                    () -> String.valueOf(firstResult.getError()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.getStatus(),
+                    () -> String.valueOf(secondResult.getError()));
+            assertEquals(firstResult.getExecutionId(), secondResult.getExecutionId());
+            assertNotEquals(firstResult.getTransactionHash(), secondResult.getTransactionHash());
+
+            // The durable engine journal proves this was pipelined rather than
+            // merely a successful two-step sequential flow: both dependent
+            // transactions were submitted before either confirmation callback.
+            var eventView = engine.executionEvents(firstResult.getExecutionId(), 0, 100)
+                    .orElseThrow();
+            var submitted = eventView.events().stream()
+                    .filter(event -> event.type() == FlowEventType.TRANSACTION_SUBMITTED)
+                    .toList();
+            var confirmed = eventView.events().stream()
+                    .filter(event -> event.type() == FlowEventType.TRANSACTION_CONFIRMED)
+                    .toList();
+            assertEquals(2, submitted.size());
+            assertEquals(2, confirmed.size());
+            long lastSubmission = submitted.stream().mapToLong(FlowEvent::sequence).max()
+                    .orElseThrow();
+            long firstConfirmation = confirmed.stream().mapToLong(FlowEvent::sequence).min()
+                    .orElseThrow();
+            assertTrue(lastSubmission < firstConfirmation,
+                    "PIPELINED must submit every generated step before awaiting confirmation");
+
+            TxStreamBatchResult batch = stream.getBatchStatus("batch-1").orElseThrow();
+            assertEquals(TxStreamBatchStatus.COMPLETED, batch.status());
+            assertEquals(1, batch.executionIds().size());
         }
     }
 

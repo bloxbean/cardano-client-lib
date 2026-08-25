@@ -135,6 +135,32 @@ class TxFlowTest {
     }
 
     @Test
+    void validate_shouldTreatFundingFromAsAnOrderedPredecessor() {
+        TxFlow valid = TxFlow.builder("funding-flow")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .addStep(FlowStep.builder("step2")
+                        .fundsFrom("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+        assertThat(valid.validate().isValid()).isTrue();
+
+        TxFlow forward = TxFlow.builder("forward-funding-flow")
+                .addStep(FlowStep.builder("step1")
+                        .fundsFrom("step2")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .addStep(FlowStep.builder("step2")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+        assertThat(forward.validate().getErrors())
+                .anyMatch(error -> error.contains("funds from later step"));
+    }
+
+    @Test
     void getStep_shouldReturnStep() {
         // Given
         TxFlow flow = TxFlow.builder("get-step-flow")

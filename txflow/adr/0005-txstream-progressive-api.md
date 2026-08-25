@@ -2,11 +2,11 @@
 
 **Status**: Proposed
 
-**ADR Document Version**: 1.2.1
+**ADR Document Version**: 1.3.0
 
 **Date**: 2026-08-23
 
-**Last Updated**: 2026-08-25
+**Last Updated**: 2026-08-26
 
 **Review State**: Maintainer clarification round incorporated; final acceptance review pending
 
@@ -30,6 +30,7 @@ The ADR document version is independent of the library release version.
 | 1.1.0 | 2026-08-23 | Bloxbean / CCL maintainers with Codex review | External review round 1 incorporated | Promotes `FlowRuntime` as the beginner resource owner, adds account/wallet registration conveniences, renames the funding policy and settled wait, adds explicit uncertainty recovery, clarifies confirmation bounds and effective defaults, strengthens rejection/listener contracts, and moves durable registration/hydration to ADR 0006. |
 | 1.2.0 | 2026-08-25 | Bloxbean / CCL maintainers with Codex review | Maintainer review round 2 incorporated | Resolves all ADR 0005 blocking questions: fixes outcome and standby codes, places a narrow `FlowRuntime` in the top-level `txflow` package, limits per-window chaining to sequential/pipelined modes, names the ambiguous-funding diagnostic, and centralizes deferred API work with revisit criteria. |
 | 1.2.1 | 2026-08-25 | Bloxbean / CCL maintainers with Codex review | Maintainer clarification incorporated | Defines `FlowRuntime` as an optional managed composition root that owns and exposes one ordinary `FlowEngine`, delegates all execution to existing engine/stream code, and leaves direct `FlowEngine` use as the canonical advanced and server path. |
+| 1.3.0 | 2026-08-26 | Bloxbean / CCL maintainers with Codex implementation review | C1 implementation learning incorporated | Makes pipelined per-window funding explicit and portable: generated same-lane steps form a deterministic `funding_from` chain, exposing only predecessor outputs matching the requested funding address. This avoids double-spend/insufficient-funds behavior without changing `needs(...)` or exact `flow_output` semantics. |
 
 ### Versioning Rules for This ADR
 
@@ -49,7 +50,8 @@ Each review round adds a row here and a corresponding ADR version-history entry.
 | 1 | 1.0.0 -> 1.1.0 | 2026-08-23 | External API review (Claude), reconciled by maintainers/Codex | Incorporated | Accepted the simpler runtime ownership story, signer-registration convenience, explicit uncertain-outcome recipe, `awaitSettled`, `byFundingSource`, builder `open`, effective-default documentation, rejection callback, and stronger tests. Durable correctness moved to ADR 0006. Signer inference and a second `finalCompletion` promise were not adopted because they blur authorization and settlement semantics; explicit `awaitResolution` addresses the recovery use case. |
 | 2 | 1.1.0 -> 1.2.0 | 2026-08-25 | Maintainer review | Incorporated | Selected `TXSTREAM_RECOVERY_REQUIRED`, `TXSTREAM_ITEM_FAILED`, `TXSTREAM_NOT_ACTIVE`, and `TXSTREAM_LANE_AMBIGUOUS`; fixed the `FlowRuntime` package and narrow builder scope; limited `perWindow(...)` to `SEQUENTIAL`/`PIPELINED`; deferred `BATCH`, general fluent aliases, effective snapshots, and broader runtime customization. |
 | 3 | 1.2.0 -> 1.2.1 | 2026-08-25 | Maintainer clarification | Incorporated | Clarified why lifecycle ownership is not added conditionally to `FlowEngine`: `FlowRuntime` is optional composition infrastructure, owns exactly one normal engine, delegates rather than reimplements behavior, and can be bypassed completely by advanced callers. |
-| 4 | 1.2.1 | 2026-08-25 | Pending final acceptance review | Open | Confirm the resolved contract and explicitly move the ADR from `Proposed` to `Accepted`. |
+| 4 | 1.2.1 -> 1.3.0 | 2026-08-26 | C1 implementation review against Yaci DevKit | Incorporated | A mode-only prototype exposed an unsafe gap: later same-lane steps could not see pending change and failed after the first submission. Added a fingerprinted portable funding relationship, deterministic planner chaining, address-scope filtering, and live journal-order verification. |
+| 5 | 1.3.0 | 2026-08-26 | Pending final acceptance review | Open | Confirm the resolved contract and explicitly move the ADR from `Proposed` to `Accepted`. |
 
 Reviewers should cite decision, implementation-phase, or open-question numbers. A review round is complete when every raised finding has a recorded disposition and the next ADR version captures all accepted changes.
 
@@ -528,6 +530,18 @@ TxStreamPlanner.perWindow(ChainingMode.PIPELINED)
 
 `perWindow()` remains equivalent to `perWindow(ChainingMode.SEQUENTIAL)` for compatibility and safety. The overload accepts only `SEQUENTIAL` and `PIPELINED`; null and every other mode fail immediately with a teaching `IllegalArgumentException` rather than being ignored or downgraded. A `PerWindowOptions` type is not introduced until more than one planner-owned option is demonstrated.
 
+For `PIPELINED`, setting the engine mode alone is insufficient and unsafe: after
+the first transaction spends the lane's current UTxO, the next build must be
+able to fund from its pending change. The planner therefore links its stable,
+claim-key-sorted steps with the portable `funding_from` relationship. In Java,
+`FlowStep.Builder.fundsFrom(previousStepId)` exposes predecessor outputs only to
+normal address-based funding selection, and the flow-aware supplier filters
+them to the address QuickTx requested. It does not grant exact-output lookup,
+does not make differently addressed outputs spendable, and does not change the
+ordering-only contract of `needs(...)` or the exact-consumption contract of a
+named `flow_output`. The relationship is part of canonical portable encoding
+and therefore the compiled definition fingerprint.
+
 A global `.chaining(...)` builder option is rejected because it would be:
 
 - meaningless for one-step `perItem()` executions;
@@ -921,6 +935,9 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 - Add `perWindow(ChainingMode)` accepting only `SEQUENTIAL` and `PIPELINED`.
 - Keep `perWindow()` as the sequential compatibility factory.
 - Apply the mode only to the generated multi-step flow.
+- In pipelined mode, connect the deterministic step order with portable
+  `funding_from` relationships so pending same-address change can fund the next
+  build without broadening exact-output access.
 - Reject null, `BATCH`, and other unsupported modes immediately without downgrading.
 
 **Verification**
