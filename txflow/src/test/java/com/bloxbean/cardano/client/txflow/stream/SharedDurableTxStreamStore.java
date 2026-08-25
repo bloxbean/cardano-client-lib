@@ -62,6 +62,12 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
      */
     volatile boolean supportsOwnership = true;
 
+    /** Test hook for a fatal ownership-start failure that must escape cleanup. */
+    volatile Error ownershipAcquireError;
+
+    /** Test hook for a fatal re-attach failure that must escape cleanup. */
+    volatile Error reattachListError;
+
     @Override
     public boolean isDurable() {
         return true;
@@ -75,6 +81,9 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
     @Override
     public Optional<StreamOwnershipLease> tryAcquireOwnership(String streamId, String ownerToken,
                                                              Instant now, Duration duration) {
+        if (ownershipAcquireError != null) {
+            throw ownershipAcquireError;
+        }
         Objects.requireNonNull(streamId, "streamId");
         Objects.requireNonNull(ownerToken, "ownerToken");
         validateLeaseRequest(now, duration);
@@ -231,6 +240,9 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
 
     @Override
     public List<String> listNonTerminalItemIds(String streamId) {
+        if (reattachListError != null) {
+            throw reattachListError;
+        }
         List<String> result = new ArrayList<>();
         for (ProjectionEntry entry : projections.values()) {
             TxStreamItemResult projection = entry.result();

@@ -204,6 +204,11 @@ final class StubEngineGateway implements EngineGateway {
                     null, NOW, NOW));
         }
 
+        void completeCancelled() {
+            future.complete(new FlowExecutionResult(executionId, "fp",
+                    FlowExecutionState.CANCELLED, List.of(), null, NOW, NOW));
+        }
+
         void complete(FlowExecutionResult result) {
             future.complete(result);
         }
