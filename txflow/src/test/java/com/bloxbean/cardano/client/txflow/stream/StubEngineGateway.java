@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -35,6 +36,8 @@ final class StubEngineGateway implements EngineGateway {
     /** Whether the scripted engine reports a durable execution store (P5). */
     volatile boolean durable;
     volatile RuntimeException startFailure;
+    /** Optional caller-owned dispatcher exposed for builder inheritance tests. */
+    volatile Executor executionExecutor;
     /**
      * When set, start() completes the returned handle with this result unless
      * the function returns {@code null}, in which case the handle stays running
@@ -61,6 +64,11 @@ final class StubEngineGateway implements EngineGateway {
 
     StubEngineGateway(List<String> callLog) {
         this.callLog = callLog;
+    }
+
+    @Override
+    public Optional<Executor> executionExecutor() {
+        return Optional.ofNullable(executionExecutor);
     }
 
     @Override
