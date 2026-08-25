@@ -29,6 +29,11 @@ import java.util.concurrent.ScheduledExecutorService;
  * concurrently (scheduled per canonical spending identity, bounded by
  * {@link Builder#maxInFlight(int)}); executions on the same lane serialize
  * FIFO.
+ * When no lane policy is configured, {@link LanePolicy#byFundingSource()}
+ * derives a safe lane from the transaction's syntactic {@code from} or
+ * {@code from_ref} source. Explicit {@link Builder#lane(ResolvedLane)} or
+ * {@link Builder#lanes(LanePolicy)} configuration always overrides that
+ * default.
  * <p>
  * Guarantees inherited from the engine and this design:
  * <ul>
@@ -442,7 +447,7 @@ public interface TxFlowStream extends AutoCloseable {
     final class Builder {
         final String streamId;
         final EngineGateway gateway;
-        LanePolicy lanePolicy;
+        LanePolicy lanePolicy = LanePolicy.byFundingSource();
         LaneIdentityResolver laneResolver;
         TxWorkSource source = TxWorkSource.inMemory();
         TxStreamStateStore stateStore = TxStreamStateStore.inMemory();
@@ -490,7 +495,7 @@ public interface TxFlowStream extends AutoCloseable {
          * {@link LanePolicy#single(ResolvedLane)} (one statically configured
          * lane), {@link LanePolicy#explicit()} (dynamically named lanes,
          * requires {@link #laneResolver(LaneIdentityResolver)}),
-         * {@link LanePolicy#byFundingAddress()} (lane derived from each item's
+         * {@link LanePolicy#byFundingSource()} (lane derived from each item's
          * transaction funding source; no resolver), or
          * {@link LanePolicy#partitioned(PartitionedLanes)} (N application-owned
          * lanes with an optional one-time fan-out bootstrap).
@@ -599,7 +604,7 @@ public interface TxFlowStream extends AutoCloseable {
          * Template items require an explicit lane
          * ({@link LanePolicy#single(ResolvedLane)} or
          * {@link LanePolicy#explicit()}); deriving a lane from a template's bound
-         * definition under {@link LanePolicy#byFundingAddress()} /
+         * definition under {@link LanePolicy#byFundingSource()} /
          * {@link LanePolicy#partitioned(PartitionedLanes)} is a later iteration —
          * a template item under those modes fails typed
          * {@code TXSTREAM_LANE_REQUIRED}.
@@ -892,12 +897,6 @@ public interface TxFlowStream extends AutoCloseable {
          * @return configured stream, not yet started
          */
         public TxFlowStream build() {
-            if (lanePolicy == null) {
-                throw new IllegalStateException(
-                        "A lane policy is required: configure lane(ResolvedLane.ofAddress(...)), "
-                                + "lanes(LanePolicy.single(...)), or lanes(LanePolicy.explicit()) "
-                                + "with laneResolver(...)");
-            }
             if (lanePolicy.isExplicit() && laneResolver == null) {
                 throw new IllegalStateException(
                         "LanePolicy.explicit() requires laneResolver(LaneIdentityResolver)");

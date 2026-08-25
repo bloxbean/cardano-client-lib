@@ -26,7 +26,7 @@
  * {@link com.bloxbean.cardano.client.txflow.stream.LaneIdentityResolver}
  * ({@link com.bloxbean.cardano.client.txflow.stream.LanePolicy#explicit}),
  * derived from each item's transaction funding source
- * ({@link com.bloxbean.cardano.client.txflow.stream.LanePolicy#byFundingAddress}),
+ * ({@link com.bloxbean.cardano.client.txflow.stream.LanePolicy#byFundingSource}),
  * or hash-partitioned across N application-provided lane addresses with an
  * optional one-time fan-out bootstrap
  * ({@link com.bloxbean.cardano.client.txflow.stream.LanePolicy#partitioned}).
