@@ -44,6 +44,11 @@ class ExecutionTimingArchitectureTest {
         Path sourceRoot = Path.of("src/main/java/com/bloxbean/cardano/client/txflow");
         try (Stream<Path> sources = Files.walk(sourceRoot)) {
             for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
+                if (source.getFileName().toString().equals("FlowRuntime.java")) {
+                    // The optional managed runtime is the one explicit owner of
+                    // the executors/threads it creates (ADR 0005 Decision 13).
+                    continue;
+                }
                 String code = sourceCode(source);
                 assertFalse(code.contains("new Thread("), source + " must not construct a thread");
                 assertFalse(code.matches("(?s).*Executors\\.new[A-Z].*"),
