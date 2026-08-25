@@ -2,13 +2,13 @@
 
 **Status**: Proposed
 
-**ADR Document Version**: 1.1.0
+**ADR Document Version**: 1.2.1
 
 **Date**: 2026-08-23
 
-**Last Updated**: 2026-08-23
+**Last Updated**: 2026-08-25
 
-**Review State**: External review round 1 incorporated; review round 2 pending
+**Review State**: Maintainer clarification round incorporated; final acceptance review pending
 
 **Target Release**: Next TxStream preview release; exact version to be decided during review
 
@@ -28,6 +28,8 @@ The ADR document version is independent of the library release version.
 |-------------|------|--------|--------------|---------|
 | 1.0.0 | 2026-08-23 | Bloxbean / CCL maintainers with Codex review | Initial review draft | Defines a progressively disclosed TxStream API, safe defaults, exception-safe startup, typed receipt waiting, honest validation rejection, advanced planner controls, compatibility boundaries, and a phased implementation and verification plan. |
 | 1.1.0 | 2026-08-23 | Bloxbean / CCL maintainers with Codex review | External review round 1 incorporated | Promotes `FlowRuntime` as the beginner resource owner, adds account/wallet registration conveniences, renames the funding policy and settled wait, adds explicit uncertainty recovery, clarifies confirmation bounds and effective defaults, strengthens rejection/listener contracts, and moves durable registration/hydration to ADR 0006. |
+| 1.2.0 | 2026-08-25 | Bloxbean / CCL maintainers with Codex review | Maintainer review round 2 incorporated | Resolves all ADR 0005 blocking questions: fixes outcome and standby codes, places a narrow `FlowRuntime` in the top-level `txflow` package, limits per-window chaining to sequential/pipelined modes, names the ambiguous-funding diagnostic, and centralizes deferred API work with revisit criteria. |
+| 1.2.1 | 2026-08-25 | Bloxbean / CCL maintainers with Codex review | Maintainer clarification incorporated | Defines `FlowRuntime` as an optional managed composition root that owns and exposes one ordinary `FlowEngine`, delegates all execution to existing engine/stream code, and leaves direct `FlowEngine` use as the canonical advanced and server path. |
 
 ### Versioning Rules for This ADR
 
@@ -45,7 +47,9 @@ Each review round adds a row here and a corresponding ADR version-history entry.
 | Review round | ADR version | Date | Reviewer | Outcome | Resolution summary |
 |--------------|-------------|------|----------|---------|--------------------|
 | 1 | 1.0.0 -> 1.1.0 | 2026-08-23 | External API review (Claude), reconciled by maintainers/Codex | Incorporated | Accepted the simpler runtime ownership story, signer-registration convenience, explicit uncertain-outcome recipe, `awaitSettled`, `byFundingSource`, builder `open`, effective-default documentation, rejection callback, and stronger tests. Durable correctness moved to ADR 0006. Signer inference and a second `finalCompletion` promise were not adopted because they blur authorization and settlement semantics; explicit `awaitResolution` addresses the recovery use case. |
-| 2 | 1.1.0 | 2026-08-23 | Pending maintainer and external review | Open | Review the revised beginner path, runtime defaults, recovery helper, and scope split with ADR 0006. |
+| 2 | 1.1.0 -> 1.2.0 | 2026-08-25 | Maintainer review | Incorporated | Selected `TXSTREAM_RECOVERY_REQUIRED`, `TXSTREAM_ITEM_FAILED`, `TXSTREAM_NOT_ACTIVE`, and `TXSTREAM_LANE_AMBIGUOUS`; fixed the `FlowRuntime` package and narrow builder scope; limited `perWindow(...)` to `SEQUENTIAL`/`PIPELINED`; deferred `BATCH`, general fluent aliases, effective snapshots, and broader runtime customization. |
+| 3 | 1.2.0 -> 1.2.1 | 2026-08-25 | Maintainer clarification | Incorporated | Clarified why lifecycle ownership is not added conditionally to `FlowEngine`: `FlowRuntime` is optional composition infrastructure, owns exactly one normal engine, delegates rather than reimplements behavior, and can be bypassed completely by advanced callers. |
+| 4 | 1.2.1 | 2026-08-25 | Pending final acceptance review | Open | Confirm the resolved contract and explicitly move the ADR from `Proposed` to `Accepted`. |
 
 Reviewers should cite decision, implementation-phase, or open-question numbers. A review round is complete when every raised finding has a recorded disposition and the next ADR version captures all accepted changes.
 
@@ -55,7 +59,7 @@ TxStream has a strong correctness runtime but a heavy public front door. Sending
 
 This ADR introduces **progressive disclosure on the existing `TxFlowStream` type**:
 
-1. `FlowRuntime` owns beginner executors, signer registration, engine construction, open-stream tracking, and close ordering; `FlowEngine` remains the application-owned server path.
+1. The optional `FlowRuntime` composition root owns beginner executors, signer registration, one ordinary `FlowEngine`, open-stream tracking, and close ordering; direct `FlowEngine` use remains the application-owned advanced/server path.
 2. `FlowEngine.builder(BackendService)` hides the standard supplier adapters, and a stream can inherit the engine's caller-owned execution executor.
 3. The default `byFundingSource()` lane policy derives a safe lane from each transaction's syntactic `from` or `from_ref` funding source.
 4. `TxFlowStream.open(...)` and `Builder.open()` return an already-started stream and clean up a partially started instance if startup fails.
@@ -64,7 +68,7 @@ This ADR introduces **progressive disclosure on the existing `TxFlowStream` type
 7. Eager validation rejection is never reported as accepted work and has an explicit listener signal.
 8. Throughput, durability, ownership, sources, templates, custom planning, and direct executor ownership remain reachable through the same core types.
 
-The decision does **not** create another transaction runtime or status machine, create threads inside `FlowEngine` or `TxFlowStream`, auto-enable unsafe batching or durability, hide uncertain outcomes, or weaken any funds-safety invariant established by ADRs 0002–0004. `FlowRuntime` is an explicit resource-owning convenience boundary around the existing engine and stream.
+The decision does **not** create another transaction execution runtime or status machine, create threads inside `FlowEngine` or `TxFlowStream`, auto-enable unsafe batching or durability, hide uncertain outcomes, or weaken any funds-safety invariant established by ADRs 0002–0004. Despite its name, `FlowRuntime` is only an optional, explicit resource-owning composition boundary around the existing engine and stream. It creates and exposes a normal `FlowEngine`; all planning, submission, observation, and projection behavior continues through the existing `FlowEngine` and `EngineTxFlowStream` implementation.
 
 ## Context
 
@@ -173,7 +177,7 @@ These are correctness workstreams with store and hydration implications, not con
 
 1. **Progressive disclosure:** the common path names only the concepts it needs; advanced concerns appear as explicit builder or planner options.
 2. **Safe defaults:** default choices must preserve per-item deduplication, UTXO serialization, honest outcomes, and explicit durability.
-3. **One type, one runtime:** simple and advanced callers use `TxFlowStream`; there is no parallel feature-reduced abstraction.
+3. **One stream type, one execution implementation:** simple and advanced callers use `TxFlowStream`, and all work executes through the existing `FlowEngine`/`EngineTxFlowStream` implementation. `FlowRuntime` is optional lifecycle composition, not a parallel execution implementation or feature-reduced API.
 4. **Loud uncertainty:** no convenience method may turn `RECOVERY_REQUIRED` into success or conclusive failure.
 5. **Explicit resource ownership:** inheritance may reuse caller-owned resources but never transfer ownership. `FlowRuntime` may own resources only because its type, builder, and `AutoCloseable` contract make that ownership explicit.
 6. **No silent no-ops:** an advanced option that cannot affect the selected planner/runtime should be rejected or explicitly documented.
@@ -288,7 +292,7 @@ The policy derives the canonical lane from the single transaction's `from` addre
 - items using the same funding source share one canonical FIFO;
 - items using different funding sources may execute concurrently, bounded by `maxInFlight`;
 - an item with no funding source fails with `TXSTREAM_LANE_UNDERIVABLE` and a teaching message;
-- an item declaring both `from` and `from_ref` fails with a distinct ambiguity diagnostic;
+- an item declaring both `from` and `from_ref` fails with `TXSTREAM_LANE_AMBIGUOUS`;
 - a supplied item lane that does not match the derived funding source remains `TXSTREAM_LANE_MISMATCH`;
 - explicit `.lane(...)` and `.lanes(...)` always override the default.
 
@@ -408,7 +412,7 @@ Eager validation that creates no registered or buffered work is rejection, not a
 | Different-content reuse | throw typed conflict | `CONFLICT` | No | No |
 | Eager content/configuration validation failure | throw typed cause | `REJECTED` | No | No |
 | Authoritative registration failure | throw typed cause | `REJECTED` | No | No |
-| Ownership standby | throw not-active/paused stream error | `PAUSED` | No | No |
+| Ownership standby | throw `TXSTREAM_NOT_ACTIVE` | `PAUSED` | No | No |
 | Buffer full | block until capacity or interruption | `FULL` | No | No |
 | Not started, draining, closed, aborted, or unhealthy | throw typed stream error | `CLOSED` | No | No |
 
@@ -474,9 +478,9 @@ The post-wait `current()` read is required because the promise is a point-in-tim
 
 Error-code rule for the convenience exceptions:
 
-- a failed result preserves an underlying `TxStreamException` code when one exists, otherwise uses a documented generic item-failed code;
+- a failed result preserves an underlying `TxStreamException` code when one exists, otherwise uses `TXSTREAM_ITEM_FAILED`;
 - cancellation uses `TXSTREAM_ITEM_CANCELLED`;
-- uncertainty uses a new documented core code such as `TXSTREAM_RECOVERY_REQUIRED` (final spelling is an open review item).
+- uncertainty uses `TXSTREAM_RECOVERY_REQUIRED`.
 
 Timed waits:
 
@@ -516,13 +520,13 @@ ADR 0004 promises three Cardano-native throughput levers:
 
 Lanes and batching are already public. Built-in intra-lane pipelining is made reachable through the planner that creates a multi-step flow, not through a misleading stream-global setting.
 
-Preferred API direction:
+The initial API is:
 
 ```java
 TxStreamPlanner.perWindow(ChainingMode.PIPELINED)
 ```
 
-or a small immutable `PerWindowOptions` if review identifies additional planner-owned settings. The ordinary `perWindow()` factory remains sequential for compatibility and safety.
+`perWindow()` remains equivalent to `perWindow(ChainingMode.SEQUENTIAL)` for compatibility and safety. The overload accepts only `SEQUENTIAL` and `PIPELINED`; null and every other mode fail immediately with a teaching `IllegalArgumentException` rather than being ignored or downgraded. A `PerWindowOptions` type is not introduced until more than one planner-owned option is demonstrated.
 
 A global `.chaining(...)` builder option is rejected because it would be:
 
@@ -531,7 +535,7 @@ A global `.chaining(...)` builder option is rejected because it would be:
 - potentially ignored by custom planners;
 - incorrect as an override of registered template settings.
 
-The initial implementation supports `SEQUENTIAL` and `PIPELINED` for the per-window built-in. `ChainingMode.BATCH` is rejected unless the implementation review proves that its build-all/submit-all behavior is safe for same-lane window steps and adds dedicated tests. Unsupported modes fail at planner construction or stream build; they do not silently downgrade.
+`ChainingMode.BATCH` is deferred. Its build-all/submit-all behavior must not be enabled for same-lane window steps until a later review proves it funds and submits safely and adds dedicated failure/uncertainty tests. See [Deferred Items](#deferred-items). Unsupported modes fail at planner construction; they do not silently downgrade.
 
 ## Decision 11: Durable Correctness Is Governed by ADR 0006
 
@@ -565,7 +569,7 @@ It fires exactly once after the report is published and before the existing exac
 
 ### Accessor convention
 
-Fluent result aliases such as `status()` and `transactionHash()` may be added, but existing `getX()` methods are not deprecated in the DX release. The API still mixes records, fluent value objects, and JavaBean models; removal is deferred until a repository-wide pre-1.0 convention is accepted.
+General fluent result aliases such as `status()` and `transactionHash()` are deferred. Existing `getX()` methods remain unchanged and are not deprecated in the DX release. Only the purpose-specific `isUncertain()` predicate is added because it directly prevents outcome misuse. A repository-wide accessor convention must be accepted before broader alias or removal work.
 
 ### Store package
 
@@ -590,13 +594,15 @@ The first DX release documents its effective defaults even if an immutable progr
 | Maintenance | none on direct builder | Timed/durable features require an explicit scheduler; `FlowRuntime` supplies its owned scheduler |
 | Confirmation | simple polling, 2-second interval, 60-second execution timeout unless configured | Receipt wait timeout remains a separate caller budget |
 
-An immutable effective-configuration view and a derived lifecycle status remain useful advanced operability follow-ups. They must not expose executor ownership or create a second mutable configuration surface.
+An immutable effective-configuration view and a derived lifecycle status are deferred. The documentation table is required in the first release and is the normative defaults reference until usage demonstrates the exact fields a programmatic snapshot needs. A future snapshot must not expose executor ownership or create a second mutable configuration surface.
 
-## Decision 13: `FlowRuntime` Owns the First-Hour Lifecycle
+## Decision 13: Optional `FlowRuntime` Owns the First-Hour Lifecycle
 
-`FlowRuntime` is included in the first DX release for scripts, tutorials, CLI tools, and small applications:
+`FlowRuntime` is an optional managed composition root included in the first DX release for scripts, tutorials, CLI tools, and small applications. It is not required to create or use a `FlowEngine` or `TxFlowStream`:
 
 ```java
+package com.bloxbean.cardano.client.txflow;
+
 public final class FlowRuntime implements AutoCloseable {
     public static Builder builder(BackendService backend);
     public FlowEngine engine();
@@ -605,7 +611,27 @@ public final class FlowRuntime implements AutoCloseable {
 }
 ```
 
-This is a resource owner around the one existing `FlowEngine`/`TxFlowStream` implementation, not a second execution runtime. `FlowEngine` remains the production/server API for dependency injection, shared pools, custom stores, and explicit lifecycle ownership.
+The relationship is deliberately one-way and contains no duplicated transaction behavior:
+
+```text
+FlowRuntime (optional lifecycle and resource owner)
+    owns exactly one ordinary FlowEngine
+    opens and tracks TxFlowStream instances
+        implemented by EngineTxFlowStream
+            delegates transaction execution to that FlowEngine
+```
+
+`FlowRuntime.Builder.build()` creates the same `FlowEngine` implementation that a direct caller would create, supplies runtime-owned executors and signer bindings to it, and retains that engine. `runtime.engine()` returns that exact underlying instance; it does not return a facade or a second engine. `runtime.open(streamId)` builds an ordinary `TxFlowStream` against the same engine.
+
+`FlowRuntime` contains no planning, compilation, submission, confirmation, reconciliation, projection, retry, or status-transition logic. Those responsibilities remain in `FlowEngine`, `TxFlowStream`, and `EngineTxFlowStream`. Therefore adding `FlowRuntime` does not introduce a second execution runtime, behavior fork, or reduced-capability stream API.
+
+Direct `FlowEngine` construction remains the canonical production/server and advanced API for dependency injection, shared pools, custom stores, and explicit lifecycle ownership. Such applications do not construct a `FlowRuntime` and incur no new lifecycle or abstraction requirement.
+
+The separate type preserves a simple ownership rule:
+
+- resources passed to a directly constructed `FlowEngine` or `TxFlowStream` are caller-owned, and engine/stream lifecycle operations do not shut those resources down;
+- resources created by `FlowRuntime` are runtime-owned, and `FlowRuntime.close()` closes tracked streams and then those resources;
+- `FlowEngine` never switches between managed and unmanaged ownership modes based on which builder overloads happened to be called.
 
 Runtime defaults are normative and visible in documentation:
 
@@ -616,7 +642,7 @@ Runtime defaults are normative and visible in documentation:
 - `Builder.name(...)`, `taskParallelism(...)`, and `maintenanceThreads(...)` make these choices configurable with positive bounds;
 - runtime-created executors are passed to its engine and streams; neither nested type gains ownership of them.
 
-The runtime builder provides `account(ref, Account)` and `wallet(ref, Wallet)` conveniences described in Decision 2. It may expose explicit engine/stream customizers only if their order and ownership are deterministic; the first implementation should prefer a narrow surface and direct advanced users to `FlowEngine`.
+Beyond the required `builder(backend)` / `build()` lifecycle, the runtime builder's configuration surface is limited to `name(...)`, `taskParallelism(...)`, `maintenanceThreads(...)`, `account(ref, Account)`, and `wallet(ref, Wallet)` in the initial release. It has no generic engine or stream customizer and no caller-supplied executor hook. Advanced callers that need custom stores, policy, resources, executors, or stream configuration construct `FlowEngine` and `TxFlowStream` directly. Broader runtime customization is deferred until concrete first-hour use cases establish a safe, deterministic shape.
 
 `open(streamId)` delegates to the exception-safe stream builder `open()`, supplies the runtime scheduler, and tracks only successfully started streams. It rejects opens after close begins. A close/open race either tracks a stream for closure or aborts it before returning; it cannot leak an untracked live stream.
 
@@ -644,10 +670,10 @@ TxStream is a preview API, but compatibility remains a design objective.
 - `TxFlowStream.Builder.open()`;
 - `submit(String, TxPlan)` and `trySubmit(String, TxPlan)`;
 - receipt `awaitSettled`/`awaitConfirmed` methods, `awaitResolution`, `isUncertain`, and typed outcome exceptions;
-- planner-local per-window mode/options;
+- planner-local `perWindow(ChainingMode)` for `SEQUENTIAL` and `PIPELINED`;
 - `TxStreamCodes`;
 - `onStreamAborted` and `onItemRejected`;
-- optional fluent accessor aliases.
+- `TxStreamItemResult.isUncertain()` without general accessor churn.
 
 Existing `.lane(...).executor(...).build(); start();` code retains its explicit behavior. Explicit builder options always override defaults.
 
@@ -656,7 +682,7 @@ Existing `.lane(...).executor(...).build(); start();` code retains its explicit 
 1. Omitting a lane no longer fails at build; ordinary plan items derive one from funding.
 2. Omitting a stream executor no longer fails when the engine exposes one.
 3. Eager validation changes from `OK` + failed receipt to throw/`REJECTED` with no receipt or accepted counters.
-4. Blocking submit to standby should gain a lifecycle-specific not-active/paused diagnostic rather than claiming the stream is closed; exact code is reviewed before 1.0.
+4. Blocking submit to standby throws `TXSTREAM_NOT_ACTIVE` rather than claiming the stream is closed; `trySubmit` continues returning `PAUSED`.
 5. `byFundingSource()` becomes the preferred name and `byFundingAddress()` is deprecated for one preview release.
 
 Any durable store SPI migration is governed and released under ADR 0006, not as an implicit consequence of this ADR.
@@ -669,6 +695,21 @@ Any durable store SPI migration is governed and released under ADR 0006, not as 
 - removing existing low-level constructors, factories, or builder methods.
 
 Release notes must include before/after examples, validation migration, executor/lane default precedence, and the unchanged ownership rules.
+
+## Deferred Items
+
+These items are deliberately outside the first DX implementation. They are recorded here so they remain visible, but they do not block acceptance or implementation of this ADR. Each requires its own focused review before work begins; none may be introduced as incidental churn in an ADR 0005 implementation PR.
+
+| Deferred item | Why deferred | Revisit when |
+|---------------|--------------|--------------|
+| `ChainingMode.BATCH` in `perWindow(...)` | Build-all/submit-all semantics may be unsafe or ineffective for same-lane steps and need dedicated failure/uncertainty analysis | A concrete throughput use case exists and DevKit tests prove funding, submission order, and recovery safety |
+| General fluent result aliases and JavaBean getter removal | A local TxStream convention would deepen repository-wide inconsistency and getter removal is breaking | A repository-wide pre-1.0 accessor convention is accepted |
+| Programmatic effective-configuration and lifecycle snapshots | The required field set is not yet demonstrated; the documentation table already exposes defaults | Operational users identify concrete inspection/telemetry requirements |
+| Generic `FlowRuntime` engine/stream customizers or caller-supplied executors | They blur runtime ownership, configuration order, and the boundary with direct `FlowEngine` use | Repeated first-hour use cases cannot be served by the narrow builder and ownership semantics can remain deterministic |
+| Store SPI package move | Java cannot compatibly re-export final records and SPI signatures | A coordinated pre-1.0 migration updates core, extensions, custom-store guidance, and persisted compatibility tests |
+| Rename `TxFlowStream` to `TxStream` | High source churn with no demonstrated usability gain | Usage evidence shows the existing type name materially harms discovery or comprehension |
+
+Deferred items are tracked independently from ADR 0006. Durable registration, hydration, and partial-write recovery are not “later DX polish”; they are the separate correctness workstream governed by ADR 0006.
 
 ## Implementation Plan
 
@@ -729,7 +770,7 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 
 - Add `byFundingSource()`, deprecate `byFundingAddress()` as a forwarding alias, and default a missing policy to the new name.
 - Preserve all explicit lane policies and precedence.
-- Split missing-source and ambiguous-source diagnostics.
+- Preserve `TXSTREAM_LANE_UNDERIVABLE` for a missing source and emit `TXSTREAM_LANE_AMBIGUOUS` for both `from` and `from_ref`.
 - Keep templates explicit; do not add fallback behavior.
 
 **Verification**
@@ -739,7 +780,7 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 - same `from_ref` serializes;
 - address/reference forms that resolve to one wallet remain distinct syntactic lanes, and their documented mix-and-match warning is tested;
 - absent funding fails with corrective guidance;
-- both `from` and `from_ref` fail as ambiguous;
+- both `from` and `from_ref` fail with `TXSTREAM_LANE_AMBIGUOUS`;
 - mismatched item lane remains typed;
 - template + default fails clearly and template + explicit lane works;
 - existing lane enforcement and overlap suites remain green.
@@ -800,7 +841,7 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 
 **Primary files**
 
-- new `txflow` runtime package/type (final package chosen during API review)
+- new `com.bloxbean.cardano.client.txflow.FlowRuntime`
 - `FlowEngine.Builder`
 - runtime lifecycle and Java-version tests
 
@@ -809,6 +850,7 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 - Implement the Java 21 virtual-thread capability adapter without raising the Java 17 baseline.
 - Implement the Java 17–20 bounded task pool and the shared owned scheduled-maintenance pool.
 - Add deterministic thread naming, registration conveniences, exception-safe open tracking, and close ordering.
+- Keep the builder narrow; do not add generic engine/stream customizers or caller-supplied executor hooks.
 - Keep direct `FlowEngine` construction as the server/application-owned path.
 
 **Verification**
@@ -873,17 +915,18 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 
 - `TxStreamPlanner`
 - `BuiltInPlanners`
-- planner option type if selected
 
 **Work**
 
-- Add the reviewed per-window mode/options factory.
+- Add `perWindow(ChainingMode)` accepting only `SEQUENTIAL` and `PIPELINED`.
+- Keep `perWindow()` as the sequential compatibility factory.
 - Apply the mode only to the generated multi-step flow.
-- Reject unsupported or ineffective configuration.
+- Reject null, `BATCH`, and other unsupported modes immediately without downgrading.
 
 **Verification**
 
 - default per-window remains sequential;
+- explicit sequential is equivalent to the default factory;
 - pipelined per-window emits the correct `TxFlow` settings;
 - per-item, batching, custom planners, and templates are not silently overridden;
 - pipelined failure/uncertainty preserves item projection truth;
@@ -895,7 +938,6 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 
 - Add core error-code constants and documentation.
 - Add `onStreamAborted` with exact ordering and document the `onItemRejected` contract implemented with Phase B1.
-- Add optional effective-configuration and lifecycle snapshots if accepted during review.
 
 **Verification**
 
@@ -903,16 +945,7 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 - extension codes remain extension-owned;
 - abort callback ordering, reentrancy, and listener isolation are pinned;
 - rejection callback is exactly once for blocking/non-blocking calls and creates no item state;
-- snapshots are immutable and do not expose executor ownership.
-
-### Pre-1.0 API-shape review
-
-Decide, independently of the functional release:
-
-- fluent versus JavaBean accessor convention;
-- whether store SPI types move packages;
-- whether `TxFlowStream` retains its name permanently;
-- whether runtime/stream effective snapshots have enough demonstrated operational value to add.
+- no deferred API from [Deferred Items](#deferred-items) is introduced incidentally.
 
 ## Verification Matrix
 
@@ -966,6 +999,12 @@ Rejected. Tests and advanced source-before-start wiring require an unstarted ins
 
 Rejected. It breaks caller ownership, server resource control, deterministic tests, and executor choice. The explicit, `AutoCloseable` `FlowRuntime` is the only thread-owning convenience boundary; direct engine/stream construction remains resource-neutral.
 
+### Enhance `FlowEngine` to conditionally own beginner resources
+
+Rejected for the initial API. It could remove the extra class, but it would give one `FlowEngine` type two lifecycle contracts: caller-owned when executors and registries are supplied, and engine-owned when defaults are created. `FlowEngine` would then need conditional `AutoCloseable` behavior, ownership introspection, stream tracking, close ordering, and rules for mixed caller-owned and engine-created resources. Those semantics are easy to misunderstand and could regress applications that currently treat the engine as resource-neutral.
+
+Keeping ownership in the optional `FlowRuntime` makes construction explain the lifecycle contract. Internally it still constructs and calls a normal `FlowEngine`; it is not a replacement for the engine. If future evidence shows that `FlowEngine` can offer managed ownership without conditional or ambiguous close semantics, that may be proposed separately rather than implied by convenience builder overloads.
+
 ### Infer `withSigner(fromRef)` from a single funding reference
 
 Rejected for the core plan contract. Funding selection and authorization coincide for a simple account payment but diverge for policies, scripts, multisignature, fee delegation, and multi-party plans. Requiring the signer declaration avoids an attractive but unsafe rule. Account/wallet builder conveniences remove registry boilerplate while preserving the distinction.
@@ -1018,7 +1057,7 @@ Deferred. Java compatibility bridges cannot faithfully re-export final records a
 - The default still follows Cardano's UTXO concurrency model rather than hiding it behind a global lock.
 - Advanced users retain the full engine, planner, lane, store, source, ownership, and recovery surface.
 - Startup and uncertain-outcome failure modes become harder to misuse.
-- `FlowRuntime` makes nested resource close ordering correct by construction while leaving server ownership explicit.
+- The optional `FlowRuntime` makes nested resource close ordering correct by construction while leaving direct `FlowEngine` ownership explicit and unchanged.
 - Validation semantics become consistent between blocking and non-blocking submission.
 - Durable correctness gets its own focused acceptance process in ADR 0006.
 - Existing explicit configurations remain valid.
@@ -1026,7 +1065,7 @@ Deferred. Java compatibility bridges cannot faithfully re-export final records a
 ### Negative and costs
 
 - `FlowEngine` exposes its execution executor as a read-only public detail.
-- `FlowRuntime` adds one public resource-owning type and Java-version-sensitive executor defaults that require Java 17 and Java 21 verification.
+- The optional `FlowRuntime` adds one public resource-owning composition type and Java-version-sensitive executor defaults that require Java 17 and Java 21 verification; it adds no execution implementation.
 - Default lane behavior shifts a missing configuration error from build time to typed item validation for plans that cannot derive funding.
 - Syntactic address/reference lane identity requires a documented do-not-mix rule for the same wallet.
 - Honest validation rejection intentionally changes current preview counters, callbacks, retry, and receipt behavior.
@@ -1042,16 +1081,9 @@ Deferred. Java compatibility bridges cannot faithfully re-export final records a
 
 ## Open Questions
 
-The following questions are explicit targets for the next review rounds:
+No blocking ADR 0005 questions remain after review rounds 2 and 3. The previously open outcome-code, standby-code, planner-mode, accessor, snapshot, and `FlowRuntime` questions are resolved in versions 1.2.0 and 1.2.1. Work intentionally postponed by those resolutions is recorded in [Deferred Items](#deferred-items), not left ambiguously open.
 
-1. **Uncertain exception code (blocking):** Should the wrapper use `TXSTREAM_RECOVERY_REQUIRED`, `TXSTREAM_OUTCOME_UNCERTAIN`, or another catalog name? Failed-result code preservation must also be finalized.
-2. **Per-window `BATCH` (non-blocking for beginner release):** Is engine `ChainingMode.BATCH` safe and useful for same-lane stream steps, or should the built-in accept only `SEQUENTIAL` and `PIPELINED`?
-3. **Blocking standby submit (blocking):** Should it use a new `TXSTREAM_PAUSED`, `TXSTREAM_NOT_ACTIVE`, or a specialized exception while `trySubmit` continues returning `PAUSED`?
-4. **Accessor convention (non-blocking):** Add aliases only, standardize on fluent accessors before 1.0, or retain mixed conventions based on model type?
-5. **Effective configuration/lifecycle snapshots (non-blocking):** Include them in the first DX release or defer until operational usage demonstrates the required fields? The documentation table is required either way.
-6. **`FlowRuntime` package and customization (blocking):** Which package best communicates ownership, and should the initial builder expose narrowly typed engine/stream customizers or require direct `FlowEngine` use for every advanced override?
-
-Durable registration SPI and partial-write questions are intentionally absent; ADR 0006 owns them.
+Any new finding from the final acceptance review must be added here with a stable number and a blocking/non-blocking classification in the next ADR version. Durable registration SPI and partial-write questions remain outside this document; ADR 0006 owns them.
 
 ## Review Checklist
 
@@ -1063,13 +1095,13 @@ Reviewers should explicitly confirm or challenge:
 - whether `awaitResolution` has the right blocking, I/O, timeout, and no-resubmission contract;
 - whether cancellation deserves its own exception type;
 - whether derived funding is safe for every supported single-transaction `TxPlan` form;
-- whether syntactic funding identity and the deprecated alias window are clear;
+- whether syntactic funding identity, `TXSTREAM_LANE_AMBIGUOUS`, and the deprecated alias window are clear;
 - whether explicit maintenance remains necessary for all timed stream features;
 - whether abort is the correct cleanup operation for every startup failure stage;
 - whether eager validation should create no retained receipt/state;
 - whether `onItemRejected` is sufficiently isolated and useful for source adapters;
-- whether planner-local chaining is the right advanced API location;
-- whether `FlowRuntime` pool sizes, Java-version selection, and close ordering are safe and unsurprising;
+- whether planner-local chaining with only `SEQUENTIAL`/`PIPELINED` is the right advanced API location;
+- whether the optional top-level `FlowRuntime`, its strict delegation to one ordinary `FlowEngine`, narrow builder, pool sizes, Java-version selection, and close ordering are safe and unsurprising;
 - whether any existing explicit API becomes semantically different despite being source-compatible;
 - whether the implementation phases can be merged independently without exposing an unsafe intermediate release.
 
@@ -1077,7 +1109,7 @@ Reviewers should explicitly confirm or challenge:
 
 This ADR is ready to move from `Proposed` to `Accepted` when:
 
-- all questions marked blocking have recorded resolutions;
+- final acceptance review confirms that review rounds 2 and 3 resolved every blocking question and introduced no new blocker;
 - the beginner and advanced API examples are judged coherent together;
 - runtime ownership, executor selection, and lane precedence are unambiguous;
 - startup cleanup, receipt uncertainty, and explicit resolution semantics are accepted;
@@ -1096,6 +1128,6 @@ The implementation is complete when:
 - invalid work is never `OK`, counted accepted/failed, retained, or announced through `onItemAccepted`, and it emits exactly one isolated `onItemRejected`;
 - planner-local pipelining is demonstrably effective and does not affect incompatible planners;
 - the core error-code catalog and abort listener contracts are tested and documented;
-- no new executor, scheduler, timer, status machine, or parallel transaction runtime is introduced inside `FlowEngine` or `EngineTxFlowStream`; all convenience-owned resources live in `FlowRuntime`.
+- no new executor, scheduler, timer, status machine, or parallel transaction execution runtime is introduced inside `FlowEngine` or `EngineTxFlowStream`; all convenience-owned resources live in optional `FlowRuntime`, which delegates behavior to one ordinary `FlowEngine`.
 
 This preserves TxStream's correctness-first core while making its common path approachable and its advanced power explicit rather than mandatory.
