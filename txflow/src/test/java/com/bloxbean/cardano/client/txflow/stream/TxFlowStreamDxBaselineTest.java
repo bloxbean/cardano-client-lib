@@ -32,14 +32,13 @@ class TxFlowStreamDxBaselineTest {
     private static final String STEP_ID = StreamIdentities.GENERATED_STEP_ID;
 
     @Test
-    void builderRequiresExplicitLaneAndExecutorWhenGatewayCannotExposeOne() {
+    void builderDefaultsItsLaneButRequiresExecutorWhenGatewayCannotExposeOne() {
         StubEngineGateway gateway = new StubEngineGateway();
 
-        IllegalStateException missingLane = assertThrows(IllegalStateException.class,
-                () -> new TxFlowStream.Builder("payouts", gateway)
+        assertInstanceOf(EngineTxFlowStream.class,
+                new TxFlowStream.Builder("payouts", gateway)
                         .executor(Runnable::run)
                         .build());
-        assertTrue(missingLane.getMessage().contains("A lane policy is required"));
 
         IllegalStateException missingExecutor = assertThrows(IllegalStateException.class,
                 () -> new TxFlowStream.Builder("payouts", gateway)

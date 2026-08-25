@@ -1532,7 +1532,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         TxFlow definition = TxFlow.builder(flowId).addStep(step).build();
         // Portability is a property of the payload, independent of the lane, so
         // validate it BEFORE deriving the lane (QUALITY). Otherwise a non-portable
-        // payload — e.g. a multi-transaction plan under byFundingAddress, which has
+        // payload — e.g. a multi-transaction plan under byFundingSource, which has
         // no single funding source to derive from — would surface the downstream
         // TXSTREAM_LANE_UNDERIVABLE instead of the precise TXSTREAM_NON_PORTABLE_ITEM.
         List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(definition);
@@ -1604,7 +1604,7 @@ final class EngineTxFlowStream implements TxFlowStream {
      *
      * <p>{@code single()} pins every item to one statically configured lane;
      * {@code explicit()} resolves item-named lanes through the
-     * {@link LaneIdentityResolver}; {@code byFundingAddress()} derives the lane
+     * {@link LaneIdentityResolver}; {@code byFundingSource()} derives the lane
      * from the item transaction's own funding source; {@code partitioned()}
      * assigns the item to one of N hash-partitioned lanes. Each mode fails the
      * item typed on its own violations, never the stream and never at
@@ -1612,7 +1612,7 @@ final class EngineTxFlowStream implements TxFlowStream {
      */
     private ResolvedLane resolveLane(TxWorkItem item) {
         if (item.getKind() == TxWorkItem.Kind.TEMPLATE
-                && (laneMode == LanePolicy.Mode.BY_FUNDING_ADDRESS
+                && (laneMode == LanePolicy.Mode.BY_FUNDING_SOURCE
                         || laneMode == LanePolicy.Mode.PARTITIONED)) {
             // A template's funding lives inside its (multi-step) definition, so
             // there is no single per-item transaction to derive/hash a lane
@@ -1628,7 +1628,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         switch (laneMode) {
             case SINGLE:
                 return resolveSingleLane(item);
-            case BY_FUNDING_ADDRESS:
+            case BY_FUNDING_SOURCE:
                 return deriveLaneFromFundingSource(item);
             case PARTITIONED:
                 return partitionLane(item);
@@ -1719,7 +1719,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         if (requested != null && !requested.equals(derived.laneName())) {
             throw new TxStreamException("TXSTREAM_LANE_MISMATCH",
                     "Item '" + item.getItemId() + "' names lane '" + requested
-                            + "' but LanePolicy.byFundingAddress() derives the lane from the"
+                            + "' but LanePolicy.byFundingSource() derives the lane from the"
                             + " transaction's funding source '" + derived.laneName() + "'");
         }
         // Cache under the lane name so the planner-side resolvePlannedLane finds it.
@@ -1730,7 +1730,8 @@ final class EngineTxFlowStream implements TxFlowStream {
     /**
      * Derives a lane from the item transaction's {@code from} address or
      * {@code from_ref}. A plan with no single transaction or no funding source
-     * fails typed {@code TXSTREAM_LANE_UNDERIVABLE}.
+     * fails typed {@code TXSTREAM_LANE_UNDERIVABLE}; a malformed plan carrying
+     * both fails {@code TXSTREAM_LANE_AMBIGUOUS}.
      */
     private ResolvedLane fundingSourceLane(TxWorkItem item) {
         Tx tx = singleTx(itemTxPlan(item));
@@ -1741,12 +1742,12 @@ final class EngineTxFlowStream implements TxFlowStream {
             boolean hasFromRef = fromRef != null && !fromRef.isEmpty();
             if (hasFrom && hasFromRef) {
                 // Ambiguous: two funding sources cannot resolve to one lane.
-                // Fail with a clear underivable message (QUALITY) rather than
+                // Fail with a dedicated ambiguity diagnostic rather than
                 // letting enforceLaneFundingScope surface a confusing
                 // TXSTREAM_LANE_SCOPE_VIOLATION downstream.
-                throw new TxStreamException("TXSTREAM_LANE_UNDERIVABLE",
+                throw new TxStreamException("TXSTREAM_LANE_AMBIGUOUS",
                         "Item '" + item.getItemId() + "' names BOTH a from address and a from_ref;"
-                                + " LanePolicy.byFundingAddress() cannot derive a single lane from an"
+                                + " LanePolicy.byFundingSource() cannot derive a single lane from an"
                                 + " ambiguous funding source — declare exactly one of from / from_ref");
             }
             if (hasFrom) {
@@ -1758,7 +1759,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         }
         throw new TxStreamException("TXSTREAM_LANE_UNDERIVABLE",
                 "Item '" + item.getItemId() + "' has no funding source (from / from_ref) to"
-                        + " derive a lane from; LanePolicy.byFundingAddress() requires the"
+                        + " derive a lane from; LanePolicy.byFundingSource() requires the"
                         + " transaction to name its sender");
     }
 
