@@ -121,6 +121,17 @@ public final class TxStreamItemResult {
     }
 
     /**
+     * Reports whether the transaction's disposition is uncertain and must be
+     * reconciled before the caller decides whether another transaction is safe.
+     *
+     * @return {@code true} only for
+     *         {@link TxStreamItemStatus#RECOVERY_REQUIRED}
+     */
+    public boolean isUncertain() {
+        return status == TxStreamItemStatus.RECOVERY_REQUIRED;
+    }
+
+    /**
      * Creates a result builder.
      *
      * @param streamId stream id
