@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -31,6 +32,7 @@ final class StubEngineGateway implements EngineGateway {
 
     final List<FlowExecutionRequest> started = new CopyOnWriteArrayList<>();
     final List<StubHandle> handles = new CopyOnWriteArrayList<>();
+    final AtomicInteger snapshotReads = new AtomicInteger();
     final Map<String, FlowExecutionSnapshot> snapshots = new ConcurrentHashMap<>();
     final List<String> callLog;
     /** Whether the scripted engine reports a durable execution store (P5). */
@@ -120,6 +122,7 @@ final class StubEngineGateway implements EngineGateway {
 
     @Override
     public Optional<FlowExecutionSnapshot> executionSnapshot(String executionId) {
+        snapshotReads.incrementAndGet();
         return Optional.ofNullable(snapshots.get(executionId));
     }
 

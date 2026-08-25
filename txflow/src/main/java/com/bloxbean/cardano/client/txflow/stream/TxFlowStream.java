@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.txflow.stream;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
+import com.bloxbean.cardano.client.txflow.exec.FlowScheduler;
 import com.bloxbean.cardano.client.txflow.store.FlowStoreTextPolicy;
 
 import java.time.Clock;
@@ -352,6 +353,74 @@ public interface TxFlowStream extends AutoCloseable {
      * @return post-reconciliation item result if the item is known
      */
     Optional<TxStreamItemResult> reconcile(String itemId);
+
+    /**
+     * Reconciles a known recovery-required item immediately and then at the
+     * requested interval on the caller thread until its outcome is conclusive
+     * or the total wait budget expires. The method performs explicit
+     * engine/store I/O through {@link #reconcile(String)}; it never submits,
+     * rebuilds, or replaces a transaction and creates no timer or background
+     * task.
+     * <p>
+     * This helper is intended for an item that was observed as
+     * {@link TxStreamItemStatus#RECOVERY_REQUIRED}, or whose projection has
+     * already advanced from that state to a conclusive outcome.
+     *
+     * @param itemId known caller-visible item id
+     * @param timeout positive total polling budget
+     * @param pollInterval positive delay between reconciliation attempts
+     * @return confirmed item result
+     * @throws NullPointerException when any argument is {@code null}
+     * @throws IllegalArgumentException when either duration is zero or negative
+     * @throws TxStreamFailedException when reconciliation resolves to failed
+     * @throws TxStreamCancelledException when reconciliation resolves to cancelled
+     * @throws TxStreamTimeoutException when the item remains uncertain at timeout
+     * @throws TxStreamException with {@code TXSTREAM_ITEM_UNKNOWN} for an unknown
+     *         item, {@code TXSTREAM_ITEM_FAILED} for an item that has never
+     *         reached recovery-required, or {@code TXSTREAM_INTERRUPTED} when
+     *         interrupted
+     */
+    default TxStreamItemResult awaitResolution(String itemId, Duration timeout,
+                                               Duration pollInterval) {
+        Objects.requireNonNull(itemId, "itemId");
+        long timeoutNanos = TxStreamReceipt.positiveNanos(timeout, "timeout");
+        long intervalNanos = TxStreamReceipt.positiveNanos(pollInterval, "pollInterval");
+        FlowScheduler scheduler = FlowScheduler.system();
+        long startedAt = scheduler.monotonicNanos();
+        TxStreamItemResult latest = null;
+        while (true) {
+            latest = reconcile(itemId).orElseThrow(() -> new TxStreamException(
+                    "TXSTREAM_ITEM_UNKNOWN", "Unknown TxStream item '" + itemId + "'"));
+            switch (latest.getStatus()) {
+                case CONFIRMED:
+                case FAILED:
+                case CANCELLED:
+                    return TxStreamOutcomes.requireConfirmed(latest);
+                case RECOVERY_REQUIRED:
+                    break;
+                default:
+                    throw new TxStreamException("TXSTREAM_ITEM_FAILED",
+                            "Item '" + itemId + "' has not reached RECOVERY_REQUIRED; latest"
+                                    + " status is " + latest.getStatus());
+            }
+
+            long elapsed = scheduler.monotonicNanos() - startedAt;
+            if (elapsed >= timeoutNanos) {
+                throw new TxStreamTimeoutException(
+                        "Item '" + itemId + "' remained RECOVERY_REQUIRED for " + timeout,
+                        null, latest);
+            }
+            long sleepNanos = Math.min(intervalNanos, timeoutNanos - elapsed);
+            try {
+                scheduler.sleep(Duration.ofNanos(sleepNanos));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new TxStreamException("TXSTREAM_INTERRUPTED",
+                        "Interrupted while reconciling TxStream item '" + itemId + "'",
+                        interrupted);
+            }
+        }
+    }
 
     /**
      * Returns the latest batch projection for one planning batch. Batch
