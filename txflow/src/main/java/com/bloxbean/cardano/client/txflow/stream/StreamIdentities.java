@@ -244,38 +244,6 @@ final class StreamIdentities {
     }
 
     /**
-     * Computes the versioned fingerprint for an item whose payload failed
-     * eager validation and therefore has no portable encoding.
-     * <p>
-     * The raw item fields are fingerprinted with a payload-error marker in
-     * place of the portable payload, so an identical redelivery of the same
-     * bad item attaches to the settled failed receipt while different content
-     * still conflicts. The {@code payload_error} field is structurally
-     * distinct from the {@code payload} field of
-     * {@link #itemFingerprint(String, String, String, Map, String, Map, Map, Map)},
-     * so the two fingerprint families can never collide.
-     *
-     * @param itemId item identity
-     * @param claimKey effective idempotency claim key
-     * @param laneName lane name the item was submitted on; {@code null} when
-     *        the item relied on the stream's static lane
-     * @param metadata key-ordered item metadata
-     * @param payloadErrorCode stable diagnostic code of the validation failure
-     * @return versioned fingerprint string
-     */
-    static String failedItemFingerprint(String itemId, String claimKey, String laneName,
-                                        Map<String, String> metadata, String payloadErrorCode) {
-        ObjectNode canonical = JSON.createObjectNode();
-        canonical.put("item_id", itemId);
-        canonical.put("idempotency_key", claimKey);
-        canonical.put("lane", laneName);
-        ObjectNode metadataNode = canonical.putObject("metadata");
-        metadata.forEach(metadataNode::put);
-        canonical.put("payload_error", payloadErrorCode);
-        return ITEM_FINGERPRINT_DOMAIN + SignedPayloadVerifier.sha256(canonical.toString());
-    }
-
-    /**
      * Computes the redacted fingerprint of a secure-binding reference for the
      * durable planned record, so the persisted plan can carry a
      * tamper-evident digest of each reference without exposing anything the

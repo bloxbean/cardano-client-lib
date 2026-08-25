@@ -179,26 +179,24 @@ class TxFlowStreamTemplateTest {
     // ------------------------------------------------------------------
 
     @Test
-    void unknownTemplateIdSettlesFailedRetainedAndIdenticalRedeliveryAttaches() {
+    void unknownTemplateIdIsRejectedAndCanBeCorrectedWithTheSameItemId() {
         StubEngineGateway gateway = new StubEngineGateway();
         try (TxFlowStream stream = builder("payouts", gateway).build()) {
             stream.start();
-            TxStreamReceipt receipt = stream.submit(TxWorkItem.builder("pay-1")
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.builder("pay-1")
                     .withTemplate("does-not-exist")
                     .withBinding("receiver", RECEIVER)
-                    .build());
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_TEMPLATE_UNKNOWN",
-                    ((TxStreamException) outcome.getError()).getCode());
+                    .build()));
+            assertEquals("TXSTREAM_TEMPLATE_UNKNOWN", outcome.getCode());
             assertEquals(0, gateway.started.size(), "an unknown template never reaches the engine");
+            assertTrue(stream.getItemStatus("pay-1").isEmpty());
 
-            // Settled + retained: an identical redelivery attaches to the failed receipt.
-            TxStreamReceipt redelivered = stream.submit(TxWorkItem.builder("pay-1")
-                    .withTemplate("does-not-exist")
-                    .withBinding("receiver", RECEIVER)
-                    .build());
-            assertSame(receipt, redelivered);
+            TxStreamReceipt corrected = stream.submit(
+                    templateItem("pay-1", RECEIVER, 5L));
+            gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
+            assertEquals(TxStreamItemStatus.CONFIRMED,
+                    corrected.awaitConfirmed().getStatus());
         }
     }
 
@@ -249,11 +247,9 @@ class TxFlowStreamTemplateTest {
                 .template(TEMPLATE_ID, template())
                 .build()) {
             stream.start();
-            TxStreamReceipt receipt = stream.submit(templateItem("pay-1", RECEIVER, 5L));
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_LANE_REQUIRED",
-                    ((TxStreamException) outcome.getError()).getCode());
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(templateItem("pay-1", RECEIVER, 5L)));
+            assertEquals("TXSTREAM_LANE_REQUIRED", outcome.getCode());
             assertEquals(0, gateway.started.size());
         }
     }

@@ -233,12 +233,11 @@ class TxFlowStreamPartitionedTest {
             stream.start();
             String key = firstKeyForLane(0, 2);   // lane 0 == LANE_0
             TxPlan foreign = TxPlan.from(new Tx().from(RECEIVER).payToAddress(LANE_0, Amount.ada(1)));
-            TxStreamItemResult outcome = stream.submit(TxWorkItem.builder("foreign-1")
-                            .withTxPlan(foreign).withIdempotencyKey(key).build())
-                    .completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.builder("foreign-1")
+                            .withTxPlan(foreign).withIdempotencyKey(key).build()));
+            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.getCode());
+            assertTrue(stream.getItemStatus("foreign-1").isEmpty());
             assertTrue(gateway.started.isEmpty(), "a scope-violating item never reaches the engine");
         }
     }

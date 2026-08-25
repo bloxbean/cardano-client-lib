@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -67,13 +68,11 @@ class TxFlowStreamByFundingAddressTest {
             fromRef.setAccessible(true);
             fromRef.set(ambiguous, "account://sender");
 
-            TxStreamReceipt receipt = stream.submit(
-                    TxWorkItem.fromTxPlan("ambiguous", TxPlan.from(ambiguous)));
-            TxStreamItemResult result = receipt.completion().toCompletableFuture().join();
+            TxStreamException result = assertThrows(TxStreamException.class,
+                    () -> stream.submit(
+                            TxWorkItem.fromTxPlan("ambiguous", TxPlan.from(ambiguous))));
 
-            assertEquals(TxStreamItemStatus.FAILED, result.getStatus());
-            assertEquals("TXSTREAM_LANE_AMBIGUOUS",
-                    assertInstanceOf(TxStreamException.class, result.getError()).getCode());
+            assertEquals("TXSTREAM_LANE_AMBIGUOUS", result.getCode());
             assertTrue(gateway.started.isEmpty());
         }
     }
@@ -179,23 +178,20 @@ class TxFlowStreamByFundingAddressTest {
     }
 
     @Test
-    void itemWithNoFundingSourceFailsUnderivableAndIsSettledAndRetained() {
+    void itemWithNoFundingSourceIsRejectedUnderivableAndRetainedNowhere() {
         StubEngineGateway gateway = new StubEngineGateway();
         try (TxFlowStream stream = byFundingSource(gateway).build()) {
             stream.start();
             // No from / from_ref: the lane cannot be derived.
             TxPlan sourceless = TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1)));
-            TxStreamReceipt receipt = stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless));
-
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_LANE_UNDERIVABLE", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless)));
+            assertEquals("TXSTREAM_LANE_UNDERIVABLE", outcome.getCode());
             assertTrue(gateway.started.isEmpty(), "an underivable item never reaches the engine");
-            // Settled and retained: an identical redelivery attaches.
-            assertTrue(stream.getItemStatus("no-src").isPresent(),
-                    "an underivable item is settled and retained (content failure)");
-            assertSame(receipt, stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless)));
+            assertTrue(stream.getItemStatus("no-src").isEmpty(),
+                    "a rejected item is retained nowhere");
+            assertEquals("TXSTREAM_LANE_UNDERIVABLE", assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless))).getCode());
         }
     }
 
@@ -246,14 +242,12 @@ class TxFlowStreamByFundingAddressTest {
         try (TxFlowStream stream = byFundingSource(gateway).build()) {
             stream.start();
             // A lane name that disagrees with the derived (from) lane fails typed.
-            TxStreamItemResult mismatch = stream.submit(TxWorkItem.builder("bad-1")
+            TxStreamException mismatch = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.builder("bad-1")
                             .withTxPlan(fromPlan(SENDER_A))
                             .withLane("some-other-lane")
-                            .build())
-                    .completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, mismatch.getStatus());
-            assertEquals("TXSTREAM_LANE_MISMATCH", assertInstanceOf(TxStreamException.class,
-                    mismatch.getError()).getCode());
+                            .build()));
+            assertEquals("TXSTREAM_LANE_MISMATCH", mismatch.getCode());
             assertTrue(gateway.started.isEmpty());
 
             // A lane name equal to the funding source is accepted.

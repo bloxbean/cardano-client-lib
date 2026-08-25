@@ -50,9 +50,10 @@ import java.util.concurrent.ScheduledExecutorService;
  *       {@link TxStreamItemStatus#RECOVERY_REQUIRED} rather than a false
  *       failure.</li>
  *   <li><b>Bounded settlement</b> — every accepted item's receipt settles:
- *       terminal projection, validation failure, binding failure, and
- *       cancellation are all completers of the item promise, which is also
- *       what {@link #drain()} awaits.</li>
+ *       terminal projection, binding failure, and cancellation are all
+ *       completers of the item promise, which is also what {@link #drain()}
+ *       awaits. Eager validation and registration failures are rejected before
+ *       a receipt is published.</li>
  * </ul>
  * <p>
  * Example (single statically configured lane):
