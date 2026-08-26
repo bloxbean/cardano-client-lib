@@ -16,7 +16,7 @@ import java.util.function.BooleanSupplier;
  * own thread lifecycle. Consequently execution remains compatible with whatever
  * platform- or virtual-thread executor the caller supplies.</p>
  */
-public interface FlowScheduler {
+interface FlowScheduler {
 
     /**
      * Returns wall-clock time for timestamps and absolute deadlines.

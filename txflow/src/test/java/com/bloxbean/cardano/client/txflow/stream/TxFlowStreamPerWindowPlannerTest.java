@@ -68,16 +68,18 @@ class TxFlowStreamPerWindowPlannerTest {
     @Test
     void pipelinedModeIsAppliedToTheGeneratedMultiStepFlow() {
         FlowExecutionRequest request = runOneWindow(new StubEngineGateway(),
-                List.of("pay-1", "pay-2"),
+                List.of("pay-1", "pay-2", "pay-3"),
                 TxStreamPlanner.perWindow(ChainingMode.PIPELINED));
 
-        assertEquals(2, request.getDefinition().getSteps().size());
+        assertEquals(3, request.getDefinition().getSteps().size());
         assertEquals(ChainingMode.PIPELINED,
                 request.getDefinition().getExecutionSettings().getChainingMode());
-        assertTrue(request.getDefinition().getSteps().get(0).getFundingFrom().isEmpty());
-        assertEquals(request.getDefinition().getSteps().get(0).getId(),
-                request.getDefinition().getSteps().get(1).getFundingFrom().get(0),
-                "same-lane pipelining must expose the previous pending change output");
+        List<FlowStep> steps = request.getDefinition().getSteps();
+        assertTrue(steps.get(0).getFundingFrom().isEmpty());
+        assertEquals(List.of(steps.get(0).getId()), steps.get(1).getFundingFrom());
+        assertEquals(List.of(steps.get(0).getId(), steps.get(1).getId()),
+                steps.get(2).getFundingFrom(),
+                "same-lane pipelining must expose all earlier pending change outputs");
     }
 
     @Test

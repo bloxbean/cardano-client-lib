@@ -1,8 +1,13 @@
 # TxStream API Review and Readiness Report
 
+> **Historical review snapshot (2026-08-21).** ADR 0005 implemented the
+> progressive API findings recorded here. Use
+> [TXSTREAM_DESIGN.md](TXSTREAM_DESIGN.md), the public getting-started guide,
+> and [ADR 0005](../../adr/0005-txstream-progressive-api.md) for current behavior.
+
 - **Date:** 2026-08-21
 - **Scope:** `com.bloxbean.cardano.client.txflow.stream` (`TxFlowStream` / TxStream), engine prerequisites in `txflow.exec` / `txflow.store`, and the relational adapter in `txflow-extensions/txflow-store-rdbms`
-- **Related:** [TXSTREAM_DESIGN.md](TXSTREAM_DESIGN.md) (how the system works), [TXSTREAM_INTERNALS.md](TXSTREAM_INTERNALS.md) (maintainer invariants), [TXSTREAM_API_DX.md](TXSTREAM_API_DX.md) (beginner API proposal), ADR [0004](../adr/0004-txstream-on-flow-engine.md), earlier review `adr/review-txstream-v2-readiness-claude.md`
+- **Related:** [TXSTREAM_DESIGN.md](TXSTREAM_DESIGN.md) (how the system works), [TXSTREAM_INTERNALS.md](../TXSTREAM_INTERNALS.md) (maintainer invariants), [TXSTREAM_API_DX.md](TXSTREAM_API_DX.md) (historical proposal), ADR [0004](../../adr/0004-txstream-on-flow-engine.md), earlier review `../../adr/review-txstream-v2-readiness-claude.md`
 
 This report is a product and implementation review of the shipped TxStream API: feedback, remaining edge cases, and a quality ranking. It does not propose a redesign. For the architecture itself, read the design document first.
 

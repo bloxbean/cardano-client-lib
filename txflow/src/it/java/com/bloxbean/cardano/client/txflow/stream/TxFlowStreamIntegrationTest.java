@@ -270,27 +270,54 @@ class TxFlowStreamIntegrationTest {
 
     @Test
     void pipelinedPerWindowSubmitsTheWholeWindowBeforeConfirmation() throws Exception {
-        try (TxFlowStream stream = TxFlowStream.builder("stream-it-window-pipelined", engine)
-                .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        Account pipelineSender = new Account(Networks.testnet());
+        String pipelineRef = "account://pipeline-sender";
+        assertTrue(YaciDevKitUtil.topup(pipelineSender.baseAddress(), 4),
+                "Failed to create the first pipeline UTxO");
+        assertTrue(YaciDevKitUtil.topup(pipelineSender.baseAddress(), 4),
+                "Failed to create the second pipeline UTxO");
+        awaitUtxoCount(pipelineSender, 2);
+
+        FlowEngine pipelineEngine = FlowEngine.builder(
+                        new DefaultUtxoSupplier(backendService.getUtxoService()),
+                        new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                        new DefaultTransactionProcessor(backendService.getTransactionService()),
+                        new DefaultChainDataSupplier(backendService))
+                .executor(engineExecutor)
+                .maintenanceExecutor(maintenanceExecutor)
+                .store(new InMemoryFlowExecutionStore())
+                .signerRegistry(new DefaultSignerRegistry()
+                        .addAccount(pipelineRef, pipelineSender))
+                .build();
+
+        try (TxFlowStream stream = TxFlowStream.builder(
+                        "stream-it-window-pipelined", pipelineEngine)
+                .lane(ResolvedLane.ofFundingRef("payouts", pipelineRef))
                 .planner(TxStreamPlanner.perWindow(ChainingMode.PIPELINED))
-                .window(WindowPolicy.count(2))
+                .window(WindowPolicy.count(3))
                 .executor(streamExecutor)
                 .maxBufferSize(10)
                 .build()) {
             stream.start();
 
             TxStreamReceipt first = stream.submit(TxWorkItem.builder("pipeline-payment-1")
-                    .withTxPlan(paymentPlan(Amount.ada(1.5)))
+                    .withTxPlan(paymentPlan(Amount.ada(2), pipelineRef))
                     .withIdempotencyKey("pipeline-order-1")
                     .build());
             TxStreamReceipt second = stream.submit(TxWorkItem.builder("pipeline-payment-2")
-                    .withTxPlan(paymentPlan(Amount.ada(1.25)))
+                    .withTxPlan(paymentPlan(Amount.ada(2), pipelineRef))
                     .withIdempotencyKey("pipeline-order-2")
+                    .build());
+            TxStreamReceipt third = stream.submit(TxWorkItem.builder("pipeline-payment-3")
+                    .withTxPlan(paymentPlan(Amount.ada(2), pipelineRef))
+                    .withIdempotencyKey("pipeline-order-3")
                     .build());
 
             TxStreamItemResult firstResult = first.completion().toCompletableFuture()
                     .get(180, TimeUnit.SECONDS);
             TxStreamItemResult secondResult = second.completion().toCompletableFuture()
+                    .get(180, TimeUnit.SECONDS);
+            TxStreamItemResult thirdResult = third.completion().toCompletableFuture()
                     .get(180, TimeUnit.SECONDS);
             stream.awaitDrain(Duration.ofSeconds(60));
 
@@ -298,13 +325,17 @@ class TxFlowStreamIntegrationTest {
                     () -> String.valueOf(firstResult.getError()));
             assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.getStatus(),
                     () -> String.valueOf(secondResult.getError()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, thirdResult.getStatus(),
+                    () -> String.valueOf(thirdResult.getError()));
             assertEquals(firstResult.getExecutionId(), secondResult.getExecutionId());
+            assertEquals(firstResult.getExecutionId(), thirdResult.getExecutionId());
             assertNotEquals(firstResult.getTransactionHash(), secondResult.getTransactionHash());
+            assertNotEquals(secondResult.getTransactionHash(), thirdResult.getTransactionHash());
 
             // The durable engine journal proves this was pipelined rather than
             // merely a successful two-step sequential flow: both dependent
             // transactions were submitted before either confirmation callback.
-            var eventView = engine.executionEvents(firstResult.getExecutionId(), 0, 100)
+            var eventView = pipelineEngine.executionEvents(firstResult.getExecutionId(), 0, 100)
                     .orElseThrow();
             var submitted = eventView.events().stream()
                     .filter(event -> event.type() == FlowEventType.TRANSACTION_SUBMITTED)
@@ -312,8 +343,8 @@ class TxFlowStreamIntegrationTest {
             var confirmed = eventView.events().stream()
                     .filter(event -> event.type() == FlowEventType.TRANSACTION_CONFIRMED)
                     .toList();
-            assertEquals(2, submitted.size());
-            assertEquals(2, confirmed.size());
+            assertEquals(3, submitted.size());
+            assertEquals(3, confirmed.size());
             long lastSubmission = submitted.stream().mapToLong(FlowEvent::sequence).max()
                     .orElseThrow();
             long firstConfirmation = confirmed.stream().mapToLong(FlowEvent::sequence).min()
@@ -325,6 +356,21 @@ class TxFlowStreamIntegrationTest {
             assertEquals(TxStreamBatchStatus.COMPLETED, batch.status());
             assertEquals(1, batch.executionIds().size());
         }
+    }
+
+    private void awaitUtxoCount(Account account, int expected) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+        while (System.nanoTime() < deadline) {
+            var result = backendService.getUtxoService()
+                    .getUtxos(account.baseAddress(), 100, 1);
+            if (result.isSuccessful() && result.getValue() != null
+                    && result.getValue().size() >= expected) {
+                return;
+            }
+            Thread.sleep(500);
+        }
+        throw new AssertionError("Expected at least " + expected
+                + " pipeline UTxOs at " + account.baseAddress());
     }
 
     @Test

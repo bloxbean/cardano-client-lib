@@ -80,7 +80,9 @@ public class FlowUtxoSupplier implements UtxoSupplier {
         List<Utxo> unspentBaseUtxos = filterOutSpentUtxos(baseUtxos);
 
         // Add pending UTXOs from dependent steps for this address (only on first page)
-        List<Utxo> pendingUtxos = page <= 1 ? resolvePendingUtxosForAddress(address) : Collections.emptyList();
+        List<Utxo> pendingUtxos = page <= 1
+                ? filterOutSpentUtxos(resolvePendingUtxosForAddress(address))
+                : Collections.emptyList();
 
         // Combine and return (unspent base UTXOs first, then pending)
         Set<Utxo> combinedUtxos = new LinkedHashSet<>(unspentBaseUtxos);
@@ -110,7 +112,8 @@ public class FlowUtxoSupplier implements UtxoSupplier {
         List<Utxo> unspentBaseUtxos = filterOutSpentUtxos(baseUtxos);
 
         // Add all pending UTXOs for this address
-        List<Utxo> pendingUtxos = resolvePendingUtxosForAddress(address);
+        List<Utxo> pendingUtxos = filterOutSpentUtxos(
+                resolvePendingUtxosForAddress(address));
 
         // Combine and return
         List<Utxo> allUtxos = new ArrayList<>(unspentBaseUtxos);

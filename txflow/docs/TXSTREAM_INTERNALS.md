@@ -220,7 +220,7 @@ Lane modes (`LanePolicy`):
 |---|---|---|
 | `single(lane)` | One fixed lane | Simple apps, one funding wallet |
 | `explicit()` | `TxWorkItem.lane` hint, required | Caller controls partitioning |
-| `byFundingAddress()` | Derived from the item's funding address | Natural per-wallet serialization |
+| `byFundingSource()` (default) | Derived from the item's `from` / `from_ref` | Natural per-wallet serialization; deprecated `byFundingAddress()` is an alias |
 | `partitioned(config)` | Hash-partitioned over N lanes | Throughput scaling over one identity |
 
 ### 4.4 Engine execution
@@ -478,8 +478,15 @@ to RECOVERY_REQUIRED, notify uncertain.
 
 ## 8. Threading & backpressure
 
+- `TxFlowStream.Builder.open()` is the exception-safe build-and-start path and
+  aborts a partially started stream before rethrowing. `build(); start()` is the
+  advanced split lifecycle. `FlowRuntime.open()` delegates to the same path and
+  tracks the returned stream for reverse-order close.
 - `submit()` blocks on the capacity semaphore (`maxBufferSize`); `trySubmit()` doesn't.
 - `maxInFlight` bounds concurrent executions; lanes serialize within themselves.
+- Dispatch inherits `FlowEngine.executionExecutor()` unless the builder supplies
+  an explicit executor. The core creates none; optional `FlowRuntime` owns its
+  documented task and maintenance pools.
 - A `maintenanceExecutor` (scheduled) drives window timers and periodic reconciliation
   (`reconciliationInterval`/`reconciliationBatchSize`). Without it the stream owns no
   threads/timers — read-through `getItemStatus()`/`reconcile()` still work (build-time

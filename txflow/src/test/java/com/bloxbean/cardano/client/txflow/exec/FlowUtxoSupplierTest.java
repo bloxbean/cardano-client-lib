@@ -236,4 +236,23 @@ class FlowUtxoSupplierTest {
         assertTrue(supplier.getTxOutput(TX_HASH_2, 0).isEmpty(),
                 "funding availability must not grant exact-output lookup authority");
     }
+
+    @Test
+    void portableFundingRelationshipExcludesPendingOutputsSpentByLaterSteps() {
+        Utxo olderChange = utxo(TX_HASH_2, 0, ADDR);
+        Utxo latestChange = utxo(TX_HASH_3, 0, ADDR);
+        context.recordStepResult("step1", FlowStepResult.success(
+                "step1", TX_HASH_2, List.of(olderChange),
+                List.of(new TransactionInput(TX_HASH_1, 0))));
+        context.recordStepResult("step2", FlowStepResult.success(
+                "step2", TX_HASH_3, List.of(latestChange),
+                List.of(new TransactionInput(TX_HASH_2, 0))));
+        when(baseSupplier.getAll(ADDR)).thenReturn(List.of());
+
+        FlowUtxoSupplier supplier = new FlowUtxoSupplier(
+                baseSupplier, context, List.of(), Set.of(), List.of("step1", "step2"));
+
+        assertEquals(List.of(latestChange), supplier.getAll(ADDR),
+                "transitive funding must not re-offer pending change already spent later");
+    }
 }

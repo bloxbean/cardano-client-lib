@@ -1,14 +1,14 @@
 # ADR 0005: Progressive TxStream API for Beginner Accessibility and Advanced Control
 
-**Status**: Proposed
+**Status**: Implemented (accepted after final implementation review)
 
-**ADR Document Version**: 1.3.0
+**ADR Document Version**: 1.4.0
 
 **Date**: 2026-08-23
 
-**Last Updated**: 2026-08-26
+**Last Updated**: 2026-08-27
 
-**Review State**: Maintainer clarification round incorporated; final acceptance review pending
+**Review State**: Final acceptance review incorporated; implementation and documentation complete
 
 **Target Release**: Next TxStream preview release; exact version to be decided during review
 
@@ -31,6 +31,7 @@ The ADR document version is independent of the library release version.
 | 1.2.0 | 2026-08-25 | Bloxbean / CCL maintainers with Codex review | Maintainer review round 2 incorporated | Resolves all ADR 0005 blocking questions: fixes outcome and standby codes, places a narrow `FlowRuntime` in the top-level `txflow` package, limits per-window chaining to sequential/pipelined modes, names the ambiguous-funding diagnostic, and centralizes deferred API work with revisit criteria. |
 | 1.2.1 | 2026-08-25 | Bloxbean / CCL maintainers with Codex review | Maintainer clarification incorporated | Defines `FlowRuntime` as an optional managed composition root that owns and exposes one ordinary `FlowEngine`, delegates all execution to existing engine/stream code, and leaves direct `FlowEngine` use as the canonical advanced and server path. |
 | 1.3.0 | 2026-08-26 | Bloxbean / CCL maintainers with Codex implementation review | C1 implementation learning incorporated | Makes pipelined per-window funding explicit and portable: generated same-lane steps form a deterministic `funding_from` chain, exposing only predecessor outputs matching the requested funding address. This avoids double-spend/insufficient-funds behavior without changing `needs(...)` or exact `flow_output` semantics. |
+| 1.4.0 | 2026-08-27 | Bloxbean / CCL maintainers with external implementation review reconciled by Codex | Final review incorporated; accepted and implemented | Corrects pipelined windows to expose all earlier unspent same-lane change, restores `FlowScheduler` as an internal seam, makes premature resolution a state precondition rather than item failure, removes duplicate runtime signer validation, refreshes public/internal documentation, and adds real-source, multi-UTxO DevKit, Java 17, and additive Java 21 CI evidence. |
 
 ### Versioning Rules for This ADR
 
@@ -51,7 +52,7 @@ Each review round adds a row here and a corresponding ADR version-history entry.
 | 2 | 1.1.0 -> 1.2.0 | 2026-08-25 | Maintainer review | Incorporated | Selected `TXSTREAM_RECOVERY_REQUIRED`, `TXSTREAM_ITEM_FAILED`, `TXSTREAM_NOT_ACTIVE`, and `TXSTREAM_LANE_AMBIGUOUS`; fixed the `FlowRuntime` package and narrow builder scope; limited `perWindow(...)` to `SEQUENTIAL`/`PIPELINED`; deferred `BATCH`, general fluent aliases, effective snapshots, and broader runtime customization. |
 | 3 | 1.2.0 -> 1.2.1 | 2026-08-25 | Maintainer clarification | Incorporated | Clarified why lifecycle ownership is not added conditionally to `FlowEngine`: `FlowRuntime` is optional composition infrastructure, owns exactly one normal engine, delegates rather than reimplements behavior, and can be bypassed completely by advanced callers. |
 | 4 | 1.2.1 -> 1.3.0 | 2026-08-26 | C1 implementation review against Yaci DevKit | Incorporated | A mode-only prototype exposed an unsafe gap: later same-lane steps could not see pending change and failed after the first submission. Added a fingerprinted portable funding relationship, deterministic planner chaining, address-scope filtering, and live journal-order verification. |
-| 5 | 1.3.0 | 2026-08-26 | Pending final acceptance review | Open | Confirm the resolved contract and explicitly move the ADR from `Proposed` to `Accepted`. |
+| 5 | 1.3.0 -> 1.4.0 | 2026-08-27 | External final implementation review (Claude), reconciled by maintainers/Codex | Incorporated; ADR accepted and implemented | Fixed the transitive pending-change correctness gap; removed incidental scheduler API; corrected resolution-state semantics; centralized runtime signer registration; refreshed current/public docs and code-family coverage; added real source rejection, three-item multi-UTxO DevKit, and additive Java 21 CI coverage. Explicit builder examples remain intentionally supported for advanced resource ownership, and existing focused `Builder.open()` abort tests were retained instead of duplicating them through a synthetic `FlowRuntime` factory. |
 
 Reviewers should cite decision, implementation-phase, or open-question numbers. A review round is complete when every raised finding has a recorded disposition and the next ADR version captures all accepted changes.
 
@@ -533,14 +534,17 @@ TxStreamPlanner.perWindow(ChainingMode.PIPELINED)
 For `PIPELINED`, setting the engine mode alone is insufficient and unsafe: after
 the first transaction spends the lane's current UTxO, the next build must be
 able to fund from its pending change. The planner therefore links its stable,
-claim-key-sorted steps with the portable `funding_from` relationship. In Java,
-`FlowStep.Builder.fundsFrom(previousStepId)` exposes predecessor outputs only to
-normal address-based funding selection, and the flow-aware supplier filters
-them to the address QuickTx requested. It does not grant exact-output lookup,
-does not make differently addressed outputs spendable, and does not change the
-ordering-only contract of `needs(...)` or the exact-consumption contract of a
-named `flow_output`. The relationship is part of canonical portable encoding
-and therefore the compiled definition fingerprint.
+claim-key-sorted steps with portable `funding_from` relationships. Every later
+generated step names all earlier generated steps in its lane, so an unconsumed
+older change output remains visible even when an intervening step selected a
+different base UTxO. The flow-aware supplier exposes only outputs matching the
+address QuickTx requested and removes every base or pending output already
+present in `FlowExecutionContext.getAllSpentInputs()`. This is transitive
+availability, not transitive exact-consumption authority: it does not grant
+exact-output lookup, make differently addressed outputs spendable, or change
+the ordering-only contract of `needs(...)` or the exact-consumption contract
+of a named `flow_output`. The relationships are part of canonical portable
+encoding and therefore the compiled definition fingerprint.
 
 A global `.chaining(...)` builder option is rejected because it would be:
 
@@ -935,9 +939,9 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 - Add `perWindow(ChainingMode)` accepting only `SEQUENTIAL` and `PIPELINED`.
 - Keep `perWindow()` as the sequential compatibility factory.
 - Apply the mode only to the generated multi-step flow.
-- In pipelined mode, connect the deterministic step order with portable
-  `funding_from` relationships so pending same-address change can fund the next
-  build without broadening exact-output access.
+- In pipelined mode, give each deterministic step portable `funding_from`
+  relationships to all earlier same-lane generated steps; filter already-spent
+  base and pending outputs without broadening exact-output access.
 - Reject null, `BATCH`, and other unsupported modes immediately without downgrading.
 
 **Verification**
@@ -947,7 +951,8 @@ Each phase is independently reviewable. Phase A establishes the beginner front d
 - pipelined per-window emits the correct `TxFlow` settings;
 - per-item, batching, custom planners, and templates are not silently overridden;
 - pipelined failure/uncertainty preserves item projection truth;
-- live DevKit coverage demonstrates the intended throughput behavior.
+- live DevKit coverage uses three payments and a fresh wallet with multiple
+  UTxOs, and demonstrates that all submissions precede confirmation.
 
 ### Phase C2: Operability
 
@@ -1122,9 +1127,10 @@ Reviewers should explicitly confirm or challenge:
 - whether any existing explicit API becomes semantically different despite being source-compatible;
 - whether the implementation phases can be merged independently without exposing an unsafe intermediate release.
 
-## Acceptance Criteria
+## Acceptance and Implementation Record
 
-This ADR is ready to move from `Proposed` to `Accepted` when:
+The following criteria governed acceptance. Review round 5 records their final
+disposition; they remain regression gates for the implemented API:
 
 - final acceptance review confirms that review rounds 2 and 3 resolved every blocking question and introduced no new blocker;
 - the beginner and advanced API examples are judged coherent together;
@@ -1133,10 +1139,10 @@ This ADR is ready to move from `Proposed` to `Accepted` when:
 - ADR 0006 boundaries are clear and no durable guarantee is implied by the beginner API;
 - intentional preview breaks and deferred pre-1.0 work are explicitly agreed.
 
-The implementation is complete when:
+Implementation completion requires:
 
 - the getting-started success sample is at most twenty substantive Java lines, counts runtime/account setup, names no lane, executor, or signer-registry type, compiles, and confirms on Yaci DevKit;
-- the adjacent uncertainty-first three-catch recipe compiles and `awaitResolution` never resubmits;
+- the adjacent uncertainty-first recipe, including timeout handling, compiles and `awaitResolution` never resubmits;
 - Java 17 fixed-pool and Java 21 virtual-thread runtime paths satisfy the documented ownership and close-order tests;
 - existing explicit `.lane(...).executor(...).build(); start();` tests remain green;
 - `open()` and `Builder.open()` abort every partially started failure path and retain the original failure;

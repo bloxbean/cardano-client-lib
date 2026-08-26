@@ -3,7 +3,6 @@ package com.bloxbean.cardano.client.txflow.stream;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
-import com.bloxbean.cardano.client.txflow.exec.FlowScheduler;
 import com.bloxbean.cardano.client.txflow.store.FlowStoreTextPolicy;
 
 import java.time.Clock;
@@ -377,17 +376,16 @@ public interface TxFlowStream extends AutoCloseable {
      * @throws TxStreamCancelledException when reconciliation resolves to cancelled
      * @throws TxStreamTimeoutException when the item remains uncertain at timeout
      * @throws TxStreamException with {@code TXSTREAM_ITEM_UNKNOWN} for an unknown
-     *         item, {@code TXSTREAM_ITEM_FAILED} for an item that has never
-     *         reached recovery-required, or {@code TXSTREAM_INTERRUPTED} when
-     *         interrupted
+     *         item or {@code TXSTREAM_INTERRUPTED} when interrupted
+     * @throws IllegalStateException when the known item has not reached
+     *         recovery-required or a later conclusive state
      */
     default TxStreamItemResult awaitResolution(String itemId, Duration timeout,
                                                Duration pollInterval) {
         Objects.requireNonNull(itemId, "itemId");
         long timeoutNanos = TxStreamReceipt.positiveNanos(timeout, "timeout");
         long intervalNanos = TxStreamReceipt.positiveNanos(pollInterval, "pollInterval");
-        FlowScheduler scheduler = FlowScheduler.system();
-        long startedAt = scheduler.monotonicNanos();
+        long startedAt = TxStreamScheduler.monotonicNanos();
         TxStreamItemResult latest = null;
         while (true) {
             latest = reconcile(itemId).orElseThrow(() -> new TxStreamException(
@@ -400,12 +398,12 @@ public interface TxFlowStream extends AutoCloseable {
                 case RECOVERY_REQUIRED:
                     break;
                 default:
-                    throw new TxStreamException("TXSTREAM_ITEM_FAILED",
+                    throw new IllegalStateException(
                             "Item '" + itemId + "' has not reached RECOVERY_REQUIRED; latest"
                                     + " status is " + latest.getStatus());
             }
 
-            long elapsed = scheduler.monotonicNanos() - startedAt;
+            long elapsed = TxStreamScheduler.monotonicNanos() - startedAt;
             if (elapsed >= timeoutNanos) {
                 throw new TxStreamTimeoutException(
                         "Item '" + itemId + "' remained RECOVERY_REQUIRED for " + timeout,
@@ -413,7 +411,7 @@ public interface TxFlowStream extends AutoCloseable {
             }
             long sleepNanos = Math.min(intervalNanos, timeoutNanos - elapsed);
             try {
-                scheduler.sleep(Duration.ofNanos(sleepNanos));
+                TxStreamScheduler.sleepNanos(sleepNanos);
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
                 throw new TxStreamException("TXSTREAM_INTERRUPTED",

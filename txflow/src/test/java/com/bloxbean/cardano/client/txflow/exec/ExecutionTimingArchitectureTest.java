@@ -27,7 +27,8 @@ class ExecutionTimingArchitectureTest {
         try (Stream<Path> sources = Files.walk(sourceRoot)) {
             for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
                 String fileName = source.getFileName().toString();
-                if (fileName.equals("FlowScheduler.java")) continue;
+                if (fileName.equals("FlowScheduler.java")
+                        || fileName.equals("TxStreamScheduler.java")) continue;
                 String code = sourceCode(source);
                 assertFalse(code.contains("Instant.now("), source + " must use an injected clock/scheduler");
                 assertFalse(code.contains("System.currentTimeMillis("),

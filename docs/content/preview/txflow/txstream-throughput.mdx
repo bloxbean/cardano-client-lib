@@ -32,7 +32,7 @@ expresses that directly:
 | --- | --- | --- |
 | `LanePolicy.single(lane)` / builder `.lane(...)` | one static configuration | One funding wallet, strict FIFO — the simplest correct start |
 | `LanePolicy.explicit()` + `laneResolver` | each item's `withLane(name)` | You route work to named funding scopes (treasury vs operations) |
-| `LanePolicy.byFundingAddress()` | each item's own `from`/`from_ref` | Items already carry their funding source; senders lane themselves |
+| `LanePolicy.byFundingSource()` (default) | each item's own `from`/`from_ref` | Items already carry their funding source; senders lane themselves |
 | `LanePolicy.partitioned(config)` | `hash(idempotencyKey) % N` over N app-owned addresses | Maximum throughput from one logical wallet — see the deep-dive below |
 
 **Explicit lanes** resolve names through a required `LaneIdentityResolver`, once per name at first
@@ -54,9 +54,7 @@ try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
         })
         .maxInFlight(8)
         .executor(streamExecutor)
-        .build()) {
-    stream.start();
-
+        .open()) {
     stream.submit(TxWorkItem.builder("treasury-pay-1")
             .withTxPlan(treasuryPlan)
             .withLane("treasury")
@@ -76,14 +74,13 @@ for free. An item whose transaction names no funding source fails typed
 silent label):
 
 ```java
-TxFlowStream stream = TxFlowStream.builder("payouts", engine)
-        .lanes(LanePolicy.byFundingAddress())
-        .executor(streamExecutor)
-        .build();
+TxFlowStream stream = TxFlowStream.builder("payouts", engine).open();
 ```
 
-Give the stream `executor` at least as many threads as you want concurrently dispatching lanes;
-dispatch for different lanes is submitted as independent tasks.
+The default policy is `byFundingSource()`; the builder call is only needed when making the choice
+explicit. `byFundingAddress()` remains a deprecated compatibility alias. Dispatch inherits the
+engine execution executor unless overridden; give an explicit stream executor at least as many
+threads as the number of lanes you want concurrently dispatching.
 
 ## Windows and planners
 
@@ -127,7 +124,9 @@ The three built-in planners:
   exactly-once; sources that redeliver individual items should use this one.
 - **`perWindow()`** — one shared flow per *lane group* in the window; each item rides its own
   step (its own transaction) of the shared execution. Fewer engine executions, per-item
-  transactions preserved. Flow-level dedup only.
+  transactions preserved. Flow-level dedup only. `perWindow(ChainingMode.PIPELINED)` opts into
+  same-lane pipelining: each generated step may fund from every earlier same-lane step's unspent,
+  matching-address pending outputs. `SEQUENTIAL` is the default; `BATCH` is not supported here.
 - **`batching(options)`** — merges compatible payment-shaped items within a lane group into
   **one** transaction (one flow, one merged step; overflow beyond `maxItemsPerTransaction`
   splits into further merged flows). Fewer on-chain transactions and lower total fees; merged
@@ -216,7 +215,7 @@ consolidating lanes on shutdown are the caller's economics — the stream never 
 > are certain the configuration is generated deterministically.
 
 Template items currently require an explicit lane (`single` or `explicit`); under
-`byFundingAddress()`/`partitioned(...)` they fail typed `TXSTREAM_LANE_REQUIRED`.
+`byFundingSource()`/`partitioned(...)` they fail typed `TXSTREAM_LANE_REQUIRED`.
 
 ## Honest throughput expectations
 
@@ -284,7 +283,7 @@ try (TxFlowStream stream = TxFlowStream.builder("payouts-reactive", engine)
   one-per-lane rule. Ready lanes are scheduled round-robin, so one lane's backlog cannot starve
   the others.
 - **Lane maps are unbounded.** Resolved lane identities and their FIFO state are retained for the
-  stream's lifetime. Under `byFundingAddress()` with high-cardinality senders (many thousands of
+  stream's lifetime. Under `byFundingSource()` with high-cardinality senders (many thousands of
   distinct funding addresses through one stream), that map grows without bound — prefer a bounded
   set of explicit or partitioned lanes for that shape.
 - **`maxBufferSize`** (default 1000) bounds accepted-but-undispatched items; `submit` blocks and

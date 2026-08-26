@@ -96,14 +96,16 @@
  *   <tr><th>Codes</th><th>Meaning</th><th>Caller action</th></tr>
  *   <tr><td>{@code INVALID_ITEM}, {@code NON_PORTABLE_ITEM},
  *       {@code DUPLICATE_ITEM}, {@code IDEMPOTENCY_KEY_REUSE},
- *       {@code REGISTRATION_FAILED}</td>
+ *       {@code REGISTRATION_FAILED}, {@code NON_PERSISTABLE_SECRET}</td>
  *       <td>Work was rejected before acceptance</td>
  *       <td>Correct the same stable item; a rejection is not an accepted receipt</td></tr>
  *   <tr><td>{@code LANE_*}, {@code TEMPLATE_*}</td>
  *       <td>Funding identity or registered definition is invalid</td>
  *       <td>Repair configuration/content; never route around a scope mismatch</td></tr>
  *   <tr><td>{@code PLANNER_*}, {@code PLAN_*}, {@code BINDING_*},
- *       {@code DISPATCH_FAILED}</td>
+ *       {@code PLANNED_*}, {@code BATCH_INELIGIBLE_ITEM},
+ *       {@code DISPATCH_FAILED}, {@code EXECUTION_FAILED},
+ *       {@code EXECUTION_CANCELLED}, {@code PROJECTION_FAILED}</td>
  *       <td>Planning or write-ahead dispatch failed</td>
  *       <td>Inspect durable/engine state before deciding whether retry is safe</td></tr>
  *   <tr><td>{@code RECOVERY_REQUIRED}, {@code REATTACH_*},
@@ -111,12 +113,17 @@
  *       <td>A submitted or durable outcome is not proven</td>
  *       <td>Do not resubmit; reconcile by the existing item/execution identity</td></tr>
  *   <tr><td>{@code CLOSED}, {@code NOT_ACTIVE}, {@code ABORTED},
- *       {@code OWNERSHIP_*}, {@code TIMEOUT}, {@code INTERRUPTED}</td>
+ *       {@code ABANDONED}, {@code UNHEALTHY}, {@code DRAIN_FAILED},
+ *       {@code ITEM_*}, {@code BOOTSTRAP_*}, {@code OWNERSHIP_*},
+ *       {@code TIMEOUT}, {@code INTERRUPTED}</td>
  *       <td>Lifecycle, ownership, or caller-budget condition</td>
  *       <td>Route/start/wait according to the specific code; none alone proves chain failure</td></tr>
  *   <tr><td>{@code STORE_CODEC_*}</td>
  *       <td>Core persisted representation is corrupt or unsupported</td>
  *       <td>Quarantine, repair, or migrate; never guess transaction state</td></tr>
+ *   <tr><td>{@code SOURCE_FAILED}, {@code SUBSCRIBER_OVERFLOW}</td>
+ *       <td>Publisher/source or downstream status-adapter failure</td>
+ *       <td>Repair/restart the adapter; accepted receipts remain authoritative</td></tr>
  * </table>
  */
 package com.bloxbean.cardano.client.txflow.stream;

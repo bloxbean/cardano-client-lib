@@ -41,9 +41,7 @@ TxFlowStream stream = TxFlowStream.builder("payouts", durableEngine)
         .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
         .stateStore(TxStreamStateStore.inMemoryDurable())
         .executor(streamExecutor)
-        .build();
-
-stream.start();                              // re-attach runs BEFORE new work is accepted
+        .open();                             // re-attach runs BEFORE new work is accepted
 ReattachReport report = stream.reattach();   // idempotent: returns the same report
 System.out.println("re-attached=" + report.reattachedItems()
         + ", re-dispatched=" + report.redispatched()
@@ -84,8 +82,7 @@ try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
         .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
         .stateStore(streamStore)                  // durable stream planning metadata
         .executor(streamExecutor)
-        .build()) {
-    stream.start();   // re-attach resolves persisted in-flight items first
+        .open()) {    // re-attach resolves persisted in-flight items first
     // ... submit work ...
 }
 ```
