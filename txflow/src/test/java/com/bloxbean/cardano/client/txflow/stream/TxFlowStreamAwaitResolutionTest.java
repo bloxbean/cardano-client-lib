@@ -139,9 +139,10 @@ class TxFlowStreamAwaitResolutionTest {
                             Duration.ofMillis(1))).getCode());
 
             stream.submit("pay-1", plan());
-            assertEquals("TXSTREAM_ITEM_FAILED", assertThrows(TxStreamException.class,
+            IllegalStateException premature = assertThrows(IllegalStateException.class,
                     () -> stream.awaitResolution("pay-1", Duration.ofSeconds(1),
-                            Duration.ofMillis(1))).getCode());
+                            Duration.ofMillis(1)));
+            assertTrue(premature.getMessage().contains("latest status is"));
             gateway.lastHandle().completeCancelled();
         }
     }

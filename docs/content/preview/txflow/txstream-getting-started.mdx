@@ -22,9 +22,9 @@ latency dominates; this is a throughput and reliability tool.
 
 > **Status:** TxStream ships with the txflow preview line (`0.8.0-pre*`) and is
 > preview/experimental. The scenarios below are validated end-to-end on a live Yaci DevKit devnet,
-> but sustained-load soak testing has not been done, and the construction API is expected to get
-> lighter in a future iteration (see the honest notes below). Java 17 is the baseline; the stream,
-> like `FlowEngine`, only ever runs on caller-owned executors.
+> but sustained-load soak testing has not been done. Java 17 is the minimum. Direct engine/stream
+> builders use caller-owned executors; the optional `FlowRuntime` below explicitly owns its
+> documented executors for you.
 
 ## Add the dependencies
 
@@ -51,93 +51,37 @@ For crash-durable streams add the optional relational store module; see
 
 ## A minimal working stream
 
-The example below is the complete current ceremony, mirroring the devnet-validated integration
-test: a `FlowEngine` over the four backend supplier interfaces plus a signer registry, and a
-stream with one lane and its own executor. It submits three payments and awaits their receipts.
-
-> **Honest note on ceremony:** today the stream requires an explicit lane policy and an explicit
-> executor, and the engine requires its four suppliers and (when a store is configured) a
-> maintenance executor. That is heavier than the intended front door; expect defaults (for
-> example a funding-address-derived lane policy and executor inheritance from the engine) in a
-> later iteration. These docs describe what ships now.
-
-In this snippet, `senderMnemonic` and `receiverAddress` come from your application's own
-secret-management and configuration paths; the URL targets a local Yaci DevKit devnet.
+For a script, CLI, or small application, `FlowRuntime` is the shortest safe front door. It owns
+one ordinary `FlowEngine`, its task and maintenance executors, and every stream opened through
+it. The example assumes you already have a backend, funded sender account, and receiver address:
 
 ```java
-BFBackendService backendService =
-        new BFBackendService("http://localhost:8080/api/v1/", "dummy-project-id");
-Account sender = Account.createFromMnemonic(Networks.testnet(), senderMnemonic);
-
-// Caller-owned executors: the engine and the stream never create threads.
-ExecutorService engineExecutor = Executors.newFixedThreadPool(4);
-ExecutorService engineMaintenance = Executors.newSingleThreadExecutor();
-ExecutorService streamExecutor = Executors.newFixedThreadPool(2);
-
-FlowEngine engine = FlowEngine.builder(
-                new DefaultUtxoSupplier(backendService.getUtxoService()),
-                new DefaultProtocolParamsSupplier(backendService.getEpochService()),
-                new DefaultTransactionProcessor(backendService.getTransactionService()),
-                new DefaultChainDataSupplier(backendService))
-        .executor(engineExecutor)
-        .store(new InMemoryFlowExecutionStore())
-        .maintenanceExecutor(engineMaintenance)
-        .signerRegistry(new DefaultSignerRegistry()
-                .addAccount("account://sender", sender))
+try (FlowRuntime runtime = FlowRuntime.builder(backend)
+        .account("account://sender", sender)
         .build();
+     TxFlowStream stream = runtime.open("payouts")) {
+    TxPlan plan = TxPlan.from(new Tx()
+                    .payToAddress(receiverAddress, Amount.ada(2))
+                    .fromRef("account://sender"))
+            .withSigner("account://sender");
 
-try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
-        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
-        .executor(streamExecutor)
-        .build()) {
-    stream.start();
-
-    List<TxStreamReceipt> receipts = new ArrayList<>();
-    for (int i = 1; i <= 3; i++) {
-        TxPlan plan = TxPlan.from(new Tx()
-                        .payToAddress(receiverAddress, Amount.ada(1.5))
-                        .fromRef("account://sender"))
-                .withSigner("account://sender");
-        receipts.add(stream.submit(TxWorkItem.builder("payment-" + i)
-                .withTxPlan(plan)
-                .withIdempotencyKey("order-" + i)
-                .build()));
-    }
-
-    for (TxStreamReceipt receipt : receipts) {
-        TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-        System.out.println(receipt.itemId() + " -> " + outcome.getStatus()
-                + ", tx=" + outcome.getTransactionHash());
-    }
-}   // close() is graceful: accepted work drains to settlement; nothing is cancelled
-
-engineExecutor.shutdown();
-engineMaintenance.shutdown();
-streamExecutor.shutdown();
+    TxStreamItemResult result = stream.submit("order-0042", plan)
+            .awaitConfirmed(Duration.ofMinutes(5));
+}
 ```
 
 What the pieces do:
 
-- **`FlowEngine`** executes each planned item: write-ahead journaling, idempotency claims,
-  confirmation tracking, typed recovery. The engine `.store(...)` and `.maintenanceExecutor(...)`
-  lines may be omitted for a purely in-memory quick start; they are required for durable
-  execution, and the durable pairing rules are covered in
-  [Durability & Exactly-Once](./txstream-durability).
+- **`FlowRuntime`** owns one normal engine and its executors; `runtime.engine()` exposes that exact
+  engine for ordinary `TxFlow` execution. Advanced/server applications can construct the engine
+  and stream directly for explicit resource ownership or durable configuration.
 - **`streamId` (`"payouts"`)** defines the idempotency namespace `stream:payouts`. Keep it stable:
   it is part of every item's engine claim.
-- **The lane** (`ResolvedLane.ofFundingRef("payouts", "account://sender")`) names the funding
-  scope the stream spends from. The lane's funding source must match the plans' `fromRef` —
-  the stream mechanically enforces that a lane's transactions draw only from the lane's own funds
-  (an item outside its lane's scope fails typed `TXSTREAM_LANE_SCOPE_VIOLATION`). One lane means
-  items execute strictly one at a time, FIFO; concurrency comes from more lanes
-  ([Lanes & Throughput](./txstream-throughput)).
-- **The stream executor** runs dispatch. A multi-threaded executor lets multiple lanes dispatch
-  concurrently; with a single lane one thread is enough.
+- **The default lane policy** derives a syntactic lane from each plan's `from` or `from_ref`.
+  Same-source items serialize; different sources can run concurrently. Do not mix address and
+  reference forms for one wallet within a stream.
 - **`TxPlan` payloads** are portable QuickTx plans. A `TxPlan` needs `.withSigner(...)` naming a
-  reference registered in the engine's `SignerRegistry`; keys never travel inside items. Items may
-  also carry a portable `FlowStep`, or reference a pre-registered template (below). Payloads
-  carrying Java transaction factories are rejected at `submit()` with
-  `TXSTREAM_NON_PORTABLE_ITEM` — the engine can only execute portable content.
+  reference registered by `FlowRuntime.Builder.account(...)`; keys never travel inside items.
 
 ## Item identity and idempotency
 
@@ -210,26 +154,39 @@ switch (result.getStatus()) {
 }
 ```
 
-Note one deliberate wart: an item that fails eager validation (for example a non-portable payload)
-is still `OK` — the returned receipt is already settled with a typed `FAILED` result. Check the
-receipt, not just the emit status.
+An item that fails eager validation is not accepted. Blocking `submit` throws the typed cause;
+`trySubmit` returns `REJECTED`. No receipt, retained item, accepted/failed counter, or engine
+execution is created, so corrected content may reuse the same stable item ID.
 
 ## Reading results
 
-`receipt.completion()` is a non-cancelling stage that settles when the item reaches a terminal
-status or `RECOVERY_REQUIRED`; `getItemStatus(itemId)` returns the live projection at any time.
+For synchronous code, `awaitConfirmed(timeout)` returns only `CONFIRMED`. It classifies failure,
+cancellation, and uncertainty from the latest live projection and never performs hidden
+reconciliation:
 
 ```java
-TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-if (outcome.isSuccessful()) {
-    String txHash = outcome.getTransactionHash();          // CONFIRMED
-} else if (outcome.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED) {
-    // The transaction may still confirm — reconcile; never retry blindly.
-    Optional<TxStreamItemResult> repaired = stream.reconcile(receipt.itemId());
-} else {
-    Throwable error = outcome.getError();                  // FAILED / CANCELLED
+try {
+    return stream.submit("order-0042", plan)
+            .awaitConfirmed(Duration.ofMinutes(5));
+} catch (TxStreamUncertainException uncertain) {
+    // DO NOT RESUBMIT: reconcile this known item/transaction.
+    return stream.awaitResolution(uncertain.itemId(),
+            Duration.ofMinutes(5), Duration.ofSeconds(5));
+} catch (TxStreamTimeoutException timeout) {
+    // A caller wait expired; inspect timeout.result(). Timeout is not failure.
+    throw timeout;
+} catch (TxStreamCancelledException cancelled) {
+    throw cancelled;
+} catch (TxStreamFailedException failed) {
+    throw failed;
 }
+```
 
+`receipt.completion()` remains the non-cancelling asynchronous stage and `awaitSettled()` is the
+blocking API for callers that intentionally branch over every settled state. Both can expose
+`RECOVERY_REQUIRED`. `getItemStatus(itemId)` returns the live projection at any time:
+
+```java
 // Live projection; read-through repair for RECOVERY_REQUIRED items:
 Optional<TxStreamItemResult> current = stream.getItemStatus(receipt.itemId());
 
@@ -296,9 +253,7 @@ try (TxFlowStream stream = TxFlowStream.builder("payouts-template", engine)
         .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
         .template("payout", payoutTemplate)
         .executor(streamExecutor)
-        .build()) {
-    stream.start();
-
+        .open()) {
     stream.submit(TxWorkItem.builder("payout-1")
             .withTemplate("payout")
             .withIdempotencyKey("payout-order-1")
@@ -330,8 +285,8 @@ AbortReport report = stream.abort("shutting down");
 report.quiescence().toCompletableFuture().join();   // signalled executions settled
 ```
 
-- `start()` begins dispatch (and, for durable/partitioned streams, runs re-attach and the fan-out
-  bootstrap first). A closed stream cannot be restarted.
+- `open()` builds and starts with abort-on-startup-failure cleanup. `build(); start()` remains for
+  advanced wiring between construction and startup. A closed stream cannot be restarted.
 - `drain()` awaits every accepted item's completion promise — not queue emptiness heuristics — so
   no accepted item can be left out. `awaitDrain(timeout)` throws a typed
   `TxStreamTimeoutException` (`TXSTREAM_TIMEOUT`) when the deadline elapses first.

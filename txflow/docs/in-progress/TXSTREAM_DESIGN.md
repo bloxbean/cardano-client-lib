@@ -7,12 +7,12 @@ This is the design document for the shipped `TxFlowStream` API (`com.bloxbean.ca
 | Document | Role |
 |---|---|
 | This file | Architecture, diagrams, status machines, edge cases |
-| [TXSTREAM_INTERNALS.md](TXSTREAM_INTERNALS.md) | Maintainer invariants before touching `EngineTxFlowStream` |
+| [TXSTREAM_INTERNALS.md](../TXSTREAM_INTERNALS.md) | Maintainer invariants before touching `EngineTxFlowStream` |
 | [TXSTREAM_READINESS_REPORT.md](TXSTREAM_READINESS_REPORT.md) | API readiness, quality ranking, punch list |
-| [TXSTREAM_API_DX.md](TXSTREAM_API_DX.md) | Beginner-friendly API refactor proposal |
-| ADR [0004](../adr/0004-txstream-on-flow-engine.md) | Normative decisions (lanes, idempotency, projection, durability, lifecycle) |
+| [TXSTREAM_API_DX.md](TXSTREAM_API_DX.md) | Historical proposal, superseded by ADR 0005 |
+| ADR [0004](../../adr/0004-txstream-on-flow-engine.md) | Normative decisions (lanes, idempotency, projection, durability, lifecycle) |
 | Public guides | [Getting started](../../docs/content/preview/txflow/txstream-getting-started.mdx), [durability](../../docs/content/preview/txflow/txstream-durability.mdx), [throughput](../../docs/content/preview/txflow/txstream-throughput.mdx) |
-| Engine internals | [TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md) — claims, leases, journal, uncertain disposition |
+| Engine internals | [TXFLOW_ENGINE_INTERNALS.md](../TXFLOW_ENGINE_INTERNALS.md) — claims, leases, journal, uncertain disposition |
 
 ---
 
@@ -47,7 +47,11 @@ It is the top of the txflow stack. It never builds or submits a Cardano transact
 
 **When to use it.** Submitting *many* transactions over time where each must land exactly once and survive process death. **When not to.** One-off payments (QuickTx), a single multi-step workflow (`TxFlow` + `FlowEngine` directly), on-chain-atomic multi-party logic (a validator), or latency-critical paths (confirmation latency dominates).
 
-**Status.** Preview / experimental on the `0.8.0-pre*` line. Java 17. The stream, like `FlowEngine`, only ever runs on **caller-owned executors** — it never creates threads or timers.
+**Status.** Preview / experimental on the `0.8.0-pre*` line. Java 17 is the
+minimum. Direct `FlowEngine` / `TxFlowStream` construction uses caller-owned
+executors and creates no threads or timers. The optional `FlowRuntime` beginner
+facade owns documented task and maintenance executors and delegates all
+transaction behavior to one ordinary engine.
 
 ---
 
@@ -70,42 +74,38 @@ It is the top of the txflow stack. It never builds or submits a Cardano transact
 ## 3. Public front door
 
 ```java
-FlowEngine engine = FlowEngine.builder(utxoSupplier, protocolParamsSupplier,
-        transactionProcessor, chainDataSupplier)
-        .executor(engineExecutor)
-        .store(executionStore)                 // required for durable streams
-        .maintenanceExecutor(engineMaintenance)
-        .signerRegistry(signers)
+try (FlowRuntime runtime = FlowRuntime.builder(backend)
+        .account("account://sender", sender)
         .build();
+     TxFlowStream stream = runtime.open("payouts")) {
+    TxPlan plan = TxPlan.from(new Tx()
+                    .payToAddress(receiver, Amount.ada(2))
+                    .fromRef("account://sender"))
+            .withSigner("account://sender");
 
-try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
-        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
-        .executor(streamExecutor)              // required today
-        .build()) {
-    stream.start();
-
-    TxStreamReceipt receipt = stream.submit(
-            TxWorkItem.builder("pay-0042")
-                    .withTxPlan(plan)
-                    .withIdempotencyKey("order-0042")
-                    .build());
-
-    TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
+    TxStreamItemResult result = stream.submit("order-0042", plan)
+            .awaitConfirmed(Duration.ofMinutes(5));
 }
 ```
+
+Advanced/server applications construct `FlowEngine` and `TxFlowStream`
+directly when they need explicit executors, durable stores, ownership, custom
+registries, or lifecycle wiring. `TxFlowStream.Builder.open()` is the
+exception-safe build-and-start path; `build(); start()` remains available for
+callers that must wire resources between those operations.
 
 Builder knobs (progressive disclosure):
 
 | Knob | Default | Required when |
 |---|---|---|
-| `lane(...)` / `lanes(...)` | none — **required at build** | always (today) |
+| `lane(...)` / `lanes(...)` | `byFundingSource()` | templates, partitioning, or explicit routing |
 | `laneResolver(...)` | none | `LanePolicy.explicit()` |
 | `planner(...)` | `perItem()` | — |
 | `window(...)` | immediate windows of one | grouping / batching |
-| `executor(...)` | none — **required at build** | always (today) |
+| `executor(...)` | engine execution executor | separate dispatch isolation/pool policy |
 | `maintenanceExecutor(...)` | none | time-based window, reconciliation observer, or ownership |
 | `stateStore(...)` | in-memory (non-durable) | crash recovery / HA |
-| `source(...)` | in-memory | `Flow.Publisher` ingestion |
+| `source(...)` | direct submission | `Flow.Publisher` ingestion |
 | `maxBufferSize` | 1,000 | backpressure |
 | `maxInFlight` | 16 | global cap across lanes |
 | `maxRetainedSettledItems` | 10,000 | live-map / in-memory store bound |
@@ -196,8 +196,8 @@ Notes:
 - **Item-id dedup first**, before capacity. A redelivery of a live item never consumes a permit.
 - **`registerItem` happens before planning.** The store is the durable dedup guard. Reverse this and restart-time dedup breaks.
 - **Settle-before-remove** on rejected accept paths: a receipt attached concurrently must settle, never hang on a removed item. Rejected items do not bump accepted/failed counters (`suppressStoreProjection` / `suppressCounters`).
-- **`submit` vs `trySubmit`.** `submit` blocks on the capacity semaphore and throws on conflict / closed / reuse. `trySubmit` never throws for content outcomes: they become `EmitResult` statuses. A `null` item is still an NPE at both entries (programming error).
-- **`EmitResult.OK` with a FAILED receipt.** Eager validation failures (non-portable payload, lane mismatch, …) still return `OK` plus a receipt whose `completion()` is already `FAILED`. `isAccepted()` is true. Check `receipt.current().getStatus()`.
+- **`submit` vs `trySubmit`.** `submit` blocks on the capacity semaphore and throws on conflict, eager rejection, closed, or reuse. `trySubmit` never throws for content outcomes: they become `EmitResult` statuses. A `null` item is still an NPE at both entries (programming error).
+- **Rejection is not acceptance.** Eager validation and authoritative registration failures make blocking `submit` throw and non-blocking `trySubmit` return `REJECTED`. They create no receipt, retained item, accepted/failed counter, or `onItemAccepted` callback; `onItemRejected` fires once.
 
 ---
 
@@ -289,7 +289,7 @@ flowchart TB
     I[Item] --> P{LanePolicy}
     P -->|single| S[One ResolvedLane for the stream]
     P -->|explicit| E[item.withLane name → LaneIdentityResolver]
-    P -->|byFundingAddress| F[from / from_ref of the item's Tx]
+    P -->|byFundingSource default| F[from / from_ref of the item's Tx]
     P -->|partitioned| H["hash(idempotencyKey) % N"]
     S --> R[ResolvedLane: name + canonical identity + funding scope]
     E --> R
@@ -301,7 +301,7 @@ flowchart TB
     D -->|yes and inFlight < maxInFlight| X[Dispatch]
 ```
 
-**Why per-identity FIFO, not a thread pool.** `FlowEngine` consumes the idempotency claim *before* acquiring spending resources. Letting two executions pile into `TXFLOW_RESOURCE_BUSY` would poison their claims. Per-lane dispatch makes that path unreachable in-process. (Cross-process lane sharing still needs engine P3, which has not landed; until then one writer per lane set.)
+**Why per-identity FIFO, not a thread pool.** `FlowEngine` consumes the idempotency claim *before* acquiring spending resources. Letting two executions pile into `TXFLOW_RESOURCE_BUSY` would poison their claims. Per-lane dispatch makes that path unreachable in-process; engine spending-resource leases and fencing are the cross-process boundary.
 
 **Alias sharing.** Two labels resolving to the same wallet share one FIFO. Two lanes whose funding scopes overlap while claiming different identities fail typed `TXSTREAM_LANE_SCOPE_OVERLAP`.
 
@@ -315,10 +315,10 @@ flowchart TB
 |---|---|---|---|
 | `single(ResolvedLane)` | whole stream | none (validated at `build()`) | no |
 | `explicit()` | `item.withLane(...)` required | **required** | no |
-| `byFundingAddress()` | item's `from` / `from_ref` | none | no |
+| `byFundingSource()` | item's `from` / `from_ref` | none | no |
 | `partitioned(PartitionedLanes)` | `hash(key) % N` | none (addresses supplied) | optional, default on |
 
-Template items cannot derive a lane from a single transaction: under `byFundingAddress()` / `partitioned()` they fail `TXSTREAM_LANE_REQUIRED`. Use `single()` or `explicit()`.
+Template items cannot derive a lane from a single transaction: under `byFundingSource()` / `partitioned()` they fail `TXSTREAM_LANE_REQUIRED`. Use `single()` or `explicit()`. `byFundingAddress()` remains a deprecated compatibility alias.
 
 ---
 
@@ -549,7 +549,7 @@ flowchart LR
 - `FULL` and `PAUSED` park the item; only `CLOSED` tears the source down.
 - Mixing the adapter with direct `submit` calls that fill the buffer can stall held items — documented limitation of a thin bridge.
 - Publisher `onError` → `terminated()` exceptionally `TXSTREAM_SOURCE_FAILED`. `onComplete` does **not** close the stream.
-- **No owned threads.** Window timers, reconciliation, and ownership ticks run on the caller-owned `maintenanceExecutor`. Dispatch tasks run on the caller-owned `executor`. Blocking inside `onItemUpdated` stalls that lane's dispatch thread; the item promise is completed *before* the listener so `drain()` still unblocks.
+- **No core-owned threads.** Under direct construction, window timers, reconciliation, and ownership ticks run on the caller-owned `maintenanceExecutor`; dispatch inherits the engine executor unless overridden. `FlowRuntime` is the explicit optional owner of managed executors. Blocking inside `onItemUpdated` stalls that lane's dispatch thread; the item promise is completed *before* the listener so `drain()` still unblocks.
 
 ---
 
@@ -668,7 +668,7 @@ After `maxRetainedSettledItems` (default 10k) the live map and claim-key index d
 |---|---|
 | Unknown template id | `TXSTREAM_TEMPLATE_UNKNOWN` at submit; retained |
 | Template definition changed across restart | `TXSTREAM_TEMPLATE_DRIFT` on re-attach |
-| Template + `byFundingAddress` / `partitioned` | `TXSTREAM_LANE_REQUIRED` |
+| Template + `byFundingSource` / `partitioned` | `TXSTREAM_LANE_REQUIRED` |
 | Custom planner maps one item twice | `TXSTREAM_PLAN_INVALID` |
 | Custom planner maps items from two lanes into one flow | `TXSTREAM_PLAN_CROSS_LANE` |
 | Custom planner omits an item | that item `TXSTREAM_PLAN_OMITTED`; rest proceeds |
@@ -766,8 +766,10 @@ constant.
 
 | Path | Role |
 |---|---|
+| `FlowRuntime.java` | Optional managed owner of one engine, its executors, and opened streams |
 | `stream/TxFlowStream.java` | Public interface + builder |
 | `stream/EngineTxFlowStream.java` | Implementation (~5,146 lines) |
+| `stream/TxStreamScheduler.java` | Internal caller-thread timing seam for explicit blocking waits |
 | `stream/BuiltInPlanners.java` | `perItem` / `perWindow` / `batching` |
 | `stream/LanePolicy.java`, `ResolvedLane.java`, `PartitionedLanes.java` | Lane identity |
 | `stream/WindowPolicy.java` | Count / time close rules |
@@ -790,7 +792,7 @@ constant.
 5. **Split-authority stores, fail-closed planning writes.** Engine owns outcomes; stream owns item↔execution mapping. Projections and listeners are best-effort.
 6. **Two-phase binding + deterministic execution ids.** `MATCHED` cannot diverge from the write-ahead record.
 7. **Portable payloads only**, validated at `submit()`. Java transaction factories never reach the engine.
-8. **Caller-owned threads and clocks.** Deterministic tests; no hidden pools.
+8. **Explicitly owned threads and clocks.** Direct builders use caller-owned resources; optional `FlowRuntime` is the documented managed owner. The core has no hidden pools.
 9. **`close()` is graceful; `abort()` is forced but honest about cooperativeness.** Receipts settle from real engine outcomes after abort.
 10. **Never report `FAILED` while a submitted transaction may still confirm.** `RECOVERY_REQUIRED` is the honest uncertain state.
 
@@ -800,7 +802,7 @@ constant.
 
 1. This document (§1–§4, then the subsystem you need).
 2. Public getting-started if you are integrating.
-3. [TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md) §7 for the uncertain-disposition contract the stream projects.
-4. [TXSTREAM_INTERNALS.md](TXSTREAM_INTERNALS.md) before changing `EngineTxFlowStream`.
+3. [TXFLOW_ENGINE_INTERNALS.md](../TXFLOW_ENGINE_INTERNALS.md) §7 for the uncertain-disposition contract the stream projects.
+4. [TXSTREAM_INTERNALS.md](../TXSTREAM_INTERNALS.md) before changing `EngineTxFlowStream`.
 5. [TXSTREAM_READINESS_REPORT.md](TXSTREAM_READINESS_REPORT.md) for remaining API gaps.
 6. ADR 0004 for the decision record and what was rejected.

@@ -9,9 +9,11 @@ import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -105,7 +107,7 @@ final class BuiltInPlanners {
             }
             List<TxStreamPlannedItem> mappings = new ArrayList<>(byClaimKey.size());
             String laneName = null;
-            String previousGeneratedStepId = null;
+            List<String> earlierGeneratedStepIds = new ArrayList<>();
             for (Map.Entry<String, TxWorkItem> member : byClaimKey.entrySet()) {
                 TxStreamPlanningContext.PlanningSeed seed =
                         context.seed(member.getValue().getItemId());
@@ -113,17 +115,16 @@ final class BuiltInPlanners {
                     laneName = seed.lane.laneName();
                 }
                 String stepId = context.ids().stepId(member.getKey());
-                // Pipelining one funding lane requires an explicit dependency
-                // chain so each later build can consume the preceding
-                // transaction's expected change output. Merely setting the
-                // engine mode filters spent base UTxOs but cannot make pending
-                // outputs visible to an otherwise independent step.
-                String pipelineFunding = chainingMode == ChainingMode.PIPELINED
-                        ? previousGeneratedStepId : null;
+                // Pipelining one funding lane requires every later build to see
+                // all earlier unspent same-lane change, not merely its immediate
+                // predecessor. A predecessor may have selected another base UTxO
+                // and left older pending change unconsumed.
+                List<String> pipelineFunding = chainingMode == ChainingMode.PIPELINED
+                        ? earlierGeneratedStepIds : List.of();
                 flowBuilder.addStep(copyStepWithId(
                         seed.enforcedStep, stepId, pipelineFunding));
                 mappings.add(new TxStreamPlannedItem(member.getValue().getItemId(), stepId));
-                previousGeneratedStepId = stepId;
+                earlierGeneratedStepIds.add(stepId);
             }
             executions.add(new PlannedExecution(flowBuilder.build(), laneName,
                     flowClaimKey, mappings));
@@ -375,11 +376,11 @@ final class BuiltInPlanners {
      * they are rejected at submit-time portability validation.
      */
     private static FlowStep copyStepWithId(FlowStep step, String newId) {
-        return copyStepWithId(step, newId, null);
+        return copyStepWithId(step, newId, List.of());
     }
 
     private static FlowStep copyStepWithId(FlowStep step, String newId,
-                                           String additionalFundingStep) {
+                                           List<String> additionalFundingSteps) {
         FlowStep.Builder builder = FlowStep.builder(newId);
         if (step.getTxPlan() != null) {
             builder.withTxPlan(step.getTxPlan());
@@ -394,10 +395,9 @@ final class BuiltInPlanners {
             builder.withRetryPolicy(step.getRetryPolicy());
         }
         step.getDependencies().forEach(builder::dependsOn);
-        step.getFundingFrom().forEach(builder::fundsFrom);
-        if (additionalFundingStep != null) {
-            builder.fundsFrom(additionalFundingStep);
-        }
+        Set<String> fundingSteps = new LinkedHashSet<>(step.getFundingFrom());
+        fundingSteps.addAll(additionalFundingSteps);
+        fundingSteps.forEach(builder::fundsFrom);
         step.getNeeds().forEach(builder::needs);
         step.getOutputBindings().forEach(builder::bindOutput);
         return builder.build();

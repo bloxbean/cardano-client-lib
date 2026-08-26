@@ -187,6 +187,9 @@ class TxFlowStreamByFundingAddressTest {
             TxStreamException outcome = assertThrows(TxStreamException.class,
                     () -> stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless)));
             assertEquals("TXSTREAM_LANE_UNDERIVABLE", outcome.getCode());
+            assertTrue(outcome.getMessage().contains("from / from_ref"));
+            assertTrue(outcome.getMessage().contains("requires the transaction to name its sender"),
+                    "the default-lane diagnostic must teach how to supply funding");
             assertTrue(gateway.started.isEmpty(), "an underivable item never reaches the engine");
             assertTrue(stream.getItemStatus("no-src").isEmpty(),
                     "a rejected item is retained nowhere");

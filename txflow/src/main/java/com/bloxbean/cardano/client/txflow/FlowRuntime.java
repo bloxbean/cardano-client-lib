@@ -3,19 +3,14 @@ package com.bloxbean.cardano.client.txflow;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
-import com.bloxbean.cardano.client.txflow.resource.ResourceRef;
 import com.bloxbean.cardano.client.txflow.stream.TxFlowStream;
 import com.bloxbean.cardano.hdwallet.Wallet;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -200,16 +195,13 @@ public final class FlowRuntime implements AutoCloseable {
     /** Narrow builder for runtime-owned resources and signer registrations. */
     public static final class Builder {
         private static final int DEFAULT_MAINTENANCE_THREADS = 2;
-        private final BackendService backend;
-        private final Set<String> signerRefs = new HashSet<>();
-        private final Map<String, Account> accounts = new LinkedHashMap<>();
-        private final Map<String, Wallet> wallets = new LinkedHashMap<>();
+        private final FlowEngine.Builder engineBuilder;
         private String name = "default";
         private int taskParallelism = defaultTaskParallelism();
         private int maintenanceThreads = DEFAULT_MAINTENANCE_THREADS;
 
         private Builder(BackendService backend) {
-            this.backend = backend;
+            this.engineBuilder = FlowEngine.builder(backend);
         }
 
         /**
@@ -265,10 +257,7 @@ public final class FlowRuntime implements AutoCloseable {
          * @return this builder
          */
         public Builder account(String ref, Account account) {
-            String canonical = requireSignerRef(ref, "account");
-            Objects.requireNonNull(account, "account");
-            addSignerRef(canonical);
-            accounts.put(canonical, account);
+            engineBuilder.account(ref, account);
             return this;
         }
 
@@ -280,10 +269,7 @@ public final class FlowRuntime implements AutoCloseable {
          * @return this builder
          */
         public Builder wallet(String ref, Wallet wallet) {
-            String canonical = requireSignerRef(ref, "wallet");
-            Objects.requireNonNull(wallet, "wallet");
-            addSignerRef(canonical);
-            wallets.put(canonical, wallet);
+            engineBuilder.wallet(ref, wallet);
             return this;
         }
 
@@ -300,11 +286,8 @@ public final class FlowRuntime implements AutoCloseable {
                 taskExecutor = RuntimeExecutors.taskExecutor(name, taskParallelism);
                 maintenanceExecutor = RuntimeExecutors.maintenanceExecutor(
                         name, maintenanceThreads);
-                FlowEngine.Builder engineBuilder = FlowEngine.builder(backend)
-                        .executor(taskExecutor)
+                engineBuilder.executor(taskExecutor)
                         .maintenanceExecutor(maintenanceExecutor);
-                accounts.forEach(engineBuilder::account);
-                wallets.forEach(engineBuilder::wallet);
                 FlowEngine engine = engineBuilder.build();
                 return new FlowRuntime(engine, taskExecutor, maintenanceExecutor,
                         (streamId, flowEngine, scheduler) ->
@@ -332,37 +315,6 @@ public final class FlowRuntime implements AutoCloseable {
                 }
                 throw failure;
             }
-        }
-
-        private void addSignerRef(String ref) {
-            if (!signerRefs.add(ref)) {
-                throw new IllegalArgumentException(
-                        "A signer is already registered for resource reference '" + ref + "'");
-            }
-        }
-
-        private static String requireSignerRef(String ref, String scheme) {
-            if (ref == null || ref.isBlank()) {
-                throw new IllegalArgumentException(
-                        scheme + " reference cannot be null, empty, or whitespace");
-            }
-            ResourceRef parsed;
-            try {
-                parsed = ResourceRef.of(ref);
-            } catch (RuntimeException invalid) {
-                throw new IllegalArgumentException("Expected an absolute " + scheme
-                        + ":// resource reference, but got '" + ref + "'", invalid);
-            }
-            String canonical = parsed.value();
-            if (!canonical.regionMatches(true, 0, scheme + "://", 0, scheme.length() + 3)) {
-                throw new IllegalArgumentException("Expected a " + scheme
-                        + ":// resource reference, but got '" + ref + "'");
-            }
-            if (!canonical.equals(ref)) {
-                throw new IllegalArgumentException("Resource reference '" + ref
-                        + "' is not canonical; use '" + canonical + "'");
-            }
-            return canonical;
         }
 
         private static int defaultTaskParallelism() {

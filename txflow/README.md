@@ -309,20 +309,19 @@ failures; use plain QuickTx for one-off transactions and a `TxFlow` definition f
 workflow.
 
 ```java
-try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
-        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
-        .executor(streamExecutor)
-        .build()) {
-    stream.start();
-
-    TxStreamReceipt receipt = stream.submit(TxWorkItem.builder("payment-1")
-            .withTxPlan(plan)                     // portable payload
-            .withIdempotencyKey("order-1")        // redelivery attaches, never double-pays
-            .build());
-
-    TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-}   // close() drains accepted work gracefully; nothing is cancelled
+try (FlowRuntime runtime = FlowRuntime.builder(backend)
+        .account("account://sender", sender)
+        .build();
+     TxFlowStream stream = runtime.open("payouts")) {
+    TxStreamItemResult outcome = stream.submit("order-1", plan)
+            .awaitConfirmed(Duration.ofMinutes(5));
+}
 ```
+
+`FlowRuntime` is the managed script/CLI/small-application front door. It owns
+one ordinary `FlowEngine`, its executors, and the streams it opens. Advanced
+server applications can construct `FlowEngine` and `TxFlowStream` directly for
+durable stores, ownership, custom registries, and explicit resource lifecycle.
 
 Optional layers: count/time windows with `perWindow()`/`batching(...)` planners (transaction
 merging), partitioned fan-out lanes, a durable stream store (`RdbmsTxStreamStateStore`) with

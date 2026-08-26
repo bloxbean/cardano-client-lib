@@ -1,9 +1,14 @@
-# TxStream API DX — Refactoring Proposal
+# TxStream API DX — Historical Refactoring Proposal
+
+> **Superseded by [ADR 0005](../../adr/0005-txstream-progressive-api.md).**
+> The accepted names and implemented behavior differ from some sketches below:
+> use `byFundingSource()`, `Builder.open()`, and `awaitSettled()`. This file is
+> retained as design history and must not be used as current API documentation.
 
 - **Date:** 2026-08-23
-- **Status:** Proposal. No code has been changed.
+- **Status:** Superseded design history. The selected API is implemented under ADR 0005.
 - **Constraint:** Keep `EngineTxFlowStream` as the runtime. Prefer builder defaults, factories, and facades. Touch internals only where a default cannot be expressed at the API layer.
-- **Related:** [TXSTREAM_DESIGN.md](TXSTREAM_DESIGN.md), [TXSTREAM_READINESS_REPORT.md](TXSTREAM_READINESS_REPORT.md), ADR [0004](../adr/0004-txstream-on-flow-engine.md)
+- **Related:** [TXSTREAM_DESIGN.md](TXSTREAM_DESIGN.md), [TXSTREAM_READINESS_REPORT.md](TXSTREAM_READINESS_REPORT.md), ADR [0004](../../adr/0004-txstream-on-flow-engine.md)
 
 This is an API-design proposal, not a rewrite. The correctness core (honest states, write-ahead binding, lane FIFO, ownership fencing) stays. The goal is progressive disclosure: a beginner never learns what a lane, a planner, or a stream executor is, and an advanced user still reaches every capability that ships today.
 

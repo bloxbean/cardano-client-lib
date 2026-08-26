@@ -81,6 +81,9 @@ try {
     // DO NOT RESUBMIT: reconcile the known item/transaction until resolved.
     return stream.awaitResolution(uncertain.itemId(),
             Duration.ofMinutes(5), Duration.ofSeconds(5));
+} catch (TxStreamTimeoutException timeout) {
+    // The caller's wait budget expired. Inspect timeout.result(); this is not failure.
+    throw timeout;
 } catch (TxStreamCancelledException cancelled) {
     throw cancelled;
 } catch (TxStreamFailedException failed) {
