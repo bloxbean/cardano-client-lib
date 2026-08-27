@@ -1,0 +1,46 @@
+dependencies {
+    api project(':plutus')
+    api project(':transaction-spec')
+    api project(':address')
+    api project(':common')
+    api project(':core-api')
+    api project(':crypto')
+
+    // The transaction-building half (com.bloxbean.cardano.client.cip.cip113.tx) extends Tx and
+    // reads the registry from chain, so it needs both. The domain half above stays pure.
+    api project(':quicktx')
+    api project(':backend')
+
+    integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation project(':core')
+    // Applies parameters to the CIP-113 validators (every one of them is parameterized) and
+    // evaluates scripts locally, which reports the actual failing validator instead of the
+    // empty ScriptFailures a remote evaluator returns when it cannot build a context.
+    integrationTestImplementation(libs.aiken.java.binding)
+}
+
+// A live test is never "up to date": its real input is the chain, which Gradle cannot see.
+// Without this, a second run with the same sources is skipped entirely — the task reports
+// UP-TO-DATE and no test executes, which looks exactly like a silent failure.
+tasks.named('integrationTest') {
+    outputs.upToDateWhen { false }
+
+    // Show the test's own output without needing -i. These steps report resolved deployment
+    // values and transaction hashes, which are the whole point of running them.
+    testLogging {
+        showStandardStreams = true
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat 'full'
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client CIP113'
+                description = 'Cardano Client Lib - CIP113 Programmable Tokens'
+            }
+        }
+    }
+}
