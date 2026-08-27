@@ -79,9 +79,22 @@ import java.util.Set;
 @Slf4j
 public class ProgrammableTokenTx extends Tx {
 
-    private final Cip113Deployment deployment;
-    private final RegistryLookup registry;
-    private final UtxoSupplier utxoSupplier;
+    // Not final: a no-arg tx acquires these at compose() time. See wire(...).
+    private Cip113Deployment deployment;
+    private RegistryLookup registry;
+    private UtxoSupplier utxoSupplier;
+
+    /**
+     * Work declared by the fluent verbs, in call order, run once by {@link #wire}.
+     *
+     * <p>Ordering is load-bearing: output order fixes the mint-redeemer indices and input order
+     * fixes the Spend-redeemer indices, and both are recomputed from the final transaction in
+     * {@link #preTxEvaluation}. Running these out of declaration order moves them.</p>
+     */
+    private final List<Runnable> declarations = new ArrayList<>();
+
+    /** Whether the dependencies are present. False means every verb records instead of running. */
+    private boolean wired;
 
     private Address owner;
     private Utxo coordinationUtxo;
@@ -170,6 +183,76 @@ public class ProgrammableTokenTx extends Tx {
     private String registeredPolicyId;
 
     /**
+     * An unwired transaction — the form to use with {@link ProgrammableQuickTxBuilder}.
+     *
+     * <p>Mirrors {@code new Tx()}: construction takes nothing, and the fluent verbs record what
+     * they were asked to do without touching the chain. The builder supplies the deployment at
+     * {@code compose(...)}, and everything resolves in {@link #complete()}.</p>
+     *
+     * <pre>{@code
+     * new ProgrammableQuickTxBuilder(backend)
+     *         .compose(new ProgrammableTokenTx()
+     *                          .from(sender)
+     *                          .payToAddress(receiver, Amount.asset(policyId, "MyToken", 10))
+     *                          .withRedeemer(policyId, myRedeemer))
+     *         .withSigner(SignerProviders.signerFrom(account))
+     *         .completeAndWait();
+     * }</pre>
+     */
+    public ProgrammableTokenTx() {
+    }
+
+    /**
+     * Install the dependencies and run everything that was waiting for them.
+     *
+     * <p>Package-private: {@link ProgrammableQuickTxBuilder} is the only caller. Making it public
+     * would invite a second, order-dependent way to build one.</p>
+     *
+     * <p>This is the latest point CIP-113 can do its work. {@code AbstractTx.complete()} — the
+     * phase CCL gives a transaction to read the chain and decide its own shape — is
+     * package-private to {@code com.bloxbean.cardano.client.quicktx}, so a subclass in this
+     * package cannot hook it. {@code compose(...)} is the last hook reachable from outside, and it
+     * still runs before the {@code TxBuilder} chain is assembled.</p>
+     */
+    void wire(ProgrammableTokenService service, UtxoSupplier utxoSupplier) {
+        if (wired) return;                           // composed twice, or built with a backend
+        this.deployment = service.deployment();
+        this.registry = service.registryLookup();
+        this.utxoSupplier = utxoSupplier;
+        withScriptResolver(service.scripts());
+        withProtocolParams(service.protocolParamsSupplier());
+        withGlobalStateResolver(service::globalStateUtxo);
+        // Optional here: a service that could not resolve the coordination UTxO yields null, and
+        // the verb that needs one already says so by name. Passing null through would instead
+        // surface as an NPE inside Tx.readFrom, pointing nowhere near the cause.
+        Utxo coordination = service.coordinationUtxo();
+        if (coordination != null) coordinationUtxo(coordination);
+        issuanceTemplate(service.issuanceTemplateUtxo());
+        this.wired = true;
+
+        List<Runnable> pending = List.copyOf(declarations);
+        declarations.clear();
+        pending.forEach(Runnable::run);
+    }
+
+    /**
+     * Run now if the dependencies are here, otherwise record it for {@link #wire}.
+     *
+     * <p>A tx built with a backend is wired at construction, so its declarations execute inline
+     * and it behaves exactly as it did before any of this existed. A no-arg one records until the
+     * builder wires it.</p>
+     */
+    private void declare(Runnable work) {
+        if (wired) work.run();
+        else declarations.add(work);
+    }
+
+    /** Declarations recorded and not yet run. For tests and for the never-wired guard. */
+    int declaredCount() {
+        return declarations.size();
+    }
+
+    /**
      * The usual way to build one: hand it the backend and it wires itself.
      *
      * <p>Mirrors {@code new Tx()} — construction takes what the transaction needs and nothing
@@ -203,12 +286,7 @@ public class ProgrammableTokenTx extends Tx {
      * supplier it happens to read them through.</p>
      */
     ProgrammableTokenTx(ProgrammableTokenService service, UtxoSupplier utxoSupplier) {
-        this(service.deployment(), service.registryLookup(), utxoSupplier);
-        withScriptResolver(service.scripts());
-        withProtocolParams(service.protocolParamsSupplier());
-        withGlobalStateResolver(service::globalStateUtxo);
-        coordinationUtxo(service.coordinationUtxo());
-        issuanceTemplate(service.issuanceTemplateUtxo());
+        wire(service, utxoSupplier);
     }
 
     /**
@@ -541,7 +619,7 @@ public class ProgrammableTokenTx extends Tx {
         this.owner = new Address(sender);
         // `from` legitimately comes last in a fluent chain, so anything declared before it and
         // parked for want of an owner has to be picked up now.
-        List.copyOf(pending.keySet()).forEach(this::materialiseIfReady);
+        declare(() -> List.copyOf(pending.keySet()).forEach(this::materialiseIfReady));
         return this;
     }
 
@@ -569,26 +647,29 @@ public class ProgrammableTokenTx extends Tx {
      */
     @Override
     public ProgrammableTokenTx payToAddress(String address, Amount amount) {
-        String policyId = policyOf(amount);
-        if (policyId == null || registry.byPolicy(policyId).isEmpty()) {
-            super.payToAddress(address, amount);
-            return this;
-        }
+        // The routing decision itself reads the registry, so the whole body waits for complete().
+        declare(() -> {
+            String policyId = policyOf(amount);
+            if (policyId == null || registry.byPolicy(policyId).isEmpty()) {
+                super.payToAddress(address, amount);
+                return;
+            }
 
-        Address target = new Address(address);
-        Address destination = SmartWalletAddress.isSmartWallet(deployment, target)
-                ? target
-                : SmartWalletAddress.ofPaymentCredential(deployment, target);
+            Address target = new Address(address);
+            Address destination = SmartWalletAddress.isSmartWallet(deployment, target)
+                    ? target
+                    : SmartWalletAddress.ofPaymentCredential(deployment, target);
 
-        pending.computeIfAbsent(policyId, k -> new ArrayList<>())
-                .add(new PendingPayment(destination, amount));
+            pending.computeIfAbsent(policyId, k -> new ArrayList<>())
+                    .add(new PendingPayment(destination, amount));
 
-        // One programmable policy per output, plus its own min-ADA.
-        BigInteger minAda = minAdaFor(destination, List.of(amount));
-        declaredOutputLovelace = declaredOutputLovelace.add(minAda);
-        super.payToAddress(destination.toBech32(), List.of(Amount.lovelace(minAda), amount));
+            // One programmable policy per output, plus its own min-ADA.
+            BigInteger minAda = minAdaFor(destination, List.of(amount));
+            declaredOutputLovelace = declaredOutputLovelace.add(minAda);
+            super.payToAddress(destination.toBech32(), List.of(Amount.lovelace(minAda), amount));
 
-        materialiseIfReady(policyId);
+            materialiseIfReady(policyId);
+        });
         return this;
     }
 
@@ -599,8 +680,10 @@ public class ProgrammableTokenTx extends Tx {
      * and there is still one set of rules to satisfy.</p>
      */
     public ProgrammableTokenTx withRedeemer(String policyId, PlutusData substandardRedeemer) {
-        substandardRedeemers.put(policyId.toLowerCase(), substandardRedeemer);
-        materialiseIfReady(policyId);
+        declare(() -> {
+            substandardRedeemers.put(policyId.toLowerCase(), substandardRedeemer);
+            materialiseIfReady(policyId);
+        });
         return this;
     }
 
@@ -817,6 +900,23 @@ public class ProgrammableTokenTx extends Tx {
     @Override
     protected void postBalanceTx(Transaction txn) {
         super.postBalanceTx(txn);
+
+        // The never-wired guard, and it has to live here. AbstractTx.complete() is package-private
+        // so this class cannot hook it, and preTxEvaluation is not guaranteed to run — the builder
+        // skips it unless the transaction has script intents, which an unwired one never acquires.
+        // postBalanceTx runs for every tx in the list, unconditionally. It must also come before
+        // the plbInputRefs/mintProofNodes early-out below, because an unwired tx trips exactly that
+        // condition and would otherwise return quietly.
+        if (!wired && !declarations.isEmpty()) {
+            throw new Cip113Exception("This ProgrammableTokenTx was never wired, so "
+                    + declarations.size() + " declared operation(s) never ran and the transaction"
+                    + " was built without its inputs, withdrawals, reference inputs or mints."
+                    + " A no-arg ProgrammableTokenTx must be composed through"
+                    + " ProgrammableQuickTxBuilder, which supplies the deployment. Either use"
+                    + " `new ProgrammableQuickTxBuilder(backend).compose(tx)`, or construct with"
+                    + " `new ProgrammableTokenTx(backend)` and compose it with a plain"
+                    + " QuickTxBuilder.");
+        }
 
         if (!indicesResolved) {
             // Resolving here would be too late to be safe: by postBalanceTx the builder has
@@ -1080,68 +1180,70 @@ public class ProgrammableTokenTx extends Tx {
      */
     public ProgrammableTokenTx mintProgrammable(String policyId, String assetName, BigInteger quantity,
                                                 String receiver, PlutusData issuanceRedeemer) {
-        if (coordinationUtxo == null) {
-            throw new Cip113Exception("The coordination UTxO is required. Call coordinationUtxo(...).");
-        }
-        if (issuanceTemplateUtxo == null) {
-            throw new Cip113Exception("The issuance template is required to assemble the token's"
-                    + " issuance script. Call issuanceTemplate(...).");
-        }
+        declare(() -> {
+            if (coordinationUtxo == null) {
+                throw new Cip113Exception("The coordination UTxO is required. Call coordinationUtxo(...).");
+            }
+            if (issuanceTemplateUtxo == null) {
+                throw new Cip113Exception("The issuance template is required to assemble the token's"
+                        + " issuance script. Call issuanceTemplate(...).");
+            }
 
-        RegistryLookup.RegistryNodeUtxo node = registry.byPolicy(policyId)
-                .orElseThrow(() -> new Cip113Exception("Policy " + policyId + " is not registered,"
-                        + " so it cannot be minted. Register it first."));
+            RegistryLookup.RegistryNodeUtxo node = registry.byPolicy(policyId)
+                    .orElseThrow(() -> new Cip113Exception("Policy " + policyId + " is not registered,"
+                            + " so it cannot be minted. Register it first."));
 
-        PlutusScript issuanceScript = PolicyIdDerivation.issuanceScript(
-                readIssuanceTemplate(), node.getDatum().getMintingLogicScript());
+            PlutusScript issuanceScript = PolicyIdDerivation.issuanceScript(
+                    readIssuanceTemplate(), node.getDatum().getMintingLogicScript());
 
-        String derived = scriptHashOf(issuanceScript);
-        if (!derived.equalsIgnoreCase(policyId)) {
-            throw new Cip113Exception("Assembled issuance script hashes to " + derived
-                    + " but the policy is " + policyId
-                    + ". The registry node's minting_logic_script does not match this template.");
-        }
+            String derived = scriptHashOf(issuanceScript);
+            if (!derived.equalsIgnoreCase(policyId)) {
+                throw new Cip113Exception("Assembled issuance script hashes to " + derived
+                        + " but the policy is " + policyId
+                        + ". The registry node's minting_logic_script does not match this template.");
+            }
 
-        // The node proves the policy is registered; its index is resolved in preTxEvaluation.
-        readFrom(node.getUtxo());
-        mintProofNodes.put(policyId.toLowerCase(), node);
+            // The node proves the policy is registered; its index is resolved in preTxEvaluation.
+            readFrom(node.getUtxo());
+            mintProofNodes.put(policyId.toLowerCase(), node);
 
-        // Minted tokens must land at a smart wallet in seizable shape: base-script payment
-        // credential, inline stake credential, no datum hash, no reference script.
-        Address target = new Address(receiver);
-        Address destination = SmartWalletAddress.isSmartWallet(deployment, target)
-                ? target
-                : SmartWalletAddress.ofPaymentCredential(deployment, target);
+            // Minted tokens must land at a smart wallet in seizable shape: base-script payment
+            // credential, inline stake credential, no datum hash, no reference script.
+            Address target = new Address(receiver);
+            Address destination = SmartWalletAddress.isSmartWallet(deployment, target)
+                    ? target
+                    : SmartWalletAddress.ofPaymentCredential(deployment, target);
 
-        Asset asset = new Asset("0x" + HexUtil.encodeHexString(
-                assetName.getBytes(java.nio.charset.StandardCharsets.UTF_8)), quantity);
+            Asset asset = new Asset("0x" + HexUtil.encodeHexString(
+                    assetName.getBytes(java.nio.charset.StandardCharsets.UTF_8)), quantity);
 
-        if (quantity.signum() < 0) {
-            // Burning a programmable token is not "mint a negative quantity": the supply being
-            // destroyed sits in the holder's smart wallet, so the transaction has to spend those
-            // base-script UTxOs — which means selecting them, dispatching the programmable logic
-            // base spend, invoking the transfer delegate, and returning the non-burned remainder.
-            // None of that happens here, and emitting the negative mint alone builds a transaction
-            // that cannot balance. Better to refuse than to look supported.
-            throw new Cip113Exception("Burning programmable tokens is not implemented yet. A burn"
-                    + " must spend the holder's smart-wallet UTxOs through the programmable logic"
-                    + " base and return the remainder, not merely mint a negative quantity;"
-                    + " mintProgrammable only builds the minting half. Tracked alongside the"
-                    + " third-party and unfracking paths.");
-        }
+            if (quantity.signum() < 0) {
+                // Burning a programmable token is not "mint a negative quantity": the supply being
+                // destroyed sits in the holder's smart wallet, so the transaction has to spend those
+                // base-script UTxOs — which means selecting them, dispatching the programmable logic
+                // base spend, invoking the transfer delegate, and returning the non-burned remainder.
+                // None of that happens here, and emitting the negative mint alone builds a transaction
+                // that cannot balance. Better to refuse than to look supported.
+                throw new Cip113Exception("Burning programmable tokens is not implemented yet. A burn"
+                        + " must spend the holder's smart-wallet UTxOs through the programmable logic"
+                        + " base and return the remainder, not merely mint a negative quantity;"
+                        + " mintProgrammable only builds the minting half. Tracked alongside the"
+                        + " third-party and unfracking paths.");
+            }
 
-        attachMintValidator(issuanceScript);
-        {
-            mintAsset(issuanceScript, List.of(asset), Cip113Redeemers.mintRefInput(0),
-                    destination.toBech32());
-        }
+            attachMintValidator(issuanceScript);
+            {
+                mintAsset(issuanceScript, List.of(asset), Cip113Redeemers.mintRefInput(0),
+                        destination.toBech32());
+            }
 
-        addGlobalStateReference(policyId, node.getDatum().getGlobalStateCs());
+            addGlobalStateReference(policyId, node.getDatum().getGlobalStateCs());
 
-        // The substandard's issuance logic must run.
-        invokeLogicScript(node.getDatum().getMintingLogicScript(), issuanceRedeemer,
-                "minting logic");
+            // The substandard's issuance logic must run.
+            invokeLogicScript(node.getDatum().getMintingLogicScript(), issuanceRedeemer,
+                    "minting logic");
 
+        });
         return this;
     }
 
@@ -1185,68 +1287,76 @@ public class ProgrammableTokenTx extends Tx {
      */
     public ProgrammableTokenTx registerToken(RegistryNodeSpec spec, PlutusData issuanceRedeemer) {
         spec.validate();
-        if (coordinationUtxo == null) {
-            throw new Cip113Exception("The coordination UTxO is required — registry_spend scans the"
-                    + " reference inputs for the protocol-params NFT. Call coordinationUtxo(...).");
-        }
-        if (issuanceTemplateUtxo == null) {
-            throw new Cip113Exception("The issuance-template UTxO is required — the policy id is"
-                    + " derived from its datum and registry_mint re-checks it. Call issuanceTemplate(...).");
-        }
-        if (scripts == null) {
-            throw new Cip113Exception("Registration needs the registry_spend and registry_mint"
-                    + " scripts. Call withScriptResolver(...).");
-        }
+        declare(() -> {
+            if (coordinationUtxo == null) {
+                throw new Cip113Exception("The coordination UTxO is required — registry_spend scans the"
+                        + " reference inputs for the protocol-params NFT. Call coordinationUtxo(...).");
+            }
+            if (issuanceTemplateUtxo == null) {
+                throw new Cip113Exception("The issuance-template UTxO is required — the policy id is"
+                        + " derived from its datum and registry_mint re-checks it. Call issuanceTemplate(...).");
+            }
+            if (scripts == null) {
+                throw new Cip113Exception("Registration needs the registry_spend and registry_mint"
+                        + " scripts. Call withScriptResolver(...).");
+            }
 
-        IssuanceCborHex template = readIssuanceTemplate();
-        String policyId = PolicyIdDerivation.derive(template, spec.getMintingLogicScript());
-        this.registeredPolicyId = policyId;
+            IssuanceCborHex template = readIssuanceTemplate();
+            String policyId = PolicyIdDerivation.derive(template, spec.getMintingLogicScript());
+            this.registeredPolicyId = policyId;
 
-        RegistryLookup.RegistryNodeUtxo covering = registry.coveringNode(policyId);
-        RegistryNode coveringNode = covering.getDatum();
+            RegistryLookup.RegistryNodeUtxo covering = registry.coveringNode(policyId);
+            RegistryNode coveringNode = covering.getDatum();
 
-        RegistryNode newNode = RegistryNode.builder()
-                .key(policyId)
-                .next(coveringNode.getNext())
-                .mintingLogicScript(spec.getMintingLogicScript())
-                .transferLogicScript(spec.getTransferLogicScript())
-                .thirdPartyTransferLogicScript(spec.getThirdPartyTransferLogicScript())
-                .unfrackingLogicScript(spec.getUnfrackingLogicScript())
-                .globalStateCs(spec.getGlobalStateCs() == null ? "" : spec.getGlobalStateCs())
-                .build();
+            RegistryNode newNode = RegistryNode.builder()
+                    .key(policyId)
+                    .next(coveringNode.getNext())
+                    .mintingLogicScript(spec.getMintingLogicScript())
+                    .transferLogicScript(spec.getTransferLogicScript())
+                    .thirdPartyTransferLogicScript(spec.getThirdPartyTransferLogicScript())
+                    .unfrackingLogicScript(spec.getUnfrackingLogicScript())
+                    .globalStateCs(spec.getGlobalStateCs() == null ? "" : spec.getGlobalStateCs())
+                    .build();
 
-        RegistryNode repointedCovering = coveringNode.toBuilder().next(policyId).build();
+            RegistryNode repointedCovering = coveringNode.toBuilder().next(policyId).build();
 
-        String registryAddress = deployment.registryAddress().toBech32();
+            String registryAddress = deployment.registryAddress().toBech32();
 
-        // Spend the covering node. registry_spend ignores its redeemer.
-        attachSpendingValidator(scripts.registrySpend());
-        collectFrom(List.of(covering.getUtxo()), BigIntPlutusData.of(0));
+            // Spend the covering node. registry_spend ignores its redeemer.
+            attachSpendingValidator(scripts.registrySpend());
+            collectFrom(List.of(covering.getUtxo()), BigIntPlutusData.of(0));
 
-        // Both validators scan the reference inputs for their marker NFT.
-        readFrom(issuanceTemplateUtxo);
+            // Both validators scan the reference inputs for their marker NFT.
+            readFrom(issuanceTemplateUtxo);
 
-        // Mint exactly one node NFT, asset name = the new policy id, straight into the new node.
-        attachMintValidator(scripts.registryMint());
-        mintAsset(scripts.registryMint(),
-                List.of(new Asset("0x" + policyId, BigInteger.ONE)),
-                Cip113Redeemers.registryInsert(policyId, spec.getMintingLogicScript()),
-                registryAddress,
-                newNode.toPlutusData());
+            // Mint exactly one node NFT, asset name = the new policy id, straight into the new node.
+            attachMintValidator(scripts.registryMint());
+            mintAsset(scripts.registryMint(),
+                    List.of(new Asset("0x" + policyId, BigInteger.ONE)),
+                    Cip113Redeemers.registryInsert(policyId, spec.getMintingLogicScript()),
+                    registryAddress,
+                    newNode.toPlutusData());
 
-        // Re-emit the covering node unchanged except for `next`, keeping its own NFT and lovelace.
-        payToContract(registryAddress, covering.getUtxo().getAmount(), repointedCovering.toPlutusData());
+            // Re-emit the covering node unchanged except for `next`, keeping its own NFT and lovelace.
+            payToContract(registryAddress, covering.getUtxo().getAmount(), repointedCovering.toPlutusData());
 
-        // Proof of instance: the substandard authorises its own registration. There is no registry
-        // node to read yet, so the credential comes from the spec that is about to become one.
-        invokeLogicScript(spec.getMintingLogicScript(), issuanceRedeemer, "minting logic");
+            // Proof of instance: the substandard authorises its own registration. There is no registry
+            // node to read yet, so the credential comes from the spec that is about to become one.
+            invokeLogicScript(spec.getMintingLogicScript(), issuanceRedeemer, "minting logic");
 
-        log.debug("Registering policy {} between {} and {}",
-                policyId, coveringNode.getKey(), coveringNode.getNext());
+            log.debug("Registering policy {} between {} and {}",
+                    policyId, coveringNode.getKey(), coveringNode.getNext());
+        });
         return this;
     }
 
-    /** The policy id derived during {@link #registerToken}, or null if this is not a registration. */
+    /**
+     * The policy id derived during {@link #registerToken}, or null if this is not a registration.
+     *
+     * <p>Available only once the transaction has been built, because deriving it reads the
+     * issuance template from chain and that happens in {@link #complete()}. Call
+     * {@code ProgrammableTokenService.derivePolicyId(...)} if the id is needed earlier.</p>
+     */
     public String registeredPolicyId() {
         return registeredPolicyId;
     }

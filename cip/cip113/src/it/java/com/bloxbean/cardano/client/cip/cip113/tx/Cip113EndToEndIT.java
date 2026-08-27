@@ -545,7 +545,7 @@ public class Cip113EndToEndIT {
             return;
         }
 
-        ProgrammableTokenTx tx = new ProgrammableTokenTx(programmableBackend)
+        ProgrammableTokenTx tx = new ProgrammableTokenTx()
                 .from(account.baseAddress())
                 .registerToken(RegistryNodeSpec.builder()
                         .mintingLogicScript(AlwaysTrueScripts.credential())
@@ -554,7 +554,7 @@ public class Cip113EndToEndIT {
                         .build(),
                 PlutusData.unit());
 
-        Result<String> result = new QuickTxBuilder(programmableBackend)
+        Result<String> result = new ProgrammableQuickTxBuilder(programmableBackend)
                 .compose(tx)
                 .feePayer(account.baseAddress())
                 .withSigner(SignerProviders.signerFrom(account))
@@ -594,12 +594,12 @@ public class Cip113EndToEndIT {
         BigInteger heldBefore = programmableQuantity(unitOf(examplePolicyId));
         System.out.println("balance before : " + heldBefore);
 
-        ProgrammableTokenTx tx = new ProgrammableTokenTx(programmableBackend)
+        ProgrammableTokenTx tx = new ProgrammableTokenTx()
                 .from(account.baseAddress())
                 .mintProgrammable(examplePolicyId, EXAMPLE_ASSET_NAME, MINT_QUANTITY,
                         account.baseAddress(), BigIntPlutusData.of(0));
 
-        Result<String> result = new QuickTxBuilder(programmableBackend)
+        Result<String> result = new ProgrammableQuickTxBuilder(programmableBackend)
                 .compose(tx)
                 .feePayer(account.baseAddress())
                 .withSigner(SignerProviders.signerFrom(account))
@@ -676,7 +676,7 @@ public class Cip113EndToEndIT {
         // Send it back to ourselves: the balance should be unchanged, but every validator on the
         // transfer path still has to pass. That isolates "does the machinery work" from "did the
         // right amount move", which is the thing worth learning first.
-        ProgrammableTokenTx tx = new ProgrammableTokenTx(programmableBackend)
+        ProgrammableTokenTx tx = new ProgrammableTokenTx()
                 .from(account.baseAddress())
                 .payToAddress(account.baseAddress(),
                         Amount.asset(policyId, assetName(unit), amountToSend))
@@ -689,7 +689,7 @@ public class Cip113EndToEndIT {
 
         Result<String> result;
         try {
-            result = new QuickTxBuilder(programmableBackend)
+            result = new ProgrammableQuickTxBuilder(programmableBackend)
                     .compose(tx)
                     .feePayer(account.baseAddress())
                     .withSigner(SignerProviders.signerFrom(account))
@@ -916,14 +916,14 @@ public class Cip113EndToEndIT {
         }
 
         // A programmable transfer that also carries a zero withdrawal from that key account.
-        ProgrammableTokenTx tx = new ProgrammableTokenTx(programmableBackend)
+        ProgrammableTokenTx tx = new ProgrammableTokenTx()
                 .from(account.baseAddress())
                 .payToAddress(ownerAddress.getAddress(),
                         Amount.asset(policyId, EXAMPLE_ASSET_NAME, 1))
                 .withRedeemer(policyId, BigIntPlutusData.of(0))
                 .withdraw(rewardAddress, BigInteger.ZERO);
 
-        Result<String> result = new QuickTxBuilder(programmableBackend)
+        Result<String> result = new ProgrammableQuickTxBuilder(programmableBackend)
                 .compose(tx)
                 .feePayer(account.baseAddress())
                 .withSigner(SignerProviders.signerFrom(account))

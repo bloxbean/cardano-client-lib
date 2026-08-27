@@ -38,8 +38,8 @@ Everything lives in `cip:cip113`, split by package rather than by module.
 ProgrammableBackendService backend =
         ProgrammableBackendService.wrap(backendService, Cip113Deployments.PREVIEW);
 
-Result<String> result = new QuickTxBuilder(backend)
-        .compose(new ProgrammableTokenTx(backend)
+Result<String> result = new ProgrammableQuickTxBuilder(backend)
+        .compose(new ProgrammableTokenTx()
                  .from(senderAddress)
                  .payToAddress(receiverAddress, Amount.asset(policyId, "MyToken", 100))
                  .withRedeemer(policyId, myTransferRedeemer))
@@ -48,10 +48,12 @@ Result<String> result = new QuickTxBuilder(backend)
         .completeAndWait();
 ```
 
-That is the whole setup. `new ProgrammableTokenTx(backend)` wires itself from the backend —
-registry lookup, UTxO supplier, script resolver, protocol parameters, global-state resolution and
-the protocol's own reference UTxOs — and the deployment resolves itself on first use, so there is
-no initialisation call and no ordering to get right. The read side
+That is the whole setup. `new ProgrammableTokenTx()` takes nothing, exactly like `new Tx()`:
+`ProgrammableQuickTxBuilder` supplies the deployment at `compose(...)` — registry lookup, UTxO
+supplier, script resolver, protocol parameters, global-state resolution and the protocol's own
+reference UTxOs — and the deployment resolves itself on first use, so there is no initialisation
+call and no ordering to get right. `new ProgrammableTokenTx(backend)` still works for a caller who
+would rather hand the dependencies over directly and use a plain `QuickTxBuilder`. The read side
 (`backend.getProgrammableTokenService()`: balances, registry, `isProgrammable`, policy-id
 derivation) sits on the backend like every other CCL service, and building a transaction never
 requires touching it. Nothing
@@ -67,7 +69,9 @@ api.scripts().register(myNeverYetUsedSubstandard);
 
 It reuses `Tx`'s verbs — `from`, `payToAddress` — with their existing signatures. The one
 addition is `withRedeemer(...)`, because a programmable token's rules need one and a plain payment
-does not. Routing is inferred from the **token**: a registered policy takes the programmable
+does not. Like `Tx`, the verbs only *record* — every registry lookup, input
+selection and withdrawal happens in one pass inside `complete()`, so a failure surfaces where a
+plain `Tx`'s would, at build time rather than mid-chain. Routing is inferred from the **token**: a registered policy takes the programmable
 path, ADA and unregistered tokens are paid normally.
 
 Two behaviours differ from a plain `Tx`:
