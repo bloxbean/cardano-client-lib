@@ -107,10 +107,20 @@ public class BalanceTxBuilders {
         return (context, txn) -> {
             String changeAddress = changeAddressIter.getFirst().getAddress();
 
-            FeeCalculators.feeCalculator(changeAddress, UtxoUtil.getNoOfRequiredSigners(context.getAllUtxos()) + additionalSigners).apply(context, txn);
+            // The transaction itself already shows most witnesses it will need (certificates,
+            // withdrawals, votes, required signers, native scripts) — count them, so callers that
+            // build unsigned and cannot attach signers get a correct fee by default (#650).
+            // max() rather than sum keeps existing callers who pass the count themselves from
+            // double-budgeting; additionalSigners remains the override for what the body cannot
+            // show (e.g. scripts supplied via reference inputs).
+            int bodyImpliedSigners = WitnessCountEstimator.countBodyImpliedSigners(txn);
+            int estimatedSigners = UtxoUtil.getNoOfRequiredSigners(context.getAllUtxos())
+                    + Math.max(additionalSigners, bodyImpliedSigners);
+
+            FeeCalculators.feeCalculator(changeAddress, estimatedSigners).apply(context, txn);
 
             //Incase change output goes below min ada after fee deduction
-            ChangeOutputAdjustments.adjustChangeOutput(changeAddressIter.clone(), UtxoUtil.getNoOfRequiredSigners(context.getAllUtxos()) + additionalSigners).apply(context, txn);
+            ChangeOutputAdjustments.adjustChangeOutput(changeAddressIter.clone(), estimatedSigners).apply(context, txn);
 
             //If collateral return found, balance collateral outputs
             if (txn.getBody().getCollateralReturn() != null)
