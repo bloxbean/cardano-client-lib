@@ -51,14 +51,14 @@ import java.util.Set;
  * A specialized {@link Tx} for CIP-113 programmable tokens.
  *
  * <p>Reuses {@code Tx}'s own verbs — {@code from}, {@code payToAddress}, {@code mintAsset} —
- * with their existing signatures. The one addition is {@link #redeemer}, because a
+ * with their existing signatures. The one addition is {@link #withRedeemer}, because a
  * programmable token's rules need one and a plain payment does not.</p>
  *
  * <pre>
  * new ProgrammableTokenTx(deployment, registryLookup)
  *     .from(senderAddress)
  *     .payToAddress(receiverAddress, Amount.asset(policyId, "MyToken", 100))
- *     .redeemer(policyId, myTransferRedeemer);
+ *     .withRedeemer(policyId, myTransferRedeemer);
  * </pre>
  *
  * <p>Two behaviours differ from a plain {@code Tx} and are worth knowing:</p>
@@ -183,7 +183,7 @@ public class ProgrammableTokenTx extends Tx {
      *         .compose(new ProgrammableTokenTx(backend)
      *                          .from(sender)
      *                          .payToAddress(receiver, Amount.asset(policyId, "MyToken", 10))
-     *                          .redeemer(policyId, myRedeemer))
+     *                          .withRedeemer(policyId, myRedeemer))
      *         .withSigner(SignerProviders.signerFrom(account))
      *         .completeAndWait();
      * }</pre>
@@ -331,7 +331,7 @@ public class ProgrammableTokenTx extends Tx {
     // Tx is declared `Tx extends AbstractTx<Tx>`, so every inherited fluent method is typed to
     // return Tx no matter the receiver. That is fine at runtime — the object really is this one —
     // but it ends a chain's CIP-113 vocabulary at the first inherited call: `tx.readFrom(u)`
-    // is statically a Tx, so `.redeemer(...)` after it will not compile. Java's covariant return
+    // is statically a Tx, so `.withRedeemer(...)` after it will not compile. Java's covariant return
     // types let a subclass narrow that back without changing behaviour, so the methods a
     // programmable flow actually chains are re-declared here. Nothing else about them changes.
     //
@@ -598,7 +598,7 @@ public class ProgrammableTokenTx extends Tx {
      * <p>Attached per <i>policy</i>, not per payment: pay the same token to three recipients
      * and there is still one set of rules to satisfy.</p>
      */
-    public ProgrammableTokenTx redeemer(String policyId, PlutusData substandardRedeemer) {
+    public ProgrammableTokenTx withRedeemer(String policyId, PlutusData substandardRedeemer) {
         substandardRedeemers.put(policyId.toLowerCase(), substandardRedeemer);
         materialiseIfReady(policyId);
         return this;
@@ -1019,7 +1019,7 @@ public class ProgrammableTokenTx extends Tx {
                 if (registry.byPolicy(policy).isPresent()) {
                     throw new Cip113Exception("A selected base-script UTxO also holds registered"
                             + " policy " + policy + ", whose transfer logic must run and whose"
-                            + " redeemer was never supplied. Add redeemer(\"" + policy + "\", ...)"
+                            + " redeemer was never supplied. Add withRedeemer(\"" + policy + "\", ...)"
                             + " and a payment for it, or select a UTxO that does not carry it.");
                 }
                 node = registry.coveringNode(policy);

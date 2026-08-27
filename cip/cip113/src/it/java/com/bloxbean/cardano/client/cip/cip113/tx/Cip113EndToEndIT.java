@@ -680,7 +680,7 @@ public class Cip113EndToEndIT {
                 .from(account.baseAddress())
                 .payToAddress(account.baseAddress(),
                         Amount.asset(policyId, assetName(unit), amountToSend))
-                .redeemer(policyId, BigIntPlutusData.of(0));   // alwaysTrue ignores it
+                .withRedeemer(policyId, BigIntPlutusData.of(0));   // alwaysTrue ignores it
 
         // Capture the transaction as balancing sees it. When evaluation fails there is no
         // result object to inspect, and Blockfrost's "empty ScriptFailures" says nothing, so the
@@ -920,7 +920,7 @@ public class Cip113EndToEndIT {
                 .from(account.baseAddress())
                 .payToAddress(ownerAddress.getAddress(),
                         Amount.asset(policyId, EXAMPLE_ASSET_NAME, 1))
-                .redeemer(policyId, BigIntPlutusData.of(0))
+                .withRedeemer(policyId, BigIntPlutusData.of(0))
                 .withdraw(rewardAddress, BigInteger.ZERO);
 
         Result<String> result = new QuickTxBuilder(programmableBackend)

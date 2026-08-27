@@ -42,7 +42,7 @@ Result<String> result = new QuickTxBuilder(backend)
         .compose(new ProgrammableTokenTx(backend)
                  .from(senderAddress)
                  .payToAddress(receiverAddress, Amount.asset(policyId, "MyToken", 100))
-                 .redeemer(policyId, myTransferRedeemer))
+                 .withRedeemer(policyId, myTransferRedeemer))
         .feePayer(senderAddress)
         .withSigner(SignerProviders.signerFrom(senderAccount))
         .completeAndWait();
@@ -66,7 +66,7 @@ api.scripts().register(myNeverYetUsedSubstandard);
 ```
 
 It reuses `Tx`'s verbs — `from`, `payToAddress` — with their existing signatures. The one
-addition is `redeemer(...)`, because a programmable token's rules need one and a plain payment
+addition is `withRedeemer(...)`, because a programmable token's rules need one and a plain payment
 does not. Routing is inferred from the **token**: a registered policy takes the programmable
 path, ADA and unregistered tokens are paid normally.
 
