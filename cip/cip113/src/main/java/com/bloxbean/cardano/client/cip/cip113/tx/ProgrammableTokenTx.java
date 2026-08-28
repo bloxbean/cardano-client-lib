@@ -40,6 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -71,10 +72,13 @@ import java.util.Set;
  * </ul>
  *
  * <p><b>Scripts.</b> Spending from the base script needs the base script and the core transfer
- * delegate available to the transaction. Supply them as reference-script UTxOs through
- * {@link #readFrom} (CCL's reference-script resolver picks them up), or attach them directly
- * with {@link #withScripts}. TODO discover published script-reference UTxOs from the
- * deployment instead of making the caller supply them.</p>
+ * delegate available to the transaction, and neither is something the caller has to think about:
+ * whatever the deployment published as a reference script is discovered when the deployment is
+ * resolved, and referenced rather than carried, which keeps several kilobytes of validator out of
+ * every transaction. Anything not published falls back to the witness set, resolved by hash
+ * through the script resolver. {@link #withScripts} and {@link #readFrom} remain for a deployment
+ * this cannot see — an offline build, or scripts held only by whoever applied their
+ * parameters.</p>
  */
 @Slf4j
 public class ProgrammableTokenTx extends Tx {
@@ -105,6 +109,9 @@ public class ProgrammableTokenTx extends Tx {
     /** Logic scripts handed over explicitly, keyed by script hash. Consulted before the resolver. */
     private final Map<String, PlutusScript> explicitLogicScripts = new LinkedHashMap<>();
 
+    /** Published scripts added as reference inputs, keyed by hash so none is referenced twice. */
+    private final Map<String, PlutusScript> referencedScripts = new LinkedHashMap<>();
+
     /** Logic-script hashes already in the witness set, so none is attached twice. */
     private final Set<String> attachedLogicScripts = new LinkedHashSet<>();
 
@@ -128,6 +135,29 @@ public class ProgrammableTokenTx extends Tx {
 
     /** Registry nodes referenced, keyed by policy id. */
     private final Map<String, RegistryLookup.RegistryNodeUtxo> referencedNodes = new LinkedHashMap<>();
+
+    /** Quantities being destroyed, keyed by policy id. Emitted as a negative mint. */
+    private final Map<String, List<Asset>> burns = new LinkedHashMap<>();
+
+    /**
+     * Policies whose mint proof is an OUTPUT rather than a reference input, keyed to the registry
+     * NFT policy the node output carries. Populated when a token is minted in the same transaction
+     * that registers it — its node does not exist to be referenced yet.
+     */
+    private final Map<String, String> mintProofFromOutput = new LinkedHashMap<>();
+
+    /** Whose smart wallet a third-party action acts on. Null for an ordinary transfer. */
+    private Address thirdPartyHolder;
+
+    /** Where the paired continuing outputs sit, and how many — resolved into outputs_start_idx. */
+    private String pairedOutputAddress;
+    private int pairedOutputCount;
+
+    /** Resolved in preTxEvaluation: where the paired continuing outputs start. */
+    private int outputsStartIdx;
+
+    /** The spec this transaction is registering, when it registers one. */
+    private RegistryNodeSpec registeringSpec;
 
     /** Registry nodes backing a mint proof, keyed by policy id. */
     private final Map<String, RegistryLookup.RegistryNodeUtxo> mintProofNodes = new LinkedHashMap<>();
@@ -161,6 +191,17 @@ public class ProgrammableTokenTx extends Tx {
      * ceiling cannot be computed. A guess, and the reason {@link #withAdaBuffer} once had to be.
      */
     private static final BigInteger FALLBACK_FEE_HEADROOM = BigInteger.valueOf(3_000_000L);
+
+    /**
+     * ADA set aside for a registry-node output.
+     *
+     * <p>Deliberately generous: the node's inline datum carries four credentials and two policy
+     * ids, which {@link MinAdaCalculator} does not see when it is handed amounts alone. The
+     * surplus comes back as change, so over-estimating costs nothing, while under-estimating
+     * leaves a negative output and makes the builder skip the pass that resolves redeemer
+     * indices.</p>
+     */
+    private static final BigInteger REGISTRY_NODE_OUTPUT_ALLOWANCE = BigInteger.valueOf(5_000_000L);
 
     /** Lovelace this builder has explicitly put into outputs. */
     private BigInteger declaredOutputLovelace = BigInteger.ZERO;
@@ -248,6 +289,11 @@ public class ProgrammableTokenTx extends Tx {
     }
 
     /** Declarations recorded and not yet run. For tests and for the never-wired guard. */
+    /** Whether the dependencies have been installed. For the never-wired guard and for tests. */
+    boolean isWired() {
+        return wired;
+    }
+
     int declaredCount() {
         return declarations.size();
     }
@@ -587,6 +633,12 @@ public class ProgrammableTokenTx extends Tx {
             boolean adaOnly = utxo.getAmount().stream().allMatch(a -> LOVELACE.equals(a.getUnit()));
             if (!adaOnly) continue;
 
+            // A UTxO publishing a reference script looks exactly like plain ADA to the filter
+            // above, and spending one destroys the published script for everybody — including the
+            // transactions this builder is about to reference it from. Skip them.
+            if (utxo.getReferenceScriptHash() != null && !utxo.getReferenceScriptHash().isEmpty())
+                continue;
+
             pinnedInputRefs.add(key);
             collectFrom(List.of(utxo));
             for (Amount amount : utxo.getAmount()) {
@@ -674,6 +726,95 @@ public class ProgrammableTokenTx extends Tx {
     }
 
     /**
+     * Record a burn of one asset: spend the holder's supply, destroy part of it, return the rest.
+     *
+     * <p>Recorded as a payment with no destination, which is exactly what a burn is — it makes
+     * {@code selectInputs} pull enough supply in and makes {@code returnProgrammableChange} treat
+     * the burned amount as spoken for, without emitting an output for it.</p>
+     */
+    private void recordBurn(String policyId, Asset asset, PlutusData redeemer) {
+        BigInteger burned = asset.getValue().negate();          // arrives negative, as Tx expects
+        String unit = policyId + HexUtil.encodeHexString(asset.getNameAsBytes());
+
+        pending.computeIfAbsent(policyId, k -> new ArrayList<>())
+                .add(new PendingPayment(null, Amount.builder().unit(unit).quantity(burned).build()));
+
+        burns.computeIfAbsent(policyId, k -> new ArrayList<>()).add(asset);
+
+        substandardRedeemers.put(policyId, redeemer);
+        log.debug("Burning {} of {}", burned, unit);
+        materialiseIfReady(policyId);
+    }
+
+    /**
+     * Mint or burn, routed by the token — the same verb a plain {@code Tx} uses.
+     *
+     * <p>Every other {@code mintAsset(String policyId, ...)} overload funnels here, so all of them
+     * behave the same way. A registered programmable policy takes the CIP-113 path; anything else
+     * is minted exactly as {@code Tx} would mint it, so one transaction can carry both.</p>
+     *
+     * <p>Sign means what it means in {@code Tx}: positive mints, negative burns. A burn is a very
+     * different transaction — it has to spend the holder's smart-wallet UTxOs through the
+     * programmable logic base and return the remainder, not merely emit a negative mint — but that
+     * is this class's problem, not the caller's.</p>
+     *
+     * <p>The {@code redeemer} is the substandard's, the same value {@link #withRedeemer} carries
+     * for payments; the CIP-113 mint proof is derived and resolved internally.</p>
+     */
+    @Override
+    public ProgrammableTokenTx mintAsset(String policyId, List<Asset> assets, PlutusData redeemer,
+                                         String receiver, PlutusData outputDatum) {
+        declare(() -> {
+            String key = policyId.toLowerCase();
+            boolean programmable = registry.byPolicy(key).isPresent()
+                    || key.equalsIgnoreCase(registeredPolicyId);
+
+            if (!programmable) {
+                super.mintAsset(policyId, assets, redeemer, receiver, outputDatum);
+                return;
+            }
+
+            if (outputDatum != null) {
+                throw new Cip113Exception("A programmable token's output cannot carry a datum:"
+                        + " issuance_mint requires every one to stay seizable, which rules out a"
+                        + " datum hash. Mint without one, policy " + key + ".");
+            }
+
+            for (Asset asset : assets) {
+                if (asset.getValue().signum() == 0) continue;
+                if (asset.getValue().signum() > 0) recordMint(key, asset, receiver, redeemer);
+                else recordBurn(key, asset, redeemer);
+            }
+        });
+        return this;
+    }
+
+    // Narrowed so a mint can sit mid-chain. Each delegates to the override above, so routing and
+    // sign handling live in exactly one place.
+
+    @Override
+    public ProgrammableTokenTx mintAsset(String policyId, Asset asset, PlutusData redeemer) {
+        return mintAsset(policyId, List.of(asset), redeemer, null, null);
+    }
+
+    @Override
+    public ProgrammableTokenTx mintAsset(String policyId, List<Asset> assets, PlutusData redeemer) {
+        return mintAsset(policyId, assets, redeemer, null, null);
+    }
+
+    @Override
+    public ProgrammableTokenTx mintAsset(String policyId, Asset asset, PlutusData redeemer,
+                                         String receiver) {
+        return mintAsset(policyId, List.of(asset), redeemer, receiver, null);
+    }
+
+    @Override
+    public ProgrammableTokenTx mintAsset(String policyId, List<Asset> assets, PlutusData redeemer,
+                                         String receiver) {
+        return mintAsset(policyId, assets, redeemer, receiver, null);
+    }
+
+    /**
      * The substandard's redeemer for one policy — mandatory for every programmable payment.
      *
      * <p>Attached per <i>policy</i>, not per payment: pay the same token to three recipients
@@ -705,6 +846,12 @@ public class ProgrammableTokenTx extends Tx {
         Map<String, BigInteger> requiredByUnit = new LinkedHashMap<>();
         for (PendingPayment payment : pending.get(key)) {
             requiredByUnit.merge(payment.amount.getUnit(), payment.amount.getQuantity(), BigInteger::add);
+        }
+
+        if (thirdPartyHolder != null) {
+            materialiseThirdParty(key, node, requiredByUnit);
+            materialised.add(key);
+            return;
         }
 
         List<Utxo> selected = selectInputs(key, requiredByUnit);
@@ -742,10 +889,56 @@ public class ProgrammableTokenTx extends Tx {
         invokeLogicScript(node.getDatum().getTransferLogicScript(),
                 substandardRedeemers.get(key), "transfer logic");
 
+        materialiseBurn(key, node);
+
         returnProgrammableChange(selected);
         fundFromFeePayer();
 
         materialised.add(key);
+    }
+
+    /**
+     * Emit the negative mint for a policy being burned, if this transaction burns one.
+     *
+     * <p>Called from the middle of {@link #materialiseIfReady}, after the holder's UTxOs are
+     * already inputs: a burn is a transfer whose destination is nowhere. The spend is dispatched
+     * through {@code SpendViaTransfer} like any other, and {@code validate_transfer} folds the
+     * negative mint into the input side for any policy present in the base-script inputs
+     * ({@code apply_mint_to_known_policies}), so the remainder simply has to come back — which
+     * {@link #returnProgrammableChange} already does, because a burn is recorded as a payment and
+     * therefore counts as paid out.</p>
+     *
+     * <p>{@code issuance_mint} additionally requires the substandard's <i>minting</i> logic to
+     * withdraw-zero, on top of the transfer logic the spend already invokes. When a token uses one
+     * credential for both, that is a single withdrawal and {@link #invokeLogicScript} dedupes it.</p>
+     */
+    private void materialiseBurn(String policyId, RegistryLookup.RegistryNodeUtxo node) {
+        List<Asset> burning = burns.get(policyId);
+        if (burning == null || burning.isEmpty()) return;
+
+        if (issuanceTemplateUtxo == null) {
+            throw new Cip113Exception("Burning needs the issuance template to reassemble the"
+                    + " token's issuance script. Call issuanceTemplate(...).");
+        }
+
+        PlutusScript issuanceScript = PolicyIdDerivation.issuanceScript(
+                readIssuanceTemplate(), node.getDatum().getMintingLogicScript());
+        String derived = scriptHashOf(issuanceScript);
+        if (!derived.equalsIgnoreCase(policyId)) {
+            throw new Cip113Exception("Assembled issuance script hashes to " + derived
+                    + " but the policy being burned is " + policyId
+                    + ". The registry node's minting_logic_script does not match this template.");
+        }
+
+        attachMintValidator(issuanceScript);
+        // Index is a placeholder; resolveMintRedeemers rewrites it once the node's position in
+        // the sorted reference inputs is known.
+        mintAsset(issuanceScript, burning, Cip113Redeemers.mintRefInput(0));
+        mintProofNodes.put(policyId, node);
+
+        // issuance_mint's own authorisation, distinct from the transfer logic above.
+        invokeLogicScript(node.getDatum().getMintingLogicScript(),
+                substandardRedeemers.get(policyId), "minting logic");
     }
 
     /**
@@ -758,9 +951,67 @@ public class ProgrammableTokenTx extends Tx {
             throw new Cip113Exception("No scripts available. Either call withScriptResolver(...)"
                     + " so they can be fetched by hash, or withScripts(base, transferDelegate).");
         }
-        attachSpendingValidator(scripts.programmableLogicBase());
-        attachRewardValidator(scripts.transferDelegate());
+        attachSpending(scripts.programmableLogicBase());
+        attachReward(scripts.transferDelegate());
         coreScriptsAttached = true;
+    }
+
+    /**
+     * Attach a spending validator, preferring the chain's copy over our own.
+     *
+     * <p>When the deployment published the script as a reference script, pointing at that UTxO
+     * costs a few dozen bytes instead of carrying several kilobytes in the witness set — on every
+     * transaction, forever. CCL's reference-script resolver picks it up from {@code readFrom}, and
+     * it runs before index resolution, so the extra reference input is already in place when the
+     * positional indices are computed.</p>
+     */
+    private void attachSpending(PlutusScript script) {
+        referenceIfPublished(script);
+        attachSpendingValidator(script);
+    }
+
+    /** {@link #attachSpending} for a withdraw-zero delegate. */
+    private void attachReward(PlutusScript script) {
+        referenceIfPublished(script);
+        attachRewardValidator(script);
+    }
+
+    /**
+     * Add the reference input publishing a script, if the deployment published one.
+     *
+     * <p>The validator is still attached alongside. That is not redundant: attaching is what makes
+     * CCL emit the Spend or Reward redeemer for it, and suppressing the attach suppresses the
+     * redeemer too — evaluation then fails with the redeemer reported missing. With both present,
+     * CCL's own {@code ReferenceScriptResolver} recognises that a reference input already carries
+     * the script and drops the witness copy, which is where the size saving comes from.</p>
+     */
+    private void referenceIfPublished(PlutusScript script) {
+        if (scripts == null || script == null) return;
+        String hash;
+        try {
+            hash = script.getPolicyId();
+        } catch (Exception e) {
+            return;                       // unhashable: the witness path will report it
+        }
+        Optional<Utxo> published = scripts.publishedAt(hash);
+        if (published.isEmpty()) return;
+        if (referencedScripts.putIfAbsent(hash.toLowerCase(), script) == null) {
+            readFrom(published.get());
+            log.debug("Referencing published script {} at {}#{}", hash,
+                    published.get().getTxHash(), published.get().getOutputIndex());
+        }
+    }
+
+    /**
+     * The scripts this transaction reads from reference inputs instead of witnessing.
+     *
+     * <p>{@link ProgrammableQuickTxBuilder} passes these to {@code TxContext.withReferenceScripts},
+     * which is how CCL is told a script is provided by reference. A reference input alone is not
+     * enough: without it the builder still expects the script in the witness set and the evaluator
+     * reports the redeemers as missing.</p>
+     */
+    java.util.Collection<PlutusScript> referencedScripts() {
+        return referencedScripts.values();
     }
 
     /**
@@ -826,7 +1077,12 @@ public class ProgrammableTokenTx extends Tx {
     }
 
     private List<Utxo> selectInputs(String policyId, Map<String, BigInteger> requiredByUnit) {
-        List<Utxo> candidates = new ArrayList<>(utxoSupplier.getAll(smartWallet().toBech32()));
+        return selectInputs(policyId, requiredByUnit, smartWallet());
+    }
+
+    private List<Utxo> selectInputs(String policyId, Map<String, BigInteger> requiredByUnit,
+                                    Address wallet) {
+        List<Utxo> candidates = new ArrayList<>(utxoSupplier.getAll(wallet.toBech32()));
 
         // Prefer single-policy UTxOs, so the transaction stays at one proof.
         candidates.sort((a, b) -> Integer.compare(policyCount(a), policyCount(b)));
@@ -924,7 +1180,7 @@ public class ProgrammableTokenTx extends Tx {
             // hash over the *placeholder* redeemers. Rewriting them now leaves a transaction whose
             // witness data no longer matches its body hash, which the node rejects with an error
             // that points nowhere near the cause. Fail where the reason is still visible.
-            if (plbInputRefs.isEmpty() && mintProofNodes.isEmpty()) return;
+            if (!hasCip113Work()) return;
             throw new Cip113Exception("CIP-113 indices were never resolved: the builder skipped"
                     + " pre-evaluation, which happens when an output still carries a negative coin"
                     + " when _build() runs. Resolving them now would be after script evaluation,"
@@ -935,7 +1191,7 @@ public class ProgrammableTokenTx extends Tx {
                     + " payer had no plain-ADA UTxO to pin.");
         }
 
-        if (plbInputRefs.isEmpty() && mintProofNodes.isEmpty()) return;
+        if (!hasCip113Work()) return;
 
         // Recompute and compare rather than rewrite: if balancing moved anything, fail loudly
         // instead of shipping a transaction that cannot validate.
@@ -995,8 +1251,21 @@ public class ProgrammableTokenTx extends Tx {
         return list == null ? 0 : list.size();
     }
 
+    /**
+     * Whether this transaction has any CIP-113 index to resolve.
+     *
+     * <p>All three kinds count, and missing one is silent: a transaction that only registers and
+     * mints has no base-script inputs and no reference-input mint proof, so guarding on those two
+     * alone skipped resolution entirely and left {@code issuance_mint} reading the placeholder
+     * {@code RefInput(0)} — which points at the coordination UTxO, is not a registry node, and
+     * fails evaluation with no trace.</p>
+     */
+    private boolean hasCip113Work() {
+        return !plbInputRefs.isEmpty() || !mintProofNodes.isEmpty() || !mintProofFromOutput.isEmpty();
+    }
+
     private void resolveIndices(Transaction txn) {
-        if (plbInputRefs.isEmpty() && mintProofNodes.isEmpty()) return;
+        if (!hasCip113Work()) return;
 
         int paramsIdx = LedgerOrdering.indexOfReferenceInput(
                 txn, coordinationUtxo.getTxHash(), coordinationUtxo.getOutputIndex());
@@ -1028,6 +1297,7 @@ public class ProgrammableTokenTx extends Tx {
         if (asBuilt == null || asBuilt.isEmpty()) return;
         List<Withdrawal> ledgerOrder = LedgerOrdering.sortedWithdrawals(txn);
         String transferReward = deployment.transferRewardAddress();
+        String thirdPartyReward = deployment.thirdPartyRewardAddress();
 
         for (Redeemer redeemer : txn.getWitnessSet().getRedeemers()) {
             if (redeemer.getTag() != RedeemerTag.Reward) continue;
@@ -1040,16 +1310,73 @@ public class ProgrammableTokenTx extends Tx {
 
             if (transferReward.equals(withdrawal.getRewardAddress())) {
                 redeemer.setData(Cip113Redeemers.transfer(paramsIdx, buildProofs(txn)));
+            } else if (thirdPartyReward.equals(withdrawal.getRewardAddress())) {
+                RegistryLookup.RegistryNodeUtxo node = referencedNodes.values().iterator().next();
+                int nodeIdx = LedgerOrdering.indexOfReferenceInput(txn,
+                        node.getUtxo().getTxHash(), node.getUtxo().getOutputIndex());
+                redeemer.setData(Cip113Redeemers.thirdParty(
+                        paramsIdx, nodeIdx, resolveOutputsStartIdx(txn)));
             }
         }
+    }
+
+    /**
+     * Where the paired continuing outputs begin.
+     *
+     * <p>Found by address rather than tracked as outputs were declared: the builder fixes output
+     * order later than declaration, so a recorded position would be a guess. The holder's smart
+     * wallet appears only as the continuing outputs — a seizure that paid back to that same wallet
+     * is refused when it is declared, precisely so this stays unambiguous.</p>
+     */
+    private int resolveOutputsStartIdx(Transaction txn) {
+        outputsStartIdx = firstContiguousRun(txn.getBody().getOutputs(),
+                pairedOutputAddress, pairedOutputCount);
+        return outputsStartIdx;
+    }
+
+    /**
+     * Where a run of {@code count} consecutive outputs at {@code address} begins.
+     *
+     * <p>Contiguity is the whole point: {@code third_party} walks the outputs from
+     * {@code outputs_start_idx} and pairs each acted-on input against the next one, so anything
+     * interleaved makes it pair an input against an output that is not its continuation. Failing
+     * here names that; letting it through produces a validator rejection with no detail.</p>
+     */
+    static int firstContiguousRun(List<TransactionOutput> outputs, String address, int count) {
+        for (int i = 0; i < outputs.size(); i++) {
+            if (!address.equals(outputs.get(i).getAddress())) continue;
+
+            for (int j = 0; j < count; j++) {
+                int at = i + j;
+                if (at >= outputs.size() || !address.equals(outputs.get(at).getAddress())) {
+                    throw new Cip113Exception("The continuing outputs of this third-party action"
+                            + " are not contiguous: expected " + count + " outputs at " + address
+                            + " starting at index " + i + ", but index " + at + " is not one."
+                            + " The third_party validator pairs inputs to outputs by position, so"
+                            + " it would pair against the wrong one.");
+                }
+            }
+            return i;
+        }
+        throw new Cip113Exception("No output at " + address + ", so this third-party action has no"
+                + " continuing outputs to pair its inputs against.");
     }
 
     /** Only the base-script inputs get a CIP-113 dispatch redeemer; other script inputs keep theirs. */
     private void resolveSpendRedeemers(Transaction txn, int paramsIdx) {
         if (plbInputRefs.isEmpty()) return;
 
-        int wdrlIdx = LedgerOrdering.indexOfWithdrawal(txn, deployment.transferCredential());
-        PlutusData dispatch = Cip113Redeemers.spendViaTransfer(paramsIdx, wdrlIdx);
+        // Which delegate authorises these spends decides both the arm and which withdrawal the
+        // index has to point at. programmable_logic_base compares the witnessed withdrawal against
+        // the credential the arm names, so naming one and pointing at the other fails the equality.
+        boolean seizing = thirdPartyHolder != null;
+        Credential delegate = seizing
+                ? deployment.thirdPartyCredential()
+                : deployment.transferCredential();
+        int wdrlIdx = LedgerOrdering.indexOfWithdrawal(txn, delegate);
+        PlutusData dispatch = seizing
+                ? Cip113Redeemers.spendViaThirdParty(paramsIdx, wdrlIdx)
+                : Cip113Redeemers.spendViaTransfer(paramsIdx, wdrlIdx);
         List<TransactionInput> sortedInputs = LedgerOrdering.sortedInputs(txn);
 
         for (Redeemer redeemer : txn.getWitnessSet().getRedeemers()) {
@@ -1071,7 +1398,7 @@ public class ProgrammableTokenTx extends Tx {
      * redeemer intact.</p>
      */
     private void resolveMintRedeemers(Transaction txn) {
-        if (mintProofNodes.isEmpty()) return;
+        if (mintProofNodes.isEmpty() && mintProofFromOutput.isEmpty()) return;
 
         List<String> mintedPolicies = new ArrayList<>();
         if (txn.getBody().getMint() != null) {
@@ -1086,13 +1413,53 @@ public class ProgrammableTokenTx extends Tx {
             int nodeIdx = LedgerOrdering.indexOfReferenceInput(txn,
                     entry.getValue().getUtxo().getTxHash(), entry.getValue().getUtxo().getOutputIndex());
 
-            for (Redeemer redeemer : txn.getWitnessSet().getRedeemers()) {
-                if (redeemer.getTag() == RedeemerTag.Mint
-                        && redeemer.getIndex().intValue() == policyIdx) {
-                    redeemer.setData(Cip113Redeemers.mintRefInput(nodeIdx));
+            setMintRedeemer(txn, policyIdx, Cip113Redeemers.mintRefInput(nodeIdx));
+        }
+
+        // Policies whose node is being CREATED by this transaction: the node is an output, not a
+        // reference input, so issuance_mint reads it through OutputIndex instead.
+        for (Map.Entry<String, String> entry : mintProofFromOutput.entrySet()) {
+            int policyIdx = mintedPolicies.indexOf(entry.getKey());
+            if (policyIdx < 0) continue;
+
+            int outputIdx = indexOfNodeOutput(txn, entry.getValue(), entry.getKey());
+            setMintRedeemer(txn, policyIdx, Cip113Redeemers.mintOutputIndex(outputIdx));
+        }
+    }
+
+    private static void setMintRedeemer(Transaction txn, int policyIdx, PlutusData data) {
+        for (Redeemer redeemer : txn.getWitnessSet().getRedeemers()) {
+            if (redeemer.getTag() == RedeemerTag.Mint
+                    && redeemer.getIndex().intValue() == policyIdx) {
+                redeemer.setData(data);
+            }
+        }
+    }
+
+    /**
+     * Where the registry node for {@code policyId} sits in the outputs.
+     *
+     * <p>Found rather than tracked: the node's NFT is named after the policy id, so the output is
+     * identifiable from the finished transaction — the same discipline every other index in this
+     * class follows. Tracking it as outputs were declared would mean guessing at ordering the
+     * builder had not fixed yet.</p>
+     */
+    static int indexOfNodeOutput(Transaction txn, String registryNodeCs, String policyId) {
+        List<TransactionOutput> outputs = txn.getBody().getOutputs();
+        for (int i = 0; i < outputs.size(); i++) {
+            for (MultiAsset ma : outputs.get(i).getValue().getMultiAssets()) {
+                if (!ma.getPolicyId().equalsIgnoreCase(registryNodeCs)) continue;
+                for (Asset asset : ma.getAssets()) {
+                    if (HexUtil.encodeHexString(asset.getNameAsBytes()).equalsIgnoreCase(policyId)) {
+                        return i;
+                    }
                 }
             }
         }
+        throw new Cip113Exception("No output carries the registry-node NFT " + registryNodeCs
+                + " named " + policyId + ", so issuance_mint's OutputIndex proof cannot be"
+                + " resolved. A mint that rides along with its own registration must emit that"
+                + " node in the same transaction.");
     }
 
     /**
@@ -1164,88 +1531,98 @@ public class ProgrammableTokenTx extends Tx {
     // --------------------------------------------------------------- stubs
 
     /**
-     * Mint a registered programmable token into a holder's smart wallet.
+     * Build the minting half for one asset of a programmable policy.
      *
-     * <p>The token's {@code issuance_mint} script is assembled from the issuance template rather
-     * than fetched or compiled — see {@link PolicyIdDerivation#issuanceScript}. That matters
-     * because a freshly registered token's script has never been used on chain, so no backend can
-     * serve it by hash.</p>
-     *
-     * <p>Uses the {@code RefInput} mint proof, which requires the token to be registered already.
-     * TODO support {@code OutputIndex} so a first mint can ride along in the registration
-     * transaction; that needs the new node's <i>output</i> index, which is only stable once
-     * output ordering is pinned.</p>
-     *
-     * <p>Burn by passing a negative quantity, as with {@code Tx.mintAsset}.</p>
+     * <p>Where the registry node lives is the only thing that varies: already registered, it is a
+     * reference input and the proof is {@code RefInput}; registered by this same transaction, it is
+     * an output and the proof is {@code OutputIndex}. Referencing a node this transaction creates
+     * would be rejected as a non-disjoint reference input anyway.</p>
      */
-    public ProgrammableTokenTx mintProgrammable(String policyId, String assetName, BigInteger quantity,
-                                                String receiver, PlutusData issuanceRedeemer) {
-        declare(() -> {
-            if (coordinationUtxo == null) {
-                throw new Cip113Exception("The coordination UTxO is required. Call coordinationUtxo(...).");
-            }
-            if (issuanceTemplateUtxo == null) {
-                throw new Cip113Exception("The issuance template is required to assemble the token's"
-                        + " issuance script. Call issuanceTemplate(...).");
-            }
+    private void recordMint(String policyId, Asset asset, String receiver, PlutusData issuanceRedeemer) {
 
-            RegistryLookup.RegistryNodeUtxo node = registry.byPolicy(policyId)
-                    .orElseThrow(() -> new Cip113Exception("Policy " + policyId + " is not registered,"
-                            + " so it cannot be minted. Register it first."));
+        if (coordinationUtxo == null) {
+            throw new Cip113Exception("The coordination UTxO is required. Call coordinationUtxo(...).");
+        }
+        if (issuanceTemplateUtxo == null) {
+            throw new Cip113Exception("The issuance template is required to assemble the token's"
+                    + " issuance script. Call issuanceTemplate(...).");
+        }
 
-            PlutusScript issuanceScript = PolicyIdDerivation.issuanceScript(
-                    readIssuanceTemplate(), node.getDatum().getMintingLogicScript());
+        // Registered already, or being registered right here? The node is a reference input in
+        // the first case and an output in the second, and that is the only difference.
+        RegistryLookup.RegistryNodeUtxo node = registry.byPolicy(policyId).orElse(null);
+        boolean registeringNow = node == null && policyId.equalsIgnoreCase(registeredPolicyId);
+        if (node == null && !registeringNow) {
+            throw new Cip113Exception("Policy " + policyId + " is not registered, so it cannot"
+                    + " be minted. Register it first — either in an earlier transaction, or in"
+                    + " this one by calling registerToken(...) before mintAsset(...).");
+        }
 
-            String derived = scriptHashOf(issuanceScript);
-            if (!derived.equalsIgnoreCase(policyId)) {
-                throw new Cip113Exception("Assembled issuance script hashes to " + derived
-                        + " but the policy is " + policyId
-                        + ". The registry node's minting_logic_script does not match this template.");
-            }
+        Credential mintingLogic = registeringNow
+                ? registeringSpec.getMintingLogicScript()
+                : node.getDatum().getMintingLogicScript();
+        String globalStateCs = registeringNow
+                ? registeringSpec.getGlobalStateCs()
+                : node.getDatum().getGlobalStateCs();
 
-            // The node proves the policy is registered; its index is resolved in preTxEvaluation.
+        PlutusScript issuanceScript = PolicyIdDerivation.issuanceScript(
+                readIssuanceTemplate(), mintingLogic);
+
+        String derived = scriptHashOf(issuanceScript);
+        if (!derived.equalsIgnoreCase(policyId)) {
+            throw new Cip113Exception("Assembled issuance script hashes to " + derived
+                    + " but the policy is " + policyId
+                    + ". The registry node's minting_logic_script does not match this template.");
+        }
+
+        // The node proves the policy is registered; its index is resolved in preTxEvaluation.
+        // A node created by this transaction is already an output — referencing it too would be
+        // rejected as a non-disjoint reference input.
+        if (registeringNow) {
+            mintProofFromOutput.put(policyId.toLowerCase(), deployment.getRegistryNodeCs());
+        } else {
             readFrom(node.getUtxo());
             mintProofNodes.put(policyId.toLowerCase(), node);
+        }
 
-            // Minted tokens must land at a smart wallet in seizable shape: base-script payment
-            // credential, inline stake credential, no datum hash, no reference script.
-            Address target = new Address(receiver);
-            Address destination = SmartWalletAddress.isSmartWallet(deployment, target)
-                    ? target
-                    : SmartWalletAddress.ofPaymentCredential(deployment, target);
+        // Minted tokens must land at a smart wallet in seizable shape: base-script payment
+        // credential, inline stake credential, no datum hash, no reference script. A null receiver
+        // means the sender, which is where a plain Tx would leave newly minted assets too.
+        Address target = receiver == null ? owner : new Address(receiver);
+        if (target == null) {
+            throw new Cip113Exception("Minting needs a receiver, or a sender to default to."
+                    + " Call from(...) before mintAsset(...), or name the receiver.");
+        }
+        Address destination = SmartWalletAddress.isSmartWallet(deployment, target)
+                ? target
+                : SmartWalletAddress.ofPaymentCredential(deployment, target);
 
-            Asset asset = new Asset("0x" + HexUtil.encodeHexString(
-                    assetName.getBytes(java.nio.charset.StandardCharsets.UTF_8)), quantity);
+        attachMintValidator(issuanceScript);
+        {
+            mintAsset(issuanceScript, List.of(asset), Cip113Redeemers.mintRefInput(0),
+                    destination.toBech32());
+        }
 
-            if (quantity.signum() < 0) {
-                // Burning a programmable token is not "mint a negative quantity": the supply being
-                // destroyed sits in the holder's smart wallet, so the transaction has to spend those
-                // base-script UTxOs — which means selecting them, dispatching the programmable logic
-                // base spend, invoking the transfer delegate, and returning the non-burned remainder.
-                // None of that happens here, and emitting the negative mint alone builds a transaction
-                // that cannot balance. Better to refuse than to look supported.
-                throw new Cip113Exception("Burning programmable tokens is not implemented yet. A burn"
-                        + " must spend the holder's smart-wallet UTxOs through the programmable logic"
-                        + " base and return the remainder, not merely mint a negative quantity;"
-                        + " mintProgrammable only builds the minting half. Tracked alongside the"
-                        + " third-party and unfracking paths.");
-            }
+        addGlobalStateReference(policyId, globalStateCs);
 
-            attachMintValidator(issuanceScript);
-            {
-                mintAsset(issuanceScript, List.of(asset), Cip113Redeemers.mintRefInput(0),
-                        destination.toBech32());
-            }
+        // The substandard's issuance logic must run.
+        invokeLogicScript(mintingLogic, issuanceRedeemer, "minting logic");
 
-            addGlobalStateReference(policyId, node.getDatum().getGlobalStateCs());
+        // Funding is not optional here, it is what makes the redeemer indices resolvable.
+        // QuickTxBuilder._build() skips preTxEvaluation entirely while any output still has a
+        // negative coin, and preTxEvaluation is where the mint proof's index is written. Skip
+        // it and issuance_mint evaluates against the placeholder. Pinning enough ADA up front
+        // keeps every output non-negative, so that pass runs.
+        declaredOutputLovelace = declaredOutputLovelace.add(
+                minAdaFor(destination, List.of(Amount.builder()
+                        .unit(policyId + HexUtil.encodeHexString(asset.getNameAsBytes()))
+                        .quantity(asset.getValue())
+                        .build())));
+        applyAdaBuffer();
+        fundFromFeePayer();
 
-            // The substandard's issuance logic must run.
-            invokeLogicScript(node.getDatum().getMintingLogicScript(), issuanceRedeemer,
-                    "minting logic");
-
-        });
-        return this;
     }
+
 
     private static String scriptHashOf(PlutusScript script) {
         try {
@@ -1255,13 +1632,164 @@ public class ProgrammableTokenTx extends Tx {
         }
     }
 
-    /** TODO not implemented. Admin actions bypass owner authorisation, pair inputs to outputs
-     *  positionally from {@code outputs_start_idx}, and require byte-identical non-subject assets. */
+    /**
+     * Act on someone else's holdings — seize, claw back, enforce a freeze.
+     *
+     * <p>Marks every programmable payment that follows as a third-party action against
+     * {@code holder}'s smart wallet rather than a transfer from the sender. Which policies may be
+     * acted on, and by whom, is the substandard's business: the token's
+     * {@code third_party_transfer_logic_script} is invoked and can refuse.</p>
+     *
+     * <pre>{@code
+     * new ProgrammableTokenTx()
+     *         .from(administrator)
+     *         .thirdPartyFrom(holder)
+     *         .payToAddress(recipient, Amount.asset(policyId, "MyToken", 25))
+     *         .withRedeemer(policyId, seizureRedeemer)
+     * }</pre>
+     *
+     * <p>The seized tokens land at {@code recipient}'s smart wallet; whatever the holder's spent
+     * UTxOs carried beyond the seized amount goes back to them, one continuing output per UTxO
+     * with the same address, datum and reference script. That per-pair preservation is the
+     * contract's rule, not a convenience: it stops a seizure from also moving ownership, altering
+     * metadata, or attaching a reference script.</p>
+     */
     public ProgrammableTokenTx thirdPartyFrom(Address holder) {
-        throw new UnsupportedOperationException(
-                "TODO CIP-113 third-party actions are not implemented yet. They need"
-                + " ThirdPartyRedeemer{params_idx, registry_node_idx, outputs_start_idx}, pinned"
-                + " output ordering, and per-pair address/datum/reference-script equality.");
+        if (holder == null) {
+            throw new Cip113Exception("thirdPartyFrom(null): a third-party action needs the holder"
+                    + " whose smart wallet is being acted on.");
+        }
+        declare(() -> this.thirdPartyHolder = holder);
+        return this;
+    }
+
+    /**
+     * Build the seizure half of a third-party action.
+     *
+     * <p>The layout the {@code third_party} validator demands, and why each part is where it
+     * is:</p>
+     * <ul>
+     *   <li>The destination outputs — already emitted by {@code payToAddress}, which ran before
+     *       this — sit ahead of {@code outputs_start_idx} and are where the seized tokens go.</li>
+     *   <li>From {@code outputs_start_idx} on, one continuing output per acted-on input, walked in
+     *       the ledger's input order rather than declaration order, because the validator pairs
+     *       them positionally against {@code self.inputs}.</li>
+     *   <li>Each pair keeps address, datum and reference script byte-identical and carries at
+     *       least the input's lovelace; every policy other than the acted-on one is passed through
+     *       untouched.</li>
+     * </ul>
+     */
+    private void materialiseThirdParty(String policyId, RegistryLookup.RegistryNodeUtxo node,
+                                       Map<String, BigInteger> seizedByUnit) {
+        Address holderWallet = SmartWalletAddress.isSmartWallet(deployment, thirdPartyHolder)
+                ? thirdPartyHolder
+                : SmartWalletAddress.ofPaymentCredential(deployment, thirdPartyHolder);
+
+        rejectSeizingToSelf(holderWallet);
+
+        List<Utxo> selected = selectInputs(policyId, seizedByUnit, holderWallet);
+        if (selected.isEmpty()) {
+            throw new Cip113Exception("No base-script UTxOs holding policy " + policyId
+                    + " found at " + holderWallet.toBech32() + ", so there is nothing to seize."
+                    + " A third-party action acts on the holder's smart wallet, not the sender's.");
+        }
+
+        // The validator walks self.inputs, which the ledger sorts by (txId, index) — so the paired
+        // outputs have to be emitted in that order, not the order coin selection happened to pick.
+        selected.sort(Comparator.comparing(Utxo::getTxHash)
+                .thenComparingInt(Utxo::getOutputIndex));
+
+        attachSpending(scripts.programmableLogicBase());
+        attachReward(scripts.thirdPartyDelegate());
+
+        PlutusData spendPlaceholder = Cip113Redeemers.spendViaThirdParty(0, 0);
+        collectFrom(selected, spendPlaceholder);
+        plbInputs.addAll(selected);
+        selected.forEach(u -> plbInputRefs.add(ref(u.getTxHash(), u.getOutputIndex())));
+
+        readFrom(node.getUtxo());
+        referencedNodes.put(policyId, node);
+        addGlobalStateReference(policyId, node.getDatum().getGlobalStateCs());
+
+        withdraw(deployment.thirdPartyRewardAddress(), BigInteger.ZERO,
+                Cip113Redeemers.thirdParty(0, 0, 0));
+
+        invokeLogicScript(node.getDatum().getThirdPartyTransferLogicScript(),
+                substandardRedeemers.get(policyId), "third-party logic");
+
+        emitPairedOutputs(policyId, selected, holderWallet, seizedByUnit);
+
+        fundFromFeePayer();
+    }
+
+    /**
+     * Refuse a seizure that pays back into the wallet it seized from.
+     *
+     * <p>The paired continuing outputs are located by address, so a destination at the same smart
+     * wallet is indistinguishable from them — and the seizure would be a no-op regardless. Checked
+     * before any input is selected: the transaction is already unbuildable, and everything between
+     * here and there needs a live chain to do.</p>
+     */
+    private void rejectSeizingToSelf(Address holderWallet) {
+        String wallet = holderWallet.toBech32();
+        for (List<PendingPayment> payments : pending.values()) {
+            for (PendingPayment payment : payments) {
+                if (payment.destination != null && wallet.equals(payment.destination.toBech32())) {
+                    throw new Cip113Exception("A third-party action cannot send the seized tokens"
+                            + " back to the same smart wallet it seized them from — there would be"
+                            + " nothing to distinguish the destination output from the holder's"
+                            + " own continuing output, and the seizure would be a no-op.");
+                }
+            }
+        }
+    }
+
+    /**
+     * One continuing output per acted-on input, each the input minus its share of the seizure.
+     *
+     * <p>The seizure is drawn from the inputs in order until it is satisfied, so a partial seizure
+     * empties the first UTxOs rather than shaving every one of them — fewer changed outputs, and
+     * the untouched ones stay byte-identical to their inputs, which is what the validator wants
+     * anyway.</p>
+     */
+    private void emitPairedOutputs(String policyId, List<Utxo> selected, Address holderWallet,
+                                   Map<String, BigInteger> seizedByUnit) {
+        Map<String, BigInteger> remaining = new LinkedHashMap<>(seizedByUnit);
+        pairedOutputAddress = holderWallet.toBech32();
+
+        for (Utxo input : selected) {
+            List<Amount> kept = new ArrayList<>();
+            for (Amount held : input.getAmount()) {
+                BigInteger owed = remaining.getOrDefault(held.getUnit(), BigInteger.ZERO);
+                if (LOVELACE.equals(held.getUnit()) || owed.signum() == 0) {
+                    kept.add(held);            // lovelace rides along; nothing seized from this unit
+                    continue;
+                }
+                BigInteger take = owed.min(held.getQuantity());
+                remaining.put(held.getUnit(), owed.subtract(take));
+                BigInteger left = held.getQuantity().subtract(take);
+                if (left.signum() > 0) kept.add(Amount.asset(policyId, assetNameOf(held), left));
+            }
+
+            // Same address, no datum, no reference script, and the input's own lovelace — the
+            // per-pair equality the validator enforces.
+            super.payToAddress(holderWallet.toBech32(), kept);
+            pairedOutputCount++;
+        }
+
+        BigInteger short_ = remaining.values().stream().reduce(BigInteger.ZERO, BigInteger::add);
+        if (short_.signum() > 0) {
+            throw new Cip113Exception("The selected UTxOs at " + holderWallet.toBech32()
+                    + " are short by " + short_ + " of what this seizure moves. Coin selection"
+                    + " picked inputs that do not cover it, which should not happen — report it.");
+        }
+    }
+
+    /** The asset-name half of a unit, decoded. */
+    private static String assetNameOf(Amount amount) {
+        String unit = amount.getUnit();
+        return new String(HexUtil.decodeHexString(unit.substring(56)),
+                java.nio.charset.StandardCharsets.UTF_8);
     }
 
     /**
@@ -1304,6 +1832,7 @@ public class ProgrammableTokenTx extends Tx {
             IssuanceCborHex template = readIssuanceTemplate();
             String policyId = PolicyIdDerivation.derive(template, spec.getMintingLogicScript());
             this.registeredPolicyId = policyId;
+            this.registeringSpec = spec;
 
             RegistryLookup.RegistryNodeUtxo covering = registry.coveringNode(policyId);
             RegistryNode coveringNode = covering.getDatum();
@@ -1343,6 +1872,13 @@ public class ProgrammableTokenTx extends Tx {
             // Proof of instance: the substandard authorises its own registration. There is no registry
             // node to read yet, so the credential comes from the spec that is about to become one.
             invokeLogicScript(spec.getMintingLogicScript(), issuanceRedeemer, "minting logic");
+
+            // The new node output needs fresh ADA (the covering node's re-emit reuses the ADA of
+            // the input it spends). Its inline datum is large, so this is a deliberate
+            // over-estimate rather than a computed min-ADA — the surplus returns as change, and
+            // under-funding would leave a negative output and silently skip index resolution.
+            declaredOutputLovelace = declaredOutputLovelace.add(REGISTRY_NODE_OUTPUT_ALLOWANCE);
+            fundFromFeePayer();
 
             log.debug("Registering policy {} between {} and {}",
                     policyId, coveringNode.getKey(), coveringNode.getNext());
@@ -1389,12 +1925,98 @@ public class ProgrammableTokenTx extends Tx {
         return this;
     }
 
-    /** TODO not implemented. Only the four mutable fields may change. */
+    /**
+     * Change a registered token's mutable rules, in place.
+     *
+     * <p>Four of a node's seven fields may change: {@code transfer_logic_script},
+     * {@code third_party_transfer_logic_script}, {@code unfracking_logic_script} and
+     * {@code global_state_cs}. {@code key}, {@code next} and {@code minting_logic_script} are
+     * frozen — {@code key} and {@code minting_logic_script} because the policy id is derived by
+     * hashing the issuance template against the minting credential, so changing either would
+     * rename the token; {@code next} because it is the registry's linked-list structure, which
+     * only an insert may re-point.</p>
+     *
+     * <p>{@code registry_spend} recognises an update by the <i>absence</i> of a registry-node
+     * mint: with no node NFT minted it takes its in-place branch, which requires exactly one
+     * continuing output carrying the node NFT at the same address, the frozen fields unchanged,
+     * and the node's own minting logic to withdraw-zero. It also forbids minting or burning the
+     * node's own token in the same transaction, so an update cannot be combined with a mint.</p>
+     *
+     * @param updated the node's desired end state; its {@code key} names which node to update
+     * @param issuanceRedeemer the redeemer the token's minting logic expects, since that script
+     *                         authorises the change
+     */
     public ProgrammableTokenTx updateRegistryNode(RegistryNode updated, PlutusData issuanceRedeemer) {
-        throw new UnsupportedOperationException(
-                "TODO CIP-113 registry-node updates are not implemented yet. transfer_logic_script,"
-                + " third_party_transfer_logic_script, unfracking_logic_script and global_state_cs are"
-                + " mutable; key, next and minting_logic_script are frozen.");
+        if (updated == null || updated.getKey() == null || updated.getKey().isEmpty()) {
+            throw new Cip113Exception("The updated node must carry the key of the node being"
+                    + " updated — that is what says which registry node to spend.");
+        }
+        declare(() -> {
+            if (coordinationUtxo == null) {
+                throw new Cip113Exception("The coordination UTxO is required — registry_spend reads"
+                        + " registry_node_cs from the protocol-params datum. Call coordinationUtxo(...).");
+            }
+            if (scripts == null) {
+                throw new Cip113Exception("Updating a registry node needs the registry_spend"
+                        + " script. Call withScriptResolver(...).");
+            }
+
+            String policyId = updated.getKey().toLowerCase();
+            RegistryLookup.RegistryNodeUtxo existing = registry.byPolicy(policyId)
+                    .orElseThrow(() -> new Cip113Exception("Policy " + policyId + " is not"
+                            + " registered, so there is no registry node to update."));
+            RegistryNode current = existing.getDatum();
+
+            rejectFrozenChange("key", current.getKey(), updated.getKey());
+            rejectFrozenChange("next", current.getNext(), updated.getNext());
+            rejectFrozenChange("minting_logic_script",
+                    current.getMintingLogicScript(), updated.getMintingLogicScript());
+
+            // registry_spend requires the node's own token to be absent from the mint field, so an
+            // update can never ride along with a mint or a burn of that token.
+            if (mintProofNodes.containsKey(policyId) || policyId.equals(registeredPolicyId)) {
+                throw new Cip113Exception("Policy " + policyId + " is both minted and node-updated"
+                        + " in this transaction. registry_spend forbids that — a node update is a"
+                        + " lifecycle action, never an issuance. Split them into two transactions.");
+            }
+
+            attachSpendingValidator(scripts.registrySpend());
+            // registry_spend ignores its redeemer; the authorisation is the withdraw-zero below.
+            collectFrom(List.of(existing.getUtxo()), BigIntPlutusData.of(0));
+
+            // Exactly one continuing output carrying the node NFT, at the same address, keeping
+            // its own lovelace and NFT.
+            payToContract(existing.getUtxo().getAddress(),
+                    existing.getUtxo().getAmount(),
+                    updated.toPlutusData());
+
+            // The node's minting logic authorises the change. registry_spend rejects a key
+            // credential outright, so this must resolve to a script.
+            invokeLogicScript(current.getMintingLogicScript(), issuanceRedeemer, "minting logic");
+
+            log.debug("Updating registry node {}", policyId);
+        });
+        return this;
+    }
+
+    /** {@code is_field_updated_registry_node} freezes three fields; say which one moved. */
+    private static void rejectFrozenChange(String field, Object current, Object proposed) {
+        if (current == null ? proposed == null : current.equals(proposed)) return;
+        throw new Cip113Exception("A registry node's " + field + " is frozen and this update"
+                + " changes it (" + describeFrozen(current) + " -> " + describeFrozen(proposed)
+                + "). Only transfer_logic_script, third_party_transfer_logic_script,"
+                + " unfracking_logic_script and global_state_cs may change; key and"
+                + " minting_logic_script together derive the policy id, and next is the registry's"
+                + " linked-list structure that only an insert may re-point.");
+    }
+
+    private static String describeFrozen(Object value) {
+        if (value == null) return "null";
+        if (value instanceof Credential) {
+            byte[] bytes = ((Credential) value).getBytes();
+            return bytes == null ? "an empty credential" : HexUtil.encodeHexString(bytes);
+        }
+        return String.valueOf(value);
     }
 
     // -------------------------------------------------------------- helpers
@@ -1497,7 +2119,7 @@ public class ProgrammableTokenTx extends Tx {
     private void attachLogicScript(Credential logic, String role) {
         if (logic == null || logic.getType() != CredentialType.Script) return;   // see invokeLogicScript
 
-        String hash = HexUtil.encodeHexString(logic.getBytes()).toLowerCase();
+        String hash = logicScriptHash(logic, role);
         if (!attachedLogicScripts.add(hash)) return;
 
         PlutusScript script = explicitLogicScripts.get(hash);
@@ -1512,7 +2134,27 @@ public class ProgrammableTokenTx extends Tx {
                     + " ProgrammableTokenService.scripts().register(script), or hand it to this"
                     + " transaction with attachSubstandardScript(script).");
         }
-        attachRewardValidator(script);
+        attachReward(script);
+    }
+
+    /**
+     * A script credential's hash, as the lowercase hex the resolvers are keyed by.
+     *
+     * <p>The bytes can legitimately be absent: a credential decoded from a registry node comes
+     * from {@code BytesPlutusData.getValue()}, which a malformed datum leaves null, and
+     * {@link HexUtil#encodeHexString(byte[])} answers null rather than throwing — so the naive
+     * form fails with an NPE inside {@code toLowerCase()} that names neither the token nor the
+     * role. Fail where both are still known.</p>
+     */
+    static String logicScriptHash(Credential logic, String role) {
+        byte[] bytes = logic.getBytes();
+        if (bytes == null || bytes.length == 0) {
+            throw new Cip113Exception("The " + role + " credential carries no script hash, so the"
+                    + " script it names cannot be resolved. That credential is read from the"
+                    + " token's registry node, so either the node's datum is malformed or the"
+                    + " RegistryNodeSpec it was registered with named an empty credential.");
+        }
+        return HexUtil.encodeHexString(bytes).toLowerCase();
     }
 
     /**

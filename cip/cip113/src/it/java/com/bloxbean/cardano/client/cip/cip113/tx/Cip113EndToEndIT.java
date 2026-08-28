@@ -6,11 +6,13 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.backend.model.AccountInformation;
 import com.bloxbean.cardano.client.cip.cip113.Cip113Deployment;
 import com.bloxbean.cardano.client.cip.cip113.LedgerOrdering;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.cip.cip113.Cip113Deployments;
 import com.bloxbean.cardano.client.cip.cip113.model.RegistryNode;
@@ -88,6 +90,9 @@ public class Cip113EndToEndIT {
     private static final String EXAMPLE_ASSET_NAME = "Cip113Demo";
     private static final BigInteger MINT_QUANTITY = BigInteger.valueOf(1000);
 
+    /** Minted in the same transaction as the registration — see step 7. */
+    private static final BigInteger FIRST_MINT_QUANTITY = BigInteger.valueOf(50);
+
     /** "txHash#index" of every UTxO at the smart wallet right now. */
     private static Set<String> smartWalletUtxoRefs() {
         Result<List<Utxo>> utxos = tokenService.getUtxos(ownerAddress);
@@ -119,6 +124,12 @@ public class Cip113EndToEndIT {
     /** The scanning lookup caches; a transaction that changes the registry invalidates it. */
     private static void invalidateRegistryCache() {
         tokenService.registryLookup().invalidate();
+    }
+
+    /** The example token as a mintable {@link Asset}; negative quantity burns. */
+    private static Asset exampleAsset(BigInteger quantity) {
+        return new Asset("0x" + com.bloxbean.cardano.client.util.HexUtil.encodeHexString(
+                EXAMPLE_ASSET_NAME.getBytes(java.nio.charset.StandardCharsets.UTF_8)), quantity);
     }
 
     private static String unitOf(String policyId) {
@@ -153,6 +164,44 @@ public class Cip113EndToEndIT {
         // minting policies.
         DevNet.topUp(account.baseAddress(), 100_000L);
         DevNet.topUp(account.baseAddress(), 100_000L);
+
+        awaitSeedUtxos(2);
+    }
+
+    /**
+     * Block until the top-ups are visible as distinct UTxOs.
+     *
+     * <p>The admin endpoint returns as soon as the top-up is submitted, but the bootstrap reads
+     * UTxOs through the indexer — so without this the suite races its own funding and step 0 fails
+     * with "found 1" even though both top-ups succeeded. Whether it passed depended purely on how
+     * fast the devnet indexed, which is exactly the kind of intermittent failure that gets blamed
+     * on the code under test.</p>
+     */
+    private static void awaitSeedUtxos(int required) {
+        var utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+        long deadline = System.currentTimeMillis() + 60_000L;
+        int seen = 0;
+        while (System.currentTimeMillis() < deadline) {
+            seen = (int) utxoSupplier.getAll(account.baseAddress()).stream()
+                    .filter(u -> u.getAmount().stream()
+                            .anyMatch(a -> "lovelace".equals(a.getUnit())
+                                    && a.getQuantity().compareTo(BigInteger.valueOf(100_000_000L)) > 0))
+                    .count();
+            if (seen >= required) {
+                System.out.println("Funded: " + seen + " seed UTxOs visible");
+                return;
+            }
+            try {
+                Thread.sleep(1_000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for seed UTxOs", e);
+            }
+        }
+        throw new IllegalStateException("Waited 60s for " + required + " UTxOs over 100 ADA at "
+                + account.baseAddress() + " but only " + seen + " became visible. The top-ups were"
+                + " accepted, so this is the devnet indexer falling behind or the admin endpoint"
+                + " silently dropping one.");
     }
 
     /** The standard Yaci DevKit funded account. */
@@ -523,10 +572,9 @@ public class Cip113EndToEndIT {
     /**
      * Registering the example token itself.
      *
-     * <p>TODO not implemented — {@link ProgrammableTokenTx#registerToken} still throws. The
-     * transaction has to spend the covering node, re-point its {@code next}, emit the new node,
-     * mint the registry NFT named after the policy id, reference the issuance template, and
-     * include the issuance credential's withdraw-zero — which step 5 has just made possible.</p>
+     * <p>The transaction spends the covering node, re-points its {@code next}, emits the new node,
+     * mints the registry NFT named after the policy id, references the issuance template, and
+     * includes the issuance credential's withdraw-zero — which step 6 has just made possible.</p>
      */
     @Test
     @Order(7)
@@ -545,6 +593,11 @@ public class Cip113EndToEndIT {
             return;
         }
 
+        // Register and mint the first supply in ONE transaction. issuance_mint cannot take its
+        // RefInput proof here — the registry node it needs is an output of this very transaction,
+        // not a reference input, and referencing a UTxO this transaction creates would be rejected
+        // as non-disjoint anyway. So this is the OutputIndex proof, and it is the ordinary case:
+        // a token's first mint naturally belongs with its registration.
         ProgrammableTokenTx tx = new ProgrammableTokenTx()
                 .from(account.baseAddress())
                 .registerToken(RegistryNodeSpec.builder()
@@ -552,15 +605,26 @@ public class Cip113EndToEndIT {
                         .transferLogicScript(AlwaysTrueScripts.credential())
                         .thirdPartyTransferLogicScript(AlwaysTrueScripts.credential())
                         .build(),
-                PlutusData.unit());
+                PlutusData.unit())
+                .mintAsset(examplePolicyId, exampleAsset(FIRST_MINT_QUANTITY),
+                        PlutusData.unit(), account.baseAddress());
 
-        Result<String> result = new ProgrammableQuickTxBuilder(programmableBackend)
-                .compose(tx)
-                .feePayer(account.baseAddress())
-                .withSigner(SignerProviders.signerFrom(account))
-                .withTxEvaluator(evaluator())
-                .completeAndWait(System.out::println);
+        StringBuilder shape = new StringBuilder();
+        Result<String> result;
+        try {
+            result = new ProgrammableQuickTxBuilder(programmableBackend)
+                    .compose(tx)
+                    .feePayer(account.baseAddress())
+                    .withSigner(SignerProviders.signerFrom(account))
+                    .withTxEvaluator(evaluator())
+                    .preBalanceTx((ctx, txn) -> shape.append(describe("before balancing", txn)))
+                    .completeAndWait(System.out::println);
+        } catch (Exception e) {
+            System.out.println(shape);
+            throw e;
+        }
 
+        System.out.println(shape);
         System.out.println("submit         : " + result.getResponse());
         assertThat(result.isSuccessful())
                 .as("registering the example token: %s", result.getResponse())
@@ -569,6 +633,12 @@ public class Cip113EndToEndIT {
         System.out.println("registered in  : " + result.getValue());
         tokenService.registryLookup().invalidate();   // drop the cached scan so later steps see the new node
         invalidateRegistryCache();
+
+        assertThat(programmableQuantity(unitOf(examplePolicyId)))
+                .as("the first mint must have landed in the same transaction as the registration,"
+                        + " which is only possible through issuance_mint's OutputIndex proof")
+                .isEqualTo(FIRST_MINT_QUANTITY);
+        System.out.println("first mint     : " + FIRST_MINT_QUANTITY + " minted alongside the node");
     }
 
     // ---------------------------------------------------------------- step 8
@@ -596,8 +666,8 @@ public class Cip113EndToEndIT {
 
         ProgrammableTokenTx tx = new ProgrammableTokenTx()
                 .from(account.baseAddress())
-                .mintProgrammable(examplePolicyId, EXAMPLE_ASSET_NAME, MINT_QUANTITY,
-                        account.baseAddress(), BigIntPlutusData.of(0));
+                .mintAsset(examplePolicyId, exampleAsset(MINT_QUANTITY),
+                        BigIntPlutusData.of(0), account.baseAddress());
 
         Result<String> result = new ProgrammableQuickTxBuilder(programmableBackend)
                 .compose(tx)
@@ -757,6 +827,12 @@ public class Cip113EndToEndIT {
           .append(" withdrawals=").append(body.getWithdrawals() == null ? 0 : body.getWithdrawals().size())
           .append(" requiredSigners=").append(body.getRequiredSigners() == null ? 0 : body.getRequiredSigners().size())
           .append("\n");
+        if (txn.getWitnessSet() != null) {
+            sb.append("  witnessScripts=")
+              .append(txn.getWitnessSet().getPlutusV3Scripts() == null
+                      ? 0 : txn.getWitnessSet().getPlutusV3Scripts().size())
+              .append('\n');
+        }
         if (txn.getWitnessSet() != null && txn.getWitnessSet().getRedeemers() != null) {
             txn.getWitnessSet().getRedeemers().forEach(r ->
                     sb.append("  redeemer ").append(r.getTag()).append(" index=").append(r.getIndex()).append('\n'));
@@ -764,6 +840,30 @@ public class Cip113EndToEndIT {
         if (body.getWithdrawals() != null) {
             body.getWithdrawals().forEach(w ->
                     sb.append("  withdrawal ").append(w.getRewardAddress()).append('\n'));
+        }
+        if (body.getMint() != null) {
+            var sorted = new java.util.ArrayList<>(body.getMint());
+            sorted.sort(java.util.Comparator.comparing(
+                    com.bloxbean.cardano.client.transaction.spec.MultiAsset::getPolicyId));
+            for (int i = 0; i < sorted.size(); i++) {
+                sb.append("  mint[").append(i).append("] ").append(sorted.get(i).getPolicyId());
+                sorted.get(i).getAssets().forEach(a ->
+                        sb.append(" {").append(a.getName()).append('=').append(a.getValue()).append('}'));
+                sb.append('\n');
+            }
+        }
+        if (body.getOutputs() != null) {
+            for (int i = 0; i < body.getOutputs().size(); i++) {
+                var o = body.getOutputs().get(i);
+                sb.append("  output[").append(i).append("] ")
+                  .append(o.getAddress() == null ? "?" : o.getAddress().substring(0, Math.min(24, o.getAddress().length())))
+                  .append(" datum=").append(o.getInlineDatum() != null ? "inline" : "none");
+                o.getValue().getMultiAssets().forEach(ma -> {
+                    sb.append(' ').append(ma.getPolicyId(), 0, 8);
+                    ma.getAssets().forEach(a -> sb.append(':').append(a.getName()).append('=').append(a.getValue()));
+                });
+                sb.append('\n');
+            }
         }
         return sb.toString();
     }
@@ -943,6 +1043,323 @@ public class Cip113EndToEndIT {
         System.out.println("status         : ledger confirms script credentials sort before key"
                 + " credentials — LedgerOrdering is correct and WithdrawalUtil's hash-only"
                 + " comparator would have been wrong here.");
+    }
+
+    // --------------------------------------------------------------- step 12
+
+    /**
+     * Burn part of the minted supply.
+     *
+     * <p>Proves the burn is a real transfer-path spend, not a negative mint: the holder's
+     * base-script UTxOs are consumed through {@code programmable_logic_base} under
+     * {@code SpendViaTransfer}, {@code validate_transfer} folds the negative mint into the input
+     * side for a policy present in those inputs, and the remainder comes back to the smart
+     * wallet. A balance that drops by exactly the burned amount, with the rest still held, is
+     * what distinguishes that from "the tokens went somewhere".</p>
+     */
+    @Test
+    @Order(12)
+    void step12_burnExampleToken() throws Exception {
+        requireDeployment("Burn");
+        requireExamplePolicyId();
+
+        Result<List<Amount>> before = tokenService.getProgrammableBalance(ownerAddress);
+        assertThat(before.isSuccessful()).as("balance: %s", before.getResponse()).isTrue();
+
+        String unit = examplePolicyId + com.bloxbean.cardano.client.util.HexUtil.encodeHexString(
+                EXAMPLE_ASSET_NAME.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        BigInteger held = quantity(before.getValue(), unit);
+        assertThat(held)
+                .as("step 8 must have minted %s before it can be burned", unit)
+                .isGreaterThanOrEqualTo(BigInteger.TWO);
+
+        BigInteger toBurn = BigInteger.ONE;
+        System.out.println("\nburning " + toBurn + " of " + unit + " (held: " + held + ")");
+
+        ProgrammableTokenTx tx = new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                // Negative quantity is a burn, exactly as it is on a plain Tx. That it has to
+                // spend the holder's smart-wallet UTxOs and return the remainder is the library's
+                // problem, not the caller's.
+                .mintAsset(examplePolicyId, exampleAsset(toBurn.negate()),
+                        BigIntPlutusData.of(0));   // alwaysTrue ignores it
+
+        Result<String> result = new ProgrammableQuickTxBuilder(programmableBackend)
+                .compose(tx)
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .withTxEvaluator(evaluator())
+                .completeAndWait(System.out::println);
+
+        System.out.println("submit         : " + result.getResponse());
+        assertThat(result.isSuccessful())
+                .as("Burn must validate. issuance_mint delegates custody to the transfer validator"
+                        + " when its TransferRedeemer.proofs names the same registry node, and"
+                        + " no_escape requires the remainder to stay at the base script: %s",
+                        result.getResponse())
+                .isTrue();
+
+        Result<List<Amount>> after = tokenService.getProgrammableBalance(ownerAddress);
+        assertThat(after.isSuccessful()).as("balance: %s", after.getResponse()).isTrue();
+        assertThat(quantity(after.getValue(), unit))
+                .as("the burned amount must be destroyed and the remainder still held")
+                .isEqualTo(held.subtract(toBurn));
+
+        System.out.println("status         : " + held + " -> " + held.subtract(toBurn)
+                + " — supply destroyed, remainder returned to the smart wallet");
+    }
+
+    // --------------------------------------------------------------- step 15
+
+    /**
+     * Change a registered token's mutable rules in place.
+     *
+     * <p>{@code registry_spend} recognises an update by the absence of a registry-node mint: it
+     * then requires one continuing output carrying the node NFT at the same address, the three
+     * frozen fields unchanged, and the node's own minting logic to withdraw-zero. Re-reading the
+     * node afterwards is what proves the datum actually changed rather than the transaction
+     * merely being accepted.</p>
+     */
+    @Test
+    @Order(15)
+    void step15_updateRegistryNode() throws Exception {
+        requireDeployment("Registry node update");
+        requireExamplePolicyId();
+
+        tokenService.registryLookup().invalidate();
+        RegistryNode current = tokenService.registryLookup().byPolicy(examplePolicyId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Policy " + examplePolicyId + " is not registered"))
+                .getDatum();
+
+        System.out.println("\nnode before    : global_state_cs = '" + current.getGlobalStateCs() + "'");
+
+        // global_state_cs is the one mutable field with no script behind it, so flipping it proves
+        // the update path without needing a second substandard deployed.
+        String newGlobalState = current.getGlobalStateCs() == null || current.getGlobalStateCs().isEmpty()
+                ? AlwaysTrueScripts.ALWAYS_TRUE.getPolicyId()
+                : "";
+        RegistryNode updated = current.toBuilder().globalStateCs(newGlobalState).build();
+
+        ProgrammableTokenTx tx = new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .updateRegistryNode(updated, BigIntPlutusData.of(0));   // alwaysTrue ignores it
+
+        Result<String> result = new ProgrammableQuickTxBuilder(programmableBackend)
+                .compose(tx)
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .withTxEvaluator(evaluator())
+                .completeAndWait(System.out::println);
+
+        System.out.println("submit         : " + result.getResponse());
+        assertThat(result.isSuccessful())
+                .as("A registry-node update must validate: no node NFT minted, one continuing"
+                        + " output at the same address, frozen fields unchanged, minting logic"
+                        + " withdrawn-zero: %s", result.getResponse())
+                .isTrue();
+
+        tokenService.registryLookup().invalidate();
+        RegistryNode reread = tokenService.registryLookup().byPolicy(examplePolicyId)
+                .orElseThrow(() -> new IllegalStateException("Node vanished after update"))
+                .getDatum();
+
+        assertThat(reread.getGlobalStateCs())
+                .as("the mutable field must have actually changed on chain")
+                .isEqualTo(newGlobalState);
+        assertThat(reread.getKey()).isEqualToIgnoringCase(current.getKey());
+        assertThat(reread.getNext()).isEqualToIgnoringCase(current.getNext());
+        assertThat(reread.getMintingLogicScript()).isEqualTo(current.getMintingLogicScript());
+
+        System.out.println("node after     : global_state_cs = '" + reread.getGlobalStateCs()
+                + "' — frozen fields intact");
+    }
+
+    // --------------------------------------------------------------- step 13
+
+    /**
+     * Seize tokens from a holder's smart wallet into someone else's.
+     *
+     * <p>The {@code third_party} validator pairs every acted-on base-script input positionally
+     * with a continuing output from {@code outputs_start_idx}, each preserving its input's
+     * address, datum and reference script and carrying at least its lovelace. The seized tokens
+     * land in outputs <i>before</i> that index. Asserting both balances — one down, one up — is
+     * what distinguishes a real seizure from a transaction that merely validated.</p>
+     *
+     * <p>The always-true substandard authorises it; a real one would consult its own rules.</p>
+     */
+    @Test
+    @Order(13)
+    void step13_thirdPartySeize() throws Exception {
+        requireDeployment("Third-party seizure");
+        requireExamplePolicyId();
+
+        String unit = unitOf(examplePolicyId);
+        BigInteger holderBefore = programmableQuantity(unit);
+        assertThat(holderBefore)
+                .as("the holder must hold something before it can be seized").isGreaterThan(BigInteger.ONE);
+
+        // A second account plays the recipient — its smart wallet is a different address, which is
+        // what lets the seized tokens be told apart from the holder's continuing outputs.
+        Account recipient = new Account(network);
+        Address recipientAddress = new Address(recipient.baseAddress());
+        Address recipientWallet = tokenService.smartWalletAddress(recipientAddress);
+
+        // Seize MORE than any single UTxO holds, so the seizure spans at least two inputs. That is
+        // the case worth proving: third_party pairs inputs to outputs positionally against the
+        // ledger's input order, and with one input the ordering is correct no matter what the
+        // comparator does. Step 9's self-transfer leaves the wallet split, so this is available.
+        List<BigInteger> perUtxo = tokenService.getUtxos(ownerAddress).getValue().stream()
+                .map(u -> quantity(u.getAmount(), unit))
+                .filter(q -> q.signum() > 0)
+                .sorted(java.util.Comparator.reverseOrder())
+                .collect(java.util.stream.Collectors.toList());
+        assertThat(perUtxo.size())
+                .as("the seizure needs the holder's supply split across at least two UTxOs to"
+                        + " exercise positional pairing; step 9's self-transfer should have done"
+                        + " that. Holdings per UTxO: %s", perUtxo)
+                .isGreaterThanOrEqualTo(2);
+
+        BigInteger toSeize = perUtxo.get(0).add(BigInteger.ONE);
+        System.out.println("\nseizing " + toSeize + " of " + unit
+                + " across " + perUtxo.size() + " UTxOs (largest holds " + perUtxo.get(0) + ")");
+        System.out.println("from           : " + tokenService.smartWalletAddress(ownerAddress).toBech32());
+        System.out.println("to             : " + recipientWallet.toBech32());
+
+        ProgrammableTokenTx tx = new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .thirdPartyFrom(ownerAddress)
+                .payToAddress(recipientAddress.getAddress(),
+                        Amount.asset(examplePolicyId, EXAMPLE_ASSET_NAME, toSeize))
+                .withRedeemer(examplePolicyId, BigIntPlutusData.of(0));   // alwaysTrue ignores it
+
+        StringBuilder shape = new StringBuilder();
+        int[] plbOutputs = {0};
+        Result<String> result;
+        try {
+            result = new ProgrammableQuickTxBuilder(programmableBackend)
+                    .compose(tx)
+                    .feePayer(account.baseAddress())
+                    .withSigner(SignerProviders.signerFrom(account))
+                    .withTxEvaluator(evaluator())
+                    .preBalanceTx((ctx, txn) -> {
+                        shape.append(describe("before balancing", txn));
+                        String holderWallet =
+                                tokenService.smartWalletAddress(ownerAddress).toBech32();
+                        plbOutputs[0] = (int) txn.getBody().getOutputs().stream()
+                                .filter(o -> holderWallet.equals(o.getAddress()))
+                                .count();
+                    })
+                    .completeAndWait(System.out::println);
+        } catch (Exception e) {
+            System.out.println(shape);
+            throw e;
+        }
+
+        System.out.println(shape);
+        System.out.println("submit         : " + result.getResponse());
+        assertThat(result.isSuccessful())
+                .as("A third-party seizure must validate: paired continuing outputs preserving"
+                        + " address/datum/reference-script, the seized tokens at a PLB output"
+                        + " before outputs_start_idx, and the third-party logic withdrawn-zero: %s",
+                        result.getResponse())
+                .isTrue();
+
+        assertThat(programmableQuantity(unit))
+                .as("the holder's balance must fall by exactly what was seized")
+                .isEqualTo(holderBefore.subtract(toSeize));
+
+        Result<List<Amount>> recipientBalance = tokenService.getProgrammableBalance(recipientAddress);
+        assertThat(recipientBalance.isSuccessful())
+                .as("recipient balance: %s", recipientBalance.getResponse()).isTrue();
+        assertThat(quantity(recipientBalance.getValue(), unit))
+                .as("the seized tokens must land in the recipient's smart wallet")
+                .isEqualTo(toSeize);
+
+        assertThat(plbOutputs[0])
+                .as("a seizure spanning two inputs must emit one continuing output per input, each"
+                        + " paired positionally — a single merged remainder would pair the second"
+                        + " input against the wrong output")
+                .isGreaterThanOrEqualTo(2);
+
+        System.out.println("paired outputs : " + plbOutputs[0]);
+        System.out.println("status         : " + holderBefore + " -> "
+                + holderBefore.subtract(toSeize) + " held, " + toSeize + " seized");
+    }
+
+    // --------------------------------------------------------------- step 14
+
+    /**
+     * The published reference scripts are used instead of witnesses.
+     *
+     * <p>The bootstrap publishes the base script and the three delegates as reference scripts.
+     * Resolving the deployment discovers them, and every transaction thereafter points at them
+     * rather than carrying them — several kilobytes saved on each one. Comparing a transfer's
+     * transaction size against one built with the scripts forced inline is what shows it actually
+     * happened; asserting that a transaction merely validated would not.</p>
+     */
+    @Test
+    @Order(14)
+    void step14_publishedScriptsAreReferencedNotWitnessed() throws Exception {
+        requireDeployment("Reference scripts");
+
+        DeploymentScripts scripts = tokenService.scripts();
+        assertThat(scripts.publishedAt(resolved.getProgrammableLogicBaseHash()))
+                .as("the bootstrap published programmable_logic_base as a reference script, so"
+                        + " resolving the deployment should have found it")
+                .isPresent();
+        assertThat(scripts.publishedAt(resolved.getTransferScriptHash()))
+                .as("the transfer delegate is published too").isPresent();
+
+        System.out.println("\nbase script    : referenced at "
+                + scripts.publishedAt(resolved.getProgrammableLogicBaseHash()).get().getTxHash());
+        System.out.println("transfer       : referenced at "
+                + scripts.publishedAt(resolved.getTransferScriptHash()).get().getTxHash());
+
+        // A transfer that goes through the whole path, so the base script and the transfer
+        // delegate are both needed.
+        String unit = unitOf(examplePolicyId);
+        assertThat(programmableQuantity(unit))
+                .as("need supply to transfer").isGreaterThan(BigInteger.ZERO);
+
+        int[] witnessScripts = {-1};
+        int[] refInputs = {-1};
+
+        Result<String> result = new ProgrammableQuickTxBuilder(programmableBackend)
+                .compose(new ProgrammableTokenTx()
+                        .from(account.baseAddress())
+                        .payToAddress(account.baseAddress(),
+                                Amount.asset(examplePolicyId, EXAMPLE_ASSET_NAME, BigInteger.ONE))
+                        .withRedeemer(examplePolicyId, BigIntPlutusData.of(0)))
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .withTxEvaluator(evaluator())
+                // After balancing on purpose: the duplicate-witness removal runs there, so a
+                // pre-balance reading would still show the witnesses that are about to be dropped.
+                .postBalanceTx((ctx, txn) -> {
+                    witnessScripts[0] = txn.getWitnessSet().getPlutusV3Scripts() == null
+                            ? 0 : txn.getWitnessSet().getPlutusV3Scripts().size();
+                    refInputs[0] = txn.getBody().getReferenceInputs() == null
+                            ? 0 : txn.getBody().getReferenceInputs().size();
+                })
+                .completeAndWait(System.out::println);
+
+        System.out.println("submit         : " + result.getResponse());
+        assertThat(result.isSuccessful())
+                .as("a transfer using referenced scripts must still validate: %s",
+                        result.getResponse())
+                .isTrue();
+
+        System.out.println("witness scripts: " + witnessScripts[0]);
+        System.out.println("ref inputs     : " + refInputs[0]);
+
+        assertThat(witnessScripts[0])
+                .as("the base script and the transfer delegate are published, so neither should be"
+                        + " in the witness set — only a substandard the chain has not published")
+                .isLessThanOrEqualTo(1);
+        assertThat(refInputs[0])
+                .as("coordination + registry node + the two referenced scripts, at least")
+                .isGreaterThanOrEqualTo(4);
     }
 
     /** An account's stake key hash, read from its base address's delegation credential. */

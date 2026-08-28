@@ -257,6 +257,17 @@ public class DefaultProgrammableTokenService implements ProgrammableTokenService
             // anything it cached.
             this.registryLookup = null;
             this.resolved = true;
+
+            // Whatever the bootstrap published as a reference script, record where it lives, so a
+            // transaction can point at it instead of carrying the bytes. Deployments that did not
+            // publish any simply yield nothing here and the scripts go in the witness set.
+            for (TxContentUtxoOutputs output : bootstrap.getValue().getOutputs()) {
+                String refHash = output.getReferenceScriptHash();
+                if (refHash == null || refHash.isEmpty()) continue;
+                scripts().publishedAt(refHash,
+                        toUtxo(deployment.getBootstrapTxHash(), output));
+            }
+
             return Result.success("OK").withValue(this.deployment);
         } catch (Exception e) {
             return Result.error("Failed to resolve deployment: " + e.getMessage());

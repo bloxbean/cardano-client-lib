@@ -19,6 +19,17 @@ dependencies {
     integrationTestImplementation(libs.aiken.java.binding)
 }
 
+// The vendored blueprint is the source of truth for every datum and redeemer shape in this
+// module. Sharing it with the unit tests (rather than copying it) is what lets
+// BlueprintCodecAgreementTest fail the moment the hand-written codecs drift from it.
+sourceSets {
+    test {
+        resources {
+            srcDir 'src/it/resources'
+        }
+    }
+}
+
 // A live test is never "up to date": its real input is the chain, which Gradle cannot see.
 // Without this, a second run with the same sources is skipped entirely — the task reports
 // UP-TO-DATE and no test executes, which looks exactly like a silent failure.

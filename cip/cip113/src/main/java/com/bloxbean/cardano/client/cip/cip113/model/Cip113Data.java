@@ -16,11 +16,22 @@ import java.util.List;
 /**
  * Encoding helpers shared by the CIP-113 datum and redeemer types.
  *
- * <p>TODO replace these hand-written codecs with types generated from the vendored
- * {@code plutus.json} via {@code @Blueprint}. The processor supports sum types, mixed
- * constructor arities and {@code fromPlutusData} decoders, so this whole package becomes
- * generated code — at which point a blueprint change breaks compilation instead of
- * producing silently invalid CBOR. Hand-written for now to keep the first spike moving.</p>
+ * <p><b>Why these are hand-written rather than generated.</b> {@code @Blueprint} can generate
+ * these types from the vendored {@code plutus.json}, and the worry that motivates it is real: a
+ * constructor index or field order that drifts from the blueprint still produces perfectly
+ * well-formed CBOR, so the failure surfaces as a validator rejecting a transaction with no trace.
+ * But generation would replace this module's public model — {@code RegistryNode} and friends,
+ * Lombok values with builders, used throughout — with a marker interface plus per-constructor
+ * variant classes, {@code impl/} data classes and separate {@code converter/} classes in a
+ * generated sub-package. No module in this repository wires the annotation processor into a main
+ * source set, so CIP-113 would be the first, and the benefit is drift-detection rather than a
+ * better API.</p>
+ *
+ * <p>{@code BlueprintCodecAgreementTest} buys that drift-detection outright: it reads the same
+ * vendored blueprint and asserts every constructor index, field name and field order these codecs
+ * encode by hand. Re-vendoring a blueprint that changes shape fails the build. If the module ever
+ * wants the generated types for their own sake, that test is the thing which makes the migration
+ * safe rather than the thing it replaces.</p>
  */
 public final class Cip113Data {
 

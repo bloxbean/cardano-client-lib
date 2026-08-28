@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.backend.api.DefaultScriptSupplier;
 import com.bloxbean.cardano.client.backend.api.ScriptService;
 import com.bloxbean.cardano.client.cip.cip113.Cip113Deployment;
 import com.bloxbean.cardano.client.cip.cip113.Cip113Exception;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.util.HexUtil;
 
@@ -39,6 +40,9 @@ public class DeploymentScripts implements ScriptSupplier {
     private final ScriptSupplier fallback;
     private final Supplier<Cip113Deployment> deployment;
     private final Map<String, PlutusScript> cache = new HashMap<>();
+
+    /** Script hash -> the UTxO publishing it as a reference script, when the chain has one. */
+    private final Map<String, Utxo> published = new HashMap<>();
 
     public DeploymentScripts(ScriptService scriptService, Cip113Deployment deployment) {
         this(supplierFor(scriptService), () -> deployment);
@@ -83,12 +87,47 @@ public class DeploymentScripts implements ScriptSupplier {
      * @return this, for chaining
      */
     public DeploymentScripts register(PlutusScript script) {
+        if (script == null) {
+            throw new Cip113Exception("Cannot register a null script.");
+        }
+
+        byte[] scriptHash;
         try {
-            cache.put(HexUtil.encodeHexString(script.getScriptHash()).toLowerCase(), script);
+            scriptHash = script.getScriptHash();
         } catch (Exception e) {
             throw new Cip113Exception("Could not hash a script being registered", e);
         }
+
+        // HexUtil.encodeHexString returns null for a null argument rather than throwing, so an
+        // unhashable script would otherwise key the cache off an NPE inside toLowerCase().
+        if (scriptHash == null) {
+            throw new Cip113Exception("A script being registered has no hash, so there is no key to"
+                    + " cache it under. Its serialized form is empty, which means the script did"
+                    + " not survive whatever produced it — check the applied-parameter step.");
+        }
+
+        cache.put(HexUtil.encodeHexString(scriptHash).toLowerCase(), script);
         return this;
+    }
+
+    /**
+     * Record that a script is published on chain as a reference script.
+     *
+     * <p>A transaction that can reference a script instead of carrying it pays for a UTxO pointer
+     * rather than the script bytes, which for the CIP-113 delegates is the difference between a
+     * few dozen bytes and several kilobytes on every transfer.</p>
+     *
+     * @return this, for chaining
+     */
+    public DeploymentScripts publishedAt(String scriptHash, Utxo utxo) {
+        if (scriptHash != null && utxo != null) published.put(scriptHash.toLowerCase(), utxo);
+        return this;
+    }
+
+    /** The UTxO publishing {@code scriptHash} as a reference script, if one is known. */
+    public Optional<Utxo> publishedAt(String scriptHash) {
+        return scriptHash == null ? Optional.empty()
+                : Optional.ofNullable(published.get(scriptHash.toLowerCase()));
     }
 
     /** {@link #register(PlutusScript)} for a whole deployment's worth of scripts. */

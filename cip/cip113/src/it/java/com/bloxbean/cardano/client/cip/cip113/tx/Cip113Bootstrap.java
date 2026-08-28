@@ -174,6 +174,8 @@ final class Cip113Bootstrap {
         Address coordinationAddress = AddressProvider.getEntAddress(coordinationSpend, network);
         Address registryAddress = AddressProvider.getEntAddress(registrySpend, network);
         Address issuanceTemplateAddress = AddressProvider.getEntAddress(alwaysFail, network);
+        // Same address, named for what it is used for below.
+        Address alwaysFailAddress = issuanceTemplateAddress;
 
         Tx tx = new Tx()
                 .collectFrom(List.of(utxo1, utxo2))
@@ -196,10 +198,14 @@ final class Cip113Bootstrap {
                                 asset(issuanceCborHexMint, "IssuanceCborHex")),
                         issuanceTemplateDatum)
                 // Reference scripts, so later transactions do not have to carry them inline.
-                .payToAddress(admin.baseAddress(), Amount.ada(5), plb)
-                .payToAddress(admin.baseAddress(), Amount.ada(20), transfer)
-                .payToAddress(admin.baseAddress(), Amount.ada(20), thirdParty)
-                .payToAddress(admin.baseAddress(), Amount.ada(12), unfracking)
+                // Published at the always-fail address rather than the admin's own: a
+                // reference-script UTxO holding nothing but ADA is indistinguishable from ordinary
+                // change to coin selection, and spending one destroys the published script for
+                // every transaction that references it.
+                .payToAddress(alwaysFailAddress.getAddress(), Amount.ada(5), plb)
+                .payToAddress(alwaysFailAddress.getAddress(), Amount.ada(20), transfer)
+                .payToAddress(alwaysFailAddress.getAddress(), Amount.ada(20), thirdParty)
+                .payToAddress(alwaysFailAddress.getAddress(), Amount.ada(12), unfracking)
                 .from(admin.baseAddress());
 
         // The three delegates are re-parameterized on every deployment, so their reward accounts

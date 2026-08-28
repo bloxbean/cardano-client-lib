@@ -44,7 +44,7 @@ public class ProgrammableQuickTxBuilder extends QuickTxBuilder {
     public TxContext compose(AbstractTx... txs) {
         if (txs != null)
             for (AbstractTx tx : txs) wire(tx);
-        return super.compose(txs);
+        return dropWitnessesCoveredByReferences(super.compose(txs));
     }
 
     /**
@@ -61,11 +61,25 @@ public class ProgrammableQuickTxBuilder extends QuickTxBuilder {
             List<AbstractTx<?>> txs = plan.getTxs();
             if (txs != null) txs.forEach(this::wire);
         }
-        return super.compose(plan);
+        return dropWitnessesCoveredByReferences(super.compose(plan));
+    }
+
+    /**
+     * Drop witness copies of scripts a reference input already carries.
+     *
+     * <p>A programmable transaction attaches the base script and its delegates so CCL emits their
+     * redeemers, and separately references the deployment's published copies. Both is correct up
+     * to this point; carrying the bytes as well as the pointer is not. CCL's duplicate-witness
+     * check does the removal but is opt-in, and for this builder it always applies — the
+     * references are ours, deliberately added.</p>
+     */
+    private TxContext dropWitnessesCoveredByReferences(TxContext context) {
+        return context.removeDuplicateScriptWitnesses(true);
     }
 
     private void wire(AbstractTx<?> tx) {
         if (tx instanceof ProgrammableTokenTx)
             ((ProgrammableTokenTx) tx).wire(service, getUtxoSupplier());
     }
+
 }

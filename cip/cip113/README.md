@@ -89,14 +89,19 @@ Two behaviours differ from a plain `Tx`:
 | Policy-id derivation | implemented — pure hashing, no UPLC applier needed |
 | Registry scan, covering-node search | implemented |
 | Balance and registry queries | implemented |
-| **Transfer** | implemented, **not yet verified on chain** |
-| **Mint / burn** | implemented (burn = negative quantity), **not yet verified on chain** |
-| **Register a new token** | implemented, **not yet verified on chain** |
-| Third-party act (seize, clawback) | `TODO` stub |
-| Update a registry node | `TODO` stub |
-| Unfracking | out of scope |
+| **Transfer** | implemented, verified on chain |
+| **Mint / burn** | `mintAsset(...)`, routed by sign like a plain `Tx`; verified on chain |
+| **Register a new token** | implemented, verified on chain |
+| **Register and mint in one transaction** | implemented, verified on chain |
+| **Third-party act (seize, clawback)** | implemented as `thirdPartyFrom(...)`, verified on chain |
+| **Update a registry node** | implemented, verified on chain |
+| Published reference scripts | discovered from the deployment and used automatically |
+| Unfracking | out of scope — no caller has needed it; the redeemer and dispatch arm exist |
+| Key-credential logic scripts | out of scope — signature-authorised substandards |
 
-Each stub throws with a message describing exactly what the implementation has to do.
+"Verified on chain" means a step in `Cip113EndToEndIT` exercises it against a live Yaci DevKit
+devnet that is reset and redeployed on every run, and asserts the resulting on-chain state rather
+than only that the transaction was accepted.
 
 ## The Preview deployment
 
@@ -224,20 +229,28 @@ show it.
 
 ## Known gaps worth knowing before you dig in
 
-- **Withdrawal ordering is a hypothesis.** `LedgerOrdering.sortedWithdrawals` puts script
-  credentials before key credentials, which is what cardano-ledger's `Credential` `Ord` implies
-  and what the reference implementation's own off-chain guide does — but it has not been
-  confirmed against a live transaction. CCL's own `WithdrawalUtil` sorts by hash alone; if the
-  hypothesis holds, that is an upstream bug.
-- **Scripts must be supplied by the caller.** Spending from the base script needs the base
-  script and the transfer delegate available. Pass them as reference-script UTxOs via
-  `readFrom(...)`, or attach them with `withScripts(...)`. Discovering published script
-  references from the deployment is a TODO.
-- **Global state is not auto-resolved.** When a registry node declares a `global_state_cs`, its
-  UTxO must currently be added by hand with `readFrom(...)`. The builder logs a warning.
-- **Datum and redeemer codecs are hand-written.** They should be generated from a vendored
-  `plutus.json` via `@Blueprint`, which would turn a shape change into a compile error instead
-  of silently invalid CBOR.
+- **Withdrawal ordering is settled, and CCL's own helper disagrees.**
+  `LedgerOrdering.sortedWithdrawals` puts script credentials before key credentials.
+  `Cip113EndToEndIT` step 11 proves it on chain: it builds a transfer whose withdrawal map mixes a
+  key credential that sorts *before* both script credentials bytewise, so hash-only ordering would
+  place it first and shift every Reward redeemer index. The transaction validates, which it could
+  not if the ledger sorted by hash alone. CCL's `WithdrawalUtil` does sort by hash alone — that is
+  an upstream bug for mixed-credential withdrawals, and the reason this module does not use it.
+- **Scripts published by the deployment are used automatically.** Resolving the deployment records
+  every bootstrap output carrying a reference script, and transactions point at those instead of
+  carrying the bytes. `withScripts(...)` and `readFrom(...)` remain for a deployment this cannot
+  see. Note that a reference-script UTxO holding only ADA is indistinguishable from ordinary change
+  to coin selection — publish them somewhere unspendable, or a fee payer will eventually consume
+  one and break every transaction that references it.
+- **Global state is resolved automatically** when the transaction is built from a
+  `ProgrammableBackendService`: a node declaring a `global_state_cs` has that UTxO located by
+  policy and added as a reference input. A transaction wired by hand must supply it with
+  `readFrom(...)`, and says so by name rather than failing during evaluation.
+- **Datum and redeemer codecs are hand-written**, and held to the vendored `plutus.json` by
+  `BlueprintCodecAgreementTest`, which asserts every constructor index, field name and field order
+  against the blueprint. Generating them via `@Blueprint` would turn a shape change into a compile
+  error, but would also replace this module's public model with generated variant classes and
+  converters; the test buys the drift-detection without that. See `Cip113Data`'s javadoc.
 - **The build targets Java 17 but the Gradle daemon may launch on an older JDK.** A
   `.java-version` pinning 11 is enough to do it, and the failure surfaces as a dependency
   resolution error — *"looking for a library compatible with JVM runtime version 11"* — which reads
