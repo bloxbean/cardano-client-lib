@@ -787,6 +787,17 @@ export default function LandingPage() {
           </footer>
         </div>
       </div>
+
+      {/* Scarf pixel: cookie-free web traffic analytics (https://docs.scarf.sh/web-traffic/) */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        referrerPolicy="no-referrer-when-downgrade"
+        src="https://static.scarf.sh/a.png?x-pxid=01b00b88-25a5-4468-a37e-3e7d424cb4d6"
+        alt=""
+        width="1"
+        height="1"
+        style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none' }}
+      />
     </>
   )
 }
