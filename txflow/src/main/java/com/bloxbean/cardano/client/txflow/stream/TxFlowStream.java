@@ -227,10 +227,27 @@ public interface TxFlowStream extends AutoCloseable {
     /**
      * Submits a common single-transaction plan using the item id as its
      * idempotency key.
+     * <p>
+     * A new item or same-content redelivery returns a receipt. Different-content
+     * reuse throws a typed conflict. Eager content/configuration validation and
+     * authoritative registration failures throw their typed cause before a
+     * receipt is published and do not count as accepted work. An ownership
+     * standby throws {@code TXSTREAM_NOT_ACTIVE}; a new, draining, closed,
+     * aborted, or unhealthy stream throws {@code TXSTREAM_CLOSED}. If the thread
+     * is interrupted while waiting for buffer capacity, the interruption flag is
+     * restored and {@code TXSTREAM_INTERRUPTED} is thrown.
      *
      * @param itemId stable caller-visible item and idempotency identity
      * @param plan portable transaction plan
      * @return receipt for the accepted item
+     * @throws IllegalArgumentException when {@code itemId} is null, empty, or
+     *         whitespace
+     * @throws NullPointerException when {@code plan} is null
+     * @throws TxStreamDuplicateItemException when the item id was already
+     *         accepted with different content
+     * @throws TxStreamException when submission is rejected, the stream is not
+     *         accepting work, or the thread is interrupted while waiting for
+     *         buffer capacity
      */
     default TxStreamReceipt submit(String itemId, TxPlan plan) {
         return submit(TxWorkItem.fromTxPlan(itemId, plan));
@@ -257,10 +274,20 @@ public interface TxFlowStream extends AutoCloseable {
     /**
      * Attempts non-blocking submission of a common single-transaction plan
      * using the item id as its idempotency key.
+     * <p>
+     * The result reports accepted/attached work as {@link EmitResult.Status#OK},
+     * different-content reuse as {@link EmitResult.Status#CONFLICT}, eager
+     * validation or registration failures as {@link EmitResult.Status#REJECTED},
+     * ownership standby as {@link EmitResult.Status#PAUSED}, lack of capacity as
+     * {@link EmitResult.Status#FULL}, and a non-accepting stream as
+     * {@link EmitResult.Status#CLOSED}.
      *
      * @param itemId stable caller-visible item and idempotency identity
      * @param plan portable transaction plan
      * @return non-blocking submission outcome
+     * @throws IllegalArgumentException when {@code itemId} is null, empty, or
+     *         whitespace
+     * @throws NullPointerException when {@code plan} is null
      */
     default EmitResult trySubmit(String itemId, TxPlan plan) {
         return trySubmit(TxWorkItem.fromTxPlan(itemId, plan));
@@ -928,7 +955,7 @@ public interface TxFlowStream extends AutoCloseable {
          * standby.
          * <p>
          * <b>A standby is paused, not closed:</b> while STANDBY, blocking
-         * {@link TxFlowStream#submit} refuses typed {@code TXSTREAM_CLOSED}, but
+         * {@link TxFlowStream#submit} refuses typed {@code TXSTREAM_NOT_ACTIVE}, but
          * the non-blocking {@link TxFlowStream#trySubmit} reports
          * {@link EmitResult.Status#PAUSED} — a temporary, retryable condition —
          * so a source adapter (for example

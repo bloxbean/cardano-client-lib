@@ -290,7 +290,7 @@ Semantics to plan around:
   executions the old owner already started are never aborted; the new owner re-attaches and
   reconciles them.
 - **A standby is paused, not dead.** While `STANDBY`, blocking `submit` refuses typed
-  (`TXSTREAM_CLOSED`), but `trySubmit` reports `PAUSED` — a retryable condition. The
+  (`TXSTREAM_NOT_ACTIVE`), but `trySubmit` reports `PAUSED` — a retryable condition. The
   `TxWorkSource.fromPublisher(...)` adapter parks items on `PAUSED` and resumes them if the
   instance reclaims ownership; custom producers should do the same rather than tearing down. A
   fenced renewal throws `TXSTREAM_OWNERSHIP_FENCED` internally and the instance stops dispatching

@@ -582,7 +582,7 @@ The API is not beginner-friendly until the sample is. When Phase A lands:
 2. **Default `maxInFlight`.** 16 is fine. A single-wallet `byFundingAddress()` stream only uses 1. No change.
 3. **Rename `TxFlowStream` → `TxStream`.** Docs already say both. A rename is churn for no DX gain; keep the class name, keep "TxStream" as the product name.
 4. **Effective configuration snapshot.** Once defaults are hidden, advanced users need to explain what actually ran. Consider an immutable `configuration()` view containing the effective lane policy, whether the dispatcher was inherited or explicit, planner/window policy, durability, ownership, and limits. Do not expose or transfer ownership of executor instances through it.
-5. **Lifecycle status.** `TXSTREAM_CLOSED` currently covers not-started, draining/closed, unhealthy, and blocking submit to an ownership standby, while `trySubmit` already distinguishes `PAUSED`. Consider a derived status such as `NEW`, `STARTING`, `ACTIVE`, `STANDBY`, `DRAINING`, `CLOSED`, `ABORTED`, and `UNHEALTHY`, plus a distinct `TXSTREAM_PAUSED`/not-active exception for blocking standby submission before 1.0.
+5. **Lifecycle status.** `TXSTREAM_CLOSED` covers not-started, draining/closed, and unhealthy streams; blocking submit to an ownership standby now throws `TXSTREAM_NOT_ACTIVE`, while `trySubmit` distinguishes `PAUSED`. Consider a derived status such as `NEW`, `STARTING`, `ACTIVE`, `STANDBY`, `DRAINING`, `CLOSED`, `ABORTED`, and `UNHEALTHY` before 1.0.
 6. **Ignored-option validation.** Builder or planner factories should reject options that cannot affect the selected planner rather than accepting silent no-ops. This matters especially for chaining, windows, custom planners, and template execution settings.
 
 ---

@@ -170,7 +170,7 @@ flowchart TD
     C -->|yes| D[ATTACH existing receipt]
     C -->|no| E[CONFLICT TxStreamDuplicateItemException]
     B -->|no| F{Accepting?}
-    F -->|STANDBY| G[trySubmit: PAUSED / submit: TXSTREAM_CLOSED]
+    F -->|STANDBY| G[trySubmit: PAUSED / submit: TXSTREAM_NOT_ACTIVE]
     F -->|closed / unhealthy| H[CLOSED]
     F -->|yes| I{Acquire capacity}
     I -->|trySubmit full| J[FULL]
@@ -513,7 +513,7 @@ stateDiagram-v2
 - Standbys poll; on expiry they acquire, re-attach, and resume durable non-terminal items.
 - A stale owner whose renewal is fenced **steps down immediately**. In-flight engine executions it already started continue (the new owner reconciles them). Queued-but-unstarted work is `CANCELLED` / `TXSTREAM_OWNERSHIP_LOST`. Recover that work with a **new item id**.
 - After step-down and pump quiescence, **no unsettled non-in-flight item exists anywhere** (window, planning queue, lane queue). Enqueue sites re-check ownership after enqueue and settle stragglers themselves.
-- A standby is **paused, not closed.** `trySubmit` → `PAUSED` (adapters park). `submit` → `TXSTREAM_CLOSED`. The Flow adapter does not tear down. The reconciliation observer keeps running read-only (CAS-arbitrated store writes).
+- A standby is **paused, not closed.** `trySubmit` → `PAUSED` (adapters park). `submit` → `TXSTREAM_NOT_ACTIVE`. The Flow adapter does not tear down. The reconciliation observer keeps running read-only (CAS-arbitrated store writes).
 - Active/active lane-partitioned ownership is a **future extension** (needs engine P3 and per-lane leases).
 
 ---
@@ -653,7 +653,7 @@ After `maxRetainedSettledItems` (default 10k) the live map and claim-key index d
 | `abort()` from inside a listener | Reentrancy-safe; same `AbortReport` |
 | Completion observer registration fails | Members `RECOVERY_REQUIRED`; lane stays busy; stream unhealthy |
 | Blocking listener | Stalls that lane's dispatch thread; item promise already complete |
-| `submit` on STANDBY | Throws `TXSTREAM_CLOSED` |
+| `submit` on STANDBY | Throws `TXSTREAM_NOT_ACTIVE` |
 | `trySubmit` on STANDBY | `PAUSED` — park and retry, do not tear down |
 | Shared-flow `cancelItem` | `REJECTED_SHARED`; not silently widened |
 | Cancel during confirmation | Step pending + hash → item `RECOVERY_REQUIRED`, not `CANCELLED` |

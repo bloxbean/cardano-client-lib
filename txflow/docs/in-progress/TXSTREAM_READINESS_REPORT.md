@@ -123,7 +123,7 @@ Partitioned lanes are the supported scale path. The soak README's `rate ≤ lane
 
 - **Payload held by reference.** Mutating a `TxPlan` after `submit` diverges fingerprint vs executed content. Easy to do with a reused `Tx` builder.
 - **Blocking `onItemUpdated` stalls that lane.** No owned threads. The promise is completed *before* the listener, so `drain()` still unblocks.
-- **`submit()` on a STANDBY throws `TXSTREAM_CLOSED`.** `trySubmit` returns `PAUSED`. Adapters must use `trySubmit`.
+- **`submit()` on a STANDBY throws `TXSTREAM_NOT_ACTIVE`.** `trySubmit` returns `PAUSED`. Adapters must use `trySubmit`.
 - **Lane resolver failures** (`TXSTREAM_LANE_UNRESOLVED`) are not retained; redelivery retries. Content lane errors are retained and attach forever.
 - **Cancel of a shared-flow member is rejected**, not widened. Right, but `cancel()` returning `false` is easy to misread as "already done."
 - **`EngineTxFlowStream` is 5,146 lines**, eight locks, several state machines. Invariants are commented in place; a new engineer should not change dispatch without [TXSTREAM_INTERNALS.md](TXSTREAM_INTERNALS.md).
