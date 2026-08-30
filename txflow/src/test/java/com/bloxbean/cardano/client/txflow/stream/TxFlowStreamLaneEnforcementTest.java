@@ -11,10 +11,10 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -94,23 +94,20 @@ class TxFlowStreamLaneEnforcementTest {
     }
 
     @Test
-    void differentFundingAddressFailsTypedSettledAndUnregistered() {
+    void differentFundingAddressIsRejectedTypedAndUnregistered() {
         StubEngineGateway gateway = new StubEngineGateway();
         RecordingStateStore store = new RecordingStateStore();
         try (TxFlowStream stream = addressLaneBuilder(gateway).stateStore(store).build()) {
             stream.start();
-            TxStreamReceipt receipt = stream.submit(TxWorkItem.fromTxPlan("pay-1",
-                    TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1.5)).from(OTHER))));
-
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            TxStreamException error = assertInstanceOf(TxStreamException.class,
-                    outcome.getError());
+            TxStreamException error = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromTxPlan("pay-1",
+                            TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1.5))
+                                    .from(OTHER)))));
             assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", error.getCode());
             assertTrue(error.getMessage().contains(OTHER));
             assertTrue(store.calls.isEmpty(), "the item must never be registered");
             assertTrue(gateway.started.isEmpty(), "the engine must never be invoked");
-            assertTrue(receipt.executionId().isEmpty());
+            assertTrue(stream.getItemStatus("pay-1").isEmpty());
             stream.drain();
         }
     }
@@ -121,14 +118,11 @@ class TxFlowStreamLaneEnforcementTest {
         RecordingStateStore store = new RecordingStateStore();
         try (TxFlowStream stream = addressLaneBuilder(gateway).stateStore(store).build()) {
             stream.start();
-            TxStreamReceipt receipt = stream.submit(TxWorkItem.fromTxPlan("pay-1",
-                    TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1.5))
-                            .fromRef(SENDER_REF))));
-
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION",
-                    assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromTxPlan("pay-1",
+                            TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1.5))
+                                    .fromRef(SENDER_REF)))));
+            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.getCode());
             assertTrue(store.calls.isEmpty());
             assertTrue(gateway.started.isEmpty());
         }
@@ -143,12 +137,9 @@ class TxFlowStreamLaneEnforcementTest {
                     .withTxPlan(TxPlan.from(
                             new Tx().payToAddress(RECEIVER, Amount.ada(1.5)).from(OTHER)))
                     .build();
-            TxStreamReceipt receipt = stream.submit(TxWorkItem.fromFlowStep("step-item", step));
-
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION",
-                    assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromFlowStep("step-item", step)));
+            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.getCode());
         }
     }
 

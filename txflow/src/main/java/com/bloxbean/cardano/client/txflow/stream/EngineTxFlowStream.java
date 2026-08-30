@@ -149,6 +149,13 @@ final class EngineTxFlowStream implements TxFlowStream {
     private final AtomicBoolean planningActive = new AtomicBoolean();
     private final Object stateLock = new Object();
 
+    /**
+     * Striped registration locks keep same-item acceptance atomic without
+     * serializing unrelated items or publishing a receipt before authoritative
+     * registration succeeds.
+     */
+    private final Object[] acceptanceStripes = createAcceptanceStripes(64);
+
     /** Window buffer and timer state, all guarded by {@link #stateLock}. */
     private final ArrayDeque<ItemState> windowBuffer = new ArrayDeque<>();
     private Instant windowOpenedAt;
@@ -1137,6 +1144,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                     CompletableFuture.allOf(outstanding.toArray(new CompletableFuture[0]))
                             .minimalCompletionStage());
             abortReport = report;
+            safeListener(() -> listener.onStreamAborted(streamId, report));
             TxStreamException cause = new TxStreamException("TXSTREAM_ABORTED",
                     reason != null ? reason : "Stream aborted");
             for (ItemState state : buffered) {
@@ -1236,21 +1244,32 @@ final class EngineTxFlowStream implements TxFlowStream {
         switch (acceptance.disposition) {
             case ACCEPTED:
             case ATTACHED:
-            case VALIDATION_FAILED:
                 return acceptance.receipt;
+            case REJECTED:
+                notifyRejected(item, acceptance.rejection);
+                throw acceptance.rejection;
             case CONFLICT:
                 throw acceptance.conflict;
             case PAUSED:
-                // Blocking submit has no park-and-retry contract; a standby
-                // refusal keeps the established TXSTREAM_CLOSED code (only the
-                // non-blocking trySubmit distinguishes PAUSED for adapters).
-                throw new TxStreamException("TXSTREAM_CLOSED",
+                throw new TxStreamException("TXSTREAM_NOT_ACTIVE",
                         "Stream '" + streamId + "' is a standby instance (not the current"
                                 + " ownership lease holder); submit to the ACTIVE owner");
             case CLOSED:
             default:
-                throw new TxStreamException("TXSTREAM_CLOSED",
-                        "Stream '" + streamId + "' is not accepting work");
+                throw notAcceptingFailure();
+        }
+    }
+
+    private TxStreamException notAcceptingFailure() {
+        synchronized (stateLock) {
+            if (!started && !closed) {
+                return new TxStreamException("TXSTREAM_CLOSED",
+                        "Stream '" + streamId + "' has not been started; call start() after "
+                                + "build(), or use TxFlowStream.open(...) / Builder.open() to "
+                                + "build and start with failure cleanup");
+            }
+            return new TxStreamException("TXSTREAM_CLOSED",
+                    "Stream '" + streamId + "' is not accepting work");
         }
     }
 
@@ -1263,14 +1282,17 @@ final class EngineTxFlowStream implements TxFlowStream {
         } catch (TxStreamException rejection) {
             // trySubmit never throws for content/registration outcomes; the
             // typed cause travels on the REJECTED disposition instead.
+            notifyRejected(item, rejection);
             return EmitResult.rejected(rejection);
         }
         switch (acceptance.disposition) {
             case ACCEPTED:
-            case VALIDATION_FAILED:
                 return EmitResult.ok(acceptance.receipt);
             case ATTACHED:
                 return EmitResult.duplicateAttached(acceptance.receipt);
+            case REJECTED:
+                notifyRejected(item, acceptance.rejection);
+                return EmitResult.rejected(acceptance.rejection);
             case CONFLICT:
                 return EmitResult.conflict(acceptance.conflict);
             case FULL:
@@ -1315,73 +1337,62 @@ final class EngineTxFlowStream implements TxFlowStream {
             try {
                 prepared = prepare(item);
             } catch (TxStreamException validationFailure) {
-                if ("TXSTREAM_LANE_UNRESOLVED".equals(validationFailure.getCode())) {
-                    // Transient infrastructure, not item content: settle typed
-                    // but retain nothing, so redelivery retries fresh once the
-                    // resolver recovers instead of attaching to a poisoned
-                    // failure.
-                    return acceptLaneUnresolved(item, validationFailure);
-                }
-                return acceptValidationFailed(item, validationFailure);
+                return Acceptance.rejected(validationFailure);
             } catch (IllegalArgumentException invalidItem) {
                 // Invalid item content (for example an idempotency key that
                 // violates the store text policy) is a content outcome:
                 // submit throws it typed and trySubmit reports it REJECTED.
                 // Only a null item stays an untyped NPE at the submit entry
                 // points — a programming error, never a content outcome.
-                throw new TxStreamException("TXSTREAM_INVALID_ITEM",
+                return Acceptance.rejected(new TxStreamException("TXSTREAM_INVALID_ITEM",
                         "Item '" + item.getItemId() + "' is invalid: "
-                                + invalidItem.getMessage(), invalidItem);
+                                + invalidItem.getMessage(), invalidItem));
             }
-            ItemState state = ItemState.pending(this, item, prepared,
-                    inlineIdentity() || prepared.isTemplate());
-            state.wholeFlow = prepared.isTemplate();
-            ItemState raced = items.putIfAbsent(item.getItemId(), state);
-            if (raced != null) {
-                return attachOrConflict(raced, item);
-            }
-            String claimOwner = itemIdByClaimKey.putIfAbsent(prepared.claimKey, item.getItemId());
-            if (claimOwner != null && !claimOwner.equals(item.getItemId())) {
-                TxStreamException reuse = new TxStreamException("TXSTREAM_IDEMPOTENCY_KEY_REUSE",
-                        "Idempotency key '" + prepared.claimKey + "' is already bound to item '"
-                                + claimOwner + "'; item '" + item.getItemId()
-                                + "' cannot reuse it — redelivery must reuse the original item id");
-                // Settle before removing: a receipt attached concurrently to
-                // this state must settle too, never hang on a removed item.
-                // The store never learns about a rejected item (no projection
-                // for an unregistered, removed item), and the rejection is
-                // counted nowhere — the submission never became stream work,
-                // so it must not bump the accepted/failed stats.
-                state.suppressStoreProjection = true;
-                state.suppressCounters = true;
-                failItem(state, "TXSTREAM_IDEMPOTENCY_KEY_REUSE", reuse.getMessage(), reuse);
-                items.remove(item.getItemId(), state);
-                throw reuse;
-            }
-            acceptedCount.incrementAndGet();
-            try {
-                // Authoritative planning write: fails closed, rejecting the submit.
-                stateStore.registerItem(new TxStreamItemRecord(item.getItemId(),
-                        prepared.claimKey, prepared.lane.laneName(), prepared.fingerprint,
-                        clock.instant()));
-            } catch (TxStreamDuplicateItemException duplicate) {
-                // Settle before removing (same reason as above).
-                state.suppressStoreProjection = true;
-                failItem(state, "TXSTREAM_DUPLICATE_ITEM",
-                        "Item registration conflicted for '" + item.getItemId() + "'", duplicate);
-                items.remove(item.getItemId(), state);
-                itemIdByClaimKey.remove(prepared.claimKey, item.getItemId());
-                return Acceptance.conflict(duplicate);
-            } catch (RuntimeException registrationFailure) {
-                TxStreamException rejection = new TxStreamException("TXSTREAM_REGISTRATION_FAILED",
-                        "Authoritative item registration failed for '" + item.getItemId() + "'",
-                        registrationFailure);
-                // Settle before removing (same reason as above).
-                state.suppressStoreProjection = true;
-                failItem(state, "TXSTREAM_REGISTRATION_FAILED", rejection.getMessage(), rejection);
-                items.remove(item.getItemId(), state);
-                itemIdByClaimKey.remove(prepared.claimKey, item.getItemId());
-                throw rejection;
+            ItemState state;
+            synchronized (acceptanceLock(item.getItemId())) {
+                if (!isAccepting()) {
+                    return refuseNotAccepting();
+                }
+                existing = items.get(item.getItemId());
+                if (existing != null) {
+                    return attachOrConflict(existing, item);
+                }
+                String claimOwner = itemIdByClaimKey.putIfAbsent(
+                        prepared.claimKey, item.getItemId());
+                if (claimOwner != null && !claimOwner.equals(item.getItemId())) {
+                    return Acceptance.rejected(new TxStreamException(
+                            "TXSTREAM_IDEMPOTENCY_KEY_REUSE",
+                            "Idempotency key '" + prepared.claimKey
+                                    + "' is already bound to item '" + claimOwner + "'; item '"
+                                    + item.getItemId() + "' cannot reuse it — redelivery must"
+                                    + " reuse the original item id"));
+                }
+                state = ItemState.pending(this, item, prepared,
+                        inlineIdentity() || prepared.isTemplate());
+                state.wholeFlow = prepared.isTemplate();
+                try {
+                    // Authoritative registration precedes receipt publication:
+                    // a failed write is a rejection, never accepted work.
+                    stateStore.registerItem(new TxStreamItemRecord(item.getItemId(),
+                            prepared.claimKey, prepared.lane.laneName(), prepared.fingerprint,
+                            clock.instant()));
+                } catch (TxStreamDuplicateItemException duplicate) {
+                    itemIdByClaimKey.remove(prepared.claimKey, item.getItemId());
+                    return Acceptance.conflict(duplicate);
+                } catch (RuntimeException registrationFailure) {
+                    itemIdByClaimKey.remove(prepared.claimKey, item.getItemId());
+                    return Acceptance.rejected(new TxStreamException(
+                            "TXSTREAM_REGISTRATION_FAILED",
+                            "Authoritative item registration failed for '"
+                                    + item.getItemId() + "'", registrationFailure));
+                }
+                ItemState raced = items.putIfAbsent(item.getItemId(), state);
+                if (raced != null) {
+                    // Re-attach is the only path that can race this same-item
+                    // stripe. Prefer its already-published state.
+                    return attachOrConflict(raced, item);
+                }
+                acceptedCount.incrementAndGet();
             }
             ItemProjection.Applied accepted = new ItemProjection.Applied(
                     state.projection.current(), 1, null);
@@ -1409,6 +1420,23 @@ final class EngineTxFlowStream implements TxFlowStream {
         }
     }
 
+    private void notifyRejected(TxWorkItem item, TxStreamException rejection) {
+        safeListener(() -> listener.onItemRejected(item.getItemId(), rejection));
+    }
+
+    private Object acceptanceLock(String itemId) {
+        return acceptanceStripes[(itemId.hashCode() & Integer.MAX_VALUE)
+                % acceptanceStripes.length];
+    }
+
+    private static Object[] createAcceptanceStripes(int count) {
+        Object[] stripes = new Object[count];
+        for (int index = 0; index < count; index++) {
+            stripes[index] = new Object();
+        }
+        return stripes;
+    }
+
     /** Whether execution identity is item-claim-derived and known at accept. */
     private boolean inlineIdentity() {
         return planner == BuiltInPlanners.PER_ITEM;
@@ -1424,15 +1452,10 @@ final class EngineTxFlowStream implements TxFlowStream {
         String candidateFingerprint = null;
         try {
             candidateFingerprint = prepare(candidate).fingerprint;
-        } catch (TxStreamException validationFailure) {
-            // A payload that fails eager validation still fingerprints — over
-            // its raw fields plus the diagnostic code — so an identical
-            // redelivery of the same bad item attaches to its settled failed
-            // receipt instead of conflicting.
-            candidateFingerprint = validationFailedFingerprint(candidate, validationFailure);
         } catch (RuntimeException nonComparable) {
-            // Left null: a payload that cannot be fingerprinted at all can
-            // never match a stored fingerprint; conflicts below.
+            // Left null: a redelivery that is no longer valid or cannot be
+            // fingerprinted cannot prove it has the accepted content, so it
+            // conflicts below rather than attaching by item id alone.
         }
         if (candidateFingerprint != null && candidateFingerprint.equals(existing.fingerprint)) {
             return Acceptance.attached(existing.receipt);
@@ -1448,65 +1471,6 @@ final class EngineTxFlowStream implements TxFlowStream {
                         + " with different content";
         return Acceptance.conflict(
                 new TxStreamDuplicateItemException(candidate.getItemId(), message));
-    }
-
-    private String validationFailedFingerprint(TxWorkItem item, TxStreamException failure) {
-        String claimKey = item.getIdempotencyKey() != null
-                ? item.getIdempotencyKey() : item.getItemId();
-        return StreamIdentities.failedItemFingerprint(item.getItemId(), claimKey,
-                item.getLane(), item.getMetadata(), failure.getCode());
-    }
-
-    private Acceptance acceptValidationFailed(TxWorkItem item, TxStreamException failure) {
-        String laneName = item.getLane() != null ? item.getLane()
-                : staticLane != null ? staticLane.laneName() : null;
-        TxStreamItemResult failed = TxStreamItemResult
-                .builder(streamId, item.getItemId(), TxStreamItemStatus.FAILED)
-                .laneName(laneName)
-                .error(failure)
-                .updatedAt(clock.instant())
-                .build();
-        ItemState state = ItemState.settledWithoutRegistration(this, item, failed,
-                validationFailedFingerprint(item, failure));
-        ItemState raced = items.putIfAbsent(item.getItemId(), state);
-        if (raced != null) {
-            return attachOrConflict(raced, item);
-        }
-        acceptedCount.incrementAndGet();
-        failedCount.incrementAndGet();
-        noteSettledForRetention(state);
-        // Deliberately not registered in the state store and never buffered.
-        safeListener(() -> listener.onItemAccepted(item, state.receipt));
-        safeListener(() -> listener.onItemUpdated(failed));
-        return Acceptance.validationFailed(state.receipt);
-    }
-
-    /**
-     * Accepts an item whose lane failed to resolve ({@code
-     * TXSTREAM_LANE_UNRESOLVED}) — a transient infrastructure failure, not
-     * item content. The item's receipt settles typed like a validation
-     * failure, but the state is failed-and-released: it enters neither the
-     * live item map, the claim index, the state store, nor the retention
-     * FIFO. A redelivery after the resolver recovers therefore retries fresh
-     * and dispatches normally, instead of attaching forever to an outage-era
-     * failure. Content and configuration lane failures
-     * ({@code TXSTREAM_LANE_REQUIRED} / {@code _MISMATCH} /
-     * {@code _SCOPE_OVERLAP}) keep the retained settled-and-attach semantics
-     * of {@link #acceptValidationFailed(TxWorkItem, TxStreamException)}.
-     */
-    private Acceptance acceptLaneUnresolved(TxWorkItem item, TxStreamException failure) {
-        TxStreamItemResult failed = TxStreamItemResult
-                .builder(streamId, item.getItemId(), TxStreamItemStatus.FAILED)
-                .laneName(item.getLane())
-                .error(failure)
-                .updatedAt(clock.instant())
-                .build();
-        ItemState state = ItemState.settledWithoutRegistration(this, item, failed, null);
-        acceptedCount.incrementAndGet();
-        failedCount.incrementAndGet();
-        safeListener(() -> listener.onItemAccepted(item, state.receipt));
-        safeListener(() -> listener.onItemUpdated(failed));
-        return Acceptance.validationFailed(state.receipt);
     }
 
     /**
@@ -1532,7 +1496,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         TxFlow definition = TxFlow.builder(flowId).addStep(step).build();
         // Portability is a property of the payload, independent of the lane, so
         // validate it BEFORE deriving the lane (QUALITY). Otherwise a non-portable
-        // payload — e.g. a multi-transaction plan under byFundingAddress, which has
+        // payload — e.g. a multi-transaction plan under byFundingSource, which has
         // no single funding source to derive from — would surface the downstream
         // TXSTREAM_LANE_UNDERIVABLE instead of the precise TXSTREAM_NON_PORTABLE_ITEM.
         List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(definition);
@@ -1570,8 +1534,8 @@ final class EngineTxFlowStream implements TxFlowStream {
     /**
      * Prepares one template item (ADR 0004, iteration 3): resolves the
      * pre-registered template (unknown id → {@code TXSTREAM_TEMPLATE_UNKNOWN},
-     * which the accept path settles+retains so an identical redelivery
-     * attaches), resolves the item's explicit lane, and fingerprints over the
+     * which the accept path rejects without retaining), resolves the item's
+     * explicit lane, and fingerprints over the
      * template <em>reference</em> plus the item's bindings instead of an inline
      * portable payload. The definition itself was validated and encoded once at
      * build time; nothing is recompiled per item. The template's funding is
@@ -1604,7 +1568,7 @@ final class EngineTxFlowStream implements TxFlowStream {
      *
      * <p>{@code single()} pins every item to one statically configured lane;
      * {@code explicit()} resolves item-named lanes through the
-     * {@link LaneIdentityResolver}; {@code byFundingAddress()} derives the lane
+     * {@link LaneIdentityResolver}; {@code byFundingSource()} derives the lane
      * from the item transaction's own funding source; {@code partitioned()}
      * assigns the item to one of N hash-partitioned lanes. Each mode fails the
      * item typed on its own violations, never the stream and never at
@@ -1612,7 +1576,7 @@ final class EngineTxFlowStream implements TxFlowStream {
      */
     private ResolvedLane resolveLane(TxWorkItem item) {
         if (item.getKind() == TxWorkItem.Kind.TEMPLATE
-                && (laneMode == LanePolicy.Mode.BY_FUNDING_ADDRESS
+                && (laneMode == LanePolicy.Mode.BY_FUNDING_SOURCE
                         || laneMode == LanePolicy.Mode.PARTITIONED)) {
             // A template's funding lives inside its (multi-step) definition, so
             // there is no single per-item transaction to derive/hash a lane
@@ -1628,7 +1592,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         switch (laneMode) {
             case SINGLE:
                 return resolveSingleLane(item);
-            case BY_FUNDING_ADDRESS:
+            case BY_FUNDING_SOURCE:
                 return deriveLaneFromFundingSource(item);
             case PARTITIONED:
                 return partitionLane(item);
@@ -1719,7 +1683,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         if (requested != null && !requested.equals(derived.laneName())) {
             throw new TxStreamException("TXSTREAM_LANE_MISMATCH",
                     "Item '" + item.getItemId() + "' names lane '" + requested
-                            + "' but LanePolicy.byFundingAddress() derives the lane from the"
+                            + "' but LanePolicy.byFundingSource() derives the lane from the"
                             + " transaction's funding source '" + derived.laneName() + "'");
         }
         // Cache under the lane name so the planner-side resolvePlannedLane finds it.
@@ -1730,7 +1694,8 @@ final class EngineTxFlowStream implements TxFlowStream {
     /**
      * Derives a lane from the item transaction's {@code from} address or
      * {@code from_ref}. A plan with no single transaction or no funding source
-     * fails typed {@code TXSTREAM_LANE_UNDERIVABLE}.
+     * fails typed {@code TXSTREAM_LANE_UNDERIVABLE}; a malformed plan carrying
+     * both fails {@code TXSTREAM_LANE_AMBIGUOUS}.
      */
     private ResolvedLane fundingSourceLane(TxWorkItem item) {
         Tx tx = singleTx(itemTxPlan(item));
@@ -1741,12 +1706,12 @@ final class EngineTxFlowStream implements TxFlowStream {
             boolean hasFromRef = fromRef != null && !fromRef.isEmpty();
             if (hasFrom && hasFromRef) {
                 // Ambiguous: two funding sources cannot resolve to one lane.
-                // Fail with a clear underivable message (QUALITY) rather than
+                // Fail with a dedicated ambiguity diagnostic rather than
                 // letting enforceLaneFundingScope surface a confusing
                 // TXSTREAM_LANE_SCOPE_VIOLATION downstream.
-                throw new TxStreamException("TXSTREAM_LANE_UNDERIVABLE",
+                throw new TxStreamException("TXSTREAM_LANE_AMBIGUOUS",
                         "Item '" + item.getItemId() + "' names BOTH a from address and a from_ref;"
-                                + " LanePolicy.byFundingAddress() cannot derive a single lane from an"
+                                + " LanePolicy.byFundingSource() cannot derive a single lane from an"
                                 + " ambiguous funding source — declare exactly one of from / from_ref");
             }
             if (hasFrom) {
@@ -1758,7 +1723,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         }
         throw new TxStreamException("TXSTREAM_LANE_UNDERIVABLE",
                 "Item '" + item.getItemId() + "' has no funding source (from / from_ref) to"
-                        + " derive a lane from; LanePolicy.byFundingAddress() requires the"
+                        + " derive a lane from; LanePolicy.byFundingSource() requires the"
                         + " transaction to name its sender");
     }
 
@@ -1898,6 +1863,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         }
         step.getDependencies().forEach(builder::dependsOn);
         step.getNeeds().forEach(builder::needs);
+        step.getFundingFrom().forEach(builder::fundsFrom);
         step.getOutputBindings().forEach(builder::bindOutput);
         return builder.build();
     }
@@ -3768,13 +3734,11 @@ final class EngineTxFlowStream implements TxFlowStream {
      * gauge to -1. Incrementing here at the seed site (covering BOTH the observer
      * durable-absent seed and the re-attach present/absent seeds) balances that
      * decrement, so the gauge is provably non-negative and equals the live
-     * RECOVERY_REQUIRED residency. Gated on {@code !suppressCounters}, exactly
-     * like the matching decrement in {@code recordTransition}.</p>
+     * RECOVERY_REQUIRED residency.</p>
      */
     private void accountSeededRecoveryRequired(ItemState state) {
-        if (!state.suppressCounters
-                && state.projection.current().getStatus()
-                        == TxStreamItemStatus.RECOVERY_REQUIRED) {
+        if (state.projection.current().getStatus()
+                == TxStreamItemStatus.RECOVERY_REQUIRED) {
             recoveryRequiredCount.incrementAndGet();
         }
     }
@@ -4245,12 +4209,8 @@ final class EngineTxFlowStream implements TxFlowStream {
         ItemProjection.Applied applied = state.projection.advance(
                 target, customize, clock.instant(), authoritative);
         if (applied == null) return null;
-        if (!state.suppressCounters) {
-            recordTransition(applied.previous(), target);
-        }
-        if (!state.suppressStoreProjection) {
-            safeStoreProject(applied);
-        }
+        recordTransition(applied.previous(), target);
+        safeStoreProject(applied);
         // Complete the item promise BEFORE the (inline) listener callback so a
         // subscriber that violates Reactive-Streams §2.2 by blocking inside
         // onNext cannot wedge this item's receipt.completion()/drain()/
@@ -4338,15 +4298,6 @@ final class EngineTxFlowStream implements TxFlowStream {
      * evicted; counters are cumulative and unaffected.
      */
     private void noteSettledForRetention(ItemState state) {
-        if (state.suppressStoreProjection) {
-            // Rejected/unregistered states (idempotency-key reuse, failed
-            // registration) are retained nowhere — they are removed from the
-            // live map right after settling — so they must never enter the
-            // retention FIFO: evicting such a stale state later would run
-            // eviction side effects against an item id that may since have
-            // been legitimately re-accepted by a live successor.
-            return;
-        }
         List<ItemState> evicted = null;
         synchronized (retentionLock) {
             settledFifo.add(state);
@@ -5026,22 +4977,6 @@ final class EngineTxFlowStream implements TxFlowStream {
          * the batch; planning excludes flagged members.
          */
         volatile boolean prePlanCancelled;
-        /**
-         * Set when the item is rejected before it exists anywhere
-         * authoritative (idempotency-key reuse, failed registration): its
-         * settle projection still reaches attached receipts and listeners but
-         * is never written to the state store, which must not resurrect a
-         * rejected item; the state also never enters the retention FIFO — it
-         * is retained nowhere, so there is nothing to evict.
-         */
-        volatile boolean suppressStoreProjection;
-        /**
-         * Set when the settling projection must not touch the cumulative
-         * stream counters (idempotency-key reuse: the submission never became
-         * stream work, so it bumps neither the accepted nor the failed count).
-         */
-        volatile boolean suppressCounters;
-
         private ItemState(TxWorkItem item, String claimKey, String fingerprint,
                           ResolvedLane lane, FlowStep enforcedStep, ItemProjection projection,
                           EngineTxFlowStream stream) {
@@ -5075,13 +5010,6 @@ final class EngineTxFlowStream implements TxFlowStream {
             return state;
         }
 
-        static ItemState settledWithoutRegistration(EngineTxFlowStream stream, TxWorkItem item,
-                                                    TxStreamItemResult failed,
-                                                    String fingerprint) {
-            ItemProjection projection = ItemProjection.settled(failed);
-            return new ItemState(item, null, fingerprint, null, null, projection, stream);
-        }
-
         /**
          * Reconstructs a re-attached item from a persisted plan, seeded at its
          * stored projection AND at the durable projection's last per-item
@@ -5101,46 +5029,50 @@ final class EngineTxFlowStream implements TxFlowStream {
     }
 
     private static final class Acceptance {
-        enum Disposition { ACCEPTED, ATTACHED, VALIDATION_FAILED, CONFLICT, FULL, CLOSED, PAUSED }
+        enum Disposition { ACCEPTED, ATTACHED, REJECTED, CONFLICT, FULL, CLOSED, PAUSED }
 
         final Disposition disposition;
         final TxStreamReceipt receipt;
         final TxStreamDuplicateItemException conflict;
+        final TxStreamException rejection;
 
         private Acceptance(Disposition disposition, TxStreamReceipt receipt,
-                           TxStreamDuplicateItemException conflict) {
+                           TxStreamDuplicateItemException conflict,
+                           TxStreamException rejection) {
             this.disposition = disposition;
             this.receipt = receipt;
             this.conflict = conflict;
+            this.rejection = rejection;
         }
 
         static Acceptance accepted(TxStreamReceipt receipt) {
-            return new Acceptance(Disposition.ACCEPTED, receipt, null);
+            return new Acceptance(Disposition.ACCEPTED, receipt, null, null);
         }
 
         static Acceptance attached(TxStreamReceipt receipt) {
-            return new Acceptance(Disposition.ATTACHED, receipt, null);
+            return new Acceptance(Disposition.ATTACHED, receipt, null, null);
         }
 
-        static Acceptance validationFailed(TxStreamReceipt receipt) {
-            return new Acceptance(Disposition.VALIDATION_FAILED, receipt, null);
+        static Acceptance rejected(TxStreamException rejection) {
+            return new Acceptance(Disposition.REJECTED, null, null,
+                    Objects.requireNonNull(rejection, "rejection"));
         }
 
         static Acceptance conflict(TxStreamDuplicateItemException conflict) {
-            return new Acceptance(Disposition.CONFLICT, null, conflict);
+            return new Acceptance(Disposition.CONFLICT, null, conflict, null);
         }
 
         static Acceptance full() {
-            return new Acceptance(Disposition.FULL, null, null);
+            return new Acceptance(Disposition.FULL, null, null, null);
         }
 
         static Acceptance closed() {
-            return new Acceptance(Disposition.CLOSED, null, null);
+            return new Acceptance(Disposition.CLOSED, null, null, null);
         }
 
         /** Temporarily not accepting: an ownership STANDBY that may reclaim. */
         static Acceptance paused() {
-            return new Acceptance(Disposition.PAUSED, null, null);
+            return new Acceptance(Disposition.PAUSED, null, null, null);
         }
     }
 }

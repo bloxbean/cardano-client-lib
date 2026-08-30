@@ -2395,7 +2395,8 @@ public class FlowExecutor implements AutoCloseable {
      * Create appropriate UTXO supplier based on step dependencies.
      */
     private UtxoSupplier createUtxoSupplier(FlowStep step, FlowExecutionContext context) {
-        if (!step.hasDependencies() && context.getCompletedStepCount() == 0) {
+        if (!step.hasDependencies() && step.getFundingFrom().isEmpty()
+                && context.getCompletedStepCount() == 0) {
             // First step with no deps — no filtering needed
             return baseUtxoSupplier;
         }
@@ -2407,7 +2408,7 @@ public class FlowExecutor implements AutoCloseable {
                 ? planMaterializer.referencedStepIds(step.getTxPlan())
                 : Set.of();
         return new FlowUtxoSupplier(baseUtxoSupplier, context, step.getDependencies(),
-                exactPendingStepIds);
+                exactPendingStepIds, step.getFundingFrom());
     }
 
     /**

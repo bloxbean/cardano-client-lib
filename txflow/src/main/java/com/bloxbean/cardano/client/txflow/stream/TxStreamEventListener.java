@@ -22,6 +22,17 @@ public interface TxStreamEventListener {
     }
 
     /**
+     * Called when submission is rejected before an item record or receipt is
+     * created. The callback is observational only: listener failures are
+     * isolated and cannot change the rejection outcome.
+     *
+     * @param itemId rejected caller-visible item id
+     * @param cause typed rejection cause
+     */
+    default void onItemRejected(String itemId, TxStreamException cause) {
+    }
+
+    /**
      * Called whenever the item projection advances, including read-through
      * recovery repairs.
      *
@@ -54,6 +65,20 @@ public interface TxStreamEventListener {
      * @param streamId stream id
      */
     default void onStreamDrained(String streamId) {
+    }
+
+    /**
+     * Called exactly once after an abort report is published and before
+     * {@link #onStreamClosed(String)}. The report is immutable, but its
+     * {@link AbortReport#quiescence()} stage may still be incomplete because
+     * cancellation is cooperative. Reentrant calls to
+     * {@link TxFlowStream#abort(String)} return this same report and do not
+     * trigger another callback.
+     *
+     * @param streamId stream id
+     * @param report published abort report
+     */
+    default void onStreamAborted(String streamId, AbortReport report) {
     }
 
     /**

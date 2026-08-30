@@ -37,6 +37,7 @@ public class FlowUtxoSupplier implements UtxoSupplier {
     private final FlowExecutionContext context;
     private final List<StepDependency> dependencies;
     private final Set<String> exactPendingStepIds;
+    private final List<String> fundingStepIds;
 
     /**
      * Create a flow-aware UTXO supplier.
@@ -48,17 +49,26 @@ public class FlowUtxoSupplier implements UtxoSupplier {
     public FlowUtxoSupplier(UtxoSupplier baseSupplier,
                             FlowExecutionContext context,
                             List<StepDependency> dependencies) {
-        this(baseSupplier, context, dependencies, Set.of());
+        this(baseSupplier, context, dependencies, Set.of(), List.of());
     }
 
     FlowUtxoSupplier(UtxoSupplier baseSupplier,
                      FlowExecutionContext context,
                      List<StepDependency> dependencies,
                      Set<String> exactPendingStepIds) {
+        this(baseSupplier, context, dependencies, exactPendingStepIds, List.of());
+    }
+
+    FlowUtxoSupplier(UtxoSupplier baseSupplier,
+                     FlowExecutionContext context,
+                     List<StepDependency> dependencies,
+                     Set<String> exactPendingStepIds,
+                     List<String> fundingStepIds) {
         this.baseSupplier = baseSupplier;
         this.context = context;
         this.dependencies = new ArrayList<>(dependencies);
         this.exactPendingStepIds = Set.copyOf(exactPendingStepIds);
+        this.fundingStepIds = List.copyOf(fundingStepIds);
     }
 
     @Override
@@ -70,7 +80,9 @@ public class FlowUtxoSupplier implements UtxoSupplier {
         List<Utxo> unspentBaseUtxos = filterOutSpentUtxos(baseUtxos);
 
         // Add pending UTXOs from dependent steps for this address (only on first page)
-        List<Utxo> pendingUtxos = page <= 1 ? resolvePendingUtxosForAddress(address) : Collections.emptyList();
+        List<Utxo> pendingUtxos = page <= 1
+                ? filterOutSpentUtxos(resolvePendingUtxosForAddress(address))
+                : Collections.emptyList();
 
         // Combine and return (unspent base UTXOs first, then pending)
         Set<Utxo> combinedUtxos = new LinkedHashSet<>(unspentBaseUtxos);
@@ -100,7 +112,8 @@ public class FlowUtxoSupplier implements UtxoSupplier {
         List<Utxo> unspentBaseUtxos = filterOutSpentUtxos(baseUtxos);
 
         // Add all pending UTXOs for this address
-        List<Utxo> pendingUtxos = resolvePendingUtxosForAddress(address);
+        List<Utxo> pendingUtxos = filterOutSpentUtxos(
+                resolvePendingUtxosForAddress(address));
 
         // Combine and return
         List<Utxo> allUtxos = new ArrayList<>(unspentBaseUtxos);
@@ -128,7 +141,7 @@ public class FlowUtxoSupplier implements UtxoSupplier {
      * @return list of pending UTXOs for the address
      */
     private List<Utxo> resolvePendingUtxosForAddress(String address) {
-        List<Utxo> pendingUtxos = new ArrayList<>();
+        Set<Utxo> pendingUtxos = new LinkedHashSet<>();
 
         for (StepDependency dependency : dependencies) {
             try {
@@ -164,7 +177,18 @@ public class FlowUtxoSupplier implements UtxoSupplier {
             }
         }
 
-        return pendingUtxos;
+        // Portable funding relationships expose predecessor outputs only to
+        // ordinary address-based selection. Unlike an exact flow_output
+        // reference, this never makes a differently-addressed output eligible.
+        for (String stepId : fundingStepIds) {
+            for (Utxo utxo : context.getStepOutputs(stepId)) {
+                if (address.equals(utxo.getAddress())) {
+                    pendingUtxos.add(utxo);
+                }
+            }
+        }
+
+        return new ArrayList<>(pendingUtxos);
     }
 
     /**

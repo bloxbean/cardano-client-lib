@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow.stream;
 
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -47,6 +48,26 @@ class TxFlowStreamTemplateTest {
     // ------------------------------------------------------------------
     // One registered definition, many parameterized invocations
     // ------------------------------------------------------------------
+
+    @Test
+    void perWindowPipeliningDoesNotOverrideRegisteredTemplateSettings() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        TxFlow batchTemplate = template(ChainingMode.BATCH);
+        try (TxFlowStream stream = baseBuilder("payouts", gateway)
+                .lane(ResolvedLane.ofAddress("payouts-lane", SENDER))
+                .planner(TxStreamPlanner.perWindow(ChainingMode.PIPELINED))
+                .template(TEMPLATE_ID, batchTemplate)
+                .build()) {
+            stream.start();
+            stream.submit(templateItem("pay-1", RECEIVER, 5L));
+
+            assertSame(batchTemplate, gateway.started.get(0).getDefinition());
+            assertEquals(ChainingMode.BATCH, gateway.started.get(0).getDefinition()
+                    .getExecutionSettings().getChainingMode(),
+                    "planner-local settings apply only to generated per-window flows");
+            gateway.lastHandle().completeConfirmed(STEP_ID, "tx");
+        }
+    }
 
     @Test
     void nItemsWithDifferentBindingsRunNExecutionsOffOneRegisteredDefinition() {
@@ -179,26 +200,24 @@ class TxFlowStreamTemplateTest {
     // ------------------------------------------------------------------
 
     @Test
-    void unknownTemplateIdSettlesFailedRetainedAndIdenticalRedeliveryAttaches() {
+    void unknownTemplateIdIsRejectedAndCanBeCorrectedWithTheSameItemId() {
         StubEngineGateway gateway = new StubEngineGateway();
         try (TxFlowStream stream = builder("payouts", gateway).build()) {
             stream.start();
-            TxStreamReceipt receipt = stream.submit(TxWorkItem.builder("pay-1")
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.builder("pay-1")
                     .withTemplate("does-not-exist")
                     .withBinding("receiver", RECEIVER)
-                    .build());
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_TEMPLATE_UNKNOWN",
-                    ((TxStreamException) outcome.getError()).getCode());
+                    .build()));
+            assertEquals("TXSTREAM_TEMPLATE_UNKNOWN", outcome.getCode());
             assertEquals(0, gateway.started.size(), "an unknown template never reaches the engine");
+            assertTrue(stream.getItemStatus("pay-1").isEmpty());
 
-            // Settled + retained: an identical redelivery attaches to the failed receipt.
-            TxStreamReceipt redelivered = stream.submit(TxWorkItem.builder("pay-1")
-                    .withTemplate("does-not-exist")
-                    .withBinding("receiver", RECEIVER)
-                    .build());
-            assertSame(receipt, redelivered);
+            TxStreamReceipt corrected = stream.submit(
+                    templateItem("pay-1", RECEIVER, 5L));
+            gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
+            assertEquals(TxStreamItemStatus.CONFIRMED,
+                    corrected.awaitConfirmed().getStatus());
         }
     }
 
@@ -249,11 +268,9 @@ class TxFlowStreamTemplateTest {
                 .template(TEMPLATE_ID, template())
                 .build()) {
             stream.start();
-            TxStreamReceipt receipt = stream.submit(templateItem("pay-1", RECEIVER, 5L));
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_LANE_REQUIRED",
-                    ((TxStreamException) outcome.getError()).getCode());
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(templateItem("pay-1", RECEIVER, 5L)));
+            assertEquals("TXSTREAM_LANE_REQUIRED", outcome.getCode());
             assertEquals(0, gateway.started.size());
         }
     }
@@ -815,6 +832,10 @@ class TxFlowStreamTemplateTest {
 
     /** A parameterized, portable payout template with a single "pay" step. */
     private TxFlow template() {
+        return template(null);
+    }
+
+    private TxFlow template(ChainingMode chainingMode) {
         String yaml = "api_version: txflow.cardano-client.dev/v1alpha1\n"
                 + "kind: TxFlow\n"
                 + "metadata: {name: payout-template}\n"
@@ -822,6 +843,8 @@ class TxFlowStreamTemplateTest {
                 + "  parameters:\n"
                 + "    receiver: {type: address, required: true}\n"
                 + "    amount: {type: integer, required: true}\n"
+                + (chainingMode != null
+                ? "  execution: {mode: " + chainingMode + "}\n" : "")
                 + "  steps:\n"
                 + "    - id: " + STEP_ID + "\n"
                 + "      transaction:\n"

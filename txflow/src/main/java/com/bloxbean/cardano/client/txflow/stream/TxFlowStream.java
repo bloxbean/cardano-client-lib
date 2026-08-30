@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
 import com.bloxbean.cardano.client.txflow.store.FlowStoreTextPolicy;
@@ -29,6 +30,11 @@ import java.util.concurrent.ScheduledExecutorService;
  * concurrently (scheduled per canonical spending identity, bounded by
  * {@link Builder#maxInFlight(int)}); executions on the same lane serialize
  * FIFO.
+ * When no lane policy is configured, {@link LanePolicy#byFundingSource()}
+ * derives a safe lane from the transaction's syntactic {@code from} or
+ * {@code from_ref} source. Explicit {@link Builder#lane(ResolvedLane)} or
+ * {@link Builder#lanes(LanePolicy)} configuration always overrides that
+ * default.
  * <p>
  * Guarantees inherited from the engine and this design:
  * <ul>
@@ -43,16 +49,17 @@ import java.util.concurrent.ScheduledExecutorService;
  *       {@link TxStreamItemStatus#RECOVERY_REQUIRED} rather than a false
  *       failure.</li>
  *   <li><b>Bounded settlement</b> — every accepted item's receipt settles:
- *       terminal projection, validation failure, binding failure, and
- *       cancellation are all completers of the item promise, which is also
- *       what {@link #drain()} awaits.</li>
+ *       terminal projection, binding failure, and cancellation are all
+ *       completers of the item promise, which is also what {@link #drain()}
+ *       awaits. Eager validation and registration failures are rejected before
+ *       a receipt is published.</li>
  * </ul>
  * <p>
  * Example (single statically configured lane):
  * <pre>{@code
  * try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
  *         .lane(ResolvedLane.ofAddress("payouts", senderAddress))
- *         .executor(streamExecutor)              // caller-owned, required
+ *         .executor(streamExecutor)              // optional caller-owned override
  *         .build()) {
  *     stream.start();
  *
@@ -218,6 +225,35 @@ public interface TxFlowStream extends AutoCloseable {
     TxStreamReceipt submit(TxWorkItem item);
 
     /**
+     * Submits a common single-transaction plan using the item id as its
+     * idempotency key.
+     * <p>
+     * A new item or same-content redelivery returns a receipt. Different-content
+     * reuse throws a typed conflict. Eager content/configuration validation and
+     * authoritative registration failures throw their typed cause before a
+     * receipt is published and do not count as accepted work. An ownership
+     * standby throws {@code TXSTREAM_NOT_ACTIVE}; a new, draining, closed,
+     * aborted, or unhealthy stream throws {@code TXSTREAM_CLOSED}. If the thread
+     * is interrupted while waiting for buffer capacity, the interruption flag is
+     * restored and {@code TXSTREAM_INTERRUPTED} is thrown.
+     *
+     * @param itemId stable caller-visible item and idempotency identity
+     * @param plan portable transaction plan
+     * @return receipt for the accepted item
+     * @throws IllegalArgumentException when {@code itemId} is null, empty, or
+     *         whitespace
+     * @throws NullPointerException when {@code plan} is null
+     * @throws TxStreamDuplicateItemException when the item id was already
+     *         accepted with different content
+     * @throws TxStreamException when submission is rejected, the stream is not
+     *         accepting work, or the thread is interrupted while waiting for
+     *         buffer capacity
+     */
+    default TxStreamReceipt submit(String itemId, TxPlan plan) {
+        return submit(TxWorkItem.fromTxPlan(itemId, plan));
+    }
+
+    /**
      * Submits one work item without blocking for buffer capacity.
      * <p>
      * Unlike {@link #submit(TxWorkItem)}, this method never throws for a
@@ -234,6 +270,28 @@ public interface TxFlowStream extends AutoCloseable {
      *         rejection when registration fails
      */
     EmitResult trySubmit(TxWorkItem item);
+
+    /**
+     * Attempts non-blocking submission of a common single-transaction plan
+     * using the item id as its idempotency key.
+     * <p>
+     * The result reports accepted/attached work as {@link EmitResult.Status#OK},
+     * different-content reuse as {@link EmitResult.Status#CONFLICT}, eager
+     * validation or registration failures as {@link EmitResult.Status#REJECTED},
+     * ownership standby as {@link EmitResult.Status#PAUSED}, lack of capacity as
+     * {@link EmitResult.Status#FULL}, and a non-accepting stream as
+     * {@link EmitResult.Status#CLOSED}.
+     *
+     * @param itemId stable caller-visible item and idempotency identity
+     * @param plan portable transaction plan
+     * @return non-blocking submission outcome
+     * @throws IllegalArgumentException when {@code itemId} is null, empty, or
+     *         whitespace
+     * @throws NullPointerException when {@code plan} is null
+     */
+    default EmitResult trySubmit(String itemId, TxPlan plan) {
+        return trySubmit(TxWorkItem.fromTxPlan(itemId, plan));
+    }
 
     /**
      * Cancels one item with a typed outcome (ADR 0004 Decision 7.5).
@@ -322,6 +380,73 @@ public interface TxFlowStream extends AutoCloseable {
      * @return post-reconciliation item result if the item is known
      */
     Optional<TxStreamItemResult> reconcile(String itemId);
+
+    /**
+     * Reconciles a known recovery-required item immediately and then at the
+     * requested interval on the caller thread until its outcome is conclusive
+     * or the total wait budget expires. The method performs explicit
+     * engine/store I/O through {@link #reconcile(String)}; it never submits,
+     * rebuilds, or replaces a transaction and creates no timer or background
+     * task.
+     * <p>
+     * This helper is intended for an item that was observed as
+     * {@link TxStreamItemStatus#RECOVERY_REQUIRED}, or whose projection has
+     * already advanced from that state to a conclusive outcome.
+     *
+     * @param itemId known caller-visible item id
+     * @param timeout positive total polling budget
+     * @param pollInterval positive delay between reconciliation attempts
+     * @return confirmed item result
+     * @throws NullPointerException when any argument is {@code null}
+     * @throws IllegalArgumentException when either duration is zero or negative
+     * @throws TxStreamFailedException when reconciliation resolves to failed
+     * @throws TxStreamCancelledException when reconciliation resolves to cancelled
+     * @throws TxStreamTimeoutException when the item remains uncertain at timeout
+     * @throws TxStreamException with {@code TXSTREAM_ITEM_UNKNOWN} for an unknown
+     *         item or {@code TXSTREAM_INTERRUPTED} when interrupted
+     * @throws IllegalStateException when the known item has not reached
+     *         recovery-required or a later conclusive state
+     */
+    default TxStreamItemResult awaitResolution(String itemId, Duration timeout,
+                                               Duration pollInterval) {
+        Objects.requireNonNull(itemId, "itemId");
+        long timeoutNanos = TxStreamReceipt.positiveNanos(timeout, "timeout");
+        long intervalNanos = TxStreamReceipt.positiveNanos(pollInterval, "pollInterval");
+        long startedAt = TxStreamScheduler.monotonicNanos();
+        TxStreamItemResult latest = null;
+        while (true) {
+            latest = reconcile(itemId).orElseThrow(() -> new TxStreamException(
+                    "TXSTREAM_ITEM_UNKNOWN", "Unknown TxStream item '" + itemId + "'"));
+            switch (latest.getStatus()) {
+                case CONFIRMED:
+                case FAILED:
+                case CANCELLED:
+                    return TxStreamOutcomes.requireConfirmed(latest);
+                case RECOVERY_REQUIRED:
+                    break;
+                default:
+                    throw new IllegalStateException(
+                            "Item '" + itemId + "' has not reached RECOVERY_REQUIRED; latest"
+                                    + " status is " + latest.getStatus());
+            }
+
+            long elapsed = TxStreamScheduler.monotonicNanos() - startedAt;
+            if (elapsed >= timeoutNanos) {
+                throw new TxStreamTimeoutException(
+                        "Item '" + itemId + "' remained RECOVERY_REQUIRED for " + timeout,
+                        null, latest);
+            }
+            long sleepNanos = Math.min(intervalNanos, timeoutNanos - elapsed);
+            try {
+                TxStreamScheduler.sleepNanos(sleepNanos);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new TxStreamException("TXSTREAM_INTERRUPTED",
+                        "Interrupted while reconciling TxStream item '" + itemId + "'",
+                        interrupted);
+            }
+        }
+    }
 
     /**
      * Returns the latest batch projection for one planning batch. Batch
@@ -436,13 +561,26 @@ public interface TxFlowStream extends AutoCloseable {
     }
 
     /**
+     * Builds and starts a stream using the supplied engine and safe defaults.
+     * If startup fails, the partially started stream is aborted before the
+     * original failure is rethrown.
+     *
+     * @param streamId stable stream id; defines the idempotency namespace
+     * @param engine caller-owned flow engine
+     * @return started stream
+     */
+    static TxFlowStream open(String streamId, FlowEngine engine) {
+        return builder(streamId, engine).open();
+    }
+
+    /**
      * Builder for {@link TxFlowStream}. Instances are mutable and not
      * thread-safe.
      */
     final class Builder {
         final String streamId;
         final EngineGateway gateway;
-        LanePolicy lanePolicy;
+        LanePolicy lanePolicy = LanePolicy.byFundingSource();
         LaneIdentityResolver laneResolver;
         TxWorkSource source = TxWorkSource.inMemory();
         TxStreamStateStore stateStore = TxStreamStateStore.inMemory();
@@ -490,7 +628,7 @@ public interface TxFlowStream extends AutoCloseable {
          * {@link LanePolicy#single(ResolvedLane)} (one statically configured
          * lane), {@link LanePolicy#explicit()} (dynamically named lanes,
          * requires {@link #laneResolver(LaneIdentityResolver)}),
-         * {@link LanePolicy#byFundingAddress()} (lane derived from each item's
+         * {@link LanePolicy#byFundingSource()} (lane derived from each item's
          * transaction funding source; no resolver), or
          * {@link LanePolicy#partitioned(PartitionedLanes)} (N application-owned
          * lanes with an optional one-time fan-out bootstrap).
@@ -599,7 +737,7 @@ public interface TxFlowStream extends AutoCloseable {
          * Template items require an explicit lane
          * ({@link LanePolicy#single(ResolvedLane)} or
          * {@link LanePolicy#explicit()}); deriving a lane from a template's bound
-         * definition under {@link LanePolicy#byFundingAddress()} /
+         * definition under {@link LanePolicy#byFundingSource()} /
          * {@link LanePolicy#partitioned(PartitionedLanes)} is a later iteration —
          * a template item under those modes fails typed
          * {@code TXSTREAM_LANE_REQUIRED}.
@@ -817,7 +955,7 @@ public interface TxFlowStream extends AutoCloseable {
          * standby.
          * <p>
          * <b>A standby is paused, not closed:</b> while STANDBY, blocking
-         * {@link TxFlowStream#submit} refuses typed {@code TXSTREAM_CLOSED}, but
+         * {@link TxFlowStream#submit} refuses typed {@code TXSTREAM_NOT_ACTIVE}, but
          * the non-blocking {@link TxFlowStream#trySubmit} reports
          * {@link EmitResult.Status#PAUSED} — a temporary, retryable condition —
          * so a source adapter (for example
@@ -861,6 +999,11 @@ public interface TxFlowStream extends AutoCloseable {
          * creates or owns threads, mirroring {@link FlowEngine}. Dispatch for
          * different lanes is submitted as independent tasks, so a
          * multi-threaded executor lets lanes dispatch concurrently.
+         * When omitted from a stream built with
+         * {@link TxFlowStream#builder(String, FlowEngine)}, the stream inherits
+         * the engine's caller-owned execution executor without taking
+         * ownership. A custom engine gateway that cannot expose a dispatcher
+         * still requires this method.
          *
          * @param value caller-owned executor
          * @return this builder
@@ -887,12 +1030,6 @@ public interface TxFlowStream extends AutoCloseable {
          * @return configured stream, not yet started
          */
         public TxFlowStream build() {
-            if (lanePolicy == null) {
-                throw new IllegalStateException(
-                        "A lane policy is required: configure lane(ResolvedLane.ofAddress(...)), "
-                                + "lanes(LanePolicy.single(...)), or lanes(LanePolicy.explicit()) "
-                                + "with laneResolver(...)");
-            }
             if (lanePolicy.isExplicit() && laneResolver == null) {
                 throw new IllegalStateException(
                         "LanePolicy.explicit() requires laneResolver(LaneIdentityResolver)");
@@ -995,9 +1132,39 @@ public interface TxFlowStream extends AutoCloseable {
                                     + " caller-owned scheduler (the stream never owns threads)");
                 }
             }
-            Objects.requireNonNull(executor,
-                    "executor must be supplied (caller-owned, like FlowEngine)");
+            if (executor == null) {
+                executor = gateway.executionExecutor().orElseThrow(() ->
+                        new IllegalStateException(
+                                "executor must be supplied because the configured engine gateway "
+                                        + "does not expose one; configure executor(Executor), or "
+                                        + "build the stream from a FlowEngine to inherit its "
+                                        + "caller-owned execution executor"));
+            }
             return new EngineTxFlowStream(this);
+        }
+
+        /**
+         * Builds and starts the stream, aborting the partially started instance
+         * if any startup stage fails. The original startup failure remains
+         * primary and a cleanup failure is attached as suppressed.
+         *
+         * @return built and started stream
+         */
+        public TxFlowStream open() {
+            TxFlowStream stream = build();
+            try {
+                stream.start();
+                return stream;
+            } catch (RuntimeException | Error failure) {
+                try {
+                    stream.abort("Stream startup failed");
+                } catch (RuntimeException | Error cleanupFailure) {
+                    if (cleanupFailure != failure) {
+                        failure.addSuppressed(cleanupFailure);
+                    }
+                }
+                throw failure;
+            }
         }
     }
 }

@@ -236,16 +236,13 @@ class TxFlowStreamTest {
                             .withTxContext(quickTxBuilder -> null)
                             .build());
 
-            TxStreamReceipt receipt = stream.submit(nonPortable);
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            TxStreamException error = assertInstanceOf(TxStreamException.class, outcome.getError());
+            TxStreamException error = assertThrows(TxStreamException.class,
+                    () -> stream.submit(nonPortable));
             assertEquals("TXSTREAM_NON_PORTABLE_ITEM", error.getCode());
             assertTrue(error.getMessage().contains("TXFLOW_NON_PORTABLE_FACTORY"));
 
             assertTrue(store.calls.isEmpty(), "nothing may be registered: " + store.calls);
             assertTrue(gateway.started.isEmpty());
-            assertTrue(receipt.executionId().isEmpty());
             stream.drain();
         }
     }
@@ -422,14 +419,18 @@ class TxFlowStreamTest {
     // ------------------------------------------------------------------
 
     @Test
-    void drainAwaitsEveryAcceptedPromiseIncludingValidationFailures() {
+    void drainAwaitsAcceptedPromisesAndIgnoresRejectedValidationFailures() {
         StubEngineGateway gateway = new StubEngineGateway();
         RecordingListener listener = new RecordingListener();
         try (TxFlowStream stream = builder("payouts", gateway).eventListener(listener).build()) {
             stream.start();
             TxStreamReceipt pending = stream.submit(planItem("pay-1"));
-            stream.submit(TxWorkItem.fromFlowStep("factory-item",
-                    FlowStep.builder("factory-step").withTxContext(quickTxBuilder -> null).build()));
+            TxStreamException rejected = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromFlowStep("factory-item",
+                            FlowStep.builder("factory-step")
+                                    .withTxContext(quickTxBuilder -> null).build())));
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", rejected.getCode());
+            assertTrue(stream.getItemStatus("factory-item").isEmpty());
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             stream.drain();

@@ -182,17 +182,15 @@ class TxFlowStreamLaneConcurrencyTest {
         try (TxFlowStream stream = explicitBuilder(gateway, resolver).stateStore(store).build()) {
             stream.start();
             TxStreamReceipt ok = stream.submit(laneItem("f-1", "first"));
-            TxStreamReceipt overlapping = stream.submit(laneItem("s-1", "second"));
-
-            TxStreamItemResult failed = overlapping.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, failed.getStatus());
-            TxStreamException error = assertInstanceOf(TxStreamException.class, failed.getError());
+            TxStreamException error = assertThrows(TxStreamException.class,
+                    () -> stream.submit(laneItem("s-1", "second")));
             assertEquals("TXSTREAM_LANE_SCOPE_OVERLAP", error.getCode());
             assertTrue(error.getMessage().contains("identity-one"));
             assertTrue(error.getMessage().contains("identity-two"));
             assertEquals(1, gateway.started.size(), "the overlapping lane's item never dispatches");
             assertEquals(1, store.calls.stream()
                     .filter(call -> call.startsWith("register:")).count());
+            assertTrue(stream.getItemStatus("s-1").isEmpty());
             assertTrue(stream.isHealthy());
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
@@ -202,7 +200,7 @@ class TxFlowStreamLaneConcurrencyTest {
     }
 
     @Test
-    void unresolvableLaneFailsItemTypedAndDoesNotPoisonTheStream() {
+    void unresolvableLaneRejectsTypedAndDoesNotPoisonTheStream() {
         StubEngineGateway gateway = new StubEngineGateway();
         RecordingStateStore store = new RecordingStateStore();
         LaneIdentityResolver resolver = laneName -> {
@@ -212,17 +210,13 @@ class TxFlowStreamLaneConcurrencyTest {
         };
         try (TxFlowStream stream = explicitBuilder(gateway, resolver).stateStore(store).build()) {
             stream.start();
-            TxStreamItemResult nullResolved = stream.submit(laneItem("g-1", "ghost"))
-                    .completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, nullResolved.getStatus());
-            assertEquals("TXSTREAM_LANE_UNRESOLVED", assertInstanceOf(TxStreamException.class,
-                    nullResolved.getError()).getCode());
+            TxStreamException nullResolved = assertThrows(TxStreamException.class,
+                    () -> stream.submit(laneItem("g-1", "ghost")));
+            assertEquals("TXSTREAM_LANE_UNRESOLVED", nullResolved.getCode());
 
-            TxStreamItemResult thrown = stream.submit(laneItem("b-1", "broken"))
-                    .completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, thrown.getStatus());
-            assertEquals("TXSTREAM_LANE_UNRESOLVED", assertInstanceOf(TxStreamException.class,
-                    thrown.getError()).getCode());
+            TxStreamException thrown = assertThrows(TxStreamException.class,
+                    () -> stream.submit(laneItem("b-1", "broken")));
+            assertEquals("TXSTREAM_LANE_UNRESOLVED", thrown.getCode());
 
             assertTrue(gateway.started.isEmpty(), "unresolved items never reach the engine");
             assertTrue(store.calls.isEmpty(), "unresolved items are never registered");
@@ -253,18 +247,14 @@ class TxFlowStreamLaneConcurrencyTest {
         };
         try (TxFlowStream stream = explicitBuilder(gateway, resolver).build()) {
             stream.start();
-            TxStreamReceipt duringOutage = stream.submit(laneItem("g-1", "flaky"));
-            TxStreamItemResult failed = duringOutage.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, failed.getStatus());
-            assertEquals("TXSTREAM_LANE_UNRESOLVED", assertInstanceOf(TxStreamException.class,
-                    failed.getError()).getCode());
+            TxStreamException failed = assertThrows(TxStreamException.class,
+                    () -> stream.submit(laneItem("g-1", "flaky")));
+            assertEquals("TXSTREAM_LANE_UNRESOLVED", failed.getCode());
             assertTrue(stream.getItemStatus("g-1").isEmpty(),
                     "the outage-era failure is released, not retained");
 
             outage.set(false);
             TxStreamReceipt redelivered = stream.submit(laneItem("g-1", "flaky"));
-            assertNotSame(duringOutage, redelivered,
-                    "the redelivery retries fresh instead of attaching to the outage failure");
             assertEquals(1, gateway.started.size(), "the recovered item dispatches normally");
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
@@ -280,12 +270,10 @@ class TxFlowStreamLaneConcurrencyTest {
         LaneIdentityResolver resolver = laneName -> ResolvedLane.ofAddress(laneName, SENDER_A);
         try (TxFlowStream stream = explicitBuilder(gateway, resolver).build()) {
             stream.start();
-            TxStreamItemResult outcome = stream.submit(
-                            TxWorkItem.fromTxPlan("no-lane", plainPlan()))
-                    .completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_LANE_REQUIRED", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromTxPlan("no-lane", plainPlan())));
+            assertEquals("TXSTREAM_LANE_REQUIRED", outcome.getCode());
+            assertTrue(stream.getItemStatus("no-lane").isEmpty());
             assertTrue(gateway.started.isEmpty());
         }
     }
@@ -333,13 +321,12 @@ class TxFlowStreamLaneConcurrencyTest {
                     .withTxPlan(plainPlan()).withLane("payouts-lane").build());
             assertEquals(1, gateway.started.size(), "the matching lane name dispatches normally");
 
-            TxStreamItemResult foreign = stream.submit(TxWorkItem.builder("bad-1")
-                            .withTxPlan(plainPlan()).withLane("treasury").build())
-                    .completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, foreign.getStatus());
-            TxStreamException error = assertInstanceOf(TxStreamException.class, foreign.getError());
+            TxStreamException error = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.builder("bad-1")
+                            .withTxPlan(plainPlan()).withLane("treasury").build()));
             assertEquals("TXSTREAM_LANE_MISMATCH", error.getCode());
             assertTrue(error.getMessage().contains("treasury"));
+            assertTrue(stream.getItemStatus("bad-1").isEmpty());
             assertEquals(1, gateway.started.size(), "a foreign lane name never dispatches");
             assertEquals(1, store.calls.stream()
                     .filter(call -> call.startsWith("register:")).count());
@@ -431,26 +418,32 @@ class TxFlowStreamLaneConcurrencyTest {
             // Overlapping pair racing first use: exactly one claims the
             // scope; the other's item fails typed — never both, never neither.
             CountDownLatch overlapGo = new CountDownLatch(1);
-            Future<TxStreamReceipt> overlapFirst = pool.submit(() -> {
+            Future<Object> overlapFirst = pool.submit(() -> {
                 overlapGo.await(10, TimeUnit.SECONDS);
-                return stream.submit(laneItem("o-1", "over-1"));
+                try {
+                    return stream.submit(laneItem("o-1", "over-1"));
+                } catch (TxStreamException rejected) {
+                    return rejected;
+                }
             });
-            Future<TxStreamReceipt> overlapSecond = pool.submit(() -> {
+            Future<Object> overlapSecond = pool.submit(() -> {
                 overlapGo.await(10, TimeUnit.SECONDS);
-                return stream.submit(laneItem("o-2", "over-2"));
+                try {
+                    return stream.submit(laneItem("o-2", "over-2"));
+                } catch (TxStreamException rejected) {
+                    return rejected;
+                }
             });
             overlapGo.countDown();
-            TxStreamReceipt o1 = overlapFirst.get(10, TimeUnit.SECONDS);
-            TxStreamReceipt o2 = overlapSecond.get(10, TimeUnit.SECONDS);
-            TxStreamReceipt loser = o1.current().getStatus() == TxStreamItemStatus.FAILED
-                    ? o1 : o2;
-            TxStreamReceipt winner = loser == o1 ? o2 : o1;
-            TxStreamItemResult overlapOutcome = loser.completion().toCompletableFuture()
-                    .get(10, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.FAILED, overlapOutcome.getStatus());
+            Object o1 = overlapFirst.get(10, TimeUnit.SECONDS);
+            Object o2 = overlapSecond.get(10, TimeUnit.SECONDS);
+            TxStreamException loser = o1 instanceof TxStreamException
+                    ? (TxStreamException) o1 : assertInstanceOf(TxStreamException.class, o2);
+            TxStreamReceipt winner = o1 instanceof TxStreamReceipt
+                    ? (TxStreamReceipt) o1 : assertInstanceOf(TxStreamReceipt.class, o2);
             assertEquals("TXSTREAM_LANE_SCOPE_OVERLAP",
-                    assertInstanceOf(TxStreamException.class,
-                            overlapOutcome.getError()).getCode());
+                    loser.getCode());
+            assertTrue(stream.getItemStatus(loser == o1 ? "o-1" : "o-2").isEmpty());
             assertEquals(3, gateway.started.size(),
                     "exactly one of the overlapping lanes may dispatch");
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-3");
