@@ -1,10 +1,14 @@
-# ADR-CIP113-001: CIP-113 QuickTx Extension and TxPlan Compatibility
+# ADR-CIP113-001: Programmable Token QuickTx Extension, CIP-113 Protocol, and TxPlan Compatibility
 
 **Date**: 2026-08-30
 
+**Revision**: 2 — Programmable Token domain model and protocol selection
+
+**Last updated**: 2026-08-31
+
 **Status**: Proposed / In Review
 
-**Scope**: `cip/cip113`, `quicktx`, `function`
+**Scope**: `programmable-token`, `quicktx`, `function`
 
 **Reviewed change**: [PR #653](https://github.com/bloxbean/cardano-client-lib/pull/653), commit `6fc80337136c6c09c4537d001d98305f739d1c41`
 
@@ -30,25 +34,35 @@ QuickTx intent architecture:
 
 ### Decision
 
-CIP-113 should be implemented as a **QuickTx extension** using semantic, serializable intents and a
-generic build-lifecycle SPI. The `quicktx` module owns only extension contracts and registries. The
-`cip113` module owns all CIP-113 intent types, codecs, runtime services, protocol rules, and lifecycle
-implementation. There must be no dependency from `quicktx` to `cip113`.
+CIP-113 should be implemented through a **Programmable Token QuickTx extension** using semantic,
+serializable intents and a generic build-lifecycle SPI. The `quicktx` module owns only generic
+extension contracts and registries. One top-level `programmable-token` module initially owns both
+the protocol-neutral public API and the CIP-113 implementation, separated by Java package. There
+must be no dependency from `quicktx` to `programmable-token` or CIP-113.
 
-True TxPlan compatibility is part of the target design. A plan must preserve CIP-113 operations
-through YAML serialization and reconstruct an ordinary `Tx` containing registered CIP-113 intents.
-It must not serialize live backend objects, resolved UTxOs, scripts, registry caches, or mutable
+True TxPlan compatibility is part of the target design. A plan must preserve Programmable Token
+operations through YAML serialization and reconstruct an ordinary `Tx` containing registered
+semantic intents. It must explicitly identify the technical protocol, initially `cip-113`, and must
+not serialize live backend objects, resolved UTxOs, scripts, registry caches, or mutable
 `ProgrammableTokenTx` state.
 
-This ADR makes four additional foundational choices:
+This ADR makes the following foundational choices:
 
-- the primary CIP-113 API uses explicit `transfer`, `mint`, `burn`, `thirdPartyTransfer`,
+- the primary Programmable Token API uses explicit `transfer`, `mint`, `burn`, `thirdPartyTransfer`,
   `registerToken`, and `updateRegistry` intents rather than implicit `payToAddress` routing;
-- register-and-mint uses a CIP-113-owned named policy reference, not QuickTx's existing
-  `PolicyRef`, whose owner and compose-time lifecycle are different;
+- the domain-facing types are `ProgrammableTokenTx`, `ProgrammableTokenService`, and
+  `ProgrammableTokenExtension`; CIP-113 names remain on protocol-specific deployments, codecs,
+  registry models, redeemers, and materializers;
+- CIP-113 is the default Java protocol for the initial release, but every serialized TxPlan records
+  `protocol: cip-113` explicitly;
+- register-and-mint uses a Programmable Token-owned named policy reference, not QuickTx's existing
+  `PolicyRef`;
 - QuickTx owns a bounded post-balance re-finalization, script re-evaluation, and re-balance loop
   for extensions whose redeemer data embeds ledger indexes;
-- TxPlan gains an explicit top-level `extensions` section and an external intent-codec registry.
+- TxPlan gains an explicit top-level `extensions` section, document-local namespace aliases such as
+  `pt`, qualified intent names such as `pt:transfer`, and an external intent-codec registry;
+- the exact deployment identifies the validator surface. `contract_version`, when emitted, is
+  verified deployment metadata rather than a user-selected `profile`.
 
 PR #653 should not establish its current classes as stable public API until the correctness blockers
 and extension design in this ADR are addressed. If merged incrementally, the module and APIs should
@@ -96,7 +110,7 @@ These requirements justify a protocol extension, but not tight coupling from Qui
 
 ### 3.1 Strengths to preserve
 
-- Separate `cip:cip113` module boundary.
+- Separate CIP-113 implementation boundary that can move under a neutral Programmable Token module.
 - Automatic smart-wallet and policy-id derivation.
 - Registry-selected substandard credentials rather than caller-selected logic scripts.
 - Support for applied scripts and published reference scripts.
@@ -166,8 +180,9 @@ valid while representing a different transaction.
 **Required immediate fix**: until semantic intents exist, reject YAML serialization of
 `ProgrammableTokenTx` and document `compose(TxPlan)` as in-memory-only.
 
-**Target fix**: serialize CIP-113 intent values and reconstruct an ordinary `Tx` containing those
-intents. Execution behavior comes from a registered CIP-113 extension, not from the Java subtype.
+**Target fix**: serialize Programmable Token intent values and reconstruct an ordinary `Tx`
+containing those intents. Execution behavior comes from `ProgrammableTokenExtension` and its
+selected CIP-113 protocol adapter, not from the Java subtype.
 
 ### 4.3 P0/P1: Inline datum handling has two different severities
 
@@ -329,27 +344,61 @@ rule.
 
 ## 5. Architectural Decision
 
-### 5.1 Dependency direction
+### 5.1 Module and dependency direction
 
 ```text
 application
     |
-    +--> quicktx ------------------------------+
-    |      QuickTxBuilder                      |
-    |      Tx / TxPlan                         |
-    |      extension SPI and registries        |
-    |                                          |
-    +--> cip113 -------------------------------+
+    +--> quicktx -------------------------------------------+
+    |      QuickTxBuilder, Tx, TxPlan                       |
+    |      generic extension SPI and registries             |
+    |                                                       |
+    +--> programmable-token --------------------------------+
            depends on quicktx
-           Cip113Extension
-           CIP-113 TxIntent implementations
-           Cip113Runtime / chain-data provider
-           deployment and protocol models
+           protocol-neutral public API and semantic intents
+           ProgrammableTokenExtension
+           ProgrammableTokenService
+           cip113 package: default protocol implementation
 
-quicktx MUST NOT depend on cip113
+quicktx MUST NOT depend on programmable-token or cip113
 ```
 
-### 5.2 Two capabilities, one extension
+For the initial implementation, use one Gradle module and artifact:
+
+```text
+:programmable-token
+cardano-client-programmable-token
+```
+
+Keep protocol-neutral types under `com.bloxbean.cardano.client.programmabletoken` and CIP-113 types
+under `com.bloxbean.cardano.client.programmabletoken.cip113`. Root domain packages must not import
+the CIP-113 package; an architecture test should enforce that direction. If another protocol is
+implemented, these packages can move mechanically into `programmable-token-api`,
+`programmable-token-cip113`, and a new adapter artifact without changing Java package names. The
+original `cardano-client-programmable-token` coordinate can remain as the stable API or convenience
+artifact so ordinary consumers do not need an artifact migration.
+
+### 5.2 Stable domain identity versus technical protocol
+
+The public API models the Programmable Token domain. A protocol strategy describes how those domain
+operations map to a particular technical specification and deployed validator surface.
+
+| Concept | Initial value | Ownership |
+|---|---|---|
+| Extension id | `programmable-token` | Stable library-defined identity |
+| TxPlan namespace | `pt` | Document-local configurable alias |
+| Protocol id | `cip-113` | Technical specification/materializer identity |
+| Contract version | `0.5.0-alpha.2` for the reviewed deployment | Verified deployment metadata |
+| Extension schema version | `1` | Serialized Programmable Token intent schema |
+| Deployment | Preview bootstrap transaction or another exact reference | Concrete on-chain validator instance |
+
+Use the term `protocol`, not `dialect`, in the public API and TxPlan. CIP-113 defines contract
+semantics and wire formats, not merely syntax. A future compatible revision can retain protocol id
+`cip-113` with a new contract version. A different specification can register another protocol id.
+This protocol concept must not be confused with CIP-113 substandards, which remain token-specific
+issuance, transfer, and third-party logic within the CIP-113 framework.
+
+### 5.3 Two capabilities, one extension
 
 A QuickTx extension has two related responsibilities:
 
@@ -361,7 +410,7 @@ A codec-only registry is insufficient for CIP-113 because canonical indexes must
 all intents have contributed to the transaction, before each script-cost evaluation, and again if a
 balance pass changes index-sensitive content.
 
-Illustrative SPI:
+Illustrative generic SPI:
 
 ```java
 public interface QuickTxExtension {
@@ -387,56 +436,61 @@ public interface TxBuildExtension {
 }
 ```
 
-`afterBalance` may update index-bearing redeemer data and return `refinalized()`. That result tells
-QuickTx to recompute script data, evaluate scripts, and balance again. Names are illustrative; the
-final SPI should use existing `TxBuilder` and context conventions and expose only the data needed by
-each phase.
+`ProgrammableTokenExtension` implements this SPI and delegates protocol-specific materialization to
+the selected `ProgrammableTokenProtocol`. `afterBalance` may update index-bearing redeemer data and
+return `refinalized()`, which tells QuickTx to recompute script data, evaluate, and balance again.
+Names are illustrative; the final SPI should follow existing `TxBuilder` conventions and expose only
+the data needed by each phase.
 
-### 5.3 Registration scope
+### 5.4 Registration and default scope
 
 Extension registration must be per codec and per builder, not global mutable state:
 
 ```java
-Cip113Extension cip113 = Cip113Extension.create(
-        backendService,
-        Cip113Deployments.PREVIEW);
+ProgrammableTokenExtension programmableToken = ProgrammableTokenExtension.builder(backendService)
+        .protocol(Cip113Protocol.create())
+        .deployment(Cip113Deployments.PREVIEW)
+        .build();
 
 TxPlanCodec codec = TxPlanCodec.builder()
-        .withExtension(cip113)
+        .withExtension("pt", programmableToken)
         .build();
 
 TxPlan plan = codec.fromYaml(yaml);
 
 new QuickTxBuilder(backendService)
-        .withExtension(cip113)
+        .withExtension(programmableToken)
         .compose(plan)
         .complete();
 ```
 
-Reasons to avoid a global registry:
+The Java convenience builder may omit `protocol(...)` when the supplied deployment descriptor
+declares its protocol, as `Cip113Deployments.PREVIEW` does. This provides a CIP-113 default without a
+global mutable choice or a dependency from neutral API packages to concrete CIP-113 classes.
+`TxPlanCodec` defaults the document namespace to `pt` when authoring. Canonical serialization always
+writes the resolved protocol and extension metadata, so a persisted plan never depends on a future
+library default.
 
-- deterministic tests;
-- no cross-application classloader leakage;
-- safe use of multiple CIP-113 deployments in one process;
-- explicit runtime configuration;
-- predictable behavior in application servers and plugins.
-
+Reasons to avoid a global registry include deterministic tests, safe coexistence of multiple
+deployments or protocols, no classloader leakage, and predictable application-server behavior.
 `ServiceLoader` may provide codec discovery, but runtime services and deployment selection remain
-explicit.
+explicitly scoped.
 
-### 5.4 Unknown extensions fail closed
+### 5.5 Unknown extensions fail closed
 
 The plan codec and builder must reject:
 
-- an unregistered intent type during YAML parsing;
-- a registered intent type with no corresponding execution extension;
-- a plan deployment reference that the runtime cannot resolve;
-- incompatible extension schema or protocol versions.
+- an undeclared or duplicate namespace alias;
+- an unregistered extension id or operation during YAML parsing;
+- a registered codec with no corresponding execution extension;
+- a requested operation unsupported by the selected protocol, deployment, or CCL implementation;
+- a deployment reference that the runtime cannot resolve;
+- incompatible extension schema, protocol, or verified contract versions.
 
-Unknown fields may follow existing forward-compatibility rules, but unknown semantic operation types
-must never be ignored.
+Unknown fields may follow existing forward-compatibility rules, but unknown semantic operations must
+never be ignored or routed through an ordinary native-token path.
 
-### 5.5 QuickTx owns index stability
+### 5.6 QuickTx owns index stability
 
 CIP-113 redeemers contain ledger indexes. QuickTx evaluates scripts before balancing, while balancing
 may append or reorder inputs and outputs. Therefore a pre-evaluation hook plus a post-balance size
@@ -458,32 +512,36 @@ references, output identity/value/datum/reference script, withdrawal credentials
 reference inputs, and the ledger targets represented inside extension redeemers.
 
 PR #653's fee-ceiling pre-funding may remain as a transitional optimization for the experimental
-implementation, but it is not the generic extension contract. The generic SPI must remain correct
+CIP-113 implementation, but it is not the generic extension contract. The SPI must remain correct
 when balancing legitimately adds an input or change output.
 
 ---
 
-## 6. CIP-113 Semantic Intent Model
+## 6. Programmable Token Semantic Intent Model
 
-### 6.1 Proposed intent types
+### 6.1 Proposed intent operations
 
-| Intent type | Purpose | Role-specific data |
-|---|---|---|
-| `cip113_transfer` | Owner-authorized programmable transfer | transfer redeemer |
-| `cip113_mint` | Mint registered programmable assets | issuance redeemer, optional inline datum |
-| `cip113_burn` | Spend and burn programmable assets | transfer redeemer + issuance redeemer |
-| `cip113_third_party_transfer` | Seize, claw back, or forced transfer | holder + third-party redeemer |
-| `cip113_register` | Insert a registry node | registration id + node spec + issuance redeemer |
-| `cip113_update_registry` | Update mutable registry fields | policy reference + issuance redeemer |
-| `cip113_unfrack` | Holder-driven UTxO restructuring, when implemented | unfracking redeemer |
+`pt` is the default document-local namespace. It is not part of the canonical in-memory identity.
 
-The intent names should be namespaced so independently developed extensions do not collide.
+| YAML type | Canonical operation | Purpose | Role-specific data |
+|---|---|---|---|
+| `pt:transfer` | `transfer` | Owner-authorized programmable transfer | transfer redeemer |
+| `pt:mint` | `mint` | Mint programmable assets | issuance redeemer, optional inline datum |
+| `pt:burn` | `burn` | Spend and burn programmable assets | transfer redeemer + issuance redeemer |
+| `pt:third_party_transfer` | `third_party_transfer` | Seize, claw back, or forced transfer | holder + third-party redeemer |
+| `pt:register` | `register` | Register a programmable policy | named result + protocol registration data |
+| `pt:update_registry` | `update_registry` | Update protocol registry state | token reference + authorization |
+| `pt:unfrack` | `unfrack` | Holder-driven UTxO restructuring, when supported | protocol authorization data |
+
+Internally, the codec resolves `pt:transfer` to a structured identity such as
+`IntentType("programmable-token", "transfer")`. Changing the plan alias from `pt` to `tokens` must
+not change semantic equality or runtime dispatch.
 
 ### 6.2 Java authoring facade
 
-`ProgrammableTokenTx` may remain as a convenience facade, but its methods only add typed intents. It
-must not hold backend services, registry caches, resolved UTxOs, script objects, or executable
-`Runnable` declarations.
+`ProgrammableTokenTx` is the protocol-neutral authoring facade. Its methods only add typed intents;
+it must not hold backend services, registry caches, resolved UTxOs, script objects, protocol
+materializers, or executable `Runnable` declarations.
 
 Preferred explicit API:
 
@@ -512,30 +570,54 @@ redeemer for multiple protocol roles.
 
 ### 6.3 Compatibility with ordinary `Tx`
 
-Deserialized CIP-113 plans should create an ordinary `Tx` containing CIP-113 intents. The Java
-authoring subtype is not required during replay. The registered extension identifies its intents and
-executes them.
+Deserialized plans create an ordinary `Tx` containing Programmable Token intents. The Java authoring
+subtype is not required during replay. The registered extension recognizes the canonical extension
+and operation ids, then delegates to the selected protocol materializer.
 
-This avoids adding `cip113` subtypes to `quicktx` serializers and ensures plans are driven by data,
-not by concrete transaction classes.
+This avoids adding Programmable Token or CIP-113 subtypes to `quicktx` serializers and ensures plans
+are driven by data, not concrete transaction classes.
 
 ### 6.4 Register-and-mint references
 
 `registeredPolicyId()` is mutable build output and cannot safely connect declarative operations.
-Registration should publish a named policy reference that later intents resolve during the same
+Registration should publish a named domain reference that later intents resolve during the same
 build:
 
 ```java
 new ProgrammableTokenTx()
         .registerToken("usd", spec, registrationRedeemer)
-        .mint(Cip113PolicyRef.named("usd"), receiver, assets, issuanceRedeemer, null);
+        .mint(ProgrammableTokenPolicyRef.named("usd"), receiver, assets,
+                issuanceRedeemer, null);
 ```
 
-Introduce a CIP-113-owned named reference rather than reuse the existing `PolicyRef`. The existing
-type is backed by `SignerRegistry`, represents a native minting policy, and resolves at compose time.
-A CIP-113 policy id is derived during the build from an issuance template, so it has a different
-owner and lifecycle. `Cip113PolicyRef` may adopt compatible value-object conventions, but must not
-change the meaning or resolver contract of `PolicyRef`.
+Use `ProgrammableTokenPolicyRef`, not QuickTx's existing `PolicyRef`. The existing type is backed by
+`SignerRegistry`, represents a native minting policy, and resolves at compose time. The new reference
+represents the semantic result of a Programmable Token registration and is resolved by the selected
+protocol during the plan-wide build. CIP-113 currently derives that policy id from its issuance
+template, but that derivation detail does not belong in the domain reference.
+
+### 6.5 Protocol capabilities
+
+The domain intent set may be broader than a particular protocol, deployment, or current CCL
+implementation. Validate capabilities before chain access:
+
+```java
+enum ProgrammableTokenCapability {
+    TRANSFER,
+    MINT,
+    BURN,
+    THIRD_PARTY_TRANSFER,
+    REGISTER,
+    UPDATE_REGISTRY,
+    UNFRACK,
+    INLINE_DATUM,
+    GLOBAL_STATE
+}
+```
+
+Effective support is the intersection of protocol semantics, the resolved deployment, the CCL
+adapter implementation, and token-specific authorization/state. Failures must identify which layer
+does not support the requested operation. They must not silently degrade to an ordinary `Tx` intent.
 
 ---
 
@@ -545,15 +627,17 @@ change the meaning or resolver contract of `PolicyRef`.
 
 A plan stores:
 
-- semantic CIP-113 intent fields;
-- variables and references;
-- a CIP-113 extension schema version;
-- a deployment reference, such as a named network deployment or bootstrap transaction hash;
+- semantic Programmable Token intent fields;
+- variables and named references;
+- extension id, document namespace, and extension schema version;
+- explicit protocol id;
+- an exact or resolvable deployment reference;
+- optional verified `contract_version` metadata;
 - structured Plutus data using the existing `PlutusDataYamlUtil` representation.
 
 A plan does not store:
 
-- `BackendService` or service implementation classes;
+- `BackendService`, service implementations, or protocol materializer classes;
 - resolved registry/coordination/global-state UTxOs;
 - fetched or cached scripts;
 - protocol parameters;
@@ -566,9 +650,14 @@ A plan does not store:
 ```yaml
 version: "1.0"
 extensions:
-  cip113:
+  pt:
+    extension: programmable-token
     schema_version: "1"
-    deployment: preview
+    protocol: cip-113
+    contract_version: "0.5.0-alpha.2"
+    deployment:
+      network: preview
+      bootstrap_tx: a432339cbd7318222c8c51ed4fb52ee4c68f676037622aa7361dd45d897324a4
 
 variables:
   owner: addr_test1...
@@ -582,7 +671,7 @@ transaction:
   - tx:
       from: ${owner}
       intents:
-        - type: cip113_transfer
+        - type: "pt:transfer"
           policy_id: ${policy_id}
           receiver: ${receiver}
           amounts:
@@ -593,53 +682,73 @@ transaction:
             fields: []
 ```
 
-The extension metadata lives in a top-level `extensions` section. This requires an intentional
-change to `TransactionDocument`, `TxPlan.toYaml/fromYaml`, validation, and schema-version handling;
-it is not merely an external codec addition. Repeating deployment metadata in every intent was
-rejected because it permits conflicting declarations and makes plan-wide compatibility checks more
-difficult.
+The key `pt` is the document-local namespace alias; the stable extension identity is the
+`programmable-token` value. A user may choose another valid alias, but every qualified intent must
+refer to a declared alias. This requires an intentional change to `TransactionDocument`,
+`TxPlan.toYaml/fromYaml`, validation, and schema-version handling.
+
+`contract_version` is not a CIP version, CCL version, or user-selected dialect/profile. It identifies
+the validator and datum/redeemer compatibility surface associated with the exact deployment. The
+deployment resolver verifies it by matching the bootstrap reference and resolved validator hashes to
+a pinned descriptor; the chain does not itself publish this semantic version string. It may be
+omitted from hand-authored input when an exact deployment reference determines it, but canonical
+serialization should emit the resolved value when known.
 
 ### 7.3 Codec extensibility
 
 The current static `TxIntent@JsonSubTypes` list cannot be the only registration mechanism because
 `quicktx` cannot import higher-level module classes.
 
-The codec registry should support:
+The codec registry should use canonical extension and operation ids:
 
 ```java
 registry.register(
-        "cip113_transfer",
-        Cip113TransferIntent.class,
-        new Cip113TransferIntentCodec());
+        "programmable-token",
+        "transfer",
+        ProgrammableTokenTransferIntent.class,
+        new ProgrammableTokenTransferIntentCodec());
 ```
 
-Jackson `NamedType` registration is a possible implementation detail, but it must be applied to the
-codec's mapper before deserialization. The existing process-wide static mapper should not be mutated
-after concurrent use begins.
+The document codec resolves the alias before looking up the canonical pair. A custom Jackson type-id
+resolver or two-stage decoding is preferable to mutating a process-wide mapper after concurrent use
+begins. Only explicitly registered extension/operation pairs may instantiate classes.
 
-### 7.4 Variable resolution
+### 7.4 Namespace and default rules
 
-Every CIP-113 intent must implement `resolveVariables(...)` for:
+- `pt` is the default namespace used by Java-to-YAML authoring.
+- Namespace aliases are codec/document concerns; `QuickTxBuilder` dispatches canonical ids.
+- Aliases must match a restricted identifier grammar and must not collide with each other or reserved
+  core namespaces.
+- Core QuickTx intents remain unqualified for backward compatibility.
+- A hand-authored plan must declare every namespace it uses.
+- The Java API may infer the pinned CIP-113 adapter from a protocol-bearing deployment descriptor,
+  but canonical YAML always writes `protocol: cip-113`.
+- A library upgrade must never reinterpret an already serialized plan using a different default.
+
+### 7.5 Variable resolution
+
+Every Programmable Token intent must implement `resolveVariables(...)` for:
 
 - addresses;
 - policy ids and named policy references;
 - asset units and quantities;
-- deployment reference when represented in the intent;
-- registry credentials/global-state policy ids;
+- registry credentials/global-state policy ids where the selected protocol uses them;
 - structured redeemers and inline datums.
 
-Resolution must occur before semantic validation and chain access.
+Extension metadata and deployment variables must resolve before protocol capability validation and
+chain access.
 
-### 7.5 Round-trip contract
+### 7.6 Round-trip contract
 
-For every serializable CIP-113 operation:
+For every serializable Programmable Token operation:
 
 ```text
 Java intent -> YAML -> TxPlan -> YAML -> TxPlan
 ```
 
-must preserve semantic equality. Runtime-resolved data may differ between builds because chain state
-can change; the declared operation must not.
+must preserve semantic equality. Namespace aliases are presentation metadata; canonical extension
+and operation identities determine intent equality. Runtime-resolved data may differ between builds
+because chain state can change; the declared operation, protocol, and deployment constraint must not.
 
 ---
 
@@ -655,12 +764,13 @@ can change; the declared operation must not.
    - no chain access
 
 3. Validate declarations
-   - conflicts, required fields, deployment reference, role-specific redeemers
+   - extension id, protocol, deployment, and effective capabilities
+   - conflicts, required fields, role-specific redeemers
 
 4. Extension preparation
    - resolve deployment snapshot
    - load a fresh registry view
-   - aggregate all CIP-113 intents across composed Tx fragments
+   - aggregate all Programmable Token intents for the selected CIP-113 protocol instance
    - select PLB and funding inputs without overlap
    - resolve co-resident policy proofs
    - add outputs, withdrawals, scripts, and reference inputs
@@ -707,9 +817,10 @@ assumption without exposing CIP-113 classes from `quicktx`.
 
 ### 8.3 Aggregation scope
 
-The extension must aggregate CIP-113 intents across every transaction fragment passed to one
-`compose(...)` call. Resolving each `ProgrammableTokenTx` independently can select the same UTxOs,
-duplicate withdrawals, or compute conflicting change.
+The extension must aggregate Programmable Token intents across every transaction fragment passed to
+one `compose(...)` call and group them by configured protocol/deployment instance. Resolving each
+`ProgrammableTokenTx` independently can select the same UTxOs, duplicate withdrawals, or compute
+conflicting change. The initial CIP-113 materializer consumes its complete group in one pass.
 
 At minimum, aggregation keys include:
 
@@ -748,18 +859,19 @@ cost whenever `BackendService` evolves.
 Preferred composition:
 
 ```java
-Cip113Service cip113 = Cip113Service.create(
+ProgrammableTokenService programmableTokens = ProgrammableTokenService.create(
         backendService,
+        Cip113Protocol.create(),
         Cip113Deployments.PREVIEW);
 
 QuickTxBuilder builder = new QuickTxBuilder(backendService)
-        .withExtension(cip113.extension());
+        .withExtension(programmableTokens.extension());
 ```
 
 If a generic extension method is not introduced immediately, this is acceptable as an interim API:
 
 ```java
-new Cip113QuickTxBuilder(backendService, Cip113Deployments.PREVIEW)
+new ProgrammableQuickTxBuilder(backendService, Cip113Deployments.PREVIEW)
 ```
 
 It is still preferable to wrapping the backend in a new subtype.
@@ -773,15 +885,14 @@ until all semantic intents are known.
 
 ### 9.2 Public read service
 
-The public service should focus on application use cases:
+The primary service is domain-named and contains only operations that can be represented honestly
+across Programmable Token protocols:
 
 ```java
-interface Cip113Service {
-    Cip113Deployment deployment();
+interface ProgrammableTokenService {
+    ProgrammableTokenProtocolDescriptor protocol();
 
-    Result<Cip113Deployment> resolveDeployment();
-
-    Address smartWalletAddress(Address owner);
+    ProgrammableTokenCapabilities capabilities();
 
     Result<List<Amount>> getBalance(Address owner);
 
@@ -789,20 +900,43 @@ interface Cip113Service {
 
     Result<Boolean> isProgrammable(String policyId);
 
+    ProgrammableTokenExtension extension();
+}
+```
+
+Address derivation may remain here only if the domain contract can define it across supported
+protocols. Otherwise it is exposed as a capability or through the protocol service.
+
+### 9.3 CIP-113 protocol service
+
+CIP-113 registry, issuance-template, coordination-UTxO, and deployment-resolution concepts must not
+leak into the generic service merely because CIP-113 is initially the default. Expose an advanced
+protocol-specific facade in the same artifact:
+
+```java
+interface Cip113ProtocolService {
+    Cip113Deployment deployment();
+
+    Result<Cip113Deployment> resolveDeployment();
+
+    Address smartWalletAddress(Address owner);
+
     Result<RegistryNode> getRegistryNode(String policyId);
 
     Result<List<RegistryNode>> getRegistry();
 
     Result<String> derivePolicyId(Credential mintingLogic);
-
-    QuickTxExtension extension();
 }
 ```
 
-Low-level coordination/template/global-state/script supplier access belongs in a package-private
-runtime contract or an advanced customization interface.
+`ProgrammableTokenService` may expose this through a typed protocol-access mechanism or a CIP-113
+factory may return both facades. Do not add generic methods that assume every future protocol uses a
+registry, smart-wallet address, issuance template, or coordination UTxO.
 
-### 9.3 Indexer extension point
+Low-level script suppliers and resolved protocol UTxOs belong in a package-private runtime contract
+or an explicitly advanced customization interface.
+
+### 9.4 Indexer extension point
 
 Preserve an indexer-oriented data provider, but make it explicit and narrow:
 
@@ -819,22 +953,35 @@ interface Cip113ChainDataProvider {
 ```
 
 The default implementation may scan through generic backend services. An indexer implementation can
-perform exact lookups without replacing the whole `Cip113Service`.
+perform exact lookups without replacing the domain service or protocol materializer.
 
 ---
 
-## 10. Deployment and Schema Versioning
+## 10. Protocol, Deployment, and Schema Versioning
 
 CIP-113 remains under active development and its reference implementation can change independently
 of CCL. A single unversioned `Cip113Deployment` plus hand-written codecs risks applying the wrong
 rules to a deployment with a different datum/redeemer surface.
 
-Each deployment descriptor should carry:
+Keep these version axes independent:
+
+| Axis | Example | Purpose |
+|---|---|---|
+| Extension schema | `1` | Programmable Token TxPlan field compatibility |
+| Protocol | `cip-113` | Selects the technical materializer and codec family |
+| Contract version | `0.5.0-alpha.2` | Identifies the deployed validator/datum/redeemer surface |
+| Deployment | Preview bootstrap transaction | Identifies exact on-chain scripts and protocol state |
+
+Do not call the contract version a `profile`; the term is ambiguous. `contract_version` is verified
+against the pinned deployment descriptor and resolved hashes, and is never a free-form switch that
+selects behavior by itself.
+
+Each CIP-113 deployment descriptor should carry:
 
 - deployment identifier;
 - network;
 - bootstrap transaction hash;
-- protocol/API surface version;
+- protocol id and contract version;
 - codec version;
 - known validator/script hashes after resolution;
 - feature flags or capabilities where contract versions differ.
@@ -843,16 +990,16 @@ Example:
 
 ```java
 enum Cip113Capability {
-    INLINE_DATUM_OUTPUTS,
     STANDALONE_THIRD_PARTY_DELEGATE,
     REGISTRY_NODE_UPDATE,
-    GLOBAL_STATE,
     MAX_INLINE_DATUM_BOUND
 }
 ```
 
-Transaction intents should validate required capabilities against the selected deployment before any
-inputs are selected.
+Generic features such as `INLINE_DATUM`, `GLOBAL_STATE`, and operations such as `BURN` belong in
+`ProgrammableTokenCapability`; CIP-113-only validator distinctions remain in `Cip113Capability`.
+Transaction intents validate the effective domain capabilities against the selected protocol and
+resolved deployment before any inputs are selected.
 
 ---
 
@@ -890,8 +1037,10 @@ registration without lifecycle participation would reconstruct data but could no
 
 ### Positive
 
-- No direct QuickTx-to-CIP113 dependency.
+- No direct QuickTx-to-Programmable Token or CIP-113 dependency.
 - Reusable extension model for future protocol/CIP modules.
+- Stable domain API even if the default technical specification changes.
+- Short, collision-safe, configurable TxPlan intent namespaces.
 - Real TxPlan YAML compatibility.
 - One resolution pass removes fluent-order bugs.
 - Explicit role semantics improve safety and error messages.
@@ -907,12 +1056,17 @@ registration without lifecycle participation would reconstruct data but could no
   carefully constrained.
 - PR #653 transaction-building code requires decomposition into semantic intent and runtime
   materializer layers.
-- Extension schema and deployment versioning require explicit compatibility rules.
+- The initial single module requires package-dependency discipline so a future artifact split remains
+  mechanical.
+- Extension schema, protocol, contract, and deployment versioning require explicit compatibility
+  rules.
 
 ### Risks
 
 - An overly broad lifecycle SPI could expose QuickTx internals and become difficult to evolve.
 - Extension ordering can become ambiguous if multiple extensions mutate the same transaction.
+- A mutable Java default could reinterpret plans unless serialization always records the protocol.
+- User-configurable aliases can collide or become confused with canonical extension identity.
 - YAML polymorphism must remain safe; only explicitly registered types may be instantiated.
 - Multiple extensions may contend for inputs or lifecycle phases.
 
@@ -921,6 +1075,10 @@ registration without lifecycle participation would reconstruct data but could no
 - Keep lifecycle phases minimal and transaction-oriented.
 - Define deterministic extension order and reject duplicate extension ids.
 - Use explicit registration, not class-name-based polymorphic deserialization.
+- Resolve aliases to structured canonical identities and validate duplicate/reserved namespaces.
+- Derive any Java default from a pinned protocol-bearing deployment descriptor and always serialize
+  the resolved protocol and deployment constraint.
+- Enforce that protocol-neutral packages do not import the CIP-113 package.
 - Provide a build-local input reservation service shared by all extensions.
 - Add compatibility and composition tests before considering the SPI stable.
 
@@ -928,7 +1086,7 @@ registration without lifecycle participation would reconstruct data but could no
 
 ## 13. Implementation Plan
 
-### Phase 0: Correctness stabilization in `cip113`
+### Phase 0: Correctness stabilization in the current `cip113` prototype
 
 Goal: prevent known invalid transaction shapes independent of the final SPI.
 
@@ -962,25 +1120,35 @@ Goal: introduce the minimum generic surface needed by CIP-113 without protocol c
 **Exit gate**: approved SPI design plus a trivial test extension proving external intent
 serialization and lifecycle invocation without any `cip113` dependency in `quicktx`.
 
-### Phase 2: CIP-113 semantic intents
+### Phase 2: Programmable Token module and semantic intents
 
 Goal: replace `Runnable` declarations with immutable or value-like semantic intentions.
 
+- Introduce the top-level `programmable-token` Gradle module and artifact.
+- Update `settings.gradle` and the existing `cip` aggregate dependency without adding a reverse
+  dependency from `quicktx`.
+- Move public domain types under `com.bloxbean.cardano.client.programmabletoken`.
+- Move protocol-specific types under `com.bloxbean.cardano.client.programmabletoken.cip113`.
+- Define `ProgrammableTokenExtension`, `ProgrammableTokenProtocol`, protocol descriptors, and
+  effective capability validation.
 - Implement transfer, mint, burn, third-party, register, and update intents.
 - Implement structured redeemer/datum serialization.
 - Implement variable resolution and semantic validation.
 - Convert `ProgrammableTokenTx` into an authoring facade that only appends intents.
 - Remove eager registry lookup and materialization from fluent verbs.
 - Introduce explicit role-specific authorization objects.
+- Introduce `ProgrammableTokenPolicyRef` for named register-and-mint dependencies.
+- Enforce the neutral-package-to-CIP113 dependency rule with an architecture test.
 
 **Exit gate**: Java-authored operations are order-independent and every supported intent round-trips
-through YAML.
+through YAML using canonical extension/operation identity independent of the chosen namespace alias.
 
 ### Phase 3: CIP-113 runtime materializer
 
 Goal: execute all semantic intents in one coherent build pass.
 
 - Resolve and version-check deployment.
+- Verify the deployment-resolved `contract_version` and effective capabilities.
 - Load one registry snapshot per build.
 - Aggregate operations across composed transaction fragments.
 - Reserve PLB and ADA inputs globally.
@@ -997,7 +1165,9 @@ same chain snapshot.
 
 Goal: present one simple, stable integration path.
 
-- Replace `ProgrammableBackendService` with `Cip113Service` composition.
+- Replace `ProgrammableBackendService` with `ProgrammableTokenService` composition.
+- Keep registry, deployment-resolution, and issuance-template operations on an advanced
+  `Cip113ProtocolService`, not the protocol-neutral service.
 - Decide whether `ProgrammableQuickTxBuilder` remains as a deprecated/interim convenience.
 - Hide low-level wiring APIs not required by application callers.
 - Mark version-sensitive APIs experimental until CIP-113 stabilizes.
@@ -1012,7 +1182,8 @@ deployment initialization ordering requirement.
 - Test at least one indexer-backed `Cip113ChainDataProvider` implementation or fake.
 - Verify behavior against the targeted reference implementation tag/deployment.
 - Review API binary compatibility and experimental annotations.
-- Produce release notes identifying supported CIP-113 deployment versions and known gaps.
+- Produce release notes identifying the extension schema, default protocol, supported CIP-113
+  contract/deployment versions, and known gaps.
 
 ---
 
@@ -1021,7 +1192,9 @@ deployment initialization ordering requirement.
 ### 14.1 Review sequence
 
 1. **Architecture review**
-   - Approve dependency direction and the need for a generic extension SPI.
+   - Approve the single top-level `programmable-token` module, package dependency direction, and
+     generic QuickTx extension SPI.
+   - Approve the Programmable Token domain/CIP-113 protocol separation.
    - Confirm the recommendation that extension support is initially experimental.
 
 2. **QuickTx lifecycle review**
@@ -1032,15 +1205,16 @@ deployment initialization ordering requirement.
    - Define multiple-extension ordering and failure behavior.
 
 3. **TxPlan schema review**
-   - Approve intent namespace and extension metadata location.
+   - Approve the top-level extension map, document-local namespace aliases, and canonical
+     extension/operation identity.
    - Approve codec registration and safe polymorphic deserialization.
-   - Approve schema-version and deployment-reference rules.
+   - Approve independent schema, protocol, contract-version, and deployment-reference rules.
 
-4. **CIP-113 domain API review**
+4. **Programmable Token domain API review**
    - Approve explicit transfer/mint/burn/third-party verbs.
    - Approve role-specific redeemer types.
-   - Approve register-and-mint policy references.
-   - Decide which low-level runtime APIs remain public.
+   - Approve `ProgrammableTokenPolicyRef` for register-and-mint.
+   - Confirm that CIP-113 registry/deployment details remain on the protocol-specific facade.
 
 5. **Protocol conformance review**
    - Pin the supported CIP-113 reference tag or deployment.
@@ -1073,15 +1247,20 @@ default or record a replacement before implementation begins.
 | Topic | Recommended default |
 |---|---|
 | Introduce the generic SPI now? | Yes. Implement the minimum codec and lifecycle surface needed by CIP-113, but mark it experimental until qualification and at least one additional extension use case validate its shape. CIP-113 remains serializable through that SPI. |
+| Module layout | Use one top-level `programmable-token` Gradle module and `cardano-client-programmable-token` artifact for now. Separate neutral and CIP-113 Java packages so a future artifact split is mechanical. |
+| Public identity | Use Programmable Token names for the domain facade and extension. Keep CIP-113 names for protocol-specific deployments, registry models, codecs, redeemers, and materializers. |
 | Registration scope | Register runtime participants per `QuickTxBuilder` and codecs per `TxPlanCodec`. Both consume the same immutable extension descriptor. Do not use `TxContext` or a process-global environment as the initial ownership scope. |
 | Lifecycle shape | Provide an ordered finalization/stabilization pipeline, not only `beforeScriptEvaluation`. QuickTx owns re-evaluation and rebalancing. |
 | Multiple-extension ordering | Sort first by fixed lifecycle phase, then explicit registration order, then extension id as a deterministic diagnostic tie-breaker. Reject duplicate extension ids. |
 | Input reservation | Provide one generic build-local reservation service shared by core QuickTx and all extensions. |
-| Plan metadata | Add a top-level, versioned `extensions` section to `TransactionDocument`. |
-| Register-and-mint reference | Introduce `Cip113PolicyRef`; do not reuse the native-policy `PolicyRef`. |
-| First supported contract surface | Pin the exact Preview deployment, validator hashes, reference implementation commit, and blueprint version used for qualification. The candidate reviewed here is blueprint `0.5.0-alpha.2`; it becomes supported only after those artifacts are captured in a deployment descriptor and pass the test matrix. |
-| Compatibility status | Mark the generic SPI and CIP-113 public APIs experimental. Version serialized extension schemas independently; promise no stable Java binary compatibility until CIP-113 and the SPI complete qualification. |
-| Implicit payment routing | Remove it from the primary API. Use explicit CIP-113 verbs; any temporary compatibility route must be deprecated, exhaustive across overloads, and fail closed. |
+| Plan metadata | Add a top-level, versioned `extensions` section to `TransactionDocument`. The map key is a document-local alias; its value records stable extension id, protocol, schema, and deployment metadata. |
+| Namespace | Default to `pt`, allow a user-provided document alias, and serialize types as quoted qualified names such as `"pt:transfer"`. Resolve aliases before runtime dispatch. |
+| Protocol default | A Java caller may omit the protocol when the configured deployment descriptor declares `cip-113`. Persisted plans always record `protocol: cip-113`; a library upgrade cannot reinterpret them. |
+| Register-and-mint reference | Introduce `ProgrammableTokenPolicyRef`; do not reuse the native-policy `PolicyRef`. |
+| First supported contract surface | Pin the exact Preview deployment, validator hashes, reference implementation commit, and blueprint version used for qualification. The candidate reviewed here has contract version `0.5.0-alpha.2`; it becomes supported only after those artifacts are captured in a deployment descriptor and pass the test matrix. |
+| Version terminology | Keep extension `schema_version`, protocol id, `contract_version`, and deployment reference separate. Do not use the ambiguous term `profile`. |
+| Compatibility status | Mark the generic SPI, Programmable Token API, and CIP-113 protocol API experimental. Version serialized extension schemas independently; promise no stable Java binary compatibility until CIP-113 and the SPI complete qualification. |
+| Implicit payment routing | Remove it from the primary API. Use explicit Programmable Token verbs; any temporary compatibility route must be deprecated, exhaustive across overloads, and fail closed. |
 
 ### 14.4 Review artifacts
 
@@ -1089,27 +1268,33 @@ Before implementation approval, prepare:
 
 - a small extension SPI Java prototype;
 - one external sample intent that round-trips through TxPlan;
+- a package/module dependency diagram and architecture rule;
 - lifecycle sequence diagram showing ordinary intents and extension hooks;
-- proposed CIP-113 Java API examples for every supported operation;
+- proposed Programmable Token Java API examples for every supported operation;
 - proposed YAML examples for transfer, register-and-mint, burn, and third-party transfer;
-- protocol-version compatibility table;
+- schema/protocol/contract/deployment compatibility table;
 - test plan with named test classes and ownership.
 
 ### 14.5 Acceptance gates
 
 The architecture is approved when:
 
-- `quicktx` has no compile/runtime dependency on `cip113`;
+- `quicktx` has no compile/runtime dependency on `programmable-token` or CIP-113;
+- protocol-neutral packages have no dependency on the CIP-113 package;
 - external intent types can be registered without editing `TxIntent@JsonSubTypes`;
 - extension registration is immutable or safely scoped, not global mutable state;
 - a YAML plan reconstructs equivalent semantic intents;
-- the runtime extension sees all composed CIP-113 intents before selecting inputs;
+- namespace aliases resolve to canonical extension/operation ids and collisions fail closed;
+- canonical YAML records the resolved protocol and deployment constraint even when Java used a
+  default;
+- the runtime extension sees all composed Programmable Token intents before selecting inputs;
 - index-sensitive data is finalized before each script evaluation;
 - balancing changes trigger bounded re-finalization, re-evaluation, and rebalancing until stable;
 - the final guard compares ordered transaction content and detects same-size reorderings;
 - unknown/missing extensions fail with actionable messages;
-- one builder can execute both ordinary and CIP-113 intents in the same plan;
-- multiple deployments can coexist in one JVM without registry collision.
+- one builder can execute both ordinary and Programmable Token intents in the same plan;
+- multiple deployments or protocol instances can coexist in one JVM without registry or namespace
+  collision.
 
 ---
 
@@ -1132,15 +1317,24 @@ The architecture is approved when:
 | Stabilization | Balance appends an input/change output; extension re-finalizes embedded indexes; evaluation and balance converge |
 | Stability guard | Reorder index-sensitive entries without changing list sizes; assert the content/order snapshot rejects or re-finalizes |
 | Non-convergence | Extension alternates index-sensitive content; assert the bounded loop fails with an actionable error |
+| Protocol default | Java omission with a CIP-113 deployment descriptor resolves to pinned CIP-113; canonical YAML explicitly emits `protocol: cip-113` |
+| Contract version | Exact deployment resolves and verifies `contract_version`; mismatch fails before input selection |
+| Package boundary | Protocol-neutral packages do not import the CIP-113 package |
 
 ### 15.2 TxPlan tests
 
-- Java intent to YAML to plan semantic equality for every CIP-113 intent.
+- Java intent to YAML to plan semantic equality for every Programmable Token intent.
 - YAML to plan to YAML canonical round trip.
+- Default `pt` and a custom alias both resolve to the same canonical semantic intents.
+- Duplicate, undeclared, invalid, and reserved namespace aliases fail loudly.
+- `pt:transfer` without a declared `pt` extension fails loudly.
+- Canonical serialization emits explicit extension id, protocol, schema version, deployment, and
+  resolved contract version when known.
 - Variables in addresses, units, quantities, credentials, redeemers, and deployment references.
 - Unknown extension id and unknown intent type fail loudly.
 - Registered codec without runtime extension fails before chain access.
-- Runtime extension with incompatible schema/deployment version fails during validation.
+- Runtime extension with incompatible schema, protocol, contract version, or deployment fails during
+  validation.
 - An unwired Java authoring facade serializes its semantic intents without composing first.
 - Deserialization produces an ordinary `Tx` that executes successfully with the registered extension.
 - Plans remain reusable across sequential builds and reject unsafe concurrent reuse where necessary.
@@ -1183,8 +1377,8 @@ The architecture is approved when:
 
 ```bash
 ./gradlew :quicktx:test
-./gradlew :cip:cip113:test
-./gradlew :cip:cip113:integrationTest --tests '*Cip113EndToEndIT*'
+./gradlew :programmable-token:test
+./gradlew :programmable-token:integrationTest --tests '*Cip113EndToEndIT*'
 ./gradlew clean build
 ```
 
@@ -1192,13 +1386,13 @@ The architecture is approved when:
 
 ## 16. Suggested PR Breakdown
 
-Avoid combining the generic QuickTx SPI, all CIP-113 intent migration, and protocol correctness fixes
-in one unreviewable change.
+Avoid combining the generic QuickTx SPI, all Programmable Token intent migration, and CIP-113
+protocol correctness fixes in one unreviewable change.
 
 1. **PR A — CIP-113 correctness fixes and regression tests**
 2. **PR B — Generic QuickTx codec registry, lifecycle SPI, and stabilization prototype**
-3. **PR C — CIP-113 semantic intents and Java authoring facade**
-4. **PR D — CIP-113 runtime materializer and composition support**
+3. **PR C — Programmable Token module, domain API, semantic intents, namespace, and protocol model**
+4. **PR D — CIP-113 protocol adapter, runtime materializer, and composition support**
 5. **PR E — TxPlan YAML schema, named policy references, and round-trip tests**
 6. **PR F — Public API cleanup, documentation, and experimental/beta qualification**
 
@@ -1209,14 +1403,19 @@ Each PR should keep `./gradlew clean build` green and include focused tests for 
 ## 17. Decision Checklist
 
 - [ ] Approve QuickTx extension SPI direction.
-- [ ] Approve no `quicktx -> cip113` dependency.
-- [ ] Approve semantic CIP-113 intents as the TxPlan representation.
+- [ ] Approve no `quicktx -> programmable-token` or `quicktx -> cip113` dependency.
+- [ ] Approve one top-level `programmable-token` module with neutral and CIP-113 package boundaries.
+- [ ] Approve Programmable Token public names and CIP-113 protocol-specific names.
+- [ ] Approve semantic Programmable Token intents as the TxPlan representation.
 - [ ] Approve build-time aggregation and single materialization pass.
 - [ ] Approve explicit role-specific operation APIs and redeemers.
 - [ ] Approve removal of implicit `payToAddress` routing from the primary API.
 - [ ] Approve per-builder/per-codec registration and deterministic lifecycle ordering.
-- [ ] Approve top-level `TransactionDocument.extensions` metadata and independent schema versioning.
-- [ ] Approve `Cip113PolicyRef` for register-and-mint.
+- [ ] Approve top-level `TransactionDocument.extensions`, default `pt` namespace, and qualified
+  intent names.
+- [ ] Approve explicit protocol metadata and deployment-verified `contract_version`; reject
+  `profile` terminology.
+- [ ] Approve `ProgrammableTokenPolicyRef` for register-and-mint.
 - [ ] Approve QuickTx-owned bounded stabilization with content/order snapshots.
 - [ ] Pin the first supported CIP-113 deployment/reference version.
 - [ ] Define experimental/beta compatibility guarantees.
@@ -1231,6 +1430,7 @@ Each PR should keep `./gradlew clean build` green and include focused tests for 
 - [CCL PR #653](https://github.com/bloxbean/cardano-client-lib/pull/653)
 - [CIP-113 proposal PR #444](https://github.com/cardano-foundation/CIPs/pull/444)
 - [CIP-113 reference implementation](https://github.com/cardano-foundation/cip113-programmable-tokens)
+- [CIP-143: Interoperable Programmable Tokens](https://cips.cardano.org/cip/CIP-0143)
 - [Current output-shape rules](https://github.com/cardano-foundation/cip113-programmable-tokens/blob/dba98d9e54d7c46c28980e7d4b2aae532f907594/lib/assets.ak#L208-L283)
 - [Current third-party paired-output rules](https://github.com/cardano-foundation/cip113-programmable-tokens/blob/dba98d9e54d7c46c28980e7d4b2aae532f907594/validators/programmable_logic/third_party.ak#L188-L195)
 - [Repository contribution guidelines](../../AGENTS.md)
