@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.quicktx.intent.TxInputIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxScriptAttachmentIntent;
 import com.bloxbean.cardano.client.quicktx.signing.SignerScopes;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import java.util.Set;
 public class TxPlan {
 
     private Map<String, Object> variables = new HashMap<>();
+    private Map<String, ExtensionMetadata> extensions = new java.util.LinkedHashMap<>();
     private List<AbstractTx<?>> txList = new ArrayList<>();
 
     // TxContext properties for serialization
@@ -77,6 +79,27 @@ public class TxPlan {
      */
     public Map<String, Object> getVariables() {
         return variables;
+    }
+
+    public TxPlan withExtension(String namespace, ExtensionMetadata metadata) {
+        if (namespace == null || !namespace.matches("[a-z][a-z0-9_-]{0,31}"))
+            throw new IllegalArgumentException("Invalid extension namespace: " + namespace);
+        if (java.util.Set.of("tx", "core", "context", "transaction", "variables", "extensions")
+                .contains(namespace))
+            throw new IllegalArgumentException("Reserved extension namespace: " + namespace);
+        if (metadata == null || metadata.getExtension() == null || metadata.getExtension().isBlank())
+            throw new IllegalArgumentException("Extension metadata and extension id are required");
+        if (extensions.values().stream().anyMatch(existing ->
+                metadata.getExtension().equals(existing.getExtension())))
+            throw new IllegalArgumentException("Extension already bound to another namespace: "
+                    + metadata.getExtension());
+        if (extensions.putIfAbsent(namespace, metadata) != null)
+            throw new IllegalArgumentException("Duplicate extension namespace: " + namespace);
+        return this;
+    }
+
+    public Map<String, ExtensionMetadata> getExtensions() {
+        return java.util.Collections.unmodifiableMap(extensions);
     }
 
     /**
@@ -305,6 +328,7 @@ public class TxPlan {
     public String toYaml() {
         TransactionDocument doc = new TransactionDocument();
         doc.setVariables(variables);
+        doc.setExtensions(new java.util.LinkedHashMap<>(extensions));
 
         // Set context properties if any are specified
         if (feePayer != null || collateralPayer != null || feePayerRef != null || collateralPayerRef != null ||
@@ -418,6 +442,10 @@ public class TxPlan {
     public static TxPlan from(String yaml) {
         TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
         TxPlan plan = new TxPlan();
+
+        if (doc.getExtensions() != null) {
+            doc.getExtensions().forEach(plan::withExtension);
+        }
 
         // Restore variables
         if (doc.getVariables() != null) {

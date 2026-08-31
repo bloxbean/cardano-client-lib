@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.quicktx.intent;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
@@ -61,6 +62,8 @@ import java.util.Map;
     ,
     // Base Tx input collection intentions
     @JsonSubTypes.Type(value = CollectFromIntent.class, name = "collect_from")
+    ,
+    @JsonSubTypes.Type(value = ExtensionIntent.class, name = ExtensionIntent.TYPE)
 
     // Additional intentions will be added as needed for the simplified approach
 })

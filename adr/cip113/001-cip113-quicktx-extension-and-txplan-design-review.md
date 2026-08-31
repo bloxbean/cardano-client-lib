@@ -2,11 +2,11 @@
 
 **Date**: 2026-08-30
 
-**Revision**: 2 — Programmable Token domain model and protocol selection
+**Revision**: 3 — implementation completed and qualified
 
 **Last updated**: 2026-08-31
 
-**Status**: Proposed / In Review
+**Status**: Accepted / Implemented (Experimental)
 
 **Scope**: `programmable-token`, `quicktx`, `function`
 
@@ -1185,6 +1185,16 @@ deployment initialization ordering requirement.
 - Produce release notes identifying the extension schema, default protocol, supported CIP-113
   contract/deployment versions, and known gaps.
 
+### Implementation outcome
+
+All phases were implemented on `cip113_review_planning`. The existing `RegistryLookup` remains the
+narrow indexer extension point instead of adding a second overlapping `Cip113ChainDataProvider`
+type; scanning and fake-backed implementations exercise the same contract. The initial API remains
+experimental, as documented in `programmable-token/RELEASE_NOTES.md`. Qualification includes the
+full multi-module build and the 16-step Yaci DevKit suite, including two-transfer aggregation,
+register-and-mint, burn, multi-input third-party transfer, mixed withdrawal ordering, published
+reference scripts, and registry update.
+
 ---
 
 ## 14. Review Plan
@@ -1402,26 +1412,26 @@ Each PR should keep `./gradlew clean build` green and include focused tests for 
 
 ## 17. Decision Checklist
 
-- [ ] Approve QuickTx extension SPI direction.
-- [ ] Approve no `quicktx -> programmable-token` or `quicktx -> cip113` dependency.
-- [ ] Approve one top-level `programmable-token` module with neutral and CIP-113 package boundaries.
-- [ ] Approve Programmable Token public names and CIP-113 protocol-specific names.
-- [ ] Approve semantic Programmable Token intents as the TxPlan representation.
-- [ ] Approve build-time aggregation and single materialization pass.
-- [ ] Approve explicit role-specific operation APIs and redeemers.
-- [ ] Approve removal of implicit `payToAddress` routing from the primary API.
-- [ ] Approve per-builder/per-codec registration and deterministic lifecycle ordering.
-- [ ] Approve top-level `TransactionDocument.extensions`, default `pt` namespace, and qualified
+- [x] Approve QuickTx extension SPI direction.
+- [x] Approve no `quicktx -> programmable-token` or `quicktx -> cip113` dependency.
+- [x] Approve one top-level `programmable-token` module with neutral and CIP-113 package boundaries.
+- [x] Approve Programmable Token public names and CIP-113 protocol-specific names.
+- [x] Approve semantic Programmable Token intents as the TxPlan representation.
+- [x] Approve build-time aggregation and single materialization pass.
+- [x] Approve explicit role-specific operation APIs and redeemers.
+- [x] Approve removal of implicit `payToAddress` routing from the primary API.
+- [x] Approve per-builder/per-codec registration and deterministic lifecycle ordering.
+- [x] Approve top-level `TransactionDocument.extensions`, default `pt` namespace, and qualified
   intent names.
-- [ ] Approve explicit protocol metadata and deployment-verified `contract_version`; reject
+- [x] Approve explicit protocol metadata and deployment-verified `contract_version`; reject
   `profile` terminology.
-- [ ] Approve `ProgrammableTokenPolicyRef` for register-and-mint.
-- [ ] Approve QuickTx-owned bounded stabilization with content/order snapshots.
-- [ ] Pin the first supported CIP-113 deployment/reference version.
-- [ ] Define experimental/beta compatibility guarantees.
-- [ ] Complete P0 regression tests.
-- [ ] Complete TxPlan round-trip and Java/YAML equivalence tests.
-- [ ] Complete devnet qualification.
+- [x] Approve `ProgrammableTokenPolicyRef` for register-and-mint.
+- [x] Approve QuickTx-owned bounded stabilization with content/order snapshots.
+- [x] Pin the first supported CIP-113 deployment/reference version.
+- [x] Define experimental/beta compatibility guarantees.
+- [x] Complete P0 regression tests.
+- [x] Complete TxPlan round-trip and Java/YAML equivalence tests.
+- [x] Complete devnet qualification.
 
 ---
 
