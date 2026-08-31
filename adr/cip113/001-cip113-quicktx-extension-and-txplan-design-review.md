@@ -40,6 +40,16 @@ through YAML serialization and reconstruct an ordinary `Tx` containing registere
 It must not serialize live backend objects, resolved UTxOs, scripts, registry caches, or mutable
 `ProgrammableTokenTx` state.
 
+This ADR makes four additional foundational choices:
+
+- the primary CIP-113 API uses explicit `transfer`, `mint`, `burn`, `thirdPartyTransfer`,
+  `registerToken`, and `updateRegistry` intents rather than implicit `payToAddress` routing;
+- register-and-mint uses a CIP-113-owned named policy reference, not QuickTx's existing
+  `PolicyRef`, whose owner and compose-time lifecycle are different;
+- QuickTx owns a bounded post-balance re-finalization, script re-evaluation, and re-balance loop
+  for extensions whose redeemer data embeds ledger indexes;
+- TxPlan gains an explicit top-level `extensions` section and an external intent-codec registry.
+
 PR #653 should not establish its current classes as stable public API until the correctness blockers
 and extension design in this ADR are addressed. If merged incrementally, the module and APIs should
 be explicitly marked experimental.
@@ -74,8 +84,8 @@ CIP-113 transactions need more than ordinary payment and mint intents:
 - protocol, registry, global-state, and script reference inputs;
 - role-specific withdraw-zero invocations;
 - canonical input, reference-input, withdrawal, mint-policy, and output indexes;
-- a finalization phase before script-cost evaluation;
-- verification that balancing did not invalidate resolved indexes;
+- a finalization phase before every script-cost evaluation;
+- bounded re-finalization and re-evaluation when balancing changes resolved indexes;
 - versioned deployment data while the CIP and reference implementation remain subject to change.
 
 These requirements justify a protocol extension, but not tight coupling from QuickTx to CIP-113.
@@ -159,35 +169,40 @@ valid while representing a different transaction.
 **Target fix**: serialize CIP-113 intent values and reconstruct an ordinary `Tx` containing those
 intents. Execution behavior comes from a registered CIP-113 extension, not from the Java subtype.
 
-### 4.3 P0: Legal inline datum behavior is not preserved
+### 4.3 P0/P1: Inline datum handling has two different severities
 
 The current CIP-113 reference implementation permits `NoDatum` or a bounded inline datum and forbids
 datum hashes and reference scripts on seizable outputs. Its third-party path requires paired outputs
 to preserve the input address, datum, and reference script exactly.
 
-The PR currently:
+#### P0 — third-party paired outputs lose inline datum
 
-- rejects every non-null programmable mint output datum;
-- recreates third-party continuing outputs without preserving an inline datum;
-- documents contradictory expectations: method-level documentation says datum/reference script are
-  preserved, while the output construction emits neither.
+The PR recreates third-party continuing outputs without preserving an inline datum. This is a hard
+on-chain failure for any holder UTxO carrying an inline datum, including a valid UTxO created by
+other tooling. Method-level documentation says datum/reference script are preserved, while the
+output construction emits neither.
 
-This makes legitimate inline-datum tokens, including CIP-68-related shapes allowed by the current
-reference implementation, impossible to mint or seize correctly.
+**Required fix**: preserve inline datum byte-for-byte in paired third-party outputs and reject a
+datum hash or reference script with a role-specific error before input selection.
 
-**Required fix**:
+#### P1 — mint rejects supported inline datum
 
-- distinguish inline datum from datum hash;
-- allow supported inline datum shapes according to the selected deployment version;
-- preserve inline datum byte-for-byte in paired third-party outputs;
-- reject unsupported datum hashes and reference scripts early with role-specific errors;
-- version this behavior if a deployment intentionally targets an older contract surface.
+The PR also rejects every non-null programmable mint output datum. The reference implementation
+recommends no datum as the normal substandard default, but deliberately permits issuer-authorized
+inline datums for cases such as CIP-68 metadata. This is a feature gap rather than an unconditional
+transaction failure.
+
+**Required fix**: distinguish inline datum from datum hash, allow inline datum when supported by the
+selected deployment and substandard, and version the behavior if a deployment targets an older
+contract surface.
 
 ### 4.4 P0: Asset names are round-tripped through UTF-8
 
 Third-party output construction decodes the asset-name half of a unit to `String` and constructs a
 new amount from that string. Cardano native asset names are arbitrary bytes, not necessarily UTF-8.
-Invalid or non-canonical UTF-8 sequences can be changed by decode/re-encode.
+Invalid or non-canonical UTF-8 sequences can be changed by decode/re-encode. A second corruption path
+exists for a name that is valid UTF-8 but begins with `0x`: `new Asset(name, ...)` interprets that
+prefix as a hex-encoded asset name rather than literal bytes.
 
 **Required fix**: retain the original unit and change only the quantity:
 
@@ -195,7 +210,7 @@ Invalid or non-canonical UTF-8 sequences can be changed by decode/re-encode.
 Amount.asset(held.getUnit(), remainingQuantity)
 ```
 
-Add regression coverage using non-text and invalid-UTF-8 asset-name bytes.
+Add regression coverage using non-text, invalid-UTF-8, and valid UTF-8 names beginning with `0x`.
 
 ### 4.5 P0: A reference input is added after intention application
 
@@ -226,6 +241,11 @@ overriding a subset of ordinary `Tx` verbs to infer protocol behavior from chain
 `RegistryLookup.Scanning` caches indefinitely. After registration or update, the integration test
 manually calls `registryLookup().invalidate()` so later steps see the mutation. An ordinary
 register-wait-mint flow using the same service can otherwise continue treating the policy as absent.
+
+In the current implementation that stale absence routes to the ordinary `Tx` path. Because the
+programmable tokens are held at the smart-wallet address rather than the ordinary `from` address,
+the typical symptom is insufficient funds or unresolved minting policy—not a successful rules
+bypass. It remains a correctness and usability bug, but should not be described as silent movement.
 
 Manual cache invalidation is too low-level for the default service and is easy to omit.
 
@@ -299,8 +319,11 @@ that the input is non-null and positive.
 
 ### 4.13 P2: Repository logging convention
 
-New integration-test code uses `System.out.println`. Repository guidelines require SLF4J. Replace
-console writes with a test logger or structured assertion descriptions.
+New integration-test code uses `System.out.println`. The repository's
+[AGENTS.md](../../AGENTS.md) explicitly requires SLF4J and prohibits `System.out.println`. Replace
+console writes with a test logger or structured assertion descriptions. The module's
+`showStandardStreams` setting controls test-output visibility; it does not override the source-style
+rule.
 
 ---
 
@@ -335,7 +358,8 @@ A QuickTx extension has two related responsibilities:
    lifecycle points.
 
 A codec-only registry is insufficient for CIP-113 because canonical indexes must be finalized after
-all intents have contributed to the transaction and before script-cost evaluation.
+all intents have contributed to the transaction, before each script-cost evaluation, and again if a
+balance pass changes index-sensitive content.
 
 Illustrative SPI:
 
@@ -351,21 +375,22 @@ public interface QuickTxExtension {
 public interface TxBuildExtension {
     default void validate(ExtensionPlanContext context) {}
 
-    default TxBuilder prepare(ExtensionBuildContext context) {
-        return TxBuilder.noOp();
-    }
+    default void prepare(ExtensionBuildContext context) {}
 
     default TxBuilder beforeScriptEvaluation(ExtensionBuildContext context) {
-        return TxBuilder.noOp();
+        return (context, transaction) -> {};
     }
 
-    default TxBuilder afterBalanceVerify(ExtensionBuildContext context) {
-        return TxBuilder.noOp();
+    default BalanceFinalization afterBalance(ExtensionBuildContext context) {
+        return BalanceFinalization.stable();
     }
 }
 ```
 
-Names are illustrative. The final SPI should use existing `TxBuilder` and context conventions.
+`afterBalance` may update index-bearing redeemer data and return `refinalized()`. That result tells
+QuickTx to recompute script data, evaluate scripts, and balance again. Names are illustrative; the
+final SPI should use existing `TxBuilder` and context conventions and expose only the data needed by
+each phase.
 
 ### 5.3 Registration scope
 
@@ -410,6 +435,31 @@ The plan codec and builder must reject:
 
 Unknown fields may follow existing forward-compatibility rules, but unknown semantic operation types
 must never be ignored.
+
+### 5.5 QuickTx owns index stability
+
+CIP-113 redeemers contain ledger indexes. QuickTx evaluates scripts before balancing, while balancing
+may append or reorder inputs and outputs. Therefore a pre-evaluation hook plus a post-balance size
+check is not a sufficient contract.
+
+The target design is a bounded QuickTx stabilization loop:
+
+1. extensions finalize index-bearing data against the provisional transaction;
+2. QuickTx computes script data, evaluates scripts, and balances;
+3. QuickTx and extensions compare the balanced transaction with the provisional content-and-order
+   snapshot;
+4. if an index-sensitive change occurred, extensions re-finalize embedded data and QuickTx repeats
+   evaluation and balancing;
+5. QuickTx completes only when the snapshot is stable, and fails with an actionable error if the
+   configured iteration bound is reached.
+
+The snapshot must compare ordered content, not only list sizes. It includes at least input
+references, output identity/value/datum/reference script, withdrawal credentials, mint policies,
+reference inputs, and the ledger targets represented inside extension redeemers.
+
+PR #653's fee-ceiling pre-funding may remain as a transitional optimization for the experimental
+implementation, but it is not the generic extension contract. The generic SPI must remain correct
+when balancing legitimately adds an input or change output.
 
 ---
 
@@ -478,11 +528,14 @@ build:
 ```java
 new ProgrammableTokenTx()
         .registerToken("usd", spec, registrationRedeemer)
-        .mint(PolicyRef.ref("cip113://usd"), receiver, assets, issuanceRedeemer, null);
+        .mint(Cip113PolicyRef.named("usd"), receiver, assets, issuanceRedeemer, null);
 ```
 
-The design should reuse the existing `PolicyRef` resolution mechanism if its ownership and lifecycle
-fit. Otherwise add a CIP-specific named reference without changing existing `PolicyRef` semantics.
+Introduce a CIP-113-owned named reference rather than reuse the existing `PolicyRef`. The existing
+type is backed by `SignerRegistry`, represents a native minting policy, and resolves at compose time.
+A CIP-113 policy id is derived during the build from an issuance template, so it has a different
+owner and lifecycle. `Cip113PolicyRef` may adopt compatible value-object conventions, but must not
+change the meaning or resolver contract of `PolicyRef`.
 
 ---
 
@@ -540,9 +593,11 @@ transaction:
             fields: []
 ```
 
-The exact extension metadata location should be decided with the broader TxPlan schema owner. If
-generic plan-level extensions are not desired, deployment can be an intent field, at the cost of
-repetition.
+The extension metadata lives in a top-level `extensions` section. This requires an intentional
+change to `TransactionDocument`, `TxPlan.toYaml/fromYaml`, validation, and schema-version handling;
+it is not merely an external codec addition. Repeating deployment metadata in every intent was
+rejected because it permits conflicting declarations and makes plan-wide compatibility checks more
+difficult.
 
 ### 7.3 Codec extensibility
 
@@ -617,17 +672,40 @@ can change; the declared operation must not.
    - compute canonical indexes
    - finalize CIP-113 redeemers
    - declare required signers
-   - snapshot index-sensitive transaction shape
+   - snapshot ordered index-sensitive transaction content
 
 7. Balance
-   - no unexpected input or output mutation
+   - allow QuickTx to add required funding inputs and change outputs
 
-8. After balance verification
-   - verify index-sensitive shape and redeemer bindings
-   - fail rather than rewrite data after evaluation/fee calculation
+8. Stabilize after balance
+   - compare actual ordered content, not only collection sizes
+   - if index-sensitive content changed, re-finalize embedded redeemer data
+   - recompute script data/hash, re-evaluate, and rebalance
+   - repeat to a small explicit bound; fail if the transaction does not converge
+
+9. Final verification
+   - verify index-sensitive content, redeemer bindings, balance, and fee are stable
+   - prohibit untracked mutation after the stable evaluation/balance pass
 ```
 
-### 8.2 Aggregation scope
+### 8.2 Mapping to existing QuickTx seams
+
+The first implementation should adapt existing lifecycle seams instead of creating a parallel build
+engine:
+
+| Required capability | Existing seam | Decision |
+|---|---|---|
+| Plan-wide preparation before per-`Tx` completion | `AbstractTx.complete()` is package-private and per transaction | Keep `complete()` internal. Add a builder-level extension preparation phase before the builder iterates through `txList` and calls `complete()`. It receives all semantic intents and may materialize ordinary intents. |
+| Pre-evaluation finalization | `AbstractTx.preTxEvaluation()` is protected and per transaction; `TxContext.preBalanceTx(TxBuilder)` is public but a single slot | Keep the protected per-`Tx` hook for compatibility. Generalize the builder context to an ordered list of pre-evaluation participants and invoke extension finalizers after reference-script resolution. The existing user transformer remains supported as one ordered participant. |
+| Negative-output handling | `QuickTxBuilder` skips `preTxEvaluation` while an output coin is negative | Preserve the provisional skip, but the stabilization pass must invoke extension finalization before every actual evaluation once provisional output values are resolved. |
+| Post-balance processing | `TxContext.postBalanceTx(TxBuilder)` and `AbstractTx.postBalanceTx` | Keep legacy hooks, add ordered extension finalizers, and run them inside the stabilization boundary. A reported index-sensitive change triggers re-evaluation and rebalancing rather than continuing to completion. |
+| Stabilization ownership | `verifyAndAdjustRedeemerIndexes` updates redeemer pointer indexes only | QuickTx owns the bounded loop. The existing adjustment remains a core step, while extensions update indexes embedded inside redeemer data. |
+
+This promotes builder-level, ordered participation—not the package-private or protected `AbstractTx`
+methods themselves—as the public experimental SPI. It also replaces the single-transformer
+assumption without exposing CIP-113 classes from `quicktx`.
+
+### 8.3 Aggregation scope
 
 The extension must aggregate CIP-113 intents across every transaction fragment passed to one
 `compose(...)` call. Resolving each `ProgrammableTokenTx` independently can select the same UTxOs,
@@ -642,13 +720,13 @@ At minimum, aggregation keys include:
 - global-state policy;
 - funding address and already reserved UTxOs.
 
-### 8.3 Input reservation
+### 8.4 Input reservation
 
 The materializer must maintain one build-local set of reserved input references. Selection for later
 policies or fragments excludes previously selected PLB and ADA inputs. This addresses the PR's known
 multi-policy contention and makes composition deterministic.
 
-### 8.4 Registry snapshot
+### 8.5 Registry snapshot
 
 All membership and covering-node decisions within one build must use a coherent registry snapshot.
 The snapshot should expose its source or observed chain point where the backend supports it.
@@ -685,6 +763,13 @@ new Cip113QuickTxBuilder(backendService, Cip113Deployments.PREVIEW)
 ```
 
 It is still preferable to wrapping the backend in a new subtype.
+
+PR #653 also exposes a plain-builder route through
+`new QuickTxBuilder(backendService).compose(service.tx())`, so the specialized builder is not the
+only entry point. The architectural concern still applies: `service.tx()` performs deployment and
+chain wiring while constructing the transaction object, earlier than the proposed plan-wide build
+lifecycle. The extension model preserves the plain `QuickTxBuilder` path while deferring chain work
+until all semantic intents are known.
 
 ### 9.2 Public read service
 
@@ -818,7 +903,8 @@ registration without lifecycle participation would reconstruct data but could no
 
 - QuickTx needs a small, carefully designed extension SPI and codec registry.
 - The TxPlan codec can no longer rely exclusively on a static annotation subtype list.
-- A pre-script-evaluation lifecycle hook becomes public extension surface and must be stable.
+- A bounded finalization/stabilization lifecycle becomes public extension surface and must be
+  carefully constrained.
 - PR #653 transaction-building code requires decomposition into semantic intent and runtime
   materializer layers.
 - Extension schema and deployment versioning require explicit compatibility rules.
@@ -870,7 +956,8 @@ Goal: introduce the minimum generic surface needed by CIP-113 without protocol c
 - Define deterministic ordering for multiple extensions.
 - Define unknown/missing extension failures.
 - Define build-local input reservation access.
-- Decide whether extension metadata belongs in `TxPlan.context` or a top-level `extensions` section.
+- Add the top-level `TransactionDocument.extensions` metadata section and version validation.
+- Prototype the bounded post-balance stabilization loop against the existing QuickTx lifecycle seams.
 
 **Exit gate**: approved SPI design plus a trivial test extension proving external intent
 serialization and lifecycle invocation without any `cip113` dependency in `quicktx`.
@@ -900,7 +987,8 @@ Goal: execute all semantic intents in one coherent build pass.
 - Resolve all registered and covering-node proofs.
 - Add scripts, withdrawals, outputs, and reference inputs.
 - Finalize canonical indexes before script-cost evaluation.
-- Verify index-sensitive transaction shape after balancing.
+- Re-finalize embedded index data and repeat evaluation/balancing when ordered content changes.
+- Verify full index-sensitive content and ordering after balancing, not only collection sizes.
 
 **Exit gate**: equivalent in-memory and YAML plans build equivalent transaction semantics against the
 same chain snapshot.
@@ -934,10 +1022,12 @@ deployment initialization ordering requirement.
 
 1. **Architecture review**
    - Approve dependency direction and the need for a generic extension SPI.
-   - Decide whether extension support is a stable QuickTx feature or initially experimental.
+   - Confirm the recommendation that extension support is initially experimental.
 
 2. **QuickTx lifecycle review**
-   - Confirm the exact preparation, pre-evaluation, and post-balance hooks.
+   - Confirm the mapping from existing QuickTx seams to the preparation, pre-evaluation, and
+     post-balance hooks.
+   - Approve QuickTx ownership of the bounded stabilization loop.
    - Verify hooks cannot invalidate fee calculation or transaction balance unexpectedly.
    - Define multiple-extension ordering and failure behavior.
 
@@ -975,22 +1065,23 @@ deployment initialization ordering requirement.
 - API reviewer: Java fluency, null/error semantics, and backward compatibility.
 - Security reviewer: fail-closed routing, datum preservation, and registry proof handling.
 
-### 14.3 Review questions requiring explicit decisions
+### 14.3 Recommended defaults for approval
 
-1. Is the generic extension SPI justified now, or should CIP-113 remain experimental and
-   non-serializable until a second extension use case exists?
-2. Should extensions be registered on `QuickTxBuilder`, `TxContext`, `TxPlanCodec`, or a shared
-   immutable `QuickTxEnvironment` used by all three?
-3. Is `beforeScriptEvaluation` sufficient, or should QuickTx expose a more general transaction
-   finalizer pipeline?
-4. How is deterministic ordering defined when multiple extensions use the same lifecycle phase?
-5. Should extensions share a generic input reservation service?
-6. Where should plan-level extension metadata live?
-7. Should `PolicyRef` be reused for register-and-mint, or should CIP-113 introduce its own named
-   reference?
-8. What deployment/tag is the first supported contract surface?
-9. Which APIs are experimental, and what compatibility guarantee applies before CIP-113 is final?
-10. Should implicit `payToAddress` routing be removed entirely or retained as a guarded convenience?
+These are decisions proposed by this ADR, not unresolved alternatives. Reviewers should approve a
+default or record a replacement before implementation begins.
+
+| Topic | Recommended default |
+|---|---|
+| Introduce the generic SPI now? | Yes. Implement the minimum codec and lifecycle surface needed by CIP-113, but mark it experimental until qualification and at least one additional extension use case validate its shape. CIP-113 remains serializable through that SPI. |
+| Registration scope | Register runtime participants per `QuickTxBuilder` and codecs per `TxPlanCodec`. Both consume the same immutable extension descriptor. Do not use `TxContext` or a process-global environment as the initial ownership scope. |
+| Lifecycle shape | Provide an ordered finalization/stabilization pipeline, not only `beforeScriptEvaluation`. QuickTx owns re-evaluation and rebalancing. |
+| Multiple-extension ordering | Sort first by fixed lifecycle phase, then explicit registration order, then extension id as a deterministic diagnostic tie-breaker. Reject duplicate extension ids. |
+| Input reservation | Provide one generic build-local reservation service shared by core QuickTx and all extensions. |
+| Plan metadata | Add a top-level, versioned `extensions` section to `TransactionDocument`. |
+| Register-and-mint reference | Introduce `Cip113PolicyRef`; do not reuse the native-policy `PolicyRef`. |
+| First supported contract surface | Pin the exact Preview deployment, validator hashes, reference implementation commit, and blueprint version used for qualification. The candidate reviewed here is blueprint `0.5.0-alpha.2`; it becomes supported only after those artifacts are captured in a deployment descriptor and pass the test matrix. |
+| Compatibility status | Mark the generic SPI and CIP-113 public APIs experimental. Version serialized extension schemas independently; promise no stable Java binary compatibility until CIP-113 and the SPI complete qualification. |
+| Implicit payment routing | Remove it from the primary API. Use explicit CIP-113 verbs; any temporary compatibility route must be deprecated, exhaustive across overloads, and fail closed. |
 
 ### 14.4 Review artifacts
 
@@ -1013,8 +1104,9 @@ The architecture is approved when:
 - extension registration is immutable or safely scoped, not global mutable state;
 - a YAML plan reconstructs equivalent semantic intents;
 - the runtime extension sees all composed CIP-113 intents before selecting inputs;
-- all index-sensitive mutation finishes before script evaluation;
-- balancing changes are verified after the fact;
+- index-sensitive data is finalized before each script evaluation;
+- balancing changes trigger bounded re-finalization, re-evaluation, and rebalancing until stable;
+- the final guard compares ordered transaction content and detects same-size reorderings;
 - unknown/missing extensions fail with actionable messages;
 - one builder can execute both ordinary and CIP-113 intents in the same plan;
 - multiple deployments can coexist in one JVM without registry collision.
@@ -1029,7 +1121,7 @@ The architecture is approved when:
 |---|---|
 | Declaration ordering | Permute `from`, multiple transfers, and authorization declarations; assert equivalent semantics |
 | Multiple payments | Add a second same-policy payment before and after authorization |
-| Asset names | Empty, UTF-8, non-UTF-8, zero byte, and 32-byte names |
+| Asset names | Empty, UTF-8, valid UTF-8 beginning with `0x`, non-UTF-8, zero byte, and 32-byte names |
 | Inline datum | Mint with allowed inline datum; reject datum hash; preserve datum on third-party continuation |
 | Burn authorization | Different transfer and issuance scripts/redeemers; shared script with compatible redeemer |
 | Incidental policies | Registered and unregistered co-resident policies in selected PLB inputs |
@@ -1037,6 +1129,9 @@ The architecture is approved when:
 | Manual wiring | Remove API or verify complete dependency validation and execution |
 | Error semantics | Distinguish absent global state from backend failure |
 | ADA buffer | Null, non-lovelace, zero, negative, and valid positive lovelace |
+| Stabilization | Balance appends an input/change output; extension re-finalizes embedded indexes; evaluation and balance converge |
+| Stability guard | Reorder index-sensitive entries without changing list sizes; assert the content/order snapshot rejects or re-finalizes |
+| Non-convergence | Extension alternates index-sensitive content; assert the bounded loop fails with an actionable error |
 
 ### 15.2 TxPlan tests
 
@@ -1071,6 +1166,7 @@ The architecture is approved when:
 - Asset unit reconstruction is byte-preserving for arbitrary asset-name bytes.
 - Registry covering-node lookup holds across randomized sorted registries.
 - Post-balance shape verification detects any randomized index-sensitive mutation.
+- Stabilization converges for bounded, deterministic balance mutations and rejects oscillation.
 
 ### 15.5 Devnet integration tests
 
@@ -1100,12 +1196,11 @@ Avoid combining the generic QuickTx SPI, all CIP-113 intent migration, and proto
 in one unreviewable change.
 
 1. **PR A — CIP-113 correctness fixes and regression tests**
-2. **PR B — Generic QuickTx intent codec registry**
-3. **PR C — Generic QuickTx build lifecycle extension SPI**
-4. **PR D — CIP-113 semantic intents and Java authoring facade**
-5. **PR E — CIP-113 runtime materializer and composition support**
-6. **PR F — TxPlan YAML schema, named policy references, and round-trip tests**
-7. **PR G — Public API cleanup, documentation, and experimental/beta qualification**
+2. **PR B — Generic QuickTx codec registry, lifecycle SPI, and stabilization prototype**
+3. **PR C — CIP-113 semantic intents and Java authoring facade**
+4. **PR D — CIP-113 runtime materializer and composition support**
+5. **PR E — TxPlan YAML schema, named policy references, and round-trip tests**
+6. **PR F — Public API cleanup, documentation, and experimental/beta qualification**
 
 Each PR should keep `./gradlew clean build` green and include focused tests for its new contract.
 
@@ -1118,10 +1213,11 @@ Each PR should keep `./gradlew clean build` green and include focused tests for 
 - [ ] Approve semantic CIP-113 intents as the TxPlan representation.
 - [ ] Approve build-time aggregation and single materialization pass.
 - [ ] Approve explicit role-specific operation APIs and redeemers.
-- [ ] Decide whether implicit `payToAddress` routing remains.
-- [ ] Decide extension registration scope and lifecycle ordering.
-- [ ] Decide plan extension metadata location and schema versioning.
-- [ ] Decide policy reference mechanism for register-and-mint.
+- [ ] Approve removal of implicit `payToAddress` routing from the primary API.
+- [ ] Approve per-builder/per-codec registration and deterministic lifecycle ordering.
+- [ ] Approve top-level `TransactionDocument.extensions` metadata and independent schema versioning.
+- [ ] Approve `Cip113PolicyRef` for register-and-mint.
+- [ ] Approve QuickTx-owned bounded stabilization with content/order snapshots.
 - [ ] Pin the first supported CIP-113 deployment/reference version.
 - [ ] Define experimental/beta compatibility guarantees.
 - [ ] Complete P0 regression tests.
@@ -1137,5 +1233,4 @@ Each PR should keep `./gradlew clean build` green and include focused tests for 
 - [CIP-113 reference implementation](https://github.com/cardano-foundation/cip113-programmable-tokens)
 - [Current output-shape rules](https://github.com/cardano-foundation/cip113-programmable-tokens/blob/dba98d9e54d7c46c28980e7d4b2aae532f907594/lib/assets.ak#L208-L283)
 - [Current third-party paired-output rules](https://github.com/cardano-foundation/cip113-programmable-tokens/blob/dba98d9e54d7c46c28980e7d4b2aae532f907594/validators/programmable_logic/third_party.ak#L188-L195)
-- [ADR-010: QuickTx Intent Refactoring Beta Readiness Review](../010-quicktx-beta-readiness-review.md)
-- [ADR-013: Unified Tx API](../013-unified-tx-api.md)
+- [Repository contribution guidelines](../../AGENTS.md)
