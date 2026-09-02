@@ -1,0 +1,40 @@
+version: '1.0'
+variables:
+  network_id: 0
+  asset_name_hex: 5478506c616e546f6b656e
+  mint_quantity: 100
+  authorization_action: 1
+  authorization_nonce: 42
+  holder_schema: 1
+  holder_tag: 113
+extensions:
+  pt:
+    extension: programmable-token
+    schema_version: '1'
+    protocol: cip-113
+    contract_version: 0.5.0-alpha.2
+    deployment:
+      network: ${network_id}
+      bootstrap_tx: ${bootstrap_tx}
+context:
+  fee_payer: ${owner_address}
+transaction:
+  - tx:
+      from: ${owner_address}
+      intents:
+        - type: pt:mint
+          policy_id: ${policy_id}
+          receiver: ${owner_address}
+          assets:
+            - name: ${asset_name_hex}
+              quantity: ${mint_quantity}
+          issuance_redeemer:
+            constructor: 0
+            fields:
+              - int: ${authorization_action}
+              - int: ${authorization_nonce}
+          inline_datum:
+            constructor: 0
+            fields:
+              - int: ${holder_schema}
+              - int: ${holder_tag}

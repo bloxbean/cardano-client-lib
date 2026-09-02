@@ -21,6 +21,12 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.quicktx.intent.MintingIntent;
 import com.bloxbean.cardano.client.quicktx.intent.NativeScriptAttachmentIntent;
 import com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntent;
+import com.bloxbean.cardano.client.quicktx.extension.BalanceFinalization;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionBuildContext;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
+import com.bloxbean.cardano.client.quicktx.extension.TxBuildExtension;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.script.DefaultScriptRegistry;
 import com.bloxbean.cardano.client.quicktx.script.ScriptRegistry;
@@ -81,6 +87,23 @@ public class QuickTxBuilder {
     private Consumer<Transaction> txInspector;
 
     private ScriptSupplier backendScriptSupplier;
+    private final Map<String, QuickTxExtension> extensions = new LinkedHashMap<>();
+    private static final int MAX_EXTENSION_STABILIZATION_PASSES = 3;
+
+    /** Register an extension for this builder instance. */
+    public QuickTxBuilder withExtension(QuickTxExtension extension) {
+        if (extension == null) throw new IllegalArgumentException("extension is required");
+        if (extension.id() == null || extension.id().isBlank())
+            throw new IllegalArgumentException("extension id is required");
+        if (extension.schemaVersion() == null || extension.schemaVersion().isBlank())
+            throw new IllegalArgumentException("extension schema version is required");
+        if (extension.operations() == null)
+            throw new IllegalArgumentException("extension operations are required");
+        QuickTxExtension existing = extensions.putIfAbsent(extension.id(), extension);
+        if (existing != null && existing != extension)
+            throw new IllegalArgumentException("Extension already registered: " + extension.id());
+        return this;
+    }
 
     /**
      * Create QuickTxBuilder
@@ -195,8 +218,23 @@ public class QuickTxBuilder {
         if (transactions == null || transactions.isEmpty())
             throw new TxBuildException("TxPlan must contain at least one transaction");
 
+        plan.getExtensions().forEach((namespace, metadata) -> {
+            QuickTxExtension extension = extensions.get(metadata.getExtension());
+            if (extension == null)
+                throw new TxBuildException("TxPlan namespace '" + namespace
+                        + "' requires unregistered extension " + metadata.getExtension());
+            try {
+                extension.validateMetadata(metadata);
+            } catch (IllegalArgumentException e) {
+                throw new TxBuildException("Invalid extension metadata for namespace '"
+                        + namespace + "': " + e.getMessage(), e);
+            }
+        });
+
         // Create TxContext with transactions
         TxContext context = new TxContext(transactions.toArray(new AbstractTx[0]));
+        plan.getExtensions().values().forEach(metadata ->
+                context.extensionMetadata.put(metadata.getExtension(), metadata));
 
         // Apply context properties from TxPlan
         if (plan.getFeePayer() != null) {
@@ -318,6 +356,7 @@ public class QuickTxBuilder {
         // Optional per-context override for registry
         private SignerRegistry contextSignerRegistry;
         private ScriptRegistry contextScriptRegistry;
+        private final Map<String, ExtensionMetadata> extensionMetadata = new LinkedHashMap<>();
 
         // Additional signer refs (ref + scope)
         private class SignerRef {
@@ -547,6 +586,17 @@ public class QuickTxBuilder {
         }
 
         private Tuple<TxBuilderContext, TxBuilder> _build() {
+            ExtensionBuildContext extensionContext = new ExtensionBuildContext(
+                    txList, utxoSupplier, protocolParamsSupplier);
+            List<TxBuildExtension> buildExtensions = extensions.values().stream()
+                    .sorted(Comparator.comparingInt(QuickTxExtension::order)
+                            .thenComparing(QuickTxExtension::id))
+                    .map(extension -> extension.newBuildExtension(
+                            extensionMetadata.getOrDefault(extension.id(), extension.metadata())))
+                    .collect(Collectors.toList());
+
+            validateExtensionIntents();
+
             // Resolve references (fromRef, payer refs, additional signer refs) before building
             SignerRegistry effectiveRegistry = this.contextSignerRegistry;
             boolean hasScriptReferences = hasScriptReferences();
@@ -641,6 +691,10 @@ public class QuickTxBuilder {
             } else if (hasScriptReferences) {
                 throw new TxBuildException("script_ref/script_hash set but no ScriptRegistry or ScriptSupplier configured");
             }
+
+            // Extensions see fully resolved authoring references but still run before any Tx is
+            // completed, so they can aggregate semantic declarations into ordinary core intents.
+            buildExtensions.forEach(extension -> extension.prepare(extensionContext));
 
             TxBuilder txBuilder = (context, txn) -> {
             };
@@ -784,6 +838,9 @@ public class QuickTxBuilder {
                     for (AbstractTx tx: txList) {
                         tx.preTxEvaluation(transaction);
                     }
+                    for (TxBuildExtension extension : buildExtensions) {
+                        extension.beforeScriptEvaluation(extensionContext, transaction);
+                    }
 
                     try {
                         ScriptCostEvaluators.evaluateScriptCost().apply(context, transaction);
@@ -798,14 +855,44 @@ public class QuickTxBuilder {
                 }));
             }
 
-            //Balance outputs
+            // Balance outputs. Keep this builder separate so an extension can request a bounded
+            // re-finalize/evaluate/balance pass when balancing changes index-sensitive content.
+            TxBuilder balanceTxBuilder;
             if (feePayerWallet != null) {
                 var walletAddrIterator = new HDWalletAddressIterator(feePayerWallet, utxoSupplier);
-                txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(walletAddrIterator, totalSigners, containsScriptTx));
+                balanceTxBuilder = ScriptBalanceTxProviders.balanceTx(walletAddrIterator, totalSigners, containsScriptTx);
             } else
-                txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
+                balanceTxBuilder = ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx);
+            txBuilder = txBuilder.andThen(balanceTxBuilder);
 
-            if ((containsScriptTx || hasMultiAssetMint) && removeDuplicateScriptWitnesses) {
+            final boolean scriptTxPresent = containsScriptTx;
+            txBuilder = txBuilder.andThen((context, transaction) -> {
+                for (int pass = 0; pass <= MAX_EXTENSION_STABILIZATION_PASSES; pass++) {
+                    boolean refinalized = false;
+                    for (TxBuildExtension extension : buildExtensions) {
+                        refinalized |= extension.afterBalance(extensionContext, transaction)
+                                == BalanceFinalization.REFINALIZED;
+                    }
+                    if (!refinalized) {
+                        return;
+                    }
+                    if (pass == MAX_EXTENSION_STABILIZATION_PASSES) {
+                        throw new TxBuildException("QuickTx extensions did not converge after "
+                                + MAX_EXTENSION_STABILIZATION_PASSES + " stabilization passes");
+                    }
+
+                    for (AbstractTx tx : txList) tx.preTxEvaluation(transaction);
+                    for (TxBuildExtension extension : buildExtensions)
+                        extension.beforeScriptEvaluation(extensionContext, transaction);
+                    if (scriptTxPresent) ScriptCostEvaluators.evaluateScriptCost().apply(context, transaction);
+                    balanceTxBuilder.apply(context, transaction);
+                }
+            });
+
+            boolean extensionRequestsWitnessDeduplication = buildExtensions.stream()
+                    .anyMatch(TxBuildExtension::removeDuplicateScriptWitnesses);
+            if ((containsScriptTx || hasMultiAssetMint)
+                    && (removeDuplicateScriptWitnesses || extensionRequestsWitnessDeduplication)) {
                 txBuilder = txBuilder.andThen(DuplicateScriptWitnessChecker.removeDuplicateScriptWitnesses());
             }
 
@@ -819,7 +906,40 @@ public class QuickTxBuilder {
                 }));
             }
 
+            // This is deliberately last. User post-balance transforms and core post-balance
+            // hooks are allowed to mutate the transaction, so index-sensitive extensions must
+            // verify the actual final body rather than an intermediate balanced snapshot.
+            txBuilder = txBuilder.andThen((context, transaction) -> {
+                for (TxBuildExtension extension : buildExtensions)
+                    extension.verify(extensionContext, transaction);
+            });
+
             return new Tuple<>(txBuilderContext, txBuilder);
+        }
+
+        private void validateExtensionIntents() {
+            for (AbstractTx tx : txList) {
+                for (var intent : tx.getIntentions()) {
+                    if (!(intent instanceof ExtensionIntent)) continue;
+                    ExtensionIntent extensionIntent = (ExtensionIntent) intent;
+                    extensionIntent.validate();
+                    QuickTxExtension extension = extensions.get(extensionIntent.getExtensionId());
+                    if (extension == null)
+                        throw new TxBuildException("No runtime extension registered for intent "
+                                + extensionIntent.getExtensionId() + ":" + extensionIntent.getOperation());
+                    Class<? extends ExtensionIntent> expectedType =
+                            extension.intentTypes().get(extensionIntent.getOperation());
+                    if (!extension.operations().contains(extensionIntent.getOperation())
+                            || expectedType == null)
+                        throw new TxBuildException("Unsupported operation " + extensionIntent.getOperation()
+                                + " for extension " + extensionIntent.getExtensionId());
+                    if (!expectedType.isInstance(extensionIntent))
+                        throw new TxBuildException("Intent " + extensionIntent.getClass().getName()
+                                + " cannot claim operation " + extensionIntent.getExtensionId() + ":"
+                                + extensionIntent.getOperation() + "; expected "
+                                + expectedType.getName());
+                }
+            }
         }
 
         private void resolvePolicyRefs(SignerRegistry registry, Set<String> resolvedSignerRefs) {
