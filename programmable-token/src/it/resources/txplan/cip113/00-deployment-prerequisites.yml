@@ -1,9 +1,6 @@
 version: '1.0'
 variables:
-  owner_address: __runtime__
-  bootstrap_tx: __runtime__
   network_id: 0
-  logic_reward_address: __runtime__
 extensions:
   pt:
     extension: programmable-token

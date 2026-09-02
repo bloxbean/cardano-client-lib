@@ -21,10 +21,6 @@ import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
-import com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -33,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,7 +86,6 @@ class Cip113TxPlanResourceEndToEndIT {
         Map<String, Object> common = new LinkedHashMap<>();
         common.put("owner_address", owner.baseAddress());
         common.put("bootstrap_tx", deployed.bootstrapTxHash());
-        common.put("network_id", network.getNetworkId());
 
         Map<String, Object> prerequisites = with(common,
                 "logic_reward_address", TxPlanSubstandardScripts.rewardAddress(network).toBech32());
@@ -129,8 +125,8 @@ class Cip113TxPlanResourceEndToEndIT {
     private static void submit(String resource, Map<String, Object> variables,
                                TxPlanCodec codec, ProgrammableTokenExtension extension,
                                BackendService backend, Account signer) {
-        String yaml = loadYaml(resource, variables);
-        TxPlan plan = codec.fromYaml(yaml);
+        TxPlan plan = codec.fromYaml(loadYaml(resource), variables);
+        assertThat(plan.getVariables()).containsAllEntriesOf(variables);
         assertThat(plan.getTxs()).isNotEmpty().allSatisfy(tx ->
                 assertThat(tx).isExactlyInstanceOf(Tx.class));
 
@@ -144,21 +140,11 @@ class Cip113TxPlanResourceEndToEndIT {
                 .as("submitting %s: %s", resource, result.getResponse()).isTrue();
     }
 
-    private static String loadYaml(String resource, Map<String, Object> runtimeVariables) {
-        ObjectMapper mapper = YamlSerializer.getYamlMapper();
+    private static String loadYaml(String resource) {
         try (InputStream input = Cip113TxPlanResourceEndToEndIT.class
                 .getResourceAsStream(RESOURCE_ROOT + resource)) {
             if (input == null) throw new IllegalStateException("Missing TxPlan resource " + resource);
-            ObjectNode root = (ObjectNode) mapper.readTree(input);
-            JsonNode variablesNode = root.get("variables");
-            if (!(variablesNode instanceof ObjectNode))
-                throw new IllegalStateException(resource + " must declare a variables mapping");
-            ObjectNode variables = (ObjectNode) variablesNode;
-            runtimeVariables.forEach((name, value) ->
-                    variables.set(name, mapper.valueToTree(value)));
-            String yaml = mapper.writeValueAsString(root);
-            assertThat(yaml).as(resource).doesNotContain("__runtime__");
-            return yaml;
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new IllegalStateException("Unable to load TxPlan resource " + resource, e);
         }

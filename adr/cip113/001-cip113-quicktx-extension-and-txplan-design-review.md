@@ -465,7 +465,7 @@ TxPlanCodec codec = TxPlanCodec.builder()
         .withExtension("pt", programmableToken)
         .build();
 
-TxPlan plan = codec.fromYaml(yaml);
+TxPlan plan = codec.fromYaml(yaml, runtimeVariables);
 
 new QuickTxBuilder(backendService)
         .withExtension(programmableToken)
@@ -479,6 +479,10 @@ global mutable choice or a dependency from neutral API packages to concrete CIP-
 `TxPlanCodec` defaults the document namespace to `pt` when authoring. Canonical serialization always
 writes the resolved protocol and extension metadata, so a persisted plan never depends on a future
 library default.
+
+Runtime variables are supplied through the codec rather than by editing YAML text or inventing
+placeholder sentinel values. Document variables act as defaults, caller-supplied runtime variables
+override them, and the merged mapping is retained on the reconstructed `TxPlan`.
 
 Reasons to avoid a global registry include deterministic tests, safe coexistence of multiple
 deployments or protocols, no classloader leakage, and predictable application-server behavior.

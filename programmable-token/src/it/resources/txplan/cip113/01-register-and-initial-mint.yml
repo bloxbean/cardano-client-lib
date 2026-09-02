@@ -1,9 +1,6 @@
 version: '1.0'
 variables:
-  owner_address: __runtime__
-  bootstrap_tx: __runtime__
   network_id: 0
-  logic_script_hash: __runtime__
   asset_name_hex: 5478506c616e546f6b656e
   initial_mint_quantity: 50
   authorization_action: 1

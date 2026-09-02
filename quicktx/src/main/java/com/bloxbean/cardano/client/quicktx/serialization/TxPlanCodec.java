@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
@@ -70,13 +71,41 @@ public final class TxPlanCodec {
     }
 
     public TxPlan fromYaml(String yaml) {
+        return fromYaml(yaml, Map.of());
+    }
+
+    /**
+     * Deserialize an extension-aware plan with values supplied by the execution environment.
+     * Runtime values override document defaults and are retained in the reconstructed plan.
+     *
+     * @param yaml plan YAML containing {@code ${variable}} references
+     * @param runtimeVariables values supplied by the caller for this execution
+     * @return the reconstructed, variable-resolved plan
+     */
+    public TxPlan fromYaml(String yaml, Map<String, Object> runtimeVariables) {
+        if (runtimeVariables == null)
+            throw new IllegalArgumentException("runtimeVariables is required");
         try {
             JsonNode unresolved = mapper.readTree(yaml);
+            if (!(unresolved instanceof ObjectNode))
+                throw new IllegalArgumentException("TxPlan YAML root must be a mapping");
+
             JsonNode variablesNode = unresolved.get("variables");
-            if (variablesNode != null && variablesNode.isObject()) {
-                Map<String, Object> variables = mapper.convertValue(variablesNode, Map.class);
-                yaml = VariableResolver.resolve(yaml, variables);
-            }
+            if (variablesNode != null && !variablesNode.isObject())
+                throw new IllegalArgumentException("variables must be a mapping");
+
+            Map<String, Object> variables = new LinkedHashMap<>();
+            if (variablesNode != null)
+                variables.putAll(mapper.convertValue(variablesNode,
+                        new TypeReference<Map<String, Object>>() { }));
+            variables.putAll(runtimeVariables);
+
+            ObjectNode unresolvedRoot = (ObjectNode) unresolved;
+            if (!variables.isEmpty())
+                unresolvedRoot.set("variables", mapper.valueToTree(variables));
+            yaml = mapper.writeValueAsString(unresolvedRoot);
+            yaml = VariableResolver.resolve(yaml, variables);
+
             ObjectNode root = (ObjectNode) mapper.readTree(yaml);
             Map<String, ExtensionMetadata> declared = readMetadata(root);
             validateBindings(declared);

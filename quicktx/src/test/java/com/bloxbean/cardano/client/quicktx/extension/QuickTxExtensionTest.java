@@ -64,6 +64,24 @@ class QuickTxExtensionTest {
     }
 
     @Test
+    void runtimeVariablesOverrideDocumentDefaultsAndRemainOnPlan() {
+        QuickTxExtension extension = extension(new AtomicBoolean());
+        TxPlanCodec codec = TxPlanCodec.builder().withExtension("ex", extension).build();
+        String yaml = "version: '1.0'\nvariables:\n  action_value: 1\nextensions:\n"
+                + "  ex:\n    extension: example\n    schema_version: '1'\n"
+                + "transaction:\n  - tx:\n      intents:\n"
+                + "        - type: ex:act\n          value: ${action_value}\n";
+
+        TxPlan plan = codec.fromYaml(yaml,
+                Map.of("action_value", 42, "execution_id", "devkit-run"));
+        ExampleIntent intent = (ExampleIntent) plan.getTxs().get(0).getIntentions().get(0);
+
+        assertThat(intent.getValue()).isEqualTo(42);
+        assertThat(plan.getVariables()).containsEntry("action_value", 42)
+                .containsEntry("execution_id", "devkit-run");
+    }
+
+    @Test
     void reservedNamespaceIsRejected() {
         assertThatThrownBy(() -> TxPlanCodec.builder()
                 .withExtension("core", extension(new AtomicBoolean())))
