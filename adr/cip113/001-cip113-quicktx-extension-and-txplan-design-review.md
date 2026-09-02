@@ -456,29 +456,24 @@ QuickTx mapper and does not require higher-level intent classes in `TxIntent@Jso
 Extension registration must be per codec and per builder, not global mutable state:
 
 ```java
-ProgrammableTokenExtension programmableToken = ProgrammableTokenExtension.builder(backendService)
-        .protocol(Cip113Protocol.create())
-        .deployment(Cip113Deployments.PREVIEW)
-        .build();
+ProgrammableTokenService programmableTokens =
+        Cip113ProgrammableTokenService.create(backendService, Cip113Deployments.PREVIEW);
 
-TxPlanCodec codec = TxPlanCodec.builder()
-        .withExtension("pt", programmableToken)
-        .build();
+TxPlanCodec codec = programmableTokens.txPlanCodec();
 
 TxPlan plan = codec.fromYaml(yaml, runtimeVariables);
 
 new QuickTxBuilder(backendService)
-        .withExtension(programmableToken)
+        .withExtension(programmableTokens.extension())
         .compose(plan)
         .complete();
 ```
 
-The Java convenience builder may omit `protocol(...)` when the supplied deployment descriptor
-declares its protocol, as `Cip113Deployments.PREVIEW` does. This provides a CIP-113 default without a
-global mutable choice or a dependency from neutral API packages to concrete CIP-113 classes.
-`TxPlanCodec` defaults the document namespace to `pt` when authoring. Canonical serialization always
-writes the resolved protocol and extension metadata, so a persisted plan never depends on a future
-library default.
+The protocol-specific service factory makes the CIP-113 and deployment choice explicit without a
+global mutable registry. `ProgrammableTokenService.txPlanCodec()` binds the configured extension
+under the conventional `pt` document namespace; its namespace overload supports local aliases.
+Canonical serialization always writes the resolved protocol and extension metadata, so a persisted
+plan never depends on a future library default.
 
 Runtime variables are supplied through the codec rather than by editing YAML text or inventing
 placeholder sentinel values. Document variables act as defaults, caller-supplied runtime variables

@@ -79,10 +79,7 @@ class Cip113TxPlanResourceEndToEndIT {
         assertThat(deployment.isSuccessful())
                 .as("resolving the YAML test deployment: %s", deployment.getResponse()).isTrue();
 
-        TxPlanCodec codec = TxPlanCodec.builder()
-                .withExtension(ProgrammableTokenExtension.DEFAULT_NAMESPACE,
-                        programmableTokens.extension())
-                .build();
+        TxPlanCodec codec = programmableTokens.txPlanCodec();
         Map<String, Object> common = new LinkedHashMap<>();
         common.put("owner_address", owner.baseAddress());
         common.put("bootstrap_tx", deployed.bootstrapTxHash());

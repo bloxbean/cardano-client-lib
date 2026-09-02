@@ -80,6 +80,33 @@ class ProgrammableTokenApiTest {
     }
 
     @Test
+    void serviceCreatesPlanCodecsForDefaultAndCustomNamespaces() {
+        ProgrammableTokenProtocol protocol = protocol(new AtomicInteger());
+        ProgrammableTokenExtension extension = extension(protocol);
+        ProgrammableTokenService service = new ProgrammableTokenService() {
+            @Override public ProgrammableTokenProtocolDescriptor protocol() {
+                return protocol.descriptor();
+            }
+            @Override public Set<ProgrammableTokenCapability> capabilities() {
+                return protocol.capabilities();
+            }
+            @Override public ProgrammableTokenExtension extension() {
+                return extension;
+            }
+        };
+        ProgrammableTokenTx tx = new ProgrammableTokenTx().transfer(address(),
+                Amount.asset("ab".repeat(28) + "00", 1), BigIntPlutusData.of(7));
+
+        String defaultYaml = service.txPlanCodec().toYaml(
+                extension.configure(TxPlan.from(tx)));
+        String customYaml = service.txPlanCodec("tokens").toYaml(
+                extension.configure(TxPlan.from(tx), "tokens"));
+
+        assertThat(defaultYaml).contains("type: pt:transfer");
+        assertThat(customYaml).contains("type: tokens:transfer");
+    }
+
+    @Test
     void programmableTransferIntentRoundTripsWithDefaultNamespace() {
         ProgrammableTokenExtension extension = extension(protocol(new AtomicInteger()));
         ProgrammableTokenTx tx = new ProgrammableTokenTx()

@@ -4,7 +4,7 @@
 CIP-113 (`0.5.0-alpha.2`) is the initial protocol adapter.
 
 ```java
-Cip113ProgrammableTokenService programmableTokens =
+ProgrammableTokenService programmableTokens =
         Cip113ProgrammableTokenService.create(backend, Cip113Deployments.PREVIEW);
 
 ProgrammableTokenTx tx = new ProgrammableTokenTx()
@@ -24,13 +24,14 @@ For a portable plan, configure the same extension on the plan codec and builder:
 ```java
 ProgrammableTokenExtension extension = programmableTokens.extension();
 TxPlan plan = extension.configure(TxPlan.from(tx));
-TxPlanCodec codec = TxPlanCodec.builder().withExtension("pt", extension).build();
+TxPlanCodec codec = programmableTokens.txPlanCodec();
 String yaml = codec.toYaml(plan);
 
-TxPlan replay = codec.fromYaml(yaml);
+TxPlan replay = codec.fromYaml(yaml, runtimeVariables);
 new QuickTxBuilder(backend).withExtension(extension).compose(replay).build();
 ```
 
 The namespace `pt` is document-local. Persisted plans also pin extension id, schema version,
 protocol, contract version, and deployment metadata. Ordinary `Tx.payToAddress(...)` never performs
-programmable-token routing.
+programmable-token routing. Use `programmableTokens.txPlanCodec("tokens")` when a document needs a
+custom namespace; use the generic `TxPlanCodec` builder when combining multiple extensions.
