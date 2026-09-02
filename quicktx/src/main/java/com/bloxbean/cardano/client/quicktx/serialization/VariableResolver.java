@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
+import java.math.BigInteger;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,16 +29,18 @@ public class VariableResolver {
      * @throws IllegalArgumentException if a required variable is not found
      */
     public static String resolve(String template, Map<String, Object> variables) {
-        if (template == null || variables == null || variables.isEmpty()) {
+        if (template == null) {
             return template;
         }
+
+        Map<String, Object> availableVariables = variables == null ? Map.of() : variables;
 
         Matcher matcher = VARIABLE_PATTERN.matcher(template);
         StringBuffer result = new StringBuffer();
 
         while (matcher.find()) {
             String variableName = matcher.group(1);
-            Object value = variables.get(variableName);
+            Object value = availableVariables.get(variableName);
 
             if (value == null) {
                 throw new IllegalArgumentException("Variable not found: " + variableName);
@@ -71,9 +74,10 @@ public class VariableResolver {
      * @throws IllegalArgumentException if a required variable is not found
      */
     public static JsonNode resolveInPlutusDataNode(JsonNode node, Map<String, Object> variables) {
-        if (node == null || variables == null || variables.isEmpty()) {
+        if (node == null) {
             return node;
         }
+        Map<String, Object> availableVariables = variables == null ? Map.of() : variables;
 
         if (node.isObject()) {
             ObjectNode obj = ((ObjectNode) node).deepCopy();
@@ -82,7 +86,7 @@ public class VariableResolver {
             obj.fields().forEachRemaining(entry -> {
                 String fieldName = entry.getKey();
                 JsonNode fieldValue = entry.getValue();
-                JsonNode resolved = resolveInPlutusDataNode(fieldValue, variables);
+                JsonNode resolved = resolveInPlutusDataNode(fieldValue, availableVariables);
 
                 // Special handling for "int" field in PlutusData
                 // If it's a string that represents a number, convert to numeric node
@@ -90,7 +94,7 @@ public class VariableResolver {
                     String text = resolved.asText();
                     try {
                         // Try to parse as a number and convert to numeric node
-                        obj.put(fieldName, Long.parseLong(text));
+                        obj.put(fieldName, new BigInteger(text));
                         return;
                     } catch (NumberFormatException e) {
                         // Not a number, keep as text
@@ -104,13 +108,13 @@ public class VariableResolver {
         } else if (node.isArray()) {
             ArrayNode arr = MAPPER.createArrayNode();
             for (JsonNode item : node) {
-                arr.add(resolveInPlutusDataNode(item, variables));
+                arr.add(resolveInPlutusDataNode(item, availableVariables));
             }
             return arr;
         } else if (node.isTextual()) {
             // Resolve variables in text nodes
             String text = node.asText();
-            String resolved = resolve(text, variables);
+            String resolved = resolve(text, availableVariables);
             return new TextNode(resolved);
         }
 

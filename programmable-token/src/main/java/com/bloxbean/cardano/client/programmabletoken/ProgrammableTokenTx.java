@@ -11,6 +11,7 @@ import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTokenAss
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTransferIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableUnfrackIntent;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.intent.PlutusDataValue;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.hdwallet.Wallet;
 
@@ -38,8 +39,10 @@ public class ProgrammableTokenTx extends Tx {
             throw new IllegalArgumentException("A programmable-token amount is required");
         if (amount.getQuantity() == null || amount.getQuantity().signum() <= 0)
             throw new IllegalArgumentException("transfer quantity must be positive");
+        requirePlutusData(transferRedeemer, "transfer redeemer");
         addIntention(ProgrammableTransferIntent.builder()
-                .receiver(receiver).amount(amount).transferRedeemer(transferRedeemer).build());
+                .receiver(receiver).amount(amount)
+                .transferRedeemer(PlutusDataValue.of(transferRedeemer)).build());
         return this;
     }
 
@@ -55,10 +58,12 @@ public class ProgrammableTokenTx extends Tx {
         if (policy == null) throw new IllegalArgumentException("policy is required");
         require(receiver, "receiver");
         requireAssets(assets, "mint");
+        requirePlutusData(issuanceRedeemer, "issuance redeemer");
         addIntention(ProgrammableMintIntent.builder()
                 .policy(policy).receiver(receiver).assets(assets.stream()
                         .map(ProgrammableTokenAsset::from).toList())
-                .issuanceRedeemer(issuanceRedeemer).inlineDatum(inlineDatum).build());
+                .issuanceRedeemer(PlutusDataValue.of(issuanceRedeemer))
+                .inlineDatum(PlutusDataValue.ofNullable(inlineDatum)).build());
         return this;
     }
 
@@ -66,11 +71,13 @@ public class ProgrammableTokenTx extends Tx {
                                     BurnAuthorization authorization) {
         if (authorization == null) throw new IllegalArgumentException("authorization is required");
         requireAssets(assets, "burn");
+        requirePlutusData(authorization.getTransferRedeemer(), "transfer redeemer");
+        requirePlutusData(authorization.getIssuanceRedeemer(), "issuance redeemer");
         addIntention(ProgrammableBurnIntent.builder()
                 .policy(ProgrammableTokenPolicyRef.policyId(policyId)).assets(assets.stream()
                         .map(ProgrammableTokenAsset::from).toList())
-                .transferRedeemer(authorization.getTransferRedeemer())
-                .issuanceRedeemer(authorization.getIssuanceRedeemer()).build());
+                .transferRedeemer(PlutusDataValue.of(authorization.getTransferRedeemer()))
+                .issuanceRedeemer(PlutusDataValue.of(authorization.getIssuanceRedeemer())).build());
         return this;
     }
 
@@ -82,9 +89,10 @@ public class ProgrammableTokenTx extends Tx {
             throw new IllegalArgumentException("A programmable-token amount is required");
         if (amount.getQuantity() == null || amount.getQuantity().signum() <= 0)
             throw new IllegalArgumentException("third-party transfer quantity must be positive");
+        requirePlutusData(thirdPartyRedeemer, "third-party redeemer");
         addIntention(ProgrammableThirdPartyTransferIntent.builder()
                 .holder(holder).receiver(receiver).amount(amount)
-                .thirdPartyRedeemer(thirdPartyRedeemer).build());
+                .thirdPartyRedeemer(PlutusDataValue.of(thirdPartyRedeemer)).build());
         return this;
     }
 
@@ -92,9 +100,10 @@ public class ProgrammableTokenTx extends Tx {
                                         PlutusData registrationRedeemer) {
         require(name, "registration name");
         if (registration == null) throw new IllegalArgumentException("registration is required");
+        requirePlutusData(registrationRedeemer, "registration redeemer");
         addIntention(ProgrammableRegisterIntent.builder()
                 .name(name).registration(registration)
-                .registrationRedeemer(registrationRedeemer).build());
+                .registrationRedeemer(PlutusDataValue.of(registrationRedeemer)).build());
         return this;
     }
 
@@ -102,20 +111,27 @@ public class ProgrammableTokenTx extends Tx {
                                               PlutusData authorization) {
         ProgrammableTokenPolicyRef.policyId(policyId);
         if (update == null) throw new IllegalArgumentException("update is required");
+        requirePlutusData(authorization, "authorization");
         addIntention(ProgrammableRegistryUpdateIntent.builder()
-                .policyId(policyId).update(update).authorization(authorization).build());
+                .policyId(policyId).update(update)
+                .authorization(PlutusDataValue.of(authorization)).build());
         return this;
     }
 
     public ProgrammableTokenTx unfrack(String policyId, PlutusData authorization) {
         ProgrammableTokenPolicyRef.policyId(policyId);
+        requirePlutusData(authorization, "authorization");
         addIntention(ProgrammableUnfrackIntent.builder()
-                .policyId(policyId).authorization(authorization).build());
+                .policyId(policyId).authorization(PlutusDataValue.of(authorization)).build());
         return this;
     }
 
     private static void require(String value, String field) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " is required");
+    }
+
+    private static void requirePlutusData(PlutusData value, String field) {
+        if (value == null) throw new IllegalArgumentException(field + " is required");
     }
 
     private static void requireAssets(List<Asset> assets, String operation) {

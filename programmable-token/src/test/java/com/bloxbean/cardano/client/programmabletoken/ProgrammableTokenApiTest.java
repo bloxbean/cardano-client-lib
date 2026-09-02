@@ -7,6 +7,8 @@ import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableBurnIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableMintIntent;
@@ -17,9 +19,14 @@ import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.extension.TxBuildExtension;
+import com.bloxbean.cardano.client.quicktx.intent.PlutusDataValue;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
+import com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.NamedType;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -29,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -48,7 +56,8 @@ class ProgrammableTokenApiTest {
                     assertThat(intent.getOperation()).isEqualTo("transfer");
                     assertThat(intent.getReceiver()).isEqualTo(address());
                     assertThat(intent.getAmount()).isEqualTo(amount);
-                    assertThat(intent.getTransferRedeemer()).isEqualTo(BigIntPlutusData.of(1));
+                    assertThat(intent.getTransferRedeemer().requireResolved())
+                            .isEqualTo(BigIntPlutusData.of(1));
                 });
     }
 
@@ -94,7 +103,8 @@ class ProgrammableTokenApiTest {
                     assertThat(intent.getAmount().getUnit())
                             .isEqualTo("ab".repeat(28) + "3078ff");
                     assertThat(intent.getAmount().getQuantity()).isEqualTo(BigInteger.ONE);
-                    assertThat(intent.getTransferRedeemer()).isEqualTo(BigIntPlutusData.of(7));
+                    assertThat(intent.getTransferRedeemer().requireResolved())
+                            .isEqualTo(BigIntPlutusData.of(7));
                 });
         assertThat(restoredYaml).isEqualTo(yaml);
     }
@@ -139,10 +149,13 @@ class ProgrammableTokenApiTest {
         assertThat(restoredMint.getPolicy().getName()).isEqualTo("named-policy");
         assertThat(restoredMint.getAssets()).containsExactly(
                 new ProgrammableTokenAsset("00ff", BigInteger.TEN));
-        assertThat(restoredMint.getInlineDatum()).isEqualTo(BigIntPlutusData.of(2));
+        assertThat(restoredMint.getInlineDatum().requireResolved())
+                .isEqualTo(BigIntPlutusData.of(2));
         assertThat(restoredBurn.getPolicy().getPolicyId()).isEqualTo(policyId);
-        assertThat(restoredBurn.getTransferRedeemer()).isEqualTo(BigIntPlutusData.of(3));
-        assertThat(restoredBurn.getIssuanceRedeemer()).isEqualTo(BigIntPlutusData.of(4));
+        assertThat(restoredBurn.getTransferRedeemer().requireResolved())
+                .isEqualTo(BigIntPlutusData.of(3));
+        assertThat(restoredBurn.getIssuanceRedeemer().requireResolved())
+                .isEqualTo(BigIntPlutusData.of(4));
     }
 
     @Test
@@ -182,9 +195,137 @@ class ProgrammableTokenApiTest {
                     ProgrammableTransferIntent.class, intent -> {
                         assertThat(intent.getReceiver()).isEqualTo(address());
                         assertThat(intent.getAmount()).isEqualTo(Amount.asset(unit, 3));
-                        assertThat(intent.getTransferRedeemer()).isEqualTo(BigIntPlutusData.of(9));
+                        assertThat(intent.getTransferRedeemer().requireResolved())
+                                .isEqualTo(BigIntPlutusData.of(9));
                     });
         });
+    }
+
+    @Test
+    void intentResolvesStructuredTemplateWithoutRawYamlSubstitution() throws Exception {
+        String unit = "cd".repeat(28) + "00ff";
+        ProgrammableTransferIntent unresolved = unresolvedMapper().readValue("""
+                type: programmable-token:transfer
+                receiver: %s
+                unit: %s
+                quantity: 3
+                transfer_redeemer:
+                  constructor: 0
+                  fields:
+                    - bytes: ${owner_pkh}
+                    - int: ${nonce}
+                """.formatted(address(), unit), ProgrammableTransferIntent.class);
+
+        assertThat(unresolved.getTransferRedeemer().isResolved()).isFalse();
+
+        ProgrammableTransferIntent resolved = (ProgrammableTransferIntent)
+                unresolved.resolveVariables(Map.of("owner_pkh", "ab".repeat(28), "nonce", 17));
+
+        assertThat(resolved.getTransferRedeemer().requireResolved()).isEqualTo(
+                ConstrPlutusData.of(0, BytesPlutusData.of(
+                                HexUtil.decodeHexString("ab".repeat(28))),
+                        BigIntPlutusData.of(17)));
+    }
+
+    @Test
+    void burnHexTemplatesResolveThenSerializeCanonically() throws Exception {
+        String policyId = "aa".repeat(28);
+        String transferCbor = ConstrPlutusData.of(0).serializeToHex();
+        String issuanceCbor = BigIntPlutusData.of(23).serializeToHex();
+        ProgrammableBurnIntent unresolved = unresolvedMapper().readValue("""
+                type: programmable-token:burn
+                policy_id: %s
+                assets:
+                  - name: 00ff
+                    quantity: 1
+                transfer_redeemer_hex: ${transfer_cbor}
+                issuance_redeemer_hex: ${issuance_cbor}
+                """.formatted(policyId), ProgrammableBurnIntent.class);
+
+        assertThat(unresolved.getTransferRedeemer().getForm())
+                .isEqualTo(PlutusDataValue.Form.CBOR_HEX);
+
+        ProgrammableBurnIntent resolved = (ProgrammableBurnIntent) unresolved.resolveVariables(
+                Map.of("transfer_cbor", transferCbor, "issuance_cbor", issuanceCbor));
+        String canonical = YamlSerializer.getYamlMapper().writeValueAsString(resolved);
+
+        assertThat(resolved.getTransferRedeemer().requireResolved().serializeToHex())
+                .isEqualTo(ConstrPlutusData.of(0).serializeToHex());
+        assertThat(resolved.getIssuanceRedeemer().requireResolved())
+                .isEqualTo(BigIntPlutusData.of(23));
+        assertThat(canonical).contains("transfer_redeemer:", "issuance_redeemer:")
+                .doesNotContain("transfer_redeemer_hex", "issuance_redeemer_hex");
+    }
+
+    @Test
+    void competingAndMissingRedeemerRepresentationsFailClearly() throws Exception {
+        String transferCbor = BigIntPlutusData.of(1).serializeToHex();
+        String yaml = """
+                type: programmable-token:transfer
+                receiver: %s
+                unit: %s00
+                quantity: 1
+                transfer_redeemer:
+                  int: 1
+                transfer_redeemer_hex: %s
+                """.formatted(address(), "aa".repeat(28), transferCbor);
+
+        assertThatThrownBy(() -> unresolvedMapper().readValue(
+                yaml, ProgrammableTransferIntent.class))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("transfer_redeemer_hex");
+
+        ProgrammableTransferIntent missing = ProgrammableTransferIntent.builder()
+                .receiver(address()).amount(Amount.asset("aa".repeat(28) + "00", 1)).build();
+        assertThatThrownBy(missing::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("transfer_redeemer is required");
+    }
+
+    @Test
+    void txPlanBurnAcceptsVariableCborHexAndEmitsCanonicalStructuredData() {
+        ProgrammableTokenExtension extension = extension(protocol(new AtomicInteger()));
+        TxPlanCodec codec = codec(extension);
+        String policyId = "aa".repeat(28);
+        String transferCbor = ConstrPlutusData.of(0).serializeToHex();
+        String issuanceCbor = BigIntPlutusData.of(31).serializeToHex();
+        String yaml = """
+                version: '1.0'
+                variables:
+                  transfer_cbor: %s
+                  issuance_cbor: %s
+                extensions:
+                  pt:
+                    extension: programmable-token
+                    schema_version: '1'
+                    protocol: test-protocol
+                    contract_version: '1'
+                    deployment:
+                      network: preview
+                transaction:
+                  - tx:
+                      from: %s
+                      intents:
+                        - type: pt:burn
+                          policy_id: %s
+                          assets:
+                            - name: 00ff
+                              quantity: 1
+                          transfer_redeemer_hex: ${transfer_cbor}
+                          issuance_redeemer_hex: ${issuance_cbor}
+                """.formatted(transferCbor, issuanceCbor, address(), policyId);
+
+        TxPlan restored = codec.fromYaml(yaml);
+        ProgrammableBurnIntent burn = (ProgrammableBurnIntent)
+                restored.getTxs().get(0).getIntentions().get(0);
+        String canonical = codec.toYaml(restored);
+
+        assertThat(burn.getTransferRedeemer().requireResolved().serializeToHex())
+                .isEqualTo(transferCbor);
+        assertThat(burn.getIssuanceRedeemer().requireResolved().serializeToHex())
+                .isEqualTo(issuanceCbor);
+        assertThat(canonical).contains("transfer_redeemer:", "issuance_redeemer:")
+                .doesNotContain("transfer_redeemer_hex", "issuance_redeemer_hex");
     }
 
     @Test
@@ -214,6 +355,14 @@ class ProgrammableTokenApiTest {
     private static ProgrammableTokenExtension extension(ProgrammableTokenProtocol protocol) {
         return ProgrammableTokenExtension.builder().protocol(protocol)
                 .deployment(Map.of("network", "preview")).build();
+    }
+
+    private static ObjectMapper unresolvedMapper() {
+        ObjectMapper mapper = YamlSerializer.getYamlMapper().copy();
+        mapper.registerSubtypes(
+                new NamedType(ProgrammableTransferIntent.class, "programmable-token:transfer"),
+                new NamedType(ProgrammableBurnIntent.class, "programmable-token:burn"));
+        return mapper;
     }
 
     private static TxPlanCodec codec(ProgrammableTokenExtension extension) {

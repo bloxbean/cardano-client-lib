@@ -33,6 +33,8 @@ import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
+import com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -1399,10 +1401,23 @@ public class Cip113EndToEndIT {
                 .build();
 
         String yaml = codec.toYaml(authoredPlan);
+        ObjectNode yamlTree = (ObjectNode) YamlSerializer.getYamlMapper().readTree(yaml);
+        ObjectNode variables = (ObjectNode) yamlTree.get("variables");
+        if (variables == null) {
+            variables = YamlSerializer.getYamlMapper().createObjectNode();
+            yamlTree.set("variables", variables);
+        }
+        variables.put("transfer_redeemer_cbor", BigIntPlutusData.of(0).serializeToHex());
+        ObjectNode yamlIntent = (ObjectNode) yamlTree.withArray("transaction").get(0)
+                .get("tx").withArray("intents").get(0);
+        yamlIntent.remove("transfer_redeemer");
+        yamlIntent.put("transfer_redeemer_hex", "${transfer_redeemer_cbor}");
+        yaml = YamlSerializer.getYamlMapper().writeValueAsString(yamlTree);
         assertThat(yaml)
                 .contains("extension: programmable-token")
                 .contains("protocol: cip-113")
-                .contains("type: pt:transfer");
+                .contains("type: pt:transfer")
+                .contains("transfer_redeemer_hex: \"${transfer_redeemer_cbor}\"");
 
         TxPlan restoredPlan = codec.fromYaml(yaml);
         assertThat(restoredPlan.getTxs()).singleElement().isExactlyInstanceOf(Tx.class);

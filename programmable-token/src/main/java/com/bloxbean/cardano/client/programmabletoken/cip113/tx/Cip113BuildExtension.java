@@ -26,6 +26,7 @@ import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.extension.BalanceFinalization;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionBuildContext;
 import com.bloxbean.cardano.client.quicktx.extension.TxBuildExtension;
+import com.bloxbean.cardano.client.quicktx.intent.PlutusDataValue;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -121,7 +122,7 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             Cip113TransactionMaterializer materializer = newMaterializer(context, owner, registry);
             materializer.updateRegistryNode(
                     Cip113RegistryUpdate.toNode(update.getPolicyId(), update.getUpdate()),
-                    update.getAuthorization());
+                    resolved(update.getAuthorization(), "authorization"));
             finish(context, source, materializer);
             return;
         }
@@ -136,7 +137,7 @@ public final class Cip113BuildExtension implements TxBuildExtension {
         // Registration publishes named policies before dependent mints, independent of fluent order.
         for (ProgrammableRegisterIntent registration : registrations) {
             primary.registerToken(Cip113Registration.toSpec(registration.getRegistration()),
-                    registration.getRegistrationRedeemer());
+                    resolved(registration.getRegistrationRedeemer(), "registration_redeemer"));
             namedPolicies.put(registration.getName(), primary.registeredPolicyId());
         }
 
@@ -162,18 +163,23 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                     primary.recordTransferForExtension(entry.getKey(), transfer.getReceiver(),
                             transfer.getAmount());
                     transferRedeemer = sameRedeemer(transferRedeemer,
-                            transfer.getTransferRedeemer(), entry.getKey(), "transfer");
+                            resolved(transfer.getTransferRedeemer(), "transfer_redeemer"),
+                            entry.getKey(), "transfer");
                 } else {
                     ProgrammableBurnIntent burn = (ProgrammableBurnIntent) intent;
+                    PlutusData burnTransfer = resolved(
+                            burn.getTransferRedeemer(), "transfer_redeemer");
+                    PlutusData burnIssuance = resolved(
+                            burn.getIssuanceRedeemer(), "issuance_redeemer");
                     transferRedeemer = sameRedeemer(transferRedeemer,
-                            burn.getTransferRedeemer(), entry.getKey(), "transfer");
+                            burnTransfer, entry.getKey(), "transfer");
                     for (ProgrammableTokenAsset declaredAsset : burn.getAssets()) {
                         Asset asset = declaredAsset.toLedgerAsset();
                         Asset negative = asset.getValue().signum() > 0
                                 ? new Asset("0x" + HexUtil.encodeHexString(asset.getNameAsBytes()),
                                 asset.getValue().negate()) : asset;
                         primary.recordBurnForExtension(entry.getKey(), negative,
-                                burn.getTransferRedeemer(), burn.getIssuanceRedeemer());
+                                burnTransfer, burnIssuance);
                     }
                 }
             }
@@ -187,8 +193,9 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                 List<Asset> assets = mint.getAssets().stream()
                         .map(ProgrammableTokenAsset::toLedgerAsset)
                         .toList();
-                primary.mintAsset(policy, assets, mint.getIssuanceRedeemer(),
-                        mint.getReceiver(), mint.getInlineDatum());
+                primary.mintAsset(policy, assets,
+                        resolved(mint.getIssuanceRedeemer(), "issuance_redeemer"),
+                        mint.getReceiver(), resolvedOptional(mint.getInlineDatum(), "inline_datum"));
             } else if (intent instanceof ProgrammableUnfrackIntent) {
                 throw new Cip113Exception("CIP-113 unfrack is not implemented by this adapter");
             }
@@ -213,7 +220,8 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             String policy = policyFromAmount(intent.getAmount());
             materializer.recordTransferForExtension(policy, intent.getReceiver(), intent.getAmount());
             redeemers.put(policy, sameRedeemer(redeemers.get(policy),
-                    intent.getThirdPartyRedeemer(), policy, "third-party"));
+                    resolved(intent.getThirdPartyRedeemer(), "third_party_redeemer"),
+                    policy, "third-party"));
         }
         redeemers.forEach(materializer::withRedeemer);
         finish(context, source, materializer);
@@ -306,6 +314,15 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             throw new Cip113Exception("Policy " + policy + " declares different " + role
                     + " redeemers in one transaction");
         return existing;
+    }
+
+    private static PlutusData resolved(PlutusDataValue value, String fieldName) {
+        if (value == null) throw new Cip113Exception(fieldName + " is required");
+        return value.requireResolved(fieldName);
+    }
+
+    private static PlutusData resolvedOptional(PlutusDataValue value, String fieldName) {
+        return value == null ? null : value.requireResolved(fieldName);
     }
 
     private static final class SnapshotRegistryLookup implements RegistryLookup {

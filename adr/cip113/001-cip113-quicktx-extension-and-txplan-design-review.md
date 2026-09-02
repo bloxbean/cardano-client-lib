@@ -2,7 +2,7 @@
 
 **Date**: 2026-08-30
 
-**Revision**: 4 — typed extension intents and extension-owned codecs
+**Revision**: 5 — reusable deferred Plutus-data values and canonical YAML
 
 **Last updated**: 2026-09-02
 
@@ -550,7 +550,7 @@ Concrete intents live in `com.bloxbean.cardano.client.programmabletoken.intent` 
 QuickTx naming conventions: `ProgrammableTransferIntent`, `ProgrammableMintIntent`,
 `ProgrammableBurnIntent`, `ProgrammableRegisterIntent`,
 `ProgrammableThirdPartyTransferIntent`, `ProgrammableRegistryUpdateIntent`, and
-`ProgrammableUnfrackIntent`. Their fields use domain types such as `Amount`, `PlutusData`,
+`ProgrammableUnfrackIntent`. Their fields use domain types such as `Amount`, `PlutusDataValue`,
 `ProgrammableTokenPolicyRef`, typed credential/registry values, and binary-safe programmable-token
 asset values. No semantic intent or nested domain value uses a string-keyed payload map. The
 CIP-113 build extension consumes these concrete types and contains no generic payload-key extraction.
@@ -651,7 +651,8 @@ A plan stores:
 - explicit protocol id;
 - an exact or resolvable deployment reference;
 - optional verified `contract_version` metadata;
-- structured Plutus data using the existing `PlutusDataYamlUtil` representation.
+- structured Plutus data using the existing `PlutusDataYamlUtil` representation or CBOR hex using
+  the established sibling `_hex` convention.
 
 A plan does not store:
 
@@ -681,6 +682,8 @@ variables:
   owner: addr_test1...
   receiver: addr_test1...
   policy_id: 0123...
+  owner_pkh: 89ab...
+  nonce: 42
 
 context:
   fee_payer: ${owner}
@@ -697,8 +700,15 @@ transaction:
               quantity: 100
           transfer_redeemer:
             constructor: 0
-            fields: []
+            fields:
+              - bytes: ${owner_pkh}
+              - int: ${nonce}
 ```
+
+The CBOR-equivalent alternative is `transfer_redeemer_hex: ${transfer_redeemer_cbor}`. The suffix
+means CBOR serialization of the complete `PlutusData`; it is distinct from `bytes:` inside the
+structured form, which constructs a Plutus byte-string value. An intent must reject documents that
+provide both forms for one logical value.
 
 The key `pt` is the document-local namespace alias; the stable extension identity is the
 `programmable-token` value. A user may choose another valid alias, but every qualified intent must
@@ -733,6 +743,36 @@ classes only on its private mapper copy. Only explicitly registered extension/op
 instantiate classes. Decoding produces the typed intent directly; there is no intermediate
 `Map<String, Object>` extension payload.
 
+### 7.3.1 Deferred Plutus-data value
+
+QuickTx provides a protocol-neutral `PlutusDataValue` used by extension intents for redeemers,
+authorizations, and datums. It has three source forms: an already resolved `PlutusData`, an unresolved
+structured `JsonNode`, or unresolved CBOR hex. A present value contains exactly one representation;
+the generic type does not decide whether the property is required. Each semantic intent owns that
+decision, so an optional inline datum may be absent while burn transfer and issuance redeemers are
+required.
+
+The Java facade continues to accept ordinary `PlutusData` and wraps it internally. Structured and
+hex sources resolve without chain I/O during `TxIntent.resolveVariables(...)`. Hex containing
+`${variables}` is not decoded or definitively validated until after substitution. Resolution returns
+a resolved value; it need not retain whether the source was HEX or STRUCTURED. Canonical
+serialization of a resolved value may therefore emit structured YAML even when the input used
+`*_hex`.
+
+The sibling field convention is role-specific and consistent with core QuickTx YAML:
+
+- `transfer_redeemer` / `transfer_redeemer_hex`;
+- `issuance_redeemer` / `issuance_redeemer_hex`;
+- `third_party_redeemer` / `third_party_redeemer_hex`;
+- `registration_redeemer` / `registration_redeemer_hex`;
+- `authorization` / `authorization_hex`;
+- `inline_datum` / `inline_datum_hex`.
+
+Datum hashes are output-shape choices rather than Plutus-data values and are outside this abstraction.
+Migration of existing core QuickTx intents to this value type is intentionally deferred to
+[issue #658](https://github.com/bloxbean/cardano-client-lib/issues/658) so PR #657 can validate the
+abstraction through Programmable Token without expanding its compatibility surface.
+
 ### 7.4 Namespace and default rules
 
 - `pt` is the default namespace used by Java-to-YAML authoring.
@@ -756,7 +796,9 @@ Every Programmable Token intent must implement `resolveVariables(...)` for:
 - structured redeemers and inline datums.
 
 Extension metadata and deployment variables must resolve before protocol capability validation and
-chain access.
+chain access. Tests must deserialize unresolved intent templates without invoking whole-document
+string substitution, then call the intent's `resolveVariables(...)` directly. This prevents the
+legacy YAML pre-pass from masking a missing or broken intent resolver.
 
 ### 7.6 Round-trip contract
 
@@ -766,8 +808,10 @@ For every serializable Programmable Token operation:
 Java intent -> YAML -> TxPlan -> YAML -> TxPlan
 ```
 
-must preserve semantic equality. Namespace aliases are presentation metadata; canonical extension
-and operation identities determine intent equality. Runtime-resolved data may differ between builds
+must preserve semantic equality. The first serialization after resolution may canonicalize CBOR hex
+to structured YAML; subsequent serialization is stable and the decoded `PlutusData` CBOR must remain
+equal. Namespace aliases are presentation metadata; canonical extension and operation identities
+determine intent equality. Runtime-resolved data may differ between builds
 because chain state can change; the declared operation, protocol, and deployment constraint must not.
 
 ---
@@ -1366,6 +1410,8 @@ The architecture is approved when:
 | Protocol default | Java omission with a CIP-113 deployment descriptor resolves to pinned CIP-113; canonical YAML explicitly emits `protocol: cip-113` |
 | Contract version | Exact deployment resolves and verifies `contract_version`; mismatch fails before input selection |
 | Package boundary | Protocol-neutral packages do not import the CIP-113 package |
+| Deferred Plutus data | Structured and CBOR-hex forms; nested variables; missing variables; invalid hex/CBOR; large integers; defensive node copies; canonical serialization |
+| Representation conflict | Supplying both structured and `_hex` forms for one logical value fails; optional values may be absent; each intent enforces required role values |
 
 ### 15.2 TxPlan tests
 
@@ -1377,6 +1423,9 @@ The architecture is approved when:
 - Canonical serialization emits explicit extension id, protocol, schema version, deployment, and
   resolved contract version when known.
 - Variables in addresses, units, quantities, credentials, redeemers, and deployment references.
+- Unresolved structured and `_hex` templates parsed without raw YAML substitution and resolved by
+  each programmable-token intent's `resolveVariables(...)` implementation.
+- CBOR-hex input canonicalizes to structured output without changing decoded Plutus data.
 - Unknown extension id and unknown intent type fail loudly.
 - Registered codec without runtime extension fails before chain access.
 - Runtime extension with incompatible schema, protocol, contract version, or deployment fails during
