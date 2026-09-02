@@ -62,7 +62,7 @@ This ADR makes the following foundational choices:
 - TxPlan gains an explicit top-level `extensions` section, document-local namespace aliases such as
   `pt`, qualified intent names such as `pt:transfer`, and an external intent-codec registry;
 - the exact deployment identifies the validator surface. `contract_version`, when emitted, is
-  verified deployment metadata rather than a user-selected `profile`.
+  informational provenance rather than a compatibility selector or user-selected `profile`.
 
 PR #653 should not establish its current classes as stable public API until the correctness blockers
 and extension design in this ADR are addressed. If merged incrementally, the module and APIs should
@@ -388,13 +388,14 @@ operations map to a particular technical specification and deployed validator su
 | Extension id | `programmable-token` | Stable library-defined identity |
 | TxPlan namespace | `pt` | Document-local configurable alias |
 | Protocol id | `cip-113` | Technical specification/materializer identity |
-| Contract version | `0.5.0-alpha.2` for the reviewed deployment | Verified deployment metadata |
+| Contract version | `0.5.0-alpha.2` from the reviewed reference blueprint | Informational provenance |
 | Extension schema version | `1` | Serialized Programmable Token intent schema |
 | Deployment | Preview bootstrap transaction or another exact reference | Concrete on-chain validator instance |
 
 Use the term `protocol`, not `dialect`, in the public API and TxPlan. CIP-113 defines contract
 semantics and wire formats, not merely syntax. A future compatible revision can retain protocol id
-`cip-113` with a new contract version. A different specification can register another protocol id.
+`cip-113`; an informational contract-suite label may also change. A different specification can
+register another protocol id.
 This protocol concept must not be confused with CIP-113 substandards, which remain token-specific
 issuance, transfer, and third-party logic within the CIP-113 framework.
 
@@ -493,7 +494,7 @@ The plan codec and builder must reject:
 - a registered codec with no corresponding execution extension;
 - a requested operation unsupported by the selected protocol, deployment, or CCL implementation;
 - a deployment reference that the runtime cannot resolve;
-- incompatible extension schema, protocol, or verified contract versions.
+- incompatible extension schema, protocol, or deployment reference.
 
 Unknown fields may follow existing forward-compatibility rules, but unknown semantic operations must
 never be ignored or routed through an ordinary native-token path.
@@ -649,7 +650,7 @@ A plan stores:
 - extension id, document namespace, and extension schema version;
 - explicit protocol id;
 - an exact or resolvable deployment reference;
-- optional verified `contract_version` metadata;
+- optional informational `contract_version` metadata;
 - structured Plutus data using the existing `PlutusDataYamlUtil` representation or CBOR hex using
   the established sibling `_hex` convention.
 
@@ -714,12 +715,12 @@ The key `pt` is the document-local namespace alias; the stable extension identit
 refer to a declared alias. This requires an intentional change to `TransactionDocument`,
 `TxPlan.toYaml/fromYaml`, validation, and schema-version handling.
 
-`contract_version` is not a CIP version, CCL version, or user-selected dialect/profile. It identifies
-the validator and datum/redeemer compatibility surface associated with the exact deployment. The
-deployment resolver verifies it by matching the bootstrap reference and resolved validator hashes to
-a pinned descriptor; the chain does not itself publish this semantic version string. It may be
-omitted from hand-authored input when an exact deployment reference determines it, but canonical
-serialization should emit the resolved value when known.
+`contract_version` is not a CIP version, CCL version, or user-selected dialect/profile. For now it is
+optional informational provenance, such as the version in the reference implementation blueprint
+used during qualification. The chain does not publish this semantic version and CIP-113 has not yet
+defined how final public deployments expose one. A codec preserves the field when present, but does
+not infer it, select behavior from it, or reject a mismatch. Runtime compatibility is anchored by
+the explicit deployment reference and resolved script identities.
 
 ### 7.3 Codec extensibility
 
@@ -1048,22 +1049,21 @@ Keep these version axes independent:
 |---|---|---|
 | Extension schema | `1` | Programmable Token TxPlan field compatibility |
 | Protocol | `cip-113` | Selects the technical materializer and codec family |
-| Contract version | `0.5.0-alpha.2` | Identifies the deployed validator/datum/redeemer surface |
+| Contract version | `0.5.0-alpha.2` | Optional reference-contract provenance; informational only |
 | Deployment | Preview bootstrap transaction | Identifies exact on-chain scripts and protocol state |
 
-Do not call the contract version a `profile`; the term is ambiguous. `contract_version` is verified
-against the pinned deployment descriptor and resolved hashes, and is never a free-form switch that
-selects behavior by itself.
+Do not call the contract version a `profile`; the term is ambiguous. `contract_version` is preserved
+as optional provenance and never selects behavior or establishes deployment compatibility.
 
 Each CIP-113 deployment descriptor should carry:
 
 - deployment identifier;
 - network;
 - bootstrap transaction hash;
-- protocol id and contract version;
+- protocol id and optional informational contract version;
 - codec version;
 - known validator/script hashes after resolution;
-- feature flags or capabilities where contract versions differ.
+- independently verified feature flags or capabilities.
 
 Example:
 
@@ -1227,7 +1227,8 @@ through YAML using canonical extension/operation identity independent of the cho
 Goal: execute all semantic intents in one coherent build pass.
 
 - Resolve and version-check deployment.
-- Verify the deployment-resolved `contract_version` and effective capabilities.
+- Verify the resolved deployment identity, script surface, and effective capabilities; retain any
+  `contract_version` only as informational provenance.
 - Load one registry snapshot per build.
 - Aggregate operations across composed transaction fragments.
 - Reserve PLB and ADA inputs globally.
@@ -1346,7 +1347,7 @@ default or record a replacement before implementation begins.
 | Namespace | Default to `pt`, allow a user-provided document alias, and serialize types as quoted qualified names such as `"pt:transfer"`. Resolve aliases before runtime dispatch. |
 | Protocol default | A Java caller may omit the protocol when the configured deployment descriptor declares `cip-113`. Persisted plans always record `protocol: cip-113`; a library upgrade cannot reinterpret them. |
 | Register-and-mint reference | Introduce `ProgrammableTokenPolicyRef`; do not reuse the native-policy `PolicyRef`. |
-| First supported contract surface | Pin the exact Preview deployment, validator hashes, reference implementation commit, and blueprint version used for qualification. The candidate reviewed here has contract version `0.5.0-alpha.2`; it becomes supported only after those artifacts are captured in a deployment descriptor and pass the test matrix. |
+| First supported contract surface | Pin the exact Preview deployment, validator hashes, reference implementation commit, and blueprint used for qualification. The reviewed blueprint reports `0.5.0-alpha.2` as informational provenance; support is established by the captured deployment artifacts and test matrix, not that label. |
 | Version terminology | Keep extension `schema_version`, protocol id, `contract_version`, and deployment reference separate. Do not use the ambiguous term `profile`. |
 | Compatibility status | Mark the generic SPI, Programmable Token API, and CIP-113 protocol API experimental. Version serialized extension schemas independently; promise no stable Java binary compatibility until CIP-113 and the SPI complete qualification. |
 | Implicit payment routing | Remove it from the primary API. Use explicit Programmable Token verbs; any temporary compatibility route must be deprecated, exhaustive across overloads, and fail closed. |
@@ -1407,7 +1408,7 @@ The architecture is approved when:
 | Stability guard | Reorder index-sensitive entries without changing list sizes; assert the content/order snapshot rejects or re-finalizes |
 | Non-convergence | Extension alternates index-sensitive content; assert the bounded loop fails with an actionable error |
 | Protocol default | Java omission with a CIP-113 deployment descriptor resolves to pinned CIP-113; canonical YAML explicitly emits `protocol: cip-113` |
-| Contract version | Exact deployment resolves and verifies `contract_version`; mismatch fails before input selection |
+| Contract version | Optional value is preserved through YAML round trips; absence or mismatch does not affect dispatch or building |
 | Package boundary | Protocol-neutral packages do not import the CIP-113 package |
 | Deferred Plutus data | Structured and CBOR-hex forms; nested variables; missing variables; invalid hex/CBOR; large integers; defensive node copies; canonical serialization |
 | Representation conflict | Supplying both structured and `_hex` forms for one logical value fails; optional values may be absent; each intent enforces required role values |
@@ -1420,15 +1421,15 @@ The architecture is approved when:
 - Default `pt` and a custom alias both resolve to the same canonical semantic intents.
 - Duplicate, undeclared, invalid, and reserved namespace aliases fail loudly.
 - `pt:transfer` without a declared `pt` extension fails loudly.
-- Canonical serialization emits explicit extension id, protocol, schema version, deployment, and
-  resolved contract version when known.
+- Canonical serialization emits explicit extension id, protocol, schema version, and deployment;
+  it preserves an informational contract version when supplied by the extension or document.
 - Variables in addresses, units, quantities, credentials, redeemers, and deployment references.
 - Unresolved structured and `_hex` templates parsed without raw YAML substitution and resolved by
   each programmable-token intent's `resolveVariables(...)` implementation.
 - CBOR-hex input canonicalizes to structured output without changing decoded Plutus data.
 - Unknown extension id and unknown intent type fail loudly.
 - Registered codec without runtime extension fails before chain access.
-- Runtime extension with incompatible schema, protocol, contract version, or deployment fails during
+- Runtime extension with incompatible schema, protocol, or deployment fails during
   validation.
 - An unwired Java authoring facade serializes its semantic intents without composing first.
 - Deserialization produces an ordinary `Tx` that executes successfully with the registered extension.
@@ -1522,8 +1523,8 @@ Each PR should keep `./gradlew clean build` green and include focused tests for 
 - [x] Approve per-builder/per-codec registration and deterministic lifecycle ordering.
 - [x] Approve top-level `TransactionDocument.extensions`, default `pt` namespace, and qualified
   intent names.
-- [x] Approve explicit protocol metadata and deployment-verified `contract_version`; reject
-  `profile` terminology.
+- [x] Approve explicit protocol and deployment metadata; retain optional `contract_version` as
+  informational provenance and reject `profile` terminology.
 - [x] Approve `ProgrammableTokenPolicyRef` for register-and-mint.
 - [x] Approve QuickTx-owned bounded stabilization with content/order snapshots.
 - [x] Pin the first supported CIP-113 deployment/reference version.

@@ -10,9 +10,17 @@ import com.bloxbean.cardano.client.quicktx.extension.TxBuildExtension;
 import java.util.EnumSet;
 import java.util.Set;
 
-/** CIP-113 protocol adapter for contract surface 0.5.0-alpha.2. */
+/** CIP-113 protocol adapter tested against reference contract suite 0.5.0-alpha.2. */
 public final class Cip113Protocol implements ProgrammableTokenProtocol {
     public static final String ID = "cip-113";
+
+    /**
+     * Informational version from the vendored CIP-113 reference implementation blueprint.
+     *
+     * <p>This is not a version discovered from, or required of, an on-chain deployment. Runtime
+     * compatibility is anchored by the explicit {@link Cip113Deployment} until CIP-113 defines a
+     * public deployment/version discovery mechanism.</p>
+     */
     public static final String CONTRACT_VERSION = "0.5.0-alpha.2";
 
     private final Cip113ProtocolService service;

@@ -7,7 +7,7 @@ reference contracts remain in alpha.
 - TxPlan schema version: `1`
 - Default document namespace: `pt`
 - Initial protocol: `cip-113`
-- Supported CIP-113 contract surface: `0.5.0-alpha.2`
+- Reference CIP-113 contract suite used for qualification: `0.5.0-alpha.2` (informational)
 - Supported deployment: the explicit `Cip113Deployment` supplied to the service; persisted plans
   pin its bootstrap transaction when available.
 

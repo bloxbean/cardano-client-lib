@@ -21,6 +21,8 @@ import java.util.Set;
 public final class ProgrammableTokenExtension implements QuickTxExtension {
     public static final String ID = "programmable-token";
     public static final String DEFAULT_NAMESPACE = "pt";
+
+    /** Version of the serialized programmable-token intent schema. */
     public static final String SCHEMA_VERSION = "1";
     private static final Map<String, Class<? extends ExtensionIntent>> INTENT_TYPES = Map.of(
             ProgrammableTransferIntent.OPERATION, ProgrammableTransferIntent.class,

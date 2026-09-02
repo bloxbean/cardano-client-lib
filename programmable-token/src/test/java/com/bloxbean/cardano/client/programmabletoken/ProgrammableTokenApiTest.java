@@ -107,6 +107,31 @@ class ProgrammableTokenApiTest {
     }
 
     @Test
+    void contractVersionIsInformationalAndPreservedWithoutCompatibilityValidation() {
+        ProgrammableTokenExtension extension = extension(protocol(new AtomicInteger()));
+        TxPlanCodec codec = codec(extension);
+        String yaml = """
+                version: '1.0'
+                extensions:
+                  pt:
+                    extension: programmable-token
+                    schema_version: '1'
+                    protocol: test-protocol
+                    contract_version: future-public-deployment
+                    deployment:
+                      network: preview
+                transaction: []
+                """;
+
+        TxPlan restored = codec.fromYaml(yaml);
+        String canonical = codec.toYaml(restored);
+
+        assertThat(restored.getExtensions().get("pt").getContractVersion())
+                .isEqualTo("future-public-deployment");
+        assertThat(canonical).contains("contract_version: future-public-deployment");
+    }
+
+    @Test
     void programmableTransferIntentRoundTripsWithDefaultNamespace() {
         ProgrammableTokenExtension extension = extension(protocol(new AtomicInteger()));
         ProgrammableTokenTx tx = new ProgrammableTokenTx()

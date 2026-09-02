@@ -1,7 +1,8 @@
 # Programmable Token
 
 `cardano-client-programmable-token` adds protocol-neutral programmable-token intents to QuickTx.
-CIP-113 (`0.5.0-alpha.2`) is the initial protocol adapter.
+CIP-113 is the initial protocol adapter and has been tested against reference contract suite
+`0.5.0-alpha.2`.
 
 ```java
 ProgrammableTokenService programmableTokens =
@@ -31,7 +32,9 @@ TxPlan replay = codec.fromYaml(yaml, runtimeVariables);
 new QuickTxBuilder(backend).withExtension(extension).compose(replay).build();
 ```
 
-The namespace `pt` is document-local. Persisted plans also pin extension id, schema version,
-protocol, contract version, and deployment metadata. Ordinary `Tx.payToAddress(...)` never performs
-programmable-token routing. Use `programmableTokens.txPlanCodec("tokens")` when a document needs a
-custom namespace; use the generic `TxPlanCodec` builder when combining multiple extensions.
+The namespace `pt` is document-local. Persisted plans pin extension id, schema version, protocol,
+and deployment metadata. Optional `contract_version` is informational provenance and is preserved,
+but it is not currently used for dispatch or compatibility validation. Ordinary
+`Tx.payToAddress(...)` never performs programmable-token routing. Use
+`programmableTokens.txPlanCodec("tokens")` when a document needs a custom namespace; use the generic
+`TxPlanCodec` builder when combining multiple extensions.
