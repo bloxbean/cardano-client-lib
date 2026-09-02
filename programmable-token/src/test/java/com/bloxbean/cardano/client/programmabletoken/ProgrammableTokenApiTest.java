@@ -132,7 +132,13 @@ class ProgrammableTokenApiTest {
         ProgrammableTokenExtension extension = extension(protocol(new AtomicInteger()));
         TxPlanCodec codec = codec(extension);
 
-        TxPlan restored = codec.fromYaml(codec.toYaml(extension.configure(TxPlan.from(tx))));
+        String yaml = codec.toYaml(extension.configure(TxPlan.from(tx)));
+        TxPlan restored = codec.fromYaml(yaml);
+
+        assertThat(yaml)
+                .contains("minting_logic_script:", "transfer_logic_script:",
+                        "third_party_transfer_logic_script:", "unfracking_logic_script:")
+                .doesNotContain("mintingLogicScript", "transferLogicScript");
 
         assertThat(restored.getTxs().get(0).getIntentions())
                 .hasExactlyElementsOfTypes(ProgrammableRegisterIntent.class,

@@ -41,6 +41,7 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -72,6 +73,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * neither the script nor the reason.</p>
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@ResourceLock("yaci-devkit")
 public class Cip113EndToEndIT {
 
     private static BackendService backendService;

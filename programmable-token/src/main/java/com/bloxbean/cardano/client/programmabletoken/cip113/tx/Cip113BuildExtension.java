@@ -310,7 +310,7 @@ public final class Cip113BuildExtension implements TxBuildExtension {
     private static PlutusData sameRedeemer(PlutusData existing, PlutusData candidate,
                                            String policy, String role) {
         if (existing == null) return candidate;
-        if (!existing.equals(candidate))
+        if (!PlutusDataEquality.equals(existing, candidate))
             throw new Cip113Exception("Policy " + policy + " declares different " + role
                     + " redeemers in one transaction");
         return existing;

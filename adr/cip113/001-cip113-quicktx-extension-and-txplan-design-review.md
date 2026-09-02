@@ -2,7 +2,7 @@
 
 **Date**: 2026-08-30
 
-**Revision**: 5 — reusable deferred Plutus-data values and canonical YAML
+**Revision**: 6 — executable TxPlan lifecycle and isolated JuLC substandard fixture
 
 **Last updated**: 2026-09-02
 
@@ -1412,6 +1412,7 @@ The architecture is approved when:
 | Package boundary | Protocol-neutral packages do not import the CIP-113 package |
 | Deferred Plutus data | Structured and CBOR-hex forms; nested variables; missing variables; invalid hex/CBOR; large integers; defensive node copies; canonical serialization |
 | Representation conflict | Supplying both structured and `_hex` forms for one logical value fails; optional values may be absent; each intent enforces required role values |
+| Semantic Plutus equality | Equivalent definite- and indefinite-length CBOR containers compare as one redeemer when roles share a withdrawal credential |
 
 ### 15.2 TxPlan tests
 
@@ -1464,6 +1465,10 @@ The architecture is approved when:
 - Burn using distinct transfer and issuance substandard scripts.
 - Register, wait, then mint using the same long-lived service without cache invalidation.
 - Register-and-mint from a YAML plan using a named policy reference.
+- Execute deployment prerequisites, registration and named-policy initial mint, additional mint,
+  transfer, and burn from separate versioned YAML resources with runtime variables.
+- Use an integration-only JuLC substandard that validates a typed authorization redeemer and the
+  expected holder datum on-chain; do not rely only on an always-true validator.
 - Execute the same semantic operation from Java and YAML and compare resulting on-chain state.
 - Multi-policy co-resident UTxO handling, including an unregistered incidental policy.
 - Graceful errors for missing global-state UTxO and backend lookup failure.
@@ -1474,8 +1479,15 @@ The architecture is approved when:
 ./gradlew :quicktx:test
 ./gradlew :programmable-token:test
 ./gradlew :programmable-token:integrationTest --tests '*Cip113EndToEndIT*'
+./gradlew :programmable-token:integrationTest --tests '*Cip113TxPlanResourceEndToEndIT*'
 ./gradlew clean build
 ```
+
+The JuLC substandard is a checked-in, isolated project under `programmable-token/src/it/julc`.
+Regenerating its Plutus V3 blueprint requires Java 25, but neither JuLC nor its Java 25 bytecode is
+on the CCL build or integration-test classpath. CCL retains Java 17 compatibility and consumes only
+the checked-in `plutus.json`, whose script hash the integration test verifies. The isolated build
+excludes JuLC's transitive released CCL dependency.
 
 ---
 

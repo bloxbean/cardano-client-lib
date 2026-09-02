@@ -1,15 +1,18 @@
 package com.bloxbean.cardano.client.programmabletoken;
 
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 
 /** Typed programmable-token registration declaration. */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ProgrammableTokenRegistration {
     private ProgrammableTokenCredential mintingLogicScript;
     private ProgrammableTokenCredential transferLogicScript;

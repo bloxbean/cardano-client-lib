@@ -2265,7 +2265,7 @@ final class Cip113TransactionMaterializer extends Tx {
         String rewardAddress = rewardAddressOf(logic);
         PlutusData existing = logicWithdrawals.get(rewardAddress);
         if (existing != null) {
-            if (!existing.equals(redeemer)) {
+            if (!PlutusDataEquality.equals(existing, redeemer)) {
                 throw new Cip113Exception("Two policies in this transaction share the " + role
                         + " credential " + HexUtil.encodeHexString(logic.getBytes())
                         + " but were given different redeemers. The ledger has one withdrawal per"

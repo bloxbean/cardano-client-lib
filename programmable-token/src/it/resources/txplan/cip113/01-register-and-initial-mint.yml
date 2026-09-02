@@ -1,0 +1,63 @@
+version: '1.0'
+variables:
+  owner_address: __runtime__
+  bootstrap_tx: __runtime__
+  network_id: 0
+  logic_script_hash: __runtime__
+  asset_name_hex: 5478506c616e546f6b656e
+  initial_mint_quantity: 50
+  authorization_action: 1
+  authorization_nonce: 42
+  holder_schema: 1
+  holder_tag: 113
+extensions:
+  pt:
+    extension: programmable-token
+    schema_version: '1'
+    protocol: cip-113
+    contract_version: 0.5.0-alpha.2
+    deployment:
+      network: ${network_id}
+      bootstrap_tx: ${bootstrap_tx}
+context:
+  fee_payer: ${owner_address}
+transaction:
+  - tx:
+      from: ${owner_address}
+      intents:
+        - type: pt:register
+          name: yaml-policy
+          registration:
+            minting_logic_script:
+              type: Script
+              hash: ${logic_script_hash}
+            transfer_logic_script:
+              type: Script
+              hash: ${logic_script_hash}
+            third_party_transfer_logic_script:
+              type: Script
+              hash: ${logic_script_hash}
+            unfracking_logic_script:
+              type: Key
+              hash: ''
+          registration_redeemer:
+            constructor: 0
+            fields:
+              - int: ${authorization_action}
+              - int: ${authorization_nonce}
+        - type: pt:mint
+          policy_ref: yaml-policy
+          receiver: ${owner_address}
+          assets:
+            - name: ${asset_name_hex}
+              quantity: ${initial_mint_quantity}
+          issuance_redeemer:
+            constructor: 0
+            fields:
+              - int: ${authorization_action}
+              - int: ${authorization_nonce}
+          inline_datum:
+            constructor: 0
+            fields:
+              - int: ${holder_schema}
+              - int: ${holder_tag}
