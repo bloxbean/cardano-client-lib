@@ -1,16 +1,17 @@
 package com.bloxbean.cardano.client.programmabletoken;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 
-/** Typed programmable-token registration declaration. */
+/** Typed desired state for a programmable-token registry entry. */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProgrammableTokenRegistration {
+public class ProgrammableTokenRegistryUpdate {
+    private String next;
     private ProgrammableTokenCredential mintingLogicScript;
     private ProgrammableTokenCredential transferLogicScript;
     private ProgrammableTokenCredential thirdPartyTransferLogicScript;
@@ -18,6 +19,7 @@ public class ProgrammableTokenRegistration {
     private String globalStateCs;
 
     public void validate() {
+        if (next == null || next.isBlank()) throw new IllegalStateException("next is required");
         required(mintingLogicScript, "minting logic script");
         required(transferLogicScript, "transfer logic script");
         required(thirdPartyTransferLogicScript, "third-party transfer logic script");

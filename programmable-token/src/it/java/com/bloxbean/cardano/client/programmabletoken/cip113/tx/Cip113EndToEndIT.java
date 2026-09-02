@@ -15,6 +15,7 @@ import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTo
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Registration;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113RegistryUpdate;
 import com.bloxbean.cardano.client.programmabletoken.BurnAuthorization;
+import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenExtension;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenPolicyRef;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
 import com.bloxbean.cardano.client.programmabletoken.cip113.LedgerOrdering;
@@ -30,6 +31,8 @@ import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -1359,6 +1362,68 @@ public class Cip113EndToEndIT {
         assertThat(refInputs[0])
                 .as("coordination + registry node + the two referenced scripts, at least")
                 .isGreaterThanOrEqualTo(4);
+    }
+
+    // --------------------------------------------------------- TxPlan YAML path
+
+    /**
+     * Execute the portable TxPlan path, including its YAML boundary, against the devnet.
+     *
+     * <p>This deliberately restores the plan before composition. The restored transaction is a
+     * plain {@link Tx} carrying a semantic extension intent, rather than the original
+     * {@link ProgrammableTokenTx}; successful submission proves that the runtime extension owns
+     * materialization and that no in-memory facade state is required.</p>
+     */
+    @Test
+    @Order(10)
+    void txPlanYaml_executesProgrammableTokenIntentAfterRestore() throws Exception {
+        requireDeployment("TxPlan YAML transfer");
+        requireExamplePolicyId();
+
+        String unit = unitOf(examplePolicyId);
+        BigInteger balanceBefore = programmableQuantity(unit);
+        Set<String> utxosBefore = smartWalletUtxoRefs();
+        assertThat(balanceBefore).as("need supply for the YAML transfer")
+                .isGreaterThan(BigInteger.ZERO);
+
+        ProgrammableTokenTx tx = new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .transfer(account.baseAddress(),
+                        Amount.asset(examplePolicyId, EXAMPLE_ASSET_NAME, BigInteger.ONE),
+                        BigIntPlutusData.of(0));
+        TxPlan authoredPlan = programmableTokens.extension().configure(
+                TxPlan.from(tx).feePayer(account.baseAddress()));
+        TxPlanCodec codec = TxPlanCodec.builder()
+                .withExtension(ProgrammableTokenExtension.DEFAULT_NAMESPACE,
+                        programmableTokens.extension())
+                .build();
+
+        String yaml = codec.toYaml(authoredPlan);
+        assertThat(yaml)
+                .contains("extension: programmable-token")
+                .contains("protocol: cip-113")
+                .contains("type: pt:transfer");
+
+        TxPlan restoredPlan = codec.fromYaml(yaml);
+        assertThat(restoredPlan.getTxs()).singleElement().isExactlyInstanceOf(Tx.class);
+
+        Result<String> result = new QuickTxBuilder(backendService)
+                .withExtension(programmableTokens.extension())
+                .compose(restoredPlan)
+                .withSigner(SignerProviders.signerFrom(account))
+                .withTxEvaluator(evaluator())
+                .completeAndWait(message -> { });
+
+        assertThat(result.isSuccessful())
+                .as("submitting a programmable-token TxPlan restored from YAML: %s",
+                        result.getResponse())
+                .isTrue();
+        assertThat(programmableQuantity(unit))
+                .as("a YAML-authored self-transfer must conserve the programmable-token balance")
+                .isEqualTo(balanceBefore);
+        assertThat(smartWalletUtxoRefs())
+                .as("the YAML-restored transfer must consume a smart-wallet UTxO")
+                .isNotEqualTo(utxosBefore);
     }
 
     /** An account's stake key hash, read from its base address's delegation credential. */

@@ -2,14 +2,19 @@ package com.bloxbean.cardano.client.programmabletoken;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableBurnIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableMintIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegisterIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegistryUpdateIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableThirdPartyTransferIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTokenAsset;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTransferIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableUnfrackIntent;
 import com.bloxbean.cardano.client.quicktx.Tx;
-import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.hdwallet.Wallet;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /** Protocol-neutral authoring facade. Every verb records semantic data and performs no chain I/O. */
 public class ProgrammableTokenTx extends Tx {
@@ -33,11 +38,9 @@ public class ProgrammableTokenTx extends Tx {
             throw new IllegalArgumentException("A programmable-token amount is required");
         if (amount.getQuantity() == null || amount.getQuantity().signum() <= 0)
             throw new IllegalArgumentException("transfer quantity must be positive");
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("receiver", receiver);
-        payload.putAll(ProgrammableTokenIntentPayload.amount(amount));
-        payload.put("transfer_redeemer", ProgrammableTokenIntentPayload.plutus(transferRedeemer));
-        return add("transfer", payload);
+        addIntention(ProgrammableTransferIntent.builder()
+                .receiver(receiver).amount(amount).transferRedeemer(transferRedeemer).build());
+        return this;
     }
 
     public ProgrammableTokenTx mint(String policyId, String receiver, List<Asset> assets,
@@ -52,26 +55,23 @@ public class ProgrammableTokenTx extends Tx {
         if (policy == null) throw new IllegalArgumentException("policy is required");
         require(receiver, "receiver");
         requireAssets(assets, "mint");
-        Map<String, Object> payload = new LinkedHashMap<>(ProgrammableTokenIntentPayload.policy(policy));
-        payload.put("receiver", receiver);
-        payload.put("assets", ProgrammableTokenIntentPayload.assets(assets));
-        payload.put("issuance_redeemer", ProgrammableTokenIntentPayload.plutus(issuanceRedeemer));
-        if (inlineDatum != null) payload.put("inline_datum", ProgrammableTokenIntentPayload.plutus(inlineDatum));
-        return add("mint", payload);
+        addIntention(ProgrammableMintIntent.builder()
+                .policy(policy).receiver(receiver).assets(assets.stream()
+                        .map(ProgrammableTokenAsset::from).toList())
+                .issuanceRedeemer(issuanceRedeemer).inlineDatum(inlineDatum).build());
+        return this;
     }
 
     public ProgrammableTokenTx burn(String policyId, List<Asset> assets,
                                     BurnAuthorization authorization) {
         if (authorization == null) throw new IllegalArgumentException("authorization is required");
         requireAssets(assets, "burn");
-        Map<String, Object> payload = new LinkedHashMap<>(
-                ProgrammableTokenIntentPayload.policy(ProgrammableTokenPolicyRef.policyId(policyId)));
-        payload.put("assets", ProgrammableTokenIntentPayload.assets(assets));
-        payload.put("transfer_redeemer", ProgrammableTokenIntentPayload.plutus(
-                authorization.getTransferRedeemer()));
-        payload.put("issuance_redeemer", ProgrammableTokenIntentPayload.plutus(
-                authorization.getIssuanceRedeemer()));
-        return add("burn", payload);
+        addIntention(ProgrammableBurnIntent.builder()
+                .policy(ProgrammableTokenPolicyRef.policyId(policyId)).assets(assets.stream()
+                        .map(ProgrammableTokenAsset::from).toList())
+                .transferRedeemer(authorization.getTransferRedeemer())
+                .issuanceRedeemer(authorization.getIssuanceRedeemer()).build());
+        return this;
     }
 
     public ProgrammableTokenTx thirdPartyTransfer(String holder, String receiver, Amount amount,
@@ -82,50 +82,35 @@ public class ProgrammableTokenTx extends Tx {
             throw new IllegalArgumentException("A programmable-token amount is required");
         if (amount.getQuantity() == null || amount.getQuantity().signum() <= 0)
             throw new IllegalArgumentException("third-party transfer quantity must be positive");
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("holder", holder);
-        payload.put("receiver", receiver);
-        payload.putAll(ProgrammableTokenIntentPayload.amount(amount));
-        payload.put("third_party_redeemer", ProgrammableTokenIntentPayload.plutus(thirdPartyRedeemer));
-        return add("third_party_transfer", payload);
+        addIntention(ProgrammableThirdPartyTransferIntent.builder()
+                .holder(holder).receiver(receiver).amount(amount)
+                .thirdPartyRedeemer(thirdPartyRedeemer).build());
+        return this;
     }
 
     public ProgrammableTokenTx register(String name, ProgrammableTokenRegistration registration,
                                         PlutusData registrationRedeemer) {
         require(name, "registration name");
         if (registration == null) throw new IllegalArgumentException("registration is required");
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("name", name);
-        payload.put("registration", registration.getProtocolData());
-        payload.put("registration_redeemer", ProgrammableTokenIntentPayload.plutus(registrationRedeemer));
-        return add("register", payload);
+        addIntention(ProgrammableRegisterIntent.builder()
+                .name(name).registration(registration)
+                .registrationRedeemer(registrationRedeemer).build());
+        return this;
     }
 
-    public ProgrammableTokenTx updateRegistry(String policyId, Map<String, Object> update,
+    public ProgrammableTokenTx updateRegistry(String policyId, ProgrammableTokenRegistryUpdate update,
                                               PlutusData authorization) {
         ProgrammableTokenPolicyRef.policyId(policyId);
-        if (update == null || update.isEmpty()) throw new IllegalArgumentException("update is required");
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("policy_id", policyId);
-        payload.put("update", update);
-        payload.put("authorization", ProgrammableTokenIntentPayload.plutus(authorization));
-        return add("update_registry", payload);
+        if (update == null) throw new IllegalArgumentException("update is required");
+        addIntention(ProgrammableRegistryUpdateIntent.builder()
+                .policyId(policyId).update(update).authorization(authorization).build());
+        return this;
     }
 
     public ProgrammableTokenTx unfrack(String policyId, PlutusData authorization) {
         ProgrammableTokenPolicyRef.policyId(policyId);
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("policy_id", policyId);
-        payload.put("authorization", ProgrammableTokenIntentPayload.plutus(authorization));
-        return add("unfrack", payload);
-    }
-
-    private ProgrammableTokenTx add(String operation, Map<String, Object> payload) {
-        addIntention(ExtensionIntent.builder()
-                .extensionId(EXTENSION_ID)
-                .operation(operation)
-                .payload(payload)
-                .build());
+        addIntention(ProgrammableUnfrackIntent.builder()
+                .policyId(policyId).authorization(authorization).build());
         return this;
     }
 

@@ -927,9 +927,17 @@ public class QuickTxBuilder {
                     if (extension == null)
                         throw new TxBuildException("No runtime extension registered for intent "
                                 + extensionIntent.getExtensionId() + ":" + extensionIntent.getOperation());
-                    if (!extension.operations().contains(extensionIntent.getOperation()))
+                    Class<? extends ExtensionIntent> expectedType =
+                            extension.intentTypes().get(extensionIntent.getOperation());
+                    if (!extension.operations().contains(extensionIntent.getOperation())
+                            || expectedType == null)
                         throw new TxBuildException("Unsupported operation " + extensionIntent.getOperation()
                                 + " for extension " + extensionIntent.getExtensionId());
+                    if (!expectedType.isInstance(extensionIntent))
+                        throw new TxBuildException("Intent " + extensionIntent.getClass().getName()
+                                + " cannot claim operation " + extensionIntent.getExtensionId() + ":"
+                                + extensionIntent.getOperation() + "; expected "
+                                + expectedType.getName());
                 }
             }
         }

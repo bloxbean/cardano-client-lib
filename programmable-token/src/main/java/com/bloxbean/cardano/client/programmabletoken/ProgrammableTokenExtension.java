@@ -1,11 +1,20 @@
 package com.bloxbean.cardano.client.programmabletoken;
 
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableBurnIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableMintIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegisterIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegistryUpdateIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableThirdPartyTransferIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTransferIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableUnfrackIntent;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.quicktx.extension.TxBuildExtension;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import lombok.Builder;
 
+import java.util.Map;
 import java.util.Set;
 
 /** QuickTx/TxPlan extension for the stable Programmable Token domain. */
@@ -13,9 +22,14 @@ public final class ProgrammableTokenExtension implements QuickTxExtension {
     public static final String ID = "programmable-token";
     public static final String DEFAULT_NAMESPACE = "pt";
     public static final String SCHEMA_VERSION = "1";
-    private static final Set<String> OPERATIONS = Set.of(
-            "transfer", "mint", "burn", "third_party_transfer", "register",
-            "update_registry", "unfrack");
+    private static final Map<String, Class<? extends ExtensionIntent>> INTENT_TYPES = Map.of(
+            ProgrammableTransferIntent.OPERATION, ProgrammableTransferIntent.class,
+            ProgrammableMintIntent.OPERATION, ProgrammableMintIntent.class,
+            ProgrammableBurnIntent.OPERATION, ProgrammableBurnIntent.class,
+            ProgrammableThirdPartyTransferIntent.OPERATION, ProgrammableThirdPartyTransferIntent.class,
+            ProgrammableRegisterIntent.OPERATION, ProgrammableRegisterIntent.class,
+            ProgrammableRegistryUpdateIntent.OPERATION, ProgrammableRegistryUpdateIntent.class,
+            ProgrammableUnfrackIntent.OPERATION, ProgrammableUnfrackIntent.class);
 
     private final ProgrammableTokenProtocol protocol;
     private final ExtensionMetadata metadata;
@@ -37,7 +51,8 @@ public final class ProgrammableTokenExtension implements QuickTxExtension {
 
     @Override public String id() { return ID; }
     @Override public String schemaVersion() { return SCHEMA_VERSION; }
-    @Override public Set<String> operations() { return OPERATIONS; }
+    @Override public Set<String> operations() { return INTENT_TYPES.keySet(); }
+    @Override public Map<String, Class<? extends ExtensionIntent>> intentTypes() { return INTENT_TYPES; }
     @Override public ExtensionMetadata metadata() { return metadata.toBuilder().build(); }
 
     @Override

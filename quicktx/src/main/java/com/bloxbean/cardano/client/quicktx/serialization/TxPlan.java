@@ -321,11 +321,7 @@ public class TxPlan {
         return validToSlot;
     }
 
-    /**
-     * Serialize this plan to YAML format.
-     * @return YAML string representation
-     */
-    public String toYaml() {
+    TransactionDocument toDocument() {
         TransactionDocument doc = new TransactionDocument();
         doc.setVariables(variables);
         doc.setExtensions(new java.util.LinkedHashMap<>(extensions));
@@ -430,7 +426,15 @@ public class TxPlan {
         }
 
         doc.setTransaction(entries);
-        return YamlSerializer.serialize(doc);
+        return doc;
+    }
+
+    /**
+     * Serialize this plan to YAML format.
+     * @return YAML string representation
+     */
+    public String toYaml() {
+        return YamlSerializer.serialize(toDocument());
     }
 
     /**
@@ -441,6 +445,10 @@ public class TxPlan {
      */
     public static TxPlan from(String yaml) {
         TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
+        return from(doc);
+    }
+
+    static TxPlan from(TransactionDocument doc) {
         TxPlan plan = new TxPlan();
 
         if (doc.getExtensions() != null) {

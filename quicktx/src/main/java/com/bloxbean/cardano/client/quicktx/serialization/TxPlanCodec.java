@@ -1,24 +1,53 @@
 package com.bloxbean.cardano.client.quicktx.serialization;
 
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.NamedType;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Instance-scoped TxPlan codec for qualified extension intents.
+ * Instance-scoped TxPlan codec for typed, qualified extension intents.
  * Core intent serialization remains backward compatible through {@link TxPlan#toYaml()}.
  */
 public final class TxPlanCodec {
     private final Map<String, QuickTxExtension> extensions;
+    private final ObjectMapper mapper;
 
     private TxPlanCodec(Map<String, QuickTxExtension> extensions) {
         this.extensions = Map.copyOf(extensions);
+        this.mapper = YamlSerializer.getYamlMapper().copy();
+
+        SimpleModule plutusDataModule = new SimpleModule();
+        plutusDataModule.addDeserializer(PlutusData.class,
+                new com.fasterxml.jackson.databind.JsonDeserializer<>() {
+                    @Override
+                    public PlutusData deserialize(JsonParser parser,
+                                                  com.fasterxml.jackson.databind.DeserializationContext context)
+                            throws java.io.IOException {
+                        try {
+                            return PlutusDataYamlUtil.fromYamlNode(parser.readValueAsTree(), Map.of());
+                        } catch (Exception e) {
+                            throw com.fasterxml.jackson.databind.JsonMappingException.from(
+                                    parser, "Invalid structured Plutus data", e);
+                        }
+                    }
+                });
+        mapper.registerModule(plutusDataModule);
+
+        this.extensions.values().forEach(extension -> {
+            validateIntentTypes(extension);
+            extension.intentTypes().forEach((operation, type) -> mapper.registerSubtypes(
+                    new NamedType(type, ExtensionIntent.canonicalType(extension.id(), operation))));
+        });
     }
 
     public static Builder builder() {
@@ -27,11 +56,12 @@ public final class TxPlanCodec {
 
     public String toYaml(TxPlan plan) {
         try {
-            ObjectNode root = (ObjectNode) YamlSerializer.getYamlMapper().readTree(plan.toYaml());
             Map<String, ExtensionMetadata> declared = plan.getExtensions();
             validateBindings(declared);
+            validatePlanIntents(plan, declared);
+            ObjectNode root = mapper.valueToTree(plan.toDocument());
             transformForWrite(root, declared);
-            return YamlSerializer.getYamlMapper().writeValueAsString(root);
+            return mapper.writeValueAsString(root);
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
@@ -41,18 +71,20 @@ public final class TxPlanCodec {
 
     public TxPlan fromYaml(String yaml) {
         try {
-            JsonNode unresolved = YamlSerializer.getYamlMapper().readTree(yaml);
+            JsonNode unresolved = mapper.readTree(yaml);
             JsonNode variablesNode = unresolved.get("variables");
             if (variablesNode != null && variablesNode.isObject()) {
-                Map<String, Object> variables = YamlSerializer.getYamlMapper()
-                        .convertValue(variablesNode, Map.class);
+                Map<String, Object> variables = mapper.convertValue(variablesNode, Map.class);
                 yaml = VariableResolver.resolve(yaml, variables);
             }
-            ObjectNode root = (ObjectNode) YamlSerializer.getYamlMapper().readTree(yaml);
+            ObjectNode root = (ObjectNode) mapper.readTree(yaml);
             Map<String, ExtensionMetadata> declared = readMetadata(root);
             validateBindings(declared);
             transformForRead(root, declared);
-            return TxPlan.from(YamlSerializer.getYamlMapper().writeValueAsString(root));
+            TransactionDocument document = mapper.treeToValue(root, TransactionDocument.class);
+            TxPlan plan = TxPlan.from(document);
+            validatePlanIntents(plan, declared);
+            return plan;
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
@@ -70,8 +102,7 @@ public final class TxPlanCodec {
             if (!alias.matches("[a-z][a-z0-9_-]{0,31}"))
                 throw new IllegalArgumentException("Invalid extension namespace: " + alias);
             rejectReserved(alias);
-            ExtensionMetadata metadata = YamlSerializer.getYamlMapper()
-                    .convertValue(entry.getValue(), ExtensionMetadata.class);
+            ExtensionMetadata metadata = mapper.convertValue(entry.getValue(), ExtensionMetadata.class);
             if (result.putIfAbsent(alias, metadata) != null)
                 throw new IllegalArgumentException("Duplicate extension namespace: " + alias);
         });
@@ -108,45 +139,65 @@ public final class TxPlanCodec {
             if (metadata == null)
                 throw new IllegalArgumentException("Intent uses undeclared extension namespace '" + alias + "'");
             QuickTxExtension runtime = extensions.get(alias);
-            if (!runtime.operations().contains(operation))
-                throw new IllegalArgumentException("Unsupported operation '" + operation
-                        + "' for extension " + runtime.id());
-
-            ObjectNode payload = YamlSerializer.getYamlMapper().createObjectNode();
-            Iterator<Map.Entry<String, JsonNode>> fields = intent.fields();
-            while (fields.hasNext()) {
-                Map.Entry<String, JsonNode> field = fields.next();
-                if (!"type".equals(field.getKey())) payload.set(field.getKey(), field.getValue());
-            }
-            intent.removeAll();
-            intent.put("type", ExtensionIntent.TYPE);
-            intent.put("extension_id", metadata.getExtension());
-            intent.put("operation", operation);
-            intent.set("payload", payload);
+            requireIntentType(runtime, operation);
+            intent.put("type", ExtensionIntent.canonicalType(metadata.getExtension(), operation));
         });
     }
 
     private void transformForWrite(ObjectNode root, Map<String, ExtensionMetadata> declared) {
         forEachIntent(root, intent -> {
-            if (!ExtensionIntent.TYPE.equals(intent.path("type").asText())) return;
-            String extensionId = intent.path("extension_id").asText();
-            String operation = intent.path("operation").asText();
-            String alias = declared.entrySet().stream()
-                    .filter(e -> extensionId.equals(e.getValue().getExtension()))
-                    .map(Map.Entry::getKey)
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "No document namespace declares extension " + extensionId));
-            QuickTxExtension runtime = extensions.get(alias);
-            if (!runtime.operations().contains(operation))
-                throw new IllegalArgumentException("Unsupported operation '" + operation
-                        + "' for extension " + runtime.id());
-            JsonNode payload = intent.get("payload");
-            intent.removeAll();
-            intent.put("type", alias + ":" + operation);
-            if (payload != null && payload.isObject()) {
-                payload.fields().forEachRemaining(field -> intent.set(field.getKey(), field.getValue()));
-            }
+            String canonicalType = intent.path("type").asText();
+            Map.Entry<String, ExtensionMetadata> binding = declared.entrySet().stream()
+                    .filter(entry -> canonicalType.startsWith(entry.getValue().getExtension() + ":"))
+                    .findFirst().orElse(null);
+            if (binding == null) return;
+            String operation = canonicalType.substring(
+                    binding.getValue().getExtension().length() + 1);
+            requireIntentType(extensions.get(binding.getKey()), operation);
+            intent.put("type", binding.getKey() + ":" + operation);
+        });
+    }
+
+    private void validatePlanIntents(TxPlan plan, Map<String, ExtensionMetadata> declared) {
+        plan.getTxs().forEach(transaction -> transaction.getIntentions().stream()
+                .filter(ExtensionIntent.class::isInstance)
+                .map(ExtensionIntent.class::cast)
+                .forEach(intent -> {
+                    Map.Entry<String, ExtensionMetadata> binding = declared.entrySet().stream()
+                            .filter(entry -> intent.getExtensionId().equals(
+                                    entry.getValue().getExtension()))
+                            .findFirst()
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "No document namespace declares extension "
+                                            + intent.getExtensionId()));
+                    QuickTxExtension runtime = extensions.get(binding.getKey());
+                    Class<? extends ExtensionIntent> expected = requireIntentType(
+                            runtime, intent.getOperation());
+                    if (!expected.isInstance(intent))
+                        throw new IllegalArgumentException("Operation " + intent.getExtensionId()
+                                + ":" + intent.getOperation() + " must use " + expected.getName()
+                                + " but got " + intent.getClass().getName());
+                    intent.validate();
+                }));
+    }
+
+    private static Class<? extends ExtensionIntent> requireIntentType(
+            QuickTxExtension extension, String operation) {
+        Class<? extends ExtensionIntent> type = extension.intentTypes().get(operation);
+        if (type == null)
+            throw new IllegalArgumentException("Unsupported operation '" + operation
+                    + "' for extension " + extension.id());
+        return type;
+    }
+
+    private static void validateIntentTypes(QuickTxExtension extension) {
+        extension.intentTypes().forEach((operation, type) -> {
+            if (!extension.operations().contains(operation))
+                throw new IllegalArgumentException("Intent type registered for unadvertised operation '"
+                        + operation + "' in extension " + extension.id());
+            if (type == null || !ExtensionIntent.class.isAssignableFrom(type))
+                throw new IllegalArgumentException("Invalid intent type for " + extension.id()
+                        + ":" + operation);
         });
     }
 

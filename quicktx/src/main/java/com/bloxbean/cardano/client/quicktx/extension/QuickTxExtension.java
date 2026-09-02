@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.quicktx.extension;
 
+import java.util.Map;
 import java.util.Set;
 
 /** Builder-scoped extension descriptor and build-participant factory. */
@@ -9,6 +10,17 @@ public interface QuickTxExtension {
     String schemaVersion();
 
     Set<String> operations();
+
+    /**
+     * Typed semantic intent classes owned by this extension, keyed by operation id.
+     *
+     * <p>The registry is consumed by an instance-scoped {@code TxPlanCodec}; it is never installed
+     * in a process-wide mapper. Every advertised serializable operation must have exactly one
+     * concrete type.</p>
+     */
+    default Map<String, Class<? extends ExtensionIntent>> intentTypes() {
+        return Map.of();
+    }
 
     default ExtensionMetadata metadata() {
         return ExtensionMetadata.builder()

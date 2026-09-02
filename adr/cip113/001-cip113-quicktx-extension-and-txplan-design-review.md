@@ -2,9 +2,9 @@
 
 **Date**: 2026-08-30
 
-**Revision**: 3 — implementation completed and qualified
+**Revision**: 4 — typed extension intents and extension-owned codecs
 
-**Last updated**: 2026-08-31
+**Last updated**: 2026-09-02
 
 **Status**: Accepted / Implemented (Experimental)
 
@@ -410,37 +410,46 @@ A codec-only registry is insufficient for CIP-113 because canonical indexes must
 all intents have contributed to the transaction, before each script-cost evaluation, and again if a
 balance pass changes index-sensitive content.
 
-Illustrative generic SPI:
+Implemented generic SPI shape:
 
 ```java
 public interface QuickTxExtension {
     String id();
 
-    void registerIntentTypes(TxIntentTypeRegistry registry);
+    Set<String> operations();
 
-    TxBuildExtension buildExtension();
+    Map<String, Class<? extends ExtensionIntent>> intentTypes();
+
+    TxBuildExtension newBuildExtension(ExtensionMetadata metadata);
+}
+
+public interface ExtensionIntent extends TxIntent {
+    String getExtensionId();
+
+    String getOperation();
 }
 
 public interface TxBuildExtension {
-    default void validate(ExtensionPlanContext context) {}
-
     default void prepare(ExtensionBuildContext context) {}
 
-    default TxBuilder beforeScriptEvaluation(ExtensionBuildContext context) {
-        return (context, transaction) -> {};
-    }
+    default void beforeScriptEvaluation(
+            ExtensionBuildContext context, Transaction transaction) {}
 
-    default BalanceFinalization afterBalance(ExtensionBuildContext context) {
-        return BalanceFinalization.stable();
-    }
+    default BalanceFinalization afterBalance(
+            ExtensionBuildContext context, Transaction transaction) { ... }
+
+    default void verify(ExtensionBuildContext context, Transaction transaction) {}
 }
 ```
 
 `ProgrammableTokenExtension` implements this SPI and delegates protocol-specific materialization to
 the selected `ProgrammableTokenProtocol`. `afterBalance` may update index-bearing redeemer data and
 return `refinalized()`, which tells QuickTx to recompute script data, evaluate, and balance again.
-Names are illustrative; the final SPI should follow existing `TxBuilder` conventions and expose only
-the data needed by each phase.
+
+`ExtensionIntent` is deliberately a semantic marker, not a generic payload envelope. Extension
+modules register concrete operation classes with the codec. The codec uses an instance-scoped
+Jackson mapper and canonical `(extension id, operation)` type ids, so it does not mutate the global
+QuickTx mapper and does not require higher-level intent classes in `TxIntent@JsonSubTypes`.
 
 ### 5.4 Registration and default scope
 
@@ -529,13 +538,22 @@ when balancing legitimately adds an input or change output.
 | `pt:mint` | `mint` | Mint programmable assets | issuance redeemer, optional inline datum |
 | `pt:burn` | `burn` | Spend and burn programmable assets | transfer redeemer + issuance redeemer |
 | `pt:third_party_transfer` | `third_party_transfer` | Seize, claw back, or forced transfer | holder + third-party redeemer |
-| `pt:register` | `register` | Register a programmable policy | named result + protocol registration data |
+| `pt:register` | `register` | Register a programmable policy | named result + typed logic credentials/state |
 | `pt:update_registry` | `update_registry` | Update protocol registry state | token reference + authorization |
 | `pt:unfrack` | `unfrack` | Holder-driven UTxO restructuring, when supported | protocol authorization data |
 
 Internally, the codec resolves `pt:transfer` to a structured identity such as
 `IntentType("programmable-token", "transfer")`. Changing the plan alias from `pt` to `tokens` must
 not change semantic equality or runtime dispatch.
+
+Concrete intents live in `com.bloxbean.cardano.client.programmabletoken.intent` and follow core
+QuickTx naming conventions: `ProgrammableTransferIntent`, `ProgrammableMintIntent`,
+`ProgrammableBurnIntent`, `ProgrammableRegisterIntent`,
+`ProgrammableThirdPartyTransferIntent`, `ProgrammableRegistryUpdateIntent`, and
+`ProgrammableUnfrackIntent`. Their fields use domain types such as `Amount`, `PlutusData`,
+`ProgrammableTokenPolicyRef`, typed credential/registry values, and binary-safe programmable-token
+asset values. No semantic intent or nested domain value uses a string-keyed payload map. The
+CIP-113 build extension consumes these concrete types and contains no generic payload-key extraction.
 
 ### 6.2 Java authoring facade
 
@@ -699,19 +717,21 @@ serialization should emit the resolved value when known.
 The current static `TxIntent@JsonSubTypes` list cannot be the only registration mechanism because
 `quicktx` cannot import higher-level module classes.
 
-The codec registry should use canonical extension and operation ids:
+The codec registry uses canonical extension and operation ids:
 
 ```java
-registry.register(
-        "programmable-token",
-        "transfer",
-        ProgrammableTokenTransferIntent.class,
-        new ProgrammableTokenTransferIntentCodec());
+Map<String, Class<? extends ExtensionIntent>> intentTypes() {
+    return Map.of(
+            "transfer", ProgrammableTransferIntent.class,
+            "mint", ProgrammableMintIntent.class,
+            "burn", ProgrammableBurnIntent.class);
+}
 ```
 
-The document codec resolves the alias before looking up the canonical pair. A custom Jackson type-id
-resolver or two-stage decoding is preferable to mutating a process-wide mapper after concurrent use
-begins. Only explicitly registered extension/operation pairs may instantiate classes.
+The document codec resolves the alias before looking up the canonical pair and registers those
+classes only on its private mapper copy. Only explicitly registered extension/operation pairs may
+instantiate classes. Decoding produces the typed intent directly; there is no intermediate
+`Map<String, Object>` extension payload.
 
 ### 7.4 Namespace and default rules
 
@@ -775,8 +795,10 @@ because chain state can change; the declared operation, protocol, and deployment
    - resolve co-resident policy proofs
    - add outputs, withdrawals, scripts, and reference inputs
 
-5. Apply ordinary and extension intentions
+5. Apply materialized core intentions
    - construct the complete transaction shape
+   - extension semantic intents intentionally have a no-op `apply()` because `prepare()` already
+     interpreted them as an aggregate
 
 6. Before script evaluation
    - compute canonical indexes
@@ -830,6 +852,20 @@ At minimum, aggregation keys include:
 - logic credential/reward account;
 - global-state policy;
 - funding address and already reserved UTxOs.
+
+### 8.3.1 Extension-intent `apply()` contract
+
+Core `TxIntent` implementations are normally directly replayable through `apply()` and/or
+`outputBuilder()`. Extension semantic intents are different: they are declarative inputs to an
+extension planner. They are recorded during authoring, perform no chain I/O, and are collected by
+the registered build-local extension during `prepare()`. Because a protocol may need cross-intent
+resolution, transaction-wide aggregation, and shared input selection, extension authors should not
+place materialization in `ExtensionIntent.apply()`. The marker provides an intentional no-op
+implementation only because extension intents participate in the existing `TxIntent` collection.
+
+QuickTx validates extension ownership, operation support, and the registered concrete intent class
+before calling any build extension. Build extensions obtain an extension-scoped intent view from
+`ExtensionBuildContext`, so an intent cannot be silently consumed by the wrong extension.
 
 ### 8.4 Input reservation
 
@@ -1417,6 +1453,9 @@ Each PR should keep `./gradlew clean build` green and include focused tests for 
 - [x] Approve one top-level `programmable-token` module with neutral and CIP-113 package boundaries.
 - [x] Approve Programmable Token public names and CIP-113 protocol-specific names.
 - [x] Approve semantic Programmable Token intents as the TxPlan representation.
+- [x] Approve extension-owned concrete intent classes rather than a generic map payload envelope.
+- [x] Document extension semantic intents as aggregate-planned declarations with intentional
+  no-op `apply()` behavior.
 - [x] Approve build-time aggregation and single materialization pass.
 - [x] Approve explicit role-specific operation APIs and redeemers.
 - [x] Approve removal of implicit `payToAddress` routing from the primary API.

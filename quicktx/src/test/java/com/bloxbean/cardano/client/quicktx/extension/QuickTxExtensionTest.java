@@ -10,7 +10,7 @@ import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import org.junit.jupiter.api.Test;
 
-import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,23 +25,19 @@ class QuickTxExtensionTest {
     void qualifiedIntentRoundTripsWithoutAQuickTxDependencyOnItsOwner() {
         QuickTxExtension extension = extension(new AtomicBoolean());
         Tx tx = new Tx();
-        tx.addIntention(ExtensionIntent.builder()
-                .extensionId("example")
-                .operation("act")
-                .payload(new LinkedHashMap<>(java.util.Map.of("value", 42)))
-                .build());
+        tx.addIntention(new ExampleIntent(42));
         TxPlan plan = new TxPlan().addTransaction(tx)
                 .withExtension("ex", extension.metadata());
         TxPlanCodec codec = TxPlanCodec.builder().withExtension("ex", extension).build();
 
         String yaml = codec.toYaml(plan);
         TxPlan restored = codec.fromYaml(yaml);
-        ExtensionIntent intent = (ExtensionIntent) restored.getTxs().get(0).getIntentions().get(0);
+        ExampleIntent intent = (ExampleIntent) restored.getTxs().get(0).getIntentions().get(0);
 
-        assertThat(yaml).contains("type: ex:act").doesNotContain("extension_id:");
+        assertThat(yaml).contains("type: ex:act").doesNotContain("extensionId:");
         assertThat(intent.getExtensionId()).isEqualTo("example");
         assertThat(intent.getOperation()).isEqualTo("act");
-        assertThat(intent.getPayload()).containsEntry("value", 42);
+        assertThat(intent.getValue()).isEqualTo(42);
     }
 
     @Test
@@ -80,8 +76,7 @@ class QuickTxExtensionTest {
         AtomicBoolean prepared = new AtomicBoolean();
         QuickTxExtension extension = extension(prepared);
         Tx tx = new Tx();
-        tx.addIntention(ExtensionIntent.builder()
-                .extensionId("example").operation("act").build());
+        tx.addIntention(new ExampleIntent(0));
 
         QuickTxBuilder builder = new QuickTxBuilder(
                 mock(UtxoSupplier.class), mock(ProtocolParamsSupplier.class), null)
@@ -96,8 +91,7 @@ class QuickTxExtensionTest {
     @Test
     void missingRuntimeExtensionFailsBeforeChainAccess() {
         Tx tx = new Tx();
-        tx.addIntention(ExtensionIntent.builder()
-                .extensionId("missing").operation("act").build());
+        tx.addIntention(new MissingIntent());
         QuickTxBuilder builder = new QuickTxBuilder(
                 mock(UtxoSupplier.class), mock(ProtocolParamsSupplier.class), null);
 
@@ -113,6 +107,9 @@ class QuickTxExtensionTest {
             @Override public String id() { return "example"; }
             @Override public String schemaVersion() { return "1"; }
             @Override public Set<String> operations() { return Set.of("act"); }
+            @Override public Map<String, Class<? extends ExtensionIntent>> intentTypes() {
+                return Map.of("act", ExampleIntent.class);
+            }
             @Override public TxBuildExtension newBuildExtension() { return new TxBuildExtension() { }; }
             @Override public TxBuildExtension newBuildExtension(ExtensionMetadata metadata) {
                 observedContract.set(metadata.getContractVersion());
@@ -124,8 +121,7 @@ class QuickTxExtensionTest {
             }
         };
         Tx tx = new Tx();
-        tx.addIntention(ExtensionIntent.builder()
-                .extensionId("example").operation("act").build());
+        tx.addIntention(new ExampleIntent(0));
         TxPlan plan = TxPlan.from(tx).withExtension("ex", ExtensionMetadata.builder()
                 .extension("example").schemaVersion("1").contractVersion("plan-version").build());
 
@@ -148,11 +144,39 @@ class QuickTxExtensionTest {
                 .hasMessageContaining("another namespace");
     }
 
+    @Test
+    void unsupportedTypedOperationFailsBeforeExtensionPreparation() {
+        AtomicBoolean prepared = new AtomicBoolean();
+        Tx tx = new Tx();
+        tx.addIntention(new UnknownExampleIntent());
+
+        assertThatThrownBy(() -> new QuickTxBuilder(
+                mock(UtxoSupplier.class), mock(ProtocolParamsSupplier.class), null)
+                .withExtension(extension(prepared)).compose(tx).build())
+                .isInstanceOf(TxBuildException.class)
+                .hasMessageContaining("Unsupported operation");
+        assertThat(prepared).isFalse();
+    }
+
+    @Test
+    void extensionSemanticIntentApplyIsIntentionallyNoOp() {
+        ExampleIntent intent = new ExampleIntent(1);
+        Transaction transaction = Transaction.builder().build();
+
+        intent.apply(com.bloxbean.cardano.client.quicktx.IntentContext.empty())
+                .apply(null, transaction);
+
+        assertThat(transaction).isEqualTo(Transaction.builder().build());
+    }
+
     private static QuickTxExtension extension(AtomicBoolean prepared) {
         return new QuickTxExtension() {
             @Override public String id() { return "example"; }
             @Override public String schemaVersion() { return "1"; }
             @Override public Set<String> operations() { return Set.of("act"); }
+            @Override public Map<String, Class<? extends ExtensionIntent>> intentTypes() {
+                return Map.of("act", ExampleIntent.class);
+            }
             @Override public TxBuildExtension newBuildExtension() {
                 return new TxBuildExtension() {
                     @Override public void prepare(ExtensionBuildContext context) {
@@ -164,5 +188,30 @@ class QuickTxExtensionTest {
                 };
             }
         };
+    }
+
+    public static final class ExampleIntent implements ExtensionIntent {
+        private int value;
+
+        public ExampleIntent() { }
+
+        ExampleIntent(int value) {
+            this.value = value;
+        }
+
+        @Override public String getExtensionId() { return "example"; }
+        @Override public String getOperation() { return "act"; }
+        public int getValue() { return value; }
+        public void setValue(int value) { this.value = value; }
+    }
+
+    private static final class MissingIntent implements ExtensionIntent {
+        @Override public String getExtensionId() { return "missing"; }
+        @Override public String getOperation() { return "act"; }
+    }
+
+    private static final class UnknownExampleIntent implements ExtensionIntent {
+        @Override public String getExtensionId() { return "example"; }
+        @Override public String getOperation() { return "unknown"; }
     }
 }
