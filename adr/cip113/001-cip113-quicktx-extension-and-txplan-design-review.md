@@ -2,7 +2,7 @@
 
 **Date**: 2026-08-30
 
-**Revision**: 6 — executable TxPlan lifecycle and isolated JuLC substandard fixture
+**Revision**: 7 — informational contract-version metadata pending public deployments
 
 **Last updated**: 2026-09-02
 
