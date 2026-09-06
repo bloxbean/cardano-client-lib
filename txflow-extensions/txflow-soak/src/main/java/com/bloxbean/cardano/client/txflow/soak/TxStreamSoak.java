@@ -3,9 +3,6 @@ package com.bloxbean.cardano.client.txflow.soak;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
-import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
-import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Network;
@@ -93,12 +90,9 @@ public final class TxStreamSoak {
         Path dataDir = options.path("data", "./soak-data");
         String streamId = options.string("stream-id", "soak-payouts");
 
-        // Replaying interrupted work is safe under every planner, because the durable store
-        // registers an item id in accept() — BEFORE the item is buffered, planned or merged
-        // into a batch. So an id the store already knows is refused outright (CONFLICT, never
-        // re-planned), and an id it does not know was never batched and cannot be duplicated.
-        // The batching hazard is real but lives elsewhere: resubmitting the same logical
-        // payment under a DIFFERENT item id, which is a new claim and a genuine second payment.
+        // Durable redelivery matches registered content without re-planning. An
+        // incomplete registration is surfaced for recovery, never silently replayed.
+        // Stable IDs remain mandatory: a replacement ID is a new payment intent.
         String onRestart = options.string("on-restart", "resubmit");
         boolean utxoGate = options.flag("utxo-gate", true);
 
@@ -211,11 +205,7 @@ public final class TxStreamSoak {
             signers.addAccount(lane.ref(), lane.account());
         }
 
-        FlowEngine engine = FlowEngine.builder(
-                        new DefaultUtxoSupplier(backend.getUtxoService()),
-                        new DefaultProtocolParamsSupplier(backend.getEpochService()),
-                        new DefaultTransactionProcessor(backend.getTransactionService()),
-                        new DefaultChainDataSupplier(backend))
+        FlowEngine engine = FlowEngine.builder(backend)
                 .executor(engineExec)
                 .maintenanceExecutor(maintenance)
                 .store(RdbmsFlowExecutionStore.builder().jdbcUrl(jdbcUrl).build())

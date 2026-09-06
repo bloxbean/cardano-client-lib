@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
 import com.bloxbean.cardano.client.txflow.stream.StreamOwnershipLease;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamPlannedRecord;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamStateStore;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamStoredProjection;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamStoreCodec;
 
 import javax.sql.DataSource;
@@ -142,6 +143,58 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
     }
 
     @Override
+    public boolean registerOrMatch(TxStreamItemRecord record) {
+        Objects.requireNonNull(record, "record");
+        try {
+            return inTransaction("register or match stream item", connection -> {
+                RegistrationRow existing = readRegistration(connection, record.itemId());
+                if (existing != null && existing.registered()) {
+                    return matchRegistration(readRegistrationRecord(connection, record.itemId()), record);
+                }
+                if (existing != null) {
+                    updateRegistration(connection, record);
+                } else {
+                    insertRegistration(connection, record);
+                }
+                return true;
+            });
+        } catch (TxStreamException conflict) {
+            if (!"TXSTREAM_STORE_UNIQUE_CONFLICT".equals(conflict.getCode())) throw conflict;
+            // The unique constraint chooses one winner across connections. The
+            // losing transaction has rolled back; read the winner in a fresh
+            // transaction (essential on PostgreSQL after a unique violation).
+            return inTransaction("match concurrently registered stream item", connection -> {
+                TxStreamItemRecord existing = readRegistrationRecord(connection, record.itemId());
+                if (existing == null) throw conflict;
+                return matchRegistration(existing, record);
+            });
+        }
+    }
+
+    private boolean matchRegistration(TxStreamItemRecord existing, TxStreamItemRecord candidate) {
+        if (!existing.matches(candidate)) {
+            throw new TxStreamDuplicateItemException(candidate.itemId(),
+                    "Item registration has different content: " + candidate.itemId());
+        }
+        return false;
+    }
+
+    private TxStreamItemRecord readRegistrationRecord(Connection connection, String itemId)
+            throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(dialect.forUpdate(
+                "SELECT idempotency_key, lane_name, fingerprint, accepted_at FROM txstream_item "
+                        + "WHERE item_id = ?"))) {
+            statement.setString(1, itemId);
+            try (ResultSet row = statement.executeQuery()) {
+                if (!row.next() || row.getString("idempotency_key") == null) return null;
+                return new TxStreamItemRecord(itemId, row.getString("idempotency_key"),
+                        row.getString("lane_name"), row.getString("fingerprint"),
+                        row.getTimestamp("accepted_at").toInstant());
+            }
+        }
+    }
+
+    @Override
     public void bind(String itemId, TxStreamBinding binding) {
         Objects.requireNonNull(itemId, "itemId");
         Objects.requireNonNull(binding, "binding");
@@ -228,6 +281,26 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
                 try (ResultSet row = statement.executeQuery()) {
                     if (!row.next()) return Optional.<Long>empty();
                     return Optional.of(row.getLong(1));
+                }
+            }
+        });
+    }
+
+    @Override
+    public Optional<TxStreamStoredProjection> getStoredProjection(String streamId, String itemId) {
+        Objects.requireNonNull(streamId, "streamId");
+        Objects.requireNonNull(itemId, "itemId");
+        return inTransaction("read coherent stream projection", connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT stream_id, status, execution_id, step_id, projection_lane_name, "
+                            + "transaction_hash, error_code, error_message, updated_at, projection_sequence "
+                            + "FROM txstream_item WHERE item_id = ? AND stream_id = ? AND status IS NOT NULL")) {
+                statement.setString(1, itemId);
+                statement.setString(2, streamId);
+                try (ResultSet row = statement.executeQuery()) {
+                    if (!row.next()) return Optional.empty();
+                    return Optional.of(new TxStreamStoredProjection(decodeProjection(row, itemId),
+                            row.getLong("projection_sequence")));
                 }
             }
         });

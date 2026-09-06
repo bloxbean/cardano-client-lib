@@ -2,6 +2,12 @@
 
 **Status**: Proposed
 
+The conservative preview subset now implemented is recorded in
+[ADR 0007](0007-txstream-durable-redelivery-preview.md). It covers atomic matching,
+coherent projection reads, shared read-only hydration, and explicit intervention
+for incomplete registrations. This broader proposal remains open for aggregate
+versioning, schema scoping, and automatic pre-plan recovery.
+
 **ADR Document Version**: 1.0.0
 
 **Date**: 2026-08-23

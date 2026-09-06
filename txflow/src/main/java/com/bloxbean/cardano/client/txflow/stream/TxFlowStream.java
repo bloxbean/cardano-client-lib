@@ -134,8 +134,9 @@ public interface TxFlowStream extends AutoCloseable {
      * {@link TxStreamItemStatus#RECOVERY_REQUIRED} and refreshed by
      * read-through ({@link #getItemStatus(String)} / {@link #reconcile
      * (String)}); live push watching of a foreign-process execution is a later
-     * iteration. Items accepted but not yet bound at the crash are lost
-     * (bounded; idempotent redelivery is the answer).
+     * iteration. Items accepted without a recoverable persisted plan remain
+     * recovery-required and need explicit intervention; matching redelivery
+     * reports {@code TXSTREAM_REGISTRATION_INCOMPLETE} and never replans them.
      * <p>
      * {@link #start()} is the supported entry point for a full recover-then-run
      * cycle: it enables the dispatcher, runs this pass, and only then opens for
@@ -277,7 +278,8 @@ public interface TxFlowStream extends AutoCloseable {
      * Attempts non-blocking submission of a common single-transaction plan
      * using the item id as its idempotency key.
      * <p>
-     * The result reports accepted/attached work as {@link EmitResult.Status#OK},
+     * The result reports new work as {@link EmitResult.Status#OK}, identical
+     * redelivery as {@link EmitResult.Status#DUPLICATE_ATTACHED},
      * different-content reuse as {@link EmitResult.Status#CONFLICT}, eager
      * validation or registration failures as {@link EmitResult.Status#REJECTED},
      * ownership standby as {@link EmitResult.Status#PAUSED}, lack of capacity as

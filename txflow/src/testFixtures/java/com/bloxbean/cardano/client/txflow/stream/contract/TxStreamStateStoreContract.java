@@ -89,6 +89,55 @@ public abstract class TxStreamStateStoreContract {
     }
 
     @Test
+    void atomicRegistrationMatchesContentIgnoringTimeAndPreservesProjection() {
+        TxStreamItemRecord original = record("matched");
+        assertTrue(store.registerOrMatch(original));
+        store.projectItem(projection("matched", TxStreamItemStatus.CONFIRMED), 7);
+        assertFalse(store.registerOrMatch(new TxStreamItemRecord(original.itemId(),
+                original.idempotencyKey(), original.laneName(), original.fingerprint(), NOW.plusSeconds(9))));
+        assertEquals(TxStreamItemStatus.CONFIRMED, store.getItem(STREAM, "matched").orElseThrow().getStatus());
+        assertEquals(7, store.getStoredProjection(STREAM, "matched").orElseThrow().sourceSequence());
+        assertTrue(store.getStoredProjection("other", "matched").isEmpty());
+    }
+
+    @Test
+    void atomicRegistrationRejectsDifferentFingerprintKeyOrLane() {
+        TxStreamItemRecord original = record("conflict");
+        assertTrue(store.registerOrMatch(original));
+        for (TxStreamItemRecord changed : List.of(
+                new TxStreamItemRecord(original.itemId(), original.idempotencyKey(), original.laneName(), "changed", NOW),
+                new TxStreamItemRecord(original.itemId(), "changed", original.laneName(), original.fingerprint(), NOW),
+                new TxStreamItemRecord(original.itemId(), original.idempotencyKey(), "changed", original.fingerprint(), NOW))) {
+            assertThrows(TxStreamDuplicateItemException.class, () -> store.registerOrMatch(changed));
+        }
+        assertFalse(store.registerOrMatch(original));
+    }
+
+    @Test
+    void concurrentIdenticalRegistrationHasOneWinnerIncludingProjectionOnlyRows() throws Exception {
+        for (boolean projectionOnly : new boolean[] {false, true}) {
+            String id = "race-" + projectionOnly;
+            if (projectionOnly) store.projectItem(projection(id, TxStreamItemStatus.ACCEPTED), 1);
+            ExecutorService pool = Executors.newFixedThreadPool(8);
+            try {
+                CyclicBarrier barrier = new CyclicBarrier(8);
+                List<Future<Boolean>> results = new ArrayList<>();
+                for (int i = 0; i < 8; i++) {
+                    results.add(pool.submit(() -> {
+                        barrier.await(10, TimeUnit.SECONDS);
+                        return store.registerOrMatch(record(id));
+                    }));
+                }
+                int registered = 0;
+                for (Future<Boolean> result : results) if (result.get(30, TimeUnit.SECONDS)) registered++;
+                assertEquals(1, registered);
+            } finally {
+                pool.shutdownNow();
+            }
+        }
+    }
+
+    @Test
     void bindRequiresRegistrationAndConfirmRecordsOutcome() {
         assertCode("TXSTREAM_ITEM_UNKNOWN",
                 () -> store.bind("item-1", binding("exec-1")));

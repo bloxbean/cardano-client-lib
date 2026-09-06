@@ -9,23 +9,32 @@ TxStream is experimental. The default managed runtime is process-local; it does 
 provide crash-durable acceptance. Durable store pairing persists planned execution
 requests and supports reattachment, but it is not yet a general exactly-once queue consumer.
 
-**Current preview restrictions:**
+**Current preview contract:**
 
-- Identical redelivery after an item leaves the live map can report `CONFLICT`, even
-  when its durable registration has identical content. Persistence alone does not
-  provide attach-after-eviction.
-- Accepted work without a persisted execution plan cannot be automatically replayed.
-  Current restart handling can retain an abandoned registration; do not assume that
-  resubmitting the same ID will run it, or that generating a new ID is safe.
-- `awaitResolution` can return stored terminal outcomes. Store-only uncertain items
-  still require hydration/engine recovery; polling never submits a replacement.
+- Shipped durable stores atomically register or match item identity and content.
+  Identical redelivery after live eviction or restart attaches to stored work;
+  different content conflicts. Matching never plans another execution.
+- Stored terminal outcomes are returned directly. Nonterminal items with persisted
+  plans are hydrated and reconciled against their original engine execution.
+  Explicit reads, redelivery, and the reconciliation observer share that path.
+- A registration without a recoverable plan is not automatically replayed.
+  Redelivery returns `REJECTED` / `TXSTREAM_REGISTRATION_INCOMPLETE`; a projected
+  accepted item found incomplete on restart remains `RECOVERY_REQUIRED` with
+  `TXSTREAM_ABANDONED`. Wait for an accepting owner still processing it, or investigate
+  the registration, engine claim, and source journal. Do not generate a replacement ID.
+- Custom stores must implement `registerOrMatch` and coherent `getStoredProjection`
+  reads to provide the same guarantees. The compatibility defaults retain legacy
+  registration behavior. Item IDs must be unique across streams sharing a store:
+  registration keys remain store-scoped in this preview schema.
 - `perWindow()` and `batching()` deduplicate exact flow member sets, not arbitrary
-  individual redeliveries. Use `perItem()` for independently redelivered work.
+  individual redeliveries after their registration history is removed. Use `perItem()`
+  for independently redelivered work and retain durable registrations.
 
-Durable registration matching, shared hydration, and partial-registration recovery
-are tracked separately in ADR 0006. The guarantees below apply to persisted planned
-requests, not every accepted item. Use a controlled evaluation with an application
-journal and an explicit recovery procedure before relying on durable payout processing.
+This is a conservative preview implementation of the registration/hydration portion
+of ADR 0006. It does not implement automatic recovery of accepted-but-unplanned work,
+change the registration key schema, or provide active/active wallet ownership.
+Existing terminal `CANCELLED` / `TXSTREAM_ABANDONED` rows from older builds stay
+terminal and attach as cancelled; upgrades never replay them automatically.
 
 ## The durable pairing
 
@@ -113,8 +122,8 @@ The same operational guidance as the engine store applies (migration with a sche
 `VALIDATE` at runtime, one transactionally consistent backup unit); see
 [Durable Runtime](./durable-runtime) and the RDBMS module README. A durable store ignores the
 stream's retention eviction and keeps settled items indefinitely. This preserves status
-history, but the current acceptance path does not attach after live eviction; it does not lift the
-duplicate-detection guard window below.
+history and enables identical redelivery to attach after live eviction. Receipt
+hydration does not increment acceptance counters or create another execution.
 
 ## What start() does in durable mode
 
@@ -133,9 +142,10 @@ against engine truth (`reattach()`):
    the same execution id on every process and every retry: if the execution somehow does exist,
    the engine answers `MATCHED` and returns the stored execution instead of running a duplicate.
    Double-submission is structurally prevented by the engine claim, not by stream bookkeeping.
-4. Items accepted without a persisted plan cannot be automatically resumed. Their
-   registrations can survive while restart marks them abandoned. Source redelivery
-   may conflict; use an explicit recovery procedure rather than a replacement ID.
+4. Items accepted without a persisted plan cannot be automatically resumed. Restart
+   reports projected incomplete work as recovery-required; same-content redelivery
+   reports `TXSTREAM_REGISTRATION_INCOMPLETE`, not a content conflict. Use an explicit
+   recovery procedure rather than a replacement ID.
 
 `ReattachReport` summarizes the pass (`reattachedItems`, `redispatched`, `recoveryRequired`).
 
@@ -180,8 +190,8 @@ remaining guarantee is *engine-request equality* on the claim-derived execution:
   have been a typed content conflict.
 
 Size the cap to cover your longest realistic redelivery horizon. A durable stream store retains
-settled items indefinitely, but identical redelivery after live eviction currently conflicts.
-The retained status history does not extend the live attach contract.
+settled items indefinitely. The shipped durable stores compare the retained registration
+atomically and attach identical redelivery without another execution.
 
 ## No secrets in the stream store
 

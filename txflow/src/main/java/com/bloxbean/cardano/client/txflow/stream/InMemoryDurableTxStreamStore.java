@@ -137,6 +137,16 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
     }
 
     @Override
+    public boolean registerOrMatch(TxStreamItemRecord record) {
+        Objects.requireNonNull(record, "record");
+        TxStreamItemRecord existing = records.putIfAbsent(record.itemId(), record);
+        if (existing == null) return true;
+        if (existing.matches(record)) return false;
+        throw new TxStreamDuplicateItemException(record.itemId(),
+                "Item registration has different content: " + record.itemId());
+    }
+
+    @Override
     public void registerItem(TxStreamItemRecord record) {
         Objects.requireNonNull(record, "record");
         if (records.putIfAbsent(record.itemId(), record) != null) {
@@ -241,6 +251,13 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
             return Optional.empty();
         }
         return Optional.of(entry.result());
+    }
+
+    @Override
+    public Optional<TxStreamStoredProjection> getStoredProjection(String streamId, String itemId) {
+        ProjectionEntry entry = projections.get(itemId);
+        if (entry == null || !entry.result().getStreamId().equals(streamId)) return Optional.empty();
+        return Optional.of(new TxStreamStoredProjection(entry.result(), entry.sequence()));
     }
 
     @Override

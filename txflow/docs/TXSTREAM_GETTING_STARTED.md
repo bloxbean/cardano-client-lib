@@ -164,11 +164,10 @@ can produce a second payment.
   idempotency or UTxO assumptions.
 - Graceful `close()` drains accepted work without a default timeout.
   `close(Duration)` bounds that wait; `abort(...)` is the explicit cancellation path.
-- Durable production guidance is deliberately incomplete until
-  [ADR 0006](../adr/0006-txstream-durable-registration-and-hydration.md) ships its
-  registration-matching and store-only hydration requirements. Do not infer restart
-  safety from the in-memory beginner profile. The current durable boundaries are
-  described in [Durable runtime](DURABLE_RUNTIME.md).
+- Durable registration matching and store-only hydration are available in the shipped
+  stores; accepted-but-unplanned work still requires explicit recovery. See
+  [ADR 0007](../adr/0007-txstream-durable-redelivery-preview.md) for the implemented
+  preview contract. Do not infer restart safety from the in-memory beginner profile.
 
 ## Preview operating limits
 

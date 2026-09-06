@@ -139,11 +139,11 @@ class TxFlowStreamReconciliationObserverTest {
                     attemptData(STEP_ID, AttemptState.CONFIRMED, "tx-remote"));
 
             // Precondition: the row is durable-non-terminal but NOT in the
-            // observer's live map (getItemStatus returns the stored projection
-            // verbatim, no read-through repair for a non-live item).
+            // observer's live map. Inspect the store directly because public
+            // getItemStatus now performs the same hydration as the observer.
             assertTrue(store.listNonTerminalItemIds("payouts").contains("pay-remote"));
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    observer.getItemStatus("pay-remote").orElseThrow().getStatus());
+                    store.getItem("payouts", "pay-remote").orElseThrow().getStatus());
 
             // The observer must recover by READ-THROUGH only: capture the engine's
             // start count so we can prove it never re-executes the foreign item.
