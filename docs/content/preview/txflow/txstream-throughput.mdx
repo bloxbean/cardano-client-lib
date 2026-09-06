@@ -326,7 +326,8 @@ an explicit stream `maintenanceExecutor(...)` takes precedence. When neither
 provides a scheduler, an unsuccessful probe fails before engine start. A plain
 `Executor` cannot schedule retries. Plain `close()` keeps retries active while
 it drains and cancels remaining timers afterward; abort cancels them immediately.
-Parked executions retain their buffer permits, so `maxBufferSize` includes them. The pending hashes are process-local and reset
+Parked executions retain their buffer permits, so `maxBufferSize` includes them.
+The pending hashes are process-local and reset
 on restart; authoritative FAILED/CANCELLED repair clears the affected item's hold.
 A visibility timeout fails every member of the waiting execution. Their IDs remain
 registered. Because this particular error proves the engine never started, the

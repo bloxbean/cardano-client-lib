@@ -530,7 +530,10 @@ public interface TxFlowStream extends AutoCloseable {
     /**
      * Closes the stream gracefully: stops accepting work, drains accepted
      * items to settlement, then releases the source and stream resources.
-     * Nothing is cancelled. Idempotent.
+     * Normal completion cancels no work. If the wait is interrupted, queued
+     * work is aborted and running executions receive a cancellation signal;
+     * the method preserves the interrupt flag and throws TXSTREAM_INTERRUPTED.
+     * Idempotent.
      */
     @Override
     void close();

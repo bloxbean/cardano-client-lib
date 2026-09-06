@@ -1052,6 +1052,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             cancelOwnershipLocked();
         }
         releaseOwnershipBestEffort();
+        boolean abortOwnsCleanup = false;
         try {
             // Not flush(): the public entry point no-ops once closed, and the
             // closed flag is already up — this close must still plan the open
@@ -1059,16 +1060,27 @@ final class EngineTxFlowStream implements TxFlowStream {
             flushOpenWindow();
             schedulePump();
             awaitPromises(null);
+        } catch (TxStreamException failure) {
+            if ("TXSTREAM_INTERRUPTED".equals(failure.getCode())) {
+                // Cancelling only the timer would strand queued receipts on a
+                // closed stream. Abort settles queued work and signals running
+                // executions without claiming their final transaction outcome.
+                abort("Interrupted while closing stream");
+                abortOwnsCleanup = true;
+            }
+            throw failure;
+        } finally {
             synchronized (stateLock) {
                 cancelVisibilityTimersLocked();
             }
-        } finally {
-            try {
-                source.close();
-            } catch (Exception failure) {
-                log.warn("TxFlowStream[{}] source close failed", streamId, failure);
+            if (!abortOwnsCleanup) {
+                try {
+                    source.close();
+                } catch (Exception failure) {
+                    log.warn("TxFlowStream[{}] source close failed", streamId, failure);
+                }
+                safeListener(() -> listener.onStreamClosed(streamId));
             }
-            safeListener(() -> listener.onStreamClosed(streamId));
         }
     }
 

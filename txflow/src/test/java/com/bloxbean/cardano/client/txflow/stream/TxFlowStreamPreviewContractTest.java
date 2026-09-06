@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -173,6 +174,54 @@ class TxFlowStreamPreviewContractTest {
             gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "second-hash");
             closed.get(2, TimeUnit.SECONDS);
             assertEquals(TxStreamItemStatus.CONFIRMED, waiting.current().getStatus());
+        } finally {
+            stream.abort("test cleanup");
+            closer.join(2000);
+        }
+    }
+
+    @Test
+    void interruptedCloseCancelsParkedWorkAndTimersWithoutDuplicateCloseEvent() throws Exception {
+        StubEngineGateway gateway = new StubEngineGateway();
+        gateway.outputVisibility = hash -> false;
+        ManualScheduler scheduler = new ManualScheduler();
+        AtomicInteger closeEvents = new AtomicInteger();
+        TxFlowStream stream = new TxFlowStream.Builder("interrupted-close", gateway)
+                .executor(Runnable::run).maintenanceExecutor(scheduler)
+                .eventListener(new TxStreamEventListener() {
+                    @Override
+                    public void onStreamClosed(String streamId) { closeEvents.incrementAndGet(); }
+                }).open();
+        CompletableFuture<Throwable> closeFailure = new CompletableFuture<>();
+        AtomicBoolean interruptedFlag = new AtomicBoolean();
+        Thread closer = new Thread(() -> {
+            try {
+                stream.close();
+                closeFailure.complete(null);
+            } catch (Throwable failure) {
+                interruptedFlag.set(Thread.currentThread().isInterrupted());
+                closeFailure.complete(failure);
+            }
+        });
+        try {
+            TxPlan plan = TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(2)).from(SENDER));
+            stream.submit("first", plan);
+            gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "first-hash");
+            TxStreamReceipt waiting = stream.submit("waiting", plan);
+            ManualScheduler.ScheduledTask retry = scheduler.pending();
+            closer.start();
+            assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+                while (closer.getState() != Thread.State.WAITING) Thread.sleep(1);
+            });
+            closer.interrupt();
+            assertEquals("TXSTREAM_INTERRUPTED", ((TxStreamException) closeFailure.get(2, TimeUnit.SECONDS)).getCode());
+            assertTrue(interruptedFlag.get());
+            assertTrue(retry.isCancelled());
+            assertEquals(TxStreamItemStatus.CANCELLED, waiting.awaitSettled(Duration.ofSeconds(1)).getStatus());
+            assertEquals(0, stream.getStats().pendingBufferSize());
+            assertEquals(1, closeEvents.get());
+            retry.fire();
+            assertEquals(1, gateway.started.size());
         } finally {
             stream.abort("test cleanup");
             closer.join(2000);
