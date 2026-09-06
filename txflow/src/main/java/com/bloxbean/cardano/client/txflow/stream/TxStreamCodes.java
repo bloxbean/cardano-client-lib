@@ -9,6 +9,10 @@ package com.bloxbean.cardano.client.txflow.stream;
  * own catalogs; this class intentionally contains only core codes.</p>
  */
 public final class TxStreamCodes {
+    /** Projection changed repeatedly while obtaining a coherent hydration snapshot. */
+    public static final String PROJECTION_BUSY = "TXSTREAM_PROJECTION_BUSY";
+    /** Registration exists but no recoverable planned request can currently be found. */
+    public static final String REGISTRATION_INCOMPLETE = "TXSTREAM_REGISTRATION_INCOMPLETE";
     /** Previous lane transaction is not yet visible to the funding backend. */
     public static final String BACKEND_NOT_READY = "TXSTREAM_BACKEND_NOT_READY";
     /** Accepted work was recovered without an execution binding. */

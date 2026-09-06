@@ -128,8 +128,8 @@ must reuse the original item id.
 > (`maxRetainedSettledItems`, default 10,000). After eviction the engine claim is still the
 > exactly-once guard for identical resubmits, but the stream-level content-conflict check has
 > lapsed — see [the eviction guard window](./txstream-durability#the-eviction-guard-window) for
-> the exact post-eviction guarantees. A durable store retains status history, but identical
-> redelivery after live eviction currently conflicts; see the durable preview restrictions.
+> the exact post-eviction guarantees. Shipped durable stores retain registration history and
+> attach identical redelivery after eviction; incomplete registrations require explicit recovery.
 
 For non-blocking producers, `trySubmit` mirrors `submit` without throwing and without blocking on
 a full buffer:

@@ -41,10 +41,12 @@ The RDBMS unit suite also passed on Java 21. The added regressions exercise:
 
 ## Separate durability qualification
 
-This preview does not yet promise transparent queue recovery across every crash
-boundary. ADR 0006 tracks atomic registration matching, shared hydration, and the
-policy for registrations without persisted plans. A retained database row does
-not by itself imply successful attach-on-redelivery.
+The durable follow-up implements atomic registration matching and shared read-only
+hydration for shipped stores. H2/PostgreSQL contract tests exercise concurrent
+identical registration; runtime tests cover eviction, restart, and store-only repair.
+Registrations without a persisted plan remain recovery-required and are never
+silently replanned. See ADR 0007 for the implemented subset and upgrade behavior.
+Transparent queue recovery across every crash boundary remains outside this preview.
 
 Before promoting durable operation beyond experimental support, require H2 and
 PostgreSQL contract tests, restart/redelivery beyond live retention, registration
@@ -69,3 +71,34 @@ caller may retry that work under new IDs; this does not apply to RECOVERY_REQUIR
 Custom backend-based engines used by TxStream enable visibility checks by default;
 custom output services must support historical output lookup or explicitly disable
 `backendVisibilityChecks`. Ordinary engine executions do not invoke this stream gate.
+## Combined-branch qualification, 2026-09-06
+
+Java 21: 1,064 TxFlow unit tests, 114 RDBMS unit tests, 73 RDBMS integration
+tests (including PostgreSQL and abrupt H2 restart), and the soak reconciler unit
+test passed with no skips. Java 17 TxFlow/RDBMS unit suites and the RDBMS
+integration suite also passed during this change.
+
+A two-minute local DevKit smoke run used two lanes, `perItem()`, 0.5 items/second,
+four recipients, and `--utxo-gate=false`. The SDK indexing check remained enabled.
+All 60 submitted items confirmed; there were no failures, cancellations, unresolved
+items, orphan leases, or duplicate/missing payments. Expected and actual payout
+value both equalled 73,280,000 lovelace. The exact reconciliation output is saved in
+[the smoke report](qualification/2026-09-06-txstream-devkit-smoke.txt).
+
+This was a short smoke run with chaos disabled. It does not establish long-term
+heap stability, public-network throughput, or failover-under-load qualification.
+
+
+## Follow-up review qualification
+
+After the reader/writer projection race was reproduced, the review corrections
+were validated on Java 21: 1,070 TxFlow unit tests, 118 RDBMS unit tests and
+76 H2/PostgreSQL integration tests passed, with no failures or skips. Java 17
+TxFlow/RDBMS unit and integration suites also passed during the correction.
+
+New regressions cover RUNNING and absent snapshots during foreign reads and
+receipt attachment, preserving the owner's later confirmation; targeted plan
+lookup; bounded scanning past abandoned rows; exact-version and concurrent
+operator acknowledgement; and a projection-only insert winning the registration
+race. The dispatch regressions cover progress on another lane under maxInFlight=1,
+FAILED/CANCELLED repair wakeup and stale visibility timers.
