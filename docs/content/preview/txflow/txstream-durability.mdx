@@ -13,10 +13,15 @@ requests and supports reattachment, but it is not yet a general exactly-once que
 
 - Shipped durable stores atomically register or match item identity and content.
   Identical redelivery after live eviction or restart attaches to stored work;
-  different content conflicts. Matching never plans another execution.
-- Stored terminal outcomes are returned directly. Nonterminal items with persisted
-  plans are hydrated and reconciled against their original engine execution.
-  Explicit reads, redelivery, and the reconciliation observer share that path.
+  different content conflicts. Matching includes the lane name: changing lane
+  assignment across deployments can conflict even with an unchanged payload.
+  Matching never plans another execution.
+- Stored terminal outcomes are returned directly. Healthy foreign-item reads are
+  detached observations: no live item, claim, counter, event, or owner projection
+  write. A missing or running engine snapshot never establishes recovery authority.
+  Explicit foreign receipt attachment retains a local observation; use `reconcile`
+  or the observer to refresh it. Stored `RECOVERY_REQUIRED` items with persisted
+  plans may be hydrated and terminally repaired from their original engine truth.
 - A registration without a recoverable plan is not automatically replayed.
   Redelivery returns `REJECTED` / `TXSTREAM_REGISTRATION_INCOMPLETE`; a projected
   accepted item found incomplete on restart remains `RECOVERY_REQUIRED` with
@@ -24,7 +29,10 @@ requests and supports reattachment, but it is not yet a general exactly-once que
   the registration, engine claim, and source journal. Do not generate a replacement ID.
 - Custom stores must implement `registerOrMatch` and coherent `getStoredProjection`
   reads to provide the same guarantees. The compatibility defaults retain legacy
-  registration behavior. Item IDs must be unique across streams sharing a store:
+  registration behavior. Shipped stores resolve a plan through its item binding;
+  custom stores can override the lookup and paging compatibility fallbacks for
+  efficient reads, and must explicitly implement atomic abandoned acknowledgement.
+  Item IDs must be unique across streams sharing a store:
   registration keys remain store-scoped in this preview schema.
 - `perWindow()` and `batching()` deduplicate exact flow member sets, not arbitrary
   individual redeliveries after their registration history is removed. Use `perItem()`
@@ -149,6 +157,31 @@ against engine truth (`reattach()`):
 
 `ReattachReport` summarizes the pass (`reattachedItems`, `redispatched`, `recoveryRequired`).
 
+Restart inventories all unresolved work. An absent binding alone does not authorize
+same-ID reacceptance: another owner may still have the accepted item queued before
+its write-ahead binding.
+
+For an abandoned registration, stop or fence **all producers and recovery workers**
+and investigate the source journal, original engine claim, binding, and transaction
+hash first. Then read `getStoredProjection` to obtain the exact sequence expected
+by `acknowledgeAbandoned`:
+
+```java
+TxStreamStoredProjection observed = store.getStoredProjection("payouts", "payment-1")
+        .orElseThrow();
+boolean acknowledged = store.acknowledgeAbandoned(
+        "payouts", "payment-1", observed.sourceSequence(),
+        "Investigated original claim with producers and recovery workers fenced",
+        Instant.now());
+// false means the sequence or abandoned state no longer matches; investigate again.
+```
+
+Acknowledgement atomically checks `RECOVERY_REQUIRED` / `TXSTREAM_ABANDONED` at
+that sequence and marks the bookkeeping `FAILED`, retaining registration, binding,
+and hash. It is **not proof that a transaction failed** and does not authorize a
+replacement payment. Already-resolved or stale observations return false. Custom
+stores that do not implement this atomic operation reject it as unsupported.
+
 ## Dedup scopes: what "exactly-once" actually covers
 
 This is the most important honest section in these docs. The engine supports exactly one
@@ -266,7 +299,9 @@ TxFlowStream stream = TxFlowStream.builder("payouts", engine)
 ```
 
 Repairs are emitted to the `TxStreamEventListener`; `reconciliationBatchSize` (default 100) caps
-work per pass.
+work per pass. Durable candidates are paged with an item-ID cursor; every inspected
+row consumes budget, including live and abandoned rows. The cursor advances so
+later recoverable work is not starved by earlier incomplete registrations.
 
 **3. Operator recovery.** When the engine itself reports the execution `RECOVERY_REQUIRED`, an
 operator runs `engine.recover(...)` — which verifies the persisted signed payload against the
@@ -330,32 +365,3 @@ Semantics to plan around:
   lifecycle.
 - [TxStream: Lanes, Batching & Throughput](./txstream-throughput) — the concurrency model these
   guarantees compose with.
-
-### Review corrections
-
-Healthy foreign-item reads are observations. They do not install live items or
-advance the owner's projection sequence, even when the engine snapshot is absent.
-Explicit foreign receipt attachment retains a local observation; poll `reconcile`
-or enable the observer to refresh it. Stored recovery-required items may still be
-hydrated and terminally repaired from engine truth. Observation never infers
-recovery authority from a missing snapshot.
-
-The shipped stores resolve a plan through the item's binding. The observer pages
-nonterminal IDs with a cursor and charges every inspected row against its budget,
-including live or abandoned rows. This keeps a pass bounded and lets later rows
-progress; restart still inventories all unresolved work.
-
-After fencing/stopping all producers and recovery workers and investigating an
-abandoned registration, an operator can call
-`store.acknowledgeAbandoned(streamId, itemId, expectedSequence, reason, acknowledgedAt)`.
-It atomically checks the exact stored sequence and RECOVERY_REQUIRED/TXSTREAM_ABANDONED
-state, marks the bookkeeping FAILED, and retains registration, binding, and hash.
-A stale or already-resolved row returns false. This acknowledgement is not proof
-that a transaction failed and is not permission to submit a replacement payment.
-Custom stores must implement this atomic operation explicitly; it is unsupported
-by default. The paging and targeted-lookup SPI methods have compatibility fallbacks.
-
-Registration matching includes the lane name. Changing lane assignment across
-deployments can therefore conflict even when the transaction payload is unchanged.
-No-binding observations do not authorize automatic same-ID reacceptance: another
-owner may still have accepted work queued before its write-ahead binding.
