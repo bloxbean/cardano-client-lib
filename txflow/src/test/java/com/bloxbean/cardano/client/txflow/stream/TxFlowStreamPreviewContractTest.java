@@ -12,10 +12,14 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 class TxFlowStreamPreviewContractTest {
     private static final String SENDER = "addr_test1vpqsender";
@@ -25,6 +29,7 @@ class TxFlowStreamPreviewContractTest {
     void nextLaneExecutionWaitsForBackendIndexingWithoutResubmittingPreviousPayment() {
         StubEngineGateway gateway = new StubEngineGateway();
         ManualScheduler scheduler = new ManualScheduler();
+        gateway.maintenanceScheduler = scheduler;
         AtomicInteger checks = new AtomicInteger();
         gateway.outputVisibility = hash -> {
             assertEquals("previous-hash", hash);
@@ -32,7 +37,7 @@ class TxFlowStreamPreviewContractTest {
             return checks.incrementAndGet() >= 3;
         };
         TxFlowStream stream = new TxFlowStream.Builder("visibility", gateway)
-                .executor(Runnable::run).maintenanceExecutor(scheduler)
+                .executor(Runnable::run)
                 .backendVisibility(Duration.ofSeconds(1), Duration.ofMillis(1))
                 .open();
         try {
@@ -130,6 +135,97 @@ class TxFlowStreamPreviewContractTest {
             retry.fire();
             assertEquals(1, gateway.started.size());
             assertEquals(TxStreamItemStatus.CANCELLED, waiting.awaitSettled(Duration.ofSeconds(1)).getStatus());
+        } finally {
+            stream.abort("test cleanup");
+        }
+    }
+
+    @Test
+    void plainCloseKeepsParkedLaneRetryAliveUntilDrainCompletes() throws Exception {
+        StubEngineGateway gateway = new StubEngineGateway();
+        gateway.outputVisibility = hash -> false;
+        ManualScheduler scheduler = new ManualScheduler();
+        TxFlowStream stream = new TxFlowStream.Builder("close-visibility", gateway)
+                .executor(Runnable::run).maintenanceExecutor(scheduler).open();
+        CompletableFuture<Void> closed = new CompletableFuture<>();
+        Thread closer = new Thread(() -> {
+            try {
+                stream.close();
+                closed.complete(null);
+            } catch (Throwable failure) {
+                closed.completeExceptionally(failure);
+            }
+        });
+        try {
+            TxPlan plan = TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(2)).from(SENDER));
+            stream.submit("first", plan);
+            gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "first-hash");
+            TxStreamReceipt waiting = stream.submit("waiting", plan);
+            ManualScheduler.ScheduledTask retry = scheduler.pending();
+            gateway.outputVisibility = hash -> true;
+            closer.start();
+            assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+                while (closer.getState() != Thread.State.WAITING) Thread.sleep(1);
+            });
+            assertFalse(retry.isCancelled(), "close must preserve the wakeup while draining");
+            retry.fire();
+            assertEquals(2, gateway.started.size());
+            gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "second-hash");
+            closed.get(2, TimeUnit.SECONDS);
+            assertEquals(TxStreamItemStatus.CONFIRMED, waiting.current().getStatus());
+        } finally {
+            stream.abort("test cleanup");
+            closer.join(2000);
+        }
+    }
+
+    @Test
+    void parkedWorkRetainsBufferCapacityUntilDispatchOrCancellation() {
+        for (boolean cancel : new boolean[] {false, true}) {
+            StubEngineGateway gateway = new StubEngineGateway();
+            gateway.outputVisibility = hash -> false;
+            ManualScheduler scheduler = new ManualScheduler();
+            TxFlowStream stream = new TxFlowStream.Builder("buffer-visibility", gateway)
+                    .executor(Runnable::run).maintenanceExecutor(scheduler).maxBufferSize(1).open();
+            try {
+                TxPlan plan = TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(2)).from(SENDER));
+                stream.submit("first", plan);
+                gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "first-hash");
+                stream.submit("waiting", plan);
+                assertEquals(1, stream.getStats().pendingBufferSize());
+                assertEquals(0, stream.getStats().inFlightCount());
+                assertEquals(EmitResult.Status.FULL, stream.trySubmit("overflow", plan).getStatus());
+                if (cancel) {
+                    assertTrue(stream.cancel("waiting", "cancel before dispatch"));
+                } else {
+                    gateway.outputVisibility = hash -> true;
+                    scheduler.pending().fire();
+                    assertEquals(2, gateway.started.size());
+                }
+                assertEquals(0, stream.getStats().pendingBufferSize());
+            } finally {
+                stream.abort("test cleanup");
+            }
+        }
+    }
+
+    @Test
+    void abortDuringVisibilityProbeReportsAbortedBeforeEngineStart() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        TxFlowStream stream = new TxFlowStream.Builder("probe-abort", gateway).executor(Runnable::run).open();
+        try {
+            TxPlan plan = TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(2)).from(SENDER));
+            stream.submit("first", plan);
+            gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "first-hash");
+            gateway.outputVisibility = hash -> {
+                stream.abort("abort during probe");
+                return true;
+            };
+            TxStreamItemResult result = stream.submit("waiting", plan).awaitSettled(Duration.ofSeconds(1));
+            assertEquals(TxStreamItemStatus.CANCELLED, result.getStatus());
+            assertEquals("TXSTREAM_ABORTED", ((TxStreamException) result.getError()).getCode());
+            assertEquals(1, gateway.started.size());
+            assertEquals(0, stream.getStats().pendingBufferSize());
         } finally {
             stream.abort("test cleanup");
         }

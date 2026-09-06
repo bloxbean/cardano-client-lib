@@ -54,9 +54,13 @@ duplicate/missing-payment reconciliation and report application-gated and ordina
 SDK paths separately. Local DevKit success does not replace that qualification.
 
 Backend visibility retries release the worker and in-flight slot between probes.
-`FlowRuntime` supplies the retry scheduler. Advanced stream builders must supply
-`maintenanceExecutor(...)` to retry an unsuccessful probe; without one it fails
-immediately before engine start. The pending hashes are process-local and reset
+`FlowRuntime` supplies the retry scheduler. Direct stream builders inherit the
+engine's maintenance executor when it implements `ScheduledExecutorService`;
+an explicit stream `maintenanceExecutor(...)` takes precedence. When neither
+provides a scheduler, an unsuccessful probe fails before engine start. A plain
+`Executor` cannot schedule retries. Plain `close()` keeps retries active while
+it drains and cancels remaining timers afterward; abort cancels them immediately.
+Parked executions retain their buffer permits, so `maxBufferSize` includes them. The pending hashes are process-local and reset
 on restart; authoritative FAILED/CANCELLED repair clears the affected item's hold.
 A visibility timeout fails every member of the waiting execution. Their IDs remain
 registered. Because this particular error proves the engine never started, the

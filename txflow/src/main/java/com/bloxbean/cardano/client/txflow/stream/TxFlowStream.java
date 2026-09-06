@@ -622,8 +622,10 @@ public interface TxFlowStream extends AutoCloseable {
          * the previous transaction's outcome. Backend calls must have their own
          * I/O timeouts. Defaults to 60 seconds, polling every 2 seconds.
          * Retries use the supplied maintenanceExecutor to wake the lane without
-         * holding a worker or an in-flight slot. FlowRuntime supplies it; without
-         * one an unsuccessful probe fails immediately before engine start.
+         * holding a worker or an in-flight slot. FlowRuntime supplies it; direct
+         * builders inherit a scheduling-capable engine maintenance executor.
+         * If neither supplies a scheduler, an unsuccessful probe fails before
+         * engine start. A plain Executor cannot provide delayed retries.
          * All members of a timed-out execution fail. Their IDs remain registered;
          * only this known pre-start failure permits retry under new item IDs.
          * Pending hashes are process-local and are cleared on restart or when
@@ -811,15 +813,17 @@ public interface TxFlowStream extends AutoCloseable {
         }
 
         /**
-         * Sets the caller-owned scheduler used for window-age wakeups,
-         * mirroring {@code FlowEngine}'s maintenance-executor pattern: the
-         * stream never constructs threads or timers. Required at
-         * {@link #build()} when — and only when — a time-based
-         * {@link WindowPolicy} is configured; the stream schedules one wakeup
-         * per open window and cancels it when the window closes early. The
-         * application retains ownership and must shut the scheduler down.
+         * Sets the caller-owned scheduler for window-age wakeups, visibility
+         * retries, reconciliation and ownership maintenance. When omitted,
+         * a scheduling-capable engine maintenance executor is inherited;
+         * an explicit stream scheduler takes precedence. The stream never
+         * shuts down either scheduler.
          *
-         * @param value caller-owned scheduler for window-age wakeups
+         * <p>A scheduler is required for time-based windows, enabled periodic
+         * reconciliation and ownership. Visibility retries also need one;
+         * without a scheduler an unsuccessful probe fails before engine start.</p>
+         *
+         * @param value caller-owned scheduler
          * @return this builder
          */
         public Builder maintenanceExecutor(ScheduledExecutorService value) {
@@ -1061,6 +1065,9 @@ public interface TxFlowStream extends AutoCloseable {
          * @return configured stream, not yet started
          */
         public TxFlowStream build() {
+            if (maintenanceExecutor == null) {
+                maintenanceExecutor = gateway.maintenanceScheduler().orElse(null);
+            }
             if (lanePolicy.isExplicit() && laneResolver == null) {
                 throw new IllegalStateException(
                         "LanePolicy.explicit() requires laneResolver(LaneIdentityResolver)");

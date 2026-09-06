@@ -18,6 +18,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -40,6 +41,7 @@ final class StubEngineGateway implements EngineGateway {
     volatile RuntimeException startFailure;
     /** Optional caller-owned dispatcher exposed for builder inheritance tests. */
     volatile Executor executionExecutor;
+    volatile ScheduledExecutorService maintenanceScheduler;
     volatile Function<String, Boolean> outputVisibility = hash -> true;
 
     @Override
@@ -72,6 +74,11 @@ final class StubEngineGateway implements EngineGateway {
 
     StubEngineGateway(List<String> callLog) {
         this.callLog = callLog;
+    }
+
+    @Override
+    public Optional<ScheduledExecutorService> maintenanceScheduler() {
+        return Optional.ofNullable(maintenanceScheduler);
     }
 
     @Override

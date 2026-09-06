@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Thin seam over the engine surface the stream depends on, so stream behavior
@@ -52,6 +53,11 @@ interface EngineGateway {
      * @return execution dispatcher available for stream inheritance
      */
     default Optional<Executor> executionExecutor() {
+        return Optional.empty();
+    }
+
+    /** Caller-owned scheduler available for inheritance; absent for plain executors. */
+    default Optional<ScheduledExecutorService> maintenanceScheduler() {
         return Optional.empty();
     }
 

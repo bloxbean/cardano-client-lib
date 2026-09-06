@@ -72,6 +72,29 @@ class TxFlowStreamDxExecutorInheritanceTest {
     }
 
     @Test
+    void productionMaintenanceSchedulerIsInheritedAndExplicitStreamSchedulerWins() {
+        ManualScheduler inherited = new ManualScheduler();
+        ManualScheduler explicit = new ManualScheduler();
+        FlowEngine engine = FlowEngine.builder(mock(UtxoSupplier.class), mock(ProtocolParamsSupplier.class),
+                        mock(TransactionProcessor.class), mock(ChainDataSupplier.class))
+                .executor(Runnable::run).maintenanceExecutor(inherited)
+                .compiler(failingExecutionCompiler()).build();
+        for (boolean override : new boolean[] {false, true}) {
+            TxFlowStream.Builder builder = TxFlowStream.builder("payouts", engine)
+                    .window(WindowPolicy.countOrTime(2, Duration.ofSeconds(1)));
+            if (override) builder.maintenanceExecutor(explicit);
+            try (TxFlowStream stream = builder.open()) {
+                TxStreamReceipt receipt = stream.submit(planItem(override ? "explicit" : "inherited"));
+                assertFalse((override ? explicit : inherited).pending().isCancelled());
+                stream.flush();
+                assertEquals(TxStreamItemStatus.FAILED, receipt.awaitSettled(Duration.ofSeconds(1)).getStatus());
+            }
+        }
+        assertEquals(1, inherited.tasks.size());
+        assertEquals(1, explicit.tasks.size());
+    }
+
+    @Test
     void missingGatewayDispatcherFailsWithTeachingMessage() {
         StubEngineGateway gateway = new StubEngineGateway();
 

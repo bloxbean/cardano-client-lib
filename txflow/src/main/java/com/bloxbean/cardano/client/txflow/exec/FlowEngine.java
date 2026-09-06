@@ -214,6 +214,17 @@ public final class FlowEngine {
     }
 
     /**
+     * Returns the caller-owned maintenance executor. TxStream can inherit it
+     * for delayed work when it implements ScheduledExecutorService. Exposing
+     * it does not transfer ownership or make a plain Executor a scheduler.
+     *
+     * @return configured maintenance executor, or the execution executor fallback
+     */
+    public Executor maintenanceExecutor() {
+        return maintenanceExecutor;
+    }
+
+    /**
      * Compiles and starts an execution.
      *
      * <p>Compilation and request validation happen before dispatch. Validation,

@@ -1049,7 +1049,6 @@ final class EngineTxFlowStream implements TxFlowStream {
             closed = true;
             accepting = false;
             cancelReconciliationLocked();
-            cancelVisibilityTimersLocked();
             cancelOwnershipLocked();
         }
         releaseOwnershipBestEffort();
@@ -1060,6 +1059,9 @@ final class EngineTxFlowStream implements TxFlowStream {
             flushOpenWindow();
             schedulePump();
             awaitPromises(null);
+            synchronized (stateLock) {
+                cancelVisibilityTimersLocked();
+            }
         } finally {
             try {
                 source.close();
@@ -2868,9 +2870,6 @@ final class EngineTxFlowStream implements TxFlowStream {
                 ExecutionState next = lane.queue.poll();
                 lane.inFlight = next;
                 inFlightCount++;
-                for (ItemState member : next.members) {
-                    releasePermit(member);
-                }
                 return next;
             }
             return null;
@@ -2882,6 +2881,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             LaneQueue lane = laneQueues.get(execution.lane.canonicalSpendingIdentity());
             if (lane != null && lane.inFlight == execution) {
                 for (ItemState member : execution.members) {
+                    releasePermit(member);
                     TxStreamItemResult result = member.projection.current();
                     if (result.getTransactionHash() != null
                             && (result.getStatus() == TxStreamItemStatus.CONFIRMED
@@ -2985,8 +2985,9 @@ final class EngineTxFlowStream implements TxFlowStream {
         }
         if (aborted || (execution.visibilityStartedAt != null
                 && (!ownershipDispatchAllowed() || execution.pendingCancelReason != null))) {
-            TxStreamException stopped = new TxStreamException("TXSTREAM_EXECUTION_CANCELLED",
-                    "Dispatch stopped before engine start");
+            TxStreamException stopped = new TxStreamException(aborted ? "TXSTREAM_ABORTED"
+                    : !ownershipDispatchAllowed() ? "TXSTREAM_OWNERSHIP_LOST" : "TXSTREAM_EXECUTION_CANCELLED",
+                    aborted && abortReason != null ? abortReason : "Dispatch stopped before engine start");
             for (ItemState member : execution.members) {
                 project(member, TxStreamItemStatus.CANCELLED, builder -> builder.error(stopped), false);
             }
@@ -2994,6 +2995,9 @@ final class EngineTxFlowStream implements TxFlowStream {
             finishLane(execution);
             schedulePump();
             return;
+        }
+        for (ItemState member : execution.members) {
+            releasePermit(member);
         }
         dispatch(execution);
     }
@@ -3154,13 +3158,12 @@ final class EngineTxFlowStream implements TxFlowStream {
         if (target != TxStreamItemStatus.FAILED && target != TxStreamItemStatus.CANCELLED) return;
         boolean wake = false;
         synchronized (stateLock) {
-            for (LaneQueue lane : laneQueues.values()) {
-                if (lane.pendingVisibility.remove(state.item.getItemId()) != null
-                        && lane.pendingVisibility.isEmpty()) {
-                    cancelVisibilityTimerLocked(lane);
-                    makeReady(lane);
-                    wake = true;
-                }
+            LaneQueue lane = laneQueues.get(state.lane.canonicalSpendingIdentity());
+            if (lane != null && lane.pendingVisibility.remove(state.item.getItemId()) != null
+                    && lane.pendingVisibility.isEmpty()) {
+                cancelVisibilityTimerLocked(lane);
+                makeReady(lane);
+                wake = true;
             }
         }
         if (wake) schedulePump();

@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Production {@link EngineGateway} delegating to a caller-owned
@@ -43,6 +44,12 @@ final class FlowEngineGateway implements EngineGateway {
     @Override
     public Optional<Executor> executionExecutor() {
         return Optional.of(engine.executionExecutor());
+    }
+
+    @Override
+    public Optional<ScheduledExecutorService> maintenanceScheduler() {
+        return engine.maintenanceExecutor() instanceof ScheduledExecutorService scheduler
+                ? Optional.of(scheduler) : Optional.empty();
     }
 
     @Override
