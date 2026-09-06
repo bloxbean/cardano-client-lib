@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TxFlowStreamPreviewContractTest {
     private static final String SENDER = "addr_test1vpqsender";
@@ -93,6 +94,7 @@ class TxFlowStreamPreviewContractTest {
                                 "uncertain-hash", List.of(), List.of(), new IllegalStateException("uncertain"),
                                 StubEngineGateway.NOW)), null, StubEngineGateway.NOW, StubEngineGateway.NOW));
                 stream.submit("waiting", plan);
+                ManualScheduler.ScheduledTask retry = scheduler.pending();
                 assertEquals(1, gateway.started.size());
                 stream.submit("other-wallet", TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(2))
                         .from("addr_test1vpqother")));
@@ -101,11 +103,35 @@ class TxFlowStreamPreviewContractTest {
                 gateway.putSnapshot(first.executionId().orElseThrow(), terminal);
                 stream.reconcile("first");
                 assertEquals(3, gateway.started.size(), "repair must wake the lane without waiting for the timer");
-                scheduler.pending().fire();
+                assertTrue(retry.isCancelled(), "repair must release the scheduled task");
+                retry.fire();
                 assertEquals(3, gateway.started.size(), "stale timer must not redispatch");
             } finally {
                 stream.abort("test cleanup");
             }
+        }
+    }
+
+    @Test
+    void abortCancelsPendingVisibilityTimer() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        gateway.outputVisibility = hash -> false;
+        ManualScheduler scheduler = new ManualScheduler();
+        TxFlowStream stream = new TxFlowStream.Builder("abort-visibility", gateway)
+                .executor(Runnable::run).maintenanceExecutor(scheduler).open();
+        try {
+            TxPlan plan = TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(2)).from(SENDER));
+            stream.submit("first", plan);
+            gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "hash");
+            TxStreamReceipt waiting = stream.submit("waiting", plan);
+            ManualScheduler.ScheduledTask retry = scheduler.pending();
+            stream.abort("stop");
+            assertTrue(retry.isCancelled());
+            retry.fire();
+            assertEquals(1, gateway.started.size());
+            assertEquals(TxStreamItemStatus.CANCELLED, waiting.awaitSettled(Duration.ofSeconds(1)).getStatus());
+        } finally {
+            stream.abort("test cleanup");
         }
     }
 

@@ -1049,6 +1049,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             closed = true;
             accepting = false;
             cancelReconciliationLocked();
+            cancelVisibilityTimersLocked();
             cancelOwnershipLocked();
         }
         releaseOwnershipBestEffort();
@@ -1097,6 +1098,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 closed = true;
                 cancelWindowTimerLocked();
                 cancelReconciliationLocked();
+                cancelVisibilityTimersLocked();
                 cancelOwnershipLocked();
                 ItemState windowed;
                 while ((windowed = windowBuffer.poll()) != null) {
@@ -2826,7 +2828,9 @@ final class EngineTxFlowStream implements TxFlowStream {
     private boolean removeQueuedExecution(ExecutionState execution) {
         synchronized (stateLock) {
             LaneQueue lane = laneQueues.get(execution.lane.canonicalSpendingIdentity());
-            return lane != null && lane.queue.remove(execution);
+            if (lane == null || !lane.queue.remove(execution)) return false;
+            if (lane.queue.isEmpty()) cancelVisibilityTimerLocked(lane);
+            return true;
         }
     }
 
@@ -3112,7 +3116,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             }
             long epoch = ++lane.visibilityEpoch;
             // Schedule before relinquishing the claim, so rejection follows the normal failure path.
-            maintenanceExecutor.schedule(() -> wakeVisibilityLane(lane, epoch),
+            lane.visibilityTimer = maintenanceExecutor.schedule(() -> wakeVisibilityLane(lane, epoch),
                     Math.min(remaining, backendVisibilityPollNanos), TimeUnit.NANOSECONDS);
             lane.visibilityWaiting = true;
             lane.queue.addFirst(execution);
@@ -3126,10 +3130,24 @@ final class EngineTxFlowStream implements TxFlowStream {
     private void wakeVisibilityLane(LaneQueue lane, long epoch) {
         synchronized (stateLock) {
             if (lane.visibilityEpoch != epoch) return;
+            lane.visibilityTimer = null;
             lane.visibilityWaiting = false;
             makeReady(lane);
         }
         schedulePump();
+    }
+
+    private void cancelVisibilityTimerLocked(LaneQueue lane) {
+        lane.visibilityEpoch++;
+        lane.visibilityWaiting = false;
+        if (lane.visibilityTimer != null) {
+            lane.visibilityTimer.cancel(false);
+            lane.visibilityTimer = null;
+        }
+    }
+
+    private void cancelVisibilityTimersLocked() {
+        laneQueues.values().forEach(this::cancelVisibilityTimerLocked);
     }
 
     private void clearResolvedVisibility(ItemState state, TxStreamItemStatus target) {
@@ -3139,8 +3157,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             for (LaneQueue lane : laneQueues.values()) {
                 if (lane.pendingVisibility.remove(state.item.getItemId()) != null
                         && lane.pendingVisibility.isEmpty()) {
-                    lane.visibilityEpoch++;
-                    lane.visibilityWaiting = false;
+                    cancelVisibilityTimerLocked(lane);
                     makeReady(lane);
                     wake = true;
                 }
@@ -4855,6 +4872,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         final Map<String, String> pendingVisibility = new HashMap<>();
         boolean visibilityWaiting;
         long visibilityEpoch;
+        ScheduledFuture<?> visibilityTimer;
         boolean inRing;
 
         LaneQueue(String identity) {
