@@ -1,0 +1,49 @@
+{
+  "preamble": {
+    "title": "cip113-txplan-substandard",
+    "version": "0.1.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "julc",
+      "version": "0.1.0-pre14"
+    }
+  },
+  "validators": [
+    {
+      "title": "TxPlanSubstandard",
+      "redeemer": {
+        "title": "authorization",
+        "schema": {
+          "$ref": "#/definitions/Authorization"
+        }
+      },
+      "compiledCode": "59017e59017b0101002323232533357340022930b199911192999ab9a5333573400229405288a5013232325333573400429444004c8cc005281bac357426aae78dd51aba135573c6ea8014c8c8c0088cc0080080048c0088cc0080080048894ccd5cd1aba300110021330033253335734660146ae84d5d11aba235573c6ea8d5d09aba235573c6ea800401852888019aba1001357440026466002940dd61aba1357446ae88d55cf1baa357426aae78dd500219191801119801001000918011198010010009112999ab9a35746002200426600664a666ae68cc024d5d09aba2357446aae78dd50008028a511003357420026ae88004cdd2a400066ae80dd42400466ae80dd4241c4026ec5265333573466e1cdd69aba135573c6ea8009200213370e6eb4d5d09aba235573c6ea8009205414a044646464a666ae68cdc380124000294054ccd5cd19b87002480085280a999ab9a3370e004900209919baf001005357420022c6aae78008d55ce8009baa002001003357426ae88004d55cf1baa0011",
+      "hash": "09626cef617f240106cbdd95eb391e51850297784e41bb13a2581859"
+    }
+  ],
+  "definitions": {
+    "Int": {
+          "dataType": "integer"
+        },
+    "Authorization": {
+          "title": "Authorization",
+          "anyOf": [
+            {
+              "title": "Authorization",
+              "dataType": "constructor",
+              "index": 0,
+              "fields": [
+                {
+                  "title": "action",
+                  "$ref": "#/definitions/Int"
+                },
+                {
+                  "title": "nonce",
+                  "$ref": "#/definitions/Int"
+                }
+              ]
+            }
+          ]
+        }
+  }
+}
