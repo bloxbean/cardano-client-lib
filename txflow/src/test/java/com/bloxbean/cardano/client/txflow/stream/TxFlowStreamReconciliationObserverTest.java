@@ -483,9 +483,9 @@ class TxFlowStreamReconciliationObserverTest {
 
             // Without the phase-alternation, phase-1 residency (2 == batchSize)
             // starves phase 2 on EVERY fire and pay-remote is never discovered.
-            // Alternation guarantees discovery within a bounded number of fires.
-            scheduler.pending().fire();
-            scheduler.pending().fire();
+            // Every inspected durable row now consumes budget, including live rows.
+            // The cursor advances past those rows on the next durable-first pass.
+            for (int fire = 0; fire < 4; fire++) scheduler.pending().fire();
 
             assertEquals(TxStreamItemStatus.CONFIRMED,
                     store.getItem("payouts", "pay-remote").orElseThrow().getStatus(),

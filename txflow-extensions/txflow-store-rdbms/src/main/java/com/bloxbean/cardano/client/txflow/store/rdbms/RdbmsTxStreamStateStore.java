@@ -164,9 +164,13 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
             // losing transaction has rolled back; read the winner in a fresh
             // transaction (essential on PostgreSQL after a unique violation).
             return inTransaction("match concurrently registered stream item", connection -> {
-                TxStreamItemRecord existing = readRegistrationRecord(connection, record.itemId());
-                if (existing == null) throw conflict;
-                return matchRegistration(existing, record);
+                RegistrationRow row = readRegistration(connection, record.itemId());
+                if (row == null) throw conflict;
+                if (!row.registered()) {
+                    updateRegistration(connection, record);
+                    return true;
+                }
+                return matchRegistration(readRegistrationRecord(connection, record.itemId()), record);
             });
         }
     }
@@ -326,6 +330,77 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
                 }
             }
             return result;
+        });
+    }
+
+    @Override
+    public List<String> listRecoveryItemIds(String streamId, String afterItemId, int limit) {
+        if (limit <= 0) throw new IllegalArgumentException("limit must be positive");
+        return inTransaction("page recovery items", connection -> {
+            List<String> result = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT item_id FROM txstream_item WHERE stream_id = ? AND terminal = ?"
+                            + (afterItemId == null ? "" : " AND item_id > ?") + " ORDER BY item_id")) {
+                statement.setString(1, streamId);
+                statement.setBoolean(2, false);
+                if (afterItemId != null) statement.setString(3, afterItemId);
+                statement.setMaxRows(limit);
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) result.add(rows.getString(1));
+                }
+            }
+            return result;
+        });
+    }
+
+    @Override
+    public Optional<TxStreamPlannedRecord> findPlanned(String streamId, String itemId) {
+        return inTransaction("find item's planned execution", connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT p.execution_id, p.idempotency_key, p.lane_name, "
+                            + "p.canonical_spending_identity, p.portable_flow, p.metadata_payload "
+                            + "FROM txstream_planned p JOIN txstream_binding b ON b.execution_id = p.execution_id "
+                            + "WHERE p.stream_id = ? AND b.item_id = ?")) {
+                statement.setString(1, streamId);
+                statement.setString(2, itemId);
+                try (ResultSet row = statement.executeQuery()) {
+                    if (!row.next()) return Optional.empty();
+                    TxStreamStoreCodec.PlannedMetadata metadata =
+                            codec.decodePlannedMetadata(readText(row, "metadata_payload"));
+                    return Optional.of(new TxStreamPlannedRecord(streamId, row.getString("execution_id"),
+                            row.getString("idempotency_key"), row.getString("lane_name"),
+                            row.getString("canonical_spending_identity"), readText(row, "portable_flow"),
+                            metadata.bindings(), metadata.secureBindingReferences(),
+                            metadata.secureBindingFingerprints(), metadata.members(),
+                            metadata.templateId(), metadata.templateFingerprint()));
+                }
+            }
+        });
+    }
+
+    @Override
+    public boolean acknowledgeAbandoned(String streamId, String itemId,
+                                        long expectedSequence, String reason, Instant acknowledgedAt) {
+        if (reason == null || reason.isBlank()) throw new IllegalArgumentException("reason is required");
+        return inTransaction("acknowledge abandoned registration", connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(dialect.forUpdate(
+                    "SELECT stream_id, status, execution_id, step_id, projection_lane_name, "
+                            + "transaction_hash, error_code, error_message, updated_at, projection_sequence "
+                            + "FROM txstream_item WHERE stream_id = ? AND item_id = ? AND status IS NOT NULL"))) {
+                statement.setString(1, streamId);
+                statement.setString(2, itemId);
+                try (ResultSet row = statement.executeQuery()) {
+                    if (!row.next() || row.getLong("projection_sequence") != expectedSequence
+                            || !"RECOVERY_REQUIRED".equals(row.getString("status"))
+                            || !"TXSTREAM_ABANDONED".equals(row.getString("error_code"))) return false;
+                    TxStreamItemResult result = decodeProjection(row, itemId).toBuilder()
+                            .status(TxStreamItemStatus.FAILED)
+                            .error(new TxStreamException("TXSTREAM_ABANDONED", "Operator acknowledgement: " + reason))
+                            .updatedAt(Objects.requireNonNull(acknowledgedAt, "acknowledgedAt")).build();
+                    updateProjection(connection, result, Math.addExact(expectedSequence, 1));
+                    return true;
+                }
+            }
         });
     }
 

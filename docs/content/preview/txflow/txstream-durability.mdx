@@ -330,3 +330,32 @@ Semantics to plan around:
   lifecycle.
 - [TxStream: Lanes, Batching & Throughput](./txstream-throughput) — the concurrency model these
   guarantees compose with.
+
+### Review corrections
+
+Healthy foreign-item reads are observations. They do not install live items or
+advance the owner's projection sequence, even when the engine snapshot is absent.
+Explicit foreign receipt attachment retains a local observation; poll `reconcile`
+or enable the observer to refresh it. Stored recovery-required items may still be
+hydrated and terminally repaired from engine truth. Observation never infers
+recovery authority from a missing snapshot.
+
+The shipped stores resolve a plan through the item's binding. The observer pages
+nonterminal IDs with a cursor and charges every inspected row against its budget,
+including live or abandoned rows. This keeps a pass bounded and lets later rows
+progress; restart still inventories all unresolved work.
+
+After fencing/stopping all producers and recovery workers and investigating an
+abandoned registration, an operator can call
+`store.acknowledgeAbandoned(streamId, itemId, expectedSequence, reason, acknowledgedAt)`.
+It atomically checks the exact stored sequence and RECOVERY_REQUIRED/TXSTREAM_ABANDONED
+state, marks the bookkeeping FAILED, and retains registration, binding, and hash.
+A stale or already-resolved row returns false. This acknowledgement is not proof
+that a transaction failed and is not permission to submit a replacement payment.
+Custom stores must implement this atomic operation explicitly; it is unsupported
+by default. The paging and targeted-lookup SPI methods have compatibility fallbacks.
+
+Registration matching includes the lane name. Changing lane assignment across
+deployments can therefore conflict even when the transaction payload is unchanged.
+No-binding observations do not authorize automatic same-ID reacceptance: another
+owner may still have accepted work queued before its write-ahead binding.

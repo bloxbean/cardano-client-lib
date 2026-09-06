@@ -87,3 +87,18 @@ value both equalled 73,280,000 lovelace. The exact reconciliation output is save
 
 This was a short smoke run with chaos disabled. It does not establish long-term
 heap stability, public-network throughput, or failover-under-load qualification.
+
+
+## Follow-up review qualification
+
+After the reader/writer projection race was reproduced, the review corrections
+were validated on Java 21: 1,070 TxFlow unit tests, 118 RDBMS unit tests and
+76 H2/PostgreSQL integration tests passed, with no failures or skips. Java 17
+TxFlow/RDBMS unit and integration suites also passed during the correction.
+
+New regressions cover RUNNING and absent snapshots during foreign reads and
+receipt attachment, preserving the owner's later confirmation; targeted plan
+lookup; bounded scanning past abandoned rows; exact-version and concurrent
+operator acknowledgement; and a projection-only insert winning the registration
+race. The dispatch regressions cover progress on another lane under maxInFlight=1,
+FAILED/CANCELLED repair wakeup and stale visibility timers.

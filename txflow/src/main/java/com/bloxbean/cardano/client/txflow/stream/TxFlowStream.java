@@ -360,28 +360,30 @@ public interface TxFlowStream extends AutoCloseable {
     boolean cancelExecution(String executionId, String reason);
 
     /**
-     * Returns the latest item projection. For a
-     * {@link TxStreamItemStatus#RECOVERY_REQUIRED} item this is a
-     * read-through: the engine snapshot is consulted and, when it carries an
-     * authoritative terminal answer, the projection is repaired before being
-     * returned.
-     * <p>
-     * A settled item evicted under the retention cap
-     * ({@link Builder#maxRetainedSettledItems(int)}) returns empty — the
-     * engine's execution store remains the durable record of the execution
-     * itself, and the durable stream store of iteration 2 lifts this limit.
+     * Returns the latest live or durable item projection, including retained
+     * terminal items after live eviction. Healthy foreign items are observed
+     * without installing live state, incrementing counters, emitting events or
+     * writing their projection. Missing/running engine snapshots never establish
+     * recovery ownership or manufacture RECOVERY_REQUIRED.
+     *
+     * <p>A stored RECOVERY_REQUIRED item with a persisted plan may be hydrated
+     * into the live map, register its claim and recovery gauge, and repaired from
+     * authoritative engine evidence; terminal repair updates the store and emits
+     * the listener event. This operation never starts an execution.</p>
      *
      * @param itemId caller-provided work item id
-     * @return latest item result if the item is known and retained
+     * @return latest known result, or empty when neither live nor stored
      */
     Optional<TxStreamItemResult> getItemStatus(String itemId);
 
     /**
-     * Forces the read-through reconciliation check for one item, typically
-     * after an operator has run {@code engine.recover(...)}.
+     * Consults engine truth for an item, typically after explicit engine recovery.
+     * The foreign-observation and recovery-repair rules of getItemStatus apply.
+     * An explicitly attached foreign receipt is refreshed locally from the
+     * owner's durable projection or engine truth without writing over its owner.
      *
      * @param itemId caller-provided work item id
-     * @return post-reconciliation item result if the item is known
+     * @return latest known result after reconciliation
      */
     Optional<TxStreamItemResult> reconcile(String itemId);
 

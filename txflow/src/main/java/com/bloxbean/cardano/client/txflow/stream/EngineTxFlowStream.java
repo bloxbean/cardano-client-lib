@@ -1465,7 +1465,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             // Do not repopulate retention/counters with historical terminal work.
             return Acceptance.attached(settled.receipt);
         }
-        MemberRef ref = buildPlannedIndex().get(item.getItemId());
+        MemberRef ref = findPlannedMember(item.getItemId());
         if (ref == null) {
             throw new TxStreamException("TXSTREAM_REGISTRATION_INCOMPLETE",
                     "Item '" + item.getItemId() + "' is already registered but has no stored terminal "
@@ -1477,7 +1477,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             throw new TxStreamException("TXSTREAM_STORE_CODEC_CORRUPT",
                     "Stored plan does not match the authoritative item registration: " + item.getItemId());
         }
-        ItemState hydrated = hydrateForRead(item.getItemId(), ref);
+        ItemState hydrated = hydrateForRead(item.getItemId(), ref, true);
         if (!prepared.fingerprint.equals(hydrated.fingerprint)) {
             throw new TxStreamException("TXSTREAM_STORE_CODEC_CORRUPT",
                     "Hydrated item differs from its registration: " + item.getItemId());
@@ -2354,7 +2354,8 @@ final class EngineTxFlowStream implements TxFlowStream {
             if (budget == 0) {
                 return 0; // cap reached; the rest wait for the next fire
             }
-            if (state.projection.current().getStatus() != TxStreamItemStatus.RECOVERY_REQUIRED) {
+            if (!state.foreignObservation
+                    && state.projection.current().getStatus() != TxStreamItemStatus.RECOVERY_REQUIRED) {
                 continue;
             }
             reconcileObserverItem(state);
@@ -2369,45 +2370,36 @@ final class EngineTxFlowStream implements TxFlowStream {
      * up to the remaining budget. A no-op on a non-durable stream. Returns the
      * budget left.
      */
+    private String recoveryCursor;
+
     private int reconcileDurableAbsentPhase(int budget) {
         if (budget == 0 || !stateStore.isDurable()) {
             return budget;
         }
-        List<String> nonTerminal;
+        List<String> candidates;
         try {
-            nonTerminal = stateStore.listNonTerminalItemIds(streamId);
-        } catch (RuntimeException listFailure) {
-            log.warn("TxFlowStream[{}] reconciliation could not enumerate durable non-terminal"
-                    + " items", streamId, listFailure);
+            candidates = stateStore.listRecoveryItemIds(streamId, recoveryCursor, budget);
+        } catch (RuntimeException failure) {
+            log.warn("TxFlowStream[{}] recovery page read failed", streamId, failure);
             return budget;
         }
-        Map<String, MemberRef> plannedIndex = null; // built lazily on first durable candidate
-        for (String itemId : nonTerminal) {
-            if (budget == 0) {
-                return 0;
-            }
-            if (items.containsKey(itemId)) {
-                continue; // already handled by the live pass (or being handled live)
-            }
-            Optional<TxStreamItemResult> stored;
+        if (candidates.isEmpty()) {
+            recoveryCursor = null;
+            return budget;
+        }
+        for (String itemId : candidates) {
+            if (budget == 0) break;
+            budget--;
+            recoveryCursor = itemId;
+            if (items.containsKey(itemId)) continue;
             try {
-                stored = stateStore.getItem(streamId, itemId);
-            } catch (RuntimeException readFailure) {
-                log.warn("TxFlowStream[{}] reconciliation store read failed for item '{}'",
-                        streamId, itemId, readFailure);
-                continue;
-            }
-            if (stored.isEmpty()
-                    || stored.get().getStatus() != TxStreamItemStatus.RECOVERY_REQUIRED) {
-                // The observer only push-repairs RECOVERY_REQUIRED items; PLANNED/
-                // SUBMITTED durable rows are covered by live watching / re-attach.
-                continue;
-            }
-            if (plannedIndex == null) {
-                plannedIndex = buildPlannedIndex();
-            }
-            if (reconcileDurableAbsentItem(itemId, plannedIndex)) {
-                budget--;
+                Optional<TxStreamItemResult> stored = stateStore.getItem(streamId, itemId);
+                if (stored.isPresent() && stored.get().getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED) {
+                    MemberRef ref = findPlannedMember(itemId);
+                    if (ref != null) hydrateForRead(itemId, ref);
+                }
+            } catch (RuntimeException failure) {
+                log.warn("TxFlowStream[{}] recovery read failed for '{}'", streamId, itemId, failure);
             }
         }
         return budget;
@@ -2428,71 +2420,37 @@ final class EngineTxFlowStream implements TxFlowStream {
         }
     }
 
-    /**
-     * Reconstructs a durable RECOVERY_REQUIRED item that is not in this live map
-     * from its persisted plan (exactly as re-attach does) and push-repairs it.
-     * Reads-and-repairs only: it publishes the reconstructed item so a later
-     * pass and {@link #getItemStatus(String)} find it, but never enqueues it for
-     * dispatch. Returns whether it was reconstructed and reconciled (so it
-     * counts against the per-fire cap); a missing plan or a race with a live
-     * insert returns {@code false}.
-     */
-    private boolean reconcileDurableAbsentItem(String itemId, Map<String, MemberRef> index) {
-        MemberRef ref = index.get(itemId);
-        if (ref == null) {
-            // No planned record to reconstruct from — not reconcilable by the
-            // observer; re-attach's ghost reaper handles truly abandoned rows.
-            return false;
-        }
-        try {
-            if (items.containsKey(itemId)) return false;
-            hydrateForRead(itemId, ref);
-        } catch (RuntimeException reconstructFailure) {
-            log.warn("TxFlowStream[{}] reconciliation could not reconstruct durable item '{}'",
-                    streamId, itemId, reconstructFailure);
-            return false;
-        }
-        return true;
+    /** Foreign observations never infer uncertainty from a missing or running snapshot. */
+    private ItemState hydrateForRead(String itemId, MemberRef ref) {
+        return hydrateForRead(itemId, ref, false);
     }
 
-    /** Shared read-only hydration path for redelivery, explicit reads, and the observer. */
-    private ItemState hydrateForRead(String itemId, MemberRef ref) {
+    private ItemState hydrateForRead(String itemId, MemberRef ref, boolean attachReceipt) {
         synchronized (acceptanceLock(itemId)) {
             ItemState existing = items.get(itemId);
             if (existing != null) return existing;
             ItemState state = reconstructItemState(ref.record, ref.member, ref.shared);
-            ItemState raced = items.putIfAbsent(itemId, state);
-            if (raced != null) return raced;
-            registerReattachedClaim(state);
-            if (ItemProjection.isFinal(state.projection.current().getStatus())) {
-                noteSettledForRetention(state);
-                return state;
+            state.foreignObservation = state.projection.current().getStatus()
+                    != TxStreamItemStatus.RECOVERY_REQUIRED;
+            // Healthy foreign reads remain detached: no claims, gauges or live-map entries.
+            // Explicit receipt attachment is retained for subsequent observer/poll updates.
+            if (!state.foreignObservation || attachReceipt) {
+                ItemState raced = items.putIfAbsent(itemId, state);
+                if (raced != null) return raced;
+                registerReattachedClaim(state);
             }
             reconcileFromSnapshot(state);
-            if (!ItemProjection.settles(state.projection.current().getStatus())) {
-                project(state, TxStreamItemStatus.RECOVERY_REQUIRED,
-                        builder -> builder.error(new TxStreamException("TXSTREAM_REATTACH_UNCONFIRMED",
-                                "Stored execution has no conclusive outcome; reconcile its original identity")),
-                        true);
-            }
             return state;
         }
     }
 
-    /**
-     * Builds an itemId → (planned record, member, shared) index from the durable
-     * store's planned records, so a durable-absent recovery item can be
-     * reconstructed. Built lazily, at most once per pass.
-     */
-    private Map<String, MemberRef> buildPlannedIndex() {
-        Map<String, MemberRef> index = new HashMap<>();
-        for (TxStreamPlannedRecord record : stateStore.listPlanned(streamId)) {
-            boolean shared = record.members().size() > 1;
-            for (TxStreamPlannedRecord.Member member : record.members()) {
-                index.putIfAbsent(member.itemId(), new MemberRef(record, member, shared));
-            }
-        }
-        return index;
+    private MemberRef findPlannedMember(String itemId) {
+        Optional<TxStreamPlannedRecord> planned = stateStore.findPlanned(streamId, itemId);
+        if (planned.isEmpty()) return null;
+        TxStreamPlannedRecord record = planned.get();
+        return record.members().stream().filter(member -> member.itemId().equals(itemId))
+                .findFirst().map(member -> new MemberRef(record, member, record.members().size() > 1))
+                .orElse(null);
     }
 
     // ------------------------------------------------------------------
@@ -4422,6 +4380,13 @@ final class EngineTxFlowStream implements TxFlowStream {
         ItemProjection.Applied applied = state.projection.advance(
                 target, customize, clock.instant(), authoritative);
         if (applied == null) return null;
+        if (state.foreignObservation) {
+            if (ItemProjection.settles(target)) state.projection.completePromise(applied.result());
+            if (ItemProjection.isFinal(target) && items.get(state.item.getItemId()) == state) {
+                noteSettledForRetention(state);
+            }
+            return applied.result();
+        }
         clearResolvedVisibility(state, target);
         recordTransition(applied.previous(), target);
         safeStoreProject(applied);
@@ -4707,7 +4672,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         }
         projectLiveSubmitted(state);
         TxStreamItemResult current = state.projection.current();
-        if (current.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED) {
+        if (state.foreignObservation || current.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED) {
             return Optional.of(reconcileFromSnapshot(state));
         }
         return Optional.of(current);
@@ -4727,7 +4692,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         Optional<TxStreamItemResult> stored = stateStore.getItem(streamId, itemId);
         if (stored.isPresent() && ItemProjection.isFinal(stored.get().getStatus())) return stored;
         if (!stateStore.isDurable()) return stored;
-        MemberRef ref = buildPlannedIndex().get(itemId);
+        MemberRef ref = findPlannedMember(itemId);
         return ref == null ? stored : Optional.of(hydrateForRead(itemId, ref).projection.current());
     }
 
@@ -4790,6 +4755,10 @@ final class EngineTxFlowStream implements TxFlowStream {
      * emitting the repair to the event listener.
      */
     private TxStreamItemResult reconcileFromSnapshot(ItemState state) {
+        if (state.foreignObservation) {
+            stateStore.getItem(streamId, state.item.getItemId()).ifPresent(stored ->
+                    project(state, stored.getStatus(), ignored -> stored.toBuilder(), true));
+        }
         TxStreamItemResult current = state.projection.current();
         if (ItemProjection.isFinal(current.getStatus()) || state.executionId == null) {
             return current;
@@ -5196,6 +5165,7 @@ final class EngineTxFlowStream implements TxFlowStream {
          * result. Never {@code true} together with {@code sharedExecution}.
          */
         volatile boolean wholeFlow;
+        boolean foreignObservation;
         volatile ExecutionState execution;
         volatile EngineGateway.ExecutionHandle handle;
         /**

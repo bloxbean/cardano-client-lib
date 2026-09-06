@@ -13,9 +13,82 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 class TxFlowStreamDurableRedeliveryTest {
     private static final String STEP = StreamIdentities.GENERATED_STEP_ID;
+
+    @Test
+    void foreignReadsAndAttachmentsNeverConsumeTheOwnersNextProjectionSequence() {
+        for (boolean snapshotPresent : List.of(false, true)) {
+            for (boolean attach : List.of(false, true)) {
+                StubEngineGateway gateway = new StubEngineGateway();
+                gateway.durable = true;
+                TxStreamStateStore store = spy(TxStreamStateStore.inMemoryDurable());
+                try (TxFlowStream reader = builder(gateway, store).open();
+                     TxFlowStream writer = builder(gateway, store).open()) {
+                    TxStreamReceipt original = writer.submit("running", plan(2));
+                    StubEngineGateway.StubHandle handle = gateway.lastHandle();
+                    handle.submittedEvent(STEP, "hash-running");
+                    writer.getItemStatus("running");
+                    long sequence = store.lastProjectionSequence("durable", "running").orElseThrow();
+                    if (snapshotPresent) gateway.putSnapshot(original.executionId().orElseThrow(),
+                            FlowExecutionState.RUNNING);
+                    clearInvocations(store);
+                    TxStreamReceipt attached = attach ? reader.submit("running", plan(2)) : null;
+                    assertEquals(TxStreamItemStatus.SUBMITTED, reader.getItemStatus("running").orElseThrow().getStatus());
+                    reader.reconcile("running");
+                    assertEquals(TxStreamItemStatus.SUBMITTED, store.getItem("durable", "running").orElseThrow().getStatus());
+                    assertEquals(sequence, store.lastProjectionSequence("durable", "running").orElseThrow());
+                    assertEquals(0, reader.getStats().recoveryRequiredItemCount());
+                    handle.completeConfirmed(STEP, "hash-running");
+                    assertEquals(TxStreamItemStatus.CONFIRMED, store.getItem("durable", "running").orElseThrow().getStatus());
+                    assertEquals(TxStreamItemStatus.CONFIRMED, reader.reconcile("running").orElseThrow().getStatus());
+                    if (attached != null) assertEquals(TxStreamItemStatus.CONFIRMED,
+                            attached.awaitSettled(Duration.ofSeconds(1)).getStatus());
+                    assertEquals(0, reader.getStats().confirmedItemCount());
+                    assertEquals(1, gateway.started.size());
+                    verify(store, never()).listPlanned("durable");
+                }
+            }
+        }
+    }
+
+    @Test
+    void abandonedRowsConsumeBudgetAndCursorEventuallyReachesRecoverableWork() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        gateway.durable = true;
+        TxStreamStateStore store = spy(TxStreamStateStore.inMemoryDurable());
+        ManualScheduler scheduler = new ManualScheduler();
+        try (TxFlowStream reader = builder(gateway, store).maintenanceExecutor(scheduler)
+                .reconciliationInterval(Duration.ofSeconds(1)).reconciliationBatchSize(2).open();
+             TxFlowStream writer = builder(gateway, store).open()) {
+            for (int i = 0; i < 10; i++) {
+                String id = "abandoned-" + i;
+                store.projectItem(TxStreamItemResult.builder("durable", id, TxStreamItemStatus.RECOVERY_REQUIRED)
+                        .error(new TxStreamException("TXSTREAM_ABANDONED", "incomplete"))
+                        .updatedAt(StubEngineGateway.NOW).build(), 1);
+            }
+            TxStreamReceipt remote = writer.submit("z-remote", plan(2));
+            StubEngineGateway.StubHandle handle = gateway.lastHandle();
+            handle.complete(new FlowExecutionResult(handle.executionId(), "fp", FlowExecutionState.FAILED,
+                    List.of(FlowStepResult.submissionPendingAt(STEP, "hash", List.of(), List.of(),
+                            new IllegalStateException("uncertain"), StubEngineGateway.NOW)),
+                    null, StubEngineGateway.NOW, StubEngineGateway.NOW));
+            gateway.putSnapshot(remote.executionId().orElseThrow(), FlowExecutionState.COMPLETED);
+            clearInvocations(store);
+            scheduler.pending().fire();
+            verify(store, never()).getItem("durable", "abandoned-2");
+            verify(store, never()).listPlanned("durable");
+            for (int pass = 0; pass < 8; pass++) scheduler.pending().fire();
+            assertEquals(TxStreamItemStatus.CONFIRMED,
+                    store.getItem("durable", "z-remote").orElseThrow().getStatus());
+            assertEquals(1, gateway.started.size());
+        }
+    }
 
     @Test
     void identicalRedeliveryAttachesAfterEvictionAndRestartWithoutChangingCountersOrExecuting() {

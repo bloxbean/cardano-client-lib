@@ -75,6 +75,60 @@ public abstract class TxStreamStateStoreContract {
     }
 
     @Test
+    void recoveryPagesAreBoundedAndAcknowledgementRequiresExactAbandonedVersion() {
+        for (String id : List.of("a", "b", "c")) {
+            store.projectItem(TxStreamItemResult.builder(STREAM, id, TxStreamItemStatus.RECOVERY_REQUIRED)
+                    .error(new TxStreamException("TXSTREAM_ABANDONED", "incomplete"))
+                    .transactionHash("retained-hash").updatedAt(NOW).build(), 10);
+        }
+        assertEquals(List.of("a", "b"), store.listRecoveryItemIds(STREAM, null, 2));
+        assertEquals(List.of("c"), store.listRecoveryItemIds(STREAM, "b", 2));
+        assertFalse(store.acknowledgeAbandoned(STREAM, "a", 9, "investigated while fenced", NOW));
+        assertFalse(store.acknowledgeAbandoned("other", "a", 10, "investigated while fenced", NOW));
+        assertTrue(store.acknowledgeAbandoned(STREAM, "a", 10, "investigated while fenced", NOW));
+        assertEquals(TxStreamItemStatus.FAILED, store.getItem(STREAM, "a").orElseThrow().getStatus());
+        assertEquals("retained-hash", store.getItem(STREAM, "a").orElseThrow().getTransactionHash());
+        assertEquals(11, store.lastProjectionSequence(STREAM, "a").orElseThrow());
+        assertFalse(store.acknowledgeAbandoned(STREAM, "a", 11, "again", NOW));
+        assertEquals(List.of("b", "c"), store.listRecoveryItemIds(STREAM, null, 2));
+        store.projectItem(TxStreamItemResult.builder(STREAM, "b", TxStreamItemStatus.RECOVERY_REQUIRED)
+                .updatedAt(NOW).build(), 11);
+        assertFalse(store.acknowledgeAbandoned(STREAM, "b", 11, "not abandoned", NOW));
+    }
+
+    @Test
+    void simultaneousAbandonedAcknowledgementsHaveOneWinner() throws Exception {
+        store.projectItem(TxStreamItemResult.builder(STREAM, "abandoned", TxStreamItemStatus.RECOVERY_REQUIRED)
+                .error(new TxStreamException("TXSTREAM_ABANDONED", "incomplete")).updatedAt(NOW).build(), 10);
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            CyclicBarrier barrier = new CyclicBarrier(4);
+            List<Future<Boolean>> attempts = new ArrayList<>();
+            for (int i = 0; i < 4; i++) attempts.add(pool.submit(() -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                return store.acknowledgeAbandoned(STREAM, "abandoned", 10, "investigated", NOW);
+            }));
+            int winners = 0;
+            for (Future<Boolean> attempt : attempts) if (attempt.get(10, TimeUnit.SECONDS)) winners++;
+            assertEquals(1, winners);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void findPlannedResolvesOnlyTheBoundItemAndStream() {
+        store.registerItem(new TxStreamItemRecord("one", "key", "lane", "fp", NOW));
+        TxStreamPlannedRecord planned = plannedRecord("exec-1", "flow-key",
+                new TxStreamPlannedRecord.Member("one", "key", "step", "fp"));
+        store.bind("one", new TxStreamBinding("exec-1", "flow", "step", "lane"));
+        store.persistPlanned(planned);
+        assertEquals(Optional.of(planned), store.findPlanned(STREAM, "one"));
+        assertTrue(store.findPlanned(STREAM, "missing").isEmpty());
+        assertTrue(store.findPlanned("other", "one").isEmpty());
+    }
+
+    @Test
     void reportsDurable() {
         assertTrue(store.isDurable());
     }

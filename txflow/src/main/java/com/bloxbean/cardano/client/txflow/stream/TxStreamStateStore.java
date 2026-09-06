@@ -254,6 +254,43 @@ public interface TxStreamStateStore {
     }
 
     /**
+     * Looks up only the plan containing one item. Custom stores may use this
+     * compatibility scan; shipped stores use the item's persisted binding.
+     */
+    default Optional<TxStreamPlannedRecord> findPlanned(String streamId, String itemId) {
+        return listPlanned(streamId).stream()
+                .filter(record -> record.members().stream().anyMatch(member -> member.itemId().equals(itemId)))
+                .findFirst();
+    }
+
+    /**
+     * A bounded, item-id-ordered page of recovery candidates after an exclusive
+     * cursor (null starts a pass). Every returned row consumes observer budget,
+     * including incomplete registrations. Custom stores may override this scan.
+     */
+    default List<String> listRecoveryItemIds(String streamId, String afterItemId, int limit) {
+        if (limit <= 0) throw new IllegalArgumentException("limit must be positive");
+        return listNonTerminalItemIds(streamId).stream()
+                .filter(id -> afterItemId == null || id.compareTo(afterItemId) > 0)
+                .sorted().limit(limit).toList();
+    }
+
+    /**
+     * Atomically acknowledges an investigated RECOVERY_REQUIRED/TXSTREAM_ABANDONED
+     * projection at exactly expectedSequence, marking its bookkeeping FAILED and
+     * retaining its registration, hash and binding. Returns false on a stale
+     * sequence or any other state. This is an operator action, never automatic:
+     * stop/fence all producers and recovery workers first and investigate any
+     * engine transaction. Acknowledgement does NOT prove a payment failed and
+     * does NOT authorize replacement submission. Custom stores must implement
+     * the atomic check before supporting this operation.
+     */
+    default boolean acknowledgeAbandoned(String streamId, String itemId,
+                                         long expectedSequence, String reason, Instant acknowledgedAt) {
+        throw new UnsupportedOperationException("Atomic abandoned acknowledgement is not supported");
+    }
+
+    /**
      * Lists the ids of items whose latest stored projection is <em>not</em> a
      * final status (confirmed, failed, or cancelled) — the candidates a
      * restart re-attach must resolve against engine truth. A
