@@ -13,7 +13,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -76,7 +75,7 @@ class TxFlowStreamLaneEnforcementTest {
     }
 
     @Test
-    void matchingFundingSourcePassesWithoutCopying() {
+    void matchingFundingSourceIsSnapshotted() {
         StubEngineGateway gateway = new StubEngineGateway();
         TxPlan callerPlan = TxPlan.from(
                 new Tx().payToAddress(RECEIVER, Amount.ada(1.5)).from(SENDER));
@@ -85,9 +84,10 @@ class TxFlowStreamLaneEnforcementTest {
             TxStreamReceipt receipt = stream.submit(TxWorkItem.fromTxPlan("pay-1", callerPlan));
 
             FlowStep dispatched = gateway.started.get(0).getDefinition().getSteps().get(0);
-            assertSame(callerPlan, dispatched.getTxPlan(),
-                    "a matching source passes through untouched");
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
+            assertNotSame(callerPlan, dispatched.getTxPlan(),
+                    "accepted plans are isolated from caller mutation");
+            assertEquals(callerPlan.toYaml(), dispatched.getTxPlan().toYaml());
             assertEquals(TxStreamItemStatus.CONFIRMED,
                     receipt.completion().toCompletableFuture().join().getStatus());
         }

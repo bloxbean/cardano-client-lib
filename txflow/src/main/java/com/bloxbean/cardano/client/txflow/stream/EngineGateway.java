@@ -17,6 +17,10 @@ import java.util.concurrent.Executor;
  * always runs through {@link FlowEngineGateway}.
  */
 interface EngineGateway {
+    /** Indexing check only; custom gateways without backend reads default to ready. */
+    default boolean isTransactionOutputVisible(String transactionHash) {
+        return true;
+    }
     /**
      * Compiles and starts (or idempotently matches) one execution.
      *

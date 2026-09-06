@@ -105,6 +105,7 @@ class FlowRuntimeTest {
         assertThrows(IllegalArgumentException.class, () -> builder.name("bad name"));
         assertThrows(IllegalArgumentException.class, () -> builder.taskParallelism(0));
         assertThrows(IllegalArgumentException.class, () -> builder.maintenanceThreads(-1));
+        assertThrows(IllegalArgumentException.class, () -> builder.maxInMemoryIdempotencyClaims(0));
         assertThrows(IllegalArgumentException.class,
                 () -> builder.account("wallet://sender", mock(Account.class)));
         assertThrows(IllegalArgumentException.class,

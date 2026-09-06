@@ -40,6 +40,12 @@ final class StubEngineGateway implements EngineGateway {
     volatile RuntimeException startFailure;
     /** Optional caller-owned dispatcher exposed for builder inheritance tests. */
     volatile Executor executionExecutor;
+    volatile Function<String, Boolean> outputVisibility = hash -> true;
+
+    @Override
+    public boolean isTransactionOutputVisible(String transactionHash) {
+        return outputVisibility.apply(transactionHash);
+    }
     /**
      * When set, start() completes the returned handle with this result unless
      * the function returns {@code null}, in which case the handle stays running

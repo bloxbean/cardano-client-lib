@@ -9,6 +9,8 @@ package com.bloxbean.cardano.client.txflow.stream;
  * own catalogs; this class intentionally contains only core codes.</p>
  */
 public final class TxStreamCodes {
+    /** Previous lane transaction is not yet visible to the funding backend. */
+    public static final String BACKEND_NOT_READY = "TXSTREAM_BACKEND_NOT_READY";
     /** Accepted work was recovered without an execution binding. */
     public static final String ABANDONED = "TXSTREAM_ABANDONED";
     /** Stream abort cancelled work before its outcome was terminal. */

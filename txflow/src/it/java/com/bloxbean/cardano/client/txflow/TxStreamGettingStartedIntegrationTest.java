@@ -13,11 +13,14 @@ import com.bloxbean.cardano.client.txflow.stream.TxStreamException;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamFailedException;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamReceipt;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamUncertainException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -64,6 +67,24 @@ class TxStreamGettingStartedIntegrationTest {
 
             assertEquals(TxStreamItemStatus.CONFIRMED, result.getStatus());
             assertNotNull(result.getTransactionHash());
+        }
+    }
+
+    @Test
+    void consecutivePaymentsConfirmWithoutTheSoakApplicationsSubmissionGate() {
+        try (FlowRuntime runtime = FlowRuntime.builder(backend)
+                .account(SENDER_REF, sender).build();
+             TxFlowStream stream = runtime.open("getting-started-consecutive")) {
+            List<TxStreamReceipt> receipts = new ArrayList<>();
+            for (int index = 0; index < 4; index++) {
+                receipts.add(stream.submit("consecutive-" + index, paymentPlan()));
+            }
+            for (TxStreamReceipt receipt : receipts) {
+                assertEquals(TxStreamItemStatus.CONFIRMED,
+                        receipt.awaitConfirmed(RECEIPT_TIMEOUT).getStatus());
+            }
+            assertEquals(4, receipts.stream().map(receipt -> receipt.current().getTransactionHash())
+                    .distinct().count());
         }
     }
 

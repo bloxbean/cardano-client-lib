@@ -36,6 +36,11 @@ final class FlowEngineGateway implements EngineGateway {
     }
 
     @Override
+    public boolean isTransactionOutputVisible(String transactionHash) {
+        return engine.isTransactionOutputVisible(transactionHash);
+    }
+
+    @Override
     public Optional<Executor> executionExecutor() {
         return Optional.of(engine.executionExecutor());
     }

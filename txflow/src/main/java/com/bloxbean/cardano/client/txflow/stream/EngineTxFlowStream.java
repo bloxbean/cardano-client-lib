@@ -204,6 +204,8 @@ final class EngineTxFlowStream implements TxFlowStream {
     private final AtomicLong failedCount = new AtomicLong();
     private final AtomicLong cancelledCount = new AtomicLong();
     private final AtomicLong recoveryRequiredCount = new AtomicLong();
+    private final long backendVisibilityTimeoutNanos;
+    private final long backendVisibilityPollNanos;
 
     private final Object abortLock = new Object();
     private volatile AbortReport abortReport;
@@ -273,6 +275,10 @@ final class EngineTxFlowStream implements TxFlowStream {
     private volatile boolean bootstrapSatisfied;
 
     EngineTxFlowStream(TxFlowStream.Builder builder) {
+        backendVisibilityTimeoutNanos = TxStreamReceipt.positiveNanos(
+                builder.backendVisibilityTimeout, "backendVisibilityTimeout");
+        backendVisibilityPollNanos = TxStreamReceipt.positiveNanos(
+                builder.backendVisibilityPollInterval, "backendVisibilityPollInterval");
         this.streamId = builder.streamId;
         this.namespace = StreamIdentities.namespace(builder.streamId);
         this.gateway = builder.gateway;
@@ -1367,7 +1373,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                                     + item.getItemId() + "' cannot reuse it — redelivery must"
                                     + " reuse the original item id"));
                 }
-                state = ItemState.pending(this, item, prepared,
+                state = ItemState.pending(this, item.withAcceptedStep(prepared.enforcedStep), prepared,
                         inlineIdentity() || prepared.isTemplate());
                 state.wholeFlow = prepared.isTemplate();
                 try {
@@ -1503,6 +1509,15 @@ final class EngineTxFlowStream implements TxFlowStream {
         if (!diagnostics.isEmpty()) {
             throw new TxStreamException("TXSTREAM_NON_PORTABLE_ITEM",
                     "Item '" + item.getItemId() + "' is not portable: " + diagnostics);
+        }
+        if (step.getTxPlan() != null) {
+            try {
+                step = rebuildStepWithPlan(step, TxPlan.from(step.getTxPlan().toYaml()));
+                definition = TxFlow.builder(flowId).addStep(step).build();
+            } catch (RuntimeException snapshotFailure) {
+                throw new TxStreamException("TXSTREAM_NON_PORTABLE_ITEM",
+                        "Item '" + item.getItemId() + "' cannot be snapshotted", snapshotFailure);
+            }
         }
         ResolvedLane lane = resolveLane(item);
         FlowStep enforced = enforceLaneFundingScope(item, step, lane);
@@ -2862,6 +2877,14 @@ final class EngineTxFlowStream implements TxFlowStream {
         synchronized (stateLock) {
             LaneQueue lane = laneQueues.get(execution.lane.canonicalSpendingIdentity());
             if (lane != null && lane.inFlight == execution) {
+                for (ItemState member : execution.members) {
+                    TxStreamItemResult result = member.projection.current();
+                    if (result.getTransactionHash() != null
+                            && (result.getStatus() == TxStreamItemStatus.CONFIRMED
+                            || result.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED)) {
+                        lane.pendingVisibility.add(result.getTransactionHash());
+                    }
+                }
                 lane.inFlight = null;
                 inFlightCount--;
                 makeReady(lane);
@@ -2969,6 +2992,17 @@ final class EngineTxFlowStream implements TxFlowStream {
         EngineGateway.ExecutionHandle handle = null;
         try {
             try {
+                if (!awaitBackendVisibility(execution)) {
+                    TxStreamException cancelled = new TxStreamException(aborted ? "TXSTREAM_ABORTED"
+                            : !ownershipDispatchAllowed() ? "TXSTREAM_OWNERSHIP_LOST"
+                            : "TXSTREAM_EXECUTION_CANCELLED",
+                            "Dispatch stopped while waiting for backend indexing");
+                    for (ItemState member : execution.members) {
+                        project(member, TxStreamItemStatus.CANCELLED,
+                                builder -> builder.error(cancelled), false);
+                    }
+                    return;
+                }
                 // Two-phase binding, phase 1: write-ahead DISPATCHING binding
                 // for EVERY member — authoritative, fails closed before the
                 // engine is invoked. A flow must never execute without a
@@ -3028,6 +3062,49 @@ final class EngineTxFlowStream implements TxFlowStream {
             }
         }
         afterStart(execution, handle);
+    }
+
+    private boolean awaitBackendVisibility(ExecutionState execution) {
+        Set<String> pending;
+        synchronized (stateLock) {
+            LaneQueue lane = laneQueues.get(execution.lane.canonicalSpendingIdentity());
+            pending = lane == null ? Set.of() : new HashSet<>(lane.pendingVisibility);
+        }
+        if (pending.isEmpty()) return true;
+        long startedAt = TxStreamScheduler.monotonicNanos();
+        RuntimeException lastFailure = null;
+        while (!pending.isEmpty()) {
+            if (aborted || !ownershipDispatchAllowed() || execution.pendingCancelReason != null) return false;
+            for (String hash : new HashSet<>(pending)) {
+                try {
+                    if (gateway.isTransactionOutputVisible(hash)) {
+                        pending.remove(hash);
+                        synchronized (stateLock) {
+                            LaneQueue lane = laneQueues.get(execution.lane.canonicalSpendingIdentity());
+                            if (lane != null) lane.pendingVisibility.remove(hash);
+                        }
+                    }
+                } catch (RuntimeException backendFailure) {
+                    lastFailure = backendFailure;
+                }
+            }
+            if (pending.isEmpty()) break;
+            long remaining = backendVisibilityTimeoutNanos
+                    - (TxStreamScheduler.monotonicNanos() - startedAt);
+            if (remaining <= 0) {
+                throw new TxStreamException("TXSTREAM_BACKEND_NOT_READY",
+                        "Previous lane transaction outputs are not visible to the backend; "
+                                + "this execution has not started", lastFailure);
+            }
+            try {
+                TxStreamScheduler.sleepNanos(Math.min(remaining, backendVisibilityPollNanos));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new TxStreamException("TXSTREAM_INTERRUPTED",
+                        "Interrupted waiting for backend output visibility", interrupted);
+            }
+        }
+        return !aborted && ownershipDispatchAllowed() && execution.pendingCancelReason == null;
     }
 
     /**
@@ -4732,6 +4809,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         final String identity;
         final ArrayDeque<ExecutionState> queue = new ArrayDeque<>();
         ExecutionState inFlight;
+        final Set<String> pendingVisibility = new HashSet<>();
         boolean inRing;
 
         LaneQueue(String identity) {

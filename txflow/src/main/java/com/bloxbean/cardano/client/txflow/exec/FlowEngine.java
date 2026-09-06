@@ -100,11 +100,13 @@ public final class FlowEngine {
     private final Duration leaseDuration;
     private final String ownerToken;
     private final int maxInMemoryIdempotencyClaims;
+    private final boolean backendVisibilityChecks;
     private final Map<String, ActiveExecution> activeExecutions = new ConcurrentHashMap<>();
     private final Map<ClaimIdentity, IdempotencyClaim> idempotencyClaims = new ConcurrentHashMap<>();
     private final SpendingResourceCoordinator spendingCoordinator;
 
     private FlowEngine(Builder builder) {
+        this.backendVisibilityChecks = builder.backendVisibilityChecks;
         this.utxoSupplier = Objects.requireNonNull(builder.utxoSupplier, "utxoSupplier");
         this.protocolParamsSupplier = Objects.requireNonNull(builder.protocolParamsSupplier, "protocolParamsSupplier");
         this.transactionProcessor = Objects.requireNonNull(builder.transactionProcessor, "transactionProcessor");
@@ -180,7 +182,22 @@ public final class FlowEngine {
         return builder(new DefaultUtxoSupplier(utxoService),
                 new DefaultProtocolParamsSupplier(epochService),
                 new DefaultTransactionProcessor(transactionService),
-                new DefaultChainDataSupplier(blockService, transactionService));
+                new DefaultChainDataSupplier(blockService, transactionService))
+                .backendVisibilityChecks(true);
+    }
+
+    /**
+     * Checks whether a previously submitted transaction's outputs are visible
+     * to the funding backend. TxStream uses this before building the next
+     * execution on the same lane. This is an indexing check, not a confirmation
+     * or rollback verdict. When checks are disabled it returns true without I/O.
+     *
+     * @param transactionHash previous transaction hash
+     * @return whether the backend exposes output zero
+     */
+    public boolean isTransactionOutputVisible(String transactionHash) {
+        Objects.requireNonNull(transactionHash, "transactionHash");
+        return !backendVisibilityChecks || utxoSupplier.getTxOutput(transactionHash, 0).isPresent();
     }
 
     /**
@@ -1159,6 +1176,20 @@ public final class FlowEngine {
         private Duration leaseDuration;
         private String ownerToken;
         private int maxInMemoryIdempotencyClaims = 10_000;
+        private boolean backendVisibilityChecks;
+
+        /**
+         * Enables TxStream's between-execution backend indexing check. Enabled
+         * by default by builder(BackendService); opt in with custom suppliers
+         * when getTxOutput supports querying historical transaction outputs.
+         *
+         * @param value whether to check output visibility before reusing a lane
+         * @return this builder
+         */
+        public Builder backendVisibilityChecks(boolean value) {
+            this.backendVisibilityChecks = value;
+            return this;
+        }
 
         private Builder(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier,
                         TransactionProcessor transactionProcessor, ChainDataSupplier chainDataSupplier) {

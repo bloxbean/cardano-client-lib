@@ -250,6 +250,23 @@ public final class FlowRuntime implements AutoCloseable {
         }
 
         /**
+         * Sets the runtime-wide lifetime capacity for in-memory idempotency
+         * claims (default 10,000). Completed claims are retained to prevent
+         * duplicate execution; stream receipt eviction does not release them.
+         * Use a directly configured durable engine for unbounded workloads.
+         *
+         * @param value positive maximum retained claim count
+         * @return this builder
+         */
+        public Builder maxInMemoryIdempotencyClaims(int value) {
+            if (value < 1) {
+                throw new IllegalArgumentException("maxInMemoryIdempotencyClaims must be positive");
+            }
+            engineBuilder.maxInMemoryIdempotencyClaims(value);
+            return this;
+        }
+
+        /**
          * Registers an account signer on the runtime-owned engine.
          *
          * @param ref unique canonical {@code account://} reference

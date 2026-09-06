@@ -298,3 +298,23 @@ try (TxFlowStream stream = TxFlowStream.builder("payouts-reactive", engine)
 - [TxStream Getting Started](./txstream-getting-started) — item identity, receipts, lifecycle.
 - [TxStream: Durability & Exactly-Once](./txstream-durability) — dedup scopes (mandatory reading
   for `perWindow()`/`batching()`), re-attach, and HA.
+
+## Backend indexing and qualification
+
+Confirmation and UTxO indexing can become visible at different times. Backend-based
+engines enable TxStream's between-execution output-visibility check by default. It
+holds the lane until the preceding transaction's output zero is queryable, bounded
+by the stream's `backendVisibility(timeout, pollInterval)` budget. A timeout fails
+new work before engine start with `TXSTREAM_BACKEND_NOT_READY`; the preceding
+transaction remains confirmed or uncertain as previously reported.
+
+Custom four-supplier engines must opt in with `backendVisibilityChecks(true)` and
+provide historical output lookup. This check does not establish atomic consistency
+across all provider endpoints or coordinate unrelated spenders. Measure both
+confirmation and indexing delay with the provider used in deployment.
+
+The soak runner also has its own application submission gate. Report gated and
+ungated runs separately; a gated throughput result must not be presented as a
+measurement of the ordinary SDK submission path. Preview qualification should
+include delayed indexing, unavailable output lookups, and consecutive same-lane
+payments without that application gate.

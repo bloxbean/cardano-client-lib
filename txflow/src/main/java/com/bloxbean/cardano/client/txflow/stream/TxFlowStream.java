@@ -227,6 +227,8 @@ public interface TxFlowStream extends AutoCloseable {
     /**
      * Submits a common single-transaction plan using the item id as its
      * idempotency key.
+     * The plan is snapshotted during acceptance. Do not mutate it concurrently
+     * with submission; later mutations do not change the accepted work.
      * <p>
      * A new item or same-content redelivery returns a receipt. Different-content
      * reuse throws a typed conflict. Eager content/configuration validation and
@@ -415,7 +417,7 @@ public interface TxFlowStream extends AutoCloseable {
         long startedAt = TxStreamScheduler.monotonicNanos();
         TxStreamItemResult latest = null;
         while (true) {
-            latest = reconcile(itemId).orElseThrow(() -> new TxStreamException(
+            latest = reconcile(itemId).or(() -> getItemStatus(itemId)).orElseThrow(() -> new TxStreamException(
                     "TXSTREAM_ITEM_UNKNOWN", "Unknown TxStream item '" + itemId + "'"));
             switch (latest.getStatus()) {
                 case CONFIRMED:
@@ -591,6 +593,8 @@ public interface TxFlowStream extends AutoCloseable {
         int maxBufferSize = 1000;
         int maxInFlight = 16;
         int maxRetainedSettledItems = 10_000;
+        Duration backendVisibilityTimeout = Duration.ofSeconds(60);
+        Duration backendVisibilityPollInterval = Duration.ofSeconds(2);
         Duration reconciliationInterval;      // null => reconciliation observer OFF (read-through only)
         int reconciliationBatchSize = 100;
         String ownerToken;                    // null => single-instance (ownership OFF)
@@ -608,6 +612,26 @@ public interface TxFlowStream extends AutoCloseable {
                     StreamIdentities.namespace(this.streamId), "stream idempotency namespace",
                     FlowStoreTextPolicy.MAX_NAMESPACE_BYTES);
             this.gateway = Objects.requireNonNull(gateway, "gateway");
+        }
+
+        /**
+         * Bounds the wait for the previous execution's transaction outputs to
+         * become visible before building new work on that lane. The check uses
+         * the engine's backendVisibilityChecks setting. A timeout fails the new
+         * item with BACKEND_NOT_READY before engine start; it does not change
+         * the previous transaction's outcome. Backend calls must have their own
+         * I/O timeouts. Defaults to 60 seconds, polling every 2 seconds.
+         *
+         * @param timeout positive total polling budget
+         * @param pollInterval positive polling interval
+         * @return this builder
+         */
+        public Builder backendVisibility(Duration timeout, Duration pollInterval) {
+            TxStreamReceipt.positiveNanos(timeout, "timeout");
+            TxStreamReceipt.positiveNanos(pollInterval, "pollInterval");
+            this.backendVisibilityTimeout = timeout;
+            this.backendVisibilityPollInterval = pollInterval;
+            return this;
         }
 
         /**

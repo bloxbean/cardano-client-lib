@@ -119,6 +119,8 @@ introduced:
 | `maxInFlight` | 16 | Up to 16 distinct ready lanes, never 16 transactions from one lane |
 | `maxBufferSize` | 1,000 | Accepted buffered-item bound before backpressure |
 | `maxRetainedSettledItems` | 10,000 | In-memory settled receipt/status retention bound |
+| Engine claim capacity | 10,000 per runtime | Lifetime limit shared across streams; configurable with `maxInMemoryIdempotencyClaims` |
+| Backend indexing check | 60 seconds, every 2 seconds | Enabled for backend-based engines before the next same-lane execution |
 | Window | None | Immediate per-item planning; no timer |
 | Reconciliation | Off | No periodic repair observer |
 | Ownership | Off | No active/standby election unless configured |
@@ -167,3 +169,28 @@ can produce a second payment.
   registration-matching and store-only hydration requirements. Do not infer restart
   safety from the in-memory beginner profile. The current durable boundaries are
   described in [Durable runtime](DURABLE_RUNTIME.md).
+
+## Preview operating limits
+
+- `FlowRuntime` retains at most **10,000 engine idempotency claims across all its
+  streams**, including completed executions. Receipt eviction does not reclaim
+  those claims. Configure `.maxInMemoryIdempotencyClaims(n)` for a larger bounded
+  job; use a directly configured engine and an appropriate store for long-lived
+  workloads. Exhaustion reports `TXFLOW_IDEMPOTENCY_CAPACITY_EXCEEDED`. Recreating
+  the runtime discards its process-local history and is not a safe capacity workaround.
+- Acceptance snapshots transaction plans, including a `FlowStep`'s plan. Later
+  mutation of your `Tx` or `TxPlan` cannot change queued work. Do not mutate during
+  submission; redelivery must carry the original content.
+- `FlowEngine.builder(backend)` and `FlowRuntime` enable backend output-visibility
+  checks between executions on the same lane. A previous confirmed or uncertain
+  transaction must expose output zero before the next execution starts. The stream
+  waits up to 60 seconds, polling every 2 seconds; advanced builders can configure
+  `.backendVisibility(timeout, pollInterval)`. `TXSTREAM_BACKEND_NOT_READY` fails
+  the new item before engine start and does not change the previous result.
+- Custom four-supplier engines can opt in with `.backendVisibilityChecks(true)`.
+  The UTxO supplier must support historical `getTxOutput` lookup. Visibility is an
+  indexing check, not a proof that every backend endpoint is consistent. Configure
+  backend I/O timeouts and qualify the provider you use. The check covers consecutive
+  executions in this live stream; it does not coordinate external wallet spenders.
+- Durable queue processing and transparent crash redelivery remain advanced,
+  experimental capabilities. Read the durability restrictions before enabling them.

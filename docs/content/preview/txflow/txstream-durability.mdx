@@ -5,16 +5,27 @@ description: "Durable store pairing, restart re-attach, dedup scopes, secrets po
 
 # TxStream: Durability & Exactly-Once
 
-A non-durable stream (the default in-memory `TxStreamStateStore`) gives idempotent submission
-within one process lifetime: a crash loses buffered planning state, and recovery relies on the
-source redelivering items (which then match their engine claims). Durable mode makes the stream
-itself crash-safe: planning metadata — which item maps to which execution, step, and lane, plus
-the portable-encoded planned request — survives restarts, so a new instance re-attaches to
-in-flight work instead of re-running or losing it.
+TxStream is experimental. The default managed runtime is process-local; it does not
+provide crash-durable acceptance. Durable store pairing persists planned execution
+requests and supports reattachment, but it is not yet a general exactly-once queue consumer.
 
-This page covers what durable mode guarantees, and — just as important — the exact limits of
-those guarantees: per-item exactly-once holds only under the `perItem()` planner, and the
-duplicate-detection window is bounded unless the store is durable.
+**Current preview restrictions:**
+
+- Identical redelivery after an item leaves the live map can report `CONFLICT`, even
+  when its durable registration has identical content. Persistence alone does not
+  provide attach-after-eviction.
+- Accepted work without a persisted execution plan cannot be automatically replayed.
+  Current restart handling can retain an abandoned registration; do not assume that
+  resubmitting the same ID will run it, or that generating a new ID is safe.
+- `awaitResolution` can return stored terminal outcomes. Store-only uncertain items
+  still require hydration/engine recovery; polling never submits a replacement.
+- `perWindow()` and `batching()` deduplicate exact flow member sets, not arbitrary
+  individual redeliveries. Use `perItem()` for independently redelivered work.
+
+Durable registration matching, shared hydration, and partial-registration recovery
+are tracked separately in ADR 0006. The guarantees below apply to persisted planned
+requests, not every accepted item. Use a controlled evaluation with an application
+journal and an explicit recovery procedure before relying on durable payout processing.
 
 ## The durable pairing
 
@@ -101,7 +112,8 @@ RdbmsTxStreamStateStore streamStore = RdbmsTxStreamStateStore.builder()
 The same operational guidance as the engine store applies (migration with a schema-owner role,
 `VALIDATE` at runtime, one transactionally consistent backup unit); see
 [Durable Runtime](./durable-runtime) and the RDBMS module README. A durable store ignores the
-stream's retention eviction and keeps settled items indefinitely — that is what lifts the
+stream's retention eviction and keeps settled items indefinitely. This preserves status
+history, but the current acceptance path does not attach after live eviction; it does not lift the
 duplicate-detection guard window below.
 
 ## What start() does in durable mode
@@ -121,8 +133,9 @@ against engine truth (`reattach()`):
    the same execution id on every process and every retry: if the execution somehow does exist,
    the engine answers `MATCHED` and returns the stored execution instead of running a duplicate.
    Double-submission is structurally prevented by the engine claim, not by stream bookkeeping.
-4. Items accepted but not yet bound at the crash are lost — a bounded, documented loss; idempotent
-   source redelivery is the answer for them.
+4. Items accepted without a persisted plan cannot be automatically resumed. Their
+   registrations can survive while restart marks them abandoned. Source redelivery
+   may conflict; use an explicit recovery procedure rather than a replacement ID.
 
 `ReattachReport` summarizes the pass (`reattachedItems`, `redispatched`, `recoveryRequired`).
 
@@ -167,7 +180,8 @@ remaining guarantee is *engine-request equality* on the claim-derived execution:
   have been a typed content conflict.
 
 Size the cap to cover your longest realistic redelivery horizon. A durable stream store retains
-settled items indefinitely and lifts the window entirely.
+settled items indefinitely, but identical redelivery after live eviction currently conflicts.
+The retained status history does not extend the live attach contract.
 
 ## No secrets in the stream store
 

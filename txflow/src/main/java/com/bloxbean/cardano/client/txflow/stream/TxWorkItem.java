@@ -16,13 +16,10 @@ import java.util.TreeMap;
  * defines the item's engine claim. Payload portability is validated eagerly at
  * {@link TxFlowStream#submit(TxWorkItem)}: payloads carrying Java transaction
  * factories cannot be compiled by the engine and are rejected there with a
- * typed diagnostic. Items are immutable, but payloads are held <em>by
- * reference</em>: the stream fingerprints the payload's content at submit
- * time, so mutating a {@link TxPlan} (or a step's plan) after submitting it
- * diverges the executed content from the recorded fingerprint — redelivery
- * comparison, duplicate detection, and the engine claim then disagree about
- * what this item is, and behavior is undefined. Treat a submitted payload as
- * frozen.
+ * typed diagnostic. The stream snapshots portable transaction plans during
+ * acceptance, so subsequent caller mutation cannot change queued work. Do not
+ * mutate a payload concurrently with submission. A redelivery is compared
+ * against the original snapshot and must carry the original content.
  */
 public final class TxWorkItem {
     /** Kind of transaction work carried by this item. */
@@ -99,6 +96,19 @@ public final class TxWorkItem {
      */
     public static Builder builder(String itemId) {
         return new Builder(itemId);
+    }
+
+    /** Carries the accepted defensive payload copy to built-in and custom planners. */
+    TxWorkItem withAcceptedStep(FlowStep step) {
+        if (kind == Kind.TEMPLATE) return this;
+        Builder builder = builder(itemId).withIdempotencyKey(idempotencyKey).withLane(lane);
+        if (kind == Kind.TX_PLAN) builder.withTxPlan(step.getTxPlan());
+        else builder.withFlowStep(step);
+        builder.metadata.putAll(metadata);
+        builder.bindings.putAll(bindings);
+        builder.secureBindingReferences.putAll(secureBindingReferences);
+        builder.sensitiveBindings.putAll(sensitiveBindings);
+        return builder.build();
     }
 
     /**
