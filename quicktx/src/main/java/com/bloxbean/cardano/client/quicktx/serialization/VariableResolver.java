@@ -54,6 +54,59 @@ public class VariableResolver {
     }
 
     /**
+     * Resolve variables structurally in a parsed document tree.
+     *
+     * <p>Only text nodes are templates. A text node that is exactly one {@code ${name}}
+     * placeholder is replaced by the variable's value converted to a tree, so numbers, booleans,
+     * lists and maps keep their native type. A placeholder embedded in a longer string is
+     * interpolated as text and stays a string. Replacement values are never re-read as
+     * templates, so a value containing quotes, newlines or {@code ${...}} cannot alter the
+     * document. A missing variable fails with the document path of the node that needed it.</p>
+     *
+     * @param node      the parsed tree; not modified
+     * @param variables the variables available for substitution
+     * @param path      the document path of {@code node}, used in diagnostics
+     * @return a resolved copy of the tree
+     */
+    public static JsonNode resolveTree(JsonNode node, Map<String, Object> variables, String path) {
+        if (node == null) return null;
+        Map<String, Object> availableVariables = variables == null ? Map.of() : variables;
+
+        if (node.isObject()) {
+            ObjectNode resolved = MAPPER.createObjectNode();
+            node.fields().forEachRemaining(entry -> resolved.set(entry.getKey(),
+                    resolveTree(entry.getValue(), availableVariables, path + "." + entry.getKey())));
+            return resolved;
+        }
+        if (node.isArray()) {
+            ArrayNode resolved = MAPPER.createArrayNode();
+            int index = 0;
+            for (JsonNode item : node) {
+                resolved.add(resolveTree(item, availableVariables, path + "[" + index++ + "]"));
+            }
+            return resolved;
+        }
+        if (!node.isTextual()) return node;
+
+        String text = node.asText();
+        Matcher exact = EXACT_VARIABLE_PATTERN.matcher(text);
+        if (exact.matches()) {
+            String variableName = exact.group(1);
+            Object value = availableVariables.get(variableName);
+            if (value == null)
+                throw new IllegalArgumentException("Variable not found: " + variableName + " at " + path);
+            return MAPPER.valueToTree(value);
+        }
+        try {
+            return new TextNode(resolve(text, availableVariables));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(e.getMessage() + " at " + path, e);
+        }
+    }
+
+    private static final Pattern EXACT_VARIABLE_PATTERN = Pattern.compile("^\\$\\{([^}]+)\\}$");
+
+    /**
      * Resolve variables in a JsonNode tree recursively.
      *
      * <p>This method traverses the entire JsonNode tree and resolves ${variable} placeholders

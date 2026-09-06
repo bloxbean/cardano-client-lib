@@ -44,20 +44,47 @@ public final class Cip113Protocol implements ProgrammableTokenProtocol {
                 ProgrammableTokenCapability.THIRD_PARTY_TRANSFER,
                 ProgrammableTokenCapability.REGISTER,
                 ProgrammableTokenCapability.UPDATE_REGISTRY,
+                ProgrammableTokenCapability.UNFRACK,
                 ProgrammableTokenCapability.INLINE_DATUM,
                 ProgrammableTokenCapability.GLOBAL_STATE));
     }
 
+    /**
+     * Pin a persisted plan to the configured deployment before any chain I/O.
+     *
+     * <p>{@code bootstrap_tx}, when present, must be a transaction hash equal to the configured
+     * deployment's; {@code network}, when present, must be the configured network id. Omitting
+     * either means "bind to the explicitly configured runtime deployment". Both are compared as
+     * text so a plan whose {@code network} resolved to a number behaves the same as one that
+     * wrote it as a string.</p>
+     */
     @Override
     public void validateMetadata(ExtensionMetadata metadata) {
         ProgrammableTokenProtocol.super.validateMetadata(metadata);
-        Object bootstrap = metadata.getDeployment() == null ? null
-                : metadata.getDeployment().get("bootstrap_tx");
-        String configuredBootstrap = service.deployment().getBootstrapTxHash();
-        if (bootstrap != null && configuredBootstrap != null
-                && !configuredBootstrap.equalsIgnoreCase(bootstrap.toString()))
-            throw new IllegalArgumentException("TxPlan deployment bootstrap_tx " + bootstrap
-                    + " does not match configured CIP-113 deployment " + configuredBootstrap);
+        java.util.Map<String, Object> deployment = metadata.getDeployment();
+        if (deployment == null) return;
+        Cip113Deployment configured = service.deployment();
+
+        Object bootstrap = deployment.get("bootstrap_tx");
+        if (bootstrap != null) {
+            String hash = String.valueOf(bootstrap).trim();
+            if (!hash.matches("(?i)[0-9a-f]{64}"))
+                throw new IllegalArgumentException("TxPlan deployment bootstrap_tx must be a"
+                        + " 32-byte transaction hash but was '" + bootstrap + "'");
+            if (configured.getBootstrapTxHash() != null
+                    && !configured.getBootstrapTxHash().equalsIgnoreCase(hash))
+                throw new IllegalArgumentException("TxPlan deployment bootstrap_tx " + hash
+                        + " does not match configured CIP-113 deployment "
+                        + configured.getBootstrapTxHash());
+        }
+
+        Object network = deployment.get("network");
+        if (network != null && configured.getNetwork() != null) {
+            String expected = String.valueOf(configured.getNetwork().getNetworkId());
+            if (!expected.equals(String.valueOf(network).trim()))
+                throw new IllegalArgumentException("TxPlan deployment network '" + network
+                        + "' does not match configured CIP-113 deployment network id " + expected);
+        }
     }
 
     @Override

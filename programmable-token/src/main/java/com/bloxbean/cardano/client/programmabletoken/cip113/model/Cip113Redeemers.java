@@ -89,4 +89,18 @@ public final class Cip113Redeemers {
         return ConstrPlutusData.of(0,
                 Cip113Data.i(paramsIdx), Cip113Data.i(registryNodeIdx), Cip113Data.i(outputsStartIdx));
     }
+
+    // ----------------------------------------------------- UnfrackingRedeemer
+
+    /**
+     * {@code UnfrackingRedeemer{params_idx, registry_node_idx, outputs_start_idx}} — constructor 0.
+     *
+     * <p>Same index-hint discipline as {@link #thirdParty}: the acted-on policy's registry node is
+     * a reference input, and every base-script input is paired positionally with a continuing
+     * output from {@code outputs_start_idx} on.</p>
+     */
+    public static ConstrPlutusData unfracking(int paramsIdx, int registryNodeIdx, int outputsStartIdx) {
+        return ConstrPlutusData.of(0,
+                Cip113Data.i(paramsIdx), Cip113Data.i(registryNodeIdx), Cip113Data.i(outputsStartIdx));
+    }
 }

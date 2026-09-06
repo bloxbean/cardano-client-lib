@@ -26,7 +26,9 @@ import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.extension.BalanceFinalization;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionBuildContext;
 import com.bloxbean.cardano.client.quicktx.extension.TxBuildExtension;
+import com.bloxbean.cardano.client.quicktx.intent.MintingIntent;
 import com.bloxbean.cardano.client.quicktx.intent.PlutusDataValue;
+import com.bloxbean.cardano.client.quicktx.intent.ScriptMintingIntent;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -34,10 +36,12 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Build-local CIP-113 materializer used by the CIP-113 Programmable Token protocol. */
 public final class Cip113BuildExtension implements TxBuildExtension {
@@ -77,12 +81,19 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             work.put(transaction, intents);
         }
 
-        // Installing the extension remains free for ordinary transactions. Capability errors also
-        // fail before the first registry lookup.
+        // Installing the extension remains free for ordinary transactions. Capability and
+        // composition errors also fail before the first registry lookup.
         if (work.isEmpty()) return;
+        List<ProgrammableTokenIntent> all = work.values().stream().flatMap(List::stream).toList();
+        validateComposition(all);
+        rejectMintsWithUnfracking(context.getTransactions(), all);
+        if (work.size() > 1)
+            throw new Cip113Exception("Programmable-token operations of one transaction must be"
+                    + " authored in a single Tx, but " + work.size() + " Tx fragments carry them."
+                    + " Move them into one Tx or split them into separate transactions.");
         active = true;
 
-        RegistryLookup registry = new SnapshotRegistryLookup(freshRegistrySnapshot());
+        RegistryLookup registry = new SnapshotRegistryLookup(List.copyOf(service.registryLookup().all()));
         for (Map.Entry<AbstractTx<?>, List<ProgrammableTokenIntent>> entry : work.entrySet()) {
             if (!(entry.getKey() instanceof Tx))
                 throw new Cip113Exception("Programmable-token intents require a Tx fragment");
@@ -94,31 +105,81 @@ public final class Cip113BuildExtension implements TxBuildExtension {
         }
     }
 
-    private void materializeSource(ExtensionBuildContext context, Tx source, String owner,
-                                   List<ProgrammableTokenIntent> intents, RegistryLookup registry) {
-        Map<String, String> namedPolicies = new LinkedHashMap<>();
-        List<ProgrammableRegisterIntent> registrations = intents.stream()
-                .filter(ProgrammableRegisterIntent.class::isInstance)
-                .map(ProgrammableRegisterIntent.class::cast).toList();
-        List<ProgrammableRegistryUpdateIntent> updates = intents.stream()
-                .filter(ProgrammableRegistryUpdateIntent.class::isInstance)
-                .map(ProgrammableRegistryUpdateIntent.class::cast).toList();
+    /**
+     * The unfracking validator requires an empty mint, so a core mint or burn anywhere in the
+     * ledger transaction cannot validate next to an unfracking. No other operation is restricted
+     * this way: the third-party validator reads only the acted policy's mint and constrains only
+     * the paired smart-wallet outputs, so a seizure may share a transaction with an unrelated
+     * native-asset mint, and owner operations may too.
+     */
+    private static void rejectMintsWithUnfracking(List<AbstractTx<?>> transactions,
+                                                  List<ProgrammableTokenIntent> all) {
+        if (all.stream().noneMatch(ProgrammableUnfrackIntent.class::isInstance)) return;
+        boolean coreMint = transactions.stream()
+                .flatMap(transaction -> transaction.getIntentions().stream())
+                .anyMatch(intent -> intent instanceof MintingIntent || intent instanceof ScriptMintingIntent);
+        if (coreMint)
+            throw new Cip113Exception("A CIP-113 unfracking requires an empty mint, so a mint or"
+                    + " burn in the same transaction cannot validate. Move it to a separate"
+                    + " transaction.");
+    }
+
+    /**
+     * The transaction-shape rules that need no chain state, checked over every Tx fragment of
+     * the ledger transaction before any lookup.
+     *
+     * <p>A registry update and an unfracking each have an on-chain shape that admits nothing
+     * else (one continuing node output; an empty mint and positionally paired outputs). A
+     * third-party action is authorised by the token's admin logic rather than the sender, so it
+     * cannot share a transaction with owner operations, and its redeemer names one registry
+     * node, so it acts on one policy.</p>
+     */
+    private static void validateComposition(List<ProgrammableTokenIntent> intents) {
+        long registrations = intents.stream().filter(ProgrammableRegisterIntent.class::isInstance).count();
+        long updates = intents.stream().filter(ProgrammableRegistryUpdateIntent.class::isInstance).count();
+        long unfracks = intents.stream().filter(ProgrammableUnfrackIntent.class::isInstance).count();
         List<ProgrammableThirdPartyTransferIntent> thirdParty = intents.stream()
                 .filter(ProgrammableThirdPartyTransferIntent.class::isInstance)
                 .map(ProgrammableThirdPartyTransferIntent.class::cast).toList();
 
-        if (registrations.size() > 1)
+        if (registrations > 1)
             throw new Cip113Exception("CIP-113 supports one token registration per transaction");
-        if (updates.size() > 1)
+        if (updates > 1)
             throw new Cip113Exception("CIP-113 supports one registry update per transaction");
-        if (!updates.isEmpty() && intents.size() > updates.size())
+        if (updates == 1 && intents.size() > 1)
             throw new Cip113Exception("A CIP-113 registry update must be its own transaction");
+        if (unfracks > 1)
+            throw new Cip113Exception("CIP-113 supports one unfracking per transaction");
+        if (unfracks == 1 && intents.size() > 1)
+            throw new Cip113Exception("A CIP-113 unfracking must be its own transaction: the"
+                    + " validator requires an empty mint and pairs every base-script input with a"
+                    + " continuing output");
         if (!thirdParty.isEmpty() && intents.size() > thirdParty.size())
             throw new Cip113Exception(
                     "A CIP-113 third-party transfer cannot be mixed with owner operations");
 
-        if (!updates.isEmpty()) {
-            ProgrammableRegistryUpdateIntent update = updates.get(0);
+        if (!thirdParty.isEmpty()) {
+            Set<String> holders = thirdParty.stream()
+                    .map(ProgrammableThirdPartyTransferIntent::getHolder)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (holders.size() != 1)
+                throw new Cip113Exception(
+                        "One CIP-113 transaction can act for only one third-party holder");
+            Set<String> policies = thirdParty.stream()
+                    .map(intent -> policyFromAmount(intent.getAmount()))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (policies.size() != 1)
+                throw new Cip113Exception("One CIP-113 third-party transaction can act on exactly"
+                        + " one policy, but " + policies + " were declared. The third_party"
+                        + " redeemer names a single registry node, so split these into separate"
+                        + " transactions.");
+        }
+    }
+
+    private void materializeSource(ExtensionBuildContext context, Tx source, String owner,
+                                   List<ProgrammableTokenIntent> intents, RegistryLookup registry) {
+        if (intents.get(0) instanceof ProgrammableRegistryUpdateIntent) {
+            ProgrammableRegistryUpdateIntent update = (ProgrammableRegistryUpdateIntent) intents.get(0);
             Cip113TransactionMaterializer materializer = newMaterializer(context, owner, registry);
             materializer.updateRegistryNode(
                     Cip113RegistryUpdate.toNode(update.getPolicyId(), update.getUpdate()),
@@ -127,18 +188,32 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             return;
         }
 
-        if (!thirdParty.isEmpty()) {
-            materializeThirdParty(context, source, owner, thirdParty, registry);
+        if (intents.get(0) instanceof ProgrammableUnfrackIntent) {
+            ProgrammableUnfrackIntent unfrack = (ProgrammableUnfrackIntent) intents.get(0);
+            Cip113TransactionMaterializer materializer = newMaterializer(context, owner, registry);
+            materializer.recordUnfrackForExtension(unfrack.getPolicyId(),
+                    resolved(unfrack.getAuthorization(), "authorization"));
+            finish(context, source, materializer);
+            return;
+        }
+
+        if (intents.get(0) instanceof ProgrammableThirdPartyTransferIntent) {
+            materializeThirdParty(context, source, owner, intents.stream()
+                    .map(ProgrammableThirdPartyTransferIntent.class::cast).toList(), registry);
             return;
         }
 
         Cip113TransactionMaterializer primary = newMaterializer(context, owner, registry);
+        Map<String, String> namedPolicies = new LinkedHashMap<>();
 
         // Registration publishes named policies before dependent mints, independent of fluent order.
-        for (ProgrammableRegisterIntent registration : registrations) {
-            primary.registerToken(Cip113Registration.toSpec(registration.getRegistration()),
-                    resolved(registration.getRegistrationRedeemer(), "registration_redeemer"));
-            namedPolicies.put(registration.getName(), primary.registeredPolicyId());
+        for (ProgrammableTokenIntent intent : intents) {
+            if (intent instanceof ProgrammableRegisterIntent) {
+                ProgrammableRegisterIntent registration = (ProgrammableRegisterIntent) intent;
+                primary.registerToken(Cip113Registration.toSpec(registration.getRegistration()),
+                        resolved(registration.getRegistrationRedeemer(), "registration_redeemer"));
+                namedPolicies.put(registration.getName(), primary.registeredPolicyId());
+            }
         }
 
         // Aggregate all owner operations by policy into one transaction-wide materializer.
@@ -156,34 +231,35 @@ public final class Cip113BuildExtension implements TxBuildExtension {
         }
 
         for (Map.Entry<String, List<ProgrammableTokenIntent>> entry : ownerActions.entrySet()) {
+            String policy = entry.getKey();
             PlutusData transferRedeemer = null;
+            PlutusData issuanceRedeemer = null;
             for (ProgrammableTokenIntent intent : entry.getValue()) {
                 if (intent instanceof ProgrammableTransferIntent) {
                     ProgrammableTransferIntent transfer = (ProgrammableTransferIntent) intent;
-                    primary.recordTransferForExtension(entry.getKey(), transfer.getReceiver(),
-                            transfer.getAmount());
+                    primary.recordTransferForExtension(policy, transfer.getReceiver(),
+                            transfer.getAmount(), resolvedOptional(transfer.getInlineDatum(), "inline_datum"));
                     transferRedeemer = sameRedeemer(transferRedeemer,
                             resolved(transfer.getTransferRedeemer(), "transfer_redeemer"),
-                            entry.getKey(), "transfer");
+                            policy, "transfer");
                 } else {
                     ProgrammableBurnIntent burn = (ProgrammableBurnIntent) intent;
-                    PlutusData burnTransfer = resolved(
-                            burn.getTransferRedeemer(), "transfer_redeemer");
-                    PlutusData burnIssuance = resolved(
-                            burn.getIssuanceRedeemer(), "issuance_redeemer");
                     transferRedeemer = sameRedeemer(transferRedeemer,
-                            burnTransfer, entry.getKey(), "transfer");
+                            resolved(burn.getTransferRedeemer(), "transfer_redeemer"),
+                            policy, "transfer");
+                    issuanceRedeemer = sameRedeemer(issuanceRedeemer,
+                            resolved(burn.getIssuanceRedeemer(), "issuance_redeemer"),
+                            policy, "issuance");
                     for (ProgrammableTokenAsset declaredAsset : burn.getAssets()) {
                         Asset asset = declaredAsset.toLedgerAsset();
-                        Asset negative = asset.getValue().signum() > 0
-                                ? new Asset("0x" + HexUtil.encodeHexString(asset.getNameAsBytes()),
-                                asset.getValue().negate()) : asset;
-                        primary.recordBurnForExtension(entry.getKey(), negative,
-                                burnTransfer, burnIssuance);
+                        Asset negative = new Asset("0x" + HexUtil.encodeHexString(asset.getNameAsBytes()),
+                                asset.getValue().negate());
+                        primary.recordBurnForExtension(policy, negative,
+                                transferRedeemer, issuanceRedeemer);
                     }
                 }
             }
-            primary.withRedeemer(entry.getKey(), transferRedeemer);
+            primary.withRedeemer(policy, transferRedeemer);
         }
 
         for (ProgrammableTokenIntent intent : intents) {
@@ -193,11 +269,9 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                 List<Asset> assets = mint.getAssets().stream()
                         .map(ProgrammableTokenAsset::toLedgerAsset)
                         .toList();
-                primary.mintAsset(policy, assets,
+                primary.recordMintForExtension(policy, assets,
                         resolved(mint.getIssuanceRedeemer(), "issuance_redeemer"),
                         mint.getReceiver(), resolvedOptional(mint.getInlineDatum(), "inline_datum"));
-            } else if (intent instanceof ProgrammableUnfrackIntent) {
-                throw new Cip113Exception("CIP-113 unfrack is not implemented by this adapter");
             }
         }
         finish(context, source, primary);
@@ -206,24 +280,17 @@ public final class Cip113BuildExtension implements TxBuildExtension {
     private void materializeThirdParty(ExtensionBuildContext context, Tx source, String owner,
                                        List<ProgrammableThirdPartyTransferIntent> intents,
                                        RegistryLookup registry) {
-        Set<String> holders = intents.stream()
-                .map(ProgrammableThirdPartyTransferIntent::getHolder)
-                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
-        if (holders.size() != 1)
-            throw new Cip113Exception(
-                    "One CIP-113 transaction can act for only one third-party holder");
-
         Cip113TransactionMaterializer materializer = newMaterializer(context, owner, registry)
-                .thirdPartyFrom(new Address(holders.iterator().next()));
-        Map<String, PlutusData> redeemers = new LinkedHashMap<>();
+                .thirdPartyFrom(new Address(intents.get(0).getHolder()));
+        String policy = policyFromAmount(intents.get(0).getAmount());
+        PlutusData redeemer = null;
         for (ProgrammableThirdPartyTransferIntent intent : intents) {
-            String policy = policyFromAmount(intent.getAmount());
-            materializer.recordTransferForExtension(policy, intent.getReceiver(), intent.getAmount());
-            redeemers.put(policy, sameRedeemer(redeemers.get(policy),
+            materializer.recordTransferForExtension(policy, intent.getReceiver(), intent.getAmount(), null);
+            redeemer = sameRedeemer(redeemer,
                     resolved(intent.getThirdPartyRedeemer(), "third_party_redeemer"),
-                    policy, "third-party"));
+                    policy, "third-party");
         }
-        redeemers.forEach(materializer::withRedeemer);
+        materializer.withRedeemer(policy, redeemer);
         finish(context, source, materializer);
     }
 
@@ -234,6 +301,10 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                 .from(owner);
     }
 
+    /**
+     * Hand the generated core intents to the build as an overlay on the authored transaction.
+     * The authored intent list is never touched, so the same plan can be built again.
+     */
     private void finish(ExtensionBuildContext context, Tx source,
                         Cip113TransactionMaterializer materializer) {
         for (Utxo input : materializer.selectedInputs()) {
@@ -241,7 +312,7 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                 throw new Cip113Exception("Programmable-token input selected twice: "
                         + input.getTxHash() + "#" + input.getOutputIndex());
         }
-        materializer.getIntentions().forEach(source::addIntention);
+        materializer.getIntentions().forEach(intent -> context.addPreparedIntent(source, intent));
         materializers.add(materializer);
     }
 
@@ -261,12 +332,6 @@ public final class Cip113BuildExtension implements TxBuildExtension {
     @Override
     public void verify(ExtensionBuildContext context, Transaction transaction) {
         materializers.forEach(materializer -> materializer.verifyStable(transaction));
-    }
-
-    private List<RegistryLookup.RegistryNodeUtxo> freshRegistrySnapshot() {
-        RegistryLookup lookup = service.registryLookup();
-        lookup.invalidate();
-        return List.copyOf(lookup.all());
     }
 
     private void validateCapabilities(List<ProgrammableTokenIntent> intents) {
@@ -325,6 +390,7 @@ public final class Cip113BuildExtension implements TxBuildExtension {
         return value == null ? null : value.requireResolved(fieldName);
     }
 
+    /** One immutable registry snapshot per build, shared by every materializer in it. */
     private static final class SnapshotRegistryLookup implements RegistryLookup {
         private final List<RegistryNodeUtxo> nodes;
 

@@ -2,35 +2,42 @@ package com.bloxbean.cardano.client.programmabletoken.cip113.tx;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+import com.bloxbean.cardano.client.backend.model.AssetAddress;
 import com.bloxbean.cardano.client.backend.model.TxContentOutputAmount;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxoOutputs;
-import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
-import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
-import lombok.extern.slf4j.Slf4j;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
-import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Exception;
+import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.PolicyIdDerivation;
 import com.bloxbean.cardano.client.programmabletoken.cip113.SmartWalletAddress;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.IssuanceCborHex;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.ProgrammableLogicGlobalParams;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.RegistryNode;
-import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.util.HexUtil;
+import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.stream.Collectors;
 
 /**
  * Default read side, backed by a {@link BackendService}.
@@ -38,101 +45,75 @@ import java.util.Optional;
  * <p>Deployment resolution walks the bootstrap transaction: the standard identifies a version
  * by that transaction's hash, and its outputs carry the coordination NFT (whose datum is the
  * deployment descriptor) and the issuance template.</p>
+ *
+ * <p>Resolution publishes one immutable {@link Resolved} state, atomically. Concurrent first
+ * callers wait for the same attempt and receive the same result — success or failure — and a
+ * failed attempt is forgotten, so the next caller retries. {@link #resolveDeployment()} always
+ * performs a fresh resolution and, when it succeeds, replaces the published state. An
+ * application-scoped instance is safe to share between independent concurrent builds.</p>
  */
 @Slf4j
 public class DefaultCip113ProtocolService implements Cip113ProtocolService {
 
     private final BackendService backendService;
     private final UtxoSupplier utxoSupplier;
-    private Cip113Deployment deployment;
-    private RegistryLookup registryLookup;
+    private final Cip113Deployment configured;
+    private final DeploymentScripts scripts;
+    private final ProtocolParamsSupplier protocolParamsSupplier;
 
-    private Utxo coordinationUtxo;
-    private Utxo issuanceTemplateUtxo;
-    private DeploymentScripts scripts;
-    private ProtocolParamsSupplier protocolParamsSupplier;
+    private final Object resolutionLock = new Object();
+    /** The in-flight or completed resolution shared by every caller; null until first use. */
+    private CompletableFuture<Resolved> resolution;
 
-    /** Whether {@link #resolveDeployment()} has completed successfully at least once. */
-    private boolean resolved;
-    /** Guards against re-entering resolution from a method resolution itself calls. */
-    private boolean resolving;
+    /** Everything one successful resolution produced, published as a unit. */
+    @Value
+    private static class Resolved {
+        Cip113Deployment deployment;
+        Utxo coordinationUtxo;
+        Utxo issuanceTemplateUtxo;
+    }
 
     public DefaultCip113ProtocolService(BackendService backendService, Cip113Deployment deployment) {
         this.backendService = backendService;
         this.utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
-        this.deployment = deployment;
+        this.configured = deployment;
+        this.scripts = new DeploymentScripts(backendService.getScriptService(), this::deployment);
+        this.protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
     }
 
+    /** The resolved deployment when resolution has succeeded, else the configured one. */
     @Override
     public Cip113Deployment deployment() {
-        return deployment;
+        Resolved resolved = publishedOrNull();
+        return resolved != null ? resolved.getDeployment() : configured;
     }
 
     /**
-     * The registry lookup, built against the <i>resolved</i> deployment.
+     * A registry lookup bound to the resolved deployment.
      *
-     * <p>{@link RegistryLookup.Scanning} captures the deployment it is given, and resolution
-     * replaces that object — so one built too early would keep scanning for a null registry
-     * policy forever. Resolving first makes that unrepresentable.</p>
+     * <p>The scanning lookup is stateless, so a fresh instance per call costs nothing and can
+     * never bind to a deployment that has since been re-resolved.</p>
      */
     @Override
     public RegistryLookup registryLookup() {
-        if (registryLookup == null) {
-            ensureResolved();
-            registryLookup = new RegistryLookup.Scanning(utxoSupplier, deployment);
-        }
-        return registryLookup;
-    }
-
-    /**
-     * Resolve the deployment now if it has not been resolved yet.
-     *
-     * <p>Everything below needs values that only exist after the bootstrap transaction has been
-     * walked — the live coordination UTxO, the issuance template, the base script hash. Leaving
-     * that to the caller made correct use depend on call order, and getting the order wrong failed
-     * late and obscurely: a null coordination UTxO surfaces as a script error deep in evaluation,
-     * and a registry lookup built too early binds to an unresolved deployment permanently.</p>
-     *
-     * <p>Resolution is idempotent and the deployment is immutable on chain, so doing it on demand
-     * costs one lookup and removes the ordering constraint entirely. Callers who want to see the
-     * failure as a value rather than an exception can still call {@link #resolveDeployment()}
-     * themselves first.</p>
-     */
-    private void ensureResolved() {
-        if (resolved || resolving) return;
-        resolving = true;
-        try {
-            Result<Cip113Deployment> result = resolveDeployment();
-            if (!result.isSuccessful()) {
-                throw new Cip113Exception("Could not resolve the CIP-113 deployment from bootstrap"
-                        + " transaction " + deployment.getBootstrapTxHash() + ": "
-                        + result.getResponse());
-            }
-        } finally {
-            resolving = false;
-        }
+        return new RegistryLookup.Scanning(utxoSupplier, resolved().getDeployment());
     }
 
     /** The live coordination UTxO. Resolves the deployment on first use if needed. */
     @Override
     public Utxo coordinationUtxo() {
-        if (coordinationUtxo == null) ensureResolved();
-        return coordinationUtxo;
+        return resolved().getCoordinationUtxo();
     }
 
     /** The issuance-template UTxO. Resolves the deployment on first use if needed. */
     @Override
     public Utxo issuanceTemplateUtxo() {
-        if (issuanceTemplateUtxo == null) ensureResolved();
-        return issuanceTemplateUtxo;
+        return resolved().getIssuanceTemplateUtxo();
     }
 
-    /** Protocol parameters, for sizing min-ADA on programmable outputs. Cached per service. */
+    /** Protocol parameters, for sizing min-ADA on programmable outputs. */
     @Override
     public ProtocolParamsSupplier protocolParamsSupplier() {
-        if (protocolParamsSupplier == null) {
-            protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
-        }
         return protocolParamsSupplier;
     }
 
@@ -142,141 +123,222 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
      * <p>Exposed so a caller that already holds applied scripts can hand them over once —
      * {@code api.scripts().registerAll(...)} — instead of per transaction. That matters right
      * after a bootstrap, when the chain has not revealed the scripts yet and no backend can
-     * serve them.</p>
-     *
-     * <p>Deliberately does not force resolution: registering scripts is exactly what a caller
-     * does <i>before</i> anything is on chain to resolve against.</p>
+     * serve them. Deliberately does not force resolution: registering scripts is exactly what a
+     * caller does <i>before</i> anything is on chain to resolve against.</p>
      */
     @Override
     public DeploymentScripts scripts() {
-        if (scripts == null) {
-            scripts = new DeploymentScripts(backendService.getScriptService(), this::deployment);
-        }
         return scripts;
     }
 
     /**
      * Pure once the base script hash is known — which it is for a fully specified deployment.
-     * A deployment that is still just a bootstrap hash is resolved first, since the address
-     * cannot be derived without it.
+     * A deployment that is still just a bootstrap hash is resolved first.
      */
     @Override
     public Address smartWalletAddress(Address ownerAddress) {
-        if (deployment.getProgrammableLogicBaseHash() == null) ensureResolved();
+        Cip113Deployment deployment = deployment();
+        if (deployment.getProgrammableLogicBaseHash() == null) deployment = resolved().getDeployment();
         return SmartWalletAddress.ofPaymentCredential(deployment, ownerAddress);
     }
 
     // ------------------------------------------------------------ deployment
 
+    /**
+     * Resolve now, from chain, and publish the result on success.
+     *
+     * <p>Callers who want the failure as a value rather than an exception call this directly;
+     * every other method resolves on demand and throws {@link Cip113Exception} instead. A
+     * failed explicit resolution leaves any previously published state in place.</p>
+     */
     @Override
     public Result<Cip113Deployment> resolveDeployment() {
         try {
-            Result<TxContentUtxo> bootstrap =
-                    backendService.getTransactionService().getTransactionUtxos(deployment.getBootstrapTxHash());
-            if (!bootstrap.isSuccessful()) {
-                return Result.error("Could not read bootstrap transaction "
-                        + deployment.getBootstrapTxHash() + ": " + bootstrap.getResponse());
+            Resolved fresh = resolveFromChain();
+            synchronized (resolutionLock) {
+                resolution = CompletableFuture.completedFuture(fresh);
             }
-
-            Utxo params = null;
-            Utxo template = null;
-            String paramsPolicy = null;
-            String templatePolicy = null;
-
-            for (TxContentUtxoOutputs output : bootstrap.getValue().getOutputs()) {
-                for (TxContentOutputAmount amount : output.getAmount()) {
-                    String unit = amount.getUnit();
-                    if (unit == null || "lovelace".equals(unit) || unit.length() <= 56) continue;
-                    String policy = unit.substring(0, 56);
-                    String name = assetNameOf(unit);
-
-                    if (Cip113Deployment.PROTOCOL_PARAMS_ASSET_NAME.equals(name)) {
-                        params = toUtxo(deployment.getBootstrapTxHash(), output);
-                        paramsPolicy = policy;
-                    } else if (Cip113Deployment.ISSUANCE_CBOR_HEX_ASSET_NAME.equals(name)) {
-                        template = toUtxo(deployment.getBootstrapTxHash(), output);
-                        templatePolicy = policy;
-                    }
-                }
-            }
-
-            if (params == null) {
-                return Result.error("Bootstrap transaction " + deployment.getBootstrapTxHash()
-                        + " has no output carrying a '" + Cip113Deployment.PROTOCOL_PARAMS_ASSET_NAME
-                        + "' NFT. Either the hash is wrong, or this deployment was bootstrapped"
-                        + " differently than expected.");
-            }
-            if (params.getInlineDatum() == null || params.getInlineDatum().isEmpty()) {
-                return Result.error("The coordination UTxO has no inline datum — the CIP-113"
-                        + " validators require one.");
-            }
-
-            ProgrammableLogicGlobalParams resolvedFrom = ProgrammableLogicGlobalParams.fromPlutusData(
-                    PlutusData.deserialize(HexUtil.decodeHexString(params.getInlineDatum())));
-
-            // The bootstrap output only tells us the policies. An in-place upgrade spends and
-            // recreates the coordination UTxO, so the *live* one has to be found by following its
-            // NFT — otherwise every transaction would reference a spent output.
-            this.coordinationUtxo = liveUtxoCarrying(paramsPolicy,
-                    Cip113Deployment.PROTOCOL_PARAMS_ASSET_NAME, params);
-            this.issuanceTemplateUtxo = template;
-
-            if (!this.coordinationUtxo.getTxHash().equals(params.getTxHash())
-                    || this.coordinationUtxo.getOutputIndex() != params.getOutputIndex()) {
-                // Re-read the datum: an upgrade may have changed the delegate credentials.
-                resolvedFrom = ProgrammableLogicGlobalParams.fromPlutusData(PlutusData.deserialize(
-                        HexUtil.decodeHexString(this.coordinationUtxo.getInlineDatum())));
-            }
-            this.deployment = deployment.toBuilder()
-                    .paramsPolicy(paramsPolicy)
-                    .issuanceCborHexCs(templatePolicy)
-                    .registrySpendScriptHash(deployment.getRegistrySpendScriptHash() != null
-                            ? deployment.getRegistrySpendScriptHash()
-                            : registrySpendHashFrom(bootstrap.getValue().getOutputs(),
-                                    resolvedFrom.getRegistryNodeCs()))
-                    .build()
-                    .withResolvedParams(resolvedFrom);
-            this.registryLookup = null;   // deployment changed, drop any cached scan
-
-            // A lookup built against the pre-resolution deployment is now stale, and so is
-            // anything it cached.
-            this.registryLookup = null;
-            this.resolved = true;
-
-            // Whatever the bootstrap published as a reference script, record where it lives, so a
-            // transaction can point at it instead of carrying the bytes. Deployments that did not
-            // publish any simply yield nothing here and the scripts go in the witness set.
-            for (TxContentUtxoOutputs output : bootstrap.getValue().getOutputs()) {
-                String refHash = output.getReferenceScriptHash();
-                if (refHash == null || refHash.isEmpty()) continue;
-                scripts().publishedAt(refHash,
-                        toUtxo(deployment.getBootstrapTxHash(), output));
-            }
-
-            return Result.success("OK").withValue(this.deployment);
+            return Result.success("OK").withValue(fresh.getDeployment());
         } catch (Exception e) {
+            log.warn("CIP-113 deployment resolution failed for bootstrap {}: {}",
+                    configured.getBootstrapTxHash(), e.getMessage());
             return Result.error("Failed to resolve deployment: " + e.getMessage());
         }
     }
 
+    private Resolved publishedOrNull() {
+        CompletableFuture<Resolved> current;
+        synchronized (resolutionLock) {
+            current = resolution;
+        }
+        return current != null && current.isDone() && !current.isCompletedExceptionally()
+                ? current.join() : null;
+    }
+
     /**
-     * The UTxO currently carrying a one-shot NFT.
+     * The published state, resolving it on first use.
      *
-     * <p>Falls back to the bootstrap output when the backend cannot answer an asset query, which
-     * is correct for a deployment that has never been upgraded — but says so, because silently
-     * using a spent output would fail much later and much less clearly.</p>
+     * <p>Exactly one caller performs the chain reads; concurrent callers join the same future
+     * and see the same outcome. A failure clears the future after delivering it, so a later
+     * caller retries rather than inheriting a stale error.</p>
      */
+    private Resolved resolved() {
+        CompletableFuture<Resolved> future;
+        boolean resolver = false;
+        synchronized (resolutionLock) {
+            if (resolution == null) {
+                resolution = new CompletableFuture<>();
+                resolver = true;
+            }
+            future = resolution;
+        }
+        if (resolver) {
+            try {
+                future.complete(resolveFromChain());
+            } catch (Exception e) {
+                synchronized (resolutionLock) {
+                    if (resolution == future) resolution = null;
+                }
+                log.warn("CIP-113 deployment resolution failed for bootstrap {}: {}",
+                        configured.getBootstrapTxHash(), e.getMessage());
+                future.completeExceptionally(e);
+            }
+        }
+        try {
+            return future.join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            if (cause instanceof Cip113Exception) throw (Cip113Exception) cause;
+            throw new Cip113Exception("Could not resolve the CIP-113 deployment from bootstrap"
+                    + " transaction " + configured.getBootstrapTxHash() + ": " + cause.getMessage(), cause);
+        }
+    }
+
+    private Resolved resolveFromChain() throws Exception {
+        String bootstrapTxHash = configured.getBootstrapTxHash();
+        Result<TxContentUtxo> bootstrap =
+                backendService.getTransactionService().getTransactionUtxos(bootstrapTxHash);
+        if (!bootstrap.isSuccessful()) {
+            throw new Cip113Exception("Could not read bootstrap transaction " + bootstrapTxHash
+                    + ": " + bootstrap.getResponse());
+        }
+
+        Utxo params = null;
+        Utxo template = null;
+        String paramsPolicy = null;
+        String templatePolicy = null;
+
+        for (TxContentUtxoOutputs output : bootstrap.getValue().getOutputs()) {
+            for (TxContentOutputAmount amount : output.getAmount()) {
+                String unit = amount.getUnit();
+                if (unit == null || "lovelace".equals(unit) || unit.length() <= 56) continue;
+                String policy = unit.substring(0, 56);
+                String name = assetNameOf(unit);
+
+                if (Cip113Deployment.PROTOCOL_PARAMS_ASSET_NAME.equals(name)) {
+                    params = toUtxo(bootstrapTxHash, output);
+                    paramsPolicy = policy;
+                } else if (Cip113Deployment.ISSUANCE_CBOR_HEX_ASSET_NAME.equals(name)) {
+                    template = toUtxo(bootstrapTxHash, output);
+                    templatePolicy = policy;
+                }
+            }
+        }
+
+        if (params == null) {
+            throw new Cip113Exception("Bootstrap transaction " + bootstrapTxHash
+                    + " has no output carrying a '" + Cip113Deployment.PROTOCOL_PARAMS_ASSET_NAME
+                    + "' NFT. Either the hash is wrong, or this deployment was bootstrapped"
+                    + " differently than expected.");
+        }
+
+        // The bootstrap output only tells us the policies. An in-place upgrade spends and
+        // recreates the coordination UTxO, so the *live* one has to be found by following its
+        // NFT — otherwise every transaction would reference a spent output.
+        Utxo coordination = liveCoordinationUtxo(paramsPolicy, params);
+        if (coordination.getInlineDatum() == null || coordination.getInlineDatum().isEmpty()) {
+            throw new Cip113Exception("The coordination UTxO " + coordination.getTxHash() + "#"
+                    + coordination.getOutputIndex() + " has no inline datum — the CIP-113"
+                    + " validators require one.");
+        }
+        ProgrammableLogicGlobalParams datum = ProgrammableLogicGlobalParams.fromPlutusData(
+                PlutusData.deserialize(HexUtil.decodeHexString(coordination.getInlineDatum())));
+
+        Cip113Deployment deployment = configured.toBuilder()
+                .paramsPolicy(paramsPolicy)
+                .issuanceCborHexCs(templatePolicy)
+                .registrySpendScriptHash(configured.getRegistrySpendScriptHash() != null
+                        ? configured.getRegistrySpendScriptHash()
+                        : registrySpendHashFrom(bootstrap.getValue().getOutputs(),
+                                datum.getRegistryNodeCs()))
+                .build()
+                .withResolvedParams(datum);
+
+        // Whatever the bootstrap published as a reference script, record where it lives, so a
+        // transaction can point at it instead of carrying the bytes.
+        for (TxContentUtxoOutputs output : bootstrap.getValue().getOutputs()) {
+            String refHash = output.getReferenceScriptHash();
+            if (refHash == null || refHash.isEmpty()) continue;
+            scripts.publishedAt(refHash, toUtxo(bootstrapTxHash, output));
+        }
+
+        return new Resolved(deployment, coordination, template);
+    }
+
+    /**
+     * The UTxO currently carrying the protocol-params NFT.
+     *
+     * <p>Asks the backend who holds the asset first. When that lookup is unavailable or empty,
+     * the bootstrap output is used only after positively verifying that it is still unspent and
+     * still carries the NFT — never assumed. Anything else fails resolution here, where the unit
+     * and the bootstrap transaction can be named, instead of surfacing later as a script error
+     * against a spent reference input.</p>
+     */
+    private Utxo liveCoordinationUtxo(String policy, Utxo bootstrapOutput) {
+        String unit = policy + HexUtil.encodeHexString(
+                Cip113Deployment.PROTOCOL_PARAMS_ASSET_NAME.getBytes(StandardCharsets.UTF_8));
+        try {
+            Result<List<AssetAddress>> holders =
+                    backendService.getAssetService().getAllAssetAddresses(unit);
+            if (holders.isSuccessful() && holders.getValue() != null) {
+                for (AssetAddress holder : holders.getValue()) {
+                    Optional<Utxo> found = utxoCarrying(holder.getAddress(), unit);
+                    if (found.isPresent()) return found.get();
+                }
+            } else {
+                log.debug("Asset-holder lookup for {} answered {}; verifying the bootstrap output",
+                        unit, holders.getResponse());
+            }
+        } catch (Exception e) {
+            log.debug("Asset-holder lookup for {} failed; verifying the bootstrap output", unit, e);
+        }
+
+        Optional<Utxo> verified = utxoCarrying(bootstrapOutput.getAddress(), unit);
+        if (verified.isPresent()) return verified.get();
+
+        throw new Cip113Exception("Could not find the live UTxO carrying the protocol-params NFT "
+                + unit + ". The bootstrap output " + bootstrapOutput.getTxHash() + "#"
+                + bootstrapOutput.getOutputIndex() + " at " + bootstrapOutput.getAddress()
+                + " is spent or no longer carries it, and the backend reported no other holder."
+                + " Check the bootstrap transaction hash and the backend's asset indexing.");
+    }
+
+    /** The unspent output at {@code address} holding {@code unit}, read through the UTxO supplier. */
+    private Optional<Utxo> utxoCarrying(String address, String unit) {
+        for (Utxo utxo : utxoSupplier.getAll(address)) {
+            for (Amount amount : utxo.getAmount()) {
+                if (unit.equals(amount.getUnit())) return Optional.of(utxo);
+            }
+        }
+        return Optional.empty();
+    }
+
     /**
      * Find the script the registry's nodes live at, from the bootstrap transaction.
      *
      * <p>The coordination datum names the registry's <i>minting</i> policy but not the spend
-     * script guarding its nodes, and without that there is no registry address to scan — a service
-     * given nothing but a bootstrap hash could resolve everything else and still fail every
-     * registry lookup with a null hash.</p>
-     *
-     * <p>It does not need to be published, because the bootstrap transaction created the origin
-     * node: whichever output carries a registry-node NFT is sitting at the registry address, so
-     * its payment credential is the answer.</p>
+     * script guarding its nodes. The bootstrap transaction created the origin node, so whichever
+     * output carries a registry-node NFT is sitting at the registry address.</p>
      *
      * @return the script hash, or null if no output carries a node NFT
      */
@@ -303,7 +365,7 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
      *
      * <p>Only the policy is known, so this goes policy → its assets → their holders → that
      * holder's UTxOs. Returns null rather than throwing: the caller turns absence into a message
-     * that names the token whose state is missing, which is more use than a failure here.</p>
+     * that names the token whose state is missing.</p>
      */
     @Override
     public Utxo globalStateUtxo(String globalStateCs) {
@@ -317,37 +379,14 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
                 var holders = backendService.getAssetService().getAllAssetAddresses(unit);
                 if (!holders.isSuccessful() || holders.getValue() == null) continue;
                 for (var holder : holders.getValue()) {
-                    for (Utxo utxo : utxoSupplier.getAll(holder.getAddress())) {
-                        for (Amount amount : utxo.getAmount()) {
-                            if (unit.equals(amount.getUnit())) return utxo;
-                        }
-                    }
+                    Optional<Utxo> found = utxoCarrying(holder.getAddress(), unit);
+                    if (found.isPresent()) return found.get();
                 }
             }
         } catch (Exception e) {
             log.debug("Could not resolve the global-state UTxO for policy {}", globalStateCs, e);
         }
         return null;
-    }
-
-    private Utxo liveUtxoCarrying(String policy, String assetName, Utxo bootstrapOutput) {
-        String unit = policy + HexUtil.encodeHexString(
-                assetName.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        try {
-            Result<List<com.bloxbean.cardano.client.backend.model.AssetAddress>> holders =
-                    backendService.getAssetService().getAllAssetAddresses(unit);
-            if (holders.isSuccessful() && holders.getValue() != null && !holders.getValue().isEmpty()) {
-                String address = holders.getValue().get(0).getAddress();
-                for (Utxo utxo : utxoSupplier.getAll(address)) {
-                    for (Amount amount : utxo.getAmount()) {
-                        if (unit.equals(amount.getUnit())) return utxo;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // fall through to the bootstrap output
-        }
-        return bootstrapOutput;
     }
 
     // --------------------------------------------------------------- queries
@@ -375,11 +414,9 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
         if (!all.isSuccessful()) return all;
 
         try {
-            RegistryLookup lookup = registryLookup();
-            lookup.invalidate();
-            java.util.Set<String> registered = lookup.all().stream()
+            Set<String> registered = registryLookup().all().stream()
                     .map(node -> node.getDatum().getKey().toLowerCase())
-                    .collect(java.util.stream.Collectors.toSet());
+                    .collect(Collectors.toSet());
             List<Amount> programmable = new ArrayList<>();
             for (Amount amount : all.getValue()) {
                 String unit = amount.getUnit();
@@ -416,9 +453,7 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
     public Result<List<RegistryNode>> getRegistry() {
         try {
             List<RegistryNode> nodes = new ArrayList<>();
-            RegistryLookup lookup = registryLookup();
-            lookup.invalidate();
-            lookup.all().forEach(n -> nodes.add(n.getDatum()));
+            registryLookup().all().forEach(n -> nodes.add(n.getDatum()));
             return Result.success("OK").withValue(nodes);
         } catch (Exception e) {
             return Result.error("Registry scan failed: " + e.getMessage());
@@ -428,13 +463,14 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
     @Override
     public Result<String> derivePolicyId(Credential mintingLogicScript) {
         try {
-            if (issuanceTemplateUtxo() == null) {
+            Utxo template = issuanceTemplateUtxo();
+            if (template == null) {
                 return Result.error("No issuance-template UTxO found in the bootstrap transaction;"
                         + " a policy id cannot be derived without its prefix/postfix.");
             }
-            IssuanceCborHex template = IssuanceCborHex.fromPlutusData(
-                    PlutusData.deserialize(HexUtil.decodeHexString(issuanceTemplateUtxo.getInlineDatum())));
-            return Result.success("OK").withValue(PolicyIdDerivation.derive(template, mintingLogicScript));
+            IssuanceCborHex issuance = IssuanceCborHex.fromPlutusData(
+                    PlutusData.deserialize(HexUtil.decodeHexString(template.getInlineDatum())));
+            return Result.success("OK").withValue(PolicyIdDerivation.derive(issuance, mintingLogicScript));
         } catch (Exception e) {
             return Result.error("Policy id derivation failed: " + e.getMessage());
         }
@@ -457,7 +493,7 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
     private static String assetNameOf(String unit) {
         String hexName = unit.substring(56);
         if (hexName.isEmpty()) return "";
-        return new String(HexUtil.decodeHexString(hexName), java.nio.charset.StandardCharsets.UTF_8);
+        return new String(HexUtil.decodeHexString(hexName), StandardCharsets.UTF_8);
     }
 
     private static Utxo toUtxo(String txHash, TxContentUtxoOutputs output) {

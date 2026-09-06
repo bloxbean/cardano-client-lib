@@ -73,6 +73,11 @@ public class Cip113Deployment {
         return Credential.fromScript(thirdPartyScriptHash);
     }
 
+    /** Core delegate invoked via withdraw-zero on a holder-driven unfracking. */
+    public Credential unfrackingCredential() {
+        return Credential.fromScript(unfrackingScriptHash);
+    }
+
     /** Address of the registry linked list. Payment credential only, no stake part. */
     public Address registryAddress() {
         return AddressProvider.getEntAddress(Credential.fromScript(registrySpendScriptHash), network);
@@ -86,6 +91,11 @@ public class Cip113Deployment {
     /** Reward address whose withdraw-zero invokes the core third-party delegate. */
     public String thirdPartyRewardAddress() {
         return AddressProvider.getRewardAddress(thirdPartyCredential(), network).toBech32();
+    }
+
+    /** Reward address whose withdraw-zero invokes the core unfracking delegate. */
+    public String unfrackingRewardAddress() {
+        return AddressProvider.getRewardAddress(unfrackingCredential(), network).toBech32();
     }
 
     /**

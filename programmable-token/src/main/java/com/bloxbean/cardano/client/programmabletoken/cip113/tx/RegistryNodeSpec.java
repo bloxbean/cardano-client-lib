@@ -44,6 +44,14 @@ public class RegistryNodeSpec {
         return Credential.fromKey(new byte[0]);
     }
 
+    /** Whether a registry node's {@code unfracking_logic_script} is the empty-vkey sentinel. */
+    public static boolean isUnfrackingForbidden(Credential unfrackingLogicScript) {
+        return unfrackingLogicScript != null
+                && unfrackingLogicScript.getType() == CredentialType.Key
+                && (unfrackingLogicScript.getBytes() == null
+                        || unfrackingLogicScript.getBytes().length == 0);
+    }
+
     /**
      * Reject specs the on-chain validator would reject, at build time and with a reason.
      *

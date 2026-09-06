@@ -23,6 +23,9 @@ import java.util.Optional;
  * query asset holders should override {@link #byPolicy} with an exact lookup, since a node's
  * NFT asset name <i>is</i> the token's policy id — {@code assets/{registryNodeCs}{policyId}}
  * addresses it directly. The covering-node search has no exact form and always scans.</p>
+ *
+ * <p>Implementations must be safe to use from independent concurrent builds. Each transaction
+ * build takes one immutable snapshot of {@link #all()} and plans against that.</p>
  */
 public interface RegistryLookup {
 
@@ -47,34 +50,29 @@ public interface RegistryLookup {
     /**
      * Drop any cached view of the registry.
      *
-     * <p>Implementations are free to cache — a scan is expensive and the registry changes rarely —
-     * while transaction builds always request a fresh immutable snapshot. This method is an
-     * implementation hook; application code does not need to coordinate invalidation.</p>
+     * <p>An implementation hook for lookups that cache; the scanning default holds no state, so
+     * application code never needs to coordinate invalidation.</p>
      */
     default void invalidate() {
     }
 
-    /** Scanning implementation. Correct everywhere, cheap nowhere. */
+    /**
+     * Scanning implementation. Correct everywhere, cheap nowhere.
+     *
+     * <p>Stateless: every call reads the registry address afresh, which keeps it trivially safe
+     * for concurrent builds and always live. Builds snapshot {@link #all()} once.</p>
+     */
     class Scanning implements RegistryLookup {
         private final UtxoSupplier utxoSupplier;
         private final Cip113Deployment deployment;
-        private List<RegistryNodeUtxo> cache;
 
         public Scanning(UtxoSupplier utxoSupplier, Cip113Deployment deployment) {
             this.utxoSupplier = utxoSupplier;
             this.deployment = deployment;
         }
 
-        /** {@inheritDoc} */
-        @Override
-        public void invalidate() {
-            cache = null;
-        }
-
         @Override
         public List<RegistryNodeUtxo> all() {
-            if (cache != null) return cache;
-
             String registryAddress = deployment.registryAddress().toBech32();
             List<RegistryNodeUtxo> nodes = new ArrayList<>();
             for (Utxo utxo : utxoSupplier.getAll(registryAddress)) {
@@ -85,19 +83,15 @@ public interface RegistryLookup {
                     nodes.add(new RegistryNodeUtxo(utxo, RegistryNode.fromPlutusData(data)));
                 } catch (Exception e) {
                     // This UTxO carries a registry NFT, so it *is* a node — skipping it would
-                    // make its policy read as unregistered, and payToAddress would then route a
-                    // programmable token down the ordinary path, straight past the rules that
-                    // exist to constrain it. Fail closed, naming the UTxO.
+                    // make its policy read as unregistered. Fail closed, naming the UTxO.
                     throw new Cip113Exception("Registry node " + utxo.getTxHash() + "#"
                             + utxo.getOutputIndex() + " carries a registry NFT but its inline datum"
                             + " could not be decoded. Treating it as absent would report its policy"
-                            + " as unregistered and silently move that token as an ordinary asset,"
-                            + " so the scan fails instead. The deployment's node datum format and"
-                            + " this library's decoder have diverged.", e);
+                            + " as unregistered, so the scan fails instead. The deployment's node"
+                            + " datum format and this library's decoder have diverged.", e);
                 }
             }
-            cache = nodes;
-            return nodes;
+            return List.copyOf(nodes);
         }
 
         private boolean carriesRegistryNft(Utxo utxo) {
@@ -117,9 +111,6 @@ public interface RegistryLookup {
 
         @Override
         public Optional<RegistryNodeUtxo> byPolicy(String policyId) {
-            // Standalone membership reads are live. Transaction builds take one explicit,
-            // immutable snapshot and do not call this scanning implementation repeatedly.
-            invalidate();
             return all().stream()
                     .filter(n -> n.getDatum().getKey().equalsIgnoreCase(policyId))
                     .findFirst();
@@ -127,13 +118,14 @@ public interface RegistryLookup {
 
         @Override
         public RegistryNodeUtxo coveringNode(String policyId) {
-            return all().stream()
+            List<RegistryNodeUtxo> nodes = all();
+            return nodes.stream()
                     .filter(n -> PolicyOrdering.covers(
                             n.getDatum().getKey(), n.getDatum().getNext(), policyId))
                     .findFirst()
                     .orElseThrow(() -> new Cip113Exception(
                             "No covering node found for policy " + policyId
-                            + ". The registry scan returned " + all().size() + " node(s);"
+                            + ". The registry scan returned " + nodes.size() + " node(s);"
                             + " check the deployment's registry address and node policy."));
         }
     }

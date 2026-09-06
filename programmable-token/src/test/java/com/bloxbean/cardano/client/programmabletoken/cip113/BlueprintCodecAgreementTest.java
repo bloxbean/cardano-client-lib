@@ -102,6 +102,13 @@ class BlueprintCodecAgreementTest {
                 "params_idx", "registry_node_idx", "outputs_start_idx");
     }
 
+    /** Same three index hints as the third-party redeemer; {@code Cip113Redeemers.unfracking}. */
+    @Test
+    void unfrackingRedeemerMatchesTheBlueprint() {
+        assertConstructor("types/UnfrackingRedeemer", 0,
+                "params_idx", "registry_node_idx", "outputs_start_idx");
+    }
+
     /**
      * {@code RefInput} is 0 and {@code OutputIndex} is 1. Swapping them would make an ordinary mint
      * read an output index as a reference-input index — in range, wrong UTxO, no trace.

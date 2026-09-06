@@ -35,25 +35,6 @@ class Cip113MaterializerRegressionTest {
     }
 
     @Test
-    void adaBufferRequiresPositiveLovelace() {
-        Cip113TransactionMaterializer materializer = new Cip113TransactionMaterializer(
-                deployment(), mock(RegistryLookup.class), mock(UtxoSupplier.class));
-
-        assertThatThrownBy(() -> materializer.withAdaBuffer(
-                Amount.builder().unit("11".repeat(28)).quantity(BigInteger.ONE).build()))
-                .isInstanceOf(Cip113Exception.class).hasMessageContaining("lovelace");
-        assertThatThrownBy(() -> materializer.withAdaBuffer(Amount.lovelace(BigInteger.ZERO)))
-                .isInstanceOf(Cip113Exception.class).hasMessageContaining("positive");
-    }
-
-    @Test
-    void manualInternalConstructionIsWired() {
-        Cip113TransactionMaterializer materializer = new Cip113TransactionMaterializer(
-                deployment(), mock(RegistryLookup.class), mock(UtxoSupplier.class));
-        assertThat(materializer.isWired()).isTrue();
-    }
-
-    @Test
     void indexSnapshotDetectsSameSizeReordering() {
         TransactionInput first = TransactionInput.builder().transactionId("11".repeat(32)).index(0).build();
         TransactionInput second = TransactionInput.builder().transactionId("22".repeat(32)).index(0).build();
@@ -66,8 +47,9 @@ class Cip113MaterializerRegressionTest {
                 .isNotEqualTo(Cip113TransactionMaterializer.indexSensitiveFingerprint(b));
     }
 
+    /** The scanning lookup holds no state: every read is live, so an updated node is seen at once. */
     @Test
-    void scanningLookupRefreshesEvenWhenPolicyWasAlreadyPresent() {
+    void scanningLookupIsStatelessAndAlwaysLive() {
         UtxoSupplier supplier = mock(UtxoSupplier.class);
         String policy = "33".repeat(28);
         RegistryNode oldNode = node(policy, "44".repeat(28));
@@ -94,7 +76,7 @@ class Cip113MaterializerRegressionTest {
 
         assertThatThrownBy(() -> materializer.recordTransferForExtension(policy,
                 "addr_test1vpuv7h0p4n0sl3w5c2hx7ypz3e3f0vkd8y6wqddgc7nr2ns9zjhxy",
-                Amount.builder().unit(policy + "00").quantity(BigInteger.ONE).build()))
+                Amount.builder().unit(policy + "00").quantity(BigInteger.ONE).build(), null))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("not registered");
     }

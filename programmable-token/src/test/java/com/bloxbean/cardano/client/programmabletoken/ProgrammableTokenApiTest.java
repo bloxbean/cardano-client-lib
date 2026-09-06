@@ -340,6 +340,48 @@ class ProgrammableTokenApiTest {
                 .hasMessage("transfer_redeemer is required");
     }
 
+    /**
+     * Structural resolution already replaced {@code ${redeemer}}; the core reconstruction must not
+     * read the replacement {@code ${other}} as a template, or a redeemer the author never wrote
+     * would be decoded silently.
+     */
+    @Test
+    void txPlanNeverResolvesAReplacementValueASecondTime() {
+        ProgrammableTokenExtension extension = extension(protocol(new AtomicInteger()));
+        TxPlanCodec codec = codec(extension);
+        String policyId = "aa".repeat(28);
+        String yaml = """
+                version: '1.0'
+                variables:
+                  redeemer: '${other}'
+                  other: %s
+                extensions:
+                  pt:
+                    extension: programmable-token
+                    schema_version: '1'
+                    protocol: test-protocol
+                    contract_version: '1'
+                    deployment:
+                      network: preview
+                transaction:
+                  - tx:
+                      from: %s
+                      intents:
+                        - type: pt:transfer
+                          receiver: %s
+                          unit: %s00ff
+                          quantity: 1
+                          transfer_redeemer_hex: ${redeemer}
+                """.formatted(ConstrPlutusData.of(0).serializeToHex(), address(), address(),
+                policyId);
+
+        assertThatThrownBy(() -> codec.fromYaml(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("kept literal")
+                .hasMessageContaining("transfer_redeemer")
+                .hasMessageNotContaining(ConstrPlutusData.of(0).serializeToHex());
+    }
+
     @Test
     void txPlanBurnAcceptsVariableCborHexAndEmitsCanonicalStructuredData() {
         ProgrammableTokenExtension extension = extension(protocol(new AtomicInteger()));

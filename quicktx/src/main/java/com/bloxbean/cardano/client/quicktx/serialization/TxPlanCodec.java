@@ -78,6 +78,10 @@ public final class TxPlanCodec {
      * Deserialize an extension-aware plan with values supplied by the execution environment.
      * Runtime values override document defaults and are retained in the reconstructed plan.
      *
+     * <p>Variables are resolved structurally on the parsed tree, never by rewriting the YAML
+     * text: an exact {@code ${name}} keeps the variable's native type, an embedded placeholder is
+     * interpolated as text, and a replacement value is never re-read as a template.</p>
+     *
      * @param yaml plan YAML containing {@code ${variable}} references
      * @param runtimeVariables values supplied by the caller for this execution
      * @return the reconstructed, variable-resolved plan
@@ -100,24 +104,47 @@ public final class TxPlanCodec {
                         new TypeReference<Map<String, Object>>() { }));
             variables.putAll(runtimeVariables);
 
-            ObjectNode unresolvedRoot = (ObjectNode) unresolved;
-            if (!variables.isEmpty())
-                unresolvedRoot.set("variables", mapper.valueToTree(variables));
-            yaml = mapper.writeValueAsString(unresolvedRoot);
-            yaml = VariableResolver.resolve(yaml, variables);
+            ObjectNode root = mapper.createObjectNode();
+            unresolved.fields().forEachRemaining(entry -> {
+                if (!"variables".equals(entry.getKey()))
+                    root.set(entry.getKey(),
+                            VariableResolver.resolveTree(entry.getValue(), variables, entry.getKey()));
+            });
 
-            ObjectNode root = (ObjectNode) mapper.readTree(yaml);
             Map<String, ExtensionMetadata> declared = readMetadata(root);
             validateBindings(declared);
             transformForRead(root, declared);
+            // The tree is fully resolved, so the core reconstruction gets a document without
+            // variables: it decodes Plutus data exactly as for a literal plan and has nothing to
+            // substitute, so a replacement value is never read as a template a second time.
             TransactionDocument document = mapper.treeToValue(root, TransactionDocument.class);
-            TxPlan plan = TxPlan.from(document);
+            TxPlan plan = reconstruct(document);
+            plan.setVariables(variables);
             validatePlanIntents(plan, declared);
             return plan;
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Unable to deserialize extension-aware TxPlan", e);
+        }
+    }
+
+    /**
+     * After structural resolution every remaining {@code ${...}} came from a replacement value.
+     * The core reconstruction keeps it literal, and when a field cannot hold it the error says
+     * so instead of reporting a missing variable.
+     */
+    private static TxPlan reconstruct(TransactionDocument document) {
+        try {
+            return TxPlan.from(document);
+        } catch (RuntimeException e) {
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                if (t.getMessage() != null && t.getMessage().contains("Variable not found"))
+                    throw new IllegalArgumentException("A resolved value still contains a ${...}"
+                            + " placeholder; it is kept literal and this field cannot hold it: "
+                            + e.getMessage(), e);
+            }
+            throw e;
         }
     }
 

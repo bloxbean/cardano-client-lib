@@ -18,7 +18,12 @@ import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
-/** Declarative owner-authorized programmable-token transfer. */
+/**
+ * Declarative owner-authorized programmable-token transfer.
+ *
+ * <p>The optional {@code inline_datum} is written on the receiver's programmable output. It is
+ * bounded by the deployment's inline-datum limit so the output stays seizable.</p>
+ */
 @Data
 @Builder(toBuilder = true)
 @NoArgsConstructor
@@ -35,6 +40,9 @@ public class ProgrammableTransferIntent implements ProgrammableTokenIntent {
 
     @JsonIgnore
     private PlutusDataValue transferRedeemer;
+
+    @JsonIgnore
+    private PlutusDataValue inlineDatum;
 
     @JsonGetter("transfer_redeemer")
     public JsonNode transferRedeemerStructured() {
@@ -58,6 +66,26 @@ public class ProgrammableTransferIntent implements ProgrammableTokenIntent {
                 transferRedeemer, value, "transfer_redeemer");
     }
 
+    @JsonGetter("inline_datum")
+    public JsonNode inlineDatumStructured() {
+        return inlineDatum == null ? null : inlineDatum.structuredForYaml();
+    }
+
+    @JsonSetter("inline_datum")
+    public void inlineDatumStructured(JsonNode value) {
+        inlineDatum = PlutusDataValue.readStructured(inlineDatum, value, "inline_datum");
+    }
+
+    @JsonGetter("inline_datum_hex")
+    public String inlineDatumHex() {
+        return inlineDatum == null ? null : inlineDatum.cborHexForYaml();
+    }
+
+    @JsonSetter("inline_datum_hex")
+    public void inlineDatumHex(String value) {
+        inlineDatum = PlutusDataValue.readCborHex(inlineDatum, value, "inline_datum");
+    }
+
     @Override public String getOperation() { return OPERATION; }
 
     @Override
@@ -70,8 +98,11 @@ public class ProgrammableTransferIntent implements ProgrammableTokenIntent {
 
     @Override
     public TxIntent resolveVariables(Map<String, Object> variables) {
-        PlutusDataValue resolved = transferRedeemer == null ? null
+        PlutusDataValue resolvedRedeemer = transferRedeemer == null ? null
                 : transferRedeemer.resolve(variables, "transfer_redeemer");
-        return resolved == transferRedeemer ? this : toBuilder().transferRedeemer(resolved).build();
+        PlutusDataValue resolvedDatum = inlineDatum == null ? null
+                : inlineDatum.resolve(variables, "inline_datum");
+        if (resolvedRedeemer == transferRedeemer && resolvedDatum == inlineDatum) return this;
+        return toBuilder().transferRedeemer(resolvedRedeemer).inlineDatum(resolvedDatum).build();
     }
 }

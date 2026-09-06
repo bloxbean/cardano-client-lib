@@ -567,8 +567,12 @@ public class QuickTxBuilder {
          * @return Transaction
          */
         public Transaction build() {
-            Tuple<TxBuilderContext, TxBuilder> tuple = _build();
-            return tuple._1.build(tuple._2);
+            try {
+                Tuple<TxBuilderContext, TxBuilder> tuple = _build();
+                return tuple._1.build(tuple._2);
+            } finally {
+                clearPreparedIntents();
+            }
         }
 
         /**
@@ -577,15 +581,31 @@ public class QuickTxBuilder {
          * @return Transaction
          */
         public Transaction buildAndSign() {
-            Tuple<TxBuilderContext, TxBuilder> tuple = _build();
+            try {
+                Tuple<TxBuilderContext, TxBuilder> tuple = _build();
 
-            if (signers != null)
-                return tuple._1.buildAndSign(tuple._2, signers);
-            else
-                throw new IllegalStateException("No signers found");
+                if (signers != null)
+                    return tuple._1.buildAndSign(tuple._2, signers);
+                else
+                    throw new IllegalStateException("No signers found");
+            } finally {
+                clearPreparedIntents();
+            }
+        }
+
+        /**
+         * Prepared intents are an overlay for exactly one build. They are cleared before the
+         * extensions prepare and again once the build has finished, succeeded or not, so the
+         * authored transactions never carry generated state into a later build or preparation.
+         */
+        private void clearPreparedIntents() {
+            for (AbstractTx tx : txList) {
+                tx.preparedIntents(List.of());
+            }
         }
 
         private Tuple<TxBuilderContext, TxBuilder> _build() {
+            clearPreparedIntents();
             ExtensionBuildContext extensionContext = new ExtensionBuildContext(
                     txList, utxoSupplier, protocolParamsSupplier);
             List<TxBuildExtension> buildExtensions = extensions.values().stream()
@@ -695,6 +715,13 @@ public class QuickTxBuilder {
             // Extensions see fully resolved authoring references but still run before any Tx is
             // completed, so they can aggregate semantic declarations into ordinary core intents.
             buildExtensions.forEach(extension -> extension.prepare(extensionContext));
+
+            // Whatever the extensions prepared is an overlay for this build only: the authored
+            // intents are untouched, so the same plan can be built again. Installed before the
+            // script-intent and change-address defaults below so prepared intents count.
+            for (AbstractTx tx : txList) {
+                tx.preparedIntents(extensionContext.preparedIntents(tx));
+            }
 
             TxBuilder txBuilder = (context, txn) -> {
             };

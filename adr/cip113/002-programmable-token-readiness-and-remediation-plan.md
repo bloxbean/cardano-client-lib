@@ -2,7 +2,8 @@
 
 **Date**: 2026-09-02
 
-**Status**: Proposed
+**Status**: Accepted (2026-09-05, with §5.2 amended to implement unfracking; Phase 4 extraction
+of planner/emitter/finalizer components deferred until after beta)
 
 **Scope**: `programmable-token`, `quicktx`
 
@@ -68,6 +69,24 @@ Batch third-party actions may be introduced only by a future dialect whose on-ch
 validator surface explicitly support multiple registry-node proofs. The generic Programmable Token
 API must not imply that every dialect supports them.
 
+**Amendment (2026-09-05)**: the rules above, and every other composition rule in this document,
+apply to the whole ledger transaction, not to one `Tx` fragment. `QuickTxBuilder.compose(tx1, tx2)`
+merges fragments into one transaction, so `prepare()` validates the union of all fragments'
+programmable intents before any lookup. Two further transaction-wide rules follow from the pinned
+contracts:
+
+- an unfracking is refused when any fragment carries a core `MintingIntent` or
+  `ScriptMintingIntent`, because `unfracking.ak` requires an empty mint. No other operation is
+  restricted this way: `third_party.ak` reads only the acted policy's mint
+  (`self.mint |> value.tokens(policy_id)`) and requires byte-identity for non-acted policies only
+  across each paired smart-wallet input/output, so a seizure may share a transaction with an
+  unrelated native-asset mint to an ordinary address (proven on DevKit in
+  `Cip113EndToEndIT.step13_thirdPartySeize`), and owner operations may too;
+- all programmable-token operations of one transaction must be authored in a single `Tx`
+  fragment. Each fragment would otherwise get its own materializer and its own withdraw-zero
+  invocation of the same framework credential, which one transaction cannot carry twice. Owner
+  transfers of several policies in one fragment remain supported.
+
 ### 3.2 Require consistent burn authorization per policy
 
 There is one transfer-logic invocation and one issuance-logic invocation per applicable reward
@@ -121,6 +140,15 @@ Names may change to match existing conventions, but the semantics are fixed:
 QuickTx must retain a no-argument `complete()` path for existing code. The overlay-aware overload
 should remain package-internal unless an external extension implementation demonstrably needs a
 public method.
+
+**As implemented (2026-09-05)**: instead of a `complete(prepared)` overload, `QuickTxBuilder`
+installs the prepared intents on each `AbstractTx` through a package-private setter for the
+duration of one build, and `AbstractTx` evaluates authored plus prepared intents as one ordered set
+(`effectiveIntentions()`) for output calculation, input construction, intent application,
+deposits, script and mint detection, and redeemer lookup. The overlay is cleared before the
+extensions prepare and again in a `finally` once `build()` / `buildAndSign()` has finished, whether
+it succeeded or failed, so no generated state survives on the authored transaction. Semantics 1
+through 7 above hold; the authoring model remains single-threaded per build.
 
 Tests must compare the authored intent count and serialized plan before and after successful and
 failed builds. Building twice must not duplicate inputs, outputs, withdrawals, mints, witnesses, or
@@ -188,17 +216,34 @@ A later enhancement may support key credentials by adding the correct required s
 redeemer-less withdrawal, signer-resolution API, and TxPlan representation. That work must have its
 own capability flag and end-to-end tests.
 
-### 5.2 Remove unsupported `unfrack` from schema version 1
+### 5.2 Implement `unfrack` for schema version 1
 
-The Java facade and operation registry currently expose `unfrack`, while the CIP-113 protocol
-capabilities deliberately omit it and materialization always fails.
+The Java facade and operation registry expose `unfrack`, while the CIP-113 protocol capabilities
+originally omitted it and materialization always failed.
 
-**Decision**: remove `pt:unfrack` and the Java `unfrack(...)` facade method from programmable-token
-schema version `1` before release. Internal codec/model work may remain only if it is clearly marked
-non-public and unused. Add the operation in a later schema version when implemented and tested.
+**Decision (amended 2026-09-05)**: implement `pt:unfrack` for the `0.5.0-alpha.2` dialect rather
+than removing it. The reference platform ships the redeemers and script wiring but no transaction
+builder, so the transaction shape is taken from the on-chain validator
+(`validators/programmable_logic/unfracking.ak` at the pinned contract commit):
 
-Unsupported operations decoded from YAML must fail during codec/runtime binding, not after backend
-access.
+- an unfracking spends every smart-wallet UTxO of the owner that holds the acted policy together
+  with at least one other asset, pairs each with a byte-identical continuing output (address, datum,
+  reference script, every other asset; the acted policy stripped entirely; lovelace kept) in ledger
+  input order, and regroups every acted-policy token into one fresh single-policy output at the same
+  wallet;
+- `programmable_logic_base` dispatches with `SpendViaUnfracking`, the core `unfracking` delegate
+  withdraws zero with `UnfrackingRedeemer{params_idx, registry_node_idx, outputs_start_idx}`, and the
+  policy's `unfracking_logic_script` hook withdraws zero with the caller's authorization;
+- `outputs_start_idx` is resolved from the finished transaction by content (the contiguous run of
+  owner-wallet outputs carrying no acted-policy asset), because the regrouped output shares the
+  wallet address;
+- the empty-verification-key sentinel on the hook means "forbidden" and fails before any UTxO is
+  selected; a UTxO already holding the policy alone is never spent, and "nothing fracked" is a
+  build-time error;
+- an unfracking is its own transaction: the validator requires an empty mint and positional pairing.
+
+Unsupported operations decoded from YAML must still fail during codec/runtime binding, not after
+backend access.
 
 ### 5.3 Validate asset names at the semantic boundary
 
@@ -343,7 +388,10 @@ Add tests for:
 - all concurrent callers receive the same resolution failure;
 - backend failure cannot silently return a spent bootstrap coordination output;
 - unsupported verification-key transfer/third-party credentials fail at registration/update;
-- `pt:unfrack` is not advertised or decoded under schema version `1`;
+- `pt:unfrack` is advertised and decoded under schema version `1`, and its shape rules (own
+  transaction, empty mint, forbidden-hook sentinel, nothing fracked) fail before UTxO selection;
+- composition rules hold over every `Tx` fragment of one ledger transaction, and programmable
+  operations split across fragments are refused before any lookup;
 - asset-name null, odd-length, non-hex, prefixed, and over-32-byte values fail early;
 - valid empty and 32-byte asset names round-trip canonically;
 - metadata values cannot be mutated through returned objects;
@@ -416,7 +464,7 @@ tests. Do not silently relabel the existing adapter as compatible with a newer c
 1. Reject multi-policy third-party transactions.
 2. Aggregate and validate burn issuance redeemers.
 3. Reject unsupported verification-key operational credentials before registry mutation.
-4. Remove `unfrack` from the schema-v1/public capability surface.
+4. Implement `unfrack` and advertise it as a CIP-113 capability (amended; §5.2).
 5. Add focused regression tests.
 
 These changes are small, fail closed, and should land before internal restructuring.
@@ -485,7 +533,7 @@ maintainability risk is deferred with it.
 - TxPlan and Java-authored semantic transactions remain reusable across sequential builds.
 - Application-scoped Programmable Token services can safely serve independent concurrent builds.
 - Deployment errors do not degrade into obscure ledger failures.
-- Schema-v1 advertises only operations the adapter can execute.
+- Schema-v1 advertises only operations the adapter can execute, unfracking included.
 - Metadata and runtime variables become deterministic and safe at the serialization boundary.
 - CIP-113-specific complexity remains isolated from QuickTx and the public domain facade.
 - The large materializer can be simplified without destabilizing public APIs.
@@ -495,7 +543,7 @@ maintainability risk is deferred with it.
 - QuickTx needs a small internal completion seam for build-local prepared intents.
 - Structural variable resolution changes shared TxPlan behavior and needs broad regression coverage.
 - Atomic service initialization and immutable snapshots add implementation work.
-- Some currently accepted declarations will fail earlier until key-credential and unfrack support is
+- Some currently accepted declarations will fail earlier until key-credential support is
   implemented.
 - Contract snapshot upgrades require an explicit compatibility review and artifact regeneration.
 
@@ -521,7 +569,7 @@ This ADR does not:
 - [ ] Confirm sequential reuse is guaranteed and concurrent authoring-model reuse is not.
 - [ ] Approve atomic immutable deployment resolution.
 - [ ] Confirm bootstrap lookup failures must fail closed.
-- [ ] Approve removal of `unfrack` from schema version 1.
+- [x] Approve implementation of `unfrack` for schema version 1 (amended from removal; §5.2).
 - [ ] Confirm structural TxPlan variable-resolution semantics.
 - [ ] Confirm deployment metadata omission and canonical-emission behavior.
 - [ ] Confirm numeric-order-plus-id extension ordering.

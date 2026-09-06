@@ -18,13 +18,18 @@ final class ProgrammableIntentValidation {
             throw new IllegalStateException(operation + " quantity must be positive");
     }
 
+    /** Every entry must be a well-formed asset name with a positive quantity. */
     static void assets(List<ProgrammableTokenAsset> assets, String operation) {
         if (assets == null || assets.isEmpty())
             throw new IllegalStateException(operation + " assets are required");
-        for (ProgrammableTokenAsset asset : assets) {
-            if (asset == null || asset.getQuantity() == null
-                    || asset.getQuantity().signum() <= 0)
-                throw new IllegalStateException(operation + " asset quantities must be positive");
+        for (int i = 0; i < assets.size(); i++) {
+            ProgrammableTokenAsset asset = assets.get(i);
+            if (asset == null)
+                throw new IllegalStateException(operation + " assets[" + i + "] is required");
+            asset.validate(operation, i);
+            if (asset.getQuantity().signum() <= 0)
+                throw new IllegalStateException(operation + " assets[" + i
+                        + "]: quantity must be positive");
         }
     }
 }

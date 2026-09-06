@@ -17,6 +17,9 @@ dependencies {
     // evaluates scripts locally, which reports the actual failing validator instead of the
     // empty ScriptFailures a remote evaluator returns when it cannot build a context.
     integrationTestImplementation(libs.aiken.java.binding)
+    // SLF4J 2.x needs a 2.x provider; the root project's 1.7 binding is silently ignored, which
+    // is why the suites' diagnostics used to go through System.out.
+    integrationTestRuntimeOnly(libs.slf4j.reload4j)
 }
 
 // The vendored blueprint is the source of truth for every datum and redeemer shape in this

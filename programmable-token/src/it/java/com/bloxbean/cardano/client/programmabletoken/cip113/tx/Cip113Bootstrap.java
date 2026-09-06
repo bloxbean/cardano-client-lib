@@ -28,6 +28,8 @@ import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +52,8 @@ import java.util.Map;
  * {@code utxo2} for {@code issuance_cbor_hex_mint}.</p>
  */
 final class Cip113Bootstrap {
+
+    private static final Logger log = LoggerFactory.getLogger(Cip113Bootstrap.class);
 
     /** Fixed nonce for the always-fail script the issuance template is parked under. */
     private static final String ALWAYS_FAIL_NONCE =
@@ -218,35 +222,35 @@ final class Cip113Bootstrap {
         // A Mint redeemer's index is its policy's position in the sorted mint map, so an
         // evaluation error like RedeemerError{tag:"Mint", index:0} only names a validator once
         // that order is known.
-        System.out.println("  scripts:");
-        System.out.println("    always_fail        " + alwaysFail.getPolicyId());
-        System.out.println("    coordination_spend " + coordinationSpend.getPolicyId()
+        log.info("  scripts:");
+        log.info("    always_fail        " + alwaysFail.getPolicyId());
+        log.info("    coordination_spend " + coordinationSpend.getPolicyId()
                 + "  addr " + coordinationAddress.getAddress());
-        System.out.println("    protocol_params    " + protocolParamsMint.getPolicyId());
-        System.out.println("    plb                " + plb.getPolicyId());
-        System.out.println("    transfer           " + transfer.getPolicyId());
-        System.out.println("    third_party        " + thirdParty.getPolicyId());
-        System.out.println("    unfracking         " + unfracking.getPolicyId());
-        System.out.println("    upgrade_multisig   " + upgradeMultisig.getPolicyId());
-        System.out.println("    issuance_cbor_hex  " + issuanceCborHexMint.getPolicyId()
+        log.info("    protocol_params    " + protocolParamsMint.getPolicyId());
+        log.info("    plb                " + plb.getPolicyId());
+        log.info("    transfer           " + transfer.getPolicyId());
+        log.info("    third_party        " + thirdParty.getPolicyId());
+        log.info("    unfracking         " + unfracking.getPolicyId());
+        log.info("    upgrade_multisig   " + upgradeMultisig.getPolicyId());
+        log.info("    issuance_cbor_hex  " + issuanceCborHexMint.getPolicyId()
                 + "  addr " + issuanceTemplateAddress.getAddress());
-        System.out.println("    registry_spend     " + registrySpend.getPolicyId()
+        log.info("    registry_spend     " + registrySpend.getPolicyId()
                 + "  addr " + registryAddress.getAddress());
-        System.out.println("    registry_mint      " + registryMint.getPolicyId());
+        log.info("    registry_mint      " + registryMint.getPolicyId());
 
         List<String> mintOrder = new ArrayList<>(List.of(
                 registryMint.getPolicyId(), protocolParamsMint.getPolicyId(),
                 issuanceCborHexMint.getPolicyId()));
         mintOrder.sort(String::compareTo);
-        System.out.println("  mint redeemer indices (sorted policy order):");
+        log.info("  mint redeemer indices (sorted policy order):");
         for (int i = 0; i < mintOrder.size(); i++) {
             String policy = mintOrder.get(i);
             String which = policy.equals(registryMint.getPolicyId()) ? "registry_mint (RegistryInit)"
                     : policy.equals(protocolParamsMint.getPolicyId()) ? "protocol_params_mint"
                     : "issuance_cbor_hex_mint";
-            System.out.println("    index " + i + " -> " + which + "  " + policy);
+            log.info("    index " + i + " -> " + which + "  " + policy);
         }
-        System.out.println("  seeds: utxo1=" + utxo1.getTxHash() + "#" + utxo1.getOutputIndex()
+        log.info("  seeds: utxo1=" + utxo1.getTxHash() + "#" + utxo1.getOutputIndex()
                 + "  utxo2=" + utxo2.getTxHash() + "#" + utxo2.getOutputIndex());
 
         Result<String> result = new QuickTxBuilder(backendService)
@@ -255,7 +259,7 @@ final class Cip113Bootstrap {
                 .withSigner(SignerProviders.signerFrom(admin))
                 .withTxEvaluator(new AikenTransactionEvaluator(backendService))
                 .mergeOutputs(false)
-                .completeAndWait(System.out::println);
+                .completeAndWait(log::info);
 
         if (!result.isSuccessful()) {
             throw new IllegalStateException("CIP-113 bootstrap failed: " + result.getResponse());

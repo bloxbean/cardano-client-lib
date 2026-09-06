@@ -10,9 +10,9 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -39,10 +39,12 @@ public class DeploymentScripts implements ScriptSupplier {
 
     private final ScriptSupplier fallback;
     private final Supplier<Cip113Deployment> deployment;
-    private final Map<String, PlutusScript> cache = new HashMap<>();
+
+    // Concurrent: one resolver is shared by every build an application-scoped service runs.
+    private final Map<String, PlutusScript> cache = new ConcurrentHashMap<>();
 
     /** Script hash -> the UTxO publishing it as a reference script, when the chain has one. */
-    private final Map<String, Utxo> published = new HashMap<>();
+    private final Map<String, Utxo> published = new ConcurrentHashMap<>();
 
     public DeploymentScripts(ScriptService scriptService, Cip113Deployment deployment) {
         this(supplierFor(scriptService), () -> deployment);
@@ -167,6 +169,11 @@ public class DeploymentScripts implements ScriptSupplier {
     /** The core third-party delegate. */
     public PlutusScript thirdPartyDelegate() {
         return byHash(deployment.get().getThirdPartyScriptHash(), "third_party");
+    }
+
+    /** The core unfracking delegate, invoked via withdraw-zero on a holder-driven restructuring. */
+    public PlutusScript unfrackingDelegate() {
+        return byHash(deployment.get().getUnfrackingScriptHash(), "unfracking");
     }
 
     /** Spend script guarding registry nodes — needed to insert or update one. */

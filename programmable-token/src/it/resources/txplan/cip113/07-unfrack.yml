@@ -1,0 +1,29 @@
+# Regroup one policy out of the owner's shared smart-wallet UTxOs into its own output. The
+# token's unfracking hook (set by 06) authorises it; an unfracking is always its own transaction.
+version: '1.0'
+variables:
+  network_id: 0
+  authorization_action: 1
+  authorization_nonce: 42
+extensions:
+  pt:
+    extension: programmable-token
+    schema_version: '1'
+    protocol: cip-113
+    contract_version: 0.5.0-alpha.2
+    deployment:
+      network: ${network_id}
+      bootstrap_tx: ${bootstrap_tx}
+context:
+  fee_payer: ${owner_address}
+transaction:
+  - tx:
+      from: ${owner_address}
+      intents:
+        - type: pt:unfrack
+          policy_id: ${policy_id}
+          authorization:
+            constructor: 0
+            fields:
+              - int: ${authorization_action}
+              - int: ${authorization_nonce}

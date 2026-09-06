@@ -1341,7 +1341,7 @@ default or record a replacement before implementation begins.
 | Public identity | Use Programmable Token names for the domain facade and extension. Keep CIP-113 names for protocol-specific deployments, registry models, codecs, redeemers, and materializers. |
 | Registration scope | Register runtime participants per `QuickTxBuilder` and codecs per `TxPlanCodec`. Both consume the same immutable extension descriptor. Do not use `TxContext` or a process-global environment as the initial ownership scope. |
 | Lifecycle shape | Provide an ordered finalization/stabilization pipeline, not only `beforeScriptEvaluation`. QuickTx owns re-evaluation and rebalancing. |
-| Multiple-extension ordering | Sort first by fixed lifecycle phase, then explicit registration order, then extension id as a deterministic diagnostic tie-breaker. Reject duplicate extension ids. |
+| Multiple-extension ordering | Sort by the extension's explicit numeric `order()`, then by stable extension id. Registration order and map order never affect behaviour. Reject duplicate extension ids and conflicting namespace bindings. (Amended by ADR-CIP113-002 §6.3.) |
 | Input reservation | Provide one generic build-local reservation service shared by core QuickTx and all extensions. |
 | Plan metadata | Add a top-level, versioned `extensions` section to `TransactionDocument`. The map key is a document-local alias; its value records stable extension id, protocol, schema, and deployment metadata. |
 | Namespace | Default to `pt`, allow a user-provided document alias, and serialize types as quoted qualified names such as `"pt:transfer"`. Resolve aliases before runtime dispatch. |

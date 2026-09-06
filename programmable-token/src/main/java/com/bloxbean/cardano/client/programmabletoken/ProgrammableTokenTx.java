@@ -17,7 +17,19 @@ import com.bloxbean.cardano.hdwallet.Wallet;
 
 import java.util.List;
 
-/** Protocol-neutral authoring facade. Every verb records semantic data and performs no chain I/O. */
+/**
+ * Protocol-neutral authoring facade. Every verb records semantic data and performs no chain I/O.
+ *
+ * <p>The programmable-token verbs record typed intents that the registered protocol extension
+ * materializes at build time. Everything else is an ordinary {@link Tx}: reference inputs added
+ * with {@code readFrom(...)}, metadata, withdrawals and plain payments are applied as usual, and
+ * the extension adds the protocol's own reference inputs (coordination UTxO, registry nodes,
+ * global state, published scripts) on top of them.</p>
+ *
+ * <p>Inherited {@code Tx} methods return {@code Tx}, so keep the programmable-token verbs
+ * together in a chain, or hold the {@code ProgrammableTokenTx} in a local variable, before
+ * calling a core method.</p>
+ */
 public class ProgrammableTokenTx extends Tx {
     public static final String EXTENSION_ID = "programmable-token";
 
@@ -33,7 +45,18 @@ public class ProgrammableTokenTx extends Tx {
         return this;
     }
 
+    /** Transfer a programmable token to {@code receiver}'s smart wallet. */
     public ProgrammableTokenTx transfer(String receiver, Amount amount, PlutusData transferRedeemer) {
+        return transfer(receiver, amount, transferRedeemer, null);
+    }
+
+    /**
+     * Transfer a programmable token to {@code receiver}'s smart wallet, writing {@code inlineDatum}
+     * on the receiving output. The datum is optional and bounded by the deployment's inline-datum
+     * limit so the output remains seizable.
+     */
+    public ProgrammableTokenTx transfer(String receiver, Amount amount, PlutusData transferRedeemer,
+                                        PlutusData inlineDatum) {
         require(receiver, "receiver");
         if (amount == null || amount.getUnit() == null || "lovelace".equals(amount.getUnit()))
             throw new IllegalArgumentException("A programmable-token amount is required");
@@ -42,7 +65,8 @@ public class ProgrammableTokenTx extends Tx {
         requirePlutusData(transferRedeemer, "transfer redeemer");
         addIntention(ProgrammableTransferIntent.builder()
                 .receiver(receiver).amount(amount)
-                .transferRedeemer(PlutusDataValue.of(transferRedeemer)).build());
+                .transferRedeemer(PlutusDataValue.of(transferRedeemer))
+                .inlineDatum(PlutusDataValue.ofNullable(inlineDatum)).build());
         return this;
     }
 
@@ -67,6 +91,16 @@ public class ProgrammableTokenTx extends Tx {
         return this;
     }
 
+    /**
+     * Destroy part of the sender's supply of a programmable token.
+     *
+     * <p>A burn is a separate verb rather than a negative {@link #mint} quantity because it is a
+     * different transaction: the holder's smart-wallet UTxOs are spent through the base script
+     * under the token's <i>transfer</i> logic, the remainder returns to the smart wallet, and the
+     * issuance policy additionally runs the token's <i>minting</i> logic — two authorizations
+     * with two redeemers, which {@link BurnAuthorization} keeps distinct. A mint needs neither
+     * an input nor the transfer logic, only a receiver.</p>
+     */
     public ProgrammableTokenTx burn(String policyId, List<Asset> assets,
                                     BurnAuthorization authorization) {
         if (authorization == null) throw new IllegalArgumentException("authorization is required");
@@ -118,6 +152,16 @@ public class ProgrammableTokenTx extends Tx {
         return this;
     }
 
+    /**
+     * Regroup one policy out of the sender's shared smart-wallet UTxOs into its own output.
+     *
+     * <p>A "fracked" UTxO holds several policies, so a restriction scoped to one of them locks
+     * the others as well. Unfracking spends every smart-wallet UTxO that holds {@code policyId}
+     * together with another asset, leaves everything else in place, and moves all of that
+     * policy's tokens into one fresh single-policy output at the same smart wallet. The token's
+     * unfracking hook authorises it with {@code authorization}; a token whose issuer never set a
+     * hook cannot be unfracked. It must be the only operation in its transaction.</p>
+     */
     public ProgrammableTokenTx unfrack(String policyId, PlutusData authorization) {
         ProgrammableTokenPolicyRef.policyId(policyId);
         requirePlutusData(authorization, "authorization");
