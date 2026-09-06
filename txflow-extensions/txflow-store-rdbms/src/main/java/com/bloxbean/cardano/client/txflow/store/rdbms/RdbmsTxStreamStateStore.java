@@ -340,10 +340,11 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
             List<String> result = new ArrayList<>();
             try (PreparedStatement statement = connection.prepareStatement(
                     "SELECT item_id FROM txstream_item WHERE stream_id = ? AND terminal = ?"
-                            + (afterItemId == null ? "" : " AND item_id > ?") + " ORDER BY item_id")) {
+                            + " AND (? = TRUE OR item_id > ?) ORDER BY item_id")) {
                 statement.setString(1, streamId);
                 statement.setBoolean(2, false);
-                if (afterItemId != null) statement.setString(3, afterItemId);
+                statement.setBoolean(3, afterItemId == null);
+                statement.setString(4, afterItemId);
                 statement.setMaxRows(limit);
                 try (ResultSet rows = statement.executeQuery()) {
                     while (rows.next()) result.add(rows.getString(1));

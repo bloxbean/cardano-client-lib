@@ -2354,8 +2354,9 @@ final class EngineTxFlowStream implements TxFlowStream {
             if (budget == 0) {
                 return 0; // cap reached; the rest wait for the next fire
             }
-            if (!state.foreignObservation
-                    && state.projection.current().getStatus() != TxStreamItemStatus.RECOVERY_REQUIRED) {
+            TxStreamItemStatus status = state.projection.current().getStatus();
+            if (ItemProjection.isFinal(status)
+                    || (!state.foreignObservation && status != TxStreamItemStatus.RECOVERY_REQUIRED)) {
                 continue;
             }
             reconcileObserverItem(state);

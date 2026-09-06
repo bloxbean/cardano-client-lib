@@ -28,7 +28,9 @@ class TxFlowStreamDurableRedeliveryTest {
                 StubEngineGateway gateway = new StubEngineGateway();
                 gateway.durable = true;
                 TxStreamStateStore store = spy(TxStreamStateStore.inMemoryDurable());
-                try (TxFlowStream reader = builder(gateway, store).open();
+                ManualScheduler scheduler = new ManualScheduler();
+                try (TxFlowStream reader = builder(gateway, store).maintenanceExecutor(scheduler)
+                        .reconciliationInterval(Duration.ofSeconds(1)).open();
                      TxFlowStream writer = builder(gateway, store).open()) {
                     TxStreamReceipt original = writer.submit("running", plan(2));
                     StubEngineGateway.StubHandle handle = gateway.lastHandle();
@@ -52,6 +54,9 @@ class TxFlowStreamDurableRedeliveryTest {
                     assertEquals(0, reader.getStats().confirmedItemCount());
                     assertEquals(1, gateway.started.size());
                     verify(store, never()).listPlanned("durable");
+                    clearInvocations(store);
+                    scheduler.pending().fire();
+                    verify(store, never()).getItem("durable", "running");
                 }
             }
         }
