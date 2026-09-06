@@ -2832,7 +2832,7 @@ final class EngineTxFlowStream implements TxFlowStream {
 
     /** Guarded by {@link #stateLock}. */
     private void makeReady(LaneQueue lane) {
-        if (!lane.inRing && lane.inFlight == null && !lane.queue.isEmpty()) {
+        if (!lane.inRing && !lane.visibilityWaiting && lane.inFlight == null && !lane.queue.isEmpty()) {
             readyRing.add(lane);
             lane.inRing = true;
         }
@@ -2858,7 +2858,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                     return null;
                 }
                 lane.inRing = false;
-                if (lane.inFlight != null || lane.queue.isEmpty()) {
+                if (lane.visibilityWaiting || lane.inFlight != null || lane.queue.isEmpty()) {
                     continue; // stale ring entry (cancelled execution / raced completion)
                 }
                 ExecutionState next = lane.queue.poll();
@@ -2882,7 +2882,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                     if (result.getTransactionHash() != null
                             && (result.getStatus() == TxStreamItemStatus.CONFIRMED
                             || result.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED)) {
-                        lane.pendingVisibility.add(result.getTransactionHash());
+                        lane.pendingVisibility.put(member.item.getItemId(), result.getTransactionHash());
                     }
                 }
                 lane.inFlight = null;
@@ -2969,6 +2969,28 @@ final class EngineTxFlowStream implements TxFlowStream {
             schedulePump();
             return;
         }
+        try {
+            if (!checkBackendVisibility(execution)) return;
+        } catch (RuntimeException failure) {
+            failMembers(execution, "TXSTREAM_BACKEND_NOT_READY",
+                    "Previous lane outputs are not visible; this execution has not started", failure);
+            executionsById.remove(execution.executionId, execution);
+            finishLane(execution);
+            schedulePump();
+            return;
+        }
+        if (aborted || (execution.visibilityStartedAt != null
+                && (!ownershipDispatchAllowed() || execution.pendingCancelReason != null))) {
+            TxStreamException stopped = new TxStreamException("TXSTREAM_EXECUTION_CANCELLED",
+                    "Dispatch stopped before engine start");
+            for (ItemState member : execution.members) {
+                project(member, TxStreamItemStatus.CANCELLED, builder -> builder.error(stopped), false);
+            }
+            executionsById.remove(execution.executionId, execution);
+            finishLane(execution);
+            schedulePump();
+            return;
+        }
         dispatch(execution);
     }
 
@@ -2992,17 +3014,6 @@ final class EngineTxFlowStream implements TxFlowStream {
         EngineGateway.ExecutionHandle handle = null;
         try {
             try {
-                if (!awaitBackendVisibility(execution)) {
-                    TxStreamException cancelled = new TxStreamException(aborted ? "TXSTREAM_ABORTED"
-                            : !ownershipDispatchAllowed() ? "TXSTREAM_OWNERSHIP_LOST"
-                            : "TXSTREAM_EXECUTION_CANCELLED",
-                            "Dispatch stopped while waiting for backend indexing");
-                    for (ItemState member : execution.members) {
-                        project(member, TxStreamItemStatus.CANCELLED,
-                                builder -> builder.error(cancelled), false);
-                    }
-                    return;
-                }
                 // Two-phase binding, phase 1: write-ahead DISPATCHING binding
                 // for EVERY member — authoritative, fails closed before the
                 // engine is invoked. A flow must never execute without a
@@ -3064,47 +3075,78 @@ final class EngineTxFlowStream implements TxFlowStream {
         afterStart(execution, handle);
     }
 
-    private boolean awaitBackendVisibility(ExecutionState execution) {
+    /** One probe per dispatch task; a delayed retry holds neither a worker nor a flight slot. */
+    private boolean checkBackendVisibility(ExecutionState execution) {
+        LaneQueue lane;
         Set<String> pending;
         synchronized (stateLock) {
-            LaneQueue lane = laneQueues.get(execution.lane.canonicalSpendingIdentity());
-            pending = lane == null ? Set.of() : new HashSet<>(lane.pendingVisibility);
+            lane = laneQueues.get(execution.lane.canonicalSpendingIdentity());
+            pending = new HashSet<>(lane.pendingVisibility.values());
         }
         if (pending.isEmpty()) return true;
-        long startedAt = TxStreamScheduler.monotonicNanos();
+        if (execution.visibilityStartedAt == null) {
+            execution.visibilityStartedAt = TxStreamScheduler.monotonicNanos();
+        }
         RuntimeException lastFailure = null;
-        while (!pending.isEmpty()) {
-            if (aborted || !ownershipDispatchAllowed() || execution.pendingCancelReason != null) return false;
-            for (String hash : new HashSet<>(pending)) {
-                try {
-                    if (gateway.isTransactionOutputVisible(hash)) {
-                        pending.remove(hash);
-                        synchronized (stateLock) {
-                            LaneQueue lane = laneQueues.get(execution.lane.canonicalSpendingIdentity());
-                            if (lane != null) lane.pendingVisibility.remove(hash);
-                        }
-                    }
-                } catch (RuntimeException backendFailure) {
-                    lastFailure = backendFailure;
-                }
-            }
-            if (pending.isEmpty()) break;
-            long remaining = backendVisibilityTimeoutNanos
-                    - (TxStreamScheduler.monotonicNanos() - startedAt);
-            if (remaining <= 0) {
-                throw new TxStreamException("TXSTREAM_BACKEND_NOT_READY",
-                        "Previous lane transaction outputs are not visible to the backend; "
-                                + "this execution has not started", lastFailure);
-            }
+        for (String hash : pending) {
             try {
-                TxStreamScheduler.sleepNanos(Math.min(remaining, backendVisibilityPollNanos));
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                throw new TxStreamException("TXSTREAM_INTERRUPTED",
-                        "Interrupted waiting for backend output visibility", interrupted);
+                if (gateway.isTransactionOutputVisible(hash)) {
+                    synchronized (stateLock) {
+                        lane.pendingVisibility.values().removeIf(hash::equals);
+                    }
+                }
+            } catch (RuntimeException backendFailure) {
+                lastFailure = backendFailure;
             }
         }
-        return !aborted && ownershipDispatchAllowed() && execution.pendingCancelReason == null;
+        synchronized (stateLock) {
+            if (lane.pendingVisibility.isEmpty() || aborted || !ownershipDispatchAllowed()
+                    || execution.pendingCancelReason != null) return true;
+            long remaining = backendVisibilityTimeoutNanos
+                    - (TxStreamScheduler.monotonicNanos() - execution.visibilityStartedAt);
+            if (remaining <= 0 || maintenanceExecutor == null) {
+                throw new TxStreamException("TXSTREAM_BACKEND_NOT_READY",
+                        maintenanceExecutor == null
+                                ? "Backend retry requires a maintenanceExecutor; execution has not started"
+                                : "Backend visibility deadline expired; execution has not started", lastFailure);
+            }
+            long epoch = ++lane.visibilityEpoch;
+            // Schedule before relinquishing the claim, so rejection follows the normal failure path.
+            maintenanceExecutor.schedule(() -> wakeVisibilityLane(lane, epoch),
+                    Math.min(remaining, backendVisibilityPollNanos), TimeUnit.NANOSECONDS);
+            lane.visibilityWaiting = true;
+            lane.queue.addFirst(execution);
+            lane.inFlight = null;
+            inFlightCount--;
+        }
+        schedulePump();
+        return false;
+    }
+
+    private void wakeVisibilityLane(LaneQueue lane, long epoch) {
+        synchronized (stateLock) {
+            if (lane.visibilityEpoch != epoch) return;
+            lane.visibilityWaiting = false;
+            makeReady(lane);
+        }
+        schedulePump();
+    }
+
+    private void clearResolvedVisibility(ItemState state, TxStreamItemStatus target) {
+        if (target != TxStreamItemStatus.FAILED && target != TxStreamItemStatus.CANCELLED) return;
+        boolean wake = false;
+        synchronized (stateLock) {
+            for (LaneQueue lane : laneQueues.values()) {
+                if (lane.pendingVisibility.remove(state.item.getItemId()) != null
+                        && lane.pendingVisibility.isEmpty()) {
+                    lane.visibilityEpoch++;
+                    lane.visibilityWaiting = false;
+                    makeReady(lane);
+                    wake = true;
+                }
+            }
+        }
+        if (wake) schedulePump();
     }
 
     /**
@@ -4286,6 +4328,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         ItemProjection.Applied applied = state.projection.advance(
                 target, customize, clock.instant(), authoritative);
         if (applied == null) return null;
+        clearResolvedVisibility(state, target);
         recordTransition(applied.previous(), target);
         safeStoreProject(applied);
         // Complete the item promise BEFORE the (inline) listener callback so a
@@ -4809,7 +4852,9 @@ final class EngineTxFlowStream implements TxFlowStream {
         final String identity;
         final ArrayDeque<ExecutionState> queue = new ArrayDeque<>();
         ExecutionState inFlight;
-        final Set<String> pendingVisibility = new HashSet<>();
+        final Map<String, String> pendingVisibility = new HashMap<>();
+        boolean visibilityWaiting;
+        long visibilityEpoch;
         boolean inRing;
 
         LaneQueue(String identity) {
@@ -4835,6 +4880,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         final String templateId;
         volatile EngineGateway.ExecutionHandle handle;
         volatile String pendingCancelReason;
+        Long visibilityStartedAt;
 
         ExecutionState(String executionId, String claimKey, TxFlow definition,
                        ResolvedLane lane, List<ItemState> members, String batchId,

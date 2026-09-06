@@ -52,3 +52,15 @@ commit ambiguity, shared-flow and template hydration, and explicit handling of
 accepted-but-unplanned work. Run sustained provider-specific soak tests with
 duplicate/missing-payment reconciliation and report application-gated and ordinary
 SDK paths separately. Local DevKit success does not replace that qualification.
+
+Backend visibility retries release the worker and in-flight slot between probes.
+`FlowRuntime` supplies the retry scheduler. Advanced stream builders must supply
+`maintenanceExecutor(...)` to retry an unsuccessful probe; without one it fails
+immediately before engine start. The pending hashes are process-local and reset
+on restart; authoritative FAILED/CANCELLED repair clears the affected item's hold.
+A visibility timeout fails every member of the waiting execution. Their IDs remain
+registered. Because this particular error proves the engine never started, the
+caller may retry that work under new IDs; this does not apply to RECOVERY_REQUIRED.
+Custom backend-based engines used by TxStream enable visibility checks by default;
+custom output services must support historical output lookup or explicitly disable
+`backendVisibilityChecks`. Ordinary engine executions do not invoke this stream gate.

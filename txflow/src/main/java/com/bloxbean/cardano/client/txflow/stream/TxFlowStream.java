@@ -621,6 +621,13 @@ public interface TxFlowStream extends AutoCloseable {
          * item with BACKEND_NOT_READY before engine start; it does not change
          * the previous transaction's outcome. Backend calls must have their own
          * I/O timeouts. Defaults to 60 seconds, polling every 2 seconds.
+         * Retries use the supplied maintenanceExecutor to wake the lane without
+         * holding a worker or an in-flight slot. FlowRuntime supplies it; without
+         * one an unsuccessful probe fails immediately before engine start.
+         * All members of a timed-out execution fail. Their IDs remain registered;
+         * only this known pre-start failure permits retry under new item IDs.
+         * Pending hashes are process-local and are cleared on restart or when
+         * their item is authoritatively repaired to FAILED or CANCELLED.
          *
          * @param timeout positive total polling budget
          * @param pollInterval positive polling interval
