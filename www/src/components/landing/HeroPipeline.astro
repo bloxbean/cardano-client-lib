@@ -1,0 +1,195 @@
+---
+/**
+ * Animated hero diagram: the transaction lifecycle this library automates.
+ *
+ * Row 1 is what QuickTx does for a single transaction — select UTXOs, build and
+ * sign, submit, confirm. Row 2 is the part that is genuinely hard to hand-roll
+ * and is why TxFlow exists: an output of the confirmed transaction becomes the
+ * input of the next one.
+ *
+ * Pure SVG + CSS. The travelling dots use <animateMotion> so they follow the
+ * exact connector geometry rather than an approximation, and every animation is
+ * disabled under prefers-reduced-motion.
+ */
+---
+
+<div class="pipeline" role="img"
+  aria-label="A Cardano transaction pipeline: UTXOs are selected, a transaction is built and signed, submitted, and confirmed. Its output then feeds a second chained transaction.">
+  <svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="pipe-stroke" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#a78bfa" />
+        <stop offset="50%" stop-color="#7045af" />
+        <stop offset="100%" stop-color="#22d3ee" />
+      </linearGradient>
+
+      <linearGradient id="node-fill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgba(167,139,250,.16)" />
+        <stop offset="100%" stop-color="rgba(91,108,255,.06)" />
+      </linearGradient>
+
+      <filter id="node-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="6" result="b" />
+        <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+      </filter>
+
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b7ac8" />
+      </marker>
+
+      <!-- Connector geometry, referenced by both the visible stroke and the dots. -->
+      <path id="c1" d="M 132 80 L 166 80" />
+      <path id="c2" d="M 282 80 L 316 80" />
+      <path id="c3" d="M 432 80 L 466 80" />
+      <path id="chain" d="M 523 110 C 523 168, 430 200, 378 200" />
+      <path id="c4" d="M 432 228 L 466 228" />
+    </defs>
+
+    <!-- Connectors -->
+    <g class="connectors" fill="none" stroke="url(#pipe-stroke)" stroke-width="1.75">
+      <use href="#c1" marker-end="url(#arrow)" />
+      <use href="#c2" marker-end="url(#arrow)" />
+      <use href="#c3" marker-end="url(#arrow)" />
+      <use href="#c4" marker-end="url(#arrow)" />
+      <use href="#chain" stroke-dasharray="5 5" marker-end="url(#arrow)" class="chain-line" />
+    </g>
+
+    <!-- Row 1: a single transaction, start to finish -->
+    <g class="node" style="--i:0">
+      <rect x="22" y="52" width="110" height="56" rx="10" />
+      <text x="77" y="76">UTxOs</text>
+      <text x="77" y="94" class="sub">selected</text>
+    </g>
+
+    <g class="node" style="--i:1">
+      <rect x="172" y="52" width="110" height="56" rx="10" />
+      <text x="227" y="76">Build</text>
+      <text x="227" y="94" class="sub">balance + sign</text>
+    </g>
+
+    <g class="node" style="--i:2">
+      <rect x="322" y="52" width="110" height="56" rx="10" />
+      <text x="377" y="76">Submit</text>
+      <text x="377" y="94" class="sub">to the node</text>
+    </g>
+
+    <g class="node done" style="--i:3">
+      <rect x="472" y="52" width="106" height="56" rx="10" />
+      <text x="525" y="76">Confirmed</text>
+      <text x="525" y="94" class="sub">in a block</text>
+    </g>
+
+    <!-- Row 2: the chained follow-up transaction -->
+    <g class="node chained" style="--i:4">
+      <rect x="322" y="200" width="110" height="56" rx="10" />
+      <text x="377" y="224">Next Tx</text>
+      <text x="377" y="242" class="sub">spends that output</text>
+    </g>
+
+    <g class="node done chained" style="--i:5">
+      <rect x="472" y="200" width="106" height="56" rx="10" />
+      <text x="525" y="224">Confirmed</text>
+      <text x="525" y="242" class="sub">chain continues</text>
+    </g>
+
+    <text x="196" y="205" class="tag">TxFlow chains</text>
+    <text x="196" y="221" class="tag">output → input</text>
+
+    <!-- Travelling packets -->
+    <g class="packets" fill="#22d3ee">
+      <circle r="3.5">
+        <animateMotion dur="3.2s" repeatCount="indefinite" begin="0s"><mpath href="#c1" /></animateMotion>
+      </circle>
+      <circle r="3.5">
+        <animateMotion dur="3.2s" repeatCount="indefinite" begin="0.55s"><mpath href="#c2" /></animateMotion>
+      </circle>
+      <circle r="3.5">
+        <animateMotion dur="3.2s" repeatCount="indefinite" begin="1.1s"><mpath href="#c3" /></animateMotion>
+      </circle>
+      <circle r="3.5" fill="#a78bfa">
+        <animateMotion dur="3.2s" repeatCount="indefinite" begin="1.65s"><mpath href="#chain" /></animateMotion>
+      </circle>
+      <circle r="3.5">
+        <animateMotion dur="3.2s" repeatCount="indefinite" begin="2.35s"><mpath href="#c4" /></animateMotion>
+      </circle>
+    </g>
+  </svg>
+</div>
+
+<style>
+  .pipeline {
+    width: 100%;
+    max-width: 640px;
+    margin-inline: auto;
+  }
+
+  .pipeline svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .node rect {
+    fill: url(#node-fill);
+    stroke: rgba(167, 139, 250, 0.45);
+    stroke-width: 1.25;
+    animation: node-in 0.5s ease-out backwards;
+    animation-delay: calc(var(--i) * 0.12s);
+  }
+
+  .node.done rect {
+    stroke: rgba(34, 211, 238, 0.6);
+    filter: url(#node-glow);
+  }
+
+  .node.chained rect {
+    stroke-dasharray: 4 4;
+  }
+
+  .node text {
+    fill: #ede9fb;
+    font: 600 13px/1 var(--sl-font-system, Inter, system-ui, sans-serif);
+    text-anchor: middle;
+  }
+
+  .node text.sub {
+    fill: #9d93c4;
+    font-size: 10px;
+    font-weight: 400;
+  }
+
+  text.tag {
+    fill: #7c6fb0;
+    font: 500 10.5px/1 var(--sl-font-system, Inter, system-ui, sans-serif);
+    text-anchor: middle;
+    letter-spacing: 0.03em;
+  }
+
+  .chain-line {
+    animation: dash 1.4s linear infinite;
+  }
+
+  @keyframes dash {
+    to { stroke-dashoffset: -20; }
+  }
+
+  @keyframes node-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Light theme: the same diagram on a pale ground needs darker ink. */
+  :global([data-theme='light']) .node text { fill: #241b45; }
+  :global([data-theme='light']) .node text.sub { fill: #6d6494; }
+  :global([data-theme='light']) text.tag { fill: #7a6fb0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .node rect,
+    .chain-line {
+      animation: none;
+    }
+    /* SMIL is not covered by the media query, so stop it outright. */
+    .packets { display: none; }
+  }
+</style>
