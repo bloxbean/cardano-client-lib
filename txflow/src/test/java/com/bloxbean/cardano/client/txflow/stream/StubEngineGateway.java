@@ -17,7 +17,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -30,11 +33,21 @@ final class StubEngineGateway implements EngineGateway {
 
     final List<FlowExecutionRequest> started = new CopyOnWriteArrayList<>();
     final List<StubHandle> handles = new CopyOnWriteArrayList<>();
+    final AtomicInteger snapshotReads = new AtomicInteger();
     final Map<String, FlowExecutionSnapshot> snapshots = new ConcurrentHashMap<>();
     final List<String> callLog;
     /** Whether the scripted engine reports a durable execution store (P5). */
     volatile boolean durable;
     volatile RuntimeException startFailure;
+    /** Optional caller-owned dispatcher exposed for builder inheritance tests. */
+    volatile Executor executionExecutor;
+    volatile ScheduledExecutorService maintenanceScheduler;
+    volatile Function<String, Boolean> outputVisibility = hash -> true;
+
+    @Override
+    public boolean isTransactionOutputVisible(String transactionHash) {
+        return outputVisibility.apply(transactionHash);
+    }
     /**
      * When set, start() completes the returned handle with this result unless
      * the function returns {@code null}, in which case the handle stays running
@@ -61,6 +74,16 @@ final class StubEngineGateway implements EngineGateway {
 
     StubEngineGateway(List<String> callLog) {
         this.callLog = callLog;
+    }
+
+    @Override
+    public Optional<ScheduledExecutorService> maintenanceScheduler() {
+        return Optional.ofNullable(maintenanceScheduler);
+    }
+
+    @Override
+    public Optional<Executor> executionExecutor() {
+        return Optional.ofNullable(executionExecutor);
     }
 
     @Override
@@ -112,6 +135,7 @@ final class StubEngineGateway implements EngineGateway {
 
     @Override
     public Optional<FlowExecutionSnapshot> executionSnapshot(String executionId) {
+        snapshotReads.incrementAndGet();
         return Optional.ofNullable(snapshots.get(executionId));
     }
 
@@ -194,6 +218,11 @@ final class StubEngineGateway implements EngineGateway {
                     FlowExecutionState.COMPLETED,
                     List.of(FlowStepResult.successAt(stepId, hash, List.of(), List.of(), NOW)),
                     null, NOW, NOW));
+        }
+
+        void completeCancelled() {
+            future.complete(new FlowExecutionResult(executionId, "fp",
+                    FlowExecutionState.CANCELLED, List.of(), null, NOW, NOW));
         }
 
         void complete(FlowExecutionResult result) {

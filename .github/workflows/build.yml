@@ -34,6 +34,24 @@ jobs:
           python3 verified-structures/jellyfish-merkle/src/test/python/verify_jmt_vectors.py
           verified-structures/jellyfish-merkle/src/test/resources/jmt/golden-vectors-v1.json
 
+  txflow-java21:
+    name: TxFlow compatibility (JDK 21)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Run TxFlow tests on the optional Java 21 runtime
+        run: ./gradlew :txflow:test -PskipSigning=true --stacktrace
+
   jmt-postgresql:
     name: JMT PostgreSQL qualification
     runs-on: ubuntu-latest

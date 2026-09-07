@@ -53,9 +53,11 @@ Everything lives in `txflow/src/main/java/com/bloxbean/cardano/client/txflow/`:
 
 | Path | Role |
 |---|---|
+| `FlowRuntime.java` | Optional managed composition root: owns one ordinary engine, its executors, and streams opened for beginner/script use; contains no transaction behavior |
 | `stream/TxFlowStream.java` | Public interface + `Builder`. Lifecycle: `start()`, `reattach()`, `bootstrap()`, `submit()`, `trySubmit()`, `cancelItem()`, `getItemStatus()`, `reconcile()`, `drain()` |
 | `stream/EngineTxFlowStream.java` | **The implementation.** One large file, by design: item acceptance, lanes, windows, dispatch, projection, reattach all share tightly-coupled state guarded by the same locks |
-| `stream/TxStreamPlanner.java`, `BuiltInPlanners.java` | Planner SPI + `perItem()` / `perWindow()` / `batching()` |
+| `stream/TxStreamPlanner.java`, `BuiltInPlanners.java` | Planner SPI + `perItem()` / `perWindow()` / planner-local `perWindow(PIPELINED)` / `batching()` |
+| `stream/TxStreamCodes.java`, `TxStreamEventListener.java` | Public core error catalog and isolated lifecycle/item observer contract |
 | `stream/LanePolicy.java`, `ResolvedLane.java`, `PartitionedLanes.java`, `LaneIdentityResolver.java` | Lane identity and resolution |
 | `stream/WindowPolicy.java` | Window close rules: `count(n)`, `time(d)`, `countOrTime(n, d)` |
 | `stream/StableIdFactory.java` | Deterministic flow/step id derivation (ADR 0004 Decision 3) |
@@ -128,8 +130,17 @@ sequenceDiagram
 
     C->>S: submit(item) / trySubmit(item)
     S->>S: accept(): dedup by itemId, capacity, prepare() (lane + claim key)
-    S->>St: registerItem(record)  — authoritative, BEFORE planning
-    S-->>C: TxStreamReceipt (ACCEPTED)
+    alt eager validation rejects
+        S-->>C: throw typed / REJECTED (no receipt or state)
+    else prepared
+        S->>St: registerItem(record) — authoritative, BEFORE receipt publication
+        alt registration rejects
+            S-->>C: throw typed / REJECTED (no receipt or state)
+        else registered
+            S-->>C: TxStreamReceipt (ACCEPTED)
+        end
+    end
+    Note over S,Chain: Remaining path exists only after receipt publication
     S->>S: acceptIntoWindow() → window closes (WindowPolicy)
     S->>S: planner.plan(context) → PlannedExecution(s)
     S->>St: recordBinding(item → flowId/stepId)
@@ -160,20 +171,21 @@ Order matters here; each step exists to close a specific race:
 2. **Capacity**: a semaphore bounds buffered items. `submit()` blocks;
    `trySubmit()` returns `EmitResult` `FULL` without blocking.
 3. **`prepare(item)`**: resolves the lane (`LanePolicy`/`LaneIdentityResolver`),
-   computes the content fingerprint and the **claim key**. Failures here are typed
-   *content* outcomes (`TXSTREAM_INVALID_ITEM`, validation failures) — except
-   `TXSTREAM_LANE_UNRESOLVED`, which is transient infrastructure: it settles the item
-   typed but retains nothing, so a later redelivery retries fresh instead of attaching
-   to a poisoned failure.
+   computes the content fingerprint and the **claim key**. Any eager no-work failure
+   is a rejection: blocking `submit()` throws its typed cause and `trySubmit()` returns
+   `REJECTED`. It creates no receipt, item projection, retention entry, accepted/failed
+   counter, or `onItemAccepted` callback; `onItemRejected` fires once. A corrected
+   redelivery therefore retries fresh under the same item id.
 4. **Claim-key uniqueness across live items**: reusing an idempotency key under a *new*
    item id is rejected (`TXSTREAM_IDEMPOTENCY_KEY_REUSE`) — redelivery must reuse the
    original item id, or (after the original id settled `CANCELLED`) a new item id may
    carry the original key so the engine claim still deduplicates.
 5. **`stateStore.registerItem(...)` — the authoritative write, and it happens BEFORE
-   planning.** This is deliberate and planner-independent: the store is the dedup guard.
-   If registration fails, the accept **fails closed** (the item is rejected, never
-   half-admitted). If this ordering is ever reversed, restart-time dedup breaks for
-   items that were planned but not yet registered.
+   receipt publication and planning.** Same-item acceptance is striped so concurrent
+   submissions cannot attach to an unregistered provisional state. The store is the
+   dedup guard. If registration fails, acceptance **fails closed** (the item is rejected,
+   never half-admitted). Reversing this ordering would expose a receipt for work that
+   does not authoritatively exist and would break restart-time dedup.
 
 ### 4.2 Windowing and planning
 
@@ -208,7 +220,7 @@ Lane modes (`LanePolicy`):
 |---|---|---|
 | `single(lane)` | One fixed lane | Simple apps, one funding wallet |
 | `explicit()` | `TxWorkItem.lane` hint, required | Caller controls partitioning |
-| `byFundingAddress()` | Derived from the item's funding address | Natural per-wallet serialization |
+| `byFundingSource()` (default) | Derived from the item's `from` / `from_ref` | Natural per-wallet serialization; deprecated `byFundingAddress()` is an alias |
 | `partitioned(config)` | Hash-partitioned over N lanes | Throughput scaling over one identity |
 
 ### 4.4 Engine execution
@@ -277,6 +289,17 @@ does the state-only `templateFlowStatus` mapping apply: `COMPLETED`→CONFIRMED,
 All projection writes funnel through `project(state, target, mutator, …)`, which
 enforces monotonic advancement and store persistence.
 
+### 4.7 Abort lifecycle notification
+
+The first `abort(reason)` freezes and publishes one immutable `AbortReport` under
+the abort lock. `onStreamAborted(streamId, report)` then fires exactly once before
+`onStreamClosed`; its quiescence stage may still be incomplete because in-flight
+engine cancellation is cooperative. The report is published before the callback,
+so a listener that reenters `abort(...)` receives the same report and cannot widen
+it or duplicate either lifecycle notification. Every callback runs through
+`safeListener`, so a throwing abort listener cannot suppress close notification or
+change cancellation behavior.
+
 ---
 
 ## 5. Exactly-once: how it actually holds
@@ -303,6 +326,14 @@ window:
   a redelivered *subset* of a previous batch forms a *different* member set → different
   identity → a fresh flow. Sources that require per-item dedup under batching must
   dedup upstream, or rely on the item registry (guard 1) rejecting known item ids.
+
+`perWindow(ChainingMode.PIPELINED)` changes only the execution setting of flows
+generated by that built-in planner and links its deterministic member order as
+an explicit dependency chain, making each pending change output available to
+the next same-lane build. The no-argument and explicit `SEQUENTIAL`
+factories use the legacy implicit-sequential representation so existing
+fingerprints remain stable. `BATCH` is rejected; per-item, batching, template,
+and custom-planner flow settings are never overridden.
 
 **Redelivery contract** (verified behavior, see §7): an item that settled `CANCELLED`
 terminally consumes its item id — resubmission must use a **new item id with the
@@ -447,8 +478,15 @@ to RECOVERY_REQUIRED, notify uncertain.
 
 ## 8. Threading & backpressure
 
+- `TxFlowStream.Builder.open()` is the exception-safe build-and-start path and
+  aborts a partially started stream before rethrowing. `build(); start()` is the
+  advanced split lifecycle. `FlowRuntime.open()` delegates to the same path and
+  tracks the returned stream for reverse-order close.
 - `submit()` blocks on the capacity semaphore (`maxBufferSize`); `trySubmit()` doesn't.
 - `maxInFlight` bounds concurrent executions; lanes serialize within themselves.
+- Dispatch inherits `FlowEngine.executionExecutor()` unless the builder supplies
+  an explicit executor. The core creates none; optional `FlowRuntime` owns its
+  documented task and maintenance pools.
 - A `maintenanceExecutor` (scheduled) drives window timers and periodic reconciliation
   (`reconciliationInterval`/`reconciliationBatchSize`). Without it the stream owns no
   threads/timers — read-through `getItemStatus()`/`reconcile()` still work (build-time

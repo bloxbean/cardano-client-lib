@@ -65,7 +65,7 @@ class TxFlowStreamOwnershipTest {
         // The standby refuses new work — nothing of B's ever reaches the engine.
         TxStreamException rejected = assertThrows(TxStreamException.class,
                 () -> b.submit(planItem("pay-2")));
-        assertEquals("TXSTREAM_CLOSED", rejected.getCode());
+        assertEquals("TXSTREAM_NOT_ACTIVE", rejected.getCode());
         assertEquals(1, engine.started.size(), "the standby dispatched nothing");
 
         a.close();

@@ -94,6 +94,7 @@ public final class TxFlowCompiler {
                 String stepPath = "$.spec.steps[" + stepIndex + "]";
                 FlowStep.Builder target = FlowStep.builder(step.getId()).withDescription(step.getDescription());
                 step.getNeeds().forEach(target::needs);
+                step.getFundingFrom().forEach(target::fundsFrom);
                 step.getOutputBindings().forEach(target::bindOutput);
                 if (step.hasTransactionTemplate()) {
                     JsonNode bound = bindNode(step.getTransactionTemplate().toJsonNode(), values,

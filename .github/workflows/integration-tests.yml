@@ -9,6 +9,8 @@ on:
   pull_request:
     branches:
       - master
+      - develop
+      - release/*
   workflow_dispatch:
 
 jobs:
@@ -70,6 +72,7 @@ jobs:
       - name: Run TxFlow stream integration tests
         run: >-
           ./gradlew :txflow:integrationTest
+          --tests "com.bloxbean.cardano.client.txflow.TxStreamGettingStartedIntegrationTest"
           --tests "com.bloxbean.cardano.client.txflow.stream.TxFlowStreamIntegrationTest"
           --tests "com.bloxbean.cardano.client.txflow.stream.TxFlowStreamContractIntegrationTest"
           -PskipSigning=true --info --stacktrace
@@ -99,6 +102,62 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: txflow-stream-test-reports
+          path: |
+            txflow/build/reports/tests/integrationTest/
+            txflow/build/test-results/integrationTest/
+
+  txflow-java21:
+    name: TxStream beginner path (JDK 21 Dev-Net)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.8.0'
+
+      - name: Install Yaci DevKit
+        run: npm install -g @bloxbean/yaci-devkit
+
+      - name: Start Yaci DevKit
+        run: nohup yaci-devkit up --enable-yaci-store &
+
+      - name: Wait for devnet to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if nc -z localhost 8080 2>/dev/null; then
+              echo "Store API is ready"
+              break
+            fi
+            echo "Attempt $i/30 - waiting for Store API"
+            sleep 5
+          done
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run the managed-runtime beginner test on Java 21
+        run: >-
+          ./gradlew :txflow:integrationTest
+          --tests "com.bloxbean.cardano.client.txflow.TxStreamGettingStartedIntegrationTest"
+          -PskipSigning=true --info --stacktrace
+
+      - name: Upload Java 21 TxStream test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: txflow-java21-stream-test-reports
           path: |
             txflow/build/reports/tests/integrationTest/
             txflow/build/test-results/integrationTest/

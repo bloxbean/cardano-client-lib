@@ -23,6 +23,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -156,6 +157,31 @@ class TxFlowStreamPartitionedTest {
     }
 
     @Test
+    void openAbortsExactlyOnceWhenBootstrapFails() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        gateway.immediateResult = request -> request.getIdempotencyKey().startsWith("bootstrap:")
+                ? failed(request) : null;
+        AtomicInteger closedEvents = new AtomicInteger();
+        TxStreamEventListener listener = new TxStreamEventListener() {
+            @Override
+            public void onStreamClosed(String streamId) {
+                closedEvents.incrementAndGet();
+            }
+        };
+
+        TxStreamException failure = assertThrows(TxStreamException.class,
+                () -> partitioned(gateway, twoLaneConfig(true))
+                        .eventListener(listener)
+                        .open());
+
+        assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.getCode());
+        assertEquals(1, closedEvents.get(), "the failed open must abort exactly once");
+        assertTrue(gateway.started.stream()
+                        .allMatch(request -> request.getIdempotencyKey().startsWith("bootstrap:")),
+                "startup cleanup must not dispatch work against unfunded lanes");
+    }
+
+    @Test
     void bootstrapDisabledSubmitsNoSplitFlowAndAssumesPreFundedLanes() {
         StubEngineGateway gateway = new StubEngineGateway();
         try (TxFlowStream stream = partitioned(gateway, twoLaneConfig(false)).build()) {
@@ -207,12 +233,11 @@ class TxFlowStreamPartitionedTest {
             stream.start();
             String key = firstKeyForLane(0, 2);   // lane 0 == LANE_0
             TxPlan foreign = TxPlan.from(new Tx().from(RECEIVER).payToAddress(LANE_0, Amount.ada(1)));
-            TxStreamItemResult outcome = stream.submit(TxWorkItem.builder("foreign-1")
-                            .withTxPlan(foreign).withIdempotencyKey(key).build())
-                    .completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.builder("foreign-1")
+                            .withTxPlan(foreign).withIdempotencyKey(key).build()));
+            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.getCode());
+            assertTrue(stream.getItemStatus("foreign-1").isEmpty());
             assertTrue(gateway.started.isEmpty(), "a scope-violating item never reaches the engine");
         }
     }

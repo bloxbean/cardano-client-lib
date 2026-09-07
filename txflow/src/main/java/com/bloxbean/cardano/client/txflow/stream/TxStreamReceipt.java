@@ -1,7 +1,11 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -78,6 +82,90 @@ public final class TxStreamReceipt {
     }
 
     /**
+     * Blocks until the item promise settles and returns that point-in-time
+     * outcome without interpreting it. Settled outcomes are confirmed, failed,
+     * cancelled, or recovery-required; the latter remains repairable and is not
+     * terminal.
+     *
+     * @return the result that settled the item promise
+     * @throws TxStreamException with {@code TXSTREAM_INTERRUPTED} when interrupted
+     */
+    public TxStreamItemResult awaitSettled() {
+        try {
+            return projection.promise().get();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw interrupted(interrupted);
+        } catch (ExecutionException impossible) {
+            throw unexpectedWaitFailure(impossible.getCause());
+        }
+    }
+
+    /**
+     * Blocks up to the caller-supplied duration for the item promise to settle.
+     * The timeout bounds this wait only and never cancels or changes the item.
+     *
+     * @param timeout positive total caller wait budget
+     * @return the result that settled the item promise
+     * @throws NullPointerException when the duration is {@code null}
+     * @throws IllegalArgumentException when the duration is zero or negative
+     * @throws TxStreamTimeoutException when the wait budget expires
+     * @throws TxStreamException with {@code TXSTREAM_INTERRUPTED} when interrupted
+     */
+    public TxStreamItemResult awaitSettled(Duration timeout) {
+        long timeoutNanos = positiveNanos(timeout, "timeout");
+        try {
+            return projection.promise().get(timeoutNanos, TimeUnit.NANOSECONDS);
+        } catch (TimeoutException timedOut) {
+            throw new TxStreamTimeoutException(
+                    "Item '" + itemId + "' did not settle within " + timeout,
+                    timedOut, current());
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw interrupted(interrupted);
+        } catch (ExecutionException impossible) {
+            throw unexpectedWaitFailure(impossible.getCause());
+        }
+    }
+
+    /**
+     * Blocks until settlement, then requires the latest live projection to be
+     * confirmed. Failed, cancelled, and recovery-required outcomes are raised
+     * as distinct typed exceptions. This method performs no reconciliation or
+     * other hidden I/O.
+     *
+     * @return latest confirmed item result
+     * @throws TxStreamFailedException when the latest result is failed
+     * @throws TxStreamCancelledException when the latest result is cancelled
+     * @throws TxStreamUncertainException when the latest result requires recovery
+     * @throws TxStreamException with {@code TXSTREAM_INTERRUPTED} when interrupted
+     */
+    public TxStreamItemResult awaitConfirmed() {
+        awaitSettled();
+        return TxStreamOutcomes.requireConfirmed(current());
+    }
+
+    /**
+     * Blocks up to the supplied duration for settlement, then requires the
+     * latest live projection to be confirmed. The timeout never cancels or
+     * changes the item, and this method performs no reconciliation.
+     *
+     * @param timeout positive total caller wait budget
+     * @return latest confirmed item result
+     * @throws NullPointerException when the duration is {@code null}
+     * @throws IllegalArgumentException when the duration is zero or negative
+     * @throws TxStreamTimeoutException when the wait budget expires
+     * @throws TxStreamFailedException when the latest result is failed
+     * @throws TxStreamCancelledException when the latest result is cancelled
+     * @throws TxStreamUncertainException when the latest result requires recovery
+     * @throws TxStreamException with {@code TXSTREAM_INTERRUPTED} when interrupted
+     */
+    public TxStreamItemResult awaitConfirmed(Duration timeout) {
+        awaitSettled(timeout);
+        return TxStreamOutcomes.requireConfirmed(current());
+    }
+
+    /**
      * Returns the latest projected result for this item.
      *
      * @return current result snapshot
@@ -104,5 +192,32 @@ public final class TxStreamReceipt {
      */
     public long eventCursor() {
         return eventCursor.get();
+    }
+
+    private TxStreamException interrupted(InterruptedException cause) {
+        return new TxStreamException("TXSTREAM_INTERRUPTED",
+                "Interrupted while waiting for TxStream item '" + itemId + "'", cause);
+    }
+
+    private TxStreamException unexpectedWaitFailure(Throwable cause) {
+        if (cause instanceof TxStreamException) {
+            return (TxStreamException) cause;
+        }
+        return new TxStreamException("TXSTREAM_ITEM_FAILED",
+                "TxStream item '" + itemId + "' wait failed unexpectedly", cause);
+    }
+
+    static long positiveNanos(Duration duration, String name) {
+        if (duration == null) {
+            throw new NullPointerException(name);
+        }
+        if (duration.isZero() || duration.isNegative()) {
+            throw new IllegalArgumentException(name + " must be positive");
+        }
+        long seconds = duration.getSeconds();
+        if (seconds >= Long.MAX_VALUE / 1_000_000_000L) {
+            return Long.MAX_VALUE;
+        }
+        return seconds * 1_000_000_000L + duration.getNano();
     }
 }

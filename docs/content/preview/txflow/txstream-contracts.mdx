@@ -140,8 +140,7 @@ try (TxFlowStream stream = TxFlowStream.builder("escrow-settlement", engine)
                 : null)
         .executor(streamExecutor)
         .maxBufferSize(10)
-        .build()) {
-    stream.start();
+        .open()) {
     // ...
 }
 ```

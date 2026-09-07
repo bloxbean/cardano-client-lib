@@ -55,6 +55,26 @@ The current `FlowEngine` API cannot host this design as-is. These small, general
 
 The stream no longer constructs or wraps a `FlowExecutor`. The builder takes a caller-supplied `FlowEngine`:
 
+ADR 0005 adds the current progressive front door without changing that runtime
+relationship. `FlowRuntime` owns one ordinary engine and the resources it creates;
+`TxFlowStream` still delegates every execution to that engine:
+
+```java
+try (FlowRuntime runtime = FlowRuntime.builder(backend)
+        .account("account://sender", sender)
+        .build();
+     TxFlowStream stream = runtime.open("payouts")) {
+    TxPlan plan = TxPlan.from(new Tx()
+                    .payToAddress(receiver, Amount.ada(2))
+                    .fromRef("account://sender"))
+            .withSigner("account://sender");
+    TxStreamItemResult result = stream.submit("order-0042", plan)
+            .awaitConfirmed(Duration.ofMinutes(5));
+}
+```
+
+The direct, caller-owned advanced/server construction remains:
+
 ```java
 FlowEngine engine = FlowEngine.builder(utxoSupplier, protocolParamsSupplier,
                 transactionProcessor, chainDataSupplier)   // actual 4-arg signature

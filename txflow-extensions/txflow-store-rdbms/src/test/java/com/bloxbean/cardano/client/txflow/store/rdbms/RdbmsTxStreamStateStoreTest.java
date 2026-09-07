@@ -11,6 +11,7 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -19,11 +20,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 /** H2-specific behaviours: builder validation, no-secret persistence, lifecycle, and coexistence. */
 class RdbmsTxStreamStateStoreTest {
@@ -33,6 +39,41 @@ class RdbmsTxStreamStateStoreTest {
     @AfterEach
     void closeStores() {
         stores.forEach(RdbmsTxStreamStateStore::close);
+    }
+
+    @Test
+    void projectionOnlyInsertWinningRegistrationRaceIsRegisteredInFreshTransaction() throws Exception {
+        JdbcDataSource source = new JdbcDataSource();
+        source.setURL("jdbc:h2:mem:projection-race-" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
+        RdbmsTxStreamStateStore projector = RdbmsTxStreamStateStore.builder()
+                .dataSource(source).schemaManagement(SchemaManagement.MIGRATE).build();
+        stores.add(projector);
+        AtomicBoolean inject = new AtomicBoolean(true);
+        DataSource intercepted = mock(DataSource.class, delegatesTo(source));
+        doAnswer(invocation -> {
+            Connection actual = source.getConnection();
+            Connection connection = mock(Connection.class, delegatesTo(actual));
+            doAnswer(prepare -> {
+                String sql = prepare.getArgument(0);
+                if (sql.startsWith("INSERT INTO txstream_item (item_id") && inject.compareAndSet(true, false)) {
+                    // The registration transaction has already read an absent row.
+                    // A separate connection commits a projection before its INSERT.
+                    projector.projectItem(TxStreamItemResult.builder("payouts", "one", TxStreamItemStatus.ACCEPTED)
+                            .updatedAt(NOW).build(), 7);
+                }
+                return actual.prepareStatement(sql);
+            }).when(connection).prepareStatement(anyString());
+            return connection;
+        }).when(intercepted).getConnection();
+        RdbmsTxStreamStateStore registrar = RdbmsTxStreamStateStore.builder()
+                .dataSource(intercepted).schemaManagement(SchemaManagement.VALIDATE).build();
+        stores.add(registrar);
+        TxStreamItemRecord record = new TxStreamItemRecord("one", "key", "lane", "fp", NOW);
+        assertTrue(registrar.registerOrMatch(record));
+        assertFalse(registrar.registerOrMatch(record));
+        assertEquals(7, registrar.lastProjectionSequence("payouts", "one").orElseThrow());
+        assertEquals(TxStreamItemStatus.ACCEPTED, registrar.getItem("payouts", "one").orElseThrow().getStatus());
+        assertFalse(inject.get(), "the projection-only insert must actually win the race");
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.ChainingMode;
+
 /**
  * Planner SPI (ADR 0004 Decision 6): converts one closed window of accepted
  * items into the engine executions that will run them.
@@ -94,6 +96,26 @@ public interface TxStreamPlanner {
      */
     static TxStreamPlanner perWindow() {
         return BuiltInPlanners.PER_WINDOW;
+    }
+
+    /**
+     * Returns the windowing planner with an execution mode applied only to the
+     * multi-step flows this planner generates. {@link ChainingMode#SEQUENTIAL}
+     * is equivalent to {@link #perWindow()} and preserves its legacy request
+     * representation; {@link ChainingMode#PIPELINED} builds and submits the
+     * dependent steps without waiting for confirmation between them.
+     * <p>
+     * {@link ChainingMode#BATCH} is intentionally unsupported. Batching is a
+     * separate transaction-shaping concern exposed by
+     * {@link #batching(BatchingOptions)}, and unsupported modes fail here
+     * instead of being silently downgraded.
+     *
+     * @param chainingMode {@code SEQUENTIAL} or {@code PIPELINED}
+     * @return per-window planner using the requested chaining mode
+     * @throws IllegalArgumentException if the mode is null or not supported
+     */
+    static TxStreamPlanner perWindow(ChainingMode chainingMode) {
+        return BuiltInPlanners.perWindow(chainingMode);
     }
 
     /**

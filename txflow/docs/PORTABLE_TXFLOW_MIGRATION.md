@@ -9,7 +9,9 @@ Key changes from the preview `version: "1.0"` format:
 - Declare runtime inputs in `spec.parameters` and supply values through `FlowBindings`; portable
   expressions use `${{ inputs.name }}` and are bound on parsed nodes, never raw YAML text.
 - Use `needs` only for ordering. Name a producer output and consume it with `flow_output` when a
-  later transaction must spend that exact output.
+  later transaction must spend that exact output. Use `funding_from` when ordinary
+  address-based coin selection may use any pending output from an earlier step
+  that belongs to the requested funding address.
 - Replace embedded keys and scripts with server-owned logical resource references.
 - Import `FlowExecutionSettings`, `ConfirmationConfig`, and `RollbackStrategy` from
   `com.bloxbean.cardano.client.txflow.config`. The former settings and confirmation classes remain

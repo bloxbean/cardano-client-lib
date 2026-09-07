@@ -1,10 +1,17 @@
 package com.bloxbean.cardano.client.txflow.exec;
 
+import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.ChainDataSupplier;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.quicktx.script.ScriptRegistry;
+import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
 import com.bloxbean.cardano.client.quicktx.signing.SignerRegistry;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
@@ -15,6 +22,7 @@ import com.bloxbean.cardano.client.txflow.compile.TxFlowCompiler;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionPolicy;
 import com.bloxbean.cardano.client.txflow.config.SpendingContentionPolicy;
 import com.bloxbean.cardano.client.txflow.resource.FlowResourceCatalog;
+import com.bloxbean.cardano.client.txflow.resource.ResourceRef;
 import com.bloxbean.cardano.client.txflow.recovery.FlowRecoveryCoordinator;
 import com.bloxbean.cardano.client.txflow.recovery.FlowRecoveryRequest;
 import com.bloxbean.cardano.client.txflow.recovery.FlowRecoveryResult;
@@ -30,6 +38,7 @@ import com.bloxbean.cardano.client.txflow.store.AttemptState;
 import com.bloxbean.cardano.client.txflow.store.PersistedBinding;
 import com.bloxbean.cardano.client.txflow.store.SignedPayloadVerifier;
 import com.bloxbean.cardano.client.txflow.model.ParameterSpec;
+import com.bloxbean.cardano.hdwallet.Wallet;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -37,6 +46,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -89,11 +100,13 @@ public final class FlowEngine {
     private final Duration leaseDuration;
     private final String ownerToken;
     private final int maxInMemoryIdempotencyClaims;
+    private final boolean backendVisibilityChecks;
     private final Map<String, ActiveExecution> activeExecutions = new ConcurrentHashMap<>();
     private final Map<ClaimIdentity, IdempotencyClaim> idempotencyClaims = new ConcurrentHashMap<>();
     private final SpendingResourceCoordinator spendingCoordinator;
 
     private FlowEngine(Builder builder) {
+        this.backendVisibilityChecks = builder.backendVisibilityChecks;
         this.utxoSupplier = Objects.requireNonNull(builder.utxoSupplier, "utxoSupplier");
         this.protocolParamsSupplier = Objects.requireNonNull(builder.protocolParamsSupplier, "protocolParamsSupplier");
         this.transactionProcessor = Objects.requireNonNull(builder.transactionProcessor, "transactionProcessor");
@@ -112,7 +125,7 @@ public final class FlowEngine {
         this.compiler = builder.compiler != null ? builder.compiler : new TxFlowCompiler();
         this.resources = builder.resources;
         this.policy = builder.policy != null ? builder.policy : FlowExecutionPolicy.permissive();
-        this.signerRegistry = builder.signerRegistry;
+        this.signerRegistry = builder.effectiveSignerRegistry();
         this.scriptRegistry = builder.scriptRegistry;
         this.store = builder.store;
         this.leaseDuration = builder.leaseDuration != null ? builder.leaseDuration : Duration.ofSeconds(30);
@@ -142,6 +155,73 @@ public final class FlowEngine {
                                   TransactionProcessor transactionProcessor,
                                   ChainDataSupplier chainDataSupplier) {
         return new Builder(utxoSupplier, protocolParamsSupplier, transactionProcessor, chainDataSupplier);
+    }
+
+    /**
+     * Creates an engine builder using the standard supplier adapters for a
+     * backend service.
+     *
+     * <p>The resulting engine has exactly the same lifecycle and ownership
+     * contract as the four-supplier builder: an execution executor is still
+     * required and every supplied resource remains caller-owned.</p>
+     *
+     * @param backendService backend providing UTxO, epoch, transaction, and
+     *        chain services
+     * @return engine builder using the standard backend adapters
+     */
+    public static Builder builder(BackendService backendService) {
+        Objects.requireNonNull(backendService, "backendService");
+        var utxoService = Objects.requireNonNull(backendService.getUtxoService(),
+                "backendService.getUtxoService()");
+        var epochService = Objects.requireNonNull(backendService.getEpochService(),
+                "backendService.getEpochService()");
+        var transactionService = Objects.requireNonNull(backendService.getTransactionService(),
+                "backendService.getTransactionService()");
+        var blockService = Objects.requireNonNull(backendService.getBlockService(),
+                "backendService.getBlockService()");
+        return builder(new DefaultUtxoSupplier(utxoService),
+                new DefaultProtocolParamsSupplier(epochService),
+                new DefaultTransactionProcessor(transactionService),
+                new DefaultChainDataSupplier(blockService, transactionService))
+                .backendVisibilityChecks(true);
+    }
+
+    /**
+     * Checks whether a previously submitted transaction's outputs are visible
+     * to the funding backend. TxStream uses this before building the next
+     * execution on the same lane. This is an indexing check, not a confirmation
+     * or rollback verdict. When checks are disabled it returns true without I/O.
+     *
+     * @param transactionHash previous transaction hash
+     * @return whether the backend exposes output zero
+     */
+    public boolean isTransactionOutputVisible(String transactionHash) {
+        Objects.requireNonNull(transactionHash, "transactionHash");
+        return !backendVisibilityChecks || utxoSupplier.getTxOutput(transactionHash, 0).isPresent();
+    }
+
+    /**
+     * Returns the caller-owned executor used to dispatch flow tasks.
+     *
+     * <p>This read-only exposure allows a directly constructed TxStream to
+     * reuse the engine executor without transferring ownership. Neither the
+     * engine nor a stream inheriting it shuts the executor down.</p>
+     *
+     * @return configured execution executor
+     */
+    public Executor executionExecutor() {
+        return executor;
+    }
+
+    /**
+     * Returns the caller-owned maintenance executor. TxStream can inherit it
+     * for delayed work when it implements ScheduledExecutorService. Exposing
+     * it does not transfer ownership or make a plain Executor a scheduler.
+     *
+     * @return configured maintenance executor, or the execution executor fallback
+     */
+    public Executor maintenanceExecutor() {
+        return maintenanceExecutor;
     }
 
     /**
@@ -1099,11 +1179,28 @@ public final class FlowEngine {
         private FlowResourceCatalog resources;
         private FlowExecutionPolicy policy;
         private SignerRegistry signerRegistry;
+        private final Set<String> convenienceSignerRefs = new HashSet<>();
+        private final Map<String, Account> convenienceAccounts = new LinkedHashMap<>();
+        private final Map<String, Wallet> convenienceWallets = new LinkedHashMap<>();
         private ScriptRegistry scriptRegistry;
         private FlowExecutionStore store;
         private Duration leaseDuration;
         private String ownerToken;
         private int maxInMemoryIdempotencyClaims = 10_000;
+        private boolean backendVisibilityChecks;
+
+        /**
+         * Enables TxStream's between-execution backend indexing check. Enabled
+         * by default by builder(BackendService); opt in with custom suppliers
+         * when getTxOutput supports querying historical transaction outputs.
+         *
+         * @param value whether to check output visibility before reusing a lane
+         * @return this builder
+         */
+        public Builder backendVisibilityChecks(boolean value) {
+            this.backendVisibilityChecks = value;
+            return this;
+        }
 
         private Builder(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier,
                         TransactionProcessor transactionProcessor, ChainDataSupplier chainDataSupplier) {
@@ -1174,7 +1271,42 @@ public final class FlowEngine {
          * @param value signer registry
          * @return this builder
          */
-        public Builder signerRegistry(SignerRegistry value) { this.signerRegistry = value; return this; }
+        public Builder signerRegistry(SignerRegistry value) {
+            this.signerRegistry = value;
+            return this;
+        }
+
+        /**
+         * Registers an account signer without requiring callers to construct a
+         * {@link DefaultSignerRegistry}.
+         *
+         * @param ref unique {@code account://} resource reference
+         * @param account account used for signing
+         * @return this builder
+         */
+        public Builder account(String ref, Account account) {
+            String canonicalRef = requireSignerRef(ref, "account");
+            Objects.requireNonNull(account, "account");
+            addConvenienceRef(canonicalRef);
+            convenienceAccounts.put(canonicalRef, account);
+            return this;
+        }
+
+        /**
+         * Registers a wallet signer without requiring callers to construct a
+         * {@link DefaultSignerRegistry}.
+         *
+         * @param ref unique {@code wallet://} resource reference
+         * @param wallet wallet used for signing
+         * @return this builder
+         */
+        public Builder wallet(String ref, Wallet wallet) {
+            String canonicalRef = requireSignerRef(ref, "wallet");
+            Objects.requireNonNull(wallet, "wallet");
+            addConvenienceRef(canonicalRef);
+            convenienceWallets.put(canonicalRef, wallet);
+            return this;
+        }
 
         /**
          * Supplies the registry used to resolve named scripts.
@@ -1225,5 +1357,57 @@ public final class FlowEngine {
          * @return thread-safe engine with immutable configuration
          */
         public FlowEngine build() { return new FlowEngine(this); }
+
+        private SignerRegistry effectiveSignerRegistry() {
+            if (signerRegistry != null && !convenienceSignerRefs.isEmpty()) {
+                throw new IllegalStateException(
+                        "signerRegistry(...) cannot be combined with account(...) or wallet(...); "
+                                + "use one registration style so signer bindings have one "
+                                + "unambiguous owner");
+            }
+            if (signerRegistry != null || convenienceSignerRefs.isEmpty()) {
+                return signerRegistry;
+            }
+            DefaultSignerRegistry registry = new DefaultSignerRegistry();
+            convenienceAccounts.forEach(registry::addAccount);
+            convenienceWallets.forEach(registry::addWallet);
+            return registry;
+        }
+
+        private void addConvenienceRef(String ref) {
+            if (!convenienceSignerRefs.add(ref)) {
+                throw new IllegalArgumentException(
+                        "A signer is already registered for resource reference '" + ref + "'");
+            }
+        }
+
+        private static String requireSignerRef(String ref, String expectedScheme) {
+            if (ref == null || ref.isBlank()) {
+                throw new IllegalArgumentException(
+                        expectedScheme + " reference cannot be null, empty, or whitespace");
+            }
+            ResourceRef resourceRef;
+            try {
+                resourceRef = ResourceRef.of(ref);
+            } catch (RuntimeException invalid) {
+                throw new IllegalArgumentException(
+                        "Expected an absolute " + expectedScheme
+                                + ":// resource reference, but got '" + ref + "'",
+                        invalid);
+            }
+            String canonicalRef = resourceRef.value();
+            if (!canonicalRef.regionMatches(true, 0, expectedScheme + "://", 0,
+                    expectedScheme.length() + 3)) {
+                throw new IllegalArgumentException(
+                        "Expected a " + expectedScheme + ":// resource reference, but got '"
+                                + ref + "'");
+            }
+            if (!canonicalRef.equals(ref)) {
+                throw new IllegalArgumentException(
+                        "Resource reference '" + ref + "' is not canonical; use '"
+                                + canonicalRef + "' consistently in the engine and TxPlan");
+            }
+            return canonicalRef;
+        }
     }
 }

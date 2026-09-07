@@ -9,10 +9,7 @@ public final class EmitResult {
     /** Non-blocking submission outcome. */
     public enum Status {
         /**
-         * Item was accepted and a receipt is available. Note that an item
-         * failing eager validation (for example a non-portable payload) is
-         * still {@code OK}: the returned receipt is already settled with a
-         * typed {@code FAILED} result.
+         * Item was accepted into stream work and a receipt is available.
          */
         OK,
         /** The bounded stream buffer is full. */

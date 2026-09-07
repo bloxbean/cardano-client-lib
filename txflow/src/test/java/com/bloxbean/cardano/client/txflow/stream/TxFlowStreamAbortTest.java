@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -19,6 +20,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -142,6 +146,80 @@ class TxFlowStreamAbortTest {
             handle.completeConfirmed(STEP_ID, "tx-1");
             first.quiescence().toCompletableFuture().join();
         }
+    }
+
+    @Test
+    void abortCallbackObservesPublishedReportExactlyOnceBeforeClosedAndIsReentrant() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        AtomicReference<TxFlowStream> streamRef = new AtomicReference<>();
+        AtomicReference<AbortReport> callbackReport = new AtomicReference<>();
+        AtomicReference<AbortReport> reentrantReport = new AtomicReference<>();
+        AtomicBoolean callbackSawIncompleteQuiescence = new AtomicBoolean();
+        List<String> events = new ArrayList<>();
+        TxStreamEventListener listener = new TxStreamEventListener() {
+            @Override
+            public void onStreamAborted(String streamId, AbortReport report) {
+                events.add("aborted");
+                callbackReport.set(report);
+                callbackSawIncompleteQuiescence.set(
+                        !report.quiescence().toCompletableFuture().isDone());
+                reentrantReport.set(streamRef.get().abort("reentrant"));
+            }
+
+            @Override
+            public void onStreamClosed(String streamId) {
+                events.add("closed");
+            }
+        };
+
+        TxFlowStream stream = builder("payouts", gateway).eventListener(listener).build();
+        streamRef.set(stream);
+        stream.start();
+        stream.submit(planItem("pay-1"));
+        StubEngineGateway.StubHandle handle = gateway.lastHandle();
+
+        AbortReport report = stream.abort("outer");
+        assertSame(report, callbackReport.get(),
+                "the callback must observe the already-published report");
+        assertSame(report, reentrantReport.get(),
+                "reentrant abort returns the same immutable report");
+        assertTrue(callbackSawIncompleteQuiescence.get(),
+                "abort notification does not imply cooperative cancellation has quiesced");
+        assertEquals(List.of("aborted", "closed"), events,
+                "abort fires once before the existing close notification");
+
+        assertSame(report, stream.abort("later"));
+        assertEquals(List.of("aborted", "closed"), events,
+                "repeated abort must not duplicate lifecycle callbacks");
+        handle.completeConfirmed(STEP_ID, "tx-1");
+        report.quiescence().toCompletableFuture().join();
+    }
+
+    @Test
+    void throwingAbortListenerCannotSuppressClosedNotification() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        AtomicInteger aborted = new AtomicInteger();
+        AtomicInteger closed = new AtomicInteger();
+        TxStreamEventListener listener = new TxStreamEventListener() {
+            @Override
+            public void onStreamAborted(String streamId, AbortReport report) {
+                aborted.incrementAndGet();
+                throw new IllegalStateException("listener failure");
+            }
+
+            @Override
+            public void onStreamClosed(String streamId) {
+                closed.incrementAndGet();
+            }
+        };
+
+        TxFlowStream stream = builder("payouts", gateway).eventListener(listener).build();
+        stream.start();
+        AbortReport first = stream.abort("stop");
+        assertSame(first, stream.abort("again"));
+        assertEquals(1, aborted.get());
+        assertEquals(1, closed.get(),
+                "listener isolation must allow the close notification to follow");
     }
 
     @Test
