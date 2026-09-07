@@ -1,0 +1,136 @@
+/*
+ * Cardano Client Lib brand overrides for Starlight.
+ *
+ * The palette is anchored on the logo mark's purple (#7045AF), extended into a
+ * violet -> indigo -> cyan gradient used for the header rule and landing accents.
+ */
+
+:root {
+  --ccl-purple: #7045af;
+  --ccl-violet: #a78bfa;
+  --ccl-indigo: #5b6cff;
+  --ccl-cyan: #22d3ee;
+
+  --ccl-brand: linear-gradient(
+    100deg,
+    var(--ccl-violet),
+    var(--ccl-purple),
+    var(--ccl-indigo),
+    var(--ccl-cyan)
+  );
+
+  --sl-font-system: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, sans-serif;
+  --sl-font-system-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code',
+    'Source Code Pro', Menlo, Consolas, monospace;
+}
+
+/*
+ * Both palettes must be declared, and each must mirror the selector Starlight
+ * itself uses.
+ *
+ * Starlight declares its colours inside `@layer starlight.base`, and unlayered
+ * CSS beats layered CSS regardless of specificity. A bare `:root` block here
+ * would therefore override Starlight's *light* theme too, producing a light nav
+ * above a dark page. Scope the dark values, and give light a complete set.
+ */
+
+/* Dark — Starlight's default when no explicit light choice is stored. */
+:root,
+::backdrop {
+  --sl-color-accent-low: #211842;
+  --sl-color-accent: #8b5cf6;
+  --sl-color-accent-high: #d3c4ff;
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #ece9f7;
+  --sl-color-gray-2: #c5bede;
+  --sl-color-gray-3: #8f86b6;
+  --sl-color-gray-4: #58507b;
+  --sl-color-gray-5: #37305c;
+  --sl-color-gray-6: #231d44;
+  --sl-color-black: #0c0919;
+}
+
+/* Light — inverted scale, mirroring Starlight's own light ramp. */
+:root[data-theme='light'],
+[data-theme='light'] ::backdrop {
+  --sl-color-accent-low: #e9e2ff;
+  --sl-color-accent: #6d28d9;
+  --sl-color-accent-high: #3b1f8f;
+
+  --sl-color-white: #16112c;
+  --sl-color-gray-1: #231d44;
+  --sl-color-gray-2: #37305c;
+  --sl-color-gray-3: #6d6494;
+  --sl-color-gray-4: #9a91bc;
+  --sl-color-gray-5: #d0cae5;
+  --sl-color-gray-6: #ece8f8;
+  --sl-color-gray-7: #f7f5fd;
+  --sl-color-black: #ffffff;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────
+   One brand gradient replacing the hairline under the site header.
+
+   The selector must stay this specific: `.header` is not unique in a Starlight
+   page. The site header, Starlight's inner header flex container, and every
+   Expressive Code code-block caption all carry that class, so a bare
+   `.header::after` would paint a gradient on all of them. */
+
+.page > header.header {
+  position: relative;
+  border-bottom-color: transparent;
+}
+
+.page > header.header::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--ccl-brand);
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────────────
+   Group labels carry most of the navigation weight on a site this size. */
+
+.sidebar-content > ul > li > details > summary > .group-label > span,
+.sidebar-content > ul > li > .large {
+  font-size: var(--sl-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-2);
+}
+
+/* ── Tables ────────────────────────────────────────────────────────────────
+   Several reference pages are table-heavy and wide. Let them scroll inside
+   their own container rather than stretching the page. */
+
+.sl-markdown-content table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.sl-markdown-content th {
+  white-space: nowrap;
+}
+
+.sl-markdown-content td code,
+.sl-markdown-content th code {
+  white-space: nowrap;
+}
+
+.sl-markdown-content td code {
+  font-size: 0.8125rem;
+}
+
+/* ── Hero (used by Starlight's built-in splash template, if adopted) ───────*/
+
+.hero > img,
+.hero > .hero-html {
+  filter: drop-shadow(0 12px 40px rgb(112 69 175 / 35%));
+}
