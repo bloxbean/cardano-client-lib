@@ -7,7 +7,7 @@ name: Documentation
 # Pull requests that touch the docs only build. A push to master that touches them, or a manual run on
 # master, also pushes the assembled site to the gh-pages branch. The live site does not change until
 # GitHub's Pages deployment for that push is approved in the `github-pages` environment, so every
-# publish -- whichever way it was triggered -- goes through that approval. See RELEASING.md.
+# publish -- whichever way it was triggered -- goes through that approval.
 
 on:
   push:

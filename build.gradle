@@ -84,7 +84,7 @@ publishing {
 // Central Portal publishing through the publisher API (nmcp), replacing the legacy OSSRH staging
 // API. `USER_MANAGED` uploads the deployment and stops at VALIDATED: nothing reaches Maven Central
 // until a human publishes it, from the portal UI or through the approval-gated
-// .github/workflows/publish-central.yml. See RELEASING.md.
+// .github/workflows/publish-central.yml.
 // Do not set `publishingTimeout` here -- nmcp rejects it under USER_MANAGED.
 nmcpAggregation {
     centralPortal {

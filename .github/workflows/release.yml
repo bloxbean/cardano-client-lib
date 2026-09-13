@@ -1,6 +1,6 @@
 name: Stage release to Maven Central
 
-# Step 3 of the PR-gated release flow (see RELEASING.md). A v* tag, created by tag-release.yml after a
+# Step 3 of the PR-gated release flow. A v* tag, created by tag-release.yml after a
 # code-owner-approved version bump merges, builds and signs every module and uploads a USER_MANAGED
 # Central Portal deployment. It stops there: nothing is on Maven Central until a human publishes the
 # deployment, via publish-central.yml or the portal.
