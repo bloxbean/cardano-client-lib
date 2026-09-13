@@ -35,7 +35,8 @@ application {
     mainClass = 'com.bloxbean.cardano.vds.tools.Tools'
 }
 
-// Shadow JAR configuration for standalone fat JAR
+// Standalone fat JAR for running the load tools locally. This developer/operator tool is
+// intentionally excluded from Maven publishing by the root build.
 shadowJar {
     archiveBaseName.set('cardano-client-vds-load-tools')
     archiveClassifier.set('all')
@@ -47,16 +48,5 @@ shadowJar {
     // Set Tools as the entry point
     manifest {
         attributes 'Main-Class': 'com.bloxbean.cardano.vds.tools.Tools'
-    }
-}
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Cardano Client Verified Structures Load Tools'
-                description = 'Cardano Client Lib - Verified Structures Load Testing Tools'
-            }
-        }
     }
 }

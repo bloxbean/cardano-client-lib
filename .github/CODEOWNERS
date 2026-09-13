@@ -1,0 +1,26 @@
+# Release owners. Combined with the `protected-branches` ruleset's "Require review from Code Owners"
+# (master and release/**), a PR that touches any of these paths needs an approving review from one of
+# them. Changing `version` in gradle.properties drives the automatic tag and release, and the other
+# paths decide what runs, with the release credentials, when it does.
+#
+# There is intentionally no catch-all `*` rule: all other paths stay unowned and do NOT require these
+# reviewers. CODEOWNERS is last-match-wins, so keep the patterns below non-overlapping. Keep the owner
+# list in sync with the workflow_dispatch allow-list in .github/workflows/tag-release.yml and the
+# reviewers of the `release` and `github-pages` environments.
+
+# This file, so the protection can't be removed without a release owner.
+/.github/CODEOWNERS      @satran004 @fabianbormann @matiwinnetou
+
+# Every workflow runs with the repository's secrets once it is on a protected branch.
+/.github/workflows/      @satran004 @fabianbormann @matiwinnetou
+
+# Version bump -> automatic tag and release.
+/gradle.properties       @satran004 @fabianbormann @matiwinnetou
+
+# Build logic evaluated by the credentialed release job: publication scope, signing, nmcp, and the
+# Gradle distribution that runs it.
+/build.gradle            @satran004 @fabianbormann @matiwinnetou
+/settings.gradle         @satran004 @fabianbormann @matiwinnetou
+/gradle/wrapper/         @satran004 @fabianbormann @matiwinnetou
+/gradlew                 @satran004 @fabianbormann @matiwinnetou
+/gradlew.bat             @satran004 @fabianbormann @matiwinnetou

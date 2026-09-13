@@ -1,35 +1,176 @@
-name: Publish package to the Maven Central Repository
+name: Stage release to Maven Central
+
+# Step 3 of the PR-gated release flow. A v* tag, created by tag-release.yml after a
+# code-owner-approved version bump merges, builds and signs every module and uploads a USER_MANAGED
+# Central Portal deployment. It stops there: nothing is on Maven Central until a human publishes the
+# deployment, via publish-central.yml or the portal.
+#
+# The GitHub release (with the load-tools jar) is a separate job, gated by github_release in
+# gradle.properties. It is the only job with a write token, and it never sees the release secrets.
 
 on:
   push:
     tags:
       - 'v*'
+
+permissions: {}
+
+# Never cancel a run that may already have uploaded a deployment.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # The signing subkey and Central Portal token are secrets of this environment, which only accepts
+    # v* tags (plus master and release/** for the other release workflows). Only the release App and
+    # org admins can create v* tags.
+    environment: release-staging
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_final: ${{ steps.version.outputs.is_final }}
+      github_release: ${{ steps.version.outputs.github_release }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
       - name: Set up JDK 17
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-      - name: Build with Gradle
-        run: ./gradlew clean build
-      - name: Decode GPG Key
+
+      - name: Validate tag and read release flags
+        id: version
+        shell: bash
         run: |
-          mkdir -p ~/.gradle/
-          echo "${{secrets.SIGNING_KEY}}" > ~/.gradle/secring.gpg.b64
-          base64 -d ~/.gradle/secring.gpg.b64 > ~/.gradle/secring.gpg
-      - name: Publish package
-        run: ./gradlew publishToSonatype closeSonatypeStagingRepository -Psigning.keyId=${{ secrets.SIGNING_KEY_ID }} -Psigning.password=${{ secrets.SIGNING_PASSWORD }} -Psigning.secretKeyRingFile=$(echo ~/.gradle/secring.gpg) --warn --stacktrace
+          set -euo pipefail
+          # gradle.properties uses `key = value`; reading it through Gradle tolerates the spaces.
+          PROPS=$(./gradlew -q properties)
+          VERSION=$(awk '/^version:/ { print $2; exit }' <<< "$PROPS")
+          if [[ "${GITHUB_REF_NAME}" != "v${VERSION}" ]]; then
+            echo "::error::Git tag ${GITHUB_REF_NAME} does not match Gradle version ${VERSION}" >&2
+            exit 1
+          fi
+          if [[ "$VERSION" == *SNAPSHOT* ]]; then
+            echo "::error::Release tags require a non-SNAPSHOT version. Got: $VERSION" >&2
+            exit 1
+          fi
+          IS_FINAL=false
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            IS_FINAL=true
+          fi
+          # A GitHub release is deletable, unlike a Central version, but it still notifies watchers
+          # and advertises the tag as a real release. Gating it lets a tag rehearse the whole
+          # pipeline and stage Maven Central only.
+          GITHUB_RELEASE=$(awk '/^github_release:/ { print $2; exit }' <<< "$PROPS")
+          {
+            echo "version=$VERSION"
+            echo "is_final=$IS_FINAL"
+            echo "github_release=${GITHUB_RELEASE:-false}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Version $VERSION (final: $IS_FINAL), GitHub release: ${GITHUB_RELEASE:-false}"
+
+      - name: Build with Gradle
+        run: ./gradlew clean build --stacktrace
+
+      # Uploads a USER_MANAGED deployment and waits for Sonatype validation. It stops there: nothing
+      # is on Maven Central until a human publishes it. See nmcpAggregation in build.gradle.
+      - name: Upload deployment to Maven Central staging
+        id: upload
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
-#      - name: Close And Release Repository
-#        run: ./gradlew closeAndReleaseRepository
-#        env:
-#          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-#          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+          # Signing subkey passed to Gradle in memory (see configureReleaseSigning in build.gradle):
+          # nothing is written to disk and nothing appears on the command line.
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY_ASC }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Do not add --warn here. It lowers Gradle below LIFECYCLE, which is the level nmcp reports
+          # the deployment id at, and the grep below would then fail every release after a
+          # successful upload.
+          ./gradlew publishAggregationToCentralPortal --stacktrace 2>&1 | tee upload.log
+          # The deployment id exists only in nmcp's output. Fail loudly if the log format changes
+          # rather than reporting a release with no id.
+          id=$(grep -oE "deployment bundle '[0-9a-f-]{36}'" upload.log \
+            | head -1 | grep -oE '[0-9a-f-]{36}' || true)
+          if [[ -z "$id" ]]; then
+            echo "::error::Upload succeeded but no deployment id was found in the log." >&2
+            exit 1
+          fi
+          echo "deployment-id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Record the pending deployment
+        env:
+          DEPLOYMENT_ID: ${{ steps.upload.outputs.deployment-id }}
+          VERSION: ${{ steps.version.outputs.version }}
+          GITHUB_RELEASE: ${{ steps.version.outputs.github_release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Maven Central deployment staged - NOT published"
+            echo
+            echo "Deployment \`$DEPLOYMENT_ID\` (\`cardano-client-lib:$VERSION\`) passed validation"
+            echo "and is waiting for a human."
+            echo
+            echo "Publish it through the approval-gated workflow:"
+            echo "https://github.com/$GITHUB_REPOSITORY/actions/workflows/publish-central.yml"
+            echo
+            echo "Or from the portal: https://central.sonatype.com/publishing/deployments"
+            echo
+            if [[ "$GITHUB_RELEASE" == "true" ]]; then
+              echo "The GitHub release job runs next (github_release = true)."
+            else
+              echo "No GitHub release for this tag (github_release = false)."
+              echo "If this was a rehearsal, drop the deployment in the portal."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The verified-structures load tools are not published to Maven Central (the shaded jar is
+      # ~100 MB). The runnable jar is handed to the github-release job instead.
+      - name: Upload load tools jar for the GitHub release
+        if: steps.version.outputs.github_release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-tools-jar
+          path: verified-structures/load-tools/build/libs/cardano-client-vds-load-tools-*-all.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  github-release:
+    needs: publish
+    # Gated by github_release in gradle.properties. Runs only after the Central deployment is staged,
+    # and on failure can be re-run on its own without touching Central.
+    if: needs.publish.outputs.github_release == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download load tools jar
+        uses: actions/download-artifact@v4
+        with:
+          name: load-tools-jar
+          path: dist
+
+      # Creates the release for the tag, or adds the asset if it already exists. Do not pre-create a
+      # draft release for the tag: the action publishes an existing draft.
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          name: ${{ needs.publish.outputs.version }}
+          files: dist/cardano-client-vds-load-tools-*-all.jar
+          fail_on_unmatched_files: true
+          prerelease: ${{ needs.publish.outputs.is_final != 'true' }}
+          # Latest is decided by semantic version and date, so a maintenance release (e.g. 0.7.3
+          # after 0.8.0) does not take the Latest badge.
+          make_latest: legacy

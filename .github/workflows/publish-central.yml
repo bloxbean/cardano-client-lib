@@ -1,0 +1,106 @@
+name: Publish staged deployment to Maven Central
+
+# release.yml uploads a USER_MANAGED deployment and stops once Sonatype has validated it. This workflow
+# is the only automated path that makes such a deployment public, and it runs only after a reviewer
+# of the `release` environment approves. The equivalent manual path is the Central Portal UI.
+#
+# Publishing cannot be undone: a released version can never be replaced or re-uploaded under the same
+# coordinates.
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploymentId:
+        description: 'Central Portal deployment id (UUID, from the release run summary)'
+        required: true
+
+permissions: {}
+
+# Two approvers acting on two tabs is how the same deployment gets published twice. Never cancel a run
+# that may already have called the portal.
+concurrency:
+  group: publish-central
+  cancel-in-progress: false
+
+jobs:
+  # Runs before the environment gate so a mistyped id fails immediately instead of asking a reviewer
+  # to approve a job that cannot work.
+  validate-input:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Validate the deployment id
+        env:
+          DEPLOYMENT_ID: ${{ inputs.deploymentId }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pattern='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          if [[ ! "$DEPLOYMENT_ID" =~ $pattern ]]; then
+            echo "::error::'$DEPLOYMENT_ID' is not a deployment id." >&2
+            echo "::error::Copy the UUID from the release run summary." >&2
+            exit 1
+          fi
+
+  # The approval gate. The `release` environment holds no secrets: it only requires a release owner's
+  # approval (prevent self-review) and accepts runs from master.
+  approve:
+    needs: validate-input
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - name: Approved
+        env:
+          DEPLOYMENT_ID: ${{ inputs.deploymentId }}
+        run: echo "Publishing of deployment $DEPLOYMENT_ID approved."
+
+  publish:
+    needs: approve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # The Central Portal token is a secret of this environment. This job only starts once `approve` has
+    # been approved and succeeded.
+    environment: release-staging
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # No build, no signing: the artifacts were built, signed and validated by the release run. This
+      # only moves the existing deployment to published.
+      - name: Publish the deployment
+        env:
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+          DEPLOYMENT_ID: ${{ inputs.deploymentId }}
+        run: >-
+          ./gradlew nmcpPublishDeployment
+          -PnmcpDeploymentId="$DEPLOYMENT_ID"
+          -PskipSigning=true
+          --stacktrace
+
+      - name: Record the publication
+        env:
+          DEPLOYMENT_ID: ${{ inputs.deploymentId }}
+          ACTOR: ${{ github.actor }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Published to Maven Central"
+            echo
+            echo "Deployment \`$DEPLOYMENT_ID\` was dispatched by @$ACTOR, approved in the"
+            echo "\`release\` environment, and moved to publishing."
+            echo
+            echo "Artifacts appear on Maven Central within a few hours."
+          } >> "$GITHUB_STEP_SUMMARY"

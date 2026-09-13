@@ -3,16 +3,22 @@ name: Manual Snapshot Push to SNAPSHOT repo
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   commit-build:
+    # The job runs the selected branch's Gradle build with the Central Portal token, so only master may
+    # publish snapshots; a run started on any other branch is skipped.
+    if: github.ref == 'refs/heads/master'
+    # The Central Portal token is a secret of this environment.
+    environment: release-staging
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          submodules: 'true'
+        uses: actions/checkout@v4
       - name: Set up JDK 17
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -20,8 +26,10 @@ jobs:
         run: chmod +x gradlew
       - name: Build with Gradle
         run: ./gradlew clean build -PskipSigning=true --stacktrace
+      # Snapshots go straight to the Central Portal snapshot repository; unlike a release there is no
+      # staged deployment and nothing to approve. The version in gradle.properties must end in -SNAPSHOT.
       - name: Publish package to SNAPSHOT repository
-        run: ./gradlew publish -PskipSigning=true --warn --stacktrace
+        run: ./gradlew publishAggregationToCentralPortalSnapshots -PskipSigning=true --warn --stacktrace
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}

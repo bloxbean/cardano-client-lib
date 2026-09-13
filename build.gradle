@@ -2,7 +2,9 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'signing'
-    id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
+    // The root publishes cardano-client-lib, so it applies nmcp as well as the aggregation plugin.
+    id 'com.gradleup.nmcp' version '1.6.2'
+    id 'com.gradleup.nmcp.aggregation' version '1.6.2'
 }
 
 repositories {
@@ -26,6 +28,13 @@ compileJava {
 
 tasks.withType(Javadoc) {
     options.encoding = 'UTF-8'
+}
+
+// The root has no sources, but the Central Portal requires sources and javadoc jars for every
+// jar-packaged publication, so the root publishes empty ones alongside its dependency jar.
+java {
+    withSourcesJar()
+    withJavadocJar()
 }
 
 artifacts {
@@ -70,44 +79,54 @@ publishing {
             }
         }
     }
-
-    repositories {
-        maven {
-            def releasesRepoUrl = "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"
-            def snapshotsRepoUrl = "https://central.sonatype.com/repository/maven-snapshots/"
-            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-            credentials {
-                username ossrhUsername
-                password ossrhPassword
-            }
-        }
-    }
 }
 
-nexusPublishing {
-    repositories {
-        sonatype {
-            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
-            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
-            username = ossrhUsername
-            password = ossrhPassword
-        }
+// Central Portal publishing through the publisher API (nmcp), replacing the legacy OSSRH staging
+// API. `USER_MANAGED` uploads the deployment and stops at VALIDATED: nothing reaches Maven Central
+// until a human publishes it, from the portal UI or through the approval-gated
+// .github/workflows/publish-central.yml.
+// Do not set `publishingTimeout` here -- nmcp rejects it under USER_MANAGED.
+nmcpAggregation {
+    centralPortal {
+        username = ossrhUsername
+        password = ossrhPassword
+        publishingType = 'USER_MANAGED'
+        // Names the pending deployment in the portal list. The deployment id itself is assigned by
+        // the server and reported by the upload task.
+        publicationName = "cardano-client-lib:${project.version}"
+        // The aggregate carries every module with its sources and javadoc; the 10 minute default
+        // validation wait is tight for it.
+        validationTimeout = java.time.Duration.ofMinutes(30)
     }
 }
 
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
-if (isReleaseVersion && !project.hasProperty("skipSigning")) {
-    signing {
-        sign publishing.publications
+// CI signs with an ASCII-armored signing subkey held in memory, passed as the project properties
+// signingInMemoryKey, signingInMemoryKeyId (last 8 hex chars of the subkey id) and
+// signingInMemoryKeyPassword (ORG_GRADLE_PROJECT_* environment variables in release.yml). Without them,
+// local builds keep using the signing.* properties from ~/.gradle/gradle.properties.
+def configureReleaseSigning = { Project candidate ->
+    candidate.signing {
+        def inMemoryKey = candidate.findProperty('signingInMemoryKey')
+        if (inMemoryKey) {
+            useInMemoryPgpKeys(candidate.findProperty('signingInMemoryKeyId'), inMemoryKey,
+                    candidate.findProperty('signingInMemoryKeyPassword'))
+        }
+        sign candidate.publishing.publications
     }
+}
+
+if (isReleaseVersion && !project.hasProperty("skipSigning")) {
+    configureReleaseSigning(project)
 }
 
 // These projects are built with the repository but are not library artifacts and must not
 // be published to Maven repositories. Add future build-only modules here by project path.
 def mavenPublicationExcludedProjectPaths = [
         ':integration-test',
-        ':txflow-extensions:txflow-soak'
+        ':txflow-extensions:txflow-soak',
+        ':verified-structures:load-tools'
 ] as Set
 
 subprojects {
@@ -117,6 +136,8 @@ subprojects {
     if (isMavenPublishedProject) {
         apply plugin: 'maven-publish'
         apply plugin: 'signing'
+        // Exposes this project's publications to the root nmcpAggregation.
+        apply plugin: 'com.gradleup.nmcp'
     }
 
     repositories {
@@ -284,8 +305,53 @@ subprojects {
     ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
     if (isMavenPublishedProject && isReleaseVersion && !project.hasProperty("skipSigning")) {
-        signing {
-            sign publishing.publications
-        }
+        configureReleaseSigning(project)
     }
+}
+
+// The Maven Central deployment scope: the root (cardano-client-lib) and every subproject that is not
+// a build-only module listed in mavenPublicationExcludedProjectPaths.
+def centralDeploymentProjects = ([rootProject] + subprojects.toList()).findAll { candidate ->
+    !mavenPublicationExcludedProjectPaths.contains(candidate.path)
+}
+
+dependencies {
+    centralDeploymentProjects.each { candidate ->
+        nmcpAggregation(project(candidate.path))
+    }
+}
+
+// A deployment that silently loses a module, or picks up a build-only one, is worse than one that
+// fails, so the resolved scope is asserted against the publications the build actually declares.
+tasks.register('verifyMavenReleasePublicationScope') {
+    group = 'verification'
+    description = 'Asserts the Central deployment covers exactly the Maven publications the build declares.'
+    def expected = centralDeploymentProjects.collect { it.path }.toSet()
+    doLast {
+        def declared = allprojects.findAll { candidate ->
+            candidate.pluginManager.hasPlugin('maven-publish') &&
+                    !candidate.publishing.publications.withType(MavenPublication).isEmpty()
+        }.collect { it.path }.toSet()
+        def missing = declared - expected
+        def extra = expected - declared
+        if (!missing.isEmpty() || !extra.isEmpty()) {
+            throw new GradleException(
+                    'Central deployment scope does not match declared publications. ' +
+                            "Publishing but not deployed: ${missing.sort()}; " +
+                            "deployed but publishes nothing: ${extra.sort()}")
+        }
+        logger.lifecycle("Central deployment scope: ${expected.size()} projects")
+    }
+}
+
+// The scope check must gate the work itself, not the lifecycle alias. `publishAggregationToCentralPortal`
+// is an alias whose dependencies are unordered relative to each other, so hanging the check off it
+// lets the upload run first. Attaching it to the zip -- which every portal task depends on -- puts
+// the check ahead of both the bundle and the network calls.
+tasks.matching {
+    it.name in ['nmcpZipAggregation',
+                'nmcpPublishAggregationToCentralPortal',
+                'nmcpPublishAggregationToCentralPortalSnapshots']
+}.configureEach {
+    dependsOn 'verifyMavenReleasePublicationScope'
 }

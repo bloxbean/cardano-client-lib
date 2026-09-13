@@ -1,0 +1,115 @@
+name: Tag release
+
+# Step 2 of the PR-gated release flow. When a code-owner-approved PR changes
+# `version` in gradle.properties and merges to master or a release/** branch, create and push the
+# matching v<version> tag on that commit. The tag then triggers release.yml.
+#
+# The tag is pushed with a GitHub App token (bloxbean-release-tagger), NOT the default GITHUB_TOKEN:
+# GitHub does not fire `on: push` workflows for refs pushed by GITHUB_TOKEN, so a GITHUB_TOKEN tag push
+# would silently fail to trigger the release. The App is on the bypass list of the v* tag ruleset.
+
+on:
+  push:
+    branches:
+      - master
+      - 'release/**'
+    paths:
+      - 'gradle.properties'
+  # Manual recovery: tag the version currently in gradle.properties on master or a release/** branch,
+  # e.g. when the push run never happened. Idempotent: skips if the tag already exists. A push run
+  # that ran and failed can simply be re-run instead.
+  workflow_dispatch:
+
+permissions: {}
+
+# One run at a time across all branches, so two merges carrying the same version cannot race to push
+# the same tag; the second run sees the first run's tag and skips.
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-24.04
+    # workflow_dispatch is available to any write-access user; only the release owners may tag that
+    # way, and only from a protected branch. A push to master or release/** already required a
+    # CODEOWNERS-approved PR, so it needs no actor check. Keep this list in sync with
+    # .github/CODEOWNERS.
+    if: >-
+      github.event_name == 'push' ||
+      (contains(fromJSON('["satran004","fabianbormann","matiwinnetou"]'), github.actor) &&
+       (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/')))
+    # The App id and private key are secrets of this environment, which only accepts master,
+    # release/** (creation restricted by ruleset) and v* tags.
+    environment: release-staging
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Don't persist the default GITHUB_TOKEN as a git credential: its http.extraheader would
+          # override the App-token remote URL below, so the push would run as github-actions[bot]
+          # (which only has contents:read here) and be denied.
+          persist-credentials: false
+
+      - name: Resolve version and whether to tag
+        id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          # gradle.properties uses `key = value`, so tolerate spaces around the `=`.
+          VERSION=$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*//p' gradle.properties \
+            | head -1 | tr -d '[:space:]')
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::No version found in gradle.properties" >&2
+            exit 1
+          fi
+          case "$VERSION" in
+            *SNAPSHOT*)
+              echo "Version $VERSION is a SNAPSHOT - not tagging."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version '$VERSION' is not a valid release version." >&2
+            exit 1
+          fi
+          # Ask the remote, not the checkout, so the answer can't be stale.
+          if existing=$(git ls-remote --exit-code --tags origin "refs/tags/v$VERSION"); then
+            echo "::notice::Tag v$VERSION already exists (${existing%%[[:space:]]*}) - nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Mint GitHub App token
+        if: steps.v.outputs.skip == 'false'
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Create and push tag
+        if: steps.v.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name  "bloxbean-release[bot]"
+          git config user.email "bloxbean-release[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Tag the exact commit this run was triggered for. No --force: an existing tag is never moved.
+          git tag -a "v${VERSION}" "${GITHUB_SHA}" -m "Release v${VERSION}"
+          git push origin "refs/tags/v${VERSION}"
+          {
+            echo "## Tagged v${VERSION}"
+            echo
+            echo "Tag \`v${VERSION}\` was pushed on \`${GITHUB_SHA}\` (${GITHUB_REF_NAME})."
+            echo
+            echo "Follow the release run: https://github.com/${GITHUB_REPOSITORY}/actions/workflows/release.yml"
+          } >> "$GITHUB_STEP_SUMMARY"

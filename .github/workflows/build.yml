@@ -29,6 +29,10 @@ jobs:
         run: chmod +x gradlew
       - name: Build with Gradle
         run: ./gradlew build -PskipSigning=true --stacktrace
+      # Fails the PR, not release day, when a module starts or stops publishing without the Central
+      # deployment scope in build.gradle following it.
+      - name: Verify Maven Central publication scope
+        run: ./gradlew verifyMavenReleasePublicationScope -PskipSigning=true --stacktrace
       - name: Verify JMT golden vectors independently
         run: >-
           python3 verified-structures/jellyfish-merkle/src/test/python/verify_jmt_vectors.py
