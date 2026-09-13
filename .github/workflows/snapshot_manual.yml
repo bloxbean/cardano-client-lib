@@ -8,6 +8,9 @@ permissions:
 
 jobs:
   commit-build:
+    # The job runs the selected branch's Gradle build with the Central Portal token, so only master may
+    # publish snapshots; a run started on any other branch is skipped.
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
