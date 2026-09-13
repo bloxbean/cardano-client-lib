@@ -1,0 +1,9 @@
+# Release owners. Combined with the `protected-branches` ruleset's "Require review from Code Owners"
+# (master and release/**), a PR that changes gradle.properties needs an approving review from one of
+# them. Changing `version` there drives the automatic tag and release; see RELEASING.md.
+#
+# There is intentionally no catch-all `*` rule: all other paths stay unowned and do NOT require these
+# reviewers. Keep this list in sync with the workflow_dispatch allow-list in
+# .github/workflows/tag-release.yml and the reviewers of the `release` environment.
+
+/gradle.properties       @satran004 @fabianbormann @matiwinnetou

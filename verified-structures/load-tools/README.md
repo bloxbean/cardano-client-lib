@@ -2,28 +2,45 @@
 
 This module provides comprehensive load testing and benchmarking tools for all verifiable data structures (JMT, MPT, MPF) across all storage backends (RocksDB, H2, SQLite, PostgreSQL, in-memory).
 
+## Getting the JAR
+
+The load tools are **not published to Maven Central**. The `cardano-client-load-tools` coordinates
+stop at `0.8.0-pre5-dev1`. Each release instead attaches the runnable fat JAR
+`cardano-client-vds-load-tools-<version>-all.jar` (~100 MB, Java 17+, RocksDB native libraries for
+all common platforms bundled) to its
+[GitHub release](https://github.com/bloxbean/cardano-client-lib/releases).
+
+> **Known issue:** `jmt-rdbms` and `jmt-concurrent` currently fail with
+> `JmtFormatMismatchException: Persistent JMT stores require an explicit stable JmtProfile`. They
+> still use the old `(store, commitments, hashFn)` tree constructor. `jmt`, `jmt-integrity`, `mpt`,
+> `mpt-rdbms` and `gc` work.
+
 ## Quick Start
 
 ### Option 1: Build Fat JAR with Tools Entry Point (Recommended)
 
-Build a single JAR with unified entry point and all dependencies bundled:
+Build a single JAR with unified entry point and all dependencies bundled, or download it from a
+GitHub release (see above):
 
 ```bash
 # Build the fat JAR
 ./gradlew :verified-structures:load-tools:shadowJar
 
+# The JAR is named after the project version in gradle.properties
+LOAD_TOOLS_JAR=$(ls verified-structures/load-tools/build/libs/cardano-client-vds-load-tools-*-all.jar)
+
 # Run any tool (simplified syntax)
-java -jar verified-structures/load-tools/build/libs/cardano-client-vds-load-tools-0.7.0-beta4-all.jar jmt \
+java -jar "$LOAD_TOOLS_JAR" jmt \
     --records=10000 --batch=1000 --rocksdb=/tmp/jmt-test
 
-# Run RDBMS tool (example: JMT with PostgreSQL)
-java -jar verified-structures/load-tools/build/libs/cardano-client-vds-load-tools-0.7.0-beta4-all.jar jmt-rdbms \
+# Run RDBMS tool (example: MPT with PostgreSQL)
+java -jar "$LOAD_TOOLS_JAR" mpt-rdbms \
     --records=10000 --batch=1000 --db=postgresql \
     --db-host=localhost --db-name=testdb \
     --db-user=postgres --db-password=secret
 
 # Show help
-java -jar verified-structures/load-tools/build/libs/cardano-client-vds-load-tools-0.7.0-beta4-all.jar help
+java -jar "$LOAD_TOOLS_JAR" help
 ```
 
 **Available Tools:**
@@ -40,7 +57,7 @@ java -jar verified-structures/load-tools/build/libs/cardano-client-vds-load-tool
 
 ```bash
 # Run directly via class name (alternative)
-java -cp verified-structures/load-tools/build/libs/cardano-client-vds-load-tools-0.7.0-beta4-all.jar \
+java -cp "$LOAD_TOOLS_JAR" \
     com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester \
     --records=10000 --batch=1000 --rocksdb=/tmp/jmt-test
 ```
