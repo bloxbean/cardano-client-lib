@@ -39,6 +39,9 @@ jobs:
       github.event_name == 'push' ||
       (contains(fromJSON('["satran004","fabianbormann","matiwinnetou"]'), github.actor) &&
        (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/')))
+    # The App id and private key are secrets of this environment, which only accepts master,
+    # release/** (creation restricted by ruleset) and v* tags.
+    environment: release-staging
     permissions:
       contents: read
     steps:

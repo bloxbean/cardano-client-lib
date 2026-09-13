@@ -41,13 +41,25 @@ jobs:
             exit 1
           fi
 
-  publish:
+  # The approval gate. The `release` environment holds no secrets: it only requires a release owner's
+  # approval (prevent self-review) and accepts runs from master.
+  approve:
     needs: validate-input
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    # Job level, not step level: the approval must fire before anything runs. The environment only
-    # accepts runs from master.
     environment: release
+    steps:
+      - name: Approved
+        env:
+          DEPLOYMENT_ID: ${{ inputs.deploymentId }}
+        run: echo "Publishing of deployment $DEPLOYMENT_ID approved."
+
+  publish:
+    needs: approve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # The Central Portal token is a secret of this environment. This job only starts once `approve` has
+    # been approved and succeeded.
+    environment: release-staging
     permissions:
       contents: read
     steps:

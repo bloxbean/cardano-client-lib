@@ -11,6 +11,8 @@ jobs:
     # The job runs the selected branch's Gradle build with the Central Portal token, so only master may
     # publish snapshots; a run started on any other branch is skipped.
     if: github.ref == 'refs/heads/master'
+    # The Central Portal token is a secret of this environment.
+    environment: release-staging
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
