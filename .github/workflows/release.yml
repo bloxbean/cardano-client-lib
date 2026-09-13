@@ -7,6 +7,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 17
@@ -28,6 +30,15 @@ jobs:
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+      # The verified-structures load tools are not published to Maven Central (the shaded jar
+      # is ~100 MB). Attach the runnable jar to the GitHub release for the tag instead. If the
+      # release already exists, its name and notes are kept and only the asset is added.
+      - name: Attach load tools jar to GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: verified-structures/load-tools/build/libs/cardano-client-vds-load-tools-*-all.jar
+          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
 #      - name: Close And Release Repository
 #        run: ./gradlew closeAndReleaseRepository
 #        env:
