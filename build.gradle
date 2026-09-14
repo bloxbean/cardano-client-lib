@@ -97,10 +97,23 @@ nexusPublishing {
 
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
-if (isReleaseVersion && !project.hasProperty("skipSigning")) {
-    signing {
-        sign publishing.publications
+// CI signs with an ASCII-armored signing subkey held in memory, passed as the project properties
+// signingInMemoryKey, signingInMemoryKeyId (last 8 hex chars of the subkey id) and
+// signingInMemoryKeyPassword (ORG_GRADLE_PROJECT_* environment variables in release.yml). Without them,
+// local builds keep using the signing.* properties from ~/.gradle/gradle.properties.
+def configureReleaseSigning = { Project candidate ->
+    candidate.signing {
+        def inMemoryKey = candidate.findProperty('signingInMemoryKey')
+        if (inMemoryKey) {
+            useInMemoryPgpKeys(candidate.findProperty('signingInMemoryKeyId'), inMemoryKey,
+                    candidate.findProperty('signingInMemoryKeyPassword'))
+        }
+        sign candidate.publishing.publications
     }
+}
+
+if (isReleaseVersion && !project.hasProperty("skipSigning")) {
+    configureReleaseSigning(project)
 }
 
 subprojects {
@@ -248,8 +261,6 @@ subprojects {
     ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
     if (isReleaseVersion && !project.hasProperty("skipSigning")) {
-        signing {
-            sign publishing.publications
-        }
+        configureReleaseSigning(project)
     }
 }

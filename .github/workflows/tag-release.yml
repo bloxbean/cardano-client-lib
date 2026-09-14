@@ -1,0 +1,165 @@
+name: Tag release
+
+# Step 2 of the PR-gated release flow. When a code-owner-approved PR changes `version` in
+# gradle.properties and merges to master or a release/** branch, and a release owner approves, create and
+# push the matching v<version> tag on that commit. The tag then triggers release.yml.
+#
+# Jobs:
+#   resolve    reads the version; skips SNAPSHOT versions and tags that already exist (no approval asked)
+#   authorize  waits for a release owner's approval in the `release` environment (team release-owners,
+#              prevent self-review). A version bump can be merged now and tagged later, and manual runs,
+#              which any write-access user can start, are gated the same way. Reject an approval you
+#              don't want rather than leaving it pending; GitHub cancels a pending one after 30 days.
+#   tag        creates the tag with the release App token (secrets in `release-staging`)
+#
+# The tag is pushed with a GitHub App token (bloxbean-release-tagger), NOT the default GITHUB_TOKEN:
+# GitHub does not fire `on: push` workflows for refs pushed by GITHUB_TOKEN, so a GITHUB_TOKEN tag push
+# would silently fail to trigger the release. The App is on the bypass list of the v* tag ruleset.
+
+on:
+  push:
+    branches:
+      - master
+      - 'release/**'
+    paths:
+      - 'gradle.properties'
+  # Manual run: tag the version currently in gradle.properties on master or a release/** branch, e.g. when
+  # the push run never happened or its approval was rejected or expired. It tags the branch's current commit. Idempotent:
+  # skips if the tag already exists.
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    # Only protected branches can be tagged. Push runs are already limited by the trigger.
+    if: >-
+      github.event_name == 'push' ||
+      github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/')
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      skip: ${{ steps.v.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve version and whether to tag
+        id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          # gradle.properties uses `key = value`, so tolerate spaces around the `=`.
+          VERSION=$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*//p' gradle.properties \
+            | head -1 | tr -d '[:space:]')
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::No version found in gradle.properties" >&2
+            exit 1
+          fi
+          case "$VERSION" in
+            *SNAPSHOT*)
+              echo "Version $VERSION is a SNAPSHOT - not tagging."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version '$VERSION' is not a valid release version." >&2
+            exit 1
+          fi
+          # Ask the remote, not the checkout, so the answer can't be stale.
+          if existing=$(git ls-remote --exit-code --tags origin "refs/tags/v$VERSION"); then
+            echo "::notice::Tag v$VERSION already exists (${existing%%[[:space:]]*}) - nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag v${VERSION} is waiting for approval"
+            echo
+            echo "Approve the \`authorize\` job (environment \`release\`) to create the tag on \`${GITHUB_SHA}\`."
+            echo "Reject it to hold the release; a manual run of this workflow can tag the version later."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The approval gate. The `release` environment holds no secrets; its reviewers are the release-owners team,
+  # and the person who triggered the run can't approve it (org admins can bypass).
+  authorize:
+    needs: resolve
+    if: needs.resolve.outputs.skip == 'false'
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - name: Approved
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: echo "Tagging v$VERSION approved."
+
+  tag:
+    needs: [resolve, authorize]
+    runs-on: ubuntu-24.04
+    # The App id and private key are secrets of this environment, which only accepts master, release/**
+    # (creation restricted by ruleset) and v* tags.
+    environment: release-staging
+    permissions:
+      contents: read
+    # One tag push at a time across all branches. The approval wait is outside this group, so a pending
+    # approval never blocks another run.
+    concurrency:
+      group: tag-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Don't persist the default GITHUB_TOKEN as a git credential: its http.extraheader would override
+          # the App-token remote URL below, so the push would run as github-actions[bot] (which only has
+          # contents:read here) and be denied.
+          persist-credentials: false
+
+      # The approval may have taken a while; check again so a tag created meanwhile is not an error.
+      - name: Check the tag is still missing
+        id: recheck
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if existing=$(git ls-remote --exit-code --tags origin "refs/tags/v$VERSION"); then
+            echo "::notice::Tag v$VERSION was created meanwhile (${existing%%[[:space:]]*}) - nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint GitHub App token
+        if: steps.recheck.outputs.skip == 'false'
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Create and push tag
+        if: steps.recheck.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name  "bloxbean-release[bot]"
+          git config user.email "bloxbean-release[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Tag the exact commit this run was triggered for. No --force: an existing tag is never moved.
+          git tag -a "v${VERSION}" "${GITHUB_SHA}" -m "Release v${VERSION}"
+          git push origin "refs/tags/v${VERSION}"
+          {
+            echo "## Tagged v${VERSION}"
+            echo
+            echo "Tag \`v${VERSION}\` was pushed on \`${GITHUB_SHA}\` (${GITHUB_REF_NAME})."
+            echo
+            echo "Follow the release run: https://github.com/${GITHUB_REPOSITORY}/actions/workflows/release.yml"
+          } >> "$GITHUB_STEP_SUMMARY"
