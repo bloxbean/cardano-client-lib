@@ -1,0 +1,26 @@
+# Release owners. Combined with the `protected-branches` ruleset's "Require review from Code Owners"
+# (master and release/**), a PR that touches any of these paths needs an approving review from one of
+# them. Changing `version` in gradle.properties drives the automatic tag and release, and the other
+# paths decide what runs, with the release credentials, when it does.
+#
+# There is intentionally no catch-all `*` rule: all other paths stay unowned and do NOT require these
+# reviewers. CODEOWNERS is last-match-wins, so keep the patterns below non-overlapping. Release owners are
+# managed as the org team bloxbean/release-owners, which is also the reviewer of the `release` and
+# `github-pages` environments. The team must stay visible and keep write access to this repository.
+
+# This file, so the protection can't be removed without a release owner.
+/.github/CODEOWNERS      @bloxbean/release-owners
+
+# Every workflow runs with the repository's secrets once it is on a protected branch.
+/.github/workflows/      @bloxbean/release-owners
+
+# Version bump -> automatic tag and release.
+/gradle.properties       @bloxbean/release-owners
+
+# Build logic evaluated by the credentialed release job: publication scope, signing, nmcp, and the
+# Gradle distribution that runs it.
+/build.gradle            @bloxbean/release-owners
+/settings.gradle         @bloxbean/release-owners
+/gradle/wrapper/         @bloxbean/release-owners
+/gradlew                 @bloxbean/release-owners
+/gradlew.bat             @bloxbean/release-owners
