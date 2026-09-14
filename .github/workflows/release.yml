@@ -38,8 +38,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # No Gradle cache in this job: it holds release secrets, and a cache restored from another workflow
-      # run could change what the build executes.
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
