@@ -13,6 +13,10 @@ on:
       - release/*
   workflow_dispatch:
 
+# Read-only token: the jobs run the branch's or pull request's own code.
+permissions:
+  contents: read
+
 jobs:
   integration-tests:
     name: Integration Tests (Cardano Dev-Net)
@@ -23,6 +27,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           submodules: 'true'
 
       # Gradle build requires JDK 17
@@ -114,6 +119,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           submodules: 'true'
 
       - name: Set up JDK 21

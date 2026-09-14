@@ -12,6 +12,10 @@ on:
       - develop
       - release/*
 
+# Read-only token: the jobs run the branch's or pull request's own code.
+permissions:
+  contents: read
+
 jobs:
   commit-build:
     runs-on: ubuntu-latest
@@ -19,6 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         with:
+          persist-credentials: false
           submodules: 'true'
       - name: Set up JDK 17
         uses: actions/setup-java@v2
@@ -45,6 +50,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           submodules: 'true'
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -85,6 +91,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           submodules: 'true'
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -114,6 +121,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           submodules: 'true'
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -142,6 +150,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           submodules: 'true'
       - name: Set up JDK 17
         uses: actions/setup-java@v4

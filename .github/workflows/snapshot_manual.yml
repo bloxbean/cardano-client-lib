@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -24,6 +26,17 @@ jobs:
           distribution: 'temurin'
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
+      # Only -SNAPSHOT versions belong in the snapshot repository; release versions go through tag-release.yml.
+      - name: Require a SNAPSHOT version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*//p' gradle.properties \
+            | head -1 | tr -d '[:space:]')
+          if [[ "$VERSION" != *-SNAPSHOT ]]; then
+            echo "::error::Snapshot publishing requires a -SNAPSHOT version. Got: $VERSION" >&2
+            exit 1
+          fi
       - name: Build with Gradle
         run: ./gradlew clean build -PskipSigning=true --stacktrace
       # Snapshots go straight to the Central Portal snapshot repository; unlike a release there is no
