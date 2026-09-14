@@ -1,0 +1,365 @@
+---
+title: "TxStream: Durability & Exactly-Once"
+description: "Durable store pairing, restart re-attach, dedup scopes, secrets policy, and active/standby HA"
+---
+
+TxStream is experimental. The default managed runtime is process-local; it does not
+provide crash-durable acceptance. Durable store pairing persists planned execution
+requests and supports reattachment, but it is not yet a general exactly-once queue consumer.
+
+**Current preview contract:**
+
+- Shipped durable stores atomically register or match item identity and content.
+  Identical redelivery after live eviction or restart attaches to stored work;
+  different content conflicts. Matching includes the lane name: changing lane
+  assignment across deployments can conflict even with an unchanged payload.
+  Matching never plans another execution.
+- Stored terminal outcomes are returned directly. Healthy foreign-item reads are
+  detached observations: no live item, claim, counter, event, or owner projection
+  write. A missing or running engine snapshot never establishes recovery authority.
+  Explicit foreign receipt attachment retains a local observation; use `reconcile`
+  or the observer to refresh it. Stored `RECOVERY_REQUIRED` items with persisted
+  plans may be hydrated and terminally repaired from their original engine truth.
+- A registration without a recoverable plan is not automatically replayed.
+  Redelivery returns `REJECTED` / `TXSTREAM_REGISTRATION_INCOMPLETE`; a projected
+  accepted item found incomplete on restart remains `RECOVERY_REQUIRED` with
+  `TXSTREAM_ABANDONED`. Wait for an accepting owner still processing it, or investigate
+  the registration, engine claim, and source journal. Do not generate a replacement ID.
+- Custom stores must implement `registerOrMatch` and coherent `getStoredProjection`
+  reads to provide the same guarantees. The compatibility defaults retain legacy
+  registration behavior. Shipped stores resolve a plan through its item binding;
+  custom stores can override the lookup and paging compatibility fallbacks for
+  efficient reads, and must explicitly implement atomic abandoned acknowledgement.
+  Item IDs must be unique across streams sharing a store:
+  registration keys remain store-scoped in this preview schema.
+- `perWindow()` and `batching()` deduplicate exact flow member sets, not arbitrary
+  individual redeliveries after their registration history is removed. Use `perItem()`
+  for independently redelivered work and retain durable registrations.
+
+This is a conservative preview implementation of the registration/hydration portion
+of ADR 0006. It does not implement automatic recovery of accepted-but-unplanned work,
+change the registration key schema, or provide active/active wallet ownership.
+Existing terminal `CANCELLED` / `TXSTREAM_ABANDONED` rows from older builds stay
+terminal and attach as cancelled; upgrades never replay them automatically.
+
+## The durable pairing
+
+Durable mode is a *pairing*, validated at `build()`:
+
+- a **durable `FlowEngine` store** (`engine.capabilities().durableExecution()` — e.g.
+  `RdbmsFlowExecutionStore`), plus the engine's `maintenanceExecutor`, which the engine requires
+  whenever a store is configured (lease renewal must not be starved by flow work);
+- a **durable `TxStreamStateStore`** (`RdbmsTxStreamStateStore`, or
+  `TxStreamStateStore.inMemoryDurable()` for tests and same-process restarts).
+
+The builder **rejects** a durable stream store paired with a non-durable engine. This invariant is
+load-bearing, not pedantic: restart re-attach reasons *"no stored execution means the start never
+happened, so re-dispatch the persisted plan"*. Against an engine that forgot its executions on
+crash, that reasoning re-dispatches executions that already ran — a transaction duplicator. The
+reverse pairing (durable engine, non-durable stream store) is legal: you get durable executions
+without stream-level re-attach.
+
+The simplest durable stream (in-memory durable store — survives stream restarts within one
+process, not process death):
+
+```java
+TxFlowStream stream = TxFlowStream.builder("payouts", durableEngine)
+        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        .stateStore(TxStreamStateStore.inMemoryDurable())
+        .executor(streamExecutor)
+        .open();                             // re-attach runs BEFORE new work is accepted
+ReattachReport report = stream.reattach();   // idempotent: returns the same report
+System.out.println("re-attached=" + report.reattachedItems()
+        + ", re-dispatched=" + report.redispatched()
+        + ", recovery-required=" + report.recoveryRequired());
+```
+
+## Relational store setup
+
+For real crash durability use the relational stream store from the same optional module as the
+engine's RDBMS store:
+
+```gradle
+dependencies {
+    implementation "com.bloxbean.cardano:cardano-client-txflow-store-rdbms:${cclVersion}"
+}
+```
+
+```java
+// Both stores can share ONE database: the engine store owns txflow_*
+// tables, the stream store owns txstream_* tables — the two migrations
+// never see each other's objects.
+RdbmsFlowExecutionStore executionStore = RdbmsFlowExecutionStore.builder()
+        .jdbcUrl("jdbc:h2:file:./data/txflow")
+        .build();
+RdbmsTxStreamStateStore streamStore = RdbmsTxStreamStateStore.builder()
+        .jdbcUrl("jdbc:h2:file:./data/txflow")
+        .build();
+
+FlowEngine engine = FlowEngine.builder(utxoSupplier, protocolParamsSupplier,
+                transactionProcessor, chainDataSupplier)
+        .executor(engineExecutor)
+        .maintenanceExecutor(maintenanceExecutor)
+        .store(executionStore)                    // durable engine execution
+        .signerRegistry(signers)
+        .build();
+
+try (TxFlowStream stream = TxFlowStream.builder("payouts", engine)
+        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        .stateStore(streamStore)                  // durable stream planning metadata
+        .executor(streamExecutor)
+        .open()) {    // re-attach resolves persisted in-flight items first
+    // ... submit work ...
+}
+```
+
+For PostgreSQL, mirror the engine store's production profile — deployment-owned pooling and
+validated schema:
+
+```java
+RdbmsTxStreamStateStore streamStore = RdbmsTxStreamStateStore.builder()
+        .dataSource(dataSource)
+        .dialect(PostgresDialect.INSTANCE)
+        .schemaManagement(SchemaManagement.VALIDATE)
+        .build();
+```
+
+The same operational guidance as the engine store applies (migration with a schema-owner role,
+`VALIDATE` at runtime, one transactionally consistent backup unit); see
+[Durable Runtime](/txflow/durable-runtime/) and the RDBMS module README. A durable store ignores the
+stream's retention eviction and keeps settled items indefinitely. This preserves status
+history and enables identical redelivery to attach after live eviction. Receipt
+hydration does not increment acceptance counters or create another execution.
+
+## What start() does in durable mode
+
+Before accepting any new work, `start()` resolves every persisted non-terminal item binding
+against engine truth (`reattach()`):
+
+1. **A `DISPATCHING` binding** (crash between the write-ahead bind and the engine-start
+   confirmation) is resolved by asking the engine store for the binding's execution id: present
+   means the start happened; absent means it never did.
+2. **Present execution** — the item is *re-projected* from the engine snapshot, never re-run. A
+   crash-recovered item whose snapshot says completed goes straight to `CONFIRMED` with its hash;
+   one whose execution is still running is surfaced `RECOVERY_REQUIRED` and refreshed by
+   read-through.
+3. **Absent execution** — the item is *re-dispatched* from its persisted portable plan. Because
+   execution ids are deterministic (derived from the idempotency claim), the re-dispatch carries
+   the same execution id on every process and every retry: if the execution somehow does exist,
+   the engine answers `MATCHED` and returns the stored execution instead of running a duplicate.
+   Double-submission is structurally prevented by the engine claim, not by stream bookkeeping.
+4. Items accepted without a persisted plan cannot be automatically resumed. Restart
+   reports projected incomplete work as recovery-required; same-content redelivery
+   reports `TXSTREAM_REGISTRATION_INCOMPLETE`, not a content conflict. Use an explicit
+   recovery procedure rather than a replacement ID.
+
+`ReattachReport` summarizes the pass (`reattachedItems`, `redispatched`, `recoveryRequired`).
+
+Restart inventories all unresolved work. An absent binding alone does not authorize
+same-ID reacceptance: another owner may still have the accepted item queued before
+its write-ahead binding.
+
+For an abandoned registration, stop or fence **all producers and recovery workers**
+and investigate the source journal, original engine claim, binding, and transaction
+hash first. Then read `getStoredProjection` to obtain the exact sequence expected
+by `acknowledgeAbandoned`:
+
+```java
+TxStreamStoredProjection observed = store.getStoredProjection("payouts", "payment-1")
+        .orElseThrow();
+boolean acknowledged = store.acknowledgeAbandoned(
+        "payouts", "payment-1", observed.sourceSequence(),
+        "Investigated original claim with producers and recovery workers fenced",
+        Instant.now());
+// false means the sequence or abandoned state no longer matches; investigate again.
+```
+
+Acknowledgement atomically checks `RECOVERY_REQUIRED` / `TXSTREAM_ABANDONED` at
+that sequence and marks the bookkeeping `FAILED`, retaining registration, binding,
+and hash. It is **not proof that a transaction failed** and does not authorize a
+replacement payment. Already-resolved or stale observations return false. Custom
+stores that do not implement this atomic operation reject it as unsupported.
+
+## Dedup scopes: what "exactly-once" actually covers
+
+This is the most important honest section in these docs. The engine supports exactly one
+idempotency claim per execution, so the dedup scope follows the planner
+([planners](/txstream/throughput/#windows-and-planners)):
+
+| Planner | Claim covers | Dedup guarantee |
+| --- | --- | --- |
+| `perItem()` (default) | one item | **True per-item exactly-once.** A redelivered item matches its own execution, across restarts and processes |
+| `perWindow()` | the window's exact member set (sorted member keys) | **Flow-level only.** An identical window resubmitted whole matches; a single item redelivered into a differently-composed window is a *new claim* and runs again |
+| `batching(...)` | the merged batch's exact member set | **Flow-level only, and funds-critical** — see below |
+
+> **A re-batched payment is a real second payment.** Under `batching(...)`, a single item
+> redelivered into a differently-composed batch produces a different claim key — a new merged
+> execution — and unlike `perWindow()` (where each item is still its own transaction), the
+> recipient is **paid twice on chain**. There is no per-item exactly-once under batching, by
+> design, until a multi-claim engine extension lands. If your source can redeliver individual
+> items, either use `perItem()` (true per-item dedup) or deduplicate upstream so the same item can
+> never land in two different batches.
+
+`perWindow()` deserves the same caution in weaker form: a redelivered item in a new window runs
+again as its own transaction — one duplicate payment, not a merged batch's, but still real.
+**Durable per-item exactly-once requires `perItem()`.** Sources that redeliver must use it or
+dedup upstream.
+
+## The eviction guard window
+
+A non-durable stream retains settled items up to `maxRetainedSettledItems` (default 10,000,
+FIFO-evicted once settled). This cap doubles as the **duplicate-detection window**: idempotency-key
+reuse and content-conflict checks hold only while the settled item is retained. After eviction the
+remaining guarantee is *engine-request equality* on the claim-derived execution:
+
+- an **identical** resubmit matches the stored execution and projects the original outcome (still
+  no double-spend);
+- a resubmit with **different transaction content** fails typed at the engine
+  (`TXFLOW_IDEMPOTENCY_CONFLICT`);
+- but a resubmit differing **only in metadata, or in a lane label that resolves to the same
+  identity**, silently matches the stored execution — before eviction the same resubmit would
+  have been a typed content conflict.
+
+Size the cap to cover your longest realistic redelivery horizon. A durable stream store retains
+settled items indefinitely. The shipped durable stores compare the retained registration
+atomically and attach identical redelivery without another execution.
+
+## No secrets in the stream store
+
+The durable stream store persists planned requests so it can re-dispatch after a crash — and it
+must never become a plaintext secret store. The persisted record contains only the
+portable-encoded flow, non-sensitive bindings, and secure-binding *references* plus value
+fingerprints. Three binding channels exist on `TxWorkItem`:
+
+```java
+stream.submit(TxWorkItem.builder("payout-42")
+        .withTemplate("payout")
+        .withIdempotencyKey("order-42")
+        // Non-sensitive: persisted verbatim in the durable planned record.
+        .withBinding("beneficiary", beneficiaryAddress)
+        .withBinding("amount", 1_500_000L)
+        // Sensitive, durable-safe: only the reference and a fingerprint are
+        // persisted; the value is resolved afresh through the engine at dispatch.
+        .withSecureBindingReference("payoutAuthorization",
+                "vault://payouts/authorization-key")
+        .build());
+
+// The UNSAFE inline form. In durable mode this fails the item typed
+// (TXSTREAM_NON_PERSISTABLE_SECRET) instead of persisting a plaintext secret.
+TxWorkItem nonDurableOnly = TxWorkItem.builder("payout-43")
+        .withTemplate("payout")
+        .withSensitiveBinding("payoutAuthorization", secretValue)
+        .build();
+```
+
+Crash re-dispatch resolves secure references afresh through the engine's secure-binding
+mechanism, exactly as a first dispatch would. In non-durable mode `withSensitiveBinding` is
+passed through to the engine and never persisted. Note the engine-side caveat from
+[Durable Runtime](/txflow/durable-runtime/): a secure binding's external reference and an unsalted
+SHA-256 fingerprint *are* stored — protect the database and backups, especially for low-entropy
+values.
+
+## Handling RECOVERY_REQUIRED
+
+`RECOVERY_REQUIRED` means the transaction's disposition is uncertain — typically submitted but
+unconfirmed inside a flow that reached a terminal state. It may still confirm. Never treat it as
+a failure and never resubmit the payment blindly. Three escalating tools:
+
+**1. Read-through (always available).** `getItemStatus(itemId)` on a `RECOVERY_REQUIRED` item
+consults the engine snapshot and repairs the projection when the engine has an authoritative
+answer; `reconcile(itemId)` forces the same check:
+
+```java
+Optional<TxStreamItemResult> status = stream.getItemStatus("payment-1");
+if (status.isPresent()
+        && status.get().getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED) {
+    // 1. inspect status.get().getTransactionHash() — it may still confirm;
+    // 2. operators reconcile the execution (engine.recover(...)) if needed;
+    // 3. then force the read-through repair:
+    Optional<TxStreamItemResult> repaired = stream.reconcile("payment-1");
+}
+```
+
+**2. The reconciliation observer (opt-in, OFF by default).** A periodic pass that push-repairs
+`RECOVERY_REQUIRED` items with nobody polling. It runs on the caller-owned scheduler — the stream
+owns no threads or timers:
+
+```java
+ScheduledExecutorService maintenance = Executors.newSingleThreadScheduledExecutor();
+
+TxFlowStream stream = TxFlowStream.builder("payouts", engine)
+        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        .stateStore(durableStore)
+        .executor(streamExecutor)
+        .maintenanceExecutor(maintenance)                 // caller-owned scheduler
+        .reconciliationInterval(Duration.ofSeconds(30))   // opt-in; OFF by default
+        .build();
+```
+
+Repairs are emitted to the `TxStreamEventListener`; `reconciliationBatchSize` (default 100) caps
+work per pass. Durable candidates are paged with an item-ID cursor; every inspected
+row consumes budget, including live and abandoned rows. The cursor advances so
+later recoverable work is not starved by earlier incomplete registrations.
+
+**3. Operator recovery.** When the engine itself reports the execution `RECOVERY_REQUIRED`, an
+operator runs `engine.recover(...)` — which verifies the persisted signed payload against the
+chain and can resubmit only identical bytes — and the stream projection then repairs through
+read-through or the observer. See [Durable Runtime](/txflow/durable-runtime/) for the full engine
+recovery workflow.
+
+A receipt whose `completion()` already fired with `RECOVERY_REQUIRED` keeps that point-in-time
+answer (futures complete once); the live projection reflects the repair.
+
+## Multi-instance HA: active/standby ownership
+
+Ownership (ADR 0004 iteration 3d) lets two or more instances share one `streamId` for failover:
+exactly one holds an epoch-fenced lease and dispatches (`ACTIVE`); the rest are `STANDBY` and
+take over on the owner's crash or lease expiry. Requirements, all validated at `build()`: a
+durable stream store that `supportsOwnership()`, a durable engine store, and a
+`maintenanceExecutor` for lease renewal.
+
+```java
+TxFlowStream instance = TxFlowStream.builder("payouts", engine)  // same streamId everywhere
+        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        .stateStore(sharedDurableStore)                  // shared by all instances
+        .executor(streamExecutor)
+        .maintenanceExecutor(maintenance)                // lease renewal / acquire-poll
+        .ownership("host-a:1234", Duration.ofSeconds(30))  // stable per-instance token
+        .build();
+instance.start();
+
+OwnershipStatus ownership = instance.ownership();
+if (ownership.isActive()) {
+    // this instance holds the epoch-fenced lease and dispatches
+}
+```
+
+Semantics to plan around:
+
+- **The lease is a best-effort optimization; the engine claim is the real guarantee.** Even if
+  two instances momentarily believed themselves active, the deterministic execution ids and the
+  engine's idempotency claims are what make double-submission structurally impossible. The lease
+  exists to prevent wasted contention, not to be the safety mechanism.
+- **Step-down loses queued-but-unstarted work, deliberately.** On a fenced step-down, work that
+  had not yet dispatched settles `CANCELLED` with `TXSTREAM_OWNERSHIP_LOST`. Those item ids are
+  terminally cancelled in the shared durable store, so recover the work by resubmitting it to the
+  new owner **under a new item id** — the old id is rejected as a duplicate. In-flight engine
+  executions the old owner already started are never aborted; the new owner re-attaches and
+  reconciles them.
+- **A standby is paused, not dead.** While `STANDBY`, blocking `submit` refuses typed
+  (`TXSTREAM_NOT_ACTIVE`), but `trySubmit` reports `PAUSED` — a retryable condition. The
+  `TxWorkSource.fromPublisher(...)` adapter parks items on `PAUSED` and resumes them if the
+  instance reclaims ownership; custom producers should do the same rather than tearing down. A
+  fenced renewal throws `TXSTREAM_OWNERSHIP_FENCED` internally and the instance stops dispatching
+  immediately.
+- **A standby keeps reconciling, read-only.** The reconciliation observer continues running on a
+  standby (repair-only writes, CAS-arbitrated against the active owner's) — it never dispatches.
+- Active/active lane-partitioned ownership (instances owning disjoint lane subsets) is a future
+  extension, not this iteration.
+
+## Continue
+
+- [TxStream Getting Started](/txstream/getting-started/) — the front door, item identity, and
+  lifecycle.
+- [TxStream: Lanes, Batching & Throughput](/txstream/throughput/) — the concurrency model these
+  guarantees compose with.
