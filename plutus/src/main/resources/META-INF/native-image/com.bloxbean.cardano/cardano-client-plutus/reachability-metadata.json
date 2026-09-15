@@ -1,0 +1,1244 @@
+{
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-plutus. PlutusData JSON (de)serializers (PlutusDataJsonConverter) and Plutus model types are bound by Jackson once ObjectMapper is reached; the CIP-57 blueprint model is bound only once PlutusBlueprintLoader is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "isPrimitiveType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPurpose",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSchema",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTitle",
+          "parameterTypes": []
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setPurpose",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "setSchema",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema"
+          ]
+        },
+        {
+          "name": "setTitle",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAllOf",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnyOf",
+          "parameterTypes": []
+        },
+        {
+          "name": "getComment",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDataType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getEnumLiterals",
+          "parameterTypes": []
+        },
+        {
+          "name": "getExclusiveMaximum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getExclusiveMinimum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFields",
+          "parameterTypes": []
+        },
+        {
+          "name": "getIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getItems",
+          "parameterTypes": []
+        },
+        {
+          "name": "getKeys",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLeft",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxItems",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxLength",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaximum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinItems",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinLength",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinimum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMultipleOf",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNotOf",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOneOf",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRefSchema",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRight",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTitle",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValues",
+          "parameterTypes": []
+        },
+        {
+          "name": "isUniqueItems",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAllOf",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setAnyOf",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setComment",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDataType",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype"
+          ]
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setEnumLiterals",
+          "parameterTypes": [
+            "java.lang.String[]"
+          ]
+        },
+        {
+          "name": "setExclusiveMaximum",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setExclusiveMinimum",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setFields",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setIndex",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setItems",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setKeys",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema"
+          ]
+        },
+        {
+          "name": "setLeft",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema"
+          ]
+        },
+        {
+          "name": "setMaxItems",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setMaxLength",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setMaximum",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setMinItems",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setMinLength",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setMinimum",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setMultipleOf",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setNotOf",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setOneOf",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setRef",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRefSchema",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema"
+          ]
+        },
+        {
+          "name": "setRight",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema"
+          ]
+        },
+        {
+          "name": "setTitle",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setUniqueItems",
+          "parameterTypes": [
+            "boolean"
+          ]
+        },
+        {
+          "name": "setValues",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.Compiler",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getName",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "setName",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setVersion",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.Data",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.Parameter",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.PlutusContractBlueprint",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDefinitions",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusScript",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "getPreamble",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValidators",
+          "parameterTypes": []
+        },
+        {
+          "name": "setDefinitions",
+          "parameterTypes": [
+            "java.util.Map"
+          ]
+        },
+        {
+          "name": "setPreamble",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.Preamble"
+          ]
+        },
+        {
+          "name": "setValidators",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.Preamble",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCompiler",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLicense",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTitle",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCompiler",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.Compiler"
+          ]
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setLicense",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setPlutusVersion",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion"
+          ]
+        },
+        {
+          "name": "setTitle",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setVersion",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.RawData",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.blueprint.model.Validator",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCompiledCode",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getParameters",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTitle",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCompiledCode",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDatum",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum"
+          ]
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setParameters",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum"
+          ]
+        },
+        {
+          "name": "setTitle",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHashAsBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.BytesPlutusData",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHashAsBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAlternative",
+          "parameterTypes": []
+        },
+        {
+          "name": "getData",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHashAsBytes",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.CostMdls",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getLanguageViewEncoding",
+          "parameterTypes": []
+        },
+        {
+          "name": "isEmpty",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.CostModel",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCosts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLanguage",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.ExUnitPrices",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getMemPrice",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStepPrice",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.ExUnits",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getMem",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSteps",
+          "parameterTypes": []
+        },
+        {
+          "name": "setMem",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setSteps",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.Language",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getKey",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.ListPlutusData",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHashAsBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusDataList",
+          "parameterTypes": []
+        },
+        {
+          "name": "isChunked",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.MapPlutusData",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHashAsBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMap",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.PlutusData",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHashAsBytes",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.PlutusScript",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLanguage",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCborHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.PlutusV1Script",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLanguage",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCborHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.PlutusV2Script",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLanguage",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCborHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.PlutusV3Script",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLanguage",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCborHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.Redeemer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getData",
+          "parameterTypes": []
+        },
+        {
+          "name": "getExUnits",
+          "parameterTypes": []
+        },
+        {
+          "name": "getIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTag",
+          "parameterTypes": []
+        },
+        {
+          "name": "setData",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setExUnits",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.ExUnits"
+          ]
+        },
+        {
+          "name": "setIndex",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setIndex",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setTag",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.RedeemerTag"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.RedeemerTag",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.BigIntDataJsonDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.BigIntDataJsonSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.BytesDataJsonDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.BytesDataJsonSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.ConstrDataJsonDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.ConstrDataJsonSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.ListDataJsonDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.ListDataJsonSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.MapDataJsonDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.MapDataJsonSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.PlutusDataJsonConverter",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.serializers.PlutusDataJsonKeys",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    }
+  ]
+}

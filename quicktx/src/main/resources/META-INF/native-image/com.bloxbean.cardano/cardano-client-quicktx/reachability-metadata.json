@@ -1,0 +1,2425 @@
+{
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-quicktx. TxPlan documents and polymorphic intents (@JsonSubTypes) are (de)serialized by Jackson through YamlSerializer; entries apply once YamlSerializer is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.CollectFromIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getUtxoRefs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getUtxos",
+          "parameterTypes": []
+        },
+        {
+          "name": "setUtxoRefs",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setUtxos",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.DRepDeregistrationIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDrepCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredentialHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredentialType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRefundAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRefundAmount",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setDrepCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Credential"
+          ]
+        },
+        {
+          "name": "setDrepCredentialHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDrepCredentialType",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRefundAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRefundAmount",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.DRepRegistrationIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnchorHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnchorUrl",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredentialHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredentialType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAnchor",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Anchor"
+          ]
+        },
+        {
+          "name": "setAnchorHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setAnchorUrl",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDeposit",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setDrepCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Credential"
+          ]
+        },
+        {
+          "name": "setDrepCredentialHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDrepCredentialType",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.DRepUpdateIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnchorHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnchorUrl",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredentialHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredentialType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAnchor",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Anchor"
+          ]
+        },
+        {
+          "name": "setAnchorHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setAnchorUrl",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDrepCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Credential"
+          ]
+        },
+        {
+          "name": "setDrepCredentialHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDrepCredentialType",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.DepositHelper",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.DepositHelper$DepositType",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.DonationIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCurrentTreasuryValue",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDonationAmount",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCurrentTreasuryValue",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDonationAmount",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.FlowOutputRef",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getFlowOutput",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputIndexForYaml",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputIndexTemplate",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTxHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "setFlowOutput",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.quicktx.intent.FlowOutputRef$Pointer"
+          ]
+        },
+        {
+          "name": "setOutputIndex",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setOutputIndexFromYaml",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "setOutputIndexTemplate",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setTxHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.FlowOutputRef$Pointer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getOutput",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStep",
+          "parameterTypes": []
+        },
+        {
+          "name": "setOutput",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setStep",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.GovernanceProposalIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnchorHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnchorUrl",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovAction",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovActionHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getReturnAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAnchor",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Anchor"
+          ]
+        },
+        {
+          "name": "setAnchorHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setAnchorUrl",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDeposit",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setGovAction",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction"
+          ]
+        },
+        {
+          "name": "setGovActionHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setReturnAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.MetadataIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getMetadata",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setMetadata",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.metadata.Metadata"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.MintingIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAssets",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getReceiver",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScript",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasPolicyRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasRuntimeObjects",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptHexField",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptTypeField",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasSerializedScriptFields",
+          "parameterTypes": []
+        },
+        {
+          "name": "isPolicyRefResolved",
+          "parameterTypes": []
+        },
+        {
+          "name": "needsDeserialization",
+          "parameterTypes": []
+        },
+        {
+          "name": "resolvePolicy",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.Policy"
+          ]
+        },
+        {
+          "name": "setAssets",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPolicyRef",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setPolicyRefResolved",
+          "parameterTypes": [
+            "boolean"
+          ]
+        },
+        {
+          "name": "setReceiver",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setScript",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.Script"
+          ]
+        },
+        {
+          "name": "setScriptHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setScriptType",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.NativeScriptAttachmentIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getScript",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptHexField",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptReference",
+          "parameterTypes": []
+        },
+        {
+          "name": "isScriptReferenceResolved",
+          "parameterTypes": []
+        },
+        {
+          "name": "resolveScript",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.script.NativeScript"
+          ]
+        },
+        {
+          "name": "setScript",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.script.NativeScript"
+          ]
+        },
+        {
+          "name": "setScriptHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setScriptHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setScriptRef",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setScriptReferenceResolved",
+          "parameterTypes": [
+            "boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.PaymentIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAmounts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHashBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumStructured",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRefScript",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScript",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptRefBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptRefBytesHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setAmounts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setDatum",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setDatumHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDatumHashBytes",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setDatumHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDatumStructured",
+          "parameterTypes": [
+            "com.fasterxml.jackson.databind.JsonNode"
+          ]
+        },
+        {
+          "name": "setRefScript",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.Script"
+          ]
+        },
+        {
+          "name": "setScript",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.Script"
+          ]
+        },
+        {
+          "name": "setScriptRefBytes",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setScriptRefBytesHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.PoolRegistrationIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPoolRegistration",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "isUpdate",
+          "parameterTypes": []
+        },
+        {
+          "name": "setPoolRegistration",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration"
+          ]
+        },
+        {
+          "name": "setTypeFromJson",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setUpdate",
+          "parameterTypes": [
+            "boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.PoolRetirementIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPoolId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRetirementEpoch",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setPoolId",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRetirementEpoch",
+          "parameterTypes": [
+            "int"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getRefs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setRefs",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumStructured",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLazyUtxoStrategy",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerData",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerStructured",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSpendingContexts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getUtxoFilter",
+          "parameterTypes": []
+        },
+        {
+          "name": "getUtxoRefs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getUtxos",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasRuntimeObjects",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDatum",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setDatumHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDatumStructured",
+          "parameterTypes": [
+            "com.fasterxml.jackson.databind.JsonNode"
+          ]
+        },
+        {
+          "name": "setLazyUtxoStrategy",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy"
+          ]
+        },
+        {
+          "name": "setRedeemerData",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemerStructured",
+          "parameterTypes": [
+            "com.fasterxml.jackson.databind.JsonNode"
+          ]
+        },
+        {
+          "name": "setSpendingContexts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setUtxoFilter",
+          "parameterTypes": [
+            "com.fasterxml.jackson.databind.JsonNode"
+          ]
+        },
+        {
+          "name": "setUtxoRefs",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setUtxos",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent$SpendingContext",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getUtxo",
+          "parameterTypes": []
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.Redeemer"
+          ]
+        },
+        {
+          "name": "setUtxo",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.api.model.Utxo"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.ScriptMintingIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAssets",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputDatum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputDatumHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputDatumStructured",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getReceiver",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerStructured",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAssets",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setOutputDatum",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setOutputDatumHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setOutputDatumStructured",
+          "parameterTypes": [
+            "com.fasterxml.jackson.databind.JsonNode"
+          ]
+        },
+        {
+          "name": "setPolicyId",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setReceiver",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemerStructured",
+          "parameterTypes": [
+            "com.fasterxml.jackson.databind.JsonNode"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getRole",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScript",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptHexField",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasScriptReference",
+          "parameterTypes": []
+        },
+        {
+          "name": "isScriptReferenceResolved",
+          "parameterTypes": []
+        },
+        {
+          "name": "resolveScript",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusScript"
+          ]
+        },
+        {
+          "name": "setRole",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.RedeemerTag"
+          ]
+        },
+        {
+          "name": "setScript",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusScript"
+          ]
+        },
+        {
+          "name": "setScriptHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setScriptHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setScriptRef",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setScriptReferenceResolved",
+          "parameterTypes": [
+            "boolean"
+          ]
+        },
+        {
+          "name": "setScriptVersion",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.StakeDelegationIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPoolId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setPoolId",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setStakeAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.StakeDeregistrationIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRefundAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRefundAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setStakeAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.StakeRegistrationIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getStakeAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setStakeAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.StakeWithdrawalIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAmount",
+          "parameterTypes": []
+        },
+        {
+          "name": "getReceiver",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRewardAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAmount",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setReceiver",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRewardAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.TxInputIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.TxInputRef",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.TxIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.TxScriptAttachmentIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.UtxoRef",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getOutputIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputIndexForYaml",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputIndexTemplate",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTxHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "setOutputIndex",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setOutputIndexFromYaml",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "setOutputIndexTemplate",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setTxHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.UtxoRefDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.VotingDelegationIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAddressStr",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrep",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAddress",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Address"
+          ]
+        },
+        {
+          "name": "setAddressStr",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDrep",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.DRep"
+          ]
+        },
+        {
+          "name": "setDrepHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDrepHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDrepType",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.intent.VotingIntent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnchorHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnchorUrl",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovActionId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovActionIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovActionTxHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVote",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVoteDecision",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVoter",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVoterHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "hasRuntimeObjects",
+          "parameterTypes": []
+        },
+        {
+          "name": "needsDeserialization",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAnchor",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Anchor"
+          ]
+        },
+        {
+          "name": "setAnchorHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setAnchorUrl",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setGovActionId",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId"
+          ]
+        },
+        {
+          "name": "setGovActionIndex",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setGovActionTxHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRedeemer",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setRedeemerHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setVote",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Vote"
+          ]
+        },
+        {
+          "name": "setVoteDecision",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setVoter",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Voter"
+          ]
+        },
+        {
+          "name": "setVoterHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.MetadataDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.MetadataSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.MetadataSerializer$Format",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.PlaceholderMetadata",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getData",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMetadataHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTemplate",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.PlutusDataYamlUtil",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getContext",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTransaction",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVariables",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "setContext",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$TxContext"
+          ]
+        },
+        {
+          "name": "setTransaction",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setVariables",
+          "parameterTypes": [
+            "java.util.Map"
+          ]
+        },
+        {
+          "name": "setVersion",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$ScriptTxContent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$SignerRef",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScope",
+          "parameterTypes": []
+        },
+        {
+          "name": "setRef",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setScope",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$TxContent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getChangeAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getChangeDatum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getChangeDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFrom",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFromRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFromWallet",
+          "parameterTypes": []
+        },
+        {
+          "name": "getInputs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getIntents",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "setChangeAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setChangeDatum",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setChangeDatumHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setFrom",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setFromRef",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setFromWallet",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setInputs",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setIntents",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setScripts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$TxContext",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCollateralPayer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCollateralPayerRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDepositMode",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDepositPayer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFeePayer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFeePayerRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRequiredSigners",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSigners",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValidFromSlot",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValidToSlot",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCollateralPayer",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setCollateralPayerRef",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDepositMode",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDepositPayer",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setFeePayer",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setFeePayerRef",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setRequiredSigners",
+          "parameterTypes": [
+            "java.util.Set"
+          ]
+        },
+        {
+          "name": "setSigners",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setValidFromSlot",
+          "parameterTypes": [
+            "java.lang.Long"
+          ]
+        },
+        {
+          "name": "setValidToSlot",
+          "parameterTypes": [
+            "java.lang.Long"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$TxEntry",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getScriptTx",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTx",
+          "parameterTypes": []
+        },
+        {
+          "name": "isScriptTx",
+          "parameterTypes": []
+        },
+        {
+          "name": "isTx",
+          "parameterTypes": []
+        },
+        {
+          "name": "setScriptTx",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$ScriptTxContent"
+          ]
+        },
+        {
+          "name": "setTx",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$TxContent"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.TxPlan",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCollateralPayer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCollateralPayerRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDepositMode",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDepositPayer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFeePayer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFeePayerRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRequiredSigners",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSignerRefs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTxs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValidFromSlot",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValidToSlot",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVariables",
+          "parameterTypes": []
+        },
+        {
+          "name": "setRequiredSigners",
+          "parameterTypes": [
+            "java.util.Set"
+          ]
+        },
+        {
+          "name": "setVariables",
+          "parameterTypes": [
+            "java.util.Map"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.VariableResolver",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getYamlMapper",
+          "parameterTypes": []
+        }
+      ]
+    }
+  ]
+}
