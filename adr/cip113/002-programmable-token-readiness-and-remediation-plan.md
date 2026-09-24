@@ -106,6 +106,21 @@ The fixes above MUST NOT turn each typed intent into an independently materializ
 fragment. Transfer and burn requirements must still be aggregated by policy before input selection,
 programmable change calculation, withdrawal construction, and index finalization.
 
+**Amendment (2026-09-23)**: aggregation is transaction-wide, not per policy. Selecting inputs per
+policy still made fluent order observable: a smart-wallet UTxO holding two acted policies was
+either refused (the second policy's registry node was not referenced when the first policy's
+selection prepared its proofs) or had the first policy's payments subtracted from its change a
+second time. The materializer now records every owner transfer, burn and redeemer without side
+effects and materializes once, the way `AbstractTx.complete()` collects every output before one
+input selection: one selection over the union of all owner units, every acted node referenced
+before co-resident proofs are prepared, one change calculation, one funding pass. Recording after
+that step is refused. Burns of one asset name are merged into one mint entry, since the ledger's
+mint map holds one quantity per name. Transfer units are canonicalized with core
+`AssetUtil.normalizeUnit` (added for this, alongside `AssetUtil.getPolicyId`; existing `AssetUtil`
+methods are unchanged). It yields the same policy id and asset name standard QuickTx decodes with
+`getPolicyIdAndAssetName`, so an upper-case or `0x`-prefixed unit is the same asset as its
+canonical form, and a malformed one fails before any chain read.
+
 ## 4. Build Lifecycle, Reuse, and Concurrency
 
 ### 4.1 Generated core intents are a build-local overlay

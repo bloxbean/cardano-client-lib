@@ -36,6 +36,7 @@ import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
 import com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
@@ -79,8 +80,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <h2>What it proves</h2>
  * <p>Steps 0-5 stand the protocol up and read it back. Steps 6-18 are the end-to-end path a real
  * user walks: register a token, mint it, transfer it (to self and to another owner), burn it,
- * seize it, update its registry entry, and unfrack a shared UTxO. Because the chain is reset each
- * run, every step starts from a known state.</p>
+ * seize it, update its registry entry, and unfrack a shared UTxO. Steps 20-25 are the edge cases of
+ * one transaction carrying several operations: burns around a transfer of the same asset, a unit
+ * written in upper case, an empty asset name, and a second registered policy sharing a UTxO with
+ * the first. Because the chain is reset each run, every step starts from a known state.</p>
  *
  * <p>Scripts are evaluated locally with Aiken rather than through the backend: a remote evaluator
  * that cannot build an evaluation context returns an empty {@code ScriptFailures} map, which names
@@ -125,6 +128,17 @@ public class Cip113EndToEndIT {
 
     /** Minted into a shared UTxO for the unfracking step. */
     private static final BigInteger FRACKED_QUANTITY = BigInteger.valueOf(5);
+
+    /** The second policy of steps 23-25, whose logic is {@link MinimalAlwaysTrueScript}. */
+    private static String secondPolicyId;
+    private static final String SECOND_ASSET_NAME = "Cip113Second";
+    private static final BigInteger SECOND_FIRST_MINT = BigInteger.valueOf(20);
+
+    /** Each policy's quantity in the shared UTxOs of steps 24-25. */
+    private static final BigInteger SHARED_QUANTITY = BigInteger.valueOf(5);
+
+    private static final BurnAuthorization BURN =
+            BurnAuthorization.of(BigIntPlutusData.of(0), BigIntPlutusData.of(0));
 
     /** The standard Yaci DevKit funded account. */
     private static final String SENDER_MNEMONIC =
@@ -476,6 +490,11 @@ public class Cip113EndToEndIT {
         String rewardAddress = AlwaysTrueScripts.rewardAddress(network).toBech32();
         log.info("=== Always-true withdraw-zero script === hash {} reward address {}",
                 AlwaysTrueScripts.scriptHash(), rewardAddress);
+        ensureRewardAccountRegistered(rewardAddress);
+    }
+
+    /** Register a script's reward account, treating the ledger's "already registered" as success. */
+    private static void ensureRewardAccountRegistered(String rewardAddress) {
         describeAccount(rewardAddress);
 
         Result<String> result = new QuickTxBuilder(backendService)
@@ -490,8 +509,8 @@ public class Cip113EndToEndIT {
             return;
         }
         assertThat(alreadyRegistered(result.getResponse()))
-                .as("registering the always-true reward account failed for a reason other than"
-                        + " it already being registered: %s", result.getResponse())
+                .as("registering reward account %s failed for a reason other than it already"
+                        + " being registered: %s", rewardAddress, result.getResponse())
                 .isTrue();
         log.info("status: the ledger rejected this as already registered, so the account is usable");
     }
@@ -1188,6 +1207,20 @@ public class Cip113EndToEndIT {
                 .build())
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("different issuance redeemers");
+
+        String unit = unitOf(examplePolicyId);
+        for (String malformed : List.of(examplePolicyId.substring(1), "0x" + examplePolicyId.substring(2),
+                unit + "0", examplePolicyId + "zz")) {
+            assertThatThrownBy(() -> build(new ProgrammableTokenTx()
+                    .from(account.baseAddress())
+                    .transfer(recipient.getAddress(),
+                            Amount.builder().unit(malformed).quantity(BigInteger.ONE).build(),
+                            BigIntPlutusData.of(0)))
+                    .build())
+                    .as("malformed unit %s", malformed)
+                    .isInstanceOf(Cip113Exception.class)
+                    .hasMessageContaining("native-asset unit");
+        }
     }
 
     // --------------------------------------------------------- TxPlan YAML path
@@ -1308,6 +1341,275 @@ public class Cip113EndToEndIT {
                 .hasSize(1);
         assertThat(referenced).doesNotHaveDuplicates();
         assertThat(programmableQuantity(unit)).as("a self-transfer conserves the holding").isEqualTo(before);
+    }
+
+    // --------------------------------------------------------------- step 20
+
+    /**
+     * Burn, transfer and burn the same asset in one transaction. The burns reach the ledger as one
+     * mint entry of their sum: two entries for one asset name serialise as the last one only, so the
+     * ledger would burn 2 where selection and change had accounted for 3.
+     */
+    @Test
+    @Order(20)
+    void step20_burnTransferBurnOfOneAssetInOneTransaction() {
+        requireDeployment("Burn, transfer, burn");
+        String unit = unitOf(requireExamplePolicyId());
+        Address recipient = new Address(new Account(network).baseAddress());
+        BigInteger before = programmableQuantity(unit);
+        assertThat(before).isGreaterThanOrEqualTo(BigInteger.valueOf(4));
+
+        ProgrammableTokenTx tx = new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .burn(examplePolicyId, List.of(exampleAsset(BigInteger.ONE)), BURN)
+                .transfer(recipient.toBech32(),
+                        Amount.asset(examplePolicyId, EXAMPLE_ASSET_NAME, BigInteger.ONE), BigIntPlutusData.of(0))
+                .burn(examplePolicyId, List.of(exampleAsset(BigInteger.TWO)), BURN);
+
+        List<MultiAsset> mint = new ArrayList<>();
+        Result<String> result = build(tx)
+                .postBalanceTx((ctx, txn) -> {
+                    mint.clear();
+                    mint.addAll(txn.getBody().getMint());
+                })
+                .completeAndWait(log::info);
+        assertThat(result.isSuccessful()).as("burn, transfer, burn: %s", result.getResponse()).isTrue();
+
+        assertThat(mint).singleElement().satisfies(entry -> assertThat(entry.getAssets())
+                .singleElement()
+                .satisfies(asset -> assertThat(asset.getValue()).isEqualTo(BigInteger.valueOf(-3))));
+        assertThat(programmableQuantity(unit)).as("3 burned and 1 transferred")
+                .isEqualTo(before.subtract(BigInteger.valueOf(4)));
+        assertThat(programmableQuantity(recipient, unit)).isEqualTo(BigInteger.ONE);
+    }
+
+    // --------------------------------------------------------------- step 21
+
+    /**
+     * A unit written in upper case, or with a {@code 0x} prefix, is the same asset: standard QuickTx
+     * decodes every unit to bytes, and the programmable-token builder canonicalises through the
+     * same conversion.
+     */
+    @Test
+    @Order(21)
+    void step21_transferAuthoredWithUppercaseAndPrefixedUnits() {
+        requireDeployment("Upper-case and 0x-prefixed units");
+        String unit = unitOf(requireExamplePolicyId());
+        Address recipient = new Address(new Account(network).baseAddress());
+        BigInteger before = programmableQuantity(unit);
+
+        Result<String> result = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .transfer(recipient.toBech32(),
+                        Amount.builder().unit(unit.toUpperCase()).quantity(BigInteger.TWO).build(),
+                        BigIntPlutusData.of(0))
+                .transfer(recipient.toBech32(),
+                        Amount.builder().unit("0x" + unit).quantity(BigInteger.ONE).build(),
+                        BigIntPlutusData.of(0)))
+                .completeAndWait(log::info);
+        assertThat(result.isSuccessful()).as("upper-case and 0x-prefixed transfers: %s", result.getResponse())
+                .isTrue();
+
+        assertThat(programmableQuantity(unit)).isEqualTo(before.subtract(BigInteger.valueOf(3)));
+        assertThat(programmableQuantity(recipient, unit)).as("both received as the canonical unit")
+                .isEqualTo(BigInteger.valueOf(3));
+    }
+
+    // --------------------------------------------------------------- step 22
+
+    /**
+     * A token with an empty asset name has the policy id alone as its unit. It is minted,
+     * transferred and burned like any other, and the programmable balance reports it.
+     */
+    @Test
+    @Order(22)
+    void step22_emptyAssetNameTokenIsMintedTransferredAndBurned() {
+        requireDeployment("Empty asset name");
+        String unit = requireExamplePolicyId();                 // 56 characters: the empty name
+        Address recipient = new Address(new Account(network).baseAddress());
+        BigInteger before = programmableQuantity(unit);
+
+        Result<String> mint = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .mint(examplePolicyId, account.baseAddress(), List.of(new Asset("0x", BigInteger.TEN)),
+                        BigIntPlutusData.of(0), null))
+                .completeAndWait(log::info);
+        assertThat(mint.isSuccessful()).as("minting the empty asset name: %s", mint.getResponse()).isTrue();
+        assertThat(programmableQuantity(unit)).as("the programmable balance reports a 56-character unit")
+                .isEqualTo(before.add(BigInteger.TEN));
+
+        Result<String> result = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .transfer(recipient.toBech32(),
+                        Amount.builder().unit(unit).quantity(BigInteger.valueOf(3)).build(), BigIntPlutusData.of(0))
+                .burn(examplePolicyId, List.of(new Asset("0x", BigInteger.TWO)), BURN))
+                .completeAndWait(log::info);
+        assertThat(result.isSuccessful()).as("transfer and burn of the empty asset name: %s",
+                result.getResponse()).isTrue();
+
+        assertThat(programmableQuantity(unit)).isEqualTo(before.add(BigInteger.valueOf(5)));
+        assertThat(programmableQuantity(recipient, unit)).isEqualTo(BigInteger.valueOf(3));
+    }
+
+    // --------------------------------------------------------------- step 23
+
+    /** Register a second programmable policy, with its own logic script, and mint its first supply. */
+    @Test
+    @Order(23)
+    void step23_registerASecondPolicy() {
+        requireDeployment("Second policy");
+        protocolService.scripts().register(MinimalAlwaysTrueScript.SCRIPT);
+        ensureRewardAccountRegistered(MinimalAlwaysTrueScript.rewardAddress(network).toBech32());
+        String policy = requireSecondPolicyId();
+        assertThat(policy).isNotEqualToIgnoringCase(requireExamplePolicyId());
+        assertThat(protocolService.isProgrammable(policy).getValue()).isFalse();
+
+        Result<String> result = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .register("second", Cip113Registration.from(RegistryNodeSpec.builder()
+                        .mintingLogicScript(MinimalAlwaysTrueScript.credential())
+                        .transferLogicScript(MinimalAlwaysTrueScript.credential())
+                        .thirdPartyTransferLogicScript(MinimalAlwaysTrueScript.credential())
+                        .build()), PlutusData.unit())
+                .mint(ProgrammableTokenPolicyRef.named("second"), account.baseAddress(),
+                        List.of(secondAsset(SECOND_FIRST_MINT)), PlutusData.unit(), null))
+                .completeAndWait(log::info);
+        assertThat(result.isSuccessful()).as("registering the second policy: %s", result.getResponse()).isTrue();
+
+        assertThat(protocolService.isProgrammable(policy).getValue()).isTrue();
+        assertThat(programmableQuantity(secondUnit())).isEqualTo(SECOND_FIRST_MINT);
+    }
+
+    // --------------------------------------------------------------- step 24
+
+    /**
+     * Transfer both policies out of a UTxO that holds them together, once in each fluent order.
+     * More of the second policy is sent than its own UTxOs hold, so the shared one has to be
+     * spent: it must be selected once, prove both policies, and return each remainder once.
+     */
+    @Test
+    @Order(24)
+    void step24_transferBothPoliciesOutOfASharedUtxoInEitherOrder() {
+        requireDeployment("Shared-UTxO transfer");
+        String exampleUnit = unitOf(requireExamplePolicyId());
+        String secondUnit = secondUnit();
+
+        for (boolean exampleFirst : List.of(true, false)) {
+            Utxo shared = mintSharedUtxo();
+            BigInteger secondToSend = heldOutside(shared, secondUnit).add(BigInteger.ONE);
+            Address recipient = new Address(new Account(network).baseAddress());
+            BigInteger exampleBefore = programmableQuantity(exampleUnit);
+            BigInteger secondBefore = programmableQuantity(secondUnit);
+
+            ProgrammableTokenTx tx = new ProgrammableTokenTx().from(account.baseAddress());
+            Runnable example = () -> tx.transfer(recipient.toBech32(),
+                    Amount.asset(examplePolicyId, EXAMPLE_ASSET_NAME, BigInteger.ONE), BigIntPlutusData.of(0));
+            Runnable second = () -> tx.transfer(recipient.toBech32(),
+                    Amount.builder().unit(secondUnit).quantity(secondToSend).build(), BigIntPlutusData.of(0));
+            (exampleFirst ? example : second).run();
+            (exampleFirst ? second : example).run();
+
+            Result<String> result = build(tx).completeAndWait(log::info);
+            assertThat(result.isSuccessful()).as("example first = %s: %s", exampleFirst, result.getResponse())
+                    .isTrue();
+
+            assertSpent(shared);
+            assertThat(programmableQuantity(exampleUnit)).isEqualTo(exampleBefore.subtract(BigInteger.ONE));
+            assertThat(programmableQuantity(secondUnit)).isEqualTo(secondBefore.subtract(secondToSend));
+            assertThat(programmableQuantity(recipient, exampleUnit)).isEqualTo(BigInteger.ONE);
+            assertThat(programmableQuantity(recipient, secondUnit)).isEqualTo(secondToSend);
+            assertThat(smartWalletUtxos()).as("change comes back one policy per output")
+                    .noneMatch(utxo -> holds(utxo, exampleUnit) && holds(utxo, secondUnit));
+        }
+    }
+
+    // --------------------------------------------------------------- step 25
+
+    /** Burn one policy and transfer the other out of a UTxO that holds them together. */
+    @Test
+    @Order(25)
+    void step25_burnOnePolicyAndTransferTheOtherOutOfASharedUtxo() {
+        requireDeployment("Shared-UTxO burn and transfer");
+        String exampleUnit = unitOf(requireExamplePolicyId());
+        String secondUnit = secondUnit();
+
+        Utxo shared = mintSharedUtxo();
+        BigInteger secondToBurn = heldOutside(shared, secondUnit).add(BigInteger.ONE);
+        Address recipient = new Address(new Account(network).baseAddress());
+        BigInteger exampleBefore = programmableQuantity(exampleUnit);
+        BigInteger secondBefore = programmableQuantity(secondUnit);
+
+        Result<String> result = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .burn(secondPolicyId, List.of(secondAsset(secondToBurn)), BURN)
+                .transfer(recipient.toBech32(),
+                        Amount.asset(examplePolicyId, EXAMPLE_ASSET_NAME, BigInteger.ONE), BigIntPlutusData.of(0)))
+                .completeAndWait(log::info);
+        assertThat(result.isSuccessful()).as("burn one policy, transfer the other: %s", result.getResponse())
+                .isTrue();
+
+        assertSpent(shared);
+        assertThat(programmableQuantity(secondUnit)).isEqualTo(secondBefore.subtract(secondToBurn));
+        assertThat(programmableQuantity(exampleUnit)).isEqualTo(exampleBefore.subtract(BigInteger.ONE));
+        assertThat(programmableQuantity(recipient, exampleUnit)).isEqualTo(BigInteger.ONE);
+    }
+
+    /** The second policy, derived on demand from its minting logic like the example policy. */
+    private static String requireSecondPolicyId() {
+        if (secondPolicyId == null) {
+            Result<String> derived = protocolService.derivePolicyId(MinimalAlwaysTrueScript.credential());
+            assertThat(derived.isSuccessful()).as("deriving the second policy id: %s", derived.getResponse()).isTrue();
+            secondPolicyId = derived.getValue();
+        }
+        return secondPolicyId;
+    }
+
+    private static String secondUnit() {
+        return requireSecondPolicyId()
+                + HexUtil.encodeHexString(SECOND_ASSET_NAME.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static Asset secondAsset(BigInteger quantity) {
+        return new Asset("0x" + HexUtil.encodeHexString(SECOND_ASSET_NAME.getBytes(StandardCharsets.UTF_8)),
+                quantity);
+    }
+
+    /**
+     * Mint both policies into one smart-wallet output. Output merging is what puts them together;
+     * every other programmable-token build keeps it off.
+     */
+    private static Utxo mintSharedUtxo() {
+        String exampleUnit = unitOf(requireExamplePolicyId());
+        String secondUnit = secondUnit();
+        Result<String> result = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .mint(examplePolicyId, account.baseAddress(), List.of(exampleAsset(SHARED_QUANTITY)),
+                        PlutusData.unit(), null)
+                .mint(secondPolicyId, account.baseAddress(), List.of(secondAsset(SHARED_QUANTITY)),
+                        PlutusData.unit(), null))
+                .mergeOutputs(true)
+                .completeAndWait(log::info);
+        assertThat(result.isSuccessful()).as("minting a shared UTxO: %s", result.getResponse()).isTrue();
+
+        return smartWalletUtxos().stream()
+                .filter(utxo -> utxo.getTxHash().equals(result.getValue()))
+                .filter(utxo -> holds(utxo, exampleUnit) && holds(utxo, secondUnit))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("the mint did not produce a shared UTxO"));
+    }
+
+    /** How much of a unit the smart wallet holds outside {@code excluded}. */
+    private static BigInteger heldOutside(Utxo excluded, String unit) {
+        return smartWalletUtxos().stream()
+                .filter(utxo -> !(utxo.getTxHash().equals(excluded.getTxHash())
+                        && utxo.getOutputIndex() == excluded.getOutputIndex()))
+                .map(utxo -> quantity(utxo.getAmount(), unit))
+                .reduce(BigInteger.ZERO, BigInteger::add);
+    }
+
+    private static void assertSpent(Utxo utxo) {
+        assertThat(smartWalletUtxos()).as("the shared UTxO %s#%d was spent", utxo.getTxHash(), utxo.getOutputIndex())
+                .noneMatch(u -> u.getTxHash().equals(utxo.getTxHash()) && u.getOutputIndex() == utxo.getOutputIndex());
     }
 
     /** An account's stake key hash, read from its base address's delegation credential. */

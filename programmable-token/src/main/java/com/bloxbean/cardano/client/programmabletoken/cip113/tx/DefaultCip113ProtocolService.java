@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
@@ -231,8 +232,8 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
         for (TxContentUtxoOutputs output : bootstrap.getValue().getOutputs()) {
             for (TxContentOutputAmount amount : output.getAmount()) {
                 String unit = amount.getUnit();
-                if (unit == null || "lovelace".equals(unit) || unit.length() <= 56) continue;
-                String policy = unit.substring(0, 56);
+                String policy = AssetUtil.getPolicyId(unit);
+                if (policy == null) continue;
                 String name = assetNameOf(unit);
 
                 if (Cip113Deployment.PROTOCOL_PARAMS_ASSET_NAME.equals(name)) {
@@ -350,8 +351,7 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
                 String unit = amount.getUnit();
                 // The origin node's key is empty, so its NFT has an empty asset name and the unit
                 // is exactly the 56-character policy id — the one node this must not skip.
-                if (unit == null || unit.length() < 56) continue;
-                if (!unit.substring(0, 56).equalsIgnoreCase(registryNodeCs)) continue;
+                if (!registryNodeCs.equalsIgnoreCase(AssetUtil.getPolicyId(unit))) continue;
                 return new Address(output.getAddress()).getPaymentCredentialHash()
                         .map(HexUtil::encodeHexString)
                         .orElse(null);
@@ -418,10 +418,11 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
                     .map(node -> node.getDatum().getKey().toLowerCase())
                     .collect(Collectors.toSet());
             List<Amount> programmable = new ArrayList<>();
+            // A 56-character unit is a registered policy's empty asset name, which the builder can
+            // transfer like any other, so it is part of the programmable balance too.
             for (Amount amount : all.getValue()) {
-                String unit = amount.getUnit();
-                if (unit == null || "lovelace".equals(unit) || unit.length() <= 56) continue;
-                if (registered.contains(unit.substring(0, 56).toLowerCase())) programmable.add(amount);
+                String policy = AssetUtil.getPolicyId(amount.getUnit());
+                if (policy != null && registered.contains(policy)) programmable.add(amount);
             }
             return Result.success("OK").withValue(programmable);
         } catch (Exception e) {

@@ -44,7 +44,7 @@ is preserved, but it is not used for dispatch or compatibility validation. Ordin
 
 | Verb | YAML type | Notes |
 |------|-----------|-------|
-| `transfer(receiver, amount, redeemer[, datum])` | `pt:transfer` | Owner transfer to a smart wallet; optional bounded inline datum on the receiving output. |
+| `transfer(receiver, amount, redeemer[, datum])` | `pt:transfer` | Owner transfer to a smart wallet; optional bounded inline datum on the receiving output. The unit is read as standard QuickTx reads it (hex in any case; a 56-character unit is the empty asset name). |
 | `mint(policy, receiver, assets, redeemer, datum)` | `pt:mint` | Policy may be a literal id or the name of a registration in the same plan. |
 | `burn(policy, assets, authorization)` | `pt:burn` | Transfer and issuance redeemers are distinct; every burn of one policy in a transaction must agree on both. |
 | `thirdPartyTransfer(holder, receiver, amount, redeemer)` | `pt:third_party_transfer` | One holder and one policy per transaction; many outputs for that policy aggregate. |
@@ -75,6 +75,8 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
   cannot share a transaction with any mint or burn because its validator requires an empty mint. A
   third-party transfer may share a transaction with an unrelated native-asset mint: its validator
   reads only the acted policy's mint and pins only the paired smart-wallet outputs. Owner transfers
-  of several policies, with or without a native mint, compose in one `Tx`.
+  and burns of several policies, with or without a native mint, compose in one `Tx`, and are
+  funded by one input selection, so a smart-wallet UTxO holding several of those policies is spent
+  once whatever order the operations are written in.
 - Programmable outputs hold one policy each; inline datums are bounded by the deployment's
   `max_inline_datum_bytes`.

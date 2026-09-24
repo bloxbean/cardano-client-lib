@@ -49,7 +49,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Executes the user-facing CIP-113 lifecycle from versioned TxPlan YAML resources: registration,
  * mint, transfer, burn, a cross-owner transfer with datums and variable-bearing redeemers, a
- * registry update that sets the unfracking hook, and an unfracking of a shared UTxO.
+ * registry update that sets the unfracking hook, an unfracking of a shared UTxO, and burns around
+ * a transfer of the same asset in one transaction.
  *
  * <p>The substandard is the JuLC {@code TxPlanSubstandard}, which accepts only
  * {@code Authorization(1, 42)} and requires a {@code HolderDatum(1, 113)} in the transaction — so
@@ -200,6 +201,20 @@ class Cip113TxPlanResourceEndToEndIT {
         assertThat(afterUnfrack).as("the acted policy is regrouped into its own output")
                 .anyMatch(utxo -> holds(utxo, unit) && !holds(utxo, dustUnit)
                         && FRACKED_QUANTITY.equals(quantityOf(utxo, unit)));
+
+        // Burn, transfer and burn the same asset in one transaction, the transfer's unit written in
+        // upper case. The burns must reach the ledger as one mint entry of their sum, and the
+        // transfer must be counted against the same lowercase unit the wallet and the burns use.
+        BigInteger heldBeforeBurns = quantity(protocol, ownerAddress, unit);
+        BigInteger recipientBeforeBurns = quantity(protocol, recipientAddress, unit);
+        Map<String, Object> burnTransferBurn = with(with(with(common, "policy_id", policyId),
+                "token_unit_upper_case", unit.toUpperCase()), "recipient_address", recipient.baseAddress());
+        submit("08-burn-transfer-burn.yml", burnTransferBurn, codec, extension, backend, owner);
+        assertThat(quantity(protocol, ownerAddress, unit))
+                .as("1 + 3 burned and 2 transferred").isEqualTo(heldBeforeBurns.subtract(BigInteger.valueOf(6)));
+        assertThat(quantity(protocol, recipientAddress, unit))
+                .as("the upper-case transfer lands as the canonical unit")
+                .isEqualTo(recipientBeforeBurns.add(BigInteger.TWO));
     }
 
     /** Mint {@link #FRACKED_QUANTITY} of the token and a dust native asset into one smart-wallet output. */

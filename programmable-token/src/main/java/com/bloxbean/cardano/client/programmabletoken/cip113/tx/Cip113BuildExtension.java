@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.programmabletoken.cip113.tx;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenCapability;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenPolicyRef;
@@ -31,7 +32,6 @@ import com.bloxbean.cardano.client.quicktx.intent.PlutusDataValue;
 import com.bloxbean.cardano.client.quicktx.intent.ScriptMintingIntent;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -81,10 +81,12 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             work.put(transaction, intents);
         }
 
-        // Installing the extension remains free for ordinary transactions. Capability and
-        // composition errors also fail before the first registry lookup.
+        // Installing the extension remains free for ordinary transactions. Capability, unit and
+        // composition errors also fail before the first chain read, so an unreachable backend
+        // cannot hide an input error.
         if (work.isEmpty()) return;
         List<ProgrammableTokenIntent> all = work.values().stream().flatMap(List::stream).toList();
+        validateTransferUnits(all);
         validateComposition(all);
         rejectMintsWithUnfracking(context.getTransactions(), all);
         if (work.size() > 1)
@@ -102,6 +104,20 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             if (owner == null || owner.isBlank())
                 throw new Cip113Exception("Programmable-token operations require from(...) before build");
             materializeSource(context, source, owner, entry.getValue(), registry);
+        }
+    }
+
+    /**
+     * Every transfer unit must be a native-asset unit; see
+     * {@link Cip113TransactionMaterializer#canonicalAmount(Amount)}.
+     */
+    private static void validateTransferUnits(List<ProgrammableTokenIntent> intents) {
+        for (ProgrammableTokenIntent intent : intents) {
+            if (intent instanceof ProgrammableTransferIntent)
+                Cip113TransactionMaterializer.canonicalAmount(((ProgrammableTransferIntent) intent).getAmount());
+            else if (intent instanceof ProgrammableThirdPartyTransferIntent)
+                Cip113TransactionMaterializer.canonicalAmount(
+                        ((ProgrammableThirdPartyTransferIntent) intent).getAmount());
         }
     }
 
@@ -216,51 +232,28 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             }
         }
 
-        // Aggregate all owner operations by policy into one transaction-wide materializer.
-        Map<String, List<ProgrammableTokenIntent>> ownerActions = new LinkedHashMap<>();
+        // Every owner operation is recorded first, in authored order, and materialised once: one
+        // selection and one change calculation for the whole transaction, as QuickTx does for
+        // ordinary payments. The materializer refuses conflicting redeemers for a policy.
         for (ProgrammableTokenIntent intent : intents) {
             if (intent instanceof ProgrammableTransferIntent) {
                 ProgrammableTransferIntent transfer = (ProgrammableTransferIntent) intent;
-                ownerActions.computeIfAbsent(policyFromAmount(transfer.getAmount()),
-                        ignored -> new ArrayList<>()).add(intent);
+                String policy = policyFromAmount(transfer.getAmount());
+                primary.recordTransferForExtension(policy, transfer.getReceiver(), transfer.getAmount(),
+                        resolvedOptional(transfer.getInlineDatum(), "inline_datum"));
+                primary.withRedeemer(policy, resolved(transfer.getTransferRedeemer(), "transfer_redeemer"));
             } else if (intent instanceof ProgrammableBurnIntent) {
                 ProgrammableBurnIntent burn = (ProgrammableBurnIntent) intent;
-                ownerActions.computeIfAbsent(resolvePolicy(burn.getPolicy(), namedPolicies),
-                        ignored -> new ArrayList<>()).add(intent);
-            }
-        }
-
-        for (Map.Entry<String, List<ProgrammableTokenIntent>> entry : ownerActions.entrySet()) {
-            String policy = entry.getKey();
-            PlutusData transferRedeemer = null;
-            PlutusData issuanceRedeemer = null;
-            for (ProgrammableTokenIntent intent : entry.getValue()) {
-                if (intent instanceof ProgrammableTransferIntent) {
-                    ProgrammableTransferIntent transfer = (ProgrammableTransferIntent) intent;
-                    primary.recordTransferForExtension(policy, transfer.getReceiver(),
-                            transfer.getAmount(), resolvedOptional(transfer.getInlineDatum(), "inline_datum"));
-                    transferRedeemer = sameRedeemer(transferRedeemer,
-                            resolved(transfer.getTransferRedeemer(), "transfer_redeemer"),
-                            policy, "transfer");
-                } else {
-                    ProgrammableBurnIntent burn = (ProgrammableBurnIntent) intent;
-                    transferRedeemer = sameRedeemer(transferRedeemer,
-                            resolved(burn.getTransferRedeemer(), "transfer_redeemer"),
-                            policy, "transfer");
-                    issuanceRedeemer = sameRedeemer(issuanceRedeemer,
-                            resolved(burn.getIssuanceRedeemer(), "issuance_redeemer"),
-                            policy, "issuance");
-                    for (ProgrammableTokenAsset declaredAsset : burn.getAssets()) {
-                        Asset asset = declaredAsset.toLedgerAsset();
-                        Asset negative = new Asset("0x" + HexUtil.encodeHexString(asset.getNameAsBytes()),
-                                asset.getValue().negate());
-                        primary.recordBurnForExtension(policy, negative,
-                                transferRedeemer, issuanceRedeemer);
-                    }
+                String policy = resolvePolicy(burn.getPolicy(), namedPolicies);
+                PlutusData transferRedeemer = resolved(burn.getTransferRedeemer(), "transfer_redeemer");
+                PlutusData issuanceRedeemer = resolved(burn.getIssuanceRedeemer(), "issuance_redeemer");
+                for (ProgrammableTokenAsset declaredAsset : burn.getAssets()) {
+                    primary.recordBurnForExtension(policy, declaredAsset.toLedgerAsset().negate(),
+                            transferRedeemer, issuanceRedeemer);
                 }
             }
-            primary.withRedeemer(policy, transferRedeemer);
         }
+        primary.materialise();
 
         for (ProgrammableTokenIntent intent : intents) {
             if (intent instanceof ProgrammableMintIntent) {
@@ -283,14 +276,12 @@ public final class Cip113BuildExtension implements TxBuildExtension {
         Cip113TransactionMaterializer materializer = newMaterializer(context, owner, registry)
                 .thirdPartyFrom(new Address(intents.get(0).getHolder()));
         String policy = policyFromAmount(intents.get(0).getAmount());
-        PlutusData redeemer = null;
         for (ProgrammableThirdPartyTransferIntent intent : intents) {
             materializer.recordTransferForExtension(policy, intent.getReceiver(), intent.getAmount(), null);
-            redeemer = sameRedeemer(redeemer,
-                    resolved(intent.getThirdPartyRedeemer(), "third_party_redeemer"),
-                    policy, "third-party");
+            materializer.withRedeemer(policy,
+                    resolved(intent.getThirdPartyRedeemer(), "third_party_redeemer"));
         }
-        materializer.withRedeemer(policy, redeemer);
+        materializer.materialise();
         finish(context, source, materializer);
     }
 
@@ -366,19 +357,9 @@ public final class Cip113BuildExtension implements TxBuildExtension {
         return resolved;
     }
 
+    /** The lowercase policy of a transfer amount; a malformed unit fails here, before any lookup. */
     private static String policyFromAmount(Amount amount) {
-        if (amount == null || amount.getUnit() == null || amount.getUnit().length() <= 56)
-            throw new Cip113Exception("programmable transfer requires a native-asset unit");
-        return amount.getUnit().substring(0, 56).toLowerCase();
-    }
-
-    private static PlutusData sameRedeemer(PlutusData existing, PlutusData candidate,
-                                           String policy, String role) {
-        if (existing == null) return candidate;
-        if (!PlutusDataEquality.equals(existing, candidate))
-            throw new Cip113Exception("Policy " + policy + " declares different " + role
-                    + " redeemers in one transaction");
-        return existing;
+        return AssetUtil.getPolicyId(Cip113TransactionMaterializer.canonicalAmount(amount).getUnit());
     }
 
     private static PlutusData resolved(PlutusDataValue value, String fieldName) {

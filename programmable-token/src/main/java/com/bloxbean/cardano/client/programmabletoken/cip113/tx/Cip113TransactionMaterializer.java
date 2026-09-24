@@ -58,9 +58,9 @@ import java.util.stream.Collectors;
  * the transaction is final.
  *
  * <p>Package-private on purpose. {@link Cip113BuildExtension} is the only caller: it constructs
- * one materializer per authored transaction, records the aggregated operations through the
- * {@code record*} verbs, and hands the generated intents to QuickTx as a build-local overlay.
- * Nothing here is public API.</p>
+ * one materializer per authored transaction, records every operation through the {@code record*}
+ * verbs, calls {@link #materialise()} once, and hands the generated intents to QuickTx as a
+ * build-local overlay. Nothing here is public API.</p>
  *
  * <p>Two behaviours are worth knowing:</p>
  * <ul>
@@ -107,7 +107,7 @@ final class Cip113TransactionMaterializer extends Tx {
     /** Programmable payments declared but not yet turned into inputs/withdrawals. */
     private final Map<String, List<PendingPayment>> pending = new LinkedHashMap<>();
 
-    /** Policies already materialised, so the work is not repeated. */
+    /** Policies already materialised; once any is, recording another operation is refused. */
     private final Set<String> materialised = new LinkedHashSet<>();
 
     /** Base-script UTxOs being spent, in declaration order. */
@@ -119,8 +119,11 @@ final class Cip113TransactionMaterializer extends Tx {
     /** Covering nodes for unregistered policies co-resident in selected PLB inputs. */
     private final Map<String, RegistryLookup.RegistryNodeUtxo> coveringProofNodes = new LinkedHashMap<>();
 
-    /** Quantities being destroyed, keyed by policy id. Emitted as a negative mint. */
-    private final Map<String, List<Asset>> burns = new LinkedHashMap<>();
+    /**
+     * Quantities being destroyed (negative), keyed by policy id and then asset-name hex. Emitted as
+     * a negative mint with one entry per asset name.
+     */
+    private final Map<String, Map<String, BigInteger>> burns = new LinkedHashMap<>();
 
     /**
      * Policies whose mint proof is an OUTPUT rather than a reference input, keyed to the registry
@@ -152,9 +155,6 @@ final class Cip113TransactionMaterializer extends Tx {
 
     /** "txHash#index" of every base-script input, so only their Spend redeemers are rewritten. */
     private final Set<String> plbInputRefs = new LinkedHashSet<>();
-
-    /** The core transfer withdrawal is one per transaction, not one per policy. */
-    private boolean transferWithdrawalAdded;
 
     /** Whether index resolution has run, so the post-balance pass knows to verify or to resolve. */
     private boolean indicesResolved;
@@ -425,16 +425,23 @@ final class Cip113TransactionMaterializer extends Tx {
 
     // -------------------------------------------------------------- verbs
 
-    /** Record an owner transfer of a registered policy. Never falls back to an ordinary payment. */
+    /**
+     * Record an owner transfer of a registered policy. Never falls back to an ordinary payment.
+     *
+     * <p>The amount is recorded under its {@link #canonicalAmount(Amount) canonical} unit, the one
+     * wallet UTxOs and burns use, so selection and change match it however it was written.</p>
+     */
     Cip113TransactionMaterializer recordTransferForExtension(String policyId, String address,
                                                              Amount amount, PlutusData inlineDatum) {
-        String amountPolicy = policyOf(amount);
-        if (amountPolicy == null || !policyId.equalsIgnoreCase(amountPolicy))
+        Amount canonical = canonicalAmount(amount);
+        if (!policyId.equalsIgnoreCase(policyOf(canonical)))
             throw new Cip113Exception("Transfer amount does not belong to policy " + policyId);
-        if (registry.byPolicy(policyId).isEmpty())
-            throw new Cip113Exception("Policy " + policyId + " is not registered");
+        String key = policyId.toLowerCase();
+        requireOpen(key);
+        if (registry.byPolicy(key).isEmpty())
+            throw new Cip113Exception("Policy " + key + " is not registered");
         requireInlineDatumWithinBound(inlineDatum, "transfer");
-        addProgrammablePayment(policyId.toLowerCase(), address, amount, inlineDatum);
+        addProgrammablePayment(key, address, canonical, inlineDatum);
         return this;
     }
 
@@ -453,7 +460,6 @@ final class Cip113TransactionMaterializer extends Tx {
         declaredOutputLovelace = declaredOutputLovelace.add(minAda);
         super.payToAddress(destination.toBech32(), List.of(Amount.lovelace(minAda), amount),
                 null, inlineDatum, null, null);
-        materialiseIfReady(policyId);
     }
 
     /**
@@ -466,20 +472,27 @@ final class Cip113TransactionMaterializer extends Tx {
      * <p>There is one transfer-logic and one issuance-logic invocation per policy, so every burn of
      * a policy must agree on both redeemers; a conflicting value fails here rather than silently
      * winning by being recorded last.</p>
+     *
+     * <p>Burns of the same asset name add up to one mint entry. The ledger's mint is a map keyed
+     * by asset name, so a second entry for the same name would replace the first when serialised
+     * rather than add to it, while selection and change had counted both.</p>
      */
     void recordBurnForExtension(String policyId, Asset asset, PlutusData transferRedeemer,
                                 PlutusData issuanceRedeemer) {
         String key = policyId.toLowerCase();
+        requireOpen(key);
         rejectConflictingRedeemer(substandardRedeemers.get(key), transferRedeemer, key, "transfer");
         rejectConflictingRedeemer(burnIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
 
         BigInteger burned = asset.getValue().negate();          // arrives negative, as Tx expects
-        String unit = key + HexUtil.encodeHexString(asset.getNameAsBytes());
+        String assetNameHex = HexUtil.encodeHexString(asset.getNameAsBytes());
+        String unit = key + assetNameHex;
 
         pending.computeIfAbsent(key, k -> new ArrayList<>())
                 .add(new PendingPayment(null, Amount.builder().unit(unit).quantity(burned).build()));
 
-        burns.computeIfAbsent(key, k -> new ArrayList<>()).add(asset);
+        burns.computeIfAbsent(key, k -> new LinkedHashMap<>())
+                .merge(assetNameHex, asset.getValue(), BigInteger::add);
 
         substandardRedeemers.put(key, transferRedeemer);
         burnIssuanceRedeemers.put(key, issuanceRedeemer);
@@ -523,13 +536,15 @@ final class Cip113TransactionMaterializer extends Tx {
      * The substandard's redeemer for one policy — mandatory for every programmable payment.
      *
      * <p>Attached per <i>policy</i>, not per payment: pay the same token to three recipients
-     * and there is still one set of rules to satisfy.</p>
+     * and there is still one set of rules to satisfy. Recording it selects nothing; that happens
+     * once, in {@link #materialise()}.</p>
      */
     Cip113TransactionMaterializer withRedeemer(String policyId, PlutusData substandardRedeemer) {
         String key = policyId.toLowerCase();
-        rejectConflictingRedeemer(substandardRedeemers.get(key), substandardRedeemer, key, "transfer");
+        requireOpen(key);
+        rejectConflictingRedeemer(substandardRedeemers.get(key), substandardRedeemer, key,
+                dispatch == Dispatch.THIRD_PARTY ? "third-party" : "transfer");
         substandardRedeemers.put(key, substandardRedeemer);
-        materialiseIfReady(key);
         return this;
     }
 
@@ -548,30 +563,55 @@ final class Cip113TransactionMaterializer extends Tx {
 
     // ------------------------------------------------------------- assembly
 
-    private void materialiseIfReady(String policyId) {
-        String key = policyId.toLowerCase();
-        if (materialised.contains(key)) return;
-        if (!pending.containsKey(key) || !substandardRedeemers.containsKey(key)) return;
-        if (owner == null) return;               // need the owner before selecting inputs
+    /**
+     * Turn every recorded transfer and burn into inputs, withdrawals and change, in one pass over
+     * the whole transaction.
+     *
+     * <p>This is QuickTx's own shape: {@code AbstractTx.complete()} collects every intent's outputs
+     * before a single input selection and a single change calculation. Selecting per policy instead
+     * makes a UTxO holding two acted policies depend on fluent order: the first policy's selection
+     * cannot prove the second (its registry node is not referenced yet), or the second policy's
+     * change subtracts the first's payments a second time.</p>
+     */
+    void materialise() {
+        if (pending.isEmpty()) return;
+        if (!materialised.isEmpty())
+            throw new Cip113Exception("Programmable-token operations of " + materialised
+                    + " are already materialised; materialise() runs once per transaction.");
+        if (owner == null)
+            throw new Cip113Exception("Programmable-token operations need the owner — call from(...)");
         requireCoordinationUtxo("a programmable payment");
-
-        RegistryLookup.RegistryNodeUtxo node = registry.byPolicy(key)
-                .orElseThrow(() -> new Cip113Exception("Policy " + key + " is not registered"));
-
-        Map<String, BigInteger> requiredByUnit = new LinkedHashMap<>();
-        for (PendingPayment payment : pending.get(key)) {
-            requiredByUnit.merge(payment.amount.getUnit(), payment.amount.getQuantity(), BigInteger::add);
+        for (String policy : pending.keySet()) {
+            if (!substandardRedeemers.containsKey(policy))
+                throw new Cip113Exception("Policy " + policy + " has programmable payments but no"
+                        + " substandard redeemer; record one with withRedeemer(...).");
         }
 
         if (dispatch == Dispatch.THIRD_PARTY) {
-            materialiseThirdParty(key, node, requiredByUnit);
-            materialised.add(key);
-            return;
+            if (pending.size() > 1)
+                throw new Cip113Exception("A CIP-113 third-party transaction acts on exactly one"
+                        + " policy, but " + pending.keySet() + " were recorded. The third_party"
+                        + " redeemer names a single registry node, so split them into separate"
+                        + " transactions.");
+            String policy = pending.keySet().iterator().next();
+            materialiseThirdParty(policy, registeredNode(policy), requiredByUnit(pending.get(policy)));
+        } else {
+            materialiseOwnerOperations();
+        }
+        materialised.addAll(pending.keySet());
+    }
+
+    private void materialiseOwnerOperations() {
+        Map<String, RegistryLookup.RegistryNodeUtxo> nodes = new LinkedHashMap<>();
+        List<PendingPayment> payments = new ArrayList<>();
+        for (Map.Entry<String, List<PendingPayment>> entry : pending.entrySet()) {
+            nodes.put(entry.getKey(), registeredNode(entry.getKey()));
+            payments.addAll(entry.getValue());
         }
 
-        List<Utxo> selected = selectInputs(key, requiredByUnit);
+        List<Utxo> selected = selectInputs(requiredByUnit(payments), smartWallet());
         if (selected.isEmpty()) {
-            throw new Cip113Exception("No base-script UTxOs holding policy " + key
+            throw new Cip113Exception("No base-script UTxOs holding " + nodes.keySet()
                     + " found at " + smartWallet().toBech32());
         }
 
@@ -584,32 +624,54 @@ final class Cip113TransactionMaterializer extends Tx {
         plbInputs.addAll(selected);
         selected.forEach(u -> plbInputRefs.add(ref(u.getTxHash(), u.getOutputIndex())));
 
-        readFrom(node.getUtxo());
-        referencedNodes.put(key, node);
+        // Every acted policy's node is referenced before co-resident proofs are prepared, so a
+        // selected UTxO holding two acted policies proves both as registered.
+        nodes.forEach((policy, node) -> {
+            readFrom(node.getUtxo());
+            referencedNodes.put(policy, node);
+        });
         prepareIncidentalPolicyProofs(selected);
-
-        addGlobalStateReference(key, node.getDatum().getGlobalStateCs());
+        nodes.forEach((policy, node) -> addGlobalStateReference(policy, node.getDatum().getGlobalStateCs()));
 
         // Core delegate: exactly one per transaction, whatever the policy count. A second
         // withdrawal against the same credential would collide in the ledger's withdrawal map
         // and shift every later redeemer index.
-        if (!transferWithdrawalAdded) {
-            withdraw(deployment.transferRewardAddress(), BigInteger.ZERO,
-                    Cip113Redeemers.transfer(0, List.of()));
-            transferWithdrawalAdded = true;
-        }
+        withdraw(deployment.transferRewardAddress(), BigInteger.ZERO,
+                Cip113Redeemers.transfer(0, List.of()));
 
-        // The token's own transfer logic, with the caller's redeemer. Which script that is comes
+        // Each token's own transfer logic, with the caller's redeemer. Which script that is comes
         // from the registry node, not from the caller.
-        invokeLogicScript(node.getDatum().getTransferLogicScript(),
-                substandardRedeemers.get(key), "transfer logic");
-
-        materialiseBurn(key, node);
+        nodes.forEach((policy, node) -> {
+            invokeLogicScript(node.getDatum().getTransferLogicScript(),
+                    substandardRedeemers.get(policy), "transfer logic");
+            materialiseBurn(policy, node);
+        });
 
         returnProgrammableChange(selected);
         fundFromFeePayer();
+    }
 
-        materialised.add(key);
+    private RegistryLookup.RegistryNodeUtxo registeredNode(String policyId) {
+        return registry.byPolicy(policyId)
+                .orElseThrow(() -> new Cip113Exception("Policy " + policyId + " is not registered"));
+    }
+
+    private static Map<String, BigInteger> requiredByUnit(List<PendingPayment> payments) {
+        Map<String, BigInteger> required = new LinkedHashMap<>();
+        for (PendingPayment payment : payments)
+            required.merge(payment.amount.getUnit(), payment.amount.getQuantity(), BigInteger::add);
+        return required;
+    }
+
+    /**
+     * Refuse an operation recorded after {@link #materialise()}: the inputs are already selected,
+     * so nothing would fund it and the build would fail far from the cause.
+     */
+    private void requireOpen(String policyId) {
+        if (materialised.isEmpty()) return;
+        throw new Cip113Exception("An operation on policy " + policyId + " was recorded after the"
+                + " transaction's programmable inputs were selected for " + materialised + "."
+                + " Record every transfer, burn and redeemer before materialise().");
     }
 
     /**
@@ -625,7 +687,7 @@ final class Cip113TransactionMaterializer extends Tx {
      * credential for both, that is a single withdrawal and {@link #invokeLogicScript} dedupes it.</p>
      */
     private void materialiseBurn(String policyId, RegistryLookup.RegistryNodeUtxo node) {
-        List<Asset> burning = burns.get(policyId);
+        Map<String, BigInteger> burning = burns.get(policyId);
         if (burning == null || burning.isEmpty()) return;
 
         if (issuanceTemplateUtxo == null) {
@@ -645,7 +707,10 @@ final class Cip113TransactionMaterializer extends Tx {
         attachMintValidator(issuanceScript);
         // Index is a placeholder; resolveMintRedeemers rewrites it once the node's position in
         // the sorted reference inputs is known.
-        mintAsset(issuanceScript, burning, Cip113Redeemers.mintRefInput(0));
+        List<Asset> assets = burning.entrySet().stream()
+                .map(burn -> new Asset("0x" + burn.getKey(), burn.getValue()))
+                .toList();
+        mintAsset(issuanceScript, assets, Cip113Redeemers.mintRefInput(0));
         mintProofNodes.put(policyId, node);
 
         // issuance_mint's own authorisation, distinct from the transfer logic above.
@@ -781,12 +846,7 @@ final class Cip113TransactionMaterializer extends Tx {
         return total;
     }
 
-    private List<Utxo> selectInputs(String policyId, Map<String, BigInteger> requiredByUnit) {
-        return selectInputs(policyId, requiredByUnit, smartWallet());
-    }
-
-    private List<Utxo> selectInputs(String policyId, Map<String, BigInteger> requiredByUnit,
-                                    Address wallet) {
+    private List<Utxo> selectInputs(Map<String, BigInteger> requiredByUnit, Address wallet) {
         List<Utxo> candidates = new ArrayList<>(utxoSupplier.getAll(wallet.toBech32()));
         candidates.removeIf(utxo -> externallyReservedInputRefs.contains(
                 ref(utxo.getTxHash(), utxo.getOutputIndex())));
@@ -1462,12 +1522,6 @@ final class Cip113TransactionMaterializer extends Tx {
      */
     private void materialiseThirdParty(String policyId, RegistryLookup.RegistryNodeUtxo node,
                                        Map<String, BigInteger> seizedByUnit) {
-        if (!materialised.isEmpty()) {
-            throw new Cip113Exception("A CIP-113 third-party transaction acts on exactly one"
-                    + " policy; " + materialised + " is already acted on. The third_party"
-                    + " redeemer names a single registry node, so split " + policyId
-                    + " into a separate transaction.");
-        }
         Address holderWallet = SmartWalletAddress.isSmartWallet(deployment, thirdPartyHolder)
                 ? thirdPartyHolder
                 : SmartWalletAddress.ofPaymentCredential(deployment, thirdPartyHolder);
@@ -1475,7 +1529,7 @@ final class Cip113TransactionMaterializer extends Tx {
         rejectSeizingToSelf(holderWallet);
         requireScripts("a third-party action");
 
-        List<Utxo> selected = selectInputs(policyId, seizedByUnit, holderWallet);
+        List<Utxo> selected = selectInputs(seizedByUnit, holderWallet);
         if (selected.isEmpty()) {
             throw new Cip113Exception("No base-script UTxOs holding policy " + policyId
                     + " found at " + holderWallet.toBech32() + ", so there is nothing to seize."
@@ -2099,16 +2153,34 @@ final class Cip113TransactionMaterializer extends Tx {
     }
 
     /**
-     * The policy of an amount, or null for ADA.
+     * A programmable-token amount with its unit in canonical form, as
+     * {@link AssetUtil#normalizeUnit(String)} defines it: lowercase hex, no {@code 0x} prefix.
      *
-     * <p>A 56-character unit is a policy with an <b>empty asset name</b> — a perfectly valid
-     * native asset that still needs a registry proof. Only the literal {@code lovelace} unit is
-     * ADA.</p>
+     * <p>This class selects inputs, counts payments and returns change by unit string, and wallet
+     * UTxOs and burns use the canonical form, so every recorded unit has to be in it too.</p>
+     *
+     * @throws Cip113Exception when the amount is not a native-asset amount
      */
+    static Amount canonicalAmount(Amount amount) {
+        String unit = amount == null ? null : amount.getUnit();
+        String canonical;
+        try {
+            canonical = AssetUtil.normalizeUnit(unit);
+        } catch (IllegalArgumentException e) {
+            throw new Cip113Exception(notANativeAssetUnit(unit), e);
+        }
+        if (LOVELACE.equals(canonical)) throw new Cip113Exception(notANativeAssetUnit(unit));
+        return Amount.builder().unit(canonical).quantity(amount.getQuantity()).build();
+    }
+
+    private static String notANativeAssetUnit(String unit) {
+        return "A programmable-token amount needs a native-asset unit: a 56-character hex policy id"
+                + " followed by the asset name's bytes in hex (at most 32 bytes), but got '" + unit + "'.";
+    }
+
+    /** The policy of an amount, or null for ADA; see {@link AssetUtil#getPolicyId(String)}. */
     private static String policyOf(Amount amount) {
-        String unit = amount.getUnit();
-        if (unit == null || LOVELACE.equals(unit) || unit.length() < 56) return null;
-        return unit.substring(0, 56).toLowerCase();
+        return AssetUtil.getPolicyId(amount.getUnit());
     }
 
     private static int policyCount(Utxo utxo) {

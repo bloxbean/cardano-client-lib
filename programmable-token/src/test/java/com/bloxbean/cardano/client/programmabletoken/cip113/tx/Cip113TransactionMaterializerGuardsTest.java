@@ -232,9 +232,10 @@ class Cip113TransactionMaterializerGuardsTest {
         Cip113TransactionMaterializer tx = materializer(onChain, utxoSupplier)
                 .thirdPartyFrom(ownerAddress())
                 .recordTransferForExtension(POLICY, ownerAddress().toBech32(),
-                        Amount.asset(POLICY, "Tok", BigInteger.ONE), null);
+                        Amount.asset(POLICY, "Tok", BigInteger.ONE), null)
+                .withRedeemer(POLICY, BigIntPlutusData.of(0));
 
-        assertThatThrownBy(() -> tx.withRedeemer(POLICY, BigIntPlutusData.of(0)))
+        assertThatThrownBy(tx::materialise)
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("same smart wallet it seized them from");
         verifyNoInteractions(utxoSupplier);
@@ -592,6 +593,88 @@ class Cip113TransactionMaterializerGuardsTest {
         assertThatThrownBy(() -> prepare(service, utxoSupplier, tx))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("different issuance redeemers");
+        verifyNoInteractions(utxoSupplier);
+    }
+
+    // ------------------------------------------------------------ owner operations
+
+    /**
+     * A malformed transfer unit fails as a {@link Cip113Exception} naming the unit before any chain
+     * read — no registry scan, no coordination or template lookup, no UTxO query — so an unreachable
+     * backend cannot hide the input error. Owner and third-party transfers alike.
+     */
+    @Test
+    void malformedTransferUnitsFailBeforeAnyChainRead() {
+        List<String> malformed = List.of(
+                POLICY.substring(1),                              // 55 characters: no policy id
+                "0x" + POLICY.substring(2),                       // 0x-prefixed 27-byte policy
+                POLICY + "546f6b0",                               // odd-length asset name
+                POLICY + "zz",                                    // not hexadecimal
+                POLICY + "00".repeat(33));                        // asset name over 32 bytes
+
+        for (String unit : malformed) {
+            Amount amount = Amount.builder().unit(unit).quantity(BigInteger.ONE).build();
+            List<ProgrammableTokenTx> transactions = List.of(
+                    new ProgrammableTokenTx().from(ownerAddress().toBech32())
+                            .transfer(holderAddress().toBech32(), amount, BigIntPlutusData.of(0)),
+                    new ProgrammableTokenTx().from(ownerAddress().toBech32())
+                            .thirdPartyTransfer(holderAddress().toBech32(), ownerAddress().toBech32(),
+                                    amount, BigIntPlutusData.of(0)));
+            for (ProgrammableTokenTx tx : transactions) {
+                Cip113ProtocolService service = serviceWith(node(POLICY, "ffff", LOGIC_HASH));
+                UtxoSupplier utxoSupplier = mock(UtxoSupplier.class);
+
+                assertThatThrownBy(() -> prepare(service, utxoSupplier, tx))
+                        .as(unit)
+                        .isInstanceOf(Cip113Exception.class)
+                        .hasMessageContaining("native-asset unit")
+                        .hasMessageContaining(unit);
+                verifyNoInteractions(service, utxoSupplier);
+            }
+        }
+    }
+
+    /** Lovelace is a valid unit to core, but never a programmable-token amount. */
+    @Test
+    void aLovelaceAmountIsNotAProgrammableTokenAmount() {
+        UtxoSupplier utxoSupplier = mock(UtxoSupplier.class);
+        Cip113TransactionMaterializer tx = materializer(node(POLICY, "ffff", LOGIC_HASH), utxoSupplier);
+
+        assertThatThrownBy(() -> tx.recordTransferForExtension(POLICY, holderAddress().toBech32(),
+                Amount.lovelace(BigInteger.ONE), null))
+                .isInstanceOf(Cip113Exception.class)
+                .hasMessageContaining("native-asset unit");
+        verifyNoInteractions(utxoSupplier);
+    }
+
+    /** A transfer and a burn of one policy share its single transfer-logic invocation. */
+    @Test
+    void aBurnCannotDisagreeWithATransferOnTheTransferRedeemer() {
+        UtxoSupplier utxoSupplier = mock(UtxoSupplier.class);
+        Cip113ProtocolService service = serviceWith(node(POLICY, "ffff", LOGIC_HASH));
+        ProgrammableTokenTx tx = new ProgrammableTokenTx().from(ownerAddress().toBech32())
+                .transfer(holderAddress().toBech32(), Amount.asset(POLICY, "Tok", BigInteger.ONE),
+                        BigIntPlutusData.of(0))
+                .burn(POLICY, List.of(new Asset("Tok", BigInteger.ONE)),
+                        BurnAuthorization.of(BigIntPlutusData.of(1), BigIntPlutusData.of(0)));
+
+        assertThatThrownBy(() -> prepare(service, utxoSupplier, tx))
+                .isInstanceOf(Cip113Exception.class)
+                .hasMessageContaining("different transfer redeemers");
+        verifyNoInteractions(utxoSupplier);
+    }
+
+    /** A payment with no substandard redeemer used to be skipped silently; now it is named. */
+    @Test
+    void aTransferWithoutARedeemerFailsWhenMaterialised() {
+        UtxoSupplier utxoSupplier = mock(UtxoSupplier.class);
+        Cip113TransactionMaterializer tx = materializer(node(POLICY, "ffff", LOGIC_HASH), utxoSupplier)
+                .recordTransferForExtension(POLICY, holderAddress().toBech32(),
+                        Amount.asset(POLICY, "Tok", BigInteger.ONE), null);
+
+        assertThatThrownBy(tx::materialise)
+                .isInstanceOf(Cip113Exception.class)
+                .hasMessageContaining("no substandard redeemer");
         verifyNoInteractions(utxoSupplier);
     }
 

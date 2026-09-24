@@ -24,6 +24,7 @@ import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Exception;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Protocol;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Data;
+import com.bloxbean.cardano.client.programmabletoken.cip113.model.RegistryNode;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,12 +42,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -192,6 +196,40 @@ class DefaultCip113ProtocolServiceTest {
         assertThat(service.coordinationUtxo().getTxHash()).isEqualTo("ef".repeat(32));
         assertThat(service.deployment().getMaxInlineDatumBytes()).isEqualTo(1024);
         assertThat(bootstrapReads).hasValue(2);
+    }
+
+    // ------------------------------------------------------ programmable balance
+
+    /**
+     * A registered policy's empty asset name is a 56-character unit. The builder transfers and
+     * burns it like any other asset, so the programmable balance has to report it too.
+     */
+    @Test
+    void programmableBalanceIncludesARegisteredPolicysEmptyAssetName() {
+        String policy = "5f".repeat(28);
+        String unregistered = "6f".repeat(28);
+        Address owner = AddressProvider.getEntAddress(Credential.fromKey("22".repeat(28)), Networks.testnet());
+        List<Amount> held = List.of(
+                Amount.lovelace(BigInteger.valueOf(2_000_000L)),
+                Amount.builder().unit(policy).quantity(BigInteger.valueOf(7)).build(),
+                Amount.builder().unit(policy + "546f6b").quantity(BigInteger.valueOf(3)).build(),
+                Amount.builder().unit(unregistered).quantity(BigInteger.valueOf(4)).build());
+        Utxo nodeUtxo = Utxo.builder().txHash("cd".repeat(32)).outputIndex(0)
+                .address(registryAddress.toBech32()).amount(List.of()).build();
+        RegistryLookup registry = mock(RegistryLookup.class);
+        when(registry.all()).thenReturn(List.of(new RegistryLookup.RegistryNodeUtxo(nodeUtxo,
+                RegistryNode.builder().key(policy).next("ff".repeat(28)).build())));
+
+        DefaultCip113ProtocolService service = spy(service());
+        doReturn(Result.success("OK").withValue(held)).when(service).getBalance(owner);
+        doReturn(registry).when(service).registryLookup();
+
+        Result<List<Amount>> balance = service.getProgrammableBalance(owner);
+
+        assertThat(balance.isSuccessful()).as(balance.getResponse()).isTrue();
+        assertThat(balance.getValue()).extracting(Amount::getUnit, Amount::getQuantity).containsExactly(
+                tuple(policy, BigInteger.valueOf(7)),
+                tuple(policy + "546f6b", BigInteger.valueOf(3)));
     }
 
     // ------------------------------------------------- plan metadata pinning
