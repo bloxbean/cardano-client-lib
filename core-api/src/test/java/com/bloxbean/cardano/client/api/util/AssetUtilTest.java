@@ -8,10 +8,75 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class AssetUtilTest {
+    private static final String POLICY_ID = "5f7db4c0db37164903ade4e952db632245e048bbe76a5aae140ec15b";
+    private static final String MAX_ASSET_NAME = "ab".repeat(32);
+
+    @Test
+    void normalizeUnit_returnsLowercaseHexWithoutPrefix() {
+        assertThat(AssetUtil.normalizeUnit(POLICY_ID + "546F6B")).isEqualTo(POLICY_ID + "546f6b");
+        assertThat(AssetUtil.normalizeUnit(POLICY_ID.toUpperCase())).isEqualTo(POLICY_ID);
+        assertThat(AssetUtil.normalizeUnit("0x" + POLICY_ID + "546f6b")).isEqualTo(POLICY_ID + "546f6b");
+        assertThat(AssetUtil.normalizeUnit("lovelace")).isEqualTo("lovelace");
+    }
+
+    @Test
+    void normalizeUnit_acceptsTheLedgersAssetNameBounds() {
+        assertThat(AssetUtil.normalizeUnit(POLICY_ID)).as("empty asset name").isEqualTo(POLICY_ID);
+        assertThat(AssetUtil.normalizeUnit("0x" + POLICY_ID)).isEqualTo(POLICY_ID);
+        assertThat(AssetUtil.normalizeUnit(POLICY_ID + MAX_ASSET_NAME)).as("32-byte name")
+                .isEqualTo(POLICY_ID + MAX_ASSET_NAME);
+        assertThat(AssetUtil.normalizeUnit("0x" + POLICY_ID + MAX_ASSET_NAME))
+                .isEqualTo(POLICY_ID + MAX_ASSET_NAME);
+    }
+
+    @Test
+    void normalizeUnit_rejectsMalformedUnits() {
+        List<String> malformed = List.of(
+                "",
+                "0x",
+                "LOVELACE",                                       // only the exact spelling is lovelace
+                POLICY_ID.substring(2),                           // 27-byte policy id
+                "0x" + POLICY_ID.substring(2),
+                POLICY_ID + "0",                                  // odd number of hex digits
+                POLICY_ID + "zz",                                 // not hexadecimal
+                "0X" + POLICY_ID,                                 // only a lowercase 0x prefix
+                "0x0x" + POLICY_ID,                               // one prefix at most
+                POLICY_ID + "\u0663\u0663",                       // non-ASCII digits
+                POLICY_ID + MAX_ASSET_NAME + "ab",                // 33-byte asset name
+                "0x" + POLICY_ID + MAX_ASSET_NAME + "ab");
+
+        for (String unit : malformed) {
+            assertThatThrownBy(() -> AssetUtil.normalizeUnit(unit)).as("'%s'", unit)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid unit '" + unit + "'");
+        }
+        assertThatThrownBy(() -> AssetUtil.normalizeUnit(null)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void normalizeUnit_agreesWithGetPolicyIdAndAssetName() {
+        for (String unit : List.of(POLICY_ID, POLICY_ID + "546F6B", "0x" + POLICY_ID + MAX_ASSET_NAME)) {
+            var decoded = AssetUtil.getPolicyIdAndAssetName(unit);
+            assertThat(AssetUtil.normalizeUnit(unit)).isEqualTo(decoded._1 + decoded._2.substring(2));
+        }
+    }
+
+    @Test
+    void getPolicyId_returnsThePolicyOrNullForLovelace() {
+        assertThat(AssetUtil.getPolicyId(POLICY_ID + "546f6b")).isEqualTo(POLICY_ID);
+        assertThat(AssetUtil.getPolicyId(POLICY_ID.toUpperCase())).as("empty asset name").isEqualTo(POLICY_ID);
+        assertThat(AssetUtil.getPolicyId("0x" + POLICY_ID)).isEqualTo(POLICY_ID);
+        assertThat(AssetUtil.getPolicyId("lovelace")).isNull();
+        assertThatThrownBy(() -> AssetUtil.getPolicyId(POLICY_ID.substring(1)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 
     @Test
     void calculateFingerPrint() {
