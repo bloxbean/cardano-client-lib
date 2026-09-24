@@ -109,6 +109,9 @@ output ends up below min-ada. To fit both without changing them:
   **appended**. The indexes of all other outputs are therefore unchanged.
 - Value conservation is asserted: Σ pieces must equal the original change, otherwise it throws.
 
+**Open question:** the default reserve size. A fixed 2 ADA prevents splitting small change that Evolution does
+split. See the comparison and options in §11.6 (F1).
+
 ### 4.3 Configuration (`UnfrackConfig`)
 
 | Parameter | Default | Source |
@@ -222,3 +225,230 @@ A named, typed `balancer(...)` keeps both usable and makes the intent discoverab
   so that CCL produces the same split for the same input.
 - **Integration** (Yaci DevKit): submit several transactions concurrently from an unfracked wallet to demonstrate the
   concurrency gain.
+
+## 11. Examples: Evolution SDK and CCL
+
+The TypeScript snippets below are taken from Evolution SDK
+([`0167cf9`](https://github.com/IntersectMBO/evolution-sdk/tree/0167cf91381eea2c2f33db5ab1396a66b4dbe2da)): its docs,
+and its builder tests, which are the only runnable unfrack examples it ships (its `examples/` folder has none). Each
+is followed by the proposed CCL equivalent.
+
+The "CCL result" rows come from running the same wallets through the prototype `Unfrack` with QuickTx and mocked
+suppliers. Both runs use the same protocol parameters: `minFeeA` 44, `minFeeB` 155,381, `coinsPerUtxoByte` 4,310.
+Evolution results are the values asserted in its tests.
+
+### 11.1 Minimal usage
+
+Evolution SDK ([`docs/.../advanced/performance.mdx`](https://github.com/IntersectMBO/evolution-sdk/blob/0167cf91381eea2c2f33db5ab1396a66b4dbe2da/docs/content/docs/advanced/performance.mdx)):
+
+```typescript
+const tx = await client
+  .newTx()
+  .payToAddress({
+    address: Address.fromBech32("addr_test1..."),
+    assets: Assets.fromLovelace(2_000_000n)
+  })
+  .build({
+    unfrack: {
+      tokens: { /* token bundling options */ },
+      ada: { /* ADA consolidation/subdivision options */ }
+    }
+  })
+```
+
+CCL:
+
+```java
+Result<String> result = quickTxBuilder
+        .compose(new Tx()
+                .payToAddress(receiver, Amount.ada(2))
+                .from(sender))
+        .balancer(new Unfrack())                       // defaults = Evolution defaults
+        .withSigner(SignerProviders.signerFrom(account))
+        .complete();
+```
+
+### 11.2 ADA-only change, custom subdivision
+
+Evolution SDK ([`TxBuilder.UnfrackDrain.test.ts`](https://github.com/IntersectMBO/evolution-sdk/blob/0167cf91381eea2c2f33db5ab1396a66b4dbe2da/packages/evolution/test/TxBuilder.UnfrackDrain.test.ts),
+"should drain and consolidate multiple ADA-only UTxOs with subdivision"). The wallet has UTxOs of 200 ADA and
+150 ADA, and pays 1 ADA:
+
+```typescript
+const signBuilder = await makeTxBuilder({ chain: mainnet })
+  .payToAddress({
+    address: CoreAddress.fromBech32(DESTINATION_ADDRESS),
+    assets: CoreAssets.fromLovelace(1_000_000n)
+  })
+  .build({
+    changeAddress: CoreAddress.fromBech32(SOURCE_ADDRESS),
+    availableUtxos: utxos,
+    drainTo: 0,                                  // fallback only; not triggered here
+    protocolParameters: PROTOCOL_PARAMS,
+    unfrack: {
+      ada: {
+        subdivideThreshold: 100_000_000n,        // 100 ADA
+        subdividePercentages: [50, 30, 20]
+      }
+    }
+  })
+```
+
+CCL:
+
+```java
+UnfrackConfig config = UnfrackConfig.builder()
+        .subdivideThreshold(adaToLovelace(100))
+        .subdividePercentages(List.of(50, 30, 20))
+        .build();
+
+Transaction tx = quickTxBuilder
+        .compose(new Tx().payToAddress(destination, Amount.ada(1)).from(source))
+        .balancer(new Unfrack(config))
+        .build();
+```
+
+| | Inputs | Outputs | Fee | Change outputs (lovelace) |
+|---|---|---|---|---|
+| Evolution | 1 | 4 | 173,861 | 99,413,069 · 59,647,841 · 39,765,229 |
+| CCL (`feeReserve` 2 ADA) | 1 | 4 | 173,861 | 100,326,139 · 59,100,000 · 39,400,000 |
+
+The output count and fee are identical. The amounts differ because Evolution splits the change **after** the fee,
+while CCL splits `change − feeReserve` **before** balancing and the fee is then deducted from the largest piece
+(§4.2).
+
+### 11.3 Tokens: bundles plus a separate ADA output
+
+Evolution SDK ([`TxBuilder.UnfrackChangeHandling.test.ts`](https://github.com/IntersectMBO/evolution-sdk/blob/0167cf91381eea2c2f33db5ab1396a66b4dbe2da/packages/evolution/test/TxBuilder.UnfrackChangeHandling.test.ts),
+"should create separate ADA output when remaining above subdivideThreshold"). A single UTxO holds 7 ADA and three
+tokens from three policies, and pays 2 ADA:
+
+```typescript
+const signBuilder = await makeTxBuilder({ chain: mainnet })
+  .collectFrom({ inputs: [initialUtxo] })        // 7 ADA + TOKEN1(A) + TOKEN2(B) + TOKEN3(C)
+  .payToAddress({
+    address: CoreAddress.fromBech32(DESTINATION_ADDRESS),
+    assets: CoreAssets.fromLovelace(2_000_000n)
+  })
+  .build({
+    changeAddress: CoreAddress.fromBech32(CHANGE_ADDRESS),
+    availableUtxos: [],
+    protocolParameters: PROTOCOL_PARAMS,
+    unfrack: { ada: { subdivideThreshold: 500_000n, subdividePercentages: [50, 30, 20] } }
+  })
+// expect: 1 payment + 4 change (3 token bundles + 1 ADA output)
+```
+
+CCL:
+
+```java
+UnfrackConfig config = UnfrackConfig.builder()
+        .subdivideThreshold(BigInteger.valueOf(500_000))
+        .subdividePercentages(List.of(50, 30, 20))
+        .feeReserve(BigInteger.valueOf(300_000))     // see finding F1
+        .build();
+
+Transaction tx = quickTxBuilder
+        .compose(new Tx().payToAddress(destination, Amount.lovelace(BigInteger.valueOf(2_000_000))).from(source))
+        .balancer(new Unfrack(config))
+        .build();
+```
+
+| | Outputs | Change |
+|---|---|---|
+| Evolution | 5 | 3 token bundles + 1 ADA output |
+| CCL, `feeReserve` 2 ADA (default) | 2 | **not split**: 1 change output with all tokens |
+| CCL, `feeReserve` 0.3 ADA | 5 | 1 ADA (1,361,071) + 3 token bundles (~1.15 ADA each) |
+
+### 11.4 Tokens: remaining ADA spread across bundles
+
+Evolution SDK (same file, "should spread remaining lovelace across token bundles when below subdivideThreshold").
+The UTxO holds 5 ADA and the same three tokens, and pays 1.2 ADA. The expected result is 1 payment + 3 change,
+with no separate ADA output.
+
+The CCL call is the same as §11.3 with a payment of `1_200_000` lovelace.
+
+| | Outputs | Change |
+|---|---|---|
+| Evolution | 4 | 3 token bundles with ADA spread |
+| CCL, `feeReserve` 2 ADA (default) | 2 | **not split** |
+| CCL, `feeReserve` 0.3 ADA | 4 | 3 token bundles: 1,290,091 (fee-bearing) · 1,165,230 · 1,165,230 |
+
+### 11.5 Wallet clean-up: consolidate a fragmented wallet
+
+Evolution SDK ([`TxBuilder.UnfrackDrain.test.ts`](https://github.com/IntersectMBO/evolution-sdk/blob/0167cf91381eea2c2f33db5ab1396a66b4dbe2da/packages/evolution/test/TxBuilder.UnfrackDrain.test.ts),
+"should optimize wallet before major transaction (cleanup)"). The fragmented wallet has 6 UTxOs:
+
+- 150 ADA + HOSKY + NFT001
+- 50 ADA
+- 10 ADA + SNEK + SUNDAE + NFT002 + NFT003
+- 300 ADA
+- 5 ADA + HOSKY + CNFT001 + CNFT002
+- 25 ADA
+
+It spends all of them with a minimal payment:
+
+```typescript
+const signBuilder = await makeTxBuilder({ chain: mainnet })
+  .collectFrom({ inputs: utxos })                // every fragment
+  .payToAddress({
+    address: CoreAddress.fromBech32(DESTINATION_ADDRESS),
+    assets: CoreAssets.fromLovelace(1_000_000n)
+  })
+  .build({
+    changeAddress: CoreAddress.fromBech32(SOURCE_ADDRESS),
+    availableUtxos: utxos,
+    drainTo: 0,
+    protocolParameters: PROTOCOL_PARAMS,
+    unfrack: {
+      tokens: { bundleSize: 10, isolateFungibles: true, groupNftsByPolicy: true },
+      ada: { subdivideThreshold: 50_000_000n, subdividePercentages: [50, 25, 15, 10] }
+    }
+  })
+```
+
+CCL (there is no `drainTo`; spending every UTxO is expressed with `collectFrom`):
+
+```java
+List<Utxo> fragments = utxoSupplier.getAll(source);
+
+UnfrackConfig config = UnfrackConfig.builder()
+        .bundleSize(10)
+        .subdivideThreshold(adaToLovelace(50))
+        .subdividePercentages(List.of(50, 25, 15, 10))
+        .build();
+
+Transaction tx = quickTxBuilder
+        .compose(new Tx()
+                .collectFrom(fragments)
+                .payToAddress(destination, Amount.ada(1))
+                .from(source))
+        .balancer(new Unfrack(config))
+        .build();
+```
+
+| | Inputs | Outputs | Fee | Change |
+|---|---|---|---|---|
+| Evolution | 6 | 9 | 205,189 | 4 token bundles + 4 ADA outputs |
+| CCL (`feeReserve` 2 ADA) | 6 | 9 | 205,189 | 4 token bundles (A: HOSKY+SNEK, B: SUNDAE, C: 3 NFTs, D: 2 NFTs) + 4 ADA outputs (267.9 · 133.1 · 79.8 · 53.2 ADA) |
+
+This is full parity: the same inputs, outputs, fee and bundle layout. Note that bundles are **by policy**:
+`isolateFungibles`/`groupNftsByPolicy` have no effect in Evolution (§4.3). HOSKY and SNEK share policy A, so they
+share a UTxO.
+
+### 11.6 Findings from the comparison
+
+- **F1: A fixed 2 ADA `feeReserve` blocks unfracking for small change.** In §11.3 and §11.4 the reserve eats the ADA
+  the bundles need, so CCL falls back to a single output where Evolution splits. With a 0.3 ADA reserve the output
+  counts match Evolution. Options for review:
+  - (a) lower the default, e.g. 0.5 ADA;
+  - (b) derive the reserve from protocol parameters, e.g. an estimated fee for the expected output count;
+  - (c) apply the reserve only when the change address is the fee payer;
+  - (d) after balancing, recompute the split on the post-fee amount (closest to Evolution, more complex).
+- **F2: Different amounts, same structure.** Output count, fee and bundle layout match. ADA slice amounts differ
+  slightly because of where the fee is taken (§11.2). If exact numeric parity matters, option (d) above is required.
+- **F3: Output order differs.** Evolution emits bundles first, then ADA slices. CCL keeps the fee-bearing (largest)
+  piece at the original change index and appends the rest. Both are valid; CCL's order keeps the indexes of existing
+  outputs stable.
+- **F4: `drainTo` / `onInsufficientChange: "burn"`.** These Evolution fallbacks have no CCL counterpart. Clean-up
+  (§11.5) works without them via `collectFrom`, so they are out of scope for this ADR.
