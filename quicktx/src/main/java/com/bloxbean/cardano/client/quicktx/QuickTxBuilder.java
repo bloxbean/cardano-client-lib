@@ -15,6 +15,7 @@ import com.bloxbean.cardano.client.coinselection.impl.LargestFirstUtxoSelectionS
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxSigner;
+import com.bloxbean.cardano.client.function.balance.TxBalancer;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.*;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
@@ -289,6 +290,7 @@ public class QuickTxBuilder {
 
         private TxBuilder preBalanceTrasformer;
         private TxBuilder postBalanceTrasformer;
+        private TxBalancer balancer;
 
         private int additionalSignerCount = 0;
         private int signersCount = 0;
@@ -505,6 +507,21 @@ public class QuickTxBuilder {
          */
         public TxContext postBalanceTx(TxBuilder txBuilder) {
             this.postBalanceTrasformer = txBuilder;
+            return this;
+        }
+
+        /**
+         * Set a {@link TxBalancer} to reshape change outputs before the transaction is balanced.
+         * For example, {@link com.bloxbean.cardano.client.function.balance.unfrack.Unfrack} splits change into
+         * multiple UTxOs (token bundles + subdivided ada), so that the wallet can run more transactions in parallel.
+         * <br>
+         * The balancer runs after the {@link #preBalanceTx(TxBuilder)} function. If not set, change is not reshaped.
+         *
+         * @param balancer TxBalancer
+         * @return TxContext
+         */
+        public TxContext balancer(TxBalancer balancer) {
+            this.balancer = balancer;
             return this;
         }
 
@@ -734,6 +751,9 @@ public class QuickTxBuilder {
 
             if (preBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(preBalanceTrasformer);
+
+            if (balancer != null)
+                txBuilder = txBuilder.andThen(balancer.preBalance());
 
             if (feePayer == null && feePayerWallet == null) {
                 if (txList.length == 1) {
