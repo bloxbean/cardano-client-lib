@@ -7,6 +7,8 @@ import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
 import com.bloxbean.cardano.client.function.balance.unfrack.Unfrack;
+import com.bloxbean.cardano.client.metadata.MetadataBuilder;
+import com.bloxbean.cardano.client.transaction.spec.AuxiliaryData;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -30,7 +32,7 @@ import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class QuickTxBalancerTest {
+class QuickTxUnfrackTest {
     static final String SENDER = "addr_test1qpcf5ursqpwx2tp8maeah00rxxdfpvf8h65k4hk3chac0fvu28duly863yqhgjtl8an2pkksd6mlzv0qv4nejh5u2zjsshr90k";
     static final String RECEIVER = "addr_test1qzllzd3cxvz53k9gkq3n3mpcm6g7kv7rj5yvs88n7xwm3nmcs8dpnr85lclka6sycwccput39p0cffqegn8kkf6euzks6h9ldv";
     static final String POLICY_1 = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8";
@@ -70,7 +72,7 @@ class QuickTxBalancerTest {
     }
 
     @Test
-    void withoutBalancer_singleChangeOutput() {
+    void withoutUnfrack_singleChangeOutput() {
         Transaction transaction = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
                 .compose(payment())
                 .build();
@@ -80,10 +82,10 @@ class QuickTxBalancerTest {
     }
 
     @Test
-    void withUnfrackBalancer_changeSplitIntoBundlesAndAdaSlices() {
+    void withUnfrack_changeSplitIntoBundlesAndAdaSlices() {
         Transaction transaction = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
                 .compose(payment())
-                .balancer(new Unfrack())
+                .preBalanceTx(new Unfrack())
                 .build();
 
         List<TransactionOutput> outputs = transaction.getBody().getOutputs();
@@ -100,6 +102,21 @@ class QuickTxBalancerTest {
         MinAdaCalculator minAdaCalculator = new MinAdaCalculator(protocolParams);
         assertThat(outputs).allSatisfy(o ->
                 assertThat(o.getValue().getCoin()).isGreaterThanOrEqualTo(minAdaCalculator.calculateMinAda(o)));
+        assertBalanced(transaction);
+    }
+
+    @Test
+    void multiplePreBalanceTx_allApplied() {
+        Transaction transaction = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
+                .compose(payment())
+                .preBalanceTx((context, txn) -> txn.setAuxiliaryData(AuxiliaryData.builder()
+                        .metadata(MetadataBuilder.createMetadata().put(BigInteger.ONE, "pre-balance"))
+                        .build()))
+                .preBalanceTx(new Unfrack())
+                .build();
+
+        assertThat(transaction.getAuxiliaryData()).isNotNull();
+        assertThat(transaction.getBody().getOutputs()).hasSize(1 + 2 + 7);
         assertBalanced(transaction);
     }
 

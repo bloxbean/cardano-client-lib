@@ -33,7 +33,7 @@ class UnfrackTest {
         TransactionOutput metadataOutput = new TransactionOutput(RECEIVER, Value.fromCoin(adaToLovelace(2)));
         Transaction tx = tx(payment, new ChangeOutput(ADDRESS, changeValue), metadataOutput);
 
-        new Unfrack().preBalance().apply(context, tx);
+        new Unfrack().apply(context, tx);
 
         List<TransactionOutput> outputs = tx.getBody().getOutputs();
         assertThat(outputs).hasSize(3 + 8); // 2 bundles + 7 ada slices, one of them in place
@@ -68,7 +68,7 @@ class UnfrackTest {
         ChangeOutput change = new ChangeOutput(ADDRESS, Value.fromCoin(adaToLovelace(50)));
         Transaction tx = tx(change);
 
-        new Unfrack().preBalance().apply(context, tx);
+        new Unfrack().apply(context, tx);
 
         assertThat(tx.getBody().getOutputs()).containsExactly(change);
     }
@@ -80,7 +80,7 @@ class UnfrackTest {
         changeWithDatum.setInlineDatum(BigIntPlutusData.of(42));
         Transaction tx = tx(payment, changeWithDatum);
 
-        new Unfrack().preBalance().apply(context, tx);
+        new Unfrack().apply(context, tx);
 
         assertThat(tx.getBody().getOutputs()).containsExactly(payment, changeWithDatum);
     }

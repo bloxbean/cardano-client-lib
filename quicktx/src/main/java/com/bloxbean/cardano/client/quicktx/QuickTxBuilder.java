@@ -15,7 +15,6 @@ import com.bloxbean.cardano.client.coinselection.impl.LargestFirstUtxoSelectionS
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxSigner;
-import com.bloxbean.cardano.client.function.balance.TxBalancer;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.*;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
@@ -290,7 +289,6 @@ public class QuickTxBuilder {
 
         private TxBuilder preBalanceTrasformer;
         private TxBuilder postBalanceTrasformer;
-        private TxBalancer balancer;
 
         private int additionalSignerCount = 0;
         private int signersCount = 0;
@@ -486,14 +484,18 @@ public class QuickTxBuilder {
         }
 
         /**
-         * Set a TxBuilder function to transform the transaction before balance calculation.
-         * This is useful when additional transformation logic is required before balance calculation.
+         * Add a TxBuilder function to transform the transaction before balance calculation.
+         * This is useful when additional transformation logic is required before balance calculation,
+         * e.g. {@link com.bloxbean.cardano.client.function.balance.unfrack.Unfrack} to split change outputs.
+         * Can be called multiple times; functions are applied in the order they were added.
          *
          * @param txBuilder TxBuilder function
          * @return TxContext
          */
         public TxContext preBalanceTx(TxBuilder txBuilder) {
-            this.preBalanceTrasformer = txBuilder;
+            this.preBalanceTrasformer = this.preBalanceTrasformer == null
+                    ? txBuilder
+                    : this.preBalanceTrasformer.andThen(txBuilder);
             return this;
         }
 
@@ -507,21 +509,6 @@ public class QuickTxBuilder {
          */
         public TxContext postBalanceTx(TxBuilder txBuilder) {
             this.postBalanceTrasformer = txBuilder;
-            return this;
-        }
-
-        /**
-         * Set a {@link TxBalancer} to reshape change outputs before the transaction is balanced.
-         * For example, {@link com.bloxbean.cardano.client.function.balance.unfrack.Unfrack} splits change into
-         * multiple UTxOs (token bundles + subdivided ada).
-         * <br>
-         * The balancer runs after the {@link #preBalanceTx(TxBuilder)} function. If not set, change is not reshaped.
-         *
-         * @param balancer TxBalancer
-         * @return TxContext
-         */
-        public TxContext balancer(TxBalancer balancer) {
-            this.balancer = balancer;
             return this;
         }
 
@@ -751,9 +738,6 @@ public class QuickTxBuilder {
 
             if (preBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(preBalanceTrasformer);
-
-            if (balancer != null)
-                txBuilder = txBuilder.andThen(balancer.preBalance());
 
             if (feePayer == null && feePayerWallet == null) {
                 if (txList.length == 1) {

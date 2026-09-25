@@ -1,10 +1,11 @@
 package com.bloxbean.cardano.client.function.balance.unfrack;
 
 import com.bloxbean.cardano.client.function.TxBuilder;
-import com.bloxbean.cardano.client.function.balance.TxBalancer;
+import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.ChangeOutput;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * {@link TxBalancer} which "unfracks" change outputs in the same transaction: token change is bundled by policy
+ * Pre-balance {@link TxBuilder} which "unfracks" change outputs in the same transaction: token change is bundled by policy
  * and ada change is subdivided into several outputs, so that change stays below max value size and payments don't
  * move every token in the wallet.
  * <p>
@@ -30,13 +31,13 @@ import java.util.Map;
  * <pre>{@code
  * quickTxBuilder.compose(tx)
  *     .feePayer(sender)
- *     .balancer(new Unfrack())
+ *     .preBalanceTx(new Unfrack())
  *     .withSigner(signer)
  *     .completeAndWait();
  * }</pre>
  */
 @Slf4j
-public class Unfrack implements TxBalancer {
+public class Unfrack implements TxBuilder {
     private final UnfrackConfig config;
 
     public Unfrack() {
@@ -53,23 +54,21 @@ public class Unfrack implements TxBalancer {
     }
 
     @Override
-    public TxBuilder preBalance() {
-        return (context, transaction) -> {
-            UnfrackPlanner planner = new UnfrackPlanner(config, context.getProtocolParams());
-            List<TransactionOutput> outputs = new ArrayList<>(transaction.getBody().getOutputs());
-            List<TransactionOutput> appended = new ArrayList<>();
+    public void apply(TxBuilderContext context, Transaction transaction) {
+        UnfrackPlanner planner = new UnfrackPlanner(config, context.getProtocolParams());
+        List<TransactionOutput> outputs = new ArrayList<>(transaction.getBody().getOutputs());
+        List<TransactionOutput> appended = new ArrayList<>();
 
-            for (int i = 0; i < outputs.size(); i++) {
-                TransactionOutput output = outputs.get(i);
-                if (isSplittable(output))
-                    splitInPlace(planner, outputs, i, appended);
-            }
+        for (int i = 0; i < outputs.size(); i++) {
+            TransactionOutput output = outputs.get(i);
+            if (isSplittable(output))
+                splitInPlace(planner, outputs, i, appended);
+        }
 
-            if (!appended.isEmpty()) {
-                outputs.addAll(appended);
-                transaction.getBody().setOutputs(outputs);
-            }
-        };
+        if (!appended.isEmpty()) {
+            outputs.addAll(appended);
+            transaction.getBody().setOutputs(outputs);
+        }
     }
 
     /**
