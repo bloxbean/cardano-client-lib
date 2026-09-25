@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
+import com.bloxbean.cardano.client.function.balance.unfrack.EqualLanesStrategy;
 import com.bloxbean.cardano.client.function.balance.unfrack.Unfrack;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.transaction.spec.AuxiliaryData;
@@ -102,6 +103,29 @@ class QuickTxUnfrackTest {
         MinAdaCalculator minAdaCalculator = new MinAdaCalculator(protocolParams);
         assertThat(outputs).allSatisfy(o ->
                 assertThat(o.getValue().getCoin()).isGreaterThanOrEqualTo(minAdaCalculator.calculateMinAda(o)));
+        assertBalanced(transaction);
+    }
+
+    @Test
+    void withEqualLanesStrategy_tokensInOneBundleAndEqualAdaLanes() {
+        Transaction transaction = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
+                .compose(payment())
+                .preBalanceTx(new Unfrack(EqualLanesStrategy.builder().lanes(4).build()))
+                .build();
+
+        List<TransactionOutput> outputs = transaction.getBody().getOutputs();
+        // payment + 1 token bundle (both policies fit the byte budget) + 4 ada lanes
+        assertThat(outputs).hasSize(1 + 1 + 4);
+        List<TransactionOutput> adaLanes = outputs.stream()
+                .filter(o -> o.getValue().getMultiAssets() == null || o.getValue().getMultiAssets().isEmpty())
+                .filter(o -> o.getAddress().equals(SENDER))
+                .toList();
+        assertThat(adaLanes).hasSize(4);
+        // lanes are equal except the fee bearing one, which got the fee reserve minus the fee
+        BigInteger lane = adaLanes.get(1).getValue().getCoin();
+        assertThat(adaLanes.subList(1, 4)).allSatisfy(o -> assertThat(o.getValue().getCoin()).isBetween(lane, lane.add(BigInteger.TEN)));
+        assertThat(adaLanes.get(0).getValue().getCoin())
+                .isEqualTo(lane.add(Unfrack.DEFAULT_FEE_RESERVE).subtract(transaction.getBody().getFee()));
         assertBalanced(transaction);
     }
 
