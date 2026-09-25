@@ -484,14 +484,18 @@ public class QuickTxBuilder {
         }
 
         /**
-         * Set a TxBuilder function to transform the transaction before balance calculation.
-         * This is useful when additional transformation logic is required before balance calculation.
+         * Add a TxBuilder function to transform the transaction before balance calculation.
+         * This is useful when additional transformation logic is required before balance calculation,
+         * e.g. {@link com.bloxbean.cardano.client.function.balance.unfrack.Unfrack} to split change outputs.
+         * Can be called multiple times; functions are applied in the order they were added.
          *
          * @param txBuilder TxBuilder function
          * @return TxContext
          */
         public TxContext preBalanceTx(TxBuilder txBuilder) {
-            this.preBalanceTrasformer = txBuilder;
+            this.preBalanceTrasformer = this.preBalanceTrasformer == null
+                    ? txBuilder
+                    : this.preBalanceTrasformer.andThen(txBuilder);
             return this;
         }
 
