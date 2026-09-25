@@ -1,4 +1,4 @@
-# UTxO Unfracking via Pluggable Balancer
+# UTxO Unfracking via Pre-Balance Transformer
 
 **Status**: Proposed
 **Date**: 2026-09-24
@@ -42,49 +42,41 @@ SDK does not attempt this either.
 
 ## 2. Decision
 
-1. Add an opt-in, pluggable **`TxBalancer`** hook to QuickTx, `TxContext.balancer(TxBalancer)`. When it is not set,
-   transaction building is unchanged, byte for byte.
-2. Provide **`Unfrack`** as the first implementation, a faithful port of Evolution SDK's
+1. Reuse the existing **`preBalanceTx(TxBuilder)`** hook. Make it **chain** transformers (`andThen`) instead of
+   overwriting the previous one, so unfracking can be combined with other pre-balance transformers. When `Unfrack`
+   is not added, transaction building is unchanged, byte for byte.
+2. Provide **`Unfrack`**, a `TxBuilder` that is a faithful port of Evolution SDK's
    `createUnfrackedChangeOutputs`. The goals are parity and a well-understood algorithm; tuning comes later.
 3. Unfrack **in the same transaction** by reshaping change outputs. There is no separate consolidation transaction
    (unlike UnFrack.It).
-4. Run the balancer **before** fee/min-ada balancing. All existing balancing logic stays as it is and is reused
+4. Run `Unfrack` **before** fee/min-ada balancing. All existing balancing logic stays as it is and is reused
    (see §5).
 
 ```java
 quickTxBuilder.compose(tx)
     .feePayer(sender)
-    .balancer(new Unfrack())
+    .preBalanceTx(new Unfrack())
     .withSigner(signer)
     .completeAndWait();
 ```
 
 ## 3. API Changes
 
-### `function` module — `com.bloxbean.cardano.client.function.balance`
-
-```java
-public interface TxBalancer {
-    /** Invoked after inputs and change are built, before collateral, script cost evaluation and fee balancing. */
-    TxBuilder preBalance();
-}
-```
-
-The hook lives in `function`, not `quicktx`, so that it can also be composed manually with the low-level
-`TxBuilder` API.
-
-### `function` module — `...function.balance.unfrack`
+### `function` module — `com.bloxbean.cardano.client.function.balance.unfrack`
 
 | Class | Role |
 |---|---|
-| `Unfrack` | `TxBalancer` implementation. Finds change outputs and replaces each with its split pieces |
+| `Unfrack` | `TxBuilder` implementation. Finds change outputs and replaces each with its split pieces |
 | `UnfrackPlanner` | Pure algorithm: `List<Value> plan(String address, Value change)`. No transaction or context dependency |
 | `UnfrackConfig` | Immutable Lombok builder with the tuning parameters (§4.3) |
 
 ### `quicktx` module
 
-`QuickTxBuilder.TxContext#balancer(TxBalancer)` stores the balancer. `_build()` appends `balancer.preBalance()`
-right after the existing `preBalanceTx(...)` transformer.
+`QuickTxBuilder.TxContext#preBalanceTx(TxBuilder)` appends the function to the existing pre-balance transformer
+(`andThen`) instead of replacing it. Functions run in the order they were added. No new QuickTx method is added.
+
+`Unfrack` lives in `function`, not `quicktx`, so it can also be composed manually with the low-level `TxBuilder`
+API.
 
 ## 4. Algorithm
 
@@ -136,15 +128,14 @@ Evolution also declares `isolateFungibles` and `groupNftsByPolicy`, but its chan
 
 ```
 per-tx complete()        inputs selected, one ChangeOutput per sender, deposits resolved
-preBalanceTx(...)        user transformer (existing)
-balancer.preBalance()    ← NEW: split ChangeOutputs
+preBalanceTx(...)        existing, now chained (← CHANGED): user/extender transformers, then Unfrack splits ChangeOutputs
 collateral               existing
 script cost evaluation   existing; sees the final output set
 balanceTx(feePayer)      existing: FeeCalculators → ChangeOutputAdjustments → collateral balance
 postBalanceTx(...)       existing
 ```
 
-The balancer runs before balancing because:
+`Unfrack` runs before balancing because:
 
 - at that point each `ChangeOutput` still holds the full surplus, so no fee has to be restored;
 - script cost evaluation runs afterwards, so validators that inspect outputs are evaluated against the final
@@ -159,10 +150,12 @@ The balancer runs before balancing because:
 - **Fee payer ≠ sender**: the sender's change is split, and the fee is still taken from the fee payer's output.
 - **Balancing adds inputs later** (min-ada top-up): the extra value merges into the largest piece. This is
   acceptable.
-- **`mergeOutputs(true)`**: change may be merged into a user output, which is not a `ChangeOutput`, so the balancer
+- **`mergeOutputs(true)`**: change may be merged into a user output, which is not a `ChangeOutput`, so `Unfrack`
   does nothing.
-- **Transactions without inputs** (withdrawal/deregistration funded by a refund) have no `ChangeOutput` yet, so the
-  balancer does nothing.
+- **Transactions without inputs** (withdrawal/deregistration funded by a refund) have no `ChangeOutput` yet, so
+  `Unfrack` does nothing.
+- **Other pre-balance transformers**: they run in the order they were added. `Unfrack` only touches
+  `ChangeOutput`s, so the order only matters if another transformer also changes change outputs.
 - NFT vs fungible detection is not needed for the ported path; tokens are bundled by policy only.
 
 ## 7. Alternatives Considered
@@ -174,18 +167,24 @@ transaction.
 
 ### Replace `ScriptBalanceTxProviders.balanceTx` with a pluggable balancer
 This would duplicate fee calculation, min-ada adjustment, script re-evaluation and collateral balancing, and every
-balancer would have to reimplement them. It was rejected; the pre-balance hook is purely additive.
+balancer would have to reimplement them. It was rejected; the pre-balance approach is purely additive.
 
 ### Split change after balancing (`postBalanceTx`)
-No fee recalculation happens after this point. The balancer would have to restore the fee, re-run
+No fee recalculation happens after this point. `Unfrack` would have to restore the fee, re-run
 `FeeCalculators`/`ChangeOutputAdjustments` and re-evaluate scripts itself. It was rejected as fragile.
 
 ### Implement unfracking as a `UtxoSelectionStrategy`
 Selection strategies only choose inputs and have no say in the shape of the change. They are the wrong layer.
 
-### Implement with the existing `preBalanceTx(TxBuilder)`
-This would work mechanically, but `preBalanceTx` is a single overwrite-only slot meant for user transformers.
-A named, typed `balancer(...)` keeps both usable and makes the intent discoverable.
+### A dedicated `TxBalancer` hook (`TxContext.balancer(...)`)
+The first spike added a new interface and QuickTx method that ran right after `preBalanceTx`. That is the same
+position in the pipeline, so it only added API surface. It also had a misleading name, because it reshapes change
+and does not balance anything. It was rejected in favour of chaining `preBalanceTx`.
+
+### Keep `preBalanceTx` as a single, overwriting slot
+`Unfrack` would then collide with other pre-balance transformers. `MintValidatorExtender` already sets one
+internally (to remove an inline script when a reference script is used), and a user's own `preBalanceTx(...)`
+silently replaces it today. Chaining fixes that bug too.
 
 ## 8. Consequences
 
@@ -193,7 +192,9 @@ A named, typed `balancer(...)` keeps both usable and makes the intent discoverab
 - Change outputs stay below `maxValSize` and remain spendable (issue #42).
 - ADA payments no longer drag every token along.
 - The wallet has several independent UTxOs, a prerequisite (not a solution) for concurrent transactions.
-- The change is additive and opt-in; the default path must stay unchanged (existing `function`/`quicktx` tests act as the guard).
+- The change is opt-in and adds no new QuickTx API; the default path must stay unchanged (existing
+  `function`/`quicktx` tests act as the guard).
+- `preBalanceTx` chaining fixes the lost `MintValidatorExtender` transformer described in §7.
 - The algorithm matches Evolution SDK, so behaviour is predictable across TypeScript and Java stacks.
 
 **Negative / trade-offs**
@@ -201,6 +202,9 @@ A named, typed `balancer(...)` keeps both usable and makes the intent discoverab
   cost is intended.
 - The Evolution percentage split targets **spending flexibility**, not concurrency (§9).
 - More UTxOs increase wallet scan and selection work.
+- **Behaviour change**: calling `preBalanceTx` twice now runs both functions instead of only the last one. Code that
+  relied on replacing an earlier transformer must be adjusted. No usage in this repository does this.
+- Unfracking is less discoverable without a dedicated method; Javadoc and docs examples have to cover it.
 
 ## 9. Future Work
 
@@ -208,7 +212,7 @@ A named, typed `balancer(...)` keeps both usable and makes the intent discoverab
   of 50/15/10/…, and possibly keep a target count of ADA-only UTxOs in the wallet.
 - **Fallback instead of failure**: if validation after balancing fails, rebuild with a single change output.
 - **Size limits**: check `maxValSize` per bundle and `maxTxSize` for the whole transaction (issue #42).
-- **TxPlan / YAML**: a `balancer` field so that YAML plans can opt in.
+- **TxPlan / YAML**: an `unfrack` field so that YAML plans can opt in.
 - **txflow / TxStream integration**: make unfracked change usable as intra-address lanes, complementing today's
   address-based `LanePolicy`.
 
@@ -223,13 +227,13 @@ A named, typed `balancer(...)` keeps both usable and makes the intent discoverab
   - bundles that can't be funded;
   - config validation;
   - invariants on every result: Σ pieces equals the input, and every piece meets min-ada.
-- **Balancer unit tests** (`Unfrack` on a `Transaction`):
+- **`Unfrack` unit tests** (on a `Transaction`):
   - in-place split and index preservation;
   - small change left untouched;
   - non-change outputs and change with a datum left untouched.
 - **QuickTx tests** (mocked `UtxoSupplier`/`ProtocolParamsSupplier`): the same transaction built with and without
-  `.balancer(...)`, checking output count, min-ada, inputs = outputs + fee, and token conservation. Without the
-  balancer, the output must be identical to today's.
+  `.preBalanceTx(new Unfrack())`, checking output count, min-ada, inputs = outputs + fee, and token conservation. Without the
+  `Unfrack`, the output must be identical to today's. Two `preBalanceTx(...)` calls must both be applied.
 - **Parity:** port selected Evolution SDK scenarios (`Unfrack.test.ts`, `TxBuilder.UnfrackChangeHandling.test.ts`)
   so that CCL produces the same split for the same input.
 - **Integration** (Yaci DevKit): submit an unfracking transaction and check that the resulting UTxOs are on-chain
@@ -272,7 +276,7 @@ Result<String> result = quickTxBuilder
         .compose(new Tx()
                 .payToAddress(receiver, Amount.ada(2))
                 .from(sender))
-        .balancer(new Unfrack())                       // defaults = Evolution defaults
+        .preBalanceTx(new Unfrack())                   // defaults = Evolution defaults
         .withSigner(SignerProviders.signerFrom(account))
         .complete();
 ```
@@ -313,7 +317,7 @@ UnfrackConfig config = UnfrackConfig.builder()
 
 Transaction tx = quickTxBuilder
         .compose(new Tx().payToAddress(destination, Amount.ada(1)).from(source))
-        .balancer(new Unfrack(config))
+        .preBalanceTx(new Unfrack(config))
         .build();
 ```
 
@@ -359,7 +363,7 @@ UnfrackConfig config = UnfrackConfig.builder()
 
 Transaction tx = quickTxBuilder
         .compose(new Tx().payToAddress(destination, Amount.lovelace(BigInteger.valueOf(2_000_000))).from(source))
-        .balancer(new Unfrack(config))
+        .preBalanceTx(new Unfrack(config))
         .build();
 ```
 
@@ -432,7 +436,7 @@ Transaction tx = quickTxBuilder
                 .collectFrom(fragments)
                 .payToAddress(destination, Amount.ada(1))
                 .from(source))
-        .balancer(new Unfrack(config))
+        .preBalanceTx(new Unfrack(config))
         .build();
 ```
 
