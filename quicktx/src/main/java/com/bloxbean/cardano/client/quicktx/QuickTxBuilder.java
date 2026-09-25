@@ -513,7 +513,7 @@ public class QuickTxBuilder {
         /**
          * Set a {@link TxBalancer} to reshape change outputs before the transaction is balanced.
          * For example, {@link com.bloxbean.cardano.client.function.balance.unfrack.Unfrack} splits change into
-         * multiple UTxOs (token bundles + subdivided ada), so that the wallet can run more transactions in parallel.
+         * multiple UTxOs (token bundles + subdivided ada).
          * <br>
          * The balancer runs after the {@link #preBalanceTx(TxBuilder)} function. If not set, change is not reshaped.
          *

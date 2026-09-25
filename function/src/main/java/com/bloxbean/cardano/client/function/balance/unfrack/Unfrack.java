@@ -17,8 +17,8 @@ import java.util.Map;
 
 /**
  * {@link TxBalancer} which "unfracks" change outputs in the same transaction: token change is bundled by policy
- * and ada change is subdivided into several outputs, so that the wallet ends up with multiple independent UTxOs
- * which can be spent by concurrent (in-flight) transactions.
+ * and ada change is subdivided into several outputs, so that change stays below max value size and payments don't
+ * move every token in the wallet.
  * <p>
  * Algorithm follows the Evolution SDK unfrack implementation, see {@link UnfrackPlanner}.
  * <p>
