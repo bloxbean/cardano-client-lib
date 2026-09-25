@@ -185,7 +185,7 @@ postBalanceTx(...)       existing
 
 - Only outputs that are `instanceof ChangeOutput`, have a positive coin, and carry **no** datum, datum hash or
   script ref are split. User payment outputs are never touched.
-- Change at or below `feeReserve`, and change the planner cannot afford to split, is left unchanged.
+- Change at or below `feeReserve`, and change the strategy cannot afford to split, is left unchanged.
 - **Fee payer ≠ sender**: the sender's change is split, and the fee is still taken from the fee payer's output.
 - **Balancing adds inputs later** (min-ada top-up): the extra value merges into the largest piece. This is
   acceptable.
@@ -295,7 +295,7 @@ The TypeScript snippets below are taken from Evolution SDK
 and its builder tests, which are the only runnable unfrack examples it ships (its `examples/` folder has none). Each
 is followed by the proposed CCL equivalent.
 
-The "CCL result" rows come from running the same wallets through the prototype `Unfrack` with QuickTx and mocked
+The "CCL result" rows come from running the same wallets through the prototype `Unfrack` (`EvolutionStrategy`) with QuickTx and mocked
 suppliers. Both runs use the same protocol parameters: `minFeeA` 44, `minFeeB` 155,381, `coinsPerUtxoByte` 4,310.
 Evolution results are the values asserted in its tests.
 
