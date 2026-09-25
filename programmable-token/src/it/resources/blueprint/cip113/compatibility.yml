@@ -1,0 +1,48 @@
+# Compatibility manifest for the vendored CIP-113 reference-contract snapshot.
+#
+# Build and review provenance only. Runtime compatibility is anchored by the explicit
+# Cip113Deployment supplied to the service; this file records which contract surface the adapter
+# was written and tested against. Cip113CompatibilityManifestTest recomputes every value here from
+# plutus.json and the code, so re-vendoring a blueprint is a deliberate review, not a drop-in.
+protocol: cip-113
+contract_version: 0.5.0-alpha.2   # informational; not a compatibility selector
+source:
+  repository: https://github.com/cardano-foundation/cip113-programmable-tokens
+  commit: 9db7e0629a1509cc9d41d069f0ef0ed251601173
+blueprint:
+  file: plutus.json
+  sha256: bd297f36e9e955d814fb3a67fbc7e51c2344b54d952d38b03ef9f32c1d43b9ad
+  aiken: v1.1.23+8949565
+# Unapplied compiled-code hashes as the blueprint declares them. Every validator is
+# parameterized, so a deployment's applied hashes differ; these pin the source, not a deployment.
+validators:
+  programmable_logic_base.programmable_logic_base.spend: af228b45d78e6f3b12cb8a4a12db8a7f236b130876398c5570c179a6
+  transfer.transfer.withdraw: a0af5477a21bbbf6dcd8e41a67d25ed45893055b66268f03a25fb18e
+  third_party.third_party.withdraw: 65f526caca0e1b869c4ff90f31a54482c99dab85011ad4569038a829
+  unfracking.unfracking.withdraw: 810fcc63f84896de370748f6b1d13958d511178178abadd84a1a0c1e
+  issuance_mint.issuance_mint.mint: aae1ba7cc0b2a50ecc069334124d9c4a97df5f122afb8598353a05fd
+  issuance_cbor_hex_mint.issuance_cbor_hex_mint.mint: 218be633d9b7c3c2cb9b6d3d63e21fa74bca1fed34a8f1c103f29adc
+  registry_mint.registry_mint.mint: 647da5bc02568ac680690908a226d55d7d8f236f4299bcfae1f37e69
+  registry_spend.registry_spend.spend: 3b7a6c0057c40e5cbdb3add6255acca5b716ade651b52ee2304ed7c1
+  protocol_params_mint.protocol_params_mint.mint: 2255479ebfc5ffd42f9e1d96bf09eb5d039a0a53de6a191a8abf39f6
+  coordination_spend.coordination_spend.spend: 4ee565e02806380747942c2f31f368105386b51349db0dd37cc1cd28
+  upgrade_multisig.upgrade_multisig.withdraw: 53782c02a189a2a15f9f27f95ae7f863cfeb580a4831a5b7b2244c98
+  always_fail.always_fail.spend: e9d8d9c7fc531f0b179d502c86bffee829613c537794dab053ae28fe
+# Serialized programmable-token intent schema this adapter reads and writes.
+schema_version: '1'
+capabilities:
+  implemented:
+    - transfer
+    - mint
+    - burn
+    - third_party_transfer
+    - register
+    - update_registry
+    - unfrack
+    - inline_datum
+    - global_state
+  unsupported:
+    - verification-key transfer, third-party or unfracking credentials (the adapter invokes script credentials only; registrations and updates naming one are refused)
+    - more than one policy per third-party transaction (the third_party redeemer names a single registry node)
+    - unfracking combined with any other programmable operation in one transaction (the validator requires an empty mint)
+    - concurrent use of one mutable Tx, TxPlan or TxContext (sequential reuse is supported)

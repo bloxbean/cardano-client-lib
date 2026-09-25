@@ -1,0 +1,59 @@
+# Two burns of one asset around a transfer of that same asset, in one transaction. The burns add
+# up to a single mint entry (the ledger's mint map has one entry per asset name), and all three
+# share one input selection and one change calculation, whichever order they are written in.
+# The transfer's unit is handed over in upper case: it is the same asset as the lowercase unit
+# the wallet's UTxOs and the burns use. The HolderDatum the substandard looks for is written
+# structured, not as definite-length CBOR hex: here no spent input carries it, and the local Aiken
+# evaluator did not match the hex form (d87982011871) against the validator's HolderDatum, while the
+# structured form (encoded indefinite-length, as the other plans write it) matches.
+version: '1.0'
+variables:
+  network_id: 0
+  asset_name_hex: 5478506c616e546f6b656e
+  first_burn_quantity: 1
+  transfer_quantity: 2
+  second_burn_quantity: 3
+  authorization_action: 1
+  authorization_nonce: 42
+  authorization_cbor: d8798201182a
+  holder_schema: 1
+  holder_tag: 113
+extensions:
+  pt:
+    extension: programmable-token
+    schema_version: '1'
+    protocol: cip-113
+    contract_version: 0.5.0-alpha.2
+    deployment:
+      network: ${network_id}
+      bootstrap_tx: ${bootstrap_tx}
+context:
+  fee_payer: ${owner_address}
+transaction:
+  - tx:
+      from: ${owner_address}
+      intents:
+        - type: pt:burn
+          policy_id: ${policy_id}
+          assets:
+            - name: ${asset_name_hex}
+              quantity: ${first_burn_quantity}
+          transfer_redeemer_hex: ${authorization_cbor}
+          issuance_redeemer_hex: ${authorization_cbor}
+        - type: pt:transfer
+          receiver: ${recipient_address}
+          unit: ${token_unit_upper_case}
+          quantity: ${transfer_quantity}
+          transfer_redeemer_hex: ${authorization_cbor}
+          inline_datum:
+            constructor: 0
+            fields:
+              - int: ${holder_schema}
+              - int: ${holder_tag}
+        - type: pt:burn
+          policy_id: ${policy_id}
+          assets:
+            - name: ${asset_name_hex}
+              quantity: ${second_burn_quantity}
+          transfer_redeemer_hex: ${authorization_cbor}
+          issuance_redeemer_hex: ${authorization_cbor}

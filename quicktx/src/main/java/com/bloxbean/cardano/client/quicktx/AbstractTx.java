@@ -45,6 +45,14 @@ public abstract class AbstractTx<T> {
 
     protected List<TxIntent> intentions;
 
+    /**
+     * Build-local overlay of intents prepared by QuickTx extensions for the current build. Never
+     * part of {@link #getIntentions()}, so a plan is not changed by building it. Installed by
+     * {@link #preparedIntents(List)} for exactly one build and cleared again when that build ends,
+     * whether it succeeded or failed, so it is empty whenever no build is running.
+     */
+    private List<TxIntent> preparedIntents = List.of();
+
     // Deposit resolution configuration (set via QuickTxBuilder.TxContext)
     protected String depositPayerAddress;
     protected DepositMode depositMode = DepositMode.AUTO;
@@ -55,6 +63,30 @@ public abstract class AbstractTx<T> {
 
     void setDepositMode(DepositMode mode) {
         this.depositMode = mode != null ? mode : DepositMode.AUTO;
+    }
+
+    /**
+     * Install the intents an extension prepared for this build. Package-private: called by
+     * {@code QuickTxBuilder} once extensions have run, before this transaction is completed, and
+     * again with an empty list once the build has finished.
+     */
+    void preparedIntents(List<TxIntent> prepared) {
+        this.preparedIntents = prepared == null ? List.of() : List.copyOf(prepared);
+    }
+
+    /**
+     * The intents this build evaluates: the authored ones followed by the prepared overlay.
+     * {@link #getIntentions()} deliberately stays authored-only.
+     *
+     * @return authored intents plus the build-local prepared intents, in that order
+     */
+    protected List<TxIntent> effectiveIntentions() {
+        List<TxIntent> authored = getIntentions();
+        if (preparedIntents.isEmpty()) return authored;
+        List<TxIntent> all = new ArrayList<>(authored.size() + preparedIntents.size());
+        all.addAll(authored);
+        all.addAll(preparedIntents);
+        return all;
     }
 
     /**
@@ -276,7 +308,8 @@ public abstract class AbstractTx<T> {
      * Phase 3: Apply all transaction transformations - handled in complete()
      */
     protected TxOutputBuilder preComplete() {
-        if (intentions == null || intentions.isEmpty()) {
+        List<TxIntent> allIntentions = effectiveIntentions();
+        if (allIntentions.isEmpty()) {
             return null;
         }
 
@@ -287,7 +320,6 @@ public abstract class AbstractTx<T> {
             .build();
 
         // Phase 1: Collect and compose all TxOutputBuilders
-        List<TxIntent> allIntentions = getIntentions();
         TxOutputBuilder composedOutputBuilder = allIntentions.stream()
             .map(intention -> intention.outputBuilder(intentContext))
             .filter(Objects::nonNull)
@@ -302,7 +334,8 @@ public abstract class AbstractTx<T> {
      * This is called after UTXO selection in complete().
      */
     protected TxBuilder applyIntentions() {
-        if (intentions == null || intentions.isEmpty()) {
+        List<TxIntent> allIntentions = effectiveIntentions();
+        if (allIntentions.isEmpty()) {
             return (ctx, txn) -> { /* no-op */ };
         }
 
@@ -313,7 +346,6 @@ public abstract class AbstractTx<T> {
             .build();
 
         // This ensures all intents are valid before any transaction building begins
-        List<TxIntent> allIntentions = getIntentions();
         for (TxIntent intention : allIntentions) {
             intention.validate();
         }
@@ -389,7 +421,9 @@ public abstract class AbstractTx<T> {
      * @return true if there are multi-assets to be minted; false otherwise
      */
     boolean hasMultiAssetMinting() {
-        return hasMultiAssetMinting;
+        if (hasMultiAssetMinting) return true;
+        return preparedIntents.stream().anyMatch(intent ->
+                intent instanceof MintingIntent || intent instanceof ScriptMintingIntent);
     }
 
     /**
@@ -401,8 +435,7 @@ public abstract class AbstractTx<T> {
      * @return true if the transaction has script intents
      */
     public boolean hasScriptIntents() {
-        if (intentions == null || intentions.isEmpty()) return false;
-        return intentions.stream().anyMatch(intent ->
+        return effectiveIntentions().stream().anyMatch(intent ->
                 intent instanceof ScriptCollectFromIntent ||
                 intent instanceof ScriptMintingIntent ||
                 intent.hasRedeemer()
@@ -410,8 +443,9 @@ public abstract class AbstractTx<T> {
     }
 
     TxBuilder complete() {
-        if (this.intentions != null && !this.intentions.isEmpty()) {
-            java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = this.intentions.stream()
+        List<TxIntent> allIntentions = effectiveIntentions();
+        if (!allIntentions.isEmpty()) {
+            java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = allIntentions.stream()
                     .filter(i -> i instanceof TxInputIntent)
                     .map(i -> (TxInputIntent) i)
                     .map(TxInputIntent::utxoStrategy)
@@ -451,7 +485,7 @@ public abstract class AbstractTx<T> {
 
         // Phase 4: Resolve deposits — runs for ALL Txs with deposit intents
         txBuilder = txBuilder.andThen(
-                DepositResolvers.resolveDeposits(intentions, depositPayerAddress, getFromAddress(), depositMode)
+                DepositResolvers.resolveDeposits(allIntentions, depositPayerAddress, getFromAddress(), depositMode)
         );
 
         return txBuilder;
@@ -610,8 +644,7 @@ public abstract class AbstractTx<T> {
      * @return the matching UTXO if found
      */
     protected Optional<Utxo> getUtxoForRedeemer(Redeemer redeemer) {
-        if (intentions == null) return Optional.empty();
-        return intentions.stream()
+        return effectiveIntentions().stream()
                 .filter(intention -> intention instanceof ScriptCollectFromIntent)
                 .map(intention -> ((ScriptCollectFromIntent) intention).getUtxoForRedeemer(redeemer))
                 .filter(Optional::isPresent)
