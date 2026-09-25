@@ -38,7 +38,7 @@ public class ADAConversionUtil {
         if (decimals > 0 && decimals <= Integer.MAX_VALUE) {
             return new BigDecimal(BigInteger.TEN.pow((int) decimals));
         }
-        return new BigDecimal(Math.pow(10, decimals));
+        return BigDecimal.valueOf(Math.pow(10, decimals));
     }
 
     public static BigInteger adaToLovelace(double amount) {
