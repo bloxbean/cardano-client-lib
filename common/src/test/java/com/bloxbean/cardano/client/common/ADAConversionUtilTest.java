@@ -26,4 +26,10 @@ class ADAConversionUtilTest {
         BigInteger lovelace = ADAConversionUtil.adaToLovelace(5.5);
         assertEquals(lovelace, BigInteger.valueOf(5500000));
     }
+
+    @Test
+    void assetFromDecimal_keepsScalePastDoublePrecision() {
+        BigInteger baseUnits = ADAConversionUtil.assetFromDecimal(BigDecimal.ONE, 23);
+        assertEquals(BigInteger.TEN.pow(23), baseUnits);
+    }
 }
