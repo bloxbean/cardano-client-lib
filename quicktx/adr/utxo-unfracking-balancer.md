@@ -157,7 +157,7 @@ min-ada. Only the ADA split differs:
 |---|---|---|---|
 | `PercentageSplitStrategy` | Evolution percentages above the threshold, otherwise one output | Evolution behaviour without the spread and per-policy issues | 100 ADA, 50/15/10/10/5/5/5 |
 | `EqualLanesStrategy` | Up to N equal lanes, each at least `minLaneAmount` | Bots and services paying similar amounts | 5 lanes, 10 ADA |
-| `PaymentSizedStrategy` | One piece per payment of the same size, largest first, plus the remainder ([CIP-2](https://cips.cardano.org/cip/CIP-0002) "self-organisation") | Wallets whose UTxOs should drift towards their typical payment sizes | max 5 pieces |
+| `PaymentSizedStrategy` | One piece per payment (payment + fee allowance + min-ada), largest first, plus the remainder ([CIP-2](https://cips.cardano.org/cip/CIP-0002) "self-organisation") | Wallets whose UTxOs should drift towards their typical payment sizes | max 5 pieces, 0.5 ADA fee allowance |
 | `TargetShapeStrategy` | Only the lanes still missing to reach `targetLanes` ADA-only UTxOs of `laneAmount` (reads the wallet via `UtxoSupplier`, ignores UTxOs spent by this transaction) | Keeping a stable wallet shape; stops the UTxO count from growing | 5 lanes, 10 ADA |
 
 These strategies are **experimental**. §12 analyses each one with worked examples and a first simulation, and
@@ -252,9 +252,9 @@ silently replaces it today. Chaining fixes that bug too.
 
 ## 9. Future Work
 
-- **Strategy simulator**: §12.8 has a first ADA-only simulation. A committed, token-aware simulator should replay
-  payments, incoming tokens and NFT sends and also compare ADA locked as min-ada, fee, share of ADA payments that
-  move tokens, and largest output vs `maxValSize`, with more than one coin selection strategy.
+- **Simulator extensions**: the committed simulator (§12.8) uses largest-first selection, a fixed fee and serial
+  transactions. Next: other coin selection strategies (random-improve), a size-based fee, NFT sends, and concurrent
+  submission with in-flight UTxOs.
 - **Consolidation**: merge dust UTxOs (Evolution's `maxUtxosToConsolidate` is not implemented either).
   `TargetShapeStrategy` only stops the growth.
 - **Fallback instead of failure**: if validation after balancing fails, rebuild with a single change output.
@@ -271,6 +271,10 @@ silently replaces it today. Chaining fixes that bug too.
 - **Contract test** for every strategy on a few hundred generated change values: Σ pieces equals the input, every
   piece meets min-ada, no policy repeated in one output, input not modified, deterministic; and the generated
   inputs must actually cause splits.
+- **Wallet simulation** (`UnfrackSimulationTest`): replays the §12.8 workloads for every strategy, prints the report
+  tables and asserts the properties this ADR relies on (conservation of ADA and tokens, `TargetShapeStrategy` stays
+  at its target, per-transaction strategies grow, no token churn after unfracking a hot UTxO, byte-budget bundling
+  locks less ADA, Evolution's spread in small wallets, `PaymentSizedStrategy` pieces fund a payment alone).
 - **`Unfrack` unit tests** (on a `Transaction`):
   - in-place split and index preservation, several change outputs;
   - small change left untouched;
@@ -632,18 +636,25 @@ payment. Not as a permanent setting.
 **Idea.** From [CIP-2](https://cips.cardano.org/cip/CIP-0002): if every payment of size *v* leaves a change piece of
 about *v*, the wallet gradually fills up with UTxOs matching its typical payments.
 
-**Algorithm.** Take the ADA of the non-change outputs, largest first. For each payment create a piece of exactly
-that size, skipping payments below min-ada and payments that would leave a remainder below min-ada. The remainder is
-the last piece; at most `maxPieces` (5) pieces in total.
+**Algorithm.** Take the ADA of the non-change outputs, largest first. For each payment create a piece of
+**payment + `feeAllowance` + ADA-only min-ada** (default 0.5 + 0.969750 = 1.469750 ADA on top), so that the piece
+can pay a similar payment alone, including its fee and a change output. Payments below min-ada, and payments whose
+piece would leave a remainder below min-ada, are skipped. The remainder is the last piece; at most `maxPieces` (5)
+pieces in total.
+
+The margin was added after the first simulation: with pieces of exactly the payment size, a 10 ADA piece could not
+pay a 10 ADA payment (fee and change missing), and the number of UTxOs able to fund a payment alone stayed at 1.0.
+With the margin it is 150.5 (§12.8).
 
 **Examples.**
 
 | Change | Payments | Result |
 |---|---|---|
-| 1,000 ADA | 10 ADA | 10 · 990 ADA |
-| 1,000 ADA | 50, 20, 5 ADA | 50 · 20 · 5 · 925 ADA |
-| 35 ADA | 10 ADA | 10 · 25 ADA |
-| 60 ADA + 3 tokens of 3 policies | 10 ADA | 1 bundle (1.482640 ADA) + 10 · 48.517360 ADA |
+| 1,000 ADA | 10 ADA | 11.469750 · 988.530250 ADA |
+| 1,000 ADA | 50, 20, 5 ADA | 51.469750 · 21.469750 · 6.469750 · 920.590750 ADA |
+| 35 ADA | 10 ADA | 11.469750 · 23.530250 ADA |
+| 11 ADA | 10 ADA | 1 output (the piece would not leave a valid remainder) |
+| 60 ADA + 3 tokens of 3 policies | 10 ADA | 1 bundle (1.482640 ADA) + 11.469750 · 47.047610 ADA |
 
 **Strengths.**
 
@@ -652,13 +663,12 @@ the last piece; at most `maxPieces` (5) pieces in total.
 
 **Weaknesses.**
 
-- **A piece exactly the size of a payment can't fund that payment alone**, because the fee and the change output need
-  a little more. With fixed 10 ADA payments, §12.8 shows ~1 UTxO able to fund a payment, the same as without unfracking.
-  The piece would need a margin (payment + fee + min-ada).
 - CIP-2 assumes Random-Improve coin selection, which spends small UTxOs over time. With CCL's largest-first default
-  the small pieces are never picked while a big UTxO exists, so they pile up: 301 UTxOs after 300 payments.
+  the payment-sized pieces are never picked while a bigger UTxO exists, so they pile up: 301 UTxOs after 300 fixed
+  payments (§12.8).
+- The ADA of token payments (e.g. 1.2 ADA sent with an NFT) also creates pieces, which are small.
 
-**Use it for** experiments only, until the margin is added and it is tested with a random coin selection strategy.
+**Use it for** experiments with a random coin selection strategy; not with largest-first.
 
 ### 12.5 `TargetShapeStrategy` (wallet-aware)
 
@@ -720,19 +730,24 @@ matters (DEX, marketplace, staking of a specific token).
 | `EvolutionStrategy` | Unbounded (~1.2 UTxOs per tx) | Per policy, spread | Evolution defaults | Fragmentation, 1 output per policy |
 | `PercentageSplitStrategy` | Unbounded (as Evolution) | Byte budget, ADA separate | Evolution defaults | Fragmentation |
 | `EqualLanesStrategy` | Unbounded (up to ~2 UTxOs per tx) | Byte budget, ADA separate | Lanes, lane size | Worst fragmentation |
-| `PaymentSizedStrategy` | Unbounded (~1 UTxO per tx) | Byte budget, ADA separate | Max pieces | Pieces can't fund a payment alone |
+| `PaymentSizedStrategy` | Unbounded (~1 UTxO per tx) | Byte budget, ADA separate | Max pieces, fee allowance | Pieces pile up under largest-first |
 | `TargetShapeStrategy` | **Bounded** at `targetLanes` | Byte budget, ADA separate | Lanes, lane size | `getAll` per transaction |
 
 ### 12.8 Simulation
 
-A first, ADA-only simulation (not committed):
+`UnfrackSimulationTest` (with `UnfrackSimulator`) replays wallet workloads through the real `Unfrack`, so the strategy
+result checks run on every step. It prints the tables below and asserts the properties this section relies on.
 
-- the wallet starts with one 10,000 ADA UTxO and makes 300 payments;
-- inputs are chosen largest-first, like CCL's default;
-- fee 0.2 ADA, fee reserve 2 ADA;
-- the change is shaped by each strategy;
-- "fundable" is the average number of UTxOs that could pay the next payment alone, as a proxy for concurrency
-  potential.
+Model:
+
+- one address; serial transactions; inputs chosen **largest-first** (CCL's default); fixed fee 0.2 ADA; fee reserve
+  2 ADA; payments in ADA to another address;
+- "fundable" is the average number of ADA-only UTxOs that could pay the next payment alone (a proxy for concurrency
+  potential);
+- "token churn" is the share of payments whose inputs included a UTxO with tokens;
+- "ADA in token UTxOs" is ADA locked next to tokens at the end.
+
+**ADA-only workloads** (wallet: one 10,000 ADA UTxO, 300 payments).
 
 | Strategy | Fixed 10 ADA: max UTxOs | fundable | Random 1–50 ADA: max UTxOs | fundable | Mixed 2–10 / 100–300 ADA: max UTxOs | fundable |
 |---|---|---|---|---|---|---|
@@ -740,31 +755,51 @@ A first, ADA-only simulation (not committed):
 | Evolution | 361 | 228.0 | 301 | 95.4 | 331 | 214.8 |
 | EqualLanes (5 × 10 ADA) | 625 | 427.4 | 470 | 90.6 | 482 | 299.7 |
 | EqualLanes (5 × 60 ADA) | 125 | 118.4 | 125 | 89.6 | 116 | 84.4 |
-| PaymentSized (5) | 301 | 1.0 | 209 | 50.8 | 290 | 56.2 |
+| PaymentSized (5) | 301 | 150.5 | 205 | 52.6 | 288 | 77.5 |
 | TargetShape (5 × 10 ADA) | 5 | 1.0 | 5 | 1.7 | 5 | 4.0 |
 | TargetShape (5 × 60 ADA) | 5 | 5.0 | 5 | 5.0 | 5 | 4.6 |
 | TargetShape (10 × 60 ADA) | 10 | 10.0 | 10 | 10.0 | 10 | 9.2 |
 
-`PercentageSplitStrategy` is identical to Evolution for ADA-only change and is left out. Average inputs per
-transaction stayed between 1.0 and 1.3 for all strategies except EqualLanes with 10 ADA lanes (up to 1.73).
+`PercentageSplitStrategy` is identical to Evolution for ADA-only change. Average inputs per transaction stayed between
+1.0 and 1.3 for all strategies except EqualLanes with 10 ADA lanes (up to 1.73).
 
-**Reading.** The per-transaction strategies create many fundable UTxOs, but only by fragmenting the wallet without
-limit: after 300 payments the wallet has hundreds of UTxOs, which is the "fracked" state unfracking is meant to
-prevent. `TargetShapeStrategy` gives exactly the concurrency it is configured for and nothing more.
+**Token workloads.**
 
-**Caveats.** The simulation covers ADA only (no tokens), a single address, serial transactions, largest-first
-selection only, and synthetic payments. It should be replaced by the committed simulator from §9 before the default
-changes.
+| Strategy | Hot UTxO¹: max UTxOs | token churn | ADA in token UTxOs | Small wallet²: final UTxOs | ADA in token UTxOs |
+|---|---|---|---|---|---|
+| None (today) | 1 | **100 %** (150 tokens moved per payment) | 2,183.60 | 1 | 69.56 |
+| Evolution | 445 | 0 % | **171.97** | 27 | **22.93** |
+| PercentageSplit | 308 | 0 % | 32.06 | 8 | 4.34 |
+| EqualLanes (5 × 60 ADA) | 132 | 0 % | 32.06 | 3 | 4.34 |
+| PaymentSized (5) | 212 | 0 % | 32.06 | 27 | 3.09 |
+| TargetShape (5 × 60 ADA) | **12** | 0 % | 32.06 | **3** | 4.34 |
+
+¹ One UTxO with 10,000 ADA and 150 single-token policies, 300 random 1–50 ADA payments.
+² One UTxO with 150 ADA and 20 single-token policies, 40 random 1–3 ADA payments.
+
+Token airdrops that arrive as separate UTxOs (a fourth workload) make no difference: largest-first never selects
+them, so they never reach the change and no strategy touches them.
+
+**Reading.**
+
+- Every strategy fixes the hot-UTxO problem: after the first transaction, payments no longer move tokens.
+- One bundle per policy (Evolution) locks 5× more ADA than byte-budget bundling and adds 150 UTxOs at once.
+- Evolution's spread stores ADA next to tokens in small wallets (22.93 vs 4.34 ADA).
+- The per-transaction strategies create many fundable UTxOs, but only by fragmenting the wallet without limit, which
+  is the "fracked" state unfracking is meant to prevent. `TargetShapeStrategy` gives exactly the concurrency it is
+  configured for.
+
+**Caveats.** One address, serial transactions, largest-first selection only, fixed fee, synthetic payments. See §9.
 
 ### 12.9 Recommendation
 
 1. **Tokens: `ByteBudgetBundling`, with ADA always kept separate** (as in all alternatives). It is better than the
-   Evolution behaviour in every case examined, with no real downside for wallets.
+   Evolution behaviour in every case simulated.
 2. **ADA: `TargetShapeStrategy`** for general use, with `laneAmount` above the typical payment and `targetLanes` set to
    the wanted number of parallel payments. It is the only strategy whose wallet shape stays bounded and predictable.
-3. **Keep `EvolutionStrategy` as the default for now.** Parity with Evolution SDK is useful for a CIP discussion, and
-   changing the default should wait for the token-aware simulator (§9). A CIP would be stronger if it standardised a
-   *target wallet shape* (like `TargetShapeStrategy`) as an extension of CIP-2, rather than Evolution's percentages.
-4. **`PaymentSizedStrategy` needs a margin** (piece = payment + fee + min-ada) before it is useful, and a test with
-   random coin selection.
+3. **Keep `EvolutionStrategy` as the default for now**, for parity with Evolution SDK, until reviewers decide on the
+   default (PR #676). The data favours `TargetShapeStrategy` with `ByteBudgetBundling`. A CIP would be stronger if it
+   standardised a *target wallet shape* as an extension of CIP-2, rather than Evolution's percentages.
+4. **`PaymentSizedStrategy`**: the margin fix makes its pieces useful, but under largest-first it still piles up
+   UTxOs. Evaluate it again with a random coin selection strategy.
 5. **`EqualLanesStrategy` only for short bursts**, with large lanes.
