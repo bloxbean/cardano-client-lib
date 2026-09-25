@@ -45,8 +45,10 @@ SDK does not attempt this either.
 1. Reuse the existing **`preBalanceTx(TxBuilder)`** hook. Make it **chain** transformers (`andThen`) instead of
    overwriting the previous one, so unfracking can be combined with other pre-balance transformers. When `Unfrack`
    is not added, transaction building is unchanged, byte for byte.
-2. Provide **`Unfrack`**, a `TxBuilder` that is a faithful port of Evolution SDK's
-   `createUnfrackedChangeOutputs`. The goals are parity and a well-understood algorithm; tuning comes later.
+2. Provide **`Unfrack`**, a `TxBuilder` that delegates the split to a pluggable **`ChangeSplitStrategy`**
+   (strategy pattern, like `UtxoSelectionStrategy` for coin selection). The default, **`EvolutionStrategy`**, is a
+   faithful port of Evolution SDK's `createUnfrackedChangeOutputs`, for parity and as a basis for a possible CIP.
+   Alternative strategies are included so that algorithms can be compared instead of copied blindly (§4.4).
 3. Unfrack **in the same transaction** by reshaping change outputs. There is no separate consolidation transaction
    (unlike UnFrack.It).
 4. Run `Unfrack` **before** fee/min-ada balancing. All existing balancing logic stays as it is and is reused
@@ -55,7 +57,8 @@ SDK does not attempt this either.
 ```java
 quickTxBuilder.compose(tx)
     .feePayer(sender)
-    .preBalanceTx(new Unfrack())
+    .preBalanceTx(new Unfrack())                          // EvolutionStrategy
+    // .preBalanceTx(new Unfrack(new EqualLanesStrategy())) // or any other ChangeSplitStrategy
     .withSigner(signer)
     .completeAndWait();
 ```
@@ -66,9 +69,16 @@ quickTxBuilder.compose(tx)
 
 | Class | Role |
 |---|---|
-| `Unfrack` | `TxBuilder` implementation. Finds change outputs and replaces each with its split pieces |
-| `UnfrackPlanner` | Pure algorithm: `List<Value> plan(String address, Value change)`. No transaction or context dependency |
-| `UnfrackConfig` | Immutable Lombok builder with the tuning parameters (§4.3) |
+| `Unfrack` | `TxBuilder`. Finds change outputs, calls the strategy, verifies its result, applies the fee reserve and output order (§4.2) |
+| `ChangeSplitStrategy` | Strategy interface: `List<Value> split(ChangeSplitRequest)` |
+| `ChangeSplitRequest` | Change address, change value (minus fee reserve), protocol params, the transaction (read-only) and the `UtxoSupplier`; min-ada helpers |
+| `EvolutionStrategy` | Default. Port of Evolution SDK (§4.1) |
+| `AbstractChangeSplitStrategy` | Base for strategies that keep ADA apart from tokens and only differ in how ADA is split (§4.4) |
+| `PercentageSplitStrategy`, `EqualLanesStrategy`, `PaymentSizedStrategy`, `TargetShapeStrategy` | Alternative strategies (§4.4) |
+| `TokenBundlingStrategy` | How tokens are grouped into outputs: `PolicyBundling` (per policy, by count) or `ByteBudgetBundling` (by CBOR size) |
+
+A strategy only returns values. `Unfrack` checks that they sum to the change and that each meets min-ada, and
+throws `IllegalStateException` otherwise, so a faulty third-party strategy cannot create an invalid transaction.
 
 ### `quicktx` module
 
@@ -80,7 +90,7 @@ API.
 
 ## 4. Algorithm
 
-### 4.1 Planner (port of Evolution SDK)
+### 4.1 Default strategy: `EvolutionStrategy` (port of Evolution SDK)
 
 The input is the change value `V` at address `A`. The output is a list of values that sums exactly to `V`, where
 every value meets min-ada at `A`. A single-element result means "do not split".
@@ -107,22 +117,51 @@ output ends up below min-ada. To fit both without changing them:
   the fee, and all other pieces still meet min-ada after balancing.
 - The fee-bearing piece replaces the original change output **at the same index**, and the remaining pieces are
   **appended**. The indexes of all other outputs are therefore unchanged.
-- Value conservation is asserted: Σ pieces must equal the original change, otherwise it throws.
+- The strategy result is verified: Σ pieces must equal the change and each piece must meet min-ada, otherwise it
+  throws.
 
 **Open question:** the default reserve size. A fixed 2 ADA prevents splitting small change that Evolution does
 split. See the comparison and options in §11.6 (F1).
 
-### 4.3 Configuration (`UnfrackConfig`)
+### 4.3 Configuration
+
+`Unfrack(strategy, feeReserve)`: `feeReserve` defaults to 2 ADA (CCL-specific, §4.2). `EvolutionStrategy.builder()`:
 
 | Parameter | Default | Source |
 |---|---|---|
 | `subdivideThreshold` | 100 ADA | Evolution |
 | `subdividePercentages` | 50, 15, 10, 10, 5, 5, 5 | Evolution / UnFrack.It |
 | `bundleSize` | 10 | Evolution (UnFrack.It uses 30) |
-| `feeReserve` | 2 ADA | CCL-specific (§4.2) |
 
 Evolution also declares `isolateFungibles` and `groupNftsByPolicy`, but its change-creation path
 (`createUnfrackedChangeOutputs`) never reads them, so they are intentionally omitted.
+
+### 4.4 Alternative strategies
+
+The Evolution algorithm has known weaknesses:
+
+- below `subdivideThreshold` it **spreads** the ADA over the token bundles, so a later ADA payment has to spend a
+  token UTxO;
+- it creates **one output per policy**, however small (150 airdropped policies = 150 outputs);
+- `bundleSize` counts tokens, not bytes;
+- it ignores the wallet and **re-splits on every transaction**, so the UTxO count keeps growing;
+- the percentage split is relative to whatever the change is, and has a cliff at the threshold (99 ADA → 1 output,
+  100 ADA → 7).
+
+The alternatives extend `AbstractChangeSplitStrategy`. It bundles tokens with a `TokenBundlingStrategy` (default
+`ByteBudgetBundling`, 1,000 bytes: first-fit decreasing, small policies share an output, large policies are chunked),
+gives each bundle exactly its min-ada, and **always keeps the remaining ADA in ADA-only outputs** when it covers
+min-ada. Only the ADA split differs:
+
+| Strategy | ADA split | Intended for | Defaults |
+|---|---|---|---|
+| `PercentageSplitStrategy` | Evolution percentages above the threshold, otherwise one output | Evolution behaviour without the spread and per-policy issues | 100 ADA, 50/15/10/10/5/5/5 |
+| `EqualLanesStrategy` | Up to N equal lanes, each at least `minLaneAmount` | Bots and services paying similar amounts | 5 lanes, 10 ADA |
+| `PaymentSizedStrategy` | One piece per payment of the same size, largest first, plus the remainder ([CIP-2](https://cips.cardano.org/cip/CIP-0002) "self-organisation") | Wallets whose UTxOs should drift towards their typical payment sizes | max 5 pieces |
+| `TargetShapeStrategy` | Only the lanes still missing to reach `targetLanes` ADA-only UTxOs of `laneAmount` (reads the wallet via `UtxoSupplier`, ignores UTxOs spent by this transaction) | Keeping a stable wallet shape; stops the UTxO count from growing | 5 lanes, 10 ADA |
+
+These strategies are **experimental**. Which one should be the default is to be decided with data from a simulator
+(§9), not by assumption.
 
 ## 5. Build Pipeline Placement
 
@@ -181,6 +220,11 @@ The first spike added a new interface and QuickTx method that ran right after `p
 position in the pipeline, so it only added API surface. It also had a misleading name, because it reshapes change
 and does not balance anything. It was rejected in favour of chaining `preBalanceTx`.
 
+### Hard-code one algorithm (the Evolution port)
+Simple, but Evolution's algorithm has known weaknesses (§4.4) and there is no single right shape for every wallet.
+A strategy interface lets us compare and change algorithms without API changes, the same way coin selection uses
+`UtxoSelectionStrategy`. It was rejected in favour of `ChangeSplitStrategy`.
+
 ### Keep `preBalanceTx` as a single, overwriting slot
 `Unfrack` would then collide with other pre-balance transformers. `MintValidatorExtender` already sets one
 internally (to remove an inline script when a reference script is used), and a user's own `preBalanceTx(...)`
@@ -208,8 +252,12 @@ silently replaces it today. Chaining fixes that bug too.
 
 ## 9. Future Work
 
-- **Parallelism-oriented strategy**: split ADA into N roughly equal "lanes" sized to the expected payment, instead
-  of 50/15/10/…, and possibly keep a target count of ADA-only UTxOs in the wallet.
+- **Strategy simulator**: replay a synthetic workload (payments, incoming tokens, NFT sends) over hundreds of
+  transactions for each strategy and compare UTxO count, ADA locked as min-ada, fee, share of ADA payments that
+  move tokens, largest output vs `maxValSize`, and how many UTxOs can fund a median payment alone. Choose the
+  default strategy from this data.
+- **Consolidation**: merge dust UTxOs (Evolution's `maxUtxosToConsolidate` is not implemented either).
+  `TargetShapeStrategy` only stops the growth.
 - **Fallback instead of failure**: if validation after balancing fails, rebuild with a single change output.
 - **Size limits**: check `maxValSize` per bundle and `maxTxSize` for the whole transaction (issue #42).
 - **TxPlan / YAML**: an `unfrack` field so that YAML plans can opt in.
@@ -218,22 +266,23 @@ silently replaces it today. Chaining fixes that bug too.
 
 ## 10. Test Plan
 
-- **Planner unit tests** (`UnfrackPlanner`, no transaction context):
-  - ADA below and above the threshold, including rounding remainder;
-  - subdivision that can't be afforded;
-  - spreading ADA across bundles;
-  - chunking by `bundleSize`;
-  - bundles plus subdivided ADA;
-  - bundles that can't be funded;
-  - config validation;
-  - invariants on every result: Σ pieces equals the input, and every piece meets min-ada.
+- **One unit test class per strategy and token bundling** (no transaction context): thresholds and boundaries,
+  rounding remainders, unaffordable splits, token handling, strategy-specific behaviour (e.g. payments for
+  `PaymentSizedStrategy`, existing and spent UTxOs for `TargetShapeStrategy`), config validation.
+- **Contract test** for every strategy on a few hundred generated change values: Σ pieces equals the input, every
+  piece meets min-ada, no policy repeated in one output, input not modified, deterministic; and the generated
+  inputs must actually cause splits.
 - **`Unfrack` unit tests** (on a `Transaction`):
-  - in-place split and index preservation;
+  - in-place split and index preservation, several change outputs;
   - small change left untouched;
-  - non-change outputs and change with a datum left untouched.
+  - non-change outputs and change with a datum, datum hash or script ref left untouched;
+  - the strategy receives change minus the reserve, the transaction and the `UtxoSupplier`;
+  - custom and zero fee reserve;
+  - invalid strategy results (value mismatch, dropped token, piece below min-ada, empty) are rejected.
 - **QuickTx tests** (mocked `UtxoSupplier`/`ProtocolParamsSupplier`): the same transaction built with and without
   `.preBalanceTx(new Unfrack())`, checking output count, min-ada, inputs = outputs + fee, and token conservation. Without the
-  `Unfrack`, the output must be identical to today's. Two `preBalanceTx(...)` calls must both be applied.
+  `Unfrack`, the output must be identical to today's. A non-default strategy end to end. Two `preBalanceTx(...)` calls
+  must both be applied.
 - **Parity:** port selected Evolution SDK scenarios (`Unfrack.test.ts`, `TxBuilder.UnfrackChangeHandling.test.ts`)
   so that CCL produces the same split for the same input.
 - **Integration** (Yaci DevKit): submit an unfracking transaction and check that the resulting UTxOs are on-chain
@@ -276,7 +325,7 @@ Result<String> result = quickTxBuilder
         .compose(new Tx()
                 .payToAddress(receiver, Amount.ada(2))
                 .from(sender))
-        .preBalanceTx(new Unfrack())                   // defaults = Evolution defaults
+        .preBalanceTx(new Unfrack())                   // EvolutionStrategy with Evolution defaults
         .withSigner(SignerProviders.signerFrom(account))
         .complete();
 ```
@@ -310,14 +359,14 @@ const signBuilder = await makeTxBuilder({ chain: mainnet })
 CCL:
 
 ```java
-UnfrackConfig config = UnfrackConfig.builder()
+EvolutionStrategy strategy = EvolutionStrategy.builder()
         .subdivideThreshold(adaToLovelace(100))
         .subdividePercentages(List.of(50, 30, 20))
         .build();
 
 Transaction tx = quickTxBuilder
         .compose(new Tx().payToAddress(destination, Amount.ada(1)).from(source))
-        .preBalanceTx(new Unfrack(config))
+        .preBalanceTx(new Unfrack(strategy))
         .build();
 ```
 
@@ -355,15 +404,14 @@ const signBuilder = await makeTxBuilder({ chain: mainnet })
 CCL:
 
 ```java
-UnfrackConfig config = UnfrackConfig.builder()
+EvolutionStrategy strategy = EvolutionStrategy.builder()
         .subdivideThreshold(BigInteger.valueOf(500_000))
         .subdividePercentages(List.of(50, 30, 20))
-        .feeReserve(BigInteger.valueOf(300_000))     // see finding F1
         .build();
 
 Transaction tx = quickTxBuilder
         .compose(new Tx().payToAddress(destination, Amount.lovelace(BigInteger.valueOf(2_000_000))).from(source))
-        .preBalanceTx(new Unfrack(config))
+        .preBalanceTx(new Unfrack(strategy, BigInteger.valueOf(300_000)))   // fee reserve, see finding F1
         .build();
 ```
 
@@ -425,7 +473,7 @@ CCL (there is no `drainTo`; spending every UTxO is expressed with `collectFrom`)
 ```java
 List<Utxo> fragments = utxoSupplier.getAll(source);
 
-UnfrackConfig config = UnfrackConfig.builder()
+EvolutionStrategy strategy = EvolutionStrategy.builder()
         .bundleSize(10)
         .subdivideThreshold(adaToLovelace(50))
         .subdividePercentages(List.of(50, 25, 15, 10))
@@ -436,7 +484,7 @@ Transaction tx = quickTxBuilder
                 .collectFrom(fragments)
                 .payToAddress(destination, Amount.ada(1))
                 .from(source))
-        .preBalanceTx(new Unfrack(config))
+        .preBalanceTx(new Unfrack(strategy))
         .build();
 ```
 
