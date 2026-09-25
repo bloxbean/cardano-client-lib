@@ -13,6 +13,7 @@ QuickTx always returns change as a **single output** at the sender's change addr
 
 - **One "hot" UTxO** holding almost all ADA and every token. Every new transaction must spend it, and it stays
   unavailable until the previous transaction settles. A wallet can therefore only have **one transaction in flight**.
+  Unfracking alone does not remove this limit; see the non-goal below.
 - **Many dusty fragments**. Transactions need many inputs, which makes them larger and more expensive.
 
 Additional costs of mixing everything into one UTxO:
