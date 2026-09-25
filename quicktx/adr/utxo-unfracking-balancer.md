@@ -2,7 +2,7 @@
 
 **Status**: Proposed
 **Date**: 2026-09-24
-**Issue**: TBD (related: https://github.com/bloxbean/cardano-client-lib/issues/42, https://github.com/bloxbean/cardano-client-lib/issues/279)
+**Issue**: https://github.com/bloxbean/cardano-client-lib/issues/678 (related: https://github.com/bloxbean/cardano-client-lib/issues/42, https://github.com/bloxbean/cardano-client-lib/issues/279)
 **Modules**: `quicktx`, `function`
 
 ## 1. Context
@@ -29,8 +29,15 @@ In the Cardano ecosystem the fix is called **unfracking** (after [UnFrack.It](ht
 - large ADA change is subdivided;
 - this happens **during change creation of a normal transaction**, not in a separate consolidation transaction.
 
-For CCL the primary motivation is **concurrency**. When change is partitioned into several independent UTxOs, a
-later transaction can select an uncontended UTxO while an earlier one is still in flight.
+For CCL the motivation is **wallet hygiene** (issue #678):
+
+- keep change outputs below `maxValSize`, so they stay spendable (issue #42);
+- ADA payments and single-token transfers move only the UTxOs they need, not every token in the wallet;
+- keep ADA-only UTxOs available, e.g. for collateral.
+
+Unfracking **does not solve UTxO contention**. Several UTxOs are a prerequisite for concurrent transactions, but
+choosing uncontended inputs still needs coordination (e.g. txflow) or a dedicated selection strategy (§9). Evolution
+SDK does not attempt this either.
 
 ## 2. Decision
 
@@ -182,8 +189,9 @@ A named, typed `balancer(...)` keeps both usable and makes the intent discoverab
 ## 8. Consequences
 
 **Positive**
-- A wallet can keep several transactions in flight without extra consolidation transactions.
+- Change outputs stay below `maxValSize` and remain spendable (issue #42).
 - ADA payments no longer drag every token along.
+- The wallet has several independent UTxOs, a prerequisite (not a solution) for concurrent transactions.
 - The change is additive and opt-in; the default path must stay unchanged (existing `function`/`quicktx` tests act as the guard).
 - The algorithm matches Evolution SDK, so behaviour is predictable across TypeScript and Java stacks.
 
@@ -223,8 +231,8 @@ A named, typed `balancer(...)` keeps both usable and makes the intent discoverab
   balancer, the output must be identical to today's.
 - **Parity:** port selected Evolution SDK scenarios (`Unfrack.test.ts`, `TxBuilder.UnfrackChangeHandling.test.ts`)
   so that CCL produces the same split for the same input.
-- **Integration** (Yaci DevKit): submit several transactions concurrently from an unfracked wallet to demonstrate the
-  concurrency gain.
+- **Integration** (Yaci DevKit): submit an unfracking transaction and check that the resulting UTxOs are on-chain
+  and spendable.
 
 ## 11. Examples: Evolution SDK and CCL
 
