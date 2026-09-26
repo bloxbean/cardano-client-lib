@@ -28,6 +28,16 @@ const footer = (
     <div style={{ textAlign: 'center', padding: '1rem' }}>
       &copy; {new Date().getFullYear()} BloxBean Project. Built with Nextra.
     </div>
+    {/* Scarf pixel: cookie-free traffic analytics for the docs (https://docs.scarf.sh/web-traffic/) */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img
+      referrerPolicy="no-referrer-when-downgrade"
+      src="https://static.scarf.sh/a.png?x-pxid=85d58a23-0571-4d49-bc85-ac25629dad0d"
+      alt=""
+      width="1"
+      height="1"
+      style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none' }}
+    />
   </Footer>
 )
 
