@@ -1,0 +1,23 @@
+{
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-cip30. DataSignature is (de)serialized by Jackson through its private fields; registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.cip.cip30.DataSignature",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "coseKey",
+          "parameterTypes": []
+        },
+        {
+          "name": "coseSign1",
+          "parameterTypes": []
+        }
+      ]
+    }
+  ]
+}

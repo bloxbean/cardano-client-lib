@@ -1,0 +1,11 @@
+{
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-crypto. The BIP39 English word list is loaded from the class path by MnemonicCode.",
+  "resources": [
+    {
+      "condition": {
+        "typeReached": "com.bloxbean.cardano.client.crypto.bip39.MnemonicCode"
+      },
+      "glob": "mnemonic/wordlist/english.txt"
+    }
+  ]
+}

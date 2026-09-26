@@ -1,0 +1,894 @@
+{
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-core-api. Provider-format models (Utxo, Amount, ProtocolParams, ...) bound from JSON; @JsonNaming(SnakeCaseStrategy) instantiates the strategy reflectively. Registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.api.model.Amount",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getQuantity",
+          "parameterTypes": []
+        },
+        {
+          "name": "getUnit",
+          "parameterTypes": []
+        },
+        {
+          "name": "setQuantity",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setUnit",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.api.model.EvaluationResult",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getExUnits",
+          "parameterTypes": []
+        },
+        {
+          "name": "getIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemerTag",
+          "parameterTypes": []
+        },
+        {
+          "name": "setExUnits",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.ExUnits"
+          ]
+        },
+        {
+          "name": "setIndex",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setRedeemerTag",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.RedeemerTag"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.api.model.ProtocolParams",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getA0",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoinsPerUtxoSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoinsPerUtxoWord",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCollateralPercent",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCommitteeMaxTermLength",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCommitteeMinSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCostModels",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCostModelsRaw",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDecentralisationParam",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepActivity",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtCommitteeNoConfidence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtCommitteeNormal",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtHardForkInitiation",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtMotionNoConfidence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtPPEconomicGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtPPGovGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtPPNetworkGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtPPTechnicalGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtTreasuryWithdrawal",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDvtUpdateToConstitution",
+          "parameterTypes": []
+        },
+        {
+          "name": "getEMax",
+          "parameterTypes": []
+        },
+        {
+          "name": "getExtraEntropy",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovActionDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovActionLifetime",
+          "parameterTypes": []
+        },
+        {
+          "name": "getKeyDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxBlockExMem",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxBlockExSteps",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxBlockHeaderSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxBlockSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxCollateralInputs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxTxExMem",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxTxExSteps",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxTxSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxValSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinFeeA",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinFeeB",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinFeeRefScriptCostPerByte",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinPoolCost",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinUtxo",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNOpt",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNonce",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPriceMem",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPriceStep",
+          "parameterTypes": []
+        },
+        {
+          "name": "getProtocolMajorVer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getProtocolMinorVer",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPvtCommitteeNoConfidence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPvtCommitteeNormal",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPvtHardForkInitiation",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPvtMotionNoConfidence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPvtPPSecurityGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRho",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTau",
+          "parameterTypes": []
+        },
+        {
+          "name": "setA0",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setCoinsPerUtxoSize",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setCoinsPerUtxoWord",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setCollateralPercent",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setCommitteeMaxTermLength",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setCommitteeMinSize",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setCostModels",
+          "parameterTypes": [
+            "java.util.LinkedHashMap"
+          ]
+        },
+        {
+          "name": "setCostModelsRaw",
+          "parameterTypes": [
+            "java.util.LinkedHashMap"
+          ]
+        },
+        {
+          "name": "setDecentralisationParam",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDrepActivity",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setDrepDeposit",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setDvtCommitteeNoConfidence",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDvtCommitteeNormal",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDvtHardForkInitiation",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDvtMotionNoConfidence",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDvtPPEconomicGroup",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDvtPPGovGroup",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDvtPPNetworkGroup",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDvtPPTechnicalGroup",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDvtTreasuryWithdrawal",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setDvtUpdateToConstitution",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setEMax",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setExtraEntropy",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setGovActionDeposit",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setGovActionLifetime",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setKeyDeposit",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setMaxBlockExMem",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setMaxBlockExSteps",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setMaxBlockHeaderSize",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setMaxBlockSize",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setMaxCollateralInputs",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setMaxTxExMem",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setMaxTxExSteps",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setMaxTxSize",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setMaxValSize",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setMinFeeA",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setMinFeeB",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setMinFeeRefScriptCostPerByte",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setMinPoolCost",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setMinUtxo",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setNOpt",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setNonce",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setPoolDeposit",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setPriceMem",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setPriceStep",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setProtocolMajorVer",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setProtocolMinorVer",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "setPvtCommitteeNoConfidence",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setPvtCommitteeNormal",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setPvtHardForkInitiation",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setPvtMotionNoConfidence",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setPvtPPSecurityGroup",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setRho",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        },
+        {
+          "name": "setTau",
+          "parameterTypes": [
+            "java.math.BigDecimal"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.api.model.Result",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getResponse",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        },
+        {
+          "name": "isSuccessful",
+          "parameterTypes": []
+        },
+        {
+          "name": "setResponse",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setSuccessful",
+          "parameterTypes": [
+            "boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.api.model.ResultWrapper",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getError",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        },
+        {
+          "name": "isFailure",
+          "parameterTypes": []
+        },
+        {
+          "name": "isSuccess",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.api.model.TransactionInfo",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getBlockHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getBlockHeight",
+          "parameterTypes": []
+        },
+        {
+          "name": "getBlockTime",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSlot",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTxHash",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.api.model.Utxo",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAmount",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDataHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getInlineDatum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getReferenceScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTxHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setAmount",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setDataHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setInlineDatum",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setOutputIndex",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setReferenceScriptHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setTxHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.api.model.WalletUtxo",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAmount",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDataHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDerivationPath",
+          "parameterTypes": []
+        },
+        {
+          "name": "getInlineDatum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getReferenceScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTxHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setAmount",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setDataHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDerivationPath",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.crypto.cip1852.DerivationPath"
+          ]
+        },
+        {
+          "name": "setInlineDatum",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setOutputIndex",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setReferenceScriptHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setTxHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.fasterxml.jackson.databind.PropertyNamingStrategies$SnakeCaseStrategy",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    }
+  ]
+}
