@@ -1,0 +1,129 @@
+---
+title: "TxFlow Overview"
+description: "Portable, policy-controlled Cardano transaction workflow execution"
+---
+
+TxFlow turns a reusable transaction workflow into an observable execution. It handles the parts
+that become difficult when several Cardano transactions must be coordinated: parameter binding,
+dependency outputs, UTxO spending contention, confirmation, rollback, retries, idempotency, and
+crash recovery.
+
+The current API is built around a deliberately separated lifecycle:
+
+```text
+portable YAML or JSON
+        |
+        v
+ TxFlowCodec  -- diagnostics --> author/operator
+        |
+        v
+ TxFlow definition + run-specific FlowBindings
+        |
+        v
+ FlowEngine preflight --> compiled TxPlan per step
+        |
+        v
+ FlowExecutionRequest --> handle, events, terminal result
+        |
+        +-------------> optional durable execution store and recovery
+```
+
+## Requirements and status
+
+- Java 17 is the build and runtime baseline.
+- `txflow.cardano-client.dev/v1alpha1` is the current portable document contract.
+- `TxFlowCodec`, `FlowExecutionRequest`, and `FlowEngine` are the canonical APIs for new code.
+- `FlowExecutor` and the preview `version: "1.0"` document remain compatibility APIs.
+- Applications provide and own executors. Java 21 applications may pass a virtual-thread
+  executor without changing the TxFlow API.
+
+The portable contract is still alpha and can evolve before a stable schema version. Persisted
+execution behavior is nevertheless conservative: an uncertain submission or chain observation
+does not become a successful result, and does not authorize building a different transaction.
+
+## Definition versus execution
+
+A `TxFlow` definition contains ordered steps, portable parameters, execution defaults, and
+logical resource references. Each step embeds QuickTx's single-transaction projection (`tx` plus
+optional `context`). During compilation, TxFlow wraps the bound projection in a
+`TransactionDocument` and creates the step's one-transaction executable `TxPlan`; there is not a
+separate competing transaction definition owned by the runtime.
+
+A `FlowExecutionRequest` supplies values that belong to one run:
+
+- parameter bindings;
+- an execution ID;
+- an optional application idempotency namespace and key;
+- identities of shared spending resources;
+- external references for sensitive values.
+
+`FlowEngine` supplies server- or application-owned infrastructure: backend interfaces, signer and
+script registries, resource policy, executors, and an optional durable store. Keeping these out of
+the portable document prevents definitions from carrying private keys, live objects, or backend
+credentials.
+
+## Execution safety model
+
+TxFlow follows a few safety rules throughout the runtime:
+
+1. Parse and compile errors are structured diagnostics, not partial execution.
+2. A matching execution or idempotency claim refers to one canonical request fingerprint; a
+   different request is rejected.
+3. Shared spending resources are serialized unless a server policy explicitly allows an opt-out.
+4. Accepted or unknown submission outcomes are reconciled by transaction hash before any retry.
+5. A rollback or uncertain observation cannot fall through to success.
+6. Durable recovery can resubmit only the identical verified signed payload while its validity
+   interval remains safe.
+7. `RECOVERY_REQUIRED` is distinct from a conclusive `FAILED` result and requires reconciliation.
+
+Durable store leases fence TxFlow state mutations. They cannot prevent a partitioned process from
+submitting bytes it already signed, so active-active deployments also need external UTxO
+reservation or equivalent submission serialization.
+
+## Pick a persistence profile
+
+| Profile | Store | Intended use |
+| --- | --- | --- |
+| No store | none | Short-lived execution where process loss can be handled externally |
+| In-memory | `InMemoryFlowExecutionStore` | Tests and reference contract behavior |
+| Embedded durable | RDBMS extension with file-backed H2 | One application JVM with restart recovery |
+| Service database | RDBMS extension with PostgreSQL | Pooled deployments and multi-process durable state |
+
+The relational extension owns no thread or connection pool. H2 is included for the embedded
+profile; PostgreSQL users provide a driver and normally an application-managed `DataSource`.
+
+## Guide
+
+Follow these pages in order for a new integration:
+
+1. [Getting Started](/txflow/getting-started/) — dependencies, a portable flow, backend adapters, and the
+   first execution.
+2. [Portable Authoring](/txflow/portable-authoring/) — parameters, expressions, resources, step outputs,
+   schema boundaries, and diagnostics.
+3. [Execution Engine](/txflow/execution-engine/) — constructing `FlowEngine`, preflight, request identity,
+   handles, cancellation, and caller-owned executors.
+4. [Policies, Results & Observability](/txflow/policies-results-observability/) — confirmation, retry,
+   rollback, terminal states, events, and operational interpretation.
+5. [Durable Runtime](/txflow/durable-runtime/) — H2, PostgreSQL, idempotency, leases, fencing, recovery,
+   schema management, and secure bindings.
+6. [Operations & Testing](/txflow/operations-testing/) — deployment checklist, monitoring, backup and
+   restore, unit/integration tests, and custom-store qualification.
+
+Submitting many transactions over time rather than one workflow? The module also ships TxStream, a
+streaming submission API on the same engine — start with
+[TxStream Getting Started](/txstream/getting-started/), then
+[Durability & Exactly-Once](/txstream/durability/) and
+[Lanes & Throughput](/txstream/throughput/).
+
+:::note[Maintaining an older `FlowExecutor` integration?]
+`FlowExecutor` is a compatibility API. It still works, but it combines definition and execution
+concerns and is not the canonical durable-runtime path — this site documents `FlowEngine` and
+`FlowRuntime` only. For `FlowExecutor` reference material, see `txflow/README.md` in the source
+tree or the previous documentation site.
+:::
+
+## Module documentation
+
+The source tree also contains `txflow/README.md`, the portable-contract ADR, durable-store ADR,
+migration notes, and the implementation-level store contract. Those files are useful for
+contributors and adapter authors; this guide stays focused on application usage.
