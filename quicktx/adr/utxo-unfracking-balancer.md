@@ -1,4 +1,4 @@
-# UTxO Unfracking: Wallet Shape via Pre-Balance Transformer
+# UTxO Unfracking: Wallet Shape
 
 **Status**: Proposed
 **Date**: 2026-09-24
@@ -55,17 +55,20 @@ SDK does not attempt this either.
    - **tokens** (`TokenBundlingStrategy`): bundled by byte size (`ByteBudgetBundling`) or one policy per UTxO
      (`PolicyBundling`);
    - **consolidation** (`Consolidation`): whether small UTxOs are merged into the transaction.
-2. **Named profiles by intent**: `hygiene()` (default), `throughput(n, laneSize)`, `collector()`, `dex()` and
-   `offline()` (§4.6). Different intents mostly need different parameters, not different algorithms.
-3. **Unfrack in both directions, in the same transaction**: split a hot UTxO (tokens into bundles, ADA into lanes) and
+2. **Named profiles by intent**: `hygiene()` (default), `throughput(n, laneSize)`, `collector()`, `dex()`,
+   `offline()` and `minimal()` (§4.6). Different intents need different parameters, not different algorithms.
+3. **The shape belongs to the wallet owner.** A wallet sets it in its settings, a service in its configuration, and a
+   dApp building a transaction for someone else's wallet uses the shape that wallet advertises, or `minimal()` when it
+   doesn't know (§4.7).
+4. **Unfrack in both directions, in the same transaction**: split a hot UTxO (tokens into bundles, ADA into lanes) and
    merge small UTxOs (consolidation). There is no separate consolidation transaction (unlike UnFrack.It).
-4. **Reuse the existing `preBalanceTx(TxBuilder)` hook**, and make it **chain** transformers (`andThen`) instead of
+5. **Reuse the existing `preBalanceTx(TxBuilder)` hook**, and make it **chain** transformers (`andThen`) instead of
    overwriting the previous one. `Unfrack` runs before fee/min-ada balancing, so all existing balancing logic is
    reused (§5). Without `Unfrack`, transaction building is unchanged, byte for byte.
-5. **Keep `ChangeSplitStrategy` as an escape hatch** for needs no shape covers. `EvolutionStrategy`, a faithful port of
-   Evolution SDK, stays available through it for parity (§4.7).
-6. **Aim for a CIP**: the rules of a healthy wallet (§4.1), the parameterised algorithm and the profiles are written
-   so they can be proposed as an informational CIP, as an extension of
+6. **`ChangeSplitStrategy` as an escape hatch** for needs no shape covers. `EvolutionStrategy`, a faithful port of
+   Evolution SDK, is available through it for parity (§4.8).
+7. **Aim for a CIP**: the rules of a healthy wallet (§4.1), the parameterised algorithm, the profiles and the way a
+   wallet advertises its shape (§4.7) are written so they can be proposed as an informational CIP, as an extension of
    [CIP-2](https://cips.cardano.org/cip/CIP-0002) (§9).
 
 ```java
@@ -78,8 +81,7 @@ quickTxBuilder.compose(tx)
     .completeAndWait();
 ```
 
-The alternative algorithms that were prototyped and evaluated before this decision are analysed in §12. Two of them
-(`EqualLanesStrategy`, `PaymentSizedStrategy`) remain only in test sources, as simulator baselines.
+§12 evaluates the candidate algorithms behind this design and explains why one parameterised algorithm was chosen.
 
 ## 3. API Changes
 
@@ -88,14 +90,14 @@ The alternative algorithms that were prototyped and evaluated before this decisi
 | Type | Role |
 |---|---|
 | `Unfrack` | `TxBuilder`. Consolidates (§4.5), calls the strategy, verifies its result, applies the fee reserve and output order (§4.2) |
-| `WalletShape` | Immutable value (Lombok builder): `ada`, `tokens`, `consolidation`; profiles `hygiene()`, `throughput(n, laneSize)`, `collector()`, `dex()`, `offline()` |
+| `WalletShape` | Immutable value (Lombok builder): `ada`, `tokens`, `consolidation`; profiles `hygiene()`, `throughput(n, laneSize)`, `collector()`, `dex()`, `offline()`, `minimal()` |
 | `AdaShape` | Sealed interface: `Lanes(count, laneSize)`, `Percentages(threshold, percentages)`, `Single()`; each implements its ADA split |
 | `Consolidation` | Record: `maxExtraInputs`, `maxUtxoLovelace`; `none()`, `opportunistic(n)`, `opportunistic(n, maxUtxo)` |
 | `TokenBundlingStrategy` | How tokens are grouped: `PolicyBundling` or `ByteBudgetBundling`; `isFragment(...)` tells consolidation which token UTxOs to merge |
 | `WalletShapeStrategy` | The algorithm: a `ChangeSplitStrategy` that shapes change towards a `WalletShape` |
 | `ChangeSplitStrategy`, `ChangeSplitRequest` | Escape hatch for custom algorithms: `List<Value> split(ChangeSplitRequest)`; the request carries the change address, change (minus fee reserve), protocol params, the read-only transaction and the `UtxoSupplier` |
 | `AbstractChangeSplitStrategy` | Base for custom strategies that keep ADA apart from tokens and only split ADA differently |
-| `EvolutionStrategy` | Port of Evolution SDK, for parity (§4.7) |
+| `EvolutionStrategy` | Port of Evolution SDK, for parity (§4.8) |
 
 ```java
 new Unfrack()                                   // hygiene()
@@ -193,10 +195,16 @@ inputs before the change is split, so their value is reshaped together with the 
 Consolidation is **skipped** when the transaction has redeemers (extra inputs change input order and therefore
 redeemer indexes) and when there is no `UtxoSupplier`. A custom `ChangeSplitStrategy` runs without consolidation.
 
-The fragment rule came from the simulator: without it, `collector()` pulled its own full bundles back into every
-transaction (8 change outputs per transaction in the hot-UTxO workload); with it, 1.03.
+Without the fragment rule, consolidation would pull full bundles back into every transaction: in the hot-UTxO
+workload (§12.8) `collector()` would create 8 change outputs per transaction instead of 1.03.
 
 ### 4.6 Profiles
+
+Wallets are used for very different things: a person paying friends, a payout service sending hundreds of payments,
+an NFT collector receiving airdrops, a DEX or marketplace holding tokens per policy, a hardware wallet signing
+offline, and a dApp building a transaction for someone else's wallet. A single fixed shape would be wrong for most of
+them, and a free combination of parameters is hard to get right. Profiles name the common occasions and give each a
+tested set of parameters; the builder remains for everything else.
 
 | Profile | ADA | Tokens | Consolidation |
 |---|---|---|---|
@@ -205,6 +213,7 @@ transaction (8 change outputs per transaction in the hot-UTxO workload); with it
 | `collector()` | `Lanes(2, 20 ADA)` | `ByteBudgetBundling(1000)` | `opportunistic(20, 10 ADA)` |
 | `dex()` | `Lanes(3, 50 ADA)` | `PolicyBundling(10)` | none |
 | `offline()` | `Percentages(100 ADA, 50/15/10/10/5/5/5)` | `ByteBudgetBundling(1000)` | none |
+| `minimal()` | `Single()` | `ByteBudgetBundling(1000)` | none |
 
 The numbers below come from the simulator (§12.8): 300 payments from one 10,000 ADA UTxO unless stated otherwise.
 
@@ -252,7 +261,65 @@ The numbers below come from the simulator (§12.8): 300 payments from one 10,000
   stateless split it keeps growing the wallet (361 UTxOs after 300 fixed payments).
 - **Use when:** there is no `UtxoSupplier`. Otherwise prefer a `Lanes` profile.
 
-### 4.7 `EvolutionStrategy` (parity)
+#### `minimal()` — someone else's wallet
+
+- **Intent:** a dApp, DEX or marketplace builds a transaction for a user's wallet and doesn't know that wallet's
+  intent (§4.7).
+- **Behaviour:** only the rules (§4.1): tokens bundled by size and kept apart from ADA, ADA in one output. It doesn't
+  read the wallet, doesn't create lanes and doesn't consolidate, so the user signs no inputs or outputs they didn't
+  expect.
+- **Evidence:** the wallet keeps one ADA-only UTxO in every workload, and the hot-UTxO token churn still disappears
+  after the first transaction (32.06 ADA locked, as with the other byte-budget shapes).
+- **Use when:** building for a wallet whose shape is unknown.
+
+### 4.7 Who sets the shape
+
+A shape describes the intent of the wallet's owner, but the transaction is not always built by the wallet:
+
+| Who builds the transaction | Who knows the intent | Shape used |
+|---|---|---|
+| The wallet itself (send, delegate, withdraw, ...) | The user | A wallet setting: a profile (default `hygiene()`), parameters for advanced users |
+| A service or bot with its own keys | The operator | Service configuration, e.g. `throughput(20, Amount.ada(100))` |
+| A dApp, DEX or marketplace, for a user's CIP-30 wallet | Only the wallet | The shape the wallet advertises; otherwise `minimal()` |
+| Hardware or offline signing without UTxO access | The user | `offline()` |
+
+**A wallet built on CCL** exposes the shape as a setting, like the network or the account: "UTxO management:
+Everyday / Service (n lanes of x ADA) / Collector / DEX / Offline". It passes `new Unfrack(shape)` to every
+transaction it builds.
+
+**dApp-built transactions** are the hard case. With [CIP-30](https://cips.cardano.org/cip/CIP-0030) the dApp reads the
+wallet's UTxOs (`getUtxos`) and change address (`getChangeAddress`), builds the transaction itself, and the wallet
+only signs it (`signTx`). The wallet can't reshape the change afterwards without changing the transaction the dApp
+built, evaluated and possibly partly signed. So:
+
+1. **A dApp must not guess.** Without information it uses `minimal()`: the rules only, no lanes, and no consolidation
+   of the user's UTxOs, which would add inputs the user didn't expect (and more to review on a hardware wallet).
+2. **The wallet has to tell the dApp.** The CIP should define a CIP-30 extension (enabled with
+   `cardano.{walletName}.enable({ extensions: [{ cip: N }] })`, namespaced as CIP-30 recommends) through which a
+   wallet advertises its shape, for example:
+
+   ```js
+   const shape = await api.cipN.getWalletShape();
+   // { "profile": "throughput",
+   //   "ada": { "lanes": { "count": 10, "laneSize": "60000000" } },
+   //   "tokens": { "maxBundleBytes": 1000 },
+   //   "consolidation": { "maxExtraInputs": 0 } }
+   ```
+
+   dApp SDKs (CCL, Evolution SDK, Mesh, ...) map it to their builders; in CCL, to a `WalletShape`. Consolidation
+   requested by the wallet is explicit consent to extra inputs.
+3. **The wallet still has some control today**, but only a little: when a dApp calls `getUtxos(amount)`, the wallet
+   chooses which UTxOs reach the amount, so it can prefer UTxOs that fit its shape (e.g. not its reserved lanes).
+   Without `amount`, CIP-30 requires `getUtxos()` to return all UTxOs, and the dApp's coin selection decides.
+4. **The shape recovers by itself.** `Lanes`, token bundling and consolidation act on the wallet's *current* state, not
+   on the transaction alone. After dApp transactions that ignored the shape, the wallet's next own transaction
+   recreates the missing lanes and merges new fragments. A per-transaction split (like Evolution's) has no such
+   property.
+
+**CCL as a dApp backend** therefore uses `new Unfrack(WalletShape.minimal())` for users' wallets, or the shape read
+from the wallet once the extension exists.
+
+### 4.8 `EvolutionStrategy` (parity)
 
 A faithful port of Evolution SDK's `createUnfrackedChangeOutputs`, used as `new Unfrack(new EvolutionStrategy())`:
 
@@ -273,7 +340,7 @@ declares `isolateFungibles` and `groupNftsByPolicy`, but its change-creation pat
 omitted. Its weaknesses (spreading ADA into token bundles, one output per policy, unbounded growth) are analysed in
 §12.1; `offline()` is the stateless alternative without them.
 
-### 4.8 Configuration reference
+### 4.9 Configuration reference
 
 | Type | Parameter | Default | Meaning |
 |---|---|---|---|
@@ -287,7 +354,7 @@ omitted. Its weaknesses (spreading ADA into token bundles, one output per policy
 | `PolicyBundling` | `bundleSize` | 10 | Max assets of one policy per bundle |
 | `Consolidation` | `maxExtraInputs` | 0 (`none()`) | Max UTxOs merged per transaction |
 | | `maxUtxoLovelace` | 5 ADA in `opportunistic(n)` | Only UTxOs with at most this much ADA |
-| `EvolutionStrategy` | `subdivideThreshold`, `subdividePercentages`, `bundleSize` | 100 ADA, 50/15/10/10/5/5/5, 10 | §4.7 |
+| `EvolutionStrategy` | `subdivideThreshold`, `subdividePercentages`, `bundleSize` | 100 ADA, 50/15/10/10/5/5/5, 10 | §4.8 |
 
 Profile defaults are first values chosen with the simulator and should be tuned further before a CIP.
 
@@ -328,6 +395,7 @@ postBalanceTx(...)       existing
 - **Consolidation**: only at addresses the transaction already spends from; skipped with redeemers or without a
   `UtxoSupplier` (§4.5).
 - **No wallet view**: `Lanes` keeps ADA in one output without a `UtxoSupplier`; use `offline()` in that case.
+- **Transactions built for someone else's wallet**: use the shape that wallet advertises, otherwise `minimal()` (§4.7).
 - **In-flight transactions**: `Lanes` and consolidation read the UTxOs from the `UtxoSupplier` and can't see UTxOs
   already spent by transactions still in flight.
 
@@ -338,15 +406,15 @@ This requires an extra transaction, an extra fee and a wait for confirmation bef
 doesn't fit the QuickTx one-shot model. It was rejected in favour of reshaping and consolidating inside every opted-in
 transaction.
 
-### Several public strategies (the first prototype)
-The prototype shipped five strategies (Evolution port, percentage split, equal lanes, payment-sized per CIP-2,
-target shape). The simulation (§12.8) showed that every strategy that reshapes each change without looking at the
-wallet keeps growing it (hundreds of UTxOs after 300 payments); only the wallet-aware one stays bounded. Shipping all
-five would offer users configurations known to fragment their wallets, and would be hard to take back in a library.
-Different intents turned out to need different *parameters* of one algorithm. Rejected in favour of `WalletShape`
-with profiles; the evaluated alternatives remain in §12 and as simulator baselines.
+### Offer several algorithms as public options
+Five candidate algorithms were evaluated (§12): the Evolution port, a percentage split, equal lanes, payment-sized
+pieces per CIP-2, and wallet-aware lanes. The simulation (§12.8) shows that every algorithm that reshapes each change
+without looking at the wallet keeps growing it (hundreds of UTxOs after 300 payments); only the wallet-aware one stays
+bounded. Offering all of them would give users configurations known to fragment their wallets, and would be hard to
+take back in a library. Different intents need different *parameters* of one algorithm, not different algorithms.
+Rejected in favour of `WalletShape` with profiles.
 
-### Hard-code one algorithm without an interface
+### One algorithm without an interface
 A CIP needs one specification, but a closed implementation would force users with special needs to fork CCL, and the
 algorithm will still change while the CIP is reviewed. Rejected in favour of `WalletShape` plus the small
 `ChangeSplitStrategy` interface as an escape hatch.
@@ -364,9 +432,9 @@ Selection strategies only choose inputs and have no say in the shape of the chan
 but it needs the change shape too, so it lives in `Unfrack`.
 
 ### A dedicated `TxBalancer` hook (`TxContext.balancer(...)`)
-An earlier spike added a new interface and QuickTx method that ran right after `preBalanceTx`. That is the same
-position in the pipeline, so it only added API surface. It also had a misleading name, because it reshapes change
-and does not balance anything. It was rejected in favour of chaining `preBalanceTx`.
+A new interface and QuickTx method running right after `preBalanceTx` would sit at the same position in the pipeline,
+so it would only add API surface. The name would also mislead, because the hook reshapes change and doesn't balance
+anything. Rejected in favour of chaining `preBalanceTx`.
 
 ### Keep `preBalanceTx` as a single, overwriting slot
 `Unfrack` would then collide with other pre-balance transformers. `MintValidatorExtender` already sets one
@@ -385,11 +453,14 @@ silently replaces it today. Chaining fixes that bug too.
   `function`/`quicktx` tests act as the guard).
 - `preBalanceTx` chaining fixes the lost `MintValidatorExtender` transformer described in §7.
 - One algorithm with rules and profiles is a good basis for a CIP.
+- Transactions built by dApps don't break a wallet's shape permanently; the wallet's own transactions restore it
+  (§4.7).
 
 **Negative / trade-offs**
 - More outputs (and, with consolidation, more inputs) make a transaction slightly larger and its fee slightly higher.
 - `Lanes` and consolidation read the wallet's UTxOs on every build: one extra backend call, slow for large wallets.
 - Behaviour differs from Evolution SDK by default; `EvolutionStrategy` keeps parity available.
+- A wallet's shape only applies to dApp-built transactions once dApps can read it (CIP-30 extension, §4.7).
 - **Behaviour change**: calling `preBalanceTx` twice now runs both functions instead of only the last one. Code that
   relied on replacing an earlier transformer must be adjusted. No usage in this repository does this.
 - Unfracking is less discoverable without a dedicated method; Javadoc and docs examples have to cover it.
@@ -398,6 +469,8 @@ silently replaces it today. Chaining fixes that bug too.
 
 - **CIP draft**: rules (§4.1), the parameterised algorithm and the profiles as an informational CIP extending CIP-2,
   with the simulation as rationale and Evolution SDK as prior art. Involve the Evolution SDK maintainers early.
+- **CIP-30 extension**: `api.cipN.getWalletShape()` and a JSON form of `WalletShape` (§4.7), so dApps can apply the
+  wallet's shape. CCL would map the JSON to `WalletShape`.
 - **Tune profile defaults** with the simulator, including a workload with many fragments per transaction (to tell
   `collector()` from `hygiene()`).
 - **Simulator extensions**: other coin selection strategies (random-improve), a size-based fee, NFT sends, and
@@ -441,7 +514,7 @@ The TypeScript snippets below are taken from Evolution SDK
 and its builder tests, which are the only runnable unfrack examples it ships (its `examples/` folder has none). Each
 is followed by the proposed CCL equivalent.
 
-The "CCL result" rows come from running the same wallets through the prototype `Unfrack` (`EvolutionStrategy`) with QuickTx and mocked
+The "CCL result" rows come from running the same wallets through `Unfrack` (`EvolutionStrategy`) with QuickTx and mocked
 suppliers. Both runs use the same protocol parameters: `minFeeA` 44, `minFeeB` 155,381, `coinsPerUtxoByte` 4,310.
 Evolution results are the values asserted in its tests.
 
@@ -660,18 +733,19 @@ share a UTxO.
 - **F4: `drainTo` / `onInsufficientChange: "burn"`.** These Evolution fallbacks have no CCL counterpart. Clean-up
   (§11.5) works without them via `collectFrom`, so they are out of scope for this ADR.
 
-## 12. Strategy Analysis
+## 12. Evaluation of Candidate Algorithms
 
-Before the `WalletShape` decision (§2), five strategies were prototyped and compared. This section keeps that analysis
-as the rationale for the decision. What became of each:
+The design was chosen by evaluating five candidate algorithms for splitting change, implemented as
+`ChangeSplitStrategy`s and compared in a simulator. This section explains each one and the evidence. Their role in the
+design:
 
-| Prototype strategy | Now |
+| Candidate | Role in the design |
 |---|---|
-| `EvolutionStrategy` | Kept for parity (§4.7) |
-| `PercentageSplitStrategy` | `AdaShape.Percentages`, used by `offline()` |
-| `TargetShapeStrategy` | `AdaShape.Lanes`, used by `hygiene()`, `throughput()`, `collector()`, `dex()` |
-| `EqualLanesStrategy` | Simulator baseline in test sources, not shipped |
-| `PaymentSizedStrategy` | Simulator baseline in test sources, not shipped |
+| `EvolutionStrategy` | Available for parity (§4.8) |
+| `PercentageSplitStrategy` | Basis of `AdaShape.Percentages`, used by `offline()` |
+| `TargetShapeStrategy` | Basis of `AdaShape.Lanes`, used by `hygiene()`, `throughput()`, `collector()`, `dex()` |
+| `EqualLanesStrategy` | Not adopted; kept as a simulator baseline in test sources |
+| `PaymentSizedStrategy` | Not adopted; kept as a simulator baseline in test sources |
 
 **How to read the examples.** They use mainnet `coinsPerUtxoByte` 4,310 and a Shelley base address. With these,
 an ADA-only output needs 0.969750 ADA, a bundle with one token needs 1.146460 ADA, and a bundle with three
@@ -684,7 +758,7 @@ strategies, not calculated by hand.
 **Idea.** Separate tokens from ADA, and cut large ADA into a fixed "logarithmic" set of sizes: one big piece for
 large payments, some medium ones and several small ones.
 
-**Algorithm.** See §4.1. In short:
+**Algorithm.** See §4.8. In short:
 
 1. No tokens: below 100 ADA one output; otherwise 50/15/10/10/5/5/5 %, if the 5 % slice covers min-ada.
 2. Tokens: one bundle per policy (chunks of 10 assets), each with its min-ada. The remaining ADA becomes separate
@@ -720,7 +794,7 @@ large payments, some medium ones and several small ones.
 
 **Use it for** parity with Evolution SDK, and as the reference in comparisons.
 
-### 12.2 `PercentageSplitStrategy` (now `AdaShape.Percentages` / `offline()`)
+### 12.2 `PercentageSplitStrategy` (basis of `AdaShape.Percentages`)
 
 **Idea.** Evolution's ADA split, without its token problems.
 
@@ -751,7 +825,7 @@ That ADA is split by Evolution's percentages above the threshold and kept as one
 
 **Use it for** a drop-in improvement over Evolution when wallets hold many tokens.
 
-### 12.3 `EqualLanesStrategy` (simulator baseline, not shipped)
+### 12.3 `EqualLanesStrategy` (not adopted)
 
 **Idea.** Split ADA into N equal "lanes", so that several independent UTxOs of a useful size exist.
 
@@ -783,7 +857,7 @@ equal lanes, with the rounding remainder on the last one. Tokens are handled as 
 **Use it for** short-lived bursts where many equal UTxOs are wanted right away, with a lane size above the typical
 payment. Not as a permanent setting.
 
-### 12.4 `PaymentSizedStrategy` (CIP-2 self-organisation; simulator baseline, not shipped)
+### 12.4 `PaymentSizedStrategy` (CIP-2 self-organisation; not adopted)
 
 **Idea.** From [CIP-2](https://cips.cardano.org/cip/CIP-0002): if every payment of size *v* leaves a change piece of
 about *v*, the wallet gradually fills up with UTxOs matching its typical payments.
@@ -794,9 +868,9 @@ can pay a similar payment alone, including its fee and a change output. Payments
 piece would leave a remainder below min-ada, are skipped. The remainder is the last piece; at most `maxPieces` (5)
 pieces in total.
 
-The margin was added after the first simulation: with pieces of exactly the payment size, a 10 ADA piece could not
-pay a 10 ADA payment (fee and change missing), and the number of UTxOs able to fund a payment alone stayed at 1.0.
-With the margin it is 150.5 (§12.8).
+The margin matters: with pieces of exactly the payment size, a 10 ADA piece could not pay a 10 ADA payment (fee and
+change missing), and the number of UTxOs able to fund a payment alone would stay at 1.0. With the margin it is 150.5
+(§12.8).
 
 **Examples.**
 
@@ -822,7 +896,7 @@ With the margin it is 150.5 (§12.8).
 
 **Use it for** experiments with a random coin selection strategy; not with largest-first.
 
-### 12.5 `TargetShapeStrategy` (wallet-aware; now `AdaShape.Lanes`)
+### 12.5 `TargetShapeStrategy` (wallet-aware; basis of `AdaShape.Lanes`)
 
 **Idea.** Decide on a wanted wallet shape, e.g. "5 ADA-only UTxOs of at least 10 ADA", and only create what is
 missing, instead of reshaping every change blindly.
@@ -862,8 +936,8 @@ missing, instead of reshaping every change blindly.
   consolidation for that (§4.5).
 
 **Use it for** general-purpose wallets and services: it gives predictable, bounded concurrency groundwork. This is the
-basis of the `Lanes` profiles. As `AdaShape.Lanes` it keeps ADA in one output when there is no `UtxoSupplier` (the
-prototype counted no lanes and created them all again).
+basis of the `Lanes` profiles. As `AdaShape.Lanes` it keeps ADA in one output when there is no `UtxoSupplier`, so a
+wallet without a UTxO view never grows.
 
 ### 12.6 Token bundling: `PolicyBundling` vs `ByteBudgetBundling`
 
@@ -884,8 +958,8 @@ matters (DEX, marketplace, staking of a specific token).
 |---|---|---|---|---|
 | `EvolutionStrategy` | Unbounded (~1.2 UTxOs per tx) | Per policy, spread | Evolution defaults | Fragmentation, 1 output per policy |
 | `PercentageSplitStrategy` → `offline()` | Unbounded (as Evolution) | Byte budget, ADA separate | Evolution defaults | Fragmentation |
-| `EqualLanesStrategy` (baseline) | Unbounded (up to ~2 UTxOs per tx) | Byte budget, ADA separate | Lanes, lane size | Worst fragmentation |
-| `PaymentSizedStrategy` (baseline) | Unbounded (~1 UTxO per tx) | Byte budget, ADA separate | Max pieces, fee allowance | Pieces pile up under largest-first |
+| `EqualLanesStrategy` (not adopted) | Unbounded (up to ~2 UTxOs per tx) | Byte budget, ADA separate | Lanes, lane size | Worst fragmentation |
+| `PaymentSizedStrategy` (not adopted) | Unbounded (~1 UTxO per tx) | Byte budget, ADA separate | Max pieces, fee allowance | Pieces pile up under largest-first |
 | `TargetShapeStrategy` → `Lanes` profiles | **Bounded** at the lane count | Byte budget, ADA separate | Lanes, lane size | `getAll` per transaction |
 
 ### 12.8 Simulation
@@ -915,6 +989,7 @@ Model:
 | `collector()` | 2 | 2.0 | 2 | 1.4 | 2 | 1.9 |
 | `dex()` | 3 | 3.0 | 3 | 2.9 | 3 | 2.8 |
 | `offline()` | 361 | 228.0 | 301 | 95.4 | 331 | 214.8 |
+| `minimal()` | 1 | 1.0 | 1 | 1.0 | 1 | 1.0 |
 | baseline EqualLanes (5 × 10 ADA) | 625 | 427.4 | 470 | 90.6 | 482 | 299.7 |
 | baseline EqualLanes (5 × 60 ADA) | 125 | 118.4 | 125 | 89.6 | 116 | 84.4 |
 | baseline PaymentSized | 301 | 150.5 | 205 | 52.6 | 288 | 77.5 |
@@ -933,6 +1008,7 @@ EqualLanes with 10 ADA lanes (up to 1.73).
 | `collector()` | **5** | **15.24** | 9 | 0 % | 32.06 | 3 | 4.34 |
 | `dex()` | 60 | 99.05 | 153 | 0 % | 171.97 | 22 | 22.93 |
 | `offline()` | 60 | 99.05 | 308 | 0 % | 32.06 | 8 | 4.34 |
+| `minimal()` | 60 | 99.05 | 8 | 0 % | 32.06 | 2 | 4.34 |
 
 ¹ Random 1–50 ADA payments from 10,000 ADA; every 5th transaction a new single-token UTxO arrives (60 in total).
 ² One UTxO with 10,000 ADA and 150 single-token policies, 300 random 1–50 ADA payments.
@@ -940,7 +1016,8 @@ EqualLanes with 10 ADA lanes (up to 1.73).
 
 **Reading.**
 
-- Every shape fixes the hot-UTxO problem: after the first transaction, payments no longer move tokens.
+- Every shape, including `minimal()`, fixes the hot-UTxO problem: after the first transaction, payments no longer
+  move tokens.
 - Only consolidation (`hygiene()`, `collector()`) touches airdropped tokens: largest-first never selects those small
   UTxOs, so without consolidation they stay scattered with their min-ada locked.
 - One bundle per policy (Evolution, `dex()`) locks 5× more ADA than byte-budget bundling. For `dex()` that is the
@@ -952,15 +1029,16 @@ EqualLanes with 10 ADA lanes (up to 1.73).
 
 **Caveats.** One address, serial transactions, largest-first selection only, fixed fee, synthetic payments. See §9.
 
-### 12.9 Outcome
+### 12.9 Conclusions
 
-The analysis led to the decision in §2:
+The evaluation supports the decision in §2:
 
 1. **Tokens: byte-budget bundling with ADA always kept separate** is better than Evolution's behaviour in every case
    simulated. It is the default of `WalletShape`.
 2. **ADA: wallet-aware lanes** are the only approach whose wallet shape stays bounded. `AdaShape.Lanes` is used by
-   every profile except `offline()`.
-3. **Consolidation** was added after the analysis showed that splitting alone never reclaims scattered token UTxOs.
-4. **One algorithm with profiles**, instead of five strategies: intents differ in parameters, not in algorithm.
-   `EvolutionStrategy` stays for parity; `PaymentSizedStrategy` and `EqualLanesStrategy` are kept only as simulator
-   baselines.
+   every profile except `offline()` and `minimal()`.
+3. **Consolidation is needed**: splitting alone never reclaims scattered token UTxOs, because coin selection never
+   picks them.
+4. **One algorithm with profiles**: the candidates differ in parameters that fit different intents, not in ways that
+   need separate algorithms. `EvolutionStrategy` is available for parity; `PaymentSizedStrategy` and
+   `EqualLanesStrategy` are not adopted.
