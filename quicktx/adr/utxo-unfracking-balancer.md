@@ -35,16 +35,25 @@ Unfracking works in **two directions**, depending on the starting point:
   (about 1.1–1.5 ADA); merging them reclaims that ADA. ADA-only UTxOs lock nothing, so merging them only reduces the
   number of inputs.
 
-For CCL the motivation is **wallet hygiene** (issue #678):
+**Why we do this: wallet hygiene** (issue #678). The main motivation is to keep wallets built with CCL in a healthy
+shape:
 
 - keep change outputs below `maxValSize`, so they stay spendable (issue #42);
-- ADA payments and single-token transfers move only the UTxOs they need, not every token in the wallet;
-- reclaim ADA locked next to scattered tokens;
+- ADA payments and single-token transfers move only the UTxOs they need, not every token in the wallet, so
+  transactions are smaller, cheaper and easier to review on a hardware wallet;
+- reclaim ADA locked next to scattered tokens (airdrops, dust), which coin selection never picks up by itself;
 - keep ADA-only UTxOs available, e.g. for collateral.
 
-Unfracking **does not solve UTxO contention**. Several UTxOs are a prerequisite for concurrent transactions, but
-choosing uncontended inputs still needs coordination (e.g. txflow) or a dedicated selection strategy. Evolution
-SDK does not attempt this either.
+**Concurrency is not the main motivation.** Unfracking **does not solve UTxO contention**: several UTxOs are a
+prerequisite for concurrent transactions, but choosing uncontended inputs still needs coordination (e.g. txflow) or a
+dedicated selection strategy. Evolution SDK does not attempt this either. Some shapes can still help:
+
+| Need | Primary tool | Where a wallet shape helps |
+|---|---|---|
+| One process sends many transactions quickly | **Transaction chaining** (txflow): each transaction spends an output of the previous one before it confirms; works even with a single UTxO | Not needed |
+| Several independent builders (workers, machines) share one wallet without shared state | Coordination between builders | `throughput(n, laneSize)` keeps `n` independent lanes, one per builder |
+
+So concurrency is a side benefit of one profile, not the reason for this ADR.
 
 ## 2. Decision
 
@@ -58,8 +67,8 @@ SDK does not attempt this either.
 2. **Named profiles by intent**: `hygiene()` (default), `throughput(n, laneSize)`, `collector()`, `dex()`,
    `offline()` and `minimal()` (§4.6). Different intents need different parameters, not different algorithms.
 3. **The shape belongs to the wallet owner.** A wallet sets it in its settings, a service in its configuration, and a
-   dApp building a transaction for someone else's wallet uses the shape that wallet advertises, or `minimal()` when it
-   doesn't know (§4.7).
+   dApp building a transaction for someone else's wallet uses `minimal()` (§4.7). A later CIP-30 extension could let
+   the wallet share its change preferences with dApps (§13).
 4. **Unfrack in both directions, in the same transaction**: split a hot UTxO (tokens into bundles, ADA into lanes) and
    merge small UTxOs (consolidation). There is no separate consolidation transaction (unlike UnFrack.It).
 5. **Reuse the existing `preBalanceTx(TxBuilder)` hook**, and make it **chain** transformers (`andThen`) instead of
@@ -67,9 +76,9 @@ SDK does not attempt this either.
    reused (§5). Without `Unfrack`, transaction building is unchanged, byte for byte.
 6. **`ChangeSplitStrategy` as an escape hatch** for needs no shape covers. `EvolutionStrategy`, a faithful port of
    Evolution SDK, is available through it for parity (§4.8).
-7. **Aim for a CIP**: the rules of a healthy wallet (§4.1), the parameterised algorithm, the profiles and the way a
-   wallet advertises its shape (§4.7) are written so they can be proposed as an informational CIP, as an extension of
-   [CIP-2](https://cips.cardano.org/cip/CIP-0002) (§9).
+7. **Aim for a CIP**: the rules of a healthy wallet (§4.1), the parameterised algorithm and the profiles are written so
+   they can be proposed as an informational CIP, as an extension of [CIP-2](https://cips.cardano.org/cip/CIP-0002)
+   (§9).
 
 ```java
 quickTxBuilder.compose(tx)
@@ -280,7 +289,7 @@ A shape describes the intent of the wallet's owner, but the transaction is not a
 |---|---|---|
 | The wallet itself (send, delegate, withdraw, ...) | The user | A wallet setting: a profile (default `hygiene()`), parameters for advanced users |
 | A service or bot with its own keys | The operator | Service configuration, e.g. `throughput(20, Amount.ada(100))` |
-| A dApp, DEX or marketplace, for a user's CIP-30 wallet | Only the wallet | The shape the wallet advertises; otherwise `minimal()` |
+| A dApp, DEX or marketplace, for a user's CIP-30 wallet | Only the wallet | The wallet's change preferences, if it can share them (§13); otherwise `minimal()` |
 | Hardware or offline signing without UTxO access | The user | `offline()` |
 
 **A wallet built on CCL** exposes the shape as a setting, like the network or the account: "UTxO management:
@@ -294,20 +303,8 @@ built, evaluated and possibly partly signed. So:
 
 1. **A dApp must not guess.** Without information it uses `minimal()`: the rules only, no lanes, and no consolidation
    of the user's UTxOs, which would add inputs the user didn't expect (and more to review on a hardware wallet).
-2. **The wallet has to tell the dApp.** The CIP should define a CIP-30 extension (enabled with
-   `cardano.{walletName}.enable({ extensions: [{ cip: N }] })`, namespaced as CIP-30 recommends) through which a
-   wallet advertises its shape, for example:
-
-   ```js
-   const shape = await api.cipN.getWalletShape();
-   // { "profile": "throughput",
-   //   "ada": { "lanes": { "count": 10, "laneSize": "60000000" } },
-   //   "tokens": { "maxBundleBytes": 1000 },
-   //   "consolidation": { "maxExtraInputs": 0 } }
-   ```
-
-   dApp SDKs (CCL, Evolution SDK, Mesh, ...) map it to their builders; in CCL, to a `WalletShape`. Consolidation
-   requested by the wallet is explicit consent to extra inputs.
+2. **The wallet has to tell the dApp.** CIP-30 has no way to do this today; §13 outlines an extension that this
+   design prepares for.
 3. **The wallet still has some control today**, but only a little: when a dApp calls `getUtxos(amount)`, the wallet
    chooses which UTxOs reach the amount, so it can prefer UTxOs that fit its shape (e.g. not its reserved lanes).
    Without `amount`, CIP-30 requires `getUtxos()` to return all UTxOs, and the dApp's coin selection decides.
@@ -316,8 +313,8 @@ built, evaluated and possibly partly signed. So:
    recreates the missing lanes and merges new fragments. A per-transaction split (like Evolution's) has no such
    property.
 
-**CCL as a dApp backend** therefore uses `new Unfrack(WalletShape.minimal())` for users' wallets, or the shape read
-from the wallet once the extension exists.
+**CCL as a dApp backend** therefore uses `new Unfrack(WalletShape.minimal())` for users' wallets, or the wallet's change
+preferences once the extension exists (§13).
 
 ### 4.8 `EvolutionStrategy` (parity)
 
@@ -395,7 +392,8 @@ postBalanceTx(...)       existing
 - **Consolidation**: only at addresses the transaction already spends from; skipped with redeemers or without a
   `UtxoSupplier` (§4.5).
 - **No wallet view**: `Lanes` keeps ADA in one output without a `UtxoSupplier`; use `offline()` in that case.
-- **Transactions built for someone else's wallet**: use the shape that wallet advertises, otherwise `minimal()` (§4.7).
+- **Transactions built for someone else's wallet**: use `minimal()` (§4.7), or the wallet's change preferences once
+  a CIP-30 extension exists (§13).
 - **In-flight transactions**: `Lanes` and consolidation read the UTxOs from the `UtxoSupplier` and can't see UTxOs
   already spent by transactions still in flight.
 
@@ -460,7 +458,7 @@ silently replaces it today. Chaining fixes that bug too.
 - More outputs (and, with consolidation, more inputs) make a transaction slightly larger and its fee slightly higher.
 - `Lanes` and consolidation read the wallet's UTxOs on every build: one extra backend call, slow for large wallets.
 - Behaviour differs from Evolution SDK by default; `EvolutionStrategy` keeps parity available.
-- A wallet's shape only applies to dApp-built transactions once dApps can read it (CIP-30 extension, §4.7).
+- A wallet's preferences only apply to dApp-built transactions once dApps can read them (CIP-30 extension, §13).
 - **Behaviour change**: calling `preBalanceTx` twice now runs both functions instead of only the last one. Code that
   relied on replacing an earlier transformer must be adjusted. No usage in this repository does this.
 - Unfracking is less discoverable without a dedicated method; Javadoc and docs examples have to cover it.
@@ -469,8 +467,7 @@ silently replaces it today. Chaining fixes that bug too.
 
 - **CIP draft**: rules (§4.1), the parameterised algorithm and the profiles as an informational CIP extending CIP-2,
   with the simulation as rationale and Evolution SDK as prior art. Involve the Evolution SDK maintainers early.
-- **CIP-30 extension**: `api.cipN.getWalletShape()` and a JSON form of `WalletShape` (§4.7), so dApps can apply the
-  wallet's shape. CCL would map the JSON to `WalletShape`.
+- **CIP-30 extension** for change preferences (§13).
 - **Tune profile defaults** with the simulator, including a workload with many fragments per transaction (to tell
   `collector()` from `hygiene()`).
 - **Simulator extensions**: other coin selection strategies (random-improve), a size-based fee, NFT sends, and
@@ -1042,3 +1039,32 @@ The evaluation supports the decision in §2:
 4. **One algorithm with profiles**: the candidates differ in parameters that fit different intents, not in ways that
    need separate algorithms. `EvolutionStrategy` is available for parity; `PaymentSizedStrategy` and
    `EqualLanesStrategy` are not adopted.
+
+## 13. Outlook: CIP-30 Extension
+
+This is not part of this ADR's scope; it shows how the groundwork could be used later.
+
+In dApp-built transactions the wallet only signs (§4.7). A small CIP-30 extension would let the wallet share
+**preferences for the user's own change**. It would not say what kind of user this is: someone who swaps on a DEX in
+the morning and buys NFTs in the evening returns the same preferences, because they only describe how to treat the
+user's change, never the dApp's own outputs.
+
+```js
+const api = await window.cardano.someWallet.enable({ extensions: [{ cip: XXXX }] });
+const prefs = await api.cipXXXX.getChangePreferences();
+// { "version": 1,
+//   "tokenBundles":  { "maxBytes": 1000 },
+//   "consolidation": { "allowed": true, "maxExtraInputs": 3, "maxUtxoLovelace": "5000000" },
+//   "reservedUtxos": [ { "txHash": "8f3a…", "index": 1 } ] }
+```
+
+- **Without the extension** a dApp applies the baseline rules (§4.1), i.e. `minimal()`.
+- **`tokenBundles`** tunes how the user's tokens are bundled in the change.
+- **`consolidation`** is explicit consent to add the user's small UTxOs as extra inputs, which a dApp must never do by
+  default.
+- **`reservedUtxos`** are UTxOs the dApp should not spend (collateral, the wallet's own lanes).
+- **No lanes and no persona**: creating lanes stays the job of the wallet's own transactions, which also restore its
+  shape after dApp transactions (§4.7).
+
+In CCL a dApp backend would map the preferences to a `WalletShape`, e.g. `WalletShape.minimal()` with
+`ByteBudgetBundling(maxBytes)` and the given `Consolidation`, and exclude `reservedUtxos` from coin selection.
