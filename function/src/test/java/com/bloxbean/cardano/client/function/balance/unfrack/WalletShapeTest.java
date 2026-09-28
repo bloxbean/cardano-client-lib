@@ -60,6 +60,15 @@ class WalletShapeTest {
         }
 
         @Test
+        void minimal_rulesOnly_singleAda_noConsolidation() {
+            WalletShape shape = WalletShape.minimal();
+
+            assertThat(shape.getAda()).isEqualTo(AdaShape.single());
+            assertThat(shape.getTokens()).isInstanceOf(ByteBudgetBundling.class);
+            assertThat(shape.getConsolidation().isEnabled()).isFalse();
+        }
+
+        @Test
         void offline_statelessPercentages() {
             WalletShape shape = WalletShape.offline();
 

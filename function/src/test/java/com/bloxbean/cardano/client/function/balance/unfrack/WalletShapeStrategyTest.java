@@ -205,6 +205,15 @@ class WalletShapeStrategyTest {
         }
 
         @Test
+        void minimal_oneBundleAndOneAdaOutput_withoutReadingTheWallet() {
+            List<Value> result = strategy(WalletShape.minimal()).split(request(change));
+
+            assertThat(withTokens(result)).hasSize(1);
+            assertThat(adaOnly(result)).hasSize(1);
+            assertValid(change, result);
+        }
+
+        @Test
         void offline_percentageSlices_withoutWallet() {
             List<Value> result = strategy(WalletShape.offline()).split(request(change));
 

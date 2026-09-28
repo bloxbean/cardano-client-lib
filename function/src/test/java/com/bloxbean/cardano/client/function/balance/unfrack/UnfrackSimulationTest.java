@@ -54,6 +54,7 @@ class UnfrackSimulationTest {
         STRATEGIES.put("collector", new Unfrack(WalletShape.collector()));
         STRATEGIES.put("dex", new Unfrack(WalletShape.dex()));
         STRATEGIES.put("offline", new Unfrack(WalletShape.offline()));
+        STRATEGIES.put("minimal", new Unfrack(WalletShape.minimal()));
         STRATEGIES.put("baseline EqualLanes 5x10", new Unfrack(new EqualLanesStrategy()));
         STRATEGIES.put("baseline EqualLanes 5x60", new Unfrack(EqualLanesStrategy.builder().minLaneAmount(adaToLovelace(60)).build()));
         STRATEGIES.put("baseline PaymentSized", new Unfrack(new PaymentSizedStrategy()));
@@ -95,6 +96,13 @@ class UnfrackSimulationTest {
             assertThat(result("collector", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(2);
             assertThat(result("dex", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(3);
         }
+    }
+
+    @Test
+    void minimal_keepsOneAdaUtxo_andSeparatesTokens() {
+        for (Workload workload : WORKLOADS.subList(0, 3))
+            assertThat(result("minimal", workload).maxAdaOnlyUtxos()).as(workload.name()).isEqualTo(1);
+        assertThat(result("minimal", WORKLOADS.get(4)).tokenChurn()).isLessThan(0.01);
     }
 
     @Test

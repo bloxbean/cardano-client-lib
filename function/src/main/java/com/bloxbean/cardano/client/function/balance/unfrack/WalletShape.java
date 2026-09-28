@@ -77,6 +77,16 @@ public class WalletShape {
     }
 
     /**
+     * Rules only, for transactions built for someone else's wallet (e.g. a dApp building for a CIP-30 wallet) without
+     * knowing its intent: tokens bundled by size and kept apart from ADA, ADA in one output, no consolidation.
+     */
+    public static WalletShape minimal() {
+        return WalletShape.builder()
+                .ada(AdaShape.single())
+                .build();
+    }
+
+    /**
      * No wallet view (hardware or offline signing): ADA split by 50/15/10/10/5/5/5 % above 100 ADA, tokens bundled by
      * size, no consolidation. Doesn't read the wallet.
      */

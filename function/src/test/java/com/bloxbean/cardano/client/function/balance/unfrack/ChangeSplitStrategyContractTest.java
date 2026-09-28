@@ -34,6 +34,7 @@ class ChangeSplitStrategyContractTest {
                 Arguments.of("collector", new WalletShapeStrategy(WalletShape.collector())),
                 Arguments.of("dex", new WalletShapeStrategy(WalletShape.dex())),
                 Arguments.of("offline", new WalletShapeStrategy(WalletShape.offline())),
+                Arguments.of("minimal", new WalletShapeStrategy(WalletShape.minimal())),
                 Arguments.of("tiny lanes, small budget", new WalletShapeStrategy(WalletShape.builder()
                         .ada(new AdaShape.Lanes(20, BigInteger.ONE)).tokens(new ByteBudgetBundling(150)).build())),
                 Arguments.of("single, per policy of 2", new WalletShapeStrategy(WalletShape.builder()
