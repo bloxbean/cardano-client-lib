@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.function.balance.unfrack;
 
+import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.function.balance.unfrack.UnfrackSimulator.Result;
 import com.bloxbean.cardano.client.function.balance.unfrack.UnfrackSimulator.Workload;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
@@ -42,19 +43,20 @@ class UnfrackSimulationTest {
             new Workload("small wallet: 150 ADA + 20 tokens, random 1-3 ADA", 40, withTokens(150, 20),
                     r -> BigInteger.valueOf(1_000_000L + r.nextInt(2_000_000)), 0));
 
-    static final Map<String, ChangeSplitStrategy> STRATEGIES = new LinkedHashMap<>();
+    static final Map<String, Unfrack> STRATEGIES = new LinkedHashMap<>();
 
     static {
-        STRATEGIES.put("None (today)", request -> List.of(request.getChange()));
-        STRATEGIES.put("Evolution", new EvolutionStrategy());
-        STRATEGIES.put("PercentageSplit", new PercentageSplitStrategy());
-        STRATEGIES.put("EqualLanes 5x10", new EqualLanesStrategy());
-        STRATEGIES.put("EqualLanes 5x60", EqualLanesStrategy.builder().minLaneAmount(adaToLovelace(60)).build());
-        STRATEGIES.put("PaymentSized", new PaymentSizedStrategy());
-        STRATEGIES.put("TargetShape 5x10", new TargetShapeStrategy());
-        STRATEGIES.put("TargetShape 5x60", TargetShapeStrategy.builder().laneAmount(adaToLovelace(60)).build());
-        STRATEGIES.put("TargetShape 10x60", TargetShapeStrategy.builder()
-                .targetLanes(10).laneAmount(adaToLovelace(60)).build());
+        STRATEGIES.put("None (today)", new Unfrack(request -> List.of(request.getChange())));
+        STRATEGIES.put("Evolution", new Unfrack(new EvolutionStrategy()));
+        STRATEGIES.put("hygiene", new Unfrack(WalletShape.hygiene()));
+        STRATEGIES.put("throughput 5x60", new Unfrack(WalletShape.throughput(5, Amount.ada(60))));
+        STRATEGIES.put("throughput 10x60", new Unfrack(WalletShape.throughput(10, Amount.ada(60))));
+        STRATEGIES.put("collector", new Unfrack(WalletShape.collector()));
+        STRATEGIES.put("dex", new Unfrack(WalletShape.dex()));
+        STRATEGIES.put("offline", new Unfrack(WalletShape.offline()));
+        STRATEGIES.put("baseline EqualLanes 5x10", new Unfrack(new EqualLanesStrategy()));
+        STRATEGIES.put("baseline EqualLanes 5x60", new Unfrack(EqualLanesStrategy.builder().minLaneAmount(adaToLovelace(60)).build()));
+        STRATEGIES.put("baseline PaymentSized", new Unfrack(new PaymentSizedStrategy()));
     }
 
     static final Map<String, Result> RESULTS = new LinkedHashMap<>();
@@ -85,24 +87,36 @@ class UnfrackSimulationTest {
     }
 
     @Test
-    void targetShape_neverExceedsItsTargetNumberOfAdaUtxos() {
+    void laneProfiles_neverExceedTheirNumberOfAdaUtxos() {
         for (Workload workload : WORKLOADS) {
-            assertThat(result("TargetShape 5x10", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(5);
-            assertThat(result("TargetShape 5x60", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(5);
-            assertThat(result("TargetShape 10x60", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(10);
+            assertThat(result("hygiene", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(3);
+            assertThat(result("throughput 5x60", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(5);
+            assertThat(result("throughput 10x60", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(10);
+            assertThat(result("collector", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(2);
+            assertThat(result("dex", workload).maxAdaOnlyUtxos()).as(workload.name()).isLessThanOrEqualTo(3);
         }
     }
 
     @Test
     void perTransactionStrategies_keepGrowingTheWallet() {
         Workload fixed = WORKLOADS.get(0);
-        for (String strategy : List.of("Evolution", "PercentageSplit", "EqualLanes 5x10", "EqualLanes 5x60", "PaymentSized"))
+        for (String strategy : List.of("Evolution", "offline", "baseline EqualLanes 5x10", "baseline EqualLanes 5x60",
+                "baseline PaymentSized"))
             assertThat(result(strategy, fixed).maxUtxos()).as(strategy).isGreaterThan(100);
     }
 
     @Test
-    void paymentSized_piecesCanFundTheSamePaymentAlone() {
-        assertThat(result("PaymentSized", WORKLOADS.get(0)).avgFundable()).isGreaterThan(100);
+    void throughput_everyLaneCanFundAPaymentAlone() {
+        for (Workload workload : WORKLOADS.subList(0, 2)) {
+            // every step except the first, when the wallet still has one UTxO
+            assertThat(result("throughput 5x60", workload).avgFundable()).as(workload.name()).isGreaterThan(4.9);
+            assertThat(result("throughput 10x60", workload).avgFundable()).as(workload.name()).isGreaterThan(9.9);
+        }
+    }
+
+    @Test
+    void paymentSizedBaseline_piecesCanFundTheSamePaymentAlone() {
+        assertThat(result("baseline PaymentSized", WORKLOADS.get(0)).avgFundable()).isGreaterThan(100);
     }
 
     @Test
@@ -117,17 +131,28 @@ class UnfrackSimulationTest {
     @Test
     void byteBudgetBundling_locksFarLessAdaThanOneBundlePerPolicy() {
         Workload hot = WORKLOADS.get(4);
-        BigInteger evolution = result("Evolution", hot).adaInTokenUtxos();
-        BigInteger percentage = result("PercentageSplit", hot).adaInTokenUtxos();
-        assertThat(percentage.multiply(BigInteger.valueOf(4))).isLessThan(evolution);
+        BigInteger perPolicy = result("Evolution", hot).adaInTokenUtxos();
+        for (String strategy : List.of("hygiene", "throughput 5x60", "offline"))
+            assertThat(result(strategy, hot).adaInTokenUtxos().multiply(BigInteger.valueOf(4))).as(strategy).isLessThan(perPolicy);
     }
 
     @Test
     void evolutionSpread_storesAdaNextToTokensInSmallWallets() {
         Workload small = WORKLOADS.get(5);
         BigInteger evolution = result("Evolution", small).adaInTokenUtxos();
-        BigInteger percentage = result("PercentageSplit", small).adaInTokenUtxos();
-        assertThat(evolution).isGreaterThan(percentage.multiply(BigInteger.valueOf(3)));
+        BigInteger offline = result("offline", small).adaInTokenUtxos();
+        assertThat(evolution).isGreaterThan(offline.multiply(BigInteger.valueOf(3)));
+    }
+
+    @Test
+    void consolidation_reclaimsAirdroppedTokenUtxos() {
+        Workload airdrops = WORKLOADS.get(3);
+        Result none = result("None (today)", airdrops);
+        for (String strategy : List.of("hygiene", "collector")) {
+            Result r = result(strategy, airdrops);
+            assertThat(r.finalTokenUtxos()).as(strategy).isLessThan(none.finalTokenUtxos() / 2);
+            assertThat(r.adaInTokenUtxos()).as(strategy).isLessThan(none.adaInTokenUtxos());
+        }
     }
 
     private static Value withTokens(long ada, int policies) {
@@ -150,14 +175,14 @@ class UnfrackSimulationTest {
         for (Workload workload : WORKLOADS) {
             lines.add("");
             lines.add("### " + workload.name() + " (" + workload.transactions() + " tx)");
-            lines.add("| Strategy | final UTxOs | max UTxOs | max ADA-only | avg inputs | avg change outputs | avg fundable | token churn | avg tokens moved | ADA in token UTxOs |");
-            lines.add("|---|---|---|---|---|---|---|---|---|---|");
+            lines.add("| Strategy | final UTxOs | max UTxOs | max ADA-only | avg inputs | avg change outputs | avg fundable | token churn | avg tokens moved | token UTxOs | ADA in token UTxOs |");
+            lines.add("|---|---|---|---|---|---|---|---|---|---|---|");
             for (String strategy : STRATEGIES.keySet()) {
                 Result r = result(strategy, workload);
-                lines.add(String.format(Locale.ROOT, "| %s | %d | %d | %d | %.2f | %.2f | %.1f | %.0f%% | %.1f | %.2f |",
+                lines.add(String.format(Locale.ROOT, "| %s | %d | %d | %d | %.2f | %.2f | %.1f | %.0f%% | %.1f | %d | %.2f |",
                         strategy, r.finalUtxos(), r.maxUtxos(), r.maxAdaOnlyUtxos(), r.avgInputs(),
                         r.avgChangeOutputs(), r.avgFundable(), r.tokenChurn() * 100, r.avgTokensMoved(),
-                        r.adaInTokenUtxos().doubleValue() / 1_000_000));
+                        r.finalTokenUtxos(), r.adaInTokenUtxos().doubleValue() / 1_000_000));
             }
         }
         return String.join("\n", lines);

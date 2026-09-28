@@ -1,11 +1,18 @@
 package com.bloxbean.cardano.client.function.balance.unfrack;
 
 import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.transaction.spec.ChangeOutput;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,21 +27,37 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
 import static com.bloxbean.cardano.client.function.balance.unfrack.UnfrackFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class UnfrackTest {
     UtxoSupplier utxoSupplier = mock(UtxoSupplier.class);
     TxBuilderContext context = new TxBuilderContext(utxoSupplier, PROTOCOL_PARAMS);
 
     @Nested
-    class DefaultStrategy {
+    class Defaults {
 
         @Test
-        void defaults() {
+        void defaults_hygieneShape() {
             Unfrack unfrack = new Unfrack();
 
-            assertThat(unfrack.getStrategy()).isInstanceOf(EvolutionStrategy.class);
+            assertThat(unfrack.getStrategy()).isInstanceOf(WalletShapeStrategy.class);
+            assertThat(((WalletShapeStrategy) unfrack.getStrategy()).getShape()).isEqualTo(WalletShape.hygiene());
+            assertThat(unfrack.getConsolidation()).isEqualTo(WalletShape.hygiene().getConsolidation());
             assertThat(unfrack.getFeeReserve()).isEqualTo(adaToLovelace(2));
+        }
+
+        @Test
+        void walletShape_usesItsConsolidation() {
+            Unfrack unfrack = new Unfrack(WalletShape.collector());
+
+            assertThat(unfrack.getConsolidation()).isEqualTo(WalletShape.collector().getConsolidation());
+        }
+
+        @Test
+        void customStrategy_noConsolidation() {
+            assertThat(new Unfrack(new EvolutionStrategy()).getConsolidation()).isEqualTo(Consolidation.none());
         }
 
         @Test
@@ -46,7 +69,7 @@ class UnfrackTest {
             TransactionOutput metadataOutput = new TransactionOutput(RECEIVER, Value.fromCoin(adaToLovelace(2)));
             Transaction tx = tx(payment, new ChangeOutput(ADDRESS, changeValue), metadataOutput);
 
-            new Unfrack().apply(context, tx);
+            new Unfrack(new EvolutionStrategy()).apply(context, tx);
 
             List<TransactionOutput> outputs = tx.getBody().getOutputs();
             assertThat(outputs).hasSize(3 + 8); // 2 bundles + 7 ada slices, one of them in place
@@ -286,6 +309,183 @@ class UnfrackTest {
     }
 
     @Nested
+    class ConsolidationStep {
+        String spentHash = String.format("%064x", 1);
+        Unfrack consolidating = new Unfrack(WalletShape.builder()
+                .ada(AdaShape.single())
+                .consolidation(Consolidation.opportunistic(2))
+                .build());
+
+        @Test
+        void addsSmallUtxos_tokenFragmentsFirst_thenSmallestAda_upToMax() {
+            Utxo spent = utxo(spentHash, 0, Amount.ada(100));
+            Utxo adaDust = utxo(hash(2), 0, Amount.ada(1));
+            Utxo largerAdaDust = utxo(hash(4), 0, Amount.lovelace(BigInteger.valueOf(1_500_000)));
+            given(utxoSupplier.getAll(ADDRESS)).willReturn(List.of(spent, adaDust, largerAdaDust));
+            Transaction tx = spending(spent, adaToLovelace(90));
+
+            new Unfrack(WalletShape.builder().ada(AdaShape.single()).consolidation(Consolidation.opportunistic(1)).build())
+                    .apply(context, tx);
+
+            assertThat(tx.getBody().getInputs()).extracting(TransactionInput::getTransactionId)
+                    .containsExactly(spentHash, hash(2));
+            assertThat(changeValueSum(tx).getCoin()).isEqualTo(adaToLovelace(91));
+        }
+
+        @Test
+        void twoTokenFragments_mergedFirst() {
+            Utxo spent = utxo(spentHash, 0, Amount.ada(100));
+            Utxo adaDust = utxo(hash(2), 0, Amount.ada(1));
+            Utxo tokenDust1 = utxo(hash(3), 0, Amount.ada(2), Amount.asset(POLICY_1 + "746f6b656e", 5));
+            Utxo tokenDust2 = utxo(hash(5), 0, Amount.ada(2), Amount.asset(POLICY_2 + "746f6b656e", 7));
+            given(utxoSupplier.getAll(ADDRESS)).willReturn(List.of(spent, adaDust, tokenDust1, tokenDust2));
+            Transaction tx = spending(spent, adaToLovelace(90));
+
+            consolidating.apply(context, tx);
+
+            assertThat(tx.getBody().getInputs()).extracting(TransactionInput::getTransactionId)
+                    .containsExactly(spentHash, hash(3), hash(5));
+            assertThat(changeValueSum(tx).getCoin()).isEqualTo(adaToLovelace(94));
+            assertThat(changeValueSum(tx).amountOf(POLICY_1, "0x746f6b656e")).isEqualTo(BigInteger.valueOf(5));
+            assertThat(changeValueSum(tx).amountOf(POLICY_2, "0x746f6b656e")).isEqualTo(BigInteger.valueOf(7));
+        }
+
+        @Test
+        void mergedFragments_endUpInOneBundle_separateFromAda() {
+            Utxo spent = utxo(spentHash, 0, Amount.ada(100));
+            Utxo tokenDust1 = utxo(hash(3), 0, Amount.ada(2), Amount.asset(POLICY_1 + "746f6b656e", 5));
+            Utxo tokenDust2 = utxo(hash(5), 0, Amount.ada(2), Amount.asset(POLICY_2 + "746f6b656e", 7));
+            given(utxoSupplier.getAll(ADDRESS)).willReturn(List.of(spent, tokenDust1, tokenDust2));
+            Transaction tx = spending(spent, adaToLovelace(90));
+
+            consolidating.apply(context, tx);
+
+            List<TransactionOutput> outputs = tx.getBody().getOutputs();
+            assertThat(outputs).hasSize(3); // payment + 1 bundle + 1 ADA output
+            assertThat(outputs).filteredOn(o -> o.getValue().getMultiAssets() != null && !o.getValue().getMultiAssets().isEmpty())
+                    .singleElement()
+                    .satisfies(o -> {
+                        assertThat(o.getValue().getMultiAssets()).hasSize(2);
+                        assertThat(o.getValue().getCoin()).isEqualTo(minAda(o.getValue()));
+                    });
+        }
+
+        @Test
+        void singleTokenFragment_notMerged_itWouldOnlyBeRebundled() {
+            Utxo spent = utxo(spentHash, 0, Amount.ada(100));
+            Utxo tokenDust = utxo(hash(3), 0, Amount.ada(2), Amount.asset(POLICY_1 + "746f6b656e", 5));
+            given(utxoSupplier.getAll(ADDRESS)).willReturn(List.of(spent, tokenDust));
+            Transaction tx = spending(spent, adaToLovelace(90));
+
+            consolidating.apply(context, tx);
+
+            assertThat(tx.getBody().getInputs()).hasSize(1);
+        }
+
+        @Test
+        void fullBundles_notMerged() {
+            Utxo spent = utxo(spentHash, 0, Amount.ada(100));
+            given(utxoSupplier.getAll(ADDRESS)).willReturn(List.of(spent, fullBundle(hash(3), 0), fullBundle(hash(5), 100)));
+            Transaction tx = spending(spent, adaToLovelace(90));
+
+            consolidating.apply(context, tx);
+
+            assertThat(tx.getBody().getInputs()).hasSize(1);
+        }
+
+        private Utxo fullBundle(String txHash, int policyOffset) {
+            List<Amount> amounts = new ArrayList<>(List.of(Amount.ada(5)));
+            for (int i = 0; i < 20; i++)
+                amounts.add(Amount.asset(policy(policyOffset + i) + "746f6b656e", 1));
+            return utxo(txHash, 0, amounts.toArray(Amount[]::new));
+        }
+
+        @Test
+        void skipsLargeUtxos_datumAndScriptRef() {
+            Utxo spent = utxo(spentHash, 0, Amount.ada(100));
+            Utxo large = utxo(hash(2), 0, Amount.ada(50));
+            Utxo withDatum = utxo(hash(3), 0, Amount.ada(1));
+            withDatum.setInlineDatum("d87980");
+            Utxo withScriptRef = utxo(hash(4), 0, Amount.ada(1));
+            withScriptRef.setReferenceScriptHash("ab");
+            given(utxoSupplier.getAll(ADDRESS)).willReturn(List.of(spent, large, withDatum, withScriptRef));
+            Transaction tx = spending(spent, adaToLovelace(90));
+
+            consolidating.apply(context, tx);
+
+            assertThat(tx.getBody().getInputs()).hasSize(1);
+        }
+
+        @Test
+        void addressWithoutInputInTransaction_notConsolidated() {
+            Utxo notSpent = utxo(hash(9), 0, Amount.ada(100));
+            Utxo dust = utxo(hash(2), 0, Amount.ada(1));
+            given(utxoSupplier.getAll(ADDRESS)).willReturn(List.of(notSpent, dust));
+            Transaction tx = spending(utxo(spentHash, 0, Amount.ada(100)), adaToLovelace(90));
+
+            consolidating.apply(context, tx);
+
+            assertThat(tx.getBody().getInputs()).hasSize(1);
+        }
+
+        @Test
+        void transactionWithRedeemers_notConsolidated() {
+            Utxo spent = utxo(spentHash, 0, Amount.ada(100));
+            given(utxoSupplier.getAll(ADDRESS)).willReturn(List.of(spent, utxo(hash(2), 0, Amount.ada(1))));
+            Transaction tx = spending(spent, adaToLovelace(90));
+            tx.setWitnessSet(new TransactionWitnessSet());
+            tx.getWitnessSet().setRedeemers(new ArrayList<>(List.of(Redeemer.builder()
+                    .tag(RedeemerTag.Spend).index(BigInteger.ZERO).data(BigIntPlutusData.of(1))
+                    .exUnits(ExUnits.builder().mem(BigInteger.ONE).steps(BigInteger.ONE).build()).build())));
+
+            consolidating.apply(context, tx);
+
+            assertThat(tx.getBody().getInputs()).hasSize(1);
+        }
+
+        @Test
+        void noUtxoSupplier_notConsolidated() {
+            Transaction tx = spending(utxo(spentHash, 0, Amount.ada(100)), adaToLovelace(90));
+
+            consolidating.apply(new TxBuilderContext(null, PROTOCOL_PARAMS), tx);
+
+            assertThat(tx.getBody().getInputs()).hasSize(1);
+        }
+
+        @Test
+        void disabled_supplierNotQueried() {
+            Transaction tx = spending(utxo(spentHash, 0, Amount.ada(100)), adaToLovelace(90));
+
+            new Unfrack(WalletShape.builder().ada(AdaShape.single()).build()).apply(context, tx);
+
+            verifyNoInteractions(utxoSupplier);
+        }
+
+        private Transaction spending(Utxo input, BigInteger change) {
+            Transaction tx = tx(new TransactionOutput(RECEIVER, Value.fromCoin(adaToLovelace(9))),
+                    new ChangeOutput(ADDRESS, Value.fromCoin(change)));
+            tx.getBody().setInputs(new ArrayList<>(List.of(new TransactionInput(input.getTxHash(), input.getOutputIndex()))));
+            return tx;
+        }
+
+        private Value changeValueSum(Transaction tx) {
+            return tx.getBody().getOutputs().stream()
+                    .filter(o -> ADDRESS.equals(o.getAddress()))
+                    .map(TransactionOutput::getValue)
+                    .reduce(Value.fromCoin(BigInteger.ZERO), Value::add);
+        }
+
+        private String hash(int n) {
+            return String.format("%064x", n);
+        }
+
+        private Utxo utxo(String txHash, int index, Amount... amounts) {
+            return Utxo.builder().txHash(txHash).outputIndex(index).address(ADDRESS)
+                    .amount(new ArrayList<>(List.of(amounts))).build();
+        }
+    }
+
+    @Nested
     class Configuration {
 
         @Test
@@ -296,7 +496,10 @@ class UnfrackTest {
 
         @Test
         void nullStrategy_rejected() {
-            assertThatThrownBy(() -> new Unfrack(null, BigInteger.ZERO)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new Unfrack((ChangeSplitStrategy) null, BigInteger.ZERO))
+                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new Unfrack((WalletShape) null, BigInteger.ZERO))
+                    .isInstanceOf(NullPointerException.class);
         }
     }
 }

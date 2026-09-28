@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Simulator baseline only (test sources), evaluated and not shipped; see the unfracking ADR §12.
+ * <p>
  * Splits ADA into up to {@code lanes} equal ADA-only outputs ("lanes"), each at least {@code minLaneAmount}.
  * The last lane gets the rounding remainder. Fewer lanes are created when ADA is not enough for all of them.
  * <p>

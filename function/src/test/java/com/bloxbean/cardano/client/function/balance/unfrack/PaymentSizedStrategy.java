@@ -12,6 +12,8 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
+ * Simulator baseline only (test sources), evaluated and not shipped; see the unfracking ADR §12.
+ * <p>
  * CIP-2 "self-organisation": for each payment in the transaction, one ADA-only change piece of about the same size is
  * created. Over time the wallet fills up with UTxOs matching its typical payment sizes, so a later payment of a similar
  * size can be funded by a single UTxO.

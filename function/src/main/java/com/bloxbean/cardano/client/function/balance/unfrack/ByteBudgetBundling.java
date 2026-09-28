@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.function.balance.unfrack;
 
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -21,6 +22,7 @@ import java.util.List;
  */
 @Getter
 @ToString
+@EqualsAndHashCode
 public class ByteBudgetBundling implements TokenBundlingStrategy {
     public static final int DEFAULT_MAX_BUNDLE_BYTES = 1000;
 
@@ -65,6 +67,14 @@ public class ByteBudgetBundling implements TokenBundlingStrategy {
         for (Bin bin : bins)
             bundles.add(bin.policies);
         return bundles;
+    }
+
+    /**
+     * A UTxO is a fragment when its tokens use less than half of the budget.
+     */
+    @Override
+    public boolean isFragment(List<MultiAsset> tokens) {
+        return ChangeValues.serializedSize(tokens) < maxBundleBytes / 2;
     }
 
     /**

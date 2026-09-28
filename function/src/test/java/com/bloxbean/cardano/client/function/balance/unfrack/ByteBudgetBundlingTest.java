@@ -121,6 +121,23 @@ class ByteBudgetBundlingTest {
     }
 
     @Test
+    void isFragment_belowHalfTheBudget() {
+        List<MultiAsset> few = List.of(multiAsset(POLICY_1, 1, BigInteger.ONE), multiAsset(POLICY_2, 1, BigInteger.ONE));
+        List<MultiAsset> many = new ArrayList<>();
+        for (int i = 0; i < 20; i++)
+            many.add(multiAsset(policy(i), 1, BigInteger.ONE));
+
+        assertThat(bundling.isFragment(few)).isTrue();
+        assertThat(ChangeValues.serializedSize(many)).isGreaterThanOrEqualTo(500);
+        assertThat(bundling.isFragment(many)).isFalse();
+    }
+
+    @Test
+    void valueEquality() {
+        assertThat(new ByteBudgetBundling(700)).isEqualTo(new ByteBudgetBundling(700)).isNotEqualTo(new ByteBudgetBundling(800));
+    }
+
+    @Test
     void invalidBudget_rejected() {
         assertThatThrownBy(() -> new ByteBudgetBundling(0)).isInstanceOf(IllegalArgumentException.class);
     }

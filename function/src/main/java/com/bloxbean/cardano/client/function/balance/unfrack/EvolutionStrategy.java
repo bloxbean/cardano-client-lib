@@ -52,7 +52,7 @@ public class EvolutionStrategy implements ChangeSplitStrategy {
 
         if (this.subdivideThreshold.signum() < 0)
             throw new IllegalArgumentException("subdivideThreshold must be >= 0");
-        Percentages.validate(this.subdividePercentages);
+        PercentageSlices.validate(this.subdividePercentages);
         if (this.bundleSize < 1)
             throw new IllegalArgumentException("bundleSize must be >= 1");
     }
@@ -129,9 +129,9 @@ public class EvolutionStrategy implements ChangeSplitStrategy {
      * Split lovelace by subdividePercentages. Returns null if the smallest slice doesn't meet min-ada.
      */
     private List<BigInteger> subdivide(BigInteger lovelace, BigInteger adaMinUtxo) {
-        if (Percentages.smallestSlice(lovelace, subdividePercentages).compareTo(adaMinUtxo) < 0)
+        if (PercentageSlices.smallestSlice(lovelace, subdividePercentages).compareTo(adaMinUtxo) < 0)
             return null;
-        return Percentages.split(lovelace, subdividePercentages);
+        return PercentageSlices.split(lovelace, subdividePercentages);
     }
 
     private static List<Value> toAdaValues(List<BigInteger> amounts) {

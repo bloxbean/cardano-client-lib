@@ -20,6 +20,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.function.balance.unfrack.UnfrackFixtures.*;
@@ -28,8 +30,8 @@ import static com.bloxbean.cardano.client.function.balance.unfrack.UnfrackFixtur
  * Replays a wallet workload through {@link Unfrack} with a given strategy and collects wallet shape metrics.
  * <p>
  * Model: one address, serial transactions, largest-first input selection (CCL default), fixed fee, ADA payments to
- * another address, and optional token airdrops into the wallet. The real {@link Unfrack} (including its result checks)
- * shapes the change of every transaction.
+ * another address, and optional token airdrops into the wallet. The real {@link Unfrack} (including consolidation and
+ * its result checks) shapes every transaction.
  */
 final class UnfrackSimulator {
     static final BigInteger FEE = BigInteger.valueOf(200_000);
@@ -54,8 +56,8 @@ final class UnfrackSimulator {
 
     record Result(String strategy, String workload, int transactions, int finalUtxos, int maxUtxos,
                   int maxAdaOnlyUtxos, double avgInputs, double avgChangeOutputs, double avgFundable,
-                  double tokenChurn, double avgTokensMoved, BigInteger adaInTokenUtxos, BigInteger finalBalance,
-                  BigInteger expectedBalance, long finalTokenUnits, long expectedTokenUnits) {
+                  double tokenChurn, double avgTokensMoved, int finalTokenUtxos, BigInteger adaInTokenUtxos,
+                  BigInteger finalBalance, BigInteger expectedBalance, long finalTokenUnits, long expectedTokenUnits) {
     }
 
     private record Coin(String txHash, int index, Value value) {
@@ -69,12 +71,11 @@ final class UnfrackSimulator {
         }
     }
 
-    static Result run(String strategyName, ChangeSplitStrategy strategy, Workload workload, long seed) {
+    static Result run(String strategyName, Unfrack unfrack, Workload workload, long seed) {
         Random random = new Random(seed);
         List<Coin> wallet = new ArrayList<>();
         wallet.add(new Coin(hash("genesis", 0), 0, workload.initialValue()));
 
-        Unfrack unfrack = new Unfrack(strategy);
         TxBuilderContext context = new TxBuilderContext(new WalletSupplier(wallet), PROTOCOL_PARAMS);
 
         BigInteger expectedBalance = workload.initialValue().getCoin();
@@ -118,7 +119,11 @@ final class UnfrackSimulator {
 
             unfrack.apply(context, tx);
 
-            wallet.removeAll(selected);
+            // selected inputs plus any UTxOs consolidated by Unfrack
+            Set<String> spent = tx.getBody().getInputs().stream()
+                    .map(i -> i.getTransactionId() + "#" + i.getIndex())
+                    .collect(Collectors.toSet());
+            wallet.removeIf(c -> spent.contains(c.txHash() + "#" + c.index()));
             String txHash = hash("tx", t);
             List<TransactionOutput> result = tx.getBody().getOutputs();
             for (int i = 0; i < result.size(); i++) {
@@ -142,7 +147,8 @@ final class UnfrackSimulator {
 
         return new Result(strategyName, workload.name(), transactions, wallet.size(), maxUtxos, maxAdaOnly,
                 inputs / (double) n, changeOutputs / (double) n, fundable / (double) n, churned / (double) n,
-                tokensMoved / (double) n, adaInTokenUtxos, balance, expectedBalance,
+                tokensMoved / (double) n, (int) wallet.stream().filter(Coin::hasTokens).count(), adaInTokenUtxos,
+                balance, expectedBalance,
                 tokenUnits(wallet.stream().map(Coin::value).toList()), expectedTokenUnits);
     }
 

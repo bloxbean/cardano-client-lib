@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.function.balance.unfrack;
 
+import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
@@ -16,29 +18,33 @@ import java.util.stream.Stream;
 
 import static com.bloxbean.cardano.client.function.balance.unfrack.UnfrackFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * Rules every {@link ChangeSplitStrategy} must follow, checked on generated change values.
  */
 class ChangeSplitStrategyContractTest {
     private static final int CASES = 300;
+    private static final UtxoSupplier EMPTY_WALLET = mock(UtxoSupplier.class);
 
     static Stream<Arguments> strategies() {
         return Stream.of(
+                Arguments.of("hygiene", new WalletShapeStrategy(WalletShape.hygiene())),
+                Arguments.of("throughput 10 x 60", new WalletShapeStrategy(WalletShape.throughput(10, Amount.ada(60)))),
+                Arguments.of("collector", new WalletShapeStrategy(WalletShape.collector())),
+                Arguments.of("dex", new WalletShapeStrategy(WalletShape.dex())),
+                Arguments.of("offline", new WalletShapeStrategy(WalletShape.offline())),
+                Arguments.of("tiny lanes, small budget", new WalletShapeStrategy(WalletShape.builder()
+                        .ada(new AdaShape.Lanes(20, BigInteger.ONE)).tokens(new ByteBudgetBundling(150)).build())),
+                Arguments.of("single, per policy of 2", new WalletShapeStrategy(WalletShape.builder()
+                        .ada(AdaShape.single()).tokens(new PolicyBundling(2)).build())),
                 Arguments.of("Evolution", new EvolutionStrategy()),
                 Arguments.of("Evolution small threshold", EvolutionStrategy.builder()
                         .subdivideThreshold(BigInteger.valueOf(5_000_000)).bundleSize(3).build()),
-                Arguments.of("Percentage", new PercentageSplitStrategy()),
-                Arguments.of("Percentage per policy", PercentageSplitStrategy.builder()
-                        .subdivideThreshold(BigInteger.valueOf(5_000_000))
-                        .tokenBundling(new PolicyBundling(2)).build()),
-                Arguments.of("EqualLanes", new EqualLanesStrategy()),
-                Arguments.of("EqualLanes tiny lanes", EqualLanesStrategy.builder()
+                Arguments.of("baseline EqualLanes", new EqualLanesStrategy()),
+                Arguments.of("baseline EqualLanes tiny lanes", EqualLanesStrategy.builder()
                         .lanes(30).minLaneAmount(BigInteger.ONE).build()),
-                Arguments.of("PaymentSized", new PaymentSizedStrategy()),
-                Arguments.of("TargetShape", new TargetShapeStrategy()),
-                Arguments.of("TargetShape tiny lanes", TargetShapeStrategy.builder()
-                        .targetLanes(20).laneAmount(BigInteger.ONE).tokenBundling(new ByteBudgetBundling(150)).build()));
+                Arguments.of("baseline PaymentSized", new PaymentSizedStrategy()));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -48,7 +54,7 @@ class ChangeSplitStrategyContractTest {
         int splits = 0;
         for (int i = 0; i < CASES; i++) {
             Value change = randomChange(random);
-            ChangeSplitRequest request = request(change, randomPayments(random), null);
+            ChangeSplitRequest request = request(change, randomPayments(random), EMPTY_WALLET);
 
             List<Value> pieces = strategy.split(request);
 
@@ -79,7 +85,7 @@ class ChangeSplitStrategyContractTest {
             Value change = randomChange(random);
             var before = ChangeValues.toUnitMap(change);
 
-            strategy.split(request(change, randomPayments(random), null));
+            strategy.split(request(change, randomPayments(random), EMPTY_WALLET));
 
             assertThat(ChangeValues.toUnitMap(change)).isEqualTo(before);
         }
@@ -93,9 +99,9 @@ class ChangeSplitStrategyContractTest {
             Value change = randomChange(random);
             Transaction payments = randomPayments(random);
 
-            assertThat(strategy.split(request(change, payments, null)))
+            assertThat(strategy.split(request(change, payments, EMPTY_WALLET)))
                     .usingRecursiveComparison()
-                    .isEqualTo(strategy.split(request(change, payments, null)));
+                    .isEqualTo(strategy.split(request(change, payments, EMPTY_WALLET)));
         }
     }
 

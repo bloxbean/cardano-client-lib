@@ -5,12 +5,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Percentage split shared by percentage based strategies.
+ * Percentage split shared by percentage based shapes and strategies.
  */
-final class Percentages {
+final class PercentageSlices {
     private static final BigInteger HUNDRED = BigInteger.valueOf(100);
 
-    private Percentages() {
+    private PercentageSlices() {
     }
 
     static void validate(List<Integer> percentages) {

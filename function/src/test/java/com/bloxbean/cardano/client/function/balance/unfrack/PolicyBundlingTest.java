@@ -72,6 +72,19 @@ class PolicyBundlingTest {
     }
 
     @Test
+    void isFragment_belowHalfTheBundleSize() {
+        PolicyBundling bundling = new PolicyBundling(10);
+
+        assertThat(bundling.isFragment(List.of(multiAsset(POLICY_1, 4, BigInteger.ONE)))).isTrue();
+        assertThat(bundling.isFragment(List.of(multiAsset(POLICY_1, 5, BigInteger.ONE)))).isFalse();
+    }
+
+    @Test
+    void valueEquality() {
+        assertThat(new PolicyBundling(3)).isEqualTo(new PolicyBundling(3)).isNotEqualTo(new PolicyBundling(4));
+    }
+
+    @Test
     void invalidBundleSize_rejected() {
         assertThatThrownBy(() -> new PolicyBundling(0)).isInstanceOf(IllegalArgumentException.class);
     }

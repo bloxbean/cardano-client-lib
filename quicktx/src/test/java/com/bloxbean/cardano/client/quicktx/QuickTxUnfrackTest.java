@@ -6,8 +6,9 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
-import com.bloxbean.cardano.client.function.balance.unfrack.EqualLanesStrategy;
+import com.bloxbean.cardano.client.function.balance.unfrack.EvolutionStrategy;
 import com.bloxbean.cardano.client.function.balance.unfrack.Unfrack;
+import com.bloxbean.cardano.client.function.balance.unfrack.WalletShape;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.transaction.spec.AuxiliaryData;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
@@ -83,10 +84,29 @@ class QuickTxUnfrackTest {
     }
 
     @Test
-    void withUnfrack_changeSplitIntoBundlesAndAdaSlices() {
+    void withDefaultHygieneShape_oneBundleAndThreeLanes() {
         Transaction transaction = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
                 .compose(payment())
                 .preBalanceTx(new Unfrack())
+                .build();
+
+        List<TransactionOutput> outputs = transaction.getBody().getOutputs();
+        // payment + 1 token bundle (both policies fit the byte budget) + 3 ADA lanes: 50, 50 and the rest (fee bearing)
+        assertThat(outputs).hasSize(1 + 1 + 3);
+        List<BigInteger> adaOnly = outputs.stream()
+                .filter(o -> o.getAddress().equals(SENDER))
+                .filter(o -> o.getValue().getMultiAssets() == null || o.getValue().getMultiAssets().isEmpty())
+                .map(o -> o.getValue().getCoin())
+                .toList();
+        assertThat(adaOnly).hasSize(3).contains(adaToLovelace(50), adaToLovelace(50));
+        assertBalanced(transaction);
+    }
+
+    @Test
+    void withEvolutionStrategy_changeSplitIntoBundlesAndAdaSlices() {
+        Transaction transaction = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
+                .compose(payment())
+                .preBalanceTx(new Unfrack(new EvolutionStrategy()))
                 .build();
 
         List<TransactionOutput> outputs = transaction.getBody().getOutputs();
@@ -107,25 +127,21 @@ class QuickTxUnfrackTest {
     }
 
     @Test
-    void withEqualLanesStrategy_tokensInOneBundleAndEqualAdaLanes() {
+    void withThroughputShape_configuredLanes() {
         Transaction transaction = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
                 .compose(payment())
-                .preBalanceTx(new Unfrack(EqualLanesStrategy.builder().lanes(4).build()))
+                .preBalanceTx(new Unfrack(WalletShape.throughput(4, Amount.ada(10))))
                 .build();
 
         List<TransactionOutput> outputs = transaction.getBody().getOutputs();
-        // payment + 1 token bundle (both policies fit the byte budget) + 4 ada lanes
+        // payment + 1 token bundle + 4 ADA lanes: 3 x 10 ADA and the rest, which also carries the fee reserve minus fee
         assertThat(outputs).hasSize(1 + 1 + 4);
         List<TransactionOutput> adaLanes = outputs.stream()
                 .filter(o -> o.getValue().getMultiAssets() == null || o.getValue().getMultiAssets().isEmpty())
                 .filter(o -> o.getAddress().equals(SENDER))
                 .toList();
         assertThat(adaLanes).hasSize(4);
-        // lanes are equal except the fee bearing one, which got the fee reserve minus the fee
-        BigInteger lane = adaLanes.get(1).getValue().getCoin();
-        assertThat(adaLanes.subList(1, 4)).allSatisfy(o -> assertThat(o.getValue().getCoin()).isBetween(lane, lane.add(BigInteger.TEN)));
-        assertThat(adaLanes.get(0).getValue().getCoin())
-                .isEqualTo(lane.add(Unfrack.DEFAULT_FEE_RESERVE).subtract(transaction.getBody().getFee()));
+        assertThat(adaLanes.subList(1, 4)).allSatisfy(o -> assertThat(o.getValue().getCoin()).isEqualTo(adaToLovelace(10)));
         assertBalanced(transaction);
     }
 
@@ -140,7 +156,7 @@ class QuickTxUnfrackTest {
                 .build();
 
         assertThat(transaction.getAuxiliaryData()).isNotNull();
-        assertThat(transaction.getBody().getOutputs()).hasSize(1 + 2 + 7);
+        assertThat(transaction.getBody().getOutputs()).hasSize(1 + 1 + 3);
         assertBalanced(transaction);
     }
 

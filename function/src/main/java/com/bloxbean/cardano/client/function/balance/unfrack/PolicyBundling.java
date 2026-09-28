@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.function.balance.unfrack;
 
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -14,6 +15,7 @@ import java.util.List;
  */
 @Getter
 @ToString
+@EqualsAndHashCode
 public class PolicyBundling implements TokenBundlingStrategy {
     public static final int DEFAULT_BUNDLE_SIZE = 10;
 
@@ -40,5 +42,14 @@ public class PolicyBundling implements TokenBundlingStrategy {
             }
         }
         return bundles;
+    }
+
+    /**
+     * A UTxO is a fragment when it holds less than half of {@code bundleSize} assets.
+     */
+    @Override
+    public boolean isFragment(List<MultiAsset> tokens) {
+        int assets = tokens.stream().mapToInt(ma -> ma.getAssets() == null ? 0 : ma.getAssets().size()).sum();
+        return assets * 2 < bundleSize;
     }
 }
