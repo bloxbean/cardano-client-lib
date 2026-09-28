@@ -9,18 +9,19 @@
 
 QuickTx always returns change as a **single output** at the sender's change address
 (`InputBuilders.buildInputs` → one `ChangeOutput`; `FeeCalculators` deducts the fee from it;
-`ChangeOutputAdjustments` tops it up to min-ada). Over time a wallet converges to one of two unhealthy shapes:
+`ChangeOutputAdjustments` tops it up to min-ada). Every token the wallet keeps ends up in that one output, while
+tokens received from others stay in their own small UTxOs. This causes the following problems, most common first:
 
-- **One "hot" UTxO** holding almost all ADA and every token. Every new transaction must spend it, and it stays
-  unavailable until the previous transaction settles. A wallet can therefore only have **one transaction in flight**.
-  Unfracking alone does not remove this limit; see the non-goal below.
-- **Many dusty fragments**. Transactions need many inputs, which makes them larger and more expensive.
+| Problem | Who is affected | What the user experiences |
+|---|---|---|
+| **Every payment drags all tokens along** | Anyone holding tokens | A plain ADA payment re-sends every token in the change. Each single-token policy adds about 39 bytes, so a wallet with 100 tokens pays roughly 0.17 ADA more per payment (44 lovelace per byte), and every payment is several KB closer to `maxTxSize`. |
+| **ADA is locked next to scattered tokens** | Airdrop recipients, collectors | Each token UTxO holds its own min-ada (about 1.1–1.5 ADA) that can't be spent without moving the token. Coin selection never picks these small UTxOs, so they stay: 60 airdrops leave about 99 ADA idle (§12.8). |
+| **Payments start failing** | Wallets with many tokens | An output can't exceed `maxValSize` (5,000 bytes, about 128 single-token policies) and a transaction can't exceed `maxTxSize` (16 KB). Once the change would carry more, every payment fails until the tokens are split up by hand (issue #42). |
+| **No ADA-only UTxO for collateral** | Smart-contract users | Script transactions need an ADA-only UTxO for collateral; with everything in one UTxO it needs extra handling. |
+| **One transaction in flight** | Services sending in parallel | Every transaction spends the same UTxO, so the next one waits. See "Concurrency" below. |
 
-Additional costs of mixing everything into one UTxO:
-
-- A plain ADA payment must move every token the wallet owns, which makes the transaction bigger and the fee higher.
-- The change output grows with every received token, towards `maxValSize`, until it can become unspendable
-  (issue #42).
+A wallet that holds only ADA and pays one transaction at a time has none of these problems; they grow with the number
+of tokens the wallet holds.
 
 In the Cardano ecosystem the fix is called **unfracking**, after [UnFrack.It](https://unfrack.it/). The
 [Evolution SDK](https://github.com/IntersectMBO/evolution-sdk) uses the same term: its `unfrack` build option
@@ -35,14 +36,9 @@ Unfracking works in **two directions**, depending on the starting point:
   (about 1.1–1.5 ADA); merging them reclaims that ADA. ADA-only UTxOs lock nothing, so merging them only reduces the
   number of inputs.
 
-**Why we do this: wallet hygiene** (issue #678). The main motivation is to keep wallets built with CCL in a healthy
-shape:
-
-- keep change outputs below `maxValSize`, so they stay spendable (issue #42);
-- ADA payments and single-token transfers move only the UTxOs they need, not every token in the wallet, so
-  transactions are smaller, cheaper and easier to review on a hardware wallet;
-- reclaim ADA locked next to scattered tokens (airdrops, dust), which coin selection never picks up by itself;
-- keep ADA-only UTxOs available, e.g. for collateral.
+**Goal: a healthy wallet** (issue #678). Unfracking keeps the wallet in the shape described in §4.1: ADA that can be
+spent without touching tokens, tokens in a few compact bundles far below `maxValSize`, no idle dust, and a small,
+stable number of UTxOs. That removes the first four problems.
 
 **Concurrency is not the main motivation.** Unfracking **does not solve UTxO contention**: several UTxOs are a
 prerequisite for concurrent transactions, but choosing uncontended inputs still needs coordination (e.g. txflow) or a
@@ -129,9 +125,23 @@ API.
 
 ## 4. Algorithm
 
-### 4.1 Rules of a healthy wallet
+### 4.1 A healthy wallet
 
-Every shape follows these rules; they are also the core of a possible CIP:
+**What the user gets.** A healthy wallet has:
+
+- ADA that can be spent without touching any token;
+- tokens grouped into a few compact bundles, each far below `maxValSize`, holding only their min-ada;
+- no idle dust and no ADA locked in scattered token UTxOs;
+- a small number of UTxOs that stays stable instead of growing with every transaction.
+
+Two typical wallets, before and after (simulator, §12.8; 300 random 1–50 ADA payments):
+
+| Starting point | Without unfracking | With `hygiene()` |
+|---|---|---|
+| One UTxO with 10,000 ADA and 120 single-token policies | Still 1 UTxO. Every payment re-sends all 120 tokens (4,684 bytes, 316 bytes below `maxValSize`). | 9 UTxOs: 3 ADA-only (2 × 50 ADA and the rest) and 6 token bundles holding 26.04 ADA of min-ada. Payments move no tokens. |
+| 10,000 ADA, plus a single-token airdrop every 5th transaction (60 in total) | 61 UTxOs: 1 ADA UTxO and 60 token UTxOs locking 99.05 ADA. | 8 UTxOs: 3 ADA-only and 5 token bundles locking 15.24 ADA; about 84 ADA is spendable again. |
+
+**Rules for implementers.** Every shape follows these rules; they are also the core of a possible CIP:
 
 1. **Tokens are never mixed with spendable ADA.** Token bundles hold exactly their min-ada; ADA goes to ADA-only
    outputs. Only an amount below the ADA-only min-ada is added to the last bundle.
@@ -182,7 +192,7 @@ also works for hardware or offline signing, but it re-splits every large change 
 |---|---|---|
 | Rule | Bundles up to `maxBundleBytes` (1,000) of CBOR, first-fit decreasing; a policy that fits is never split; a larger policy is chunked | One bundle per policy, chunks of `bundleSize` (10) assets |
 | Mixes policies | Yes | Never |
-| 150 single-token policies | 7 outputs, 32.06 ADA min-ada | 150 outputs, 171.97 ADA min-ada |
+| Change with 150 single-token policies (more than fits into one output) | 7 outputs, 32.06 ADA min-ada | 150 outputs, 171.97 ADA min-ada |
 | Fragment (for consolidation) | Uses less than half the budget | Holds fewer than half of `bundleSize` assets |
 
 ### 4.5 Consolidation
@@ -204,8 +214,8 @@ inputs before the change is split, so their value is reshaped together with the 
 Consolidation is **skipped** when the transaction has redeemers (extra inputs change input order and therefore
 redeemer indexes) and when there is no `UtxoSupplier`. A custom `ChangeSplitStrategy` runs without consolidation.
 
-Without the fragment rule, consolidation would pull full bundles back into every transaction: in the hot-UTxO
-workload (§12.8) `collector()` would create 8 change outputs per transaction instead of 1.03.
+Without the fragment rule, consolidation would pull full bundles back into every transaction and re-create them,
+adding inputs and outputs to every payment for no benefit.
 
 ### 4.6 Profiles
 
@@ -257,8 +267,8 @@ The numbers below come from the simulator (§12.8): 300 payments from one 10,000
 - **Intent:** keep one policy per UTxO, as protocols that spend a specific token expect.
 - **Behaviour:** `PolicyBundling` (never mixes policies), 3 ADA-only lanes of at least 50 ADA, no consolidation (merging
   would mix policies back together).
-- **Evidence:** 150 policies become 150 bundles and lock 171.97 ADA, as intended for this use case, versus 32.06 ADA with
-  byte-budget bundling.
+- **Evidence:** a hot UTxO with 120 policies becomes 120 bundles locking 137.58 ADA, as intended for this use case,
+  versus 26.04 ADA with byte-budget bundling.
 - **Use when:** policy separation matters more than locked ADA.
 
 #### `offline()` — no wallet view
@@ -266,7 +276,7 @@ The numbers below come from the simulator (§12.8): 300 payments from one 10,000
 - **Intent:** hardware or offline signing, where the wallet's UTxOs can't be read while building.
 - **Behaviour:** Evolution-style percentage split above 100 ADA, but with ADA always separate from tokens and
   byte-budget bundling; no consolidation.
-- **Evidence:** fixes the token problems (32.06 ADA locked vs 171.97; no ADA stored next to tokens), but like every
+- **Evidence:** fixes the token problems (26.04 ADA locked vs 137.58; no ADA stored next to tokens), but like every
   stateless split it keeps growing the wallet (361 UTxOs after 300 fixed payments).
 - **Use when:** there is no `UtxoSupplier`. Otherwise prefer a `Lanes` profile.
 
@@ -278,7 +288,7 @@ The numbers below come from the simulator (§12.8): 300 payments from one 10,000
   read the wallet, doesn't create lanes and doesn't consolidate, so the user signs no inputs or outputs they didn't
   expect.
 - **Evidence:** the wallet keeps one ADA-only UTxO in every workload, and the hot-UTxO token churn still disappears
-  after the first transaction (32.06 ADA locked, as with the other byte-budget shapes).
+  after the first transaction (26.04 ADA locked, as with the other byte-budget shapes).
 - **Use when:** building for a wallet whose shape is unknown.
 
 ### 4.7 Who sets the shape
@@ -302,7 +312,7 @@ only signs it (`signTx`). The wallet can't reshape the change afterwards without
 built, evaluated and possibly partly signed. So:
 
 1. **A dApp must not guess.** Without information it uses `minimal()`: the rules only, no lanes, and no consolidation
-   of the user's UTxOs, which would add inputs the user didn't expect (and more to review on a hardware wallet).
+   of the user's UTxOs, which would add inputs the user didn't expect.
 2. **The wallet has to tell the dApp.** CIP-30 has no way to do this today; §13 outlines an extension that this
    design prepares for.
 3. **The wallet still has some control today**, but only a little: when a dApp calls `getUtxos(amount)`, the wallet
@@ -442,7 +452,7 @@ silently replaces it today. Chaining fixes that bug too.
 ## 8. Consequences
 
 **Positive**
-- Change outputs stay below `maxValSize` and remain spendable (issue #42).
+- Payments no longer fail because the change would exceed `maxValSize` or the transaction `maxTxSize` (issue #42).
 - ADA payments no longer drag every token along.
 - Locked min-ada is reclaimed by merging token fragments, and dust is merged.
 - The wallet shape is bounded and described by intent (profiles), not by tuning knobs.
@@ -942,7 +952,7 @@ wallet without a UTxO view never grows.
 |---|---|---|
 | Rule | One bundle per policy, chunks of `bundleSize` (10) assets | Bundles up to `maxBundleBytes` (1,000) of CBOR, first-fit decreasing; a policy that fits is never split |
 | 3 single-token policies | 3 outputs | 1 output |
-| 150 single-token policies | 150 outputs, 171.97 ADA min-ada | 7 outputs, 32.06 ADA min-ada |
+| Change with 150 single-token policies (more than fits into one output) | 150 outputs, 171.97 ADA min-ada | 7 outputs, 32.06 ADA min-ada |
 | Output size | Depends on asset name lengths | Bounded by the budget, far below `maxValSize` (5,000) |
 | Mixes policies | Never | Yes |
 
@@ -999,16 +1009,17 @@ EqualLanes with 10 ADA lanes (up to 1.73).
 | Shape / strategy | Airdrop¹: token UTxOs | ADA in token UTxOs | Hot UTxO²: max UTxOs | token churn | ADA in token UTxOs | Small wallet³: final UTxOs | ADA in token UTxOs |
 |---|---|---|---|---|---|---|---|
 | None (today) | 60 | 99.05 | 1 | **100 %** | 2,183.60 | 1 | 69.56 |
-| `EvolutionStrategy` | 60 | 99.05 | 445 | 0 % | 171.97 | 27 | 22.93 |
-| `hygiene()` | **5** | **15.24** | 10 | 0 % | 32.06 | 3 | 4.34 |
-| `throughput(5, 60 ADA)` | 60 | 99.05 | 12 | 0 % | 32.06 | 3 | 4.34 |
-| `collector()` | **5** | **15.24** | 9 | 0 % | 32.06 | 3 | 4.34 |
-| `dex()` | 60 | 99.05 | 153 | 0 % | 171.97 | 22 | 22.93 |
-| `offline()` | 60 | 99.05 | 308 | 0 % | 32.06 | 8 | 4.34 |
-| `minimal()` | 60 | 99.05 | 8 | 0 % | 32.06 | 2 | 4.34 |
+| `EvolutionStrategy` | 60 | 99.05 | 415 | 0 % | 137.58 | 27 | 22.93 |
+| `hygiene()` | **5** | **15.24** | 9 | 0 % | 26.04 | 3 | 4.34 |
+| `throughput(5, 60 ADA)` | 60 | 99.05 | 11 | 0 % | 26.04 | 3 | 4.34 |
+| `collector()` | **5** | **15.24** | 8 | 0 % | 26.04 | 3 | 4.34 |
+| `dex()` | 60 | 99.05 | 123 | 0 % | 137.58 | 22 | 22.93 |
+| `offline()` | 60 | 99.05 | 307 | 0 % | 26.04 | 8 | 4.34 |
+| `minimal()` | 60 | 99.05 | 7 | 0 % | 26.04 | 2 | 4.34 |
 
 ¹ Random 1–50 ADA payments from 10,000 ADA; every 5th transaction a new single-token UTxO arrives (60 in total).
-² One UTxO with 10,000 ADA and 150 single-token policies, 300 random 1–50 ADA payments.
+² One UTxO with 10,000 ADA and 120 single-token policies (4,684 bytes, just below `maxValSize`), 300 random 1–50 ADA
+payments.
 ³ One UTxO with 150 ADA and 20 single-token policies, 40 random 1–3 ADA payments.
 
 **Reading.**
