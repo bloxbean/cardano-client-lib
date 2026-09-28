@@ -38,7 +38,8 @@ class UnfrackSimulationTest {
                             : 2_000_000L + r.nextInt(8_000_000)), 0),
             new Workload("random 1-50 ADA + airdrop every 5 tx", TRANSACTIONS, WALLET,
                     r -> BigInteger.valueOf(1_000_000L + r.nextInt(49_000_000)), 5),
-            new Workload("hot UTxO: 10,000 ADA + 150 tokens, random 1-50 ADA", TRANSACTIONS, withTokens(10_000, 150),
+            // 120 single-token policies take 4,684 bytes, just below maxValSize (5,000): a realistic worst case
+            new Workload("hot UTxO: 10,000 ADA + 120 tokens, random 1-50 ADA", TRANSACTIONS, withTokens(10_000, 120),
                     r -> BigInteger.valueOf(1_000_000L + r.nextInt(49_000_000)), 0),
             new Workload("small wallet: 150 ADA + 20 tokens, random 1-3 ADA", 40, withTokens(150, 20),
                     r -> BigInteger.valueOf(1_000_000L + r.nextInt(2_000_000)), 0));
