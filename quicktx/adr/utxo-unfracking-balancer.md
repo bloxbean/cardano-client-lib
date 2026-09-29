@@ -70,6 +70,8 @@ So concurrency is a side benefit of one profile, not the reason for this ADR.
 5. **Reuse the existing `preBalanceTx(TxBuilder)` hook**, and make it **chain** transformers (`andThen`) instead of
    overwriting the previous one. `Unfrack` runs before fee/min-ada balancing, so all existing balancing logic is
    reused (§5). Without `Unfrack`, transaction building is unchanged, byte for byte.
+   **`Unfrack` and `mergeOutputs(true)` are mutually exclusive**: both decide how outputs at the same address look,
+   and merging happens before `Unfrack` runs. QuickTx rejects the combination (§5.1).
 6. **`ChangeSplitStrategy` as an escape hatch** for needs no shape covers. `EvolutionStrategy`, a faithful port of
    Evolution SDK, is available through it for parity (§4.8).
 7. **Aim for a CIP**: the rules of a healthy wallet (§4.1), the parameterised algorithm and the profiles are written so
@@ -119,6 +121,9 @@ A strategy only returns values. `Unfrack` checks that they sum to the change and
 
 `QuickTxBuilder.TxContext#preBalanceTx(TxBuilder)` appends the function to the existing pre-balance transformer
 (`andThen`) instead of replacing it. Functions run in the order they were added. No new QuickTx method is added.
+
+`TxContext` remembers whether an `Unfrack` was added through `preBalanceTx` and validates the configuration when the
+transaction is built (§5.1).
 
 `Unfrack` lives in `function`, not `quicktx`, so it can also be composed manually with the low-level `TxBuilder`
 API.
@@ -368,7 +373,8 @@ Profile defaults are first values chosen with the simulator and should be tuned 
 ## 5. Build Pipeline Placement
 
 ```
-per-tx complete()        inputs selected, one ChangeOutput per sender, deposits resolved
+per-tx complete()        outputs built, inputs selected, one ChangeOutput per sender, deposits resolved;
+                         with mergeOutputs(true), outputs and change to the same address are merged here
 preBalanceTx(...)        existing, now chained (← CHANGED): user/extender transformers, then Unfrack:
                            1. consolidation adds small UTxOs as inputs (← NEW)
                            2. change is split towards the WalletShape (← NEW)
@@ -385,6 +391,43 @@ postBalanceTx(...)       existing
   outputs;
 - fee calculation naturally includes the size of the extra inputs and outputs.
 
+### 5.1 Interaction with `mergeOutputs`
+
+`mergeOutputs(true)` (QuickTx default `false`; `TxBuilderContext` default `true` in the low-level API) merges outputs
+with the same address into one. It is applied **while the outputs are built**, inside `tx.complete()`, not as a
+separate step:
+
+- payment outputs to the same address are merged (`OutputBuilders`);
+- the change is added to the first existing output at the change address instead of a new `ChangeOutput`
+  (`InputBuilders`);
+- deposit refunds are merged into an existing output (`DepositResolvers`).
+
+So merging always happens **before** `Unfrack`, and the two settings pull in opposite directions: one output per
+address versus several outputs at the change address. Combining them gives a result neither setting intends, and
+which one depends on the transaction:
+
+| Configuration | Result (QuickTx, one UTxO with 1,000 ADA and 2 tokens, 10 ADA payment) |
+|---|---|
+| `mergeOutputs(true)` + `Unfrack`, and the transaction also pays to the sender's own address | 2 outputs: the change is merged into the plain payment output to the sender, which is not a `ChangeOutput`, so `Unfrack` does nothing. ADA and tokens stay mixed. |
+| `mergeOutputs(true)` + `Unfrack`, no other output to the sender's address | 5 outputs, 4 of them at the sender's address: `Unfrack` splits the change, so the outputs are not merged as requested. |
+| `Unfrack`, then `OutputMergers.mergeOutputsForAddress(sender)` in `postBalanceTx` | 2 outputs: unfracking is undone, and the fee was calculated for 5 outputs, so it is slightly too high. |
+
+All three happen silently today. The rules:
+
+1. **QuickTx rejects `mergeOutputs(true)` together with `Unfrack`.** When the transaction is built (so the order of
+   `mergeOutputs(...)` and `preBalanceTx(...)` calls doesn't matter), `TxContext` throws a `TxBuildException`:
+   *"mergeOutputs(true) can't be combined with Unfrack: outputs are merged before Unfrack runs, so the change is either
+   merged into another output (Unfrack does nothing) or split again (outputs are not merged). Use one of them."*
+2. **`Unfrack` warns in the low-level API.** Composed manually with a `TxBuilderContext` whose `mergeOutputs` is
+   `true` (its default there), `Unfrack.apply` logs a warning with the same explanation. It doesn't throw, so existing
+   low-level code keeps working.
+3. **Merging after `Unfrack` produces a warning.** `OutputMergers.mergeOutputsForAddress(...)` returns a recognisable
+   `TxBuilder`. If one is added through `preBalanceTx` or `postBalanceTx` in a `TxContext` that also has an `Unfrack`,
+   QuickTx logs a warning that merging outputs after unfracking will probably not give the intended result. It is not
+   rejected, because the merger may target another address.
+4. **Documentation**: the Javadoc of `mergeOutputs(...)`, `Unfrack` and `OutputMergers` states that they exclude each
+   other.
+
 ## 6. Rules and Edge Cases
 
 - Only outputs that are `instanceof ChangeOutput`, have a positive coin, and carry **no** datum, datum hash or
@@ -393,8 +436,8 @@ postBalanceTx(...)       existing
 - **Fee payer ≠ sender**: the sender's change is split, and the fee is still taken from the fee payer's output.
 - **Balancing adds inputs later** (min-ada top-up): the extra value merges into the largest piece. This is
   acceptable.
-- **`mergeOutputs(true)`**: change may be merged into a user output, which is not a `ChangeOutput`, so `Unfrack`
-  does nothing.
+- **`mergeOutputs(true)`**: can't be combined with `Unfrack` in QuickTx (§5.1). In the low-level API the change may be
+  merged into a user output, which is not a `ChangeOutput`, so `Unfrack` does nothing and logs a warning.
 - **Transactions without inputs** (withdrawal/deregistration funded by a refund) have no `ChangeOutput` yet, so
   `Unfrack` does nothing.
 - **Other pre-balance transformers**: they run in the order they were added. `Unfrack` only touches `ChangeOutput`s
@@ -465,6 +508,8 @@ silently replaces it today. Chaining fixes that bug too.
   (§4.7).
 
 **Negative / trade-offs**
+- `Unfrack` can't be combined with `mergeOutputs(true)`; transactions configured with both fail to build instead of
+  silently ignoring one of the settings (§5.1).
 - More outputs (and, with consolidation, more inputs) make a transaction slightly larger and its fee slightly higher.
 - `Lanes` and consolidation read the wallet's UTxOs on every build: one extra backend call, slow for large wallets.
 - Behaviour differs from Evolution SDK by default; `EvolutionStrategy` keeps parity available.
@@ -508,6 +553,11 @@ silently replaces it today. Chaining fixes that bug too.
   baselines, prints the report tables and asserts the properties this ADR relies on (conservation, lane profiles stay
   at their size, stateless strategies grow, no token churn after unfracking a hot UTxO, byte-budget bundling locks
   less ADA, Evolution's spread, consolidation reclaims airdrops).
+- **`mergeOutputs` interaction** (§5.1):
+  - QuickTx throws `TxBuildException` for `mergeOutputs(true)` + `Unfrack`, whichever is configured first;
+  - `mergeOutputs(false)` (default) + `Unfrack` builds as before;
+  - `Unfrack.apply` with a low-level `TxBuilderContext` (`mergeOutputs` `true`) logs a warning and doesn't throw;
+  - an `OutputMergers` merger in `preBalanceTx` or `postBalanceTx` next to `Unfrack` logs a warning.
 - **QuickTx tests** (mocked suppliers): default `hygiene()`, `throughput(...)`, `EvolutionStrategy`, without
   `Unfrack` (unchanged output), and two chained `preBalanceTx(...)` calls.
 - **Parity:** port selected Evolution SDK scenarios so that `EvolutionStrategy` produces the same split.
