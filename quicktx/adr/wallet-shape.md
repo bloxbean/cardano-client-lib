@@ -10,23 +10,59 @@
 QuickTx always returns change as a **single output** at the sender's change address
 (`InputBuilders.buildInputs` → one `ChangeOutput`; `FeeCalculators` deducts the fee from it;
 `ChangeOutputAdjustments` tops it up to min-ada). Every token the wallet keeps ends up in that one output, while
-tokens received from others stay in their own small UTxOs. This causes the following problems, most common first:
+tokens and small amounts received from others stay in their own small UTxOs.
 
-| Problem | Who is affected | What the user experiences |
+**The wallet shape is not cosmetic.** Depending on how its UTxOs are laid out, a wallet that holds enough funds can
+become unable to make its next transaction, or pay far more in fees than necessary. This ADR has two goals:
+
+1. **The user can always create their next transaction**, without a separate clean-up tool (such as the UnFrack.It
+   website) and without someone sending them ADA.
+2. **The user doesn't overpay fees** because of how their UTxOs are laid out.
+
+### 1.1 When a wallet can no longer transact
+
+The ledger limits (mainnet) that matter: a transaction can't exceed `maxTxSize` (16,384 bytes), an output's value
+can't exceed `maxValSize` (5,000 bytes), and every output needs min-ada (`coinsPerUTxOByte` × (160 + output size)).
+Measured CBOR sizes: a transaction input takes about **36 bytes**, so one transaction can spend at most about
+**440 UTxOs**; a single-token policy in an output takes about **39 bytes**, so one output holds at most about
+**128 single-token policies**.
+
+| Wallet state | What fails | Severity | How the default shape (Part A) prevents it |
+|---|---|---|---|
+| Tokens keep accumulating in the one change output, and a payment has to combine token-heavy UTxOs | The change would exceed `maxValSize`, so every such payment fails (issue #42) | **Stuck for a builder with one change output**, which is what QuickTx has today; a builder that splits the change could still transact | Token bundles are capped at 1,000 bytes |
+| Many small UTxOs, e.g. 1,000 × 1 ADA from years of small payments | Sending 500 ADA needs about 500 inputs, more than fits into 16 KB, although 1,000 ADA is there | **Degraded**: that payment is impossible in one transaction; the wallet needs several consolidation transactions first | Consolidation merges small UTxOs a few at a time in normal transactions; one ADA output never creates new dust |
+| One token spread over hundreds of UTxOs | Sending all of it at once needs too many inputs | **Degraded** | Consolidation merges token fragments; bundling keeps a token together |
+| All ADA sits as min-ada in a single token UTxO | No fee can be paid: moving the token needs the same min-ada again | **Destroyed** until someone sends ADA in | ADA is always kept in its own output instead of being spread into token UTxOs |
+| `coinsPerUTxOByte` increases | Existing token UTxOs are below the new min-ada; spending them needs extra ADA | **Degraded or destroyed**, as above | Free ADA in its own output; merging bundles saves the per-output overhead (about 1 ADA per merged pair) |
+| No ADA-only UTxO | Smart-contract transactions need collateral handling (collateral return) | **Degraded** for script transactions | An ADA-only output always exists |
+
+CCL doesn't check `maxTxSize` or `maxValSize` when it builds a transaction; it only reads them from the protocol
+parameters. So today these failures only show up when the node rejects the transaction.
+
+### 1.2 When a user overpays fees
+
+The fee is 44 lovelace per byte plus 155,381 lovelace per transaction.
+
+| Cause | Extra cost | How the default shape prevents it |
 |---|---|---|
-| **Every payment drags all tokens along** | Anyone holding tokens | A plain ADA payment re-sends every token in the change. Each single-token policy adds about 39 bytes, so a wallet with 100 tokens pays roughly 0.17 ADA more per payment (44 lovelace per byte), and every payment is several KB closer to `maxTxSize`. |
-| **ADA is locked next to scattered tokens** | Airdrop recipients, collectors | Each token UTxO holds its own min-ada (about 1.1–1.5 ADA) that can't be spent without moving the token. Coin selection never picks these small UTxOs, so they stay: 60 airdrops leave about 99 ADA idle (Appendix B.8). |
-| **Payments start failing** | Wallets with many tokens | An output can't exceed `maxValSize` (5,000 bytes, about 128 single-token policies) and a transaction can't exceed `maxTxSize` (16 KB). Once the change would carry more, every payment fails until the tokens are split up by hand (issue #42). |
-| **No ADA-only UTxO for collateral** | Smart-contract users | Script transactions need an ADA-only UTxO for collateral; with everything in one UTxO it needs extra handling. |
-| **One transaction in flight** | Server-side services sending in parallel | Every transaction spends the same UTxO, so the next one waits. See §8.1. |
+| **Every payment drags all tokens along** in the change | About 39 bytes per single-token policy: a wallet with 100 tokens pays about 0.17 ADA more **per payment** | Payments only spend ADA-only UTxOs; tokens stay in their bundles |
+| **Many small inputs** | About 36 bytes per input: 100 dust inputs cost about 0.16 ADA more per payment | Dust is merged over time, in normal transactions |
+| **Separate clean-up transactions** (the UnFrack.It approach) | Each costs at least the 0.155 ADA base fee plus its size | Merging inside a normal transaction costs only the extra input, about 0.0016 ADA per UTxO |
 
-A wallet that holds only ADA and pays one transaction at a time has none of these problems; they grow with the number
-of tokens the wallet holds.
+### 1.3 Other problems
 
-**Terminology.** In the Cardano ecosystem, fixing this is known as "unfracking", after
-[UnFrack.It](https://unfrack.it/); [Evolution SDK](https://github.com/IntersectMBO/evolution-sdk) uses the same term
-for its `unfrack` build option. This ADR avoids it: the term is specific jargon and describes the problem rather than
-the goal. It speaks of the **wallet shape**, i.e. how a wallet's UTxOs are laid out, and of keeping it healthy.
+- **ADA locked next to scattered tokens**: each token UTxO holds its own min-ada (about 1.1–1.5 ADA). Coin selection
+  never picks these small UTxOs, so they stay: 60 airdrops leave about 99 ADA idle (Appendix B.8).
+- **One transaction in flight**: every transaction spends the same UTxO, so the next one waits. This only matters for
+  server-side services; see §8.1.
+
+A wallet that holds only ADA can still collect dust (the second row of §1.1), but none of the token problems.
+
+**Terminology.** In the Cardano ecosystem, repairing such a wallet is known as "unfracking", after
+[UnFrack.It](https://unfrack.it/), a website that repairs wallets with separate clean-up transactions;
+[Evolution SDK](https://github.com/IntersectMBO/evolution-sdk) uses the same term for its `unfrack` build option. This
+ADR avoids it: the term is specific jargon and describes the problem rather than the goal. It speaks of the **wallet
+shape**, i.e. how a wallet's UTxOs are laid out, and of keeping it healthy so that no repair is needed.
 
 **Two audiences.** The same problems look very different depending on who owns the wallet:
 
@@ -81,12 +117,15 @@ quickTxBuilder.compose(tx)
 
 ## 3. A Healthy Wallet
 
-**What the user gets.** A healthy wallet has:
+**What the user gets.** A healthy wallet:
 
-- ADA that can be spent without touching any token;
-- tokens grouped into a few compact bundles, each far below `maxValSize`, holding only their min-ada;
-- no idle dust and no ADA locked in scattered token UTxOs (with consolidation);
-- a small number of UTxOs that stays stable instead of growing with every transaction.
+- can always build its next transaction: no output near `maxValSize`, no payment that needs hundreds of inputs, and
+  spendable ADA for the fee;
+- pays no fees for tokens or dust it doesn't use;
+- has ADA that can be spent without touching any token;
+- keeps its tokens in a few compact bundles, each far below `maxValSize`, holding only their min-ada;
+- has no idle dust and no ADA locked in scattered token UTxOs (with consolidation);
+- has a small number of UTxOs that stays stable instead of growing with every transaction.
 
 Two typical wallets, before and after, with `DefaultWalletShaper.withConsolidation()` (simulator, Appendix B.8; 300
 random 1–50 ADA payments):
@@ -105,6 +144,9 @@ random 1–50 ADA payments):
 3. **Value is conserved and every output is valid.** The pieces sum exactly to the change; each piece meets min-ada.
 4. **The wallet shape is bounded.** A shaper moves the wallet towards its shape and stops there, instead of creating
    more UTxOs with every transaction.
+5. **The wallet stays able to transact.** No rule may create a state from §1.1: outputs stay far below `maxValSize`,
+   ADA is never dissolved into token UTxOs, and repairs (consolidation) happen a few UTxOs at a time so that every
+   transaction stays small.
 
 ---
 
@@ -141,7 +183,7 @@ A single default is possible because a retail user's needs don't depend on what 
   same treatment of their change both times.
 - Retail users don't need parallel transactions, so there is no need for several ADA outputs ("lanes"); one ADA output
   is simplest and never grows the wallet.
-- The default keeps the wallet **always able to transact and to recover**:
+- The default keeps the wallet **always able to transact and to recover** (§1.1):
   - no output can approach `maxValSize`, because bundles are capped at 1,000 bytes;
   - an ADA payment never carries tokens, and a token transfer moves only that token's bundle, so transactions stay
     small;
@@ -552,7 +594,8 @@ today. Chaining fixes that bug too.
 - The Part A rules are a good basis for a CIP.
 
 **Negative / trade-offs**
-- More outputs (and, with consolidation, more inputs) make a transaction slightly larger and its fee slightly higher.
+- More outputs (and, with consolidation, more inputs) make a transaction slightly larger: about 0.003 ADA per extra
+  ADA-only output and 0.0016 ADA per extra input, far less than the savings of §1.2.
 - Consolidation and `Lanes` read the wallet's UTxOs on every build: one extra backend call, slow for large wallets.
 - Behaviour differs from Evolution SDK by default; `TieredSplitStrategy` keeps parity available.
 - With a `WalletShaper`, `mergeOutputs(true)` no longer merges the change into other outputs; it only merges payments
@@ -564,8 +607,18 @@ today. Chaining fixes that bug too.
 ## 13. Future Work
 
 - **CIP for the default**: the Part A rules (§3, §4) as an informational CIP that every transaction builder follows by
-  default, extending CIP-2, with the simulation as rationale and Evolution SDK as prior art. Involve the Evolution SDK
+  default, extending CIP-2. Its motivation is the two goals of §1 (always able to transact, no overpaid fees) with the
+  cases of §1.1 and §1.2, the simulation as rationale, and Evolution SDK as prior art. Involve the Evolution SDK
   maintainers early.
+- **Liveness simulator**: property-based tests without a node. An in-memory ledger applies transactions built by the
+  real `QuickTxBuilder`; a local Phase-1 validator checks what a node would reject (`maxTxSize`, `maxValSize`, min-ada,
+  balance, fee); seeded generators create wallets (dust, token fragments, hot UTxOs near the limits, min-ada-only token
+  UTxOs, a `coinsPerUTxOByte` increase) and action sequences (payments up to "send almost everything", token
+  transfers, airdrops, dApp transactions without a shaper). After every step it checks whether the wallet can still
+  pay, and classifies failures as builder failure, degraded (recoverable in *k* consolidation transactions) or
+  destroyed. Yaci DevKit replays a sample to confirm the local validator agrees with the node.
+- **Local limit checks**: check `maxTxSize` and `maxValSize` when CCL builds a transaction, so these failures surface
+  before submission.
 - **Default in QuickTx**: once proven, make `DefaultWalletShaper` the behaviour of QuickTx without any configuration
   (a breaking change for a major version), so retail users get it without anyone opting in.
 - **Tune defaults** (bundle budget, consolidation limits, fee reserve) with the simulator.
@@ -867,6 +920,9 @@ design:
 
 The Part A default takes the token handling that all alternatives share (byte-budget bundles, ADA kept separate) and
 keeps ADA in a single output.
+
+The prototype implements Part A only. The code that produced this appendix (all candidates, Part B shapes and the full
+simulator) is kept in the history of the prototype branch, at commit `d934907a` of `feat/utxo-unfracking-impl`.
 
 **How to read the examples.** They use mainnet `coinsPerUtxoByte` 4,310 and a Shelley base address. With these,
 an ADA-only output needs 0.969750 ADA, a bundle with one token needs 1.146460 ADA, and a bundle with three
