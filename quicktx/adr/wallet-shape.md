@@ -220,6 +220,10 @@ Simulator (Appendix B.8), 300 payments:
 
 ## 5. API
 
+The prototype (PR #677) implements Part A: `WalletShaper`, `DefaultWalletShaper` (with `withConsolidation()`), the
+`TxBuilderContext.mergeChange` flag, the recognisable `OutputMerger`, and the QuickTx handling of §6.5. The Part B types
+below are specified here but not implemented yet.
+
 ### `function` module — `com.bloxbean.cardano.client.function.walletshape`
 
 | Type | Role |
