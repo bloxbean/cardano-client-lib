@@ -102,7 +102,7 @@ public class InputBuilders {
 
         if (utxoSet != null && !utxoSet.isEmpty()) {
             //Copy assets to change address
-            TransactionOutput changeOutput = getChangeOutput(outputs, changeAddress, context.isMergeOutputs());
+            TransactionOutput changeOutput = getChangeOutput(outputs, changeAddress, context.isMergeChange());
             outputs.remove(changeOutput); //Remove change output from outputs as it will be added to changeOutput List later. If it's a new output, nothing will happen
 
             utxoSet.stream().forEach(utxo -> {
@@ -311,7 +311,7 @@ public class InputBuilders {
             List<TransactionOutput> changeOutputs = new ArrayList<>();
             if (changeAddress != null && !changeAddress.isEmpty()) {
                 //Copy assets to change address
-                TransactionOutput changeOutput = getChangeOutput(outputs, changeAddress, context.isMergeOutputs());
+                TransactionOutput changeOutput = getChangeOutput(outputs, changeAddress, context.isMergeChange());
                 outputs.remove(changeOutput); //Remove change output from outputs. This will be added to changeOutputs
 
                 utxos.forEach(utxo -> {
@@ -444,11 +444,11 @@ public class InputBuilders {
         };
     }
 
-    private static TransactionOutput getChangeOutput(List<TransactionOutput> outputs, String changeAddress, boolean isMergeOutputs) {
+    private static TransactionOutput getChangeOutput(List<TransactionOutput> outputs, String changeAddress, boolean isMergeChange) {
         if (changeAddress == null || changeAddress.isEmpty())
             throw new TxBuildException("Change address is required");
 
-        if (!isMergeOutputs) //If merge outputs is false, return a separate change output
+        if (!isMergeChange) //If the change must not be merged, return a separate change output
             return new ChangeOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
 
         return outputs.stream()

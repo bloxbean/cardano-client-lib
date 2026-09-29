@@ -1,9 +1,10 @@
-package com.bloxbean.cardano.client.function.balance.unfrack;
+package com.bloxbean.cardano.client.function.walletshape;
 
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.ChangeOutput;
@@ -24,21 +25,21 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
-import static com.bloxbean.cardano.client.function.balance.unfrack.UnfrackFixtures.*;
+import static com.bloxbean.cardano.client.function.walletshape.WalletShapeFixtures.*;
 
 /**
- * Replays a wallet workload through {@link Unfrack} with a given strategy and collects wallet shape metrics.
+ * Replays a wallet workload through a wallet shaper (or none) and collects wallet shape metrics.
  * <p>
  * Model: one address, serial transactions, largest-first input selection (CCL default), fixed fee, ADA payments to
- * another address, and optional token airdrops into the wallet. The real {@link Unfrack} (including consolidation and
- * its result checks) shapes every transaction.
+ * another address, and optional token airdrops into the wallet. The real shaper (including consolidation and its
+ * result checks) shapes every transaction.
  */
-final class UnfrackSimulator {
+final class WalletShapeSimulator {
     static final BigInteger FEE = BigInteger.valueOf(200_000);
     /** Min change kept by input selection, so that change is always a valid output. */
     static final BigInteger MIN_CHANGE = BigInteger.valueOf(1_000_000);
 
-    private UnfrackSimulator() {
+    private WalletShapeSimulator() {
     }
 
     @FunctionalInterface
@@ -71,12 +72,15 @@ final class UnfrackSimulator {
         }
     }
 
-    static Result run(String strategyName, Unfrack unfrack, Workload workload, long seed) {
+    /**
+     * @param shaper wallet shaper applied to every transaction; null for none (today's behaviour)
+     */
+    static Result run(String strategyName, TxBuilder shaper, Workload workload, long seed) {
         Random random = new Random(seed);
         List<Coin> wallet = new ArrayList<>();
         wallet.add(new Coin(hash("genesis", 0), 0, workload.initialValue()));
 
-        TxBuilderContext context = new TxBuilderContext(new WalletSupplier(wallet), PROTOCOL_PARAMS);
+        TxBuilderContext context = new TxBuilderContext(new WalletSupplier(wallet), PROTOCOL_PARAMS).mergeChange(false);
 
         BigInteger expectedBalance = workload.initialValue().getCoin();
         long expectedTokenUnits = tokenUnits(List.of(workload.initialValue()));
@@ -117,9 +121,10 @@ final class UnfrackSimulator {
                     .body(TransactionBody.builder().inputs(new ArrayList<>(txInputs)).outputs(outputs).build())
                     .build();
 
-            unfrack.apply(context, tx);
+            if (shaper != null)
+                shaper.apply(context, tx);
 
-            // selected inputs plus any UTxOs consolidated by Unfrack
+            // selected inputs plus any UTxOs consolidated by the shaper
             Set<String> spent = tx.getBody().getInputs().stream()
                     .map(i -> i.getTransactionId() + "#" + i.getIndex())
                     .collect(Collectors.toSet());

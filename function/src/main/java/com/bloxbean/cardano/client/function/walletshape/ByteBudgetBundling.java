@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.function.balance.unfrack;
+package com.bloxbean.cardano.client.function.walletshape;
 
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
@@ -23,23 +23,25 @@ import java.util.List;
 @Getter
 @ToString
 @EqualsAndHashCode
-public class ByteBudgetBundling implements TokenBundlingStrategy {
-    public static final int DEFAULT_MAX_BUNDLE_BYTES = 1000;
+class ByteBudgetBundling {
+    static final int DEFAULT_MAX_BUNDLE_BYTES = 1000;
 
     private final int maxBundleBytes;
 
-    public ByteBudgetBundling() {
+    ByteBudgetBundling() {
         this(DEFAULT_MAX_BUNDLE_BYTES);
     }
 
-    public ByteBudgetBundling(int maxBundleBytes) {
+    ByteBudgetBundling(int maxBundleBytes) {
         if (maxBundleBytes < 1)
             throw new IllegalArgumentException("maxBundleBytes must be >= 1");
         this.maxBundleBytes = maxBundleBytes;
     }
 
-    @Override
-    public List<List<MultiAsset>> bundle(List<MultiAsset> tokens) {
+    /**
+     * Group tokens into bundles. Every asset of the input appears in exactly one bundle, with its full quantity.
+     */
+    List<List<MultiAsset>> bundle(List<MultiAsset> tokens) {
         List<Chunk> chunks = new ArrayList<>();
         for (MultiAsset policy : tokens)
             chunks.addAll(chunksOf(policy));
@@ -72,8 +74,7 @@ public class ByteBudgetBundling implements TokenBundlingStrategy {
     /**
      * A UTxO is a fragment when its tokens use less than half of the budget.
      */
-    @Override
-    public boolean isFragment(List<MultiAsset> tokens) {
+    boolean isFragment(List<MultiAsset> tokens) {
         return ChangeValues.serializedSize(tokens) < maxBundleBytes / 2;
     }
 

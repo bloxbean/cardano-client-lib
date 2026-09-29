@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.function.balance.unfrack;
+package com.bloxbean.cardano.client.function.walletshape;
 
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.bloxbean.cardano.client.function.balance.unfrack.UnfrackFixtures.*;
+import static com.bloxbean.cardano.client.function.walletshape.WalletShapeFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

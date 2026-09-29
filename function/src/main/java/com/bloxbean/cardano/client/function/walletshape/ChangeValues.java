@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.function.balance.unfrack;
+package com.bloxbean.cardano.client.function.walletshape;
 
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Value helpers shared by unfrack strategies.
+ * Value helpers used by wallet shapers.
  */
 final class ChangeValues {
 
