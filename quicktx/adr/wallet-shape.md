@@ -4,8 +4,8 @@
 **Date**: 2026-09-24
 **Issue**: https://github.com/bloxbean/cardano-client-lib/issues/678 (related: https://github.com/bloxbean/cardano-client-lib/issues/42, https://github.com/bloxbean/cardano-client-lib/issues/279)
 **Modules**: `quicktx`, `function`
-**Design document**: [`design/transaction-strategies.md`](../../design/transaction-strategies.md) (SDK-independent
-strategy; this ADR implements its "keep healthy" phase)
+**Design document**: [Self-Healing Wallets](../../design/self-healing-wallets.md) (SDK-independent strategy; this ADR
+implements its "keep healthy" phase)
 
 ## 1. Context
 
