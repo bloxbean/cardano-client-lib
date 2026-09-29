@@ -127,6 +127,23 @@ fees (44 lovelace per byte plus the 0.155 ADA base fee). Merging a UTxO inside a
 about 0.0016 ADA. So the strategy should rarely need repair legs: phase 5 keeps them the exception, and phase 3 makes
 their cost visible.
 
+### 5.4 Why all three layers are needed
+
+The guarantee (goal 1) holds only for the combination of the three layers; each covers a gap the others can't:
+
+| Layer | Phases | Without it |
+|---|---|---|
+| **Shape every transaction's change** (prevention, gradual repair) | 5 | The wallet keeps drifting into bad states; repair legs (about 0.80 ADA each) become routine instead of the exception |
+| **Pre-flight check, single-transaction repair, plan** | 1–2 | Failures surface only when the node rejects the transaction, with no plan to fix them |
+| **Chained execution** of repair legs and the action | 3–4 | The plan exists but isn't carried out; the user gets a diagnosis instead of a result |
+
+What the guarantee covers: an action the user can **afford** is never impossible because of **how** the wallet is laid
+out; at most it costs one or more repair-leg fees. It doesn't cover a wallet that can't afford the action (a clear
+error is the right answer), failures nobody can predict (a UTxO spent concurrently, a full mempool, an expired validity
+interval, a rollback; these are handled by retries), or limits outside the builder's control (hardware-wallet device
+limits, wallets without CIP-103). Until the liveness simulator (§11) exercises it on generated hostile wallets, the
+guarantee is a design claim.
+
 ## 6. Wallet Shape Rules
 
 Every transaction builder should shape the change it creates for the user's wallet, by default:
