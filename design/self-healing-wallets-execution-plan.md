@@ -10,7 +10,7 @@
 [#677](https://github.com/bloxbean/cardano-client-lib/pull/677) (prototype)
 
 This plan turns the [Self-Healing Wallets](self-healing-wallets.md) design into work. It runs on three parallel tracks,
-with a few gates between them. Every milestone ships something useful on its own; nothing waits for the whole design.
+with a few gates between them; the CCL work ships as 10 small PRs in 3 releases (§3). Every milestone ships something useful on its own; nothing waits for the whole design.
 
 | Track | What | Outcome |
 |---|---|---|
@@ -117,7 +117,56 @@ Status: ⬜ to do · 🟡 prototype in PR #677 · ✅ done.
 |---|---|---|---|---|---|
 | C29 | ADR Part B: `CustomWalletShaper`, `WalletShape` with `AdaShape` (lanes, percentages), `TokenShape`, `Consolidation`, profiles; restore from commit `d934907a` where useful | `function`: `function.walletshape` | New | As in the earlier prototype | ⬜ |
 
-## 3. Track 2: Writing
+## 3. Release Plan: 10 Small PRs in 3 Releases
+
+The CCL changes of §2.1 ship as **10 small PRs**, grouped into **3 releases**. Each PR is reviewable on its own and
+useful on its own.
+
+**Order: user first.** The first release unblocks users who are stuck today, without any change on their side. The
+wallet shape work (`preBalanceTx`, PRs #676/#677) comes second: it is prevention, it is opt-in, and it brings new public
+API that needs more discussion. Starting user first costs nothing in simplicity: the first PR is also the smallest
+change of the whole plan.
+
+| # | PR | Changes | Size | Why at this position |
+|---|---|---|---|---|
+| **Release 1: no wallet stays stuck** | | | | |
+| 1 | Coin selection input limit from `maxTxSize` instead of the fixed 20 | C1–C3 | S | Simplest and most impactful: payments needing 21–440 small UTxOs work again. Needs decision D2 |
+| 2 | Local limit checks and `TxLimitExceededException` | C4–C6 | S–M | Clear early errors instead of node rejections; prerequisite for every recovery |
+| 3 | Manual repair: `ConsolidationPlanner` and a TxFlow repair flow | C19 | M | A wallet that is truly stuck (more than about 440 inputs needed) is repaired with one call |
+| **Release 2: wallets stay healthy** | | | | |
+| 4 | `preBalanceTx` chains transformers | C7 | S | Standalone bug fix (`MintValidatorExtender`'s transformer is overwritten today); can be merged any time, in parallel with PR 1 |
+| 5 | `mergeChange`, `WalletShaper` marker, `OutputMerger` | C9–C10 | S–M | Groundwork the shaper needs |
+| 6 | `DefaultWalletShaper` with the wallet shape ADR (Part A) | C8, C11 | M | The prevention itself, on top of PRs 4–5 |
+| 7 | Liveness simulator | C13–C17 | M | Test tooling only; starts in parallel after PR 2; proves releases 1–2 and provides the numbers for the blog post |
+| **Release 3: self-healing, automatically** | | | | |
+| 8 | `withRecovery()` with ADR 2 (QuickTx recovery) | C20–C22 | M–L | Automatic repair within QuickTx |
+| 9 | TxFlow `RecoveryPolicy` with ADR 3 (TxFlow recovery) | C24–C25 | M | Automatic repair across transactions |
+| 10 | dApps and end to end: unsigned CIP-103 chain, Yaci DevKit tests, documentation | C26–C28 | M | Brings it to dApp users' wallets |
+
+Part B (server-side shapes, C29) follows only when users ask for it.
+
+**What each release gives users**
+
+| Release | Without changing their code | With opt-in |
+|---|---|---|
+| 1 | Payments needing up to about 440 inputs work; clear errors before submission | One-call repair of a stuck wallet |
+| 2 | — | Wallets stay healthy (`DefaultWalletShaper`, `withConsolidation()`) |
+| 3 | — | Automatic repair (`withRecovery()`, `RecoveryPolicy`); dApps get repair chains approved in one step |
+
+**Current PRs**
+
+- **#676** (ADR, design document, this plan): stays open as the discussion vehicle. Documentation only, so the design
+  can be reviewed in parallel with PRs 1–3 without blocking them.
+- **#677** (prototype): not merged as one piece; split into PRs 4, 5 and 6 so each part is small enough to review. The
+  branch stays as the reference implementation until then.
+
+**Sequencing**
+
+- Start now: PR 1 (after D2) and PR 4. Both are small, independent and low risk.
+- Then PR 2 and PR 3; release 1 ships.
+- In parallel: the design review of #676 and the simulator (PR 7), so the evidence is ready before release 2.
+
+## 4. Track 2: Writing
 
 | # | Deliverable | Needs first | Contents |
 |---|---|---|---|
@@ -144,11 +193,11 @@ What the design document needs for each:
   statements; add Rationale, Path to Active and Copyright (CIP-1); settle the open questions (privacy, hardware-wallet
   limits) first.
 
-## 4. Track 3: Coordination
+## 5. Track 3: Coordination
 
 | When | Who | Why |
 |---|---|---|
-| **Now** | CCL maintainers | Decisions D1–D3 (§6) |
+| **Now** | CCL maintainers | Decisions D1–D4 (§7) |
 | After W1 | Evolution SDK (IntersectMBO) | Closest peer, already doing unfracking; share the design document; propose a joint CIP |
 | After W1 | UnFrack.It author | Knows the real-world failure cases best; invite a review |
 | After W1 | Mesh, Lucid Evolution, PyCardano | Wider SDK buy-in before the CIP |
@@ -156,7 +205,7 @@ What the design document needs for each:
 | During M5 | dApps (JPG Store, which uses CIP-103; a DEX) | Try recovery with real user wallets |
 | Before W3 | CIP editors and community (CIP forum, Discord) | Discuss before opening the pull request |
 
-## 5. Gates
+## 6. Gates
 
 | Gate | Condition |
 |---|---|
@@ -164,19 +213,21 @@ What the design document needs for each:
 | Submit W3 (CIP) | M4 proven by the simulator, and interest from at least one other SDK |
 | Start M6 (Part B) | A concrete user need |
 
-## 6. Decisions Needed Now
+## 7. Decisions Needed Now
 
 | # | Decision | Options |
 |---|---|---|
 | **D1** | Merge the wallet shape Part A (PRs #676/#677)? | Opt-in as proposed / changes requested |
 | **D2** | Replace the fixed 20-input coin selection limit with a limit derived from `maxTxSize` (C1–C3), and fail early on exceeded limits (C6)? | Change the default / keep 20 and add an opt-in / configurable per builder only |
 | **D3** | Where do the design documents live? | In cardano-client-lib (temporary) / a separate repository / the CIP repository later |
+| **D4** | Release plan (§3): user first, 10 PRs in 3 releases, #677 split into PRs 4–6? | As proposed / different order / different grouping |
 
-## 7. Next Two Weeks
+## 8. Next Two Weeks
 
-- [ ] Maintainers decide D1–D3.
-- [ ] M1 PR 1 (C1–C3): input limit from `maxTxSize`, with tests (21 inputs no longer fails).
-- [ ] M1 PR 2 (C4–C6): local limit checks with `TxLimitExceededException`.
-- [ ] M1 PR 3 (C19): manual repair: `ConsolidationPlanner` producing a TxFlow flow.
-- [ ] Address review comments on #676 and #677.
-- [ ] Start M3 (C13–C17): the liveness simulator.
+- [ ] Maintainers decide D1–D4.
+- [ ] PR 1 (C1–C3): input limit from `maxTxSize`, with tests (21 inputs no longer fails).
+- [ ] PR 4 (C7): `preBalanceTx` chains transformers, split out of #677.
+- [ ] PR 2 (C4–C6): local limit checks with `TxLimitExceededException`.
+- [ ] PR 3 (C19): manual repair: `ConsolidationPlanner` producing a TxFlow flow.
+- [ ] Address review comments on #676.
+- [ ] Start PR 7 (C13–C17): the liveness simulator.
