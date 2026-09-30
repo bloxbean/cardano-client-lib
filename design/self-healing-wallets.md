@@ -7,6 +7,7 @@
 **Date**: 2026-09-29
 **Related**: cardano-client-lib issue [#678](https://github.com/bloxbean/cardano-client-lib/issues/678),
 ADR [`quicktx/adr/wallet-shape.md`](../quicktx/adr/wallet-shape.md)
+**Execution plan**: [Self-Healing Wallets: Execution Plan](self-healing-wallets-execution-plan.md)
 
 This document describes, independently of any SDK, how dApps, wallets and transaction builders can make sure a user
 can always carry out what they intend to do on Cardano, without paying more than necessary, whatever state their wallet
