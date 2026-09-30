@@ -36,10 +36,10 @@ What exists today (see the design document, §11, and the ADR):
 
 | # | Milestone | Size | Depends on | Done when |
 |---|---|---|---|---|
-| **M1** | Stop wallets getting stuck | S–M | — | CCL no longer builds transactions the node rejects for size; a payment needing 21+ inputs works |
+| **M1** | Stop wallets getting stuck, and repair them manually | M | — | CCL no longer builds transactions the node rejects for size; a payment needing 21–440 inputs works; a stuck wallet can be repaired with one call (a TxFlow flow) |
 | **M2** | Prevention | M (mostly done) | Maintainer decision D1 | Opt-in wallet shaper released |
 | **M3** | Evidence | M | M1 | Stuck rates measured for today vs M1 vs M2 |
-| **M4** | Recovery | L | M1, M3 | The simulator shows no stuck wallet for affordable intents |
+| **M4** | Automatic recovery | L | M1, M3 | The simulator shows no stuck wallet for affordable intents |
 | **M5** | dApps and end-to-end | M | M4 | A dApp back end can return a recovery chain for one CIP-103 approval |
 | **M6** | Server-side shapes | M | Demand | Built only if users ask |
 
@@ -47,10 +47,10 @@ What exists today (see the design document, §11, and the ADR):
 
 | Milestone | Changes (§2.1) |
 |---|---|
-| M1 | C1–C6 |
+| M1 | C1–C6, C19 |
 | M2 | C7–C12 |
 | M3 | C13–C17 |
-| M4 | C18–C25 |
+| M4 | C18, C20–C25 |
 | M5 | C26–C28 |
 | M6 | C29 |
 
@@ -58,7 +58,7 @@ What exists today (see the design document, §11, and the ADR):
 
 Status: ⬜ to do · 🟡 prototype in PR #677 · ✅ done.
 
-#### M1: Stop wallets getting stuck (separate branch and PRs)
+#### M1: Stop wallets getting stuck, and repair them manually (separate branch and PRs)
 
 | # | Change | Module / classes | Kind | Tests | Status |
 |---|---|---|---|---|---|
@@ -68,6 +68,7 @@ Status: ⬜ to do · 🟡 prototype in PR #677 · ✅ done.
 | C4 | `TxLimitExceededException extends TxBuildException` with `reason` (`TOO_MANY_INPUTS`, `MAX_TX_SIZE`, `MAX_VAL_SIZE`, `MIN_ADA`, `FEE_NOT_PAYABLE`), measured value and limit, and an optional repair plan (filled in M4) | `function`: new, `function.exception` | New | Fields and message | ⬜ |
 | C5 | `TxLimitValidator`: checks the built transaction's size including witnesses against `maxTxSize` (reusing the size estimate of the fee calculation), every output's value against `maxValSize`, and min-ada; throws C4 | `function`: new, `function.helper` | New | Oversized transaction, oversized output, output below min-ada, valid transaction passes | ⬜ |
 | C6 | Run C5 at the end of `_build()` (before signing), and map `InputsLimitExceededException` from coin selection to C4 (`TOO_MANY_INPUTS`). Opt-out `TxContext.validateLimits(false)` | `quicktx`: `QuickTxBuilder.TxContext` | Change | QuickTx fails early with C4 instead of building a transaction the node rejects | ⬜ |
+| C19 | **Manual repair**: `ConsolidationPlanner` turns the wallet's UTxOs and the protocol parameters into consolidation steps (QuickTx `Tx`s), each within the limits; per address (privacy); respects a configurable device limit (hardware wallets); reports "infeasible" when no repair can help (all ADA locked as min-ada). A small adapter turns the steps into a **TxFlow flow**, which existing TxFlow runs chained (`PIPELINED`); then the user retries the action. The planner lives in `quicktx` because `txflow` depends on `quicktx`, not the other way round, and `withRecovery()` (C21) needs it too | `quicktx`: `ConsolidationPlanner`; `txflow`: repair-flow adapter | New | Every step fits `maxTxSize`; value conserved; stays within one address; **1,000 dust UTxOs → repair flow → 500 ADA payment works** | ⬜ |
 
 #### M2: Prevention (wallet shape, Part A)
 
@@ -94,20 +95,19 @@ Status: ⬜ to do · 🟡 prototype in PR #677 · ✅ done.
 
 | # | Change | Module / classes | Kind | Tests | Status |
 |---|---|---|---|---|---|
-| C18 | ADR 2 (QuickTx recovery): C19–C22 | `quicktx/adr` | Doc | — | ⬜ |
-| C19 | `ConsolidationPlanner`: a pure function from the wallet's UTxOs and protocol parameters to consolidation `Tx`s that each fit the limits; per address; respects a configurable device limit (hardware wallets) | `quicktx` (produces `Tx`) | New | Plans fit `maxTxSize`; value conserved; stays within one address | ⬜ |
-| C20 | `RecoveryPlan` model: steps, purpose of each step, fee per step, maximum total cost | `quicktx` | New | Fees and total cost | ⬜ |
-| C21 | `TxContext.withRecovery()`: on C4, try single-transaction repairs (fewer and larger inputs; split an oversized change; merge token fragments to free min-ada for the fee); otherwise throw C4 carrying a C20 plan | `quicktx`: `QuickTxBuilder.TxContext` | New | Each repair, and the plan when no single transaction works | ⬜ |
+| C18 | ADR 2 (QuickTx recovery): C20–C22, building on the planner (C19) | `quicktx/adr` | Doc | — | ⬜ |
+| C20 | `RecoveryPlan` model: extends the planner's steps (C19) with the purpose of each step, fee per step and maximum total cost | `quicktx` | New | Fees and total cost | ⬜ |
+| C21 | `TxContext.withRecovery()`: on C4, try single-transaction repairs (fewer and larger inputs; split an oversized change; merge token fragments to free min-ada for the fee); otherwise throw C4 carrying a C20 plan (produced by the planner, C19) | `quicktx`: `QuickTxBuilder.TxContext` | New | Each repair, and the plan when no single transaction works | ⬜ |
 | C22 | Adaptive consolidation: merge more when the wallet has many UTxOs, bounded by a transaction size budget | `function`: `DefaultWalletShaper` | Change | Convergence in the simulator under a dust storm | ⬜ |
 | C23 | ADR 3 (TxFlow recovery): C24–C25 | `txflow/adr` | Doc | — | ⬜ |
-| C24 | `RecoveryPolicy` next to `RetryPolicy`: on C4 with a plan, insert the repair steps before the failing step, run them chained (`PIPELINED`/`BATCH`), then retry the step | `txflow`: `FlowExecutionSettings`, `FlowExecutor`, `StepRunner` | New | Flow with a stuck wallet completes; `FlowResult` lists all steps | ⬜ |
+| C24 | `RecoveryPolicy` next to `RetryPolicy`: on C4 with a plan, insert the planner's repair steps (C19) before the failing step, run them chained (`PIPELINED`/`BATCH`), then retry the step. The automatic version of the M1 manual repair | `txflow`: `FlowExecutionSettings`, `FlowExecutor`, `StepRunner` | New | Flow with a stuck wallet completes; `FlowResult` lists all steps | ⬜ |
 | C25 | Re-plan after a partial failure of the repair chain | `txflow`: `FlowExecutor` | New | Failure of a repair step, retry from there | ⬜ |
 
 #### M5: dApps and end-to-end
 
 | # | Change | Module / classes | Kind | Tests | Status |
 |---|---|---|---|---|---|
-| C26 | Build an **unsigned**, chained plan (CBOR list, transaction hashes computed with `TransactionUtil.getTxHash`) that a dApp back end returns for CIP-103 `signTxs` | `quicktx` or `txflow` | New | Later steps spend outputs of earlier ones by hash | ⬜ |
+| C26 | Build the planner's repair flow (C19) plus the action **unsigned**, as a chained CBOR list (transaction hashes computed with `TransactionUtil.getTxHash`), that a dApp back end returns for CIP-103 `signTxs`. No separate plan format: it reuses the C19 flow | `quicktx` or `txflow` | New | Later steps spend outputs of earlier ones by hash | ⬜ |
 | C27 | Yaci DevKit tests: recovery chains submitted to a node; C5 agrees with the node | `quicktx`/`txflow` integration tests | New | Node accepts the chain; rejects what C5 rejects | ⬜ |
 | C28 | Documentation page: wallet shape, recovery, TxFlow recovery | `docs` site | New | — | ⬜ |
 
@@ -177,5 +177,6 @@ What the design document needs for each:
 - [ ] Maintainers decide D1–D3.
 - [ ] M1 PR 1 (C1–C3): input limit from `maxTxSize`, with tests (21 inputs no longer fails).
 - [ ] M1 PR 2 (C4–C6): local limit checks with `TxLimitExceededException`.
+- [ ] M1 PR 3 (C19): manual repair: `ConsolidationPlanner` producing a TxFlow flow.
 - [ ] Address review comments on #676 and #677.
 - [ ] Start M3 (C13–C17): the liveness simulator.
