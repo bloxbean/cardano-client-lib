@@ -43,58 +43,79 @@ What exists today (see the design document, §11, and the ADR):
 | **M5** | dApps and end-to-end | M | M4 | A dApp back end can return a recovery chain for one CIP-103 approval |
 | **M6** | Server-side shapes | M | Demand | Built only if users ask |
 
-### M1: Stop wallets getting stuck
+### Milestone contents
 
-Independent of the wallet shape work; separate branch and PRs.
+| Milestone | Changes (§2.1) |
+|---|---|
+| M1 | C1–C6 |
+| M2 | C7–C12 |
+| M3 | C13–C17 |
+| M4 | C18–C25 |
+| M5 | C26–C28 |
+| M6 | C29 |
 
-- [ ] **PR 1: coin selection limit from `maxTxSize`.** Derive the maximum number of inputs from `maxTxSize` (about 440)
-      instead of the fixed 20; make it configurable per builder instead of through the global
-      `CoinselectionConfig` singleton. Tests: 21 and 400 inputs work; the limit follows the protocol parameters.
-- [ ] **PR 2: local limit checks.** After a transaction is built, check its size (with witnesses) against
-      `maxTxSize` and every output's value against `maxValSize`; fail with a typed `TxLimitExceededException`
-      (reason, measured numbers). Reuse the size estimate of the fee calculation.
-- [ ] Decide with maintainers whether PR 1 is a behaviour change that needs a flag (decision D2).
+### 2.1 CCL change list
 
-### M2: Prevention (wallet shape, Part A)
+Status: ⬜ to do · 🟡 prototype in PR #677 · ✅ done.
 
-- [ ] Review of ADR PR #676 and prototype PR #677.
-- [ ] Decide the simplest default: sequential chunking of tokens ("prevention only") or the current first-fit
-      decreasing bundling.
-- [ ] Release `DefaultWalletShaper` as opt-in.
+#### M1: Stop wallets getting stuck (separate branch and PRs)
 
-### M3: Evidence (liveness simulator)
+| # | Change | Module / classes | Kind | Tests | Status |
+|---|---|---|---|---|---|
+| C1 | Add a per-builder input limit `maxInputs`; when not set, derive it from `ProtocolParams.maxTxSize` (≈ `(maxTxSize − base size − outputs − witnesses) / 36`, about 440 on mainnet) | `function`: `TxBuilderContext` | Change | Derivation from protocol params; explicit value wins | ⬜ |
+| C2 | Pass that limit to coin selection instead of the global default: call the existing `select(..., maxUtxoSelectionLimit)` overload | `function`: `InputBuilders.getUtxosForValue`, `ChangeOutputAdjustments` (additional inputs) | Change | A payment needing 21 and 400 inputs builds; 500 inputs fails as expected | ⬜ |
+| C3 | Keep `CoinselectionConfig.coinSelectionLimit` (20) for callers of the strategy API outside a builder; deprecate the global setting in favour of C1 | `coinselection`: `CoinselectionConfig` | Change | Existing coin selection tests unchanged | ⬜ |
+| C4 | `TxLimitExceededException extends TxBuildException` with `reason` (`TOO_MANY_INPUTS`, `MAX_TX_SIZE`, `MAX_VAL_SIZE`, `MIN_ADA`, `FEE_NOT_PAYABLE`), measured value and limit, and an optional repair plan (filled in M4) | `function`: new, `function.exception` | New | Fields and message | ⬜ |
+| C5 | `TxLimitValidator`: checks the built transaction's size including witnesses against `maxTxSize` (reusing the size estimate of the fee calculation), every output's value against `maxValSize`, and min-ada; throws C4 | `function`: new, `function.helper` | New | Oversized transaction, oversized output, output below min-ada, valid transaction passes | ⬜ |
+| C6 | Run C5 at the end of `_build()` (before signing), and map `InputsLimitExceededException` from coin selection to C4 (`TOO_MANY_INPUTS`). Opt-out `TxContext.validateLimits(false)` | `quicktx`: `QuickTxBuilder.TxContext` | Change | QuickTx fails early with C4 instead of building a transaction the node rejects | ⬜ |
 
-- [ ] In-memory ledger that applies transactions built by the real `QuickTxBuilder`.
-- [ ] Local Phase-1 validator (`maxTxSize`, `maxValSize`, min-ada, balance, fee), shared with M1 PR 2.
-- [ ] Generators for hostile wallets (dust storms, fragmented tokens, hot UTxOs near the limits, min-ada-only token
-      UTxOs, a `coinsPerUTxOByte` increase) and action sequences (payments up to "send almost everything", token
-      transfers, airdrops, dApp transactions without a shaper).
-- [ ] Classification of every failure: builder failure, degraded, destroyed.
-- [ ] Report comparing today, M1 and M2. Reuse `WalletShapeSimulator` where possible.
+#### M2: Prevention (wallet shape, Part A)
 
-### M4: Recovery
+| # | Change | Module / classes | Kind | Tests | Status |
+|---|---|---|---|---|---|
+| C7 | `preBalanceTx(...)` chains transformers instead of overwriting | `quicktx`: `QuickTxBuilder.TxContext` | Change | Two chained transformers both run | 🟡 |
+| C8 | `WalletShaper` marker interface and `DefaultWalletShaper` (tokens in size-capped bundles apart from ADA, one ADA output; `withConsolidation()`) | `function`: `function.walletshape` | New | `DefaultWalletShaperTest`, contract test, simulation test | 🟡 |
+| C9 | `TxBuilderContext.mergeChange`; `InputBuilders` keeps the change separate when it is `false`; QuickTx sets it for a `WalletShaper` | `function`: `TxBuilderContext`, `InputBuilders`; `quicktx`: `QuickTxBuilder` | Change | `mergeOutputs(true)` with and without a shaper | 🟡 |
+| C10 | `OutputMerger` returned by `OutputMergers.mergeOutputsForAddress`; QuickTx warns when combined with a `WalletShaper` | `function`: `OutputMerger`, `OutputMergers`; `quicktx`: `QuickTxBuilder` | New / change | Merger after a shaper builds and warns | 🟡 |
+| C11 | Decide the simplest default: sequential token chunking ("prevention only") or the current first-fit decreasing bundling; adjust `DefaultWalletShaper` | `function`: `DefaultWalletShaper`, `ByteBudgetBundling` | Change | Contract test | ⬜ |
+| C12 | Review, merge and release C7–C11 as opt-in | — | — | Full `function` and `quicktx` suites | ⬜ |
 
-- [ ] **ADR 2 (QuickTx recovery)**: local limit checks (from M1), consolidation planner, `withRecovery()`.
-- [ ] Consolidation planner: a pure function from the wallet's UTxOs and protocol parameters to consolidation `Tx`s
-      that each fit the limits; per address (privacy); respects hardware-wallet limits.
-- [ ] `withRecovery()`: single-transaction repairs (fewer, larger inputs; split an oversized change; merge token
-      fragments to free min-ada for the fee); otherwise `TxLimitExceededException` carrying the repair plan.
-- [ ] **ADR 3 (TxFlow recovery)**: `RecoveryPolicy` next to `RetryPolicy`.
-- [ ] `RecoveryPolicy`: on `TxLimitExceededException`, insert the planned repair steps, run them chained, retry the
-      step; re-plan after a partial failure.
-- [ ] Adaptive consolidation in the shaper: merge more when the wallet has many UTxOs, bounded by a size budget.
-- [ ] Plan model: steps, purpose of each step, fee per step, maximum total cost.
+#### M3: Evidence (liveness simulator)
 
-### M5: dApps and end-to-end
+| # | Change | Module / classes | Kind | Tests | Status |
+|---|---|---|---|---|---|
+| C13 | In-memory ledger: UTxO set per address, applies a signed transaction (removes inputs, adds outputs under the real transaction hash), acts as `UtxoSupplier` | Test sources (e.g. `quicktx` tests or `test-support`) | New | Applying and chaining transactions | ⬜ |
+| C14 | Use C5 as the local Phase-1 validator of the simulator (plus balance and fee checks) | Test sources | New | Agrees with the node on the Yaci samples (C27) | ⬜ |
+| C15 | Seeded generators for hostile wallets and action sequences | Test sources | New | Reproducible with a seed | ⬜ |
+| C16 | Classification of every failure: builder failure, degraded (recoverable in *k* consolidation transactions), destroyed | Test sources | New | Known cases classified correctly | ⬜ |
+| C17 | Report comparing today, M1 and M2; replaces the shape metrics of `WalletShapeSimulator` | Test sources | New | Printed tables, asserted properties | ⬜ |
 
-- [ ] Build an **unsigned**, chained plan (CBOR list) that a dApp back end returns for CIP-103 `signTxs`.
-- [ ] Yaci DevKit tests: submit recovery chains; confirm the local validator agrees with the node.
-- [ ] Documentation page.
+#### M4: Recovery
 
-### M6: Server-side shapes (driven by demand)
+| # | Change | Module / classes | Kind | Tests | Status |
+|---|---|---|---|---|---|
+| C18 | ADR 2 (QuickTx recovery): C19–C22 | `quicktx/adr` | Doc | — | ⬜ |
+| C19 | `ConsolidationPlanner`: a pure function from the wallet's UTxOs and protocol parameters to consolidation `Tx`s that each fit the limits; per address; respects a configurable device limit (hardware wallets) | `quicktx` (produces `Tx`) | New | Plans fit `maxTxSize`; value conserved; stays within one address | ⬜ |
+| C20 | `RecoveryPlan` model: steps, purpose of each step, fee per step, maximum total cost | `quicktx` | New | Fees and total cost | ⬜ |
+| C21 | `TxContext.withRecovery()`: on C4, try single-transaction repairs (fewer and larger inputs; split an oversized change; merge token fragments to free min-ada for the fee); otherwise throw C4 carrying a C20 plan | `quicktx`: `QuickTxBuilder.TxContext` | New | Each repair, and the plan when no single transaction works | ⬜ |
+| C22 | Adaptive consolidation: merge more when the wallet has many UTxOs, bounded by a transaction size budget | `function`: `DefaultWalletShaper` | Change | Convergence in the simulator under a dust storm | ⬜ |
+| C23 | ADR 3 (TxFlow recovery): C24–C25 | `txflow/adr` | Doc | — | ⬜ |
+| C24 | `RecoveryPolicy` next to `RetryPolicy`: on C4 with a plan, insert the repair steps before the failing step, run them chained (`PIPELINED`/`BATCH`), then retry the step | `txflow`: `FlowExecutionSettings`, `FlowExecutor`, `StepRunner` | New | Flow with a stuck wallet completes; `FlowResult` lists all steps | ⬜ |
+| C25 | Re-plan after a partial failure of the repair chain | `txflow`: `FlowExecutor` | New | Failure of a repair step, retry from there | ⬜ |
 
-- [ ] ADR Part B: lanes (`throughput`), one policy per UTxO, stateless split. An earlier prototype exists in the history
-      of `feat/utxo-unfracking-impl` at commit `d934907a`.
+#### M5: dApps and end-to-end
+
+| # | Change | Module / classes | Kind | Tests | Status |
+|---|---|---|---|---|---|
+| C26 | Build an **unsigned**, chained plan (CBOR list, transaction hashes computed with `TransactionUtil.getTxHash`) that a dApp back end returns for CIP-103 `signTxs` | `quicktx` or `txflow` | New | Later steps spend outputs of earlier ones by hash | ⬜ |
+| C27 | Yaci DevKit tests: recovery chains submitted to a node; C5 agrees with the node | `quicktx`/`txflow` integration tests | New | Node accepts the chain; rejects what C5 rejects | ⬜ |
+| C28 | Documentation page: wallet shape, recovery, TxFlow recovery | `docs` site | New | — | ⬜ |
+
+#### M6: Server-side shapes (driven by demand)
+
+| # | Change | Module / classes | Kind | Tests | Status |
+|---|---|---|---|---|---|
+| C29 | ADR Part B: `CustomWalletShaper`, `WalletShape` with `AdaShape` (lanes, percentages), `TokenShape`, `Consolidation`, profiles; restore from commit `d934907a` where useful | `function`: `function.walletshape` | New | As in the earlier prototype | ⬜ |
 
 ## 3. Track 2: Writing
 
@@ -148,13 +169,13 @@ What the design document needs for each:
 | # | Decision | Options |
 |---|---|---|
 | **D1** | Merge the wallet shape Part A (PRs #676/#677)? | Opt-in as proposed / changes requested |
-| **D2** | Replace the fixed 20-input coin selection limit with a limit derived from `maxTxSize`? | Change the default / keep 20 and add an opt-in / configurable per builder only |
+| **D2** | Replace the fixed 20-input coin selection limit with a limit derived from `maxTxSize` (C1–C3), and fail early on exceeded limits (C6)? | Change the default / keep 20 and add an opt-in / configurable per builder only |
 | **D3** | Where do the design documents live? | In cardano-client-lib (temporary) / a separate repository / the CIP repository later |
 
 ## 7. Next Two Weeks
 
 - [ ] Maintainers decide D1–D3.
-- [ ] M1 PR 1: coin selection limit from `maxTxSize`, with tests (21 inputs no longer fails).
-- [ ] M1 PR 2: local limit checks with `TxLimitExceededException`.
+- [ ] M1 PR 1 (C1–C3): input limit from `maxTxSize`, with tests (21 inputs no longer fails).
+- [ ] M1 PR 2 (C4–C6): local limit checks with `TxLimitExceededException`.
 - [ ] Address review comments on #676 and #677.
-- [ ] Start M3: the liveness simulator, reusing `WalletShapeSimulator`.
+- [ ] Start M3 (C13–C17): the liveness simulator.
