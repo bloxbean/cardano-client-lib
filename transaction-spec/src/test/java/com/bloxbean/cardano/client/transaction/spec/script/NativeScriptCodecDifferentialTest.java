@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.Array;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
+import com.bloxbean.cardano.client.transaction.util.RealCborFixturesAccess;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
@@ -24,12 +25,9 @@ class NativeScriptCodecDifferentialTest {
         int compared = 0;
         int canonical = 0;
         for (NativeScriptCorpus.Script script : NativeScriptCorpus.all()) {
-            NativeScript legacy;
-            try {
-                legacy = LegacyNativeScript.deserialize((Array) CborDecoder.decode(script.cbor()).get(0));
-            } catch (StackOverflowError e) {
+            if (RealCborFixturesAccess.tooDeepForRecursiveCode(script.cbor()))
                 continue; // the deeply nested trigger: covered by the depth tests
-            }
+            NativeScript legacy = LegacyNativeScript.deserialize((Array) CborDecoder.decode(script.cbor()).get(0));
             assertSame(script.toString(), script.cbor(), legacy);
             // on chain scripts are mostly canonical, and then the model hashes like the original bytes
             if (Arrays.equals(NativeScript.deserialize((Array) CborSerializationUtil.deserialize(script.cbor())).serializeScriptBody(), script.cbor()))
