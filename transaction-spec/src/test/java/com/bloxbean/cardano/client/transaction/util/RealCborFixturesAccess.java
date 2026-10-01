@@ -17,6 +17,13 @@ public final class RealCborFixturesAccess {
     }
 
     /**
+     * @see RealCborFixtures#tooDeepForRecursiveCode(byte[])
+     */
+    public static boolean tooDeepForRecursiveCode(byte[] cbor) {
+        return RealCborFixtures.tooDeepForRecursiveCode(cbor);
+    }
+
+    /**
      * @return the preprod trigger transaction of ADR 0001, with its 5,383-level witness native script
      */
     public static Tx trigger() {
