@@ -2,11 +2,13 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
+import com.bloxbean.cardano.client.transaction.raw.RawTx;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -122,66 +124,84 @@ public class Transaction {
         }
     }
 
+    /**
+     * Decodes a transaction: {@code [body, witnesses, aux / null]} (any era, valid) or
+     * {@code [body, witnesses, isValid, aux / null]}, with aux data in any shape: a metadata map (Shelley),
+     * {@code [metadata, [* native_script]]} (Allegra, Mary) or {@code #6.259({...})} (Alonzo on). Decoding is iterative,
+     * so content of any nesting depth decodes on any thread. A record (the body, the witness set, an output in map form,
+     * the tag-259 aux data) that repeats a key is rejected, as the ledger rejects it.
+     * <p>
+     * The model keeps one entry per map key in Plutus data and metadata, and serializes in CCL's encoding, so a received
+     * transaction may re-encode to other bytes. Take its hashes from the original bytes with {@link RawTx}.
+     *
+     * @param bytes the transaction
+     * @return the transaction
+     * @throws CborDeserializationException if the bytes are not a well-formed Shelley-family transaction
+     */
     public static Transaction deserialize(byte[] bytes) throws CborDeserializationException {
         try {
             List<DataItem> dataItemList = CborSerializationUtil.deserializeAll(bytes);
+            if (dataItemList.size() != 1 || !(dataItemList.get(0) instanceof Array))
+                throw new CborDeserializationException("A transaction is one CBOR array");
+            List<DataItem> txnItems = withoutBreak(((Array) dataItemList.get(0)).getDataItems());
 
             Transaction transaction = new Transaction();
-            if (dataItemList.size() != 1)
-                throw new CborDeserializationException("Invalid no of dataitems");
-
-            Array array = (Array) dataItemList.get(0);
-
-            List<DataItem> txnItems = array.getDataItems();
-            if (txnItems.size() < 3)
-                throw new CborDeserializationException("Invalid no of items");
-
-            DataItem txnBodyDI = txnItems.get(0);
-            DataItem witnessDI = txnItems.get(1);
-
-            if (witnessDI != null) {
-                TransactionWitnessSet witnessSet = TransactionWitnessSet.deserialize((Map) witnessDI);
-                transaction.setWitnessSet(witnessSet);
-            }
-
-            DataItem isValidDI = txnItems.get(2);
-
-            boolean checkAuxData = true;
-            //If it's special it can be either a bool or null. If it's null, then it's empty auxiliary data, otherwise
-            //not a valid encoding
-            if (isValidDI != null && isValidDI instanceof Special) {
-                if (isValidDI == SimpleValue.TRUE) {
-                    transaction.setValid(true);
-                } else if (isValidDI == SimpleValue.FALSE) {
-                    transaction.setValid(false);
-                } else if (isValidDI == SimpleValue.NULL) {
-                    checkAuxData = false;
-                    transaction.setValid(true);
-                }
-                else {
-                    transaction.setValid(true);
-                }
+            DataItem auxiliaryDataDI;
+            if (txnItems.size() == 3) {
+                transaction.setValid(true);
+                auxiliaryDataDI = txnItems.get(2);
+            } else if (txnItems.size() == 4) {
+                DataItem isValidDI = txnItems.get(2);
+                if (isValidDI != SimpleValue.TRUE && isValidDI != SimpleValue.FALSE)
+                    throw new CborDeserializationException("isValid must be a bool");
+                transaction.setValid(isValidDI == SimpleValue.TRUE);
+                auxiliaryDataDI = txnItems.get(3);
             } else {
-                transaction.setValid(true); //Default value
+                throw new CborDeserializationException("A transaction has 3 or 4 items, found " + txnItems.size()
+                        + (txnItems.size() == 2 ? " (Byron transactions are not supported)" : ""));
             }
 
-            if (checkAuxData) {
-                //Check for AuxiliaryData
-                DataItem auxiliaryDataDI = txnItems.get(3);
-                if (auxiliaryDataDI != null && MajorType.MAP.equals(auxiliaryDataDI.getMajorType())) { //Auxiliary data
-                    DataItem auxiliaryDataMap = auxiliaryDataDI;
-                    AuxiliaryData auxiliaryData = AuxiliaryData.deserialize((Map) auxiliaryDataMap);
-                    transaction.setAuxiliaryData(auxiliaryData);
-                }
+            Map bodyDI = record(txnItems.get(0), "transaction body");
+            DataItem outputs = bodyDI.get(new UnsignedInteger(1));
+            if (outputs instanceof Array) {
+                for (DataItem output : ((Array) outputs).getDataItems())
+                    if (output instanceof Map)
+                        record(output, "output");
             }
+            DataItem collateralReturn = bodyDI.get(new UnsignedInteger(16));
+            if (collateralReturn instanceof Map)
+                record(collateralReturn, "collateral return");
 
-            TransactionBody body = TransactionBody.deserialize((Map) txnBodyDI);
-            transaction.setBody(body);
-
+            transaction.setWitnessSet(TransactionWitnessSet.deserialize(record(txnItems.get(1), "witness set")));
+            if (auxiliaryDataDI instanceof Map) {
+                if (auxiliaryDataDI.getTag() != null)
+                    record(auxiliaryDataDI, "aux data");
+                transaction.setAuxiliaryData(AuxiliaryData.deserialize((Map) auxiliaryDataDI));
+            } else if (auxiliaryDataDI instanceof Array) {
+                transaction.setAuxiliaryData(AuxiliaryData.deserialize((Array) auxiliaryDataDI));
+            } else if (auxiliaryDataDI != SimpleValue.NULL) {
+                throw new CborDeserializationException("Unknown aux data shape: " + auxiliaryDataDI.getMajorType());
+            }
+            transaction.setBody(TransactionBody.deserialize(bodyDI));
             return transaction;
         } catch (Exception e) {
             throw new CborDeserializationException("CBOR deserialization failed", e);
         }
+    }
+
+    // A CDDL record: a map that does not repeat a key (the decoder keeps a repeated key once, and notes it).
+    private static Map record(DataItem item, String what) throws CborDeserializationException {
+        if (!(item instanceof Map))
+            throw new CborDeserializationException("The " + what + " is a map, found " + item.getMajorType());
+        if (item instanceof EncodedKeyMap && ((EncodedKeyMap) item).hasRepeatedKey())
+            throw new CborDeserializationException("The " + what + " repeats a key");
+        return (Map) item;
+    }
+
+    // The items of an array, without the BREAK that ends an indefinite one.
+    private static List<DataItem> withoutBreak(List<DataItem> items) {
+        int size = items.size();
+        return size > 0 && items.get(size - 1) == Special.BREAK ? items.subList(0, size - 1) : items;
     }
 
     public String toJson() {
