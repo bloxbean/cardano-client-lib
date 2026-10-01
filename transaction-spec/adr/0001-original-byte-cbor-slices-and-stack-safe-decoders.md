@@ -216,8 +216,8 @@ CDDL position needs: a few ints, bools and tags. They never build the unbounded 
   envelope and `of(bytes, era)` takes it explicitly (an envelope, if present, must agree). It exposes:
   - `era()` and the header span;
   - the tx-bodies, witness-sets, aux-data-map and invalid-txs spans;
-  - `txCount()`, `tx(i)` (a `RawTx` built from the parallel arrays) and `invalidTxIndexes()` (as encoded). Validity is
-    `i ∈ invalidTxIndexes()` (D6);
+  - `txCount()`, `tx(i)` (a `RawTx` built from the parallel arrays) and `invalidTxIndexes()` (as encoded).
+    `tx(i).isValid()` is `i ∉ invalidTxIndexes()`, and always true before Alonzo (D6);
   - `txBytes(i)`, which assembles a full tx for callers that need it: Yaci's full tx CBOR, and submission;
   - `bodyHash()`, defined below.
 
@@ -273,7 +273,8 @@ Script integrity terms (alonzo `Tx.hs:391-423`). "Empty" means zero entries, wha
 - The `Era` argument selects only the absent-redeemers encoding. It must be Alonzo or later; an earlier era raises
   `IllegalArgumentException`, because there is no script integrity before Alonzo.
 
-These are the bytes Haskell hashes. The existing model hash methods stay as they are. They remain correct for txs
+These are the bytes Haskell hashes. The block body hash and the script integrity hash are reconstructed preimages:
+fixed framing around original slices (and, for integrity, the caller's language views). The existing model hash methods stay as they are. They remain correct for txs
 that CCL builds, and the Javadoc points to the raw views for received bytes.
 
 ### D4. Stack-safe codecs behind the existing model API
@@ -397,7 +398,7 @@ The views keep every entry in encoded order. Validation stays the ledger's job, 
   explicit check, but `alignedValidFlags` (`:283-290`) calls `Seq.replicate (x - prev - 1)`, which is negative for
   any duplicate or descending pair, and containers' `Data.Sequence.replicate` calls `error` for a negative count.
   The flags are forced when the txs are built (`zipWith4`, `:250`), so no such block decodes. Strictly ascending
-  in-range indexes are the only accepted form; validity is then `i ∈ indexes`.
+  in-range indexes are the only accepted form; tx `i` is then valid iff `i ∉ indexes`.
 - **Aux-data keys are era-dependent, in three layers.** The decoder version is the era's `ProtVerLow` (`Era.hs:132`,
   Conway = 9), not the live protocol version.
   1. The Alonzo tag-259 record rejects duplicate keys (above).
@@ -508,8 +509,11 @@ A **gap** marker means CCL fails on that scenario today.
 ### 6.1 Era shapes (block and submission)
 
 Every era row from Shelley to Conway has a real block and real txs, plus a synthetic non-canonical variant (indefinite
-containers, non-minimal heads, unsorted maps). Each asserts TxId, aux data hash, block body hash and, from Alonzo,
-the script integrity hash against the on-chain values.
+containers, non-minimal heads, unsorted maps). Real fixtures assert TxId, aux data hash, block body hash and, from
+Alonzo, the script integrity hash against the on-chain values. A synthetic variant changes the hashed bytes, so its
+hashes are asserted against an independent reference computation over the mutated bytes (blake2b of the expected
+slice), never against the unmodified fixture's hashes; embedded hashes (body keys 7 and 11, the header body hash) are
+updated to match.
 
 | Scenario | Handling | Fixture |
 |---|---|---|
@@ -573,7 +577,7 @@ non-empty (conway `TxBody.hs:199-258`).
 | Redeemers, array form `[[tag, idx, data, ex]*]` | `RawRedeemer` list. Conway still accepts this form; Haskell rejects it only from protocol version 12 (alonzo `TxWits.hs:551-560`). | Alonzo/Babbage tx; Conway tx in array form |
 | Redeemers, Conway map form `{[tag, idx] => [data, ex]}` | `RawRedeemer` list in encoded order, duplicates kept. Haskell requires the map to be non-empty and keeps the last value for a duplicate key; consumers that evaluate apply last-wins. | Conway tx; synthetic duplicate key |
 | Witness datums (Conway) | every entry kept. Haskell requires the set to be non-empty and allows duplicates until protocol version 12 (alonzo `TxWits.hs:336-347`). | Conway tx with a duplicated datum |
-| `isValid = false` and `invalid_transactions` | `RawTx.isValid()`; `RawBlock` maps the indexes; out-of-range, duplicate and non-ascending indexes are rejected, as in Haskell (D6) | preprod block with an invalid tx; synthetic `[1, 1]` and `[2, 0]` → error |
+| `isValid = false` and `invalid_transactions` | `RawTx.isValid()`; `tx(i).isValid()` is `i ∉ invalidTxIndexes()`; out-of-range, duplicate and non-ascending indexes are rejected, as in Haskell (D6) | block mixing valid and invalid txs (assert each tx's flag); block with an empty index list (all valid); pre-Alonzo block (all valid); synthetic `[1, 1]` and `[2, 0]` → error |
 | Script integrity: datums | non-empty redeemers with datums absent, `80`, `9fff` and `d9 0102 80`: all four give the same hash, with zero datum bytes (D3) | synthetic Alonzo, Babbage, Conway |
 | Script integrity: language views | the caller passes views for the languages used only (D3) | single-language tx under protocol params with V1–V3 cost models; language supplied only by a reference script; an unneeded reference script of another language |
 | Collateral return (body key 16) | `collateralReturn()`; output index = `outputs().size()` | invalid tx with collateral return |
