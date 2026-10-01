@@ -20,7 +20,8 @@ import java.util.Objects;
  * found on any thread.
  * <p>
  * Untagged integers, strings and simple values are compared with their own {@code equals}; any other key by its
- * canonical encoding with every nested map sorted. Two keys therefore match exactly when cbor-java considers them equal
+ * canonical encoding with every nested map sorted, built only when two keys' hashes meet (the hash is computed without
+ * it, in time linear in the key's size). Two keys therefore match exactly when cbor-java considers them equal
  * (numbers by value, maps regardless of entry order, arrays by order, tags and chunked flags included). Like cbor-java's map, a repeated key keeps its first position and takes the last value, so this model is
  * lossy where Cardano keeps every entry (Plutus data and metadatum maps are lists of pairs); read such maps from the
  * original bytes with {@link com.bloxbean.cardano.client.common.cbor.CborSpan#entries()} when that matters.
@@ -94,6 +95,11 @@ public class EncodedKeyMap extends Map {
         return Collections.unmodifiableCollection(entries.values());
     }
 
+    // The entries with their keys' hash records, for CustomCborEncoder.keyHash.
+    Iterator<java.util.Map.Entry<Key, DataItem>> keyedEntries() {
+        return entries.entrySet().iterator();
+    }
+
     @Override
     public boolean equals(Object object) {
         if (this == object)
@@ -133,30 +139,37 @@ public class EncodedKeyMap extends Map {
     }
 
     // An untagged leaf (integer, string, simple value) is compared with its own equals and hashCode, which do not recurse;
-    // any other key (a container, or a tagged item) by its key encoding.
-    private static final class Key {
-        private final DataItem item;
-        private final byte[] encoded;
-        private final int hash;
+    // any other key (a container, or a tagged item) by its key encoding, which is only built when two keys' hashes meet.
+    static final class Key {
+        final DataItem item;
+        final boolean leaf;
+        final int hash;
+        private byte[] encoded;
 
         Key(DataItem item) {
             this.item = item;
-            if (isUntaggedLeaf(item)) {
-                this.encoded = null;
-                this.hash = item.hashCode();
-            } else {
-                try {
-                    this.encoded = CustomCborEncoder.encodeKey(item);
-                } catch (CborException e) {
-                    throw new CborRuntimeException("Unable to encode map key " + item, e);
-                }
-                this.hash = Arrays.hashCode(encoded);
+            this.leaf = isUntaggedLeaf(item);
+            try {
+                this.hash = leaf ? item.hashCode() : CustomCborEncoder.keyHash(item);
+            } catch (CborException e) {
+                throw new CborRuntimeException("Unable to encode map key " + item, e);
             }
         }
 
         private static boolean isUntaggedLeaf(DataItem item) {
             return item != null && !item.hasTag() && item.getMajorType() != MajorType.ARRAY
                     && item.getMajorType() != MajorType.MAP && item.getMajorType() != MajorType.TAG;
+        }
+
+        private byte[] encoded() {
+            if (encoded == null) {
+                try {
+                    encoded = CustomCborEncoder.encodeKey(item);
+                } catch (CborException e) {
+                    throw new CborRuntimeException("Unable to encode map key " + item, e);
+                }
+            }
+            return encoded;
         }
 
         @Override
@@ -167,9 +180,9 @@ public class EncodedKeyMap extends Map {
             // the same key object always matches, as in cbor-java's HashMap, even a NaN float
             if (item == other.item)
                 return true;
-            if (encoded == null)
-                return other.encoded == null && item.equals(other.item);
-            return other.encoded != null && Arrays.equals(encoded, other.encoded);
+            if (leaf || other.leaf)
+                return leaf && other.leaf && item.equals(other.item);
+            return hash == other.hash && Arrays.equals(encoded(), other.encoded());
         }
 
         @Override

@@ -22,9 +22,12 @@ class DataItemCodecDepthTest {
     void onPlatformThreadWithDefaultStack() throws Throwable {
         AtomicReference<Throwable> failure = new AtomicReference<>();
         Thread thread = new Thread(() -> runFixtures(failure), "cbor-codec-depth-default-stack");
+        long start = System.nanoTime();
         thread.start();
         thread.join();
         rethrow(failure);
+        // nesting must not make the codec super-linear: all fixtures together take well under a second when warm
+        assertThat(System.nanoTime() - start).as("depth fixtures took too long").isLessThan(30_000_000_000L);
     }
 
     @Test

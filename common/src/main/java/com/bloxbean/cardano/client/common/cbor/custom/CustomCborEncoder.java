@@ -83,6 +83,16 @@ public class CustomCborEncoder extends CborEncoder {
     }
 
     /**
+     * A hash of {@link #encodeKey(DataItem)} computed without building it: the head bytes of every item (tags, type and
+     * length) and the full encoding of leaves, combined in order for arrays and regardless of order for maps (the key
+     * encoding sorts map entries). Two keys with the same key encoding have the same hash, and computing it never copies
+     * a nested map's entries, so hashing a key is linear in its size whatever its nesting.
+     */
+    static int keyHash(DataItem key) throws CborException {
+        return new Writer(true, true).hash(key);
+    }
+
+    /**
      * A growable byte buffer; unlike {@link java.io.ByteArrayOutputStream} it is not synchronized.
      */
     private static final class Buffer {
@@ -260,6 +270,58 @@ public class CustomCborEncoder extends CborEncoder {
         out.write(BREAK);
     }
 
+    // A container being hashed: children in order for an array, key and value pairs regardless of order for a map.
+    private static final class HashFrame {
+        final HashFrame parent;
+        private final Frame frame;
+        private final Iterator<java.util.Map.Entry<EncodedKeyMap.Key, DataItem>> keyed;
+        private final boolean map;
+        private int hash;
+        private int entries;
+        private int keyHash;
+        private boolean onValue;
+
+        HashFrame(HashFrame parent, Frame frame, boolean map, int headHash,
+                  Iterator<java.util.Map.Entry<EncodedKeyMap.Key, DataItem>> keyed) {
+            this.parent = parent;
+            this.frame = frame;
+            this.map = map;
+            this.hash = headHash;
+            this.keyed = keyed;
+        }
+
+        boolean hasNext() {
+            return keyed != null ? keyed.hasNext() : frame.hasNext();
+        }
+
+        // The next child to hash; for a map with recorded key hashes only the values are children.
+        DataItem next(Writer writer) throws CborException {
+            if (keyed == null)
+                return frame.next();
+            java.util.Map.Entry<EncodedKeyMap.Key, DataItem> entry = keyed.next();
+            EncodedKeyMap.Key key = entry.getKey();
+            keyHash = key.leaf ? writer.leafHash(key.item) : key.hash;
+            onValue = true;
+            return entry.getValue();
+        }
+
+        void add(int childHash) {
+            if (!map) {
+                hash = 31 * hash + childHash;
+            } else if (!onValue) {
+                keyHash = childHash;
+                onValue = true;
+            } else {
+                entries += 31 * keyHash + childHash;
+                onValue = false;
+            }
+        }
+
+        int result() {
+            return map ? 31 * hash + entries : hash;
+        }
+    }
+
     private static final class Writer {
         private final boolean canonical;
         private final boolean sortAllMaps;
@@ -287,6 +349,55 @@ public class CustomCborEncoder extends CborEncoder {
             }
         }
 
+        int hash(DataItem root) throws CborException {
+            Buffer scratch = new Buffer();
+            HashFrame top = null;
+            DataItem item = root;
+            while (true) {
+                // hash one item: a leaf completely, or a container's head and then its children
+                scratch.size = 0;
+                DataItem current = item == null ? SimpleValue.NULL : item;
+                HashFrame opened = null;
+                Frame frame = emit(current, scratch, null);
+                if (frame != null) {
+                    // an EncodedKeyMap already holds its keys' hashes, so nesting through map keys is not hashed again
+                    Iterator<java.util.Map.Entry<EncodedKeyMap.Key, DataItem>> keyed =
+                            current instanceof EncodedKeyMap ? ((EncodedKeyMap) current).keyedEntries() : null;
+                    opened = new HashFrame(top, frame, current.getMajorType() == MajorType.MAP, hashBytes(scratch), keyed);
+                }
+                if (opened != null) {
+                    top = opened;
+                } else if (top == null) {
+                    return hashBytes(scratch);
+                } else {
+                    top.add(hashBytes(scratch));
+                }
+                // close finished containers, then continue with the next child
+                while (!top.hasNext()) {
+                    int done = top.result();
+                    top = top.parent;
+                    if (top == null)
+                        return done;
+                    top.add(done);
+                }
+                item = top.next(this);
+            }
+        }
+
+        // The key hash of an untagged leaf: the hash of its encoding.
+        int leafHash(DataItem leaf) throws CborException {
+            Buffer scratch = new Buffer();
+            emit(leaf, scratch, null);
+            return hashBytes(scratch);
+        }
+
+        private static int hashBytes(Buffer buffer) {
+            int hash = 1;
+            for (int i = 0; i < buffer.size; i++)
+                hash = 31 * hash + buffer.bytes[i];
+            return hash;
+        }
+
         // Writes a leaf completely, or a container's head and returns a frame for its children.
         private Frame emit(DataItem item, Buffer out, Frame parent) throws CborException {
             if (item == null)
@@ -312,13 +423,12 @@ public class CustomCborEncoder extends CborEncoder {
                         out.write(MajorType.MAP.getValue() << 5 | 31);
                     else
                         writeHead(out, MajorType.MAP, size);
-                    // as before, an empty map ends right after its head, even an indefinite one
-                    if (size > 0) {
-                        if (sortAllMaps || (canonical && !map.isChunked() && !(map instanceof SortedMap)))
-                            frame = new SortedMapFrame(parent, out, map, map.isChunked());
-                        else
-                            frame = new StreamingMapFrame(parent, out, map, map.isChunked());
-                    }
+                    // as before, an empty map ends right after its head, even an indefinite one; a single entry needs
+                    // no sorting, so it streams
+                    if (size > 1 && (sortAllMaps || (canonical && !map.isChunked() && !(map instanceof SortedMap))))
+                        frame = new SortedMapFrame(parent, out, map, map.isChunked());
+                    else if (size > 0)
+                        frame = new StreamingMapFrame(parent, out, map, map.isChunked());
                     break;
                 }
                 case BYTE_STRING:

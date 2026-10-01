@@ -30,6 +30,10 @@ final class DataItemCodecDepthFixtures {
         fixtures.put("nested map values (8,000 levels)", nested("a100", 8_000, hex("00")));
         fixtures.put("deep map key (16,000 levels)", concat(hex("a1"), nested("81", 16_000, hex("00")), hex("00")));
         fixtures.put("tag chain (16,000 tags)", nested("c1", 16_000, hex("00")));
+        // maps whose key is the next map: every level's key is a whole subtree (hashing must stay linear per key)
+        fixtures.put("map key chain (5,000 levels)", hex("a1".repeat(5_000) + "00" + "00".repeat(5_000)));
+        // the same with a second entry per level, so canonical encoding sorts at every level: {1: 1, <next>: 0}
+        fixtures.put("two-entry map key chain (3,000 levels)", hex("a20101".repeat(3_000) + "02" + "00".repeat(3_000)));
         fixtures.put("definite list (200,000 levels)", nested("81", 200_000, hex("00")));
         return fixtures;
     }
