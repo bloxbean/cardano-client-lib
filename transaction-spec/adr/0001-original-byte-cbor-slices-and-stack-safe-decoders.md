@@ -682,7 +682,8 @@ nothing in the existing parsing path changes).
    slice from its original bytes; it does not make the model API stack-safe.
 2. Release as the next `0.8.0-preN`.
 
-**On demand** (each its own PR, green on its own, when a consumer needs it):
+**On demand** (each its own PR, green on its own, when a consumer needs it). Now being built, for Yano, in the PR
+series stacked on #684 starting with #685 (D4.1).
 
 - the `DataItem`, Plutus Data, native script and metadata codecs and `NativeScriptEvaluator` (D4), and the
   `Transaction.deserialize` fixes (Shelley 3-element with metadata, Allegra/Mary aux, unknown native script types);
