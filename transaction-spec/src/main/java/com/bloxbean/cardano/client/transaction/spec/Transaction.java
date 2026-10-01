@@ -152,9 +152,9 @@ public class Transaction {
                 auxiliaryDataDI = txnItems.get(2);
             } else if (txnItems.size() == 4) {
                 DataItem isValidDI = txnItems.get(2);
-                if (isValidDI != SimpleValue.TRUE && isValidDI != SimpleValue.FALSE)
+                if (!SimpleValue.TRUE.equals(isValidDI) && !SimpleValue.FALSE.equals(isValidDI))
                     throw new CborDeserializationException("isValid must be a bool");
-                transaction.setValid(isValidDI == SimpleValue.TRUE);
+                transaction.setValid(SimpleValue.TRUE.equals(isValidDI));
                 auxiliaryDataDI = txnItems.get(3);
             } else {
                 throw new CborDeserializationException("A transaction has 3 or 4 items, found " + txnItems.size()
@@ -199,7 +199,7 @@ public class Transaction {
     }
 
     // The items of an array, without the BREAK that ends an indefinite one.
-    private static List<DataItem> withoutBreak(List<DataItem> items) {
+    static List<DataItem> withoutBreak(List<DataItem> items) {
         int size = items.size();
         return size > 0 && items.get(size - 1) == Special.BREAK ? items.subList(0, size - 1) : items;
     }
