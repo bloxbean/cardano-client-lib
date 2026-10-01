@@ -83,6 +83,7 @@ class RawTxRealCorpusTest {
         Map<String, RealCborFixturesAccess.Tx> txs = new HashMap<>();
         RealCborFixturesAccess.allTxsAndBlockTxs().forEach(tx -> txs.putIfAbsent(tx.txHash(), tx));
         int checked = 0;
+        int referenceOnly = 0;
         for (JsonNode entry : data.get("txs")) {
             RealCborFixturesAccess.Tx tx = txs.get(entry.get("txHash").asText());
             JsonNode costModels = data.get("costModels").get(entry.get("network").asText() + ":" + entry.get("epoch").asInt());
@@ -95,12 +96,40 @@ class RawTxRealCorpusTest {
                 costMdls.add(new CostModel(language(language.asText()), values));
             }
             RawTx raw = RawTx.of(tx.cbor());
-            Optional<byte[]> hash = raw.scriptDataHash(Era.valueOf(tx.era()), costMdls.getLanguageViewEncoding());
+            Era era = Era.valueOf(tx.era());
+            byte[] bodyHash = raw.bodyField(11).orElseThrow().byteString();
+            Optional<byte[]> hash = raw.scriptDataHash(era, costMdls.getLanguageViewEncoding());
             assertThat(hash).as(tx.name()).isPresent();
-            assertThat(hash.get()).as(tx.name()).isEqualTo(raw.bodyField(11).orElseThrow().byteString());
+            assertThat(hash.get()).as(tx.name()).isEqualTo(bodyHash);
             checked++;
+
+            // a language the transaction runs only through a reference script (no witness script of that language)
+            // must be in the views: the view cannot see it, the caller supplies it
+            Set<Language> witnessLanguages = new HashSet<>();
+            raw.scripts().stream().filter(script -> script.type() > 0)
+                    .forEach(script -> witnessLanguages.add(Language.values()[script.type() - 1]));
+            boolean viaReferenceScript = false;
+            for (JsonNode language : entry.get("languages"))
+                viaReferenceScript |= !witnessLanguages.contains(language(language.asText()));
+            if (viaReferenceScript)
+                referenceOnly++;
+
+            // the view of a language the transaction does not run (an unneeded reference script of another language,
+            // or every cost model in the protocol parameters) must not be included: it changes the hash
+            for (Language other : Language.values()) {
+                if (costMdls.get(other) != null)
+                    continue;
+                CostMdls extra = new CostMdls();
+                for (Language language : Language.values())
+                    if (costMdls.get(language) != null)
+                        extra.add(costMdls.get(language));
+                extra.add(new CostModel(other, new long[]{1, 2, 3}));
+                assertThat(raw.scriptDataHash(era, extra.getLanguageViewEncoding()).orElseThrow()).as(tx.name()).isNotEqualTo(bodyHash);
+            }
         }
         assertThat(checked).isEqualTo(63);
+        assertThat(referenceOnly).as("txs running a language only through a reference script").isPositive();
+        System.out.println("script integrity: " + checked + " txs, " + referenceOnly + " running a language only through a reference script");
     }
 
     /**
