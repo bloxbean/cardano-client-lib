@@ -302,11 +302,13 @@ The fix goes in the codecs, so the public model API keeps working on inputs of a
    - tag-30 rationals;
    - duplicate keys: the first position is kept with the last value.
 
-   It records each item's offset and length in the same single pass, so `Transaction.deserialize` needs no separate
-   walker pass (section 9).
+   It does not record offsets (revision 2026-10-02, #685): the codec stays a plain tree decoder with cbor-java's
+   semantics. Raw spans and original-byte hashes come from a separate `CborSpan` walk, which is linear and allocates
+   no `DataItem`s (section 9). A repeated map key is noted on the map (`EncodedKeyMap.hasRepeatedKey()`), which
+   `Transaction.deserialize` uses for D6.
 
-   `CustomCborEncoder` (with `CustomMapEncoder` and `CustomByteStringEncoder`) encodes containers with an explicit
-   stack. Maps that need canonical sorting buffer their encoded entries; everything else streams. Maps are built
+   `CustomCborEncoder` encodes containers with an explicit stack (`CustomMapEncoder` and `CustomByteStringEncoder`,
+   which recurse, are deprecated). Maps that need canonical sorting buffer their encoded entries; everything else streams. Maps are built
    through one small `co.nstant.in.cbor.model.Map` subclass that keys entries by the key's minimal re-encoding. The
    re-encoding is iterative, which keeps cbor-java's equality semantics without calling the recursive
    `DataItem.hashCode()` on deep keys (risk R2). All `CborDecoder.decode` calls in `common`, `plutus`, `metadata` and
@@ -321,12 +323,19 @@ The fix goes in the codecs, so the public model API keeps working on inputs of a
    `PlutusData.deserialize(...)`, the subclasses' `deserialize`/`serialize()`, `serializeToBytes()` and
    `getDatumHash()` delegate to it. `equals`/`hashCode` of `List`/`Map`/`Constr` become iterative (they are
    Lombok-generated today), because `MapPlutusData` hashes keys during decode.
+
+   Accepted deviation (2026-10-02, #686): data nested at most 32 levels converts recursively, in both directions,
+   which is faster for the small data that is most of what is on chain; deeper data takes the explicit-stack path from
+   the start. The recursion is bounded, so the codec stays stack-safe.
 3. **Native scripts (`transaction-spec`).** `NativeScript.deserialize(Array)`, `deserializeScriptRef`,
    `serializeAsDataItem` and `serializeScriptBody` delegate to one iterative codec.
    - The codec **rejects** an unknown script type, as Haskell does ("Unknown Timelock kind", allegra
      `Scripts.hs:313`). Today it returns `null`, which `ScriptAll` silently drops (section 1.7).
    - `m` in `[3, m, scripts]` is decoded as a signed integer: Haskell's `TimelockMOf !Int` may be negative (allegra
      `Scripts.hs:184`).
+   - As the Timelock decoder: the exact number of fields, untagged fields of the right type, a 28-byte key hash, `m`
+     within 64 bits and unsigned 64-bit slots (#687). One difference remains: a key hash in a chunked byte string is
+     accepted, because the decoded tree joins chunks, while the ledger's `decodeBytes` rejects it.
 
    A new `NativeScriptEvaluator` evaluates iteratively (post-order with an explicit stack) using Haskell
    `evalTimelock` semantics:
@@ -336,8 +345,8 @@ The fix goes in the codecs, so the public model API keeps working on inputs of a
 4. **Metadata (`metadata`).** The model already wraps `DataItem` (`CBORMetadataMap`/`CBORMetadataList`), so
    item 1 makes it stack-safe. `CBORMetadata.deserialize(byte[])` (`CBORMetadata.java:142-162`) goes through
    `CborSerializationUtil`.
-5. **`Transaction.deserialize`** uses the single-pass decoder from item 1 and decodes each field through the existing
-   model code, now stack-safe. It accepts the Shelley 3-element form and the Allegra/Mary `[metadata, scripts]` aux
+5. **`Transaction.deserialize`** uses the decoder from item 1, rejects records that repeat a key (D6) through the
+   map's repeated-key note, and decodes each field through the existing model code, now stack-safe. It accepts the Shelley 3-element form and the Allegra/Mary `[metadata, scripts]` aux
    shape.
 
 **Spans are authoritative; the models are lossy.** Haskell's `Metadatum.Map` and Plutus `Data.Map` are lists of pairs
@@ -440,9 +449,12 @@ existing two, and `Era.fromValue(int)`. One enum is reused rather than adding a 
 
 Existing public signatures are kept where possible.
 
-- **New Shelley-family era (Dijkstra and later).** Add an `Era` constant, its entry in the one per-era rules table in
-  `transaction.raw` (record keys, aux shapes, set tags, redeemer form, block body hash parts, the D6 duplicate rules)
-  and its scenario-matrix fixtures. Keyed records are read by numeric key through `field()`; arrays and tuples by the
+- **New Shelley-family era (Dijkstra and later).** Add an `Era` constant, its row in the one per-era rules table in
+  `transaction.raw` (`EraRules`: whether blocks carry `invalid_transactions`, and with them the block body hash parts
+  and the `isValid` flag; the duplicate aux-index rule of D6; the absent-redeemers encoding) and its scenario-matrix
+  fixtures. Record keys, aux shapes, set tags and redeemer forms are read the same way in every era (unknown keys
+  are passed through, D6; tag 258 is accepted on sets, section 6.3), so the table has no column for them; an era that
+  changes one of them adds the column. Keyed records are read by numeric key through `field()`; arrays and tuples by the
   era's schema positions. A new layout, script language or hash rule, such as Dijkstra's `[header, block_body]`, is
   implemented explicitly and selected by the D2 envelope dispatch.
 - **Another era family (Byron).** `CborSpan` is era-agnostic. A future `RawByronBlock`, or a sealed era-family
@@ -491,6 +503,8 @@ public final class RawTx {
     public Optional<CborSpan> bodyField(int key); public Optional<CborSpan> witnessField(int key);
     public List<RawOutput> outputs(); public Optional<RawOutput> collateralReturn();
     public List<RawDatum> witnessDatums(); public List<RawRedeemer> redeemers(); public List<RawScript> scripts();
+    public List<RawScript> auxScripts();                                    // every aux data shape
+    public List<CborSpan> bodySetItems(int key); public List<CborSpan> witnessSetItems(int key); // tag 258 optional
     public List<CborSpan> vkeyWitnesses(); public List<CborSpan> bootstrapWitnesses();
 }
 public final class RawBlock {
@@ -683,7 +697,8 @@ nothing in the existing parsing path changes).
 2. Release as the next `0.8.0-preN`.
 
 **On demand** (each its own PR, green on its own, when a consumer needs it). Now being built, for Yano, in the PR
-series stacked on #684 starting with #685 (D4.1).
+series stacked on #684: #685 (D4.1), #686 (D4.2), #687 (D4.3), #688 (D4 metadata), #689 (D2, D3, D6, D7, D8) and #690
+(section 1.7).
 
 - the `DataItem`, Plutus Data, native script and metadata codecs and `NativeScriptEvaluator` (D4), and the
   `Transaction.deserialize` fixes (Shelley 3-element with metadata, Allegra/Mary aux, unknown native script types);
@@ -747,8 +762,9 @@ hashed through `RawTx`, `RawDatum` and `RawScript`; the release notes and Javado
 
 - **Walker paths.** One linear pass with no `DataItem` allocation, so `TransactionBytes`, `getTxHash` and
   TxId/datum hashing from views must be faster than today.
-- **`Transaction.deserialize`.** It does not walk twice: the iterative `DataItem` decoder records offsets in its
-  single pass (D4.1). The extra cost is the offset bookkeeping and heap frames in place of call frames.
+- **`Transaction.deserialize`.** One pass of the iterative `DataItem` decoder, without offset bookkeeping (D4.1). A
+  caller that also needs spans (`RawTx`, `RawBlock`) walks the bytes again with `CborSpan`: about 0.17 µs per tx and
+  0.67 µs per block (median, corpus), a sixth of a cbor-java decode (#683 benchmark).
 - **Canonical encoding** of nested multi-entry maps copies each level's buffer once. The worst case is
   O(depth × size), bounded by the 16 KB tx size.
 - **Harness.** A test-scope benchmark, excluded from CI, runs on the section 10 corpus. It compares, old path against
@@ -807,9 +823,11 @@ hashed through `RawTx`, `RawDatum` and `RawScript`; the release notes and Javado
 - **R1: `DataItem` parity.** The new decoder must match cbor-java's quirks (`BREAK` items, chunked flags, tag-30
   rationals, duplicate-key semantics). Mitigation: differential tests on the corpus plus fuzzing.
 - **R2: Deep keys.** cbor-java `Array.hashCode` and Lombok `equals`/`hashCode` recurse. Mitigation: the CCL `Map`
-  subclass keys by re-encoded bytes, and Data `equals`/`hashCode` are iterative. Model `toString()` stays recursive.
-- **R3: `Transaction.deserialize` budget.** The single-pass offset recording must keep it within 20% (section 9).
-  Fallback: record offsets only for the envelope and the witness fields.
+  subclass keys by re-encoded bytes, and Data and native script `equals`/`hashCode` are iterative. The `Map`
+  subclass's own `equals`/`hashCode` (over values) and model `toString()` (except native scripts) stay recursive.
+- **R3: `Transaction.deserialize` budget.** Met without offset recording (D4.1): end to end it is 0.92–0.93× of master
+  on the corpus (#690). Checking records through a `RawTx` pass cost about 1.2×, so the decoder notes repeated keys
+  instead.
 - **R4: Canonical encoding cost** for nested multi-entry maps (section 9). It is bounded by tx size; the benchmark
   watches it.
 - **R5: Linux 1 MB default stack.** Today's failure thresholds are about half the macOS values, so the current
