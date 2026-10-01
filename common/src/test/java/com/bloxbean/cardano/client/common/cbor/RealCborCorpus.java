@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
 
@@ -38,6 +40,40 @@ final class RealCborCorpus {
         if (more != null)
             addBlocks(items, more);
         return items;
+    }
+
+    /**
+     * Whether the item nests more than 1,000 levels deep. The recursive code that the differential tests compare with
+     * (cbor-java, the old encoder and models) may or may not overflow the stack on such input, depending on the JIT, so
+     * it is no oracle there; the depth tests cover such input.
+     */
+    static boolean tooDeepForRecursiveCode(byte[] cbor) {
+        Deque<CborSpan> spans = new ArrayDeque<>();
+        Deque<Integer> depths = new ArrayDeque<>();
+        spans.push(CborSpan.of(cbor));
+        depths.push(1);
+        while (!spans.isEmpty()) {
+            CborSpan span = spans.pop();
+            int depth = depths.pop();
+            if (depth > 1_000)
+                return true;
+            while (span.tag() != -1)
+                span = span.untag();
+            List<CborSpan> children = new ArrayList<>();
+            if (span.majorType() == 4) {
+                children.addAll(span.items());
+            } else if (span.majorType() == 5) {
+                span.entries().forEach(entry -> {
+                    children.add(entry.getKey());
+                    children.add(entry.getValue());
+                });
+            }
+            for (CborSpan child : children) {
+                spans.push(child);
+                depths.push(depth + 1);
+            }
+        }
+        return false;
     }
 
     private static void addBlocks(List<Item> items, JsonNode file) {

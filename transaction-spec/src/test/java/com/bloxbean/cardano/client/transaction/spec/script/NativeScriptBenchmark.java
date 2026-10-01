@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.Array;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
+import com.bloxbean.cardano.client.transaction.util.RealCborFixturesAccess;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
@@ -37,11 +38,8 @@ class NativeScriptBenchmark {
         List<byte[]> scripts = new ArrayList<>();
         Map<byte[], NativeScript> models = new IdentityHashMap<>();
         for (NativeScriptCorpus.Script script : NativeScriptCorpus.all()) {
-            try {
-                CborDecoder.decode(script.cbor());
-            } catch (StackOverflowError e) {
-                continue;
-            }
+            if (RealCborFixturesAccess.tooDeepForRecursiveCode(script.cbor()))
+                continue; // the old path overflows on the deeply nested trigger
             scripts.add(script.cbor());
             models.put(script.cbor(), NativeScript.deserialize((Array) CborSerializationUtil.deserialize(script.cbor())));
         }
