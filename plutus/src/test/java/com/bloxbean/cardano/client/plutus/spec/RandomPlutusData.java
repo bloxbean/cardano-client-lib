@@ -27,7 +27,8 @@ final class RandomPlutusData {
                 integer(out);
                 break;
             case 1:
-                bytes(out, 2);
+                // sometimes over 64 bytes, so that map keys are chunked when serialized
+                bytes(out, random.nextInt(6) == 0 ? 65 + random.nextInt(60) : 2);
                 break;
             case 2:
                 list(out, depth);

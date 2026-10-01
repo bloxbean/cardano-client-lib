@@ -162,11 +162,15 @@ final class PlutusDataCodec {
         return new ListFrame(parent, constrFields(tag, items), alternative);
     }
 
-    // A constructor is 121-127 or 1280-1400 [fields], or 102 [alternative, [fields]].
+    // A constructor is 121-127 or 1280-1400 [fields], or 102 [alternative, [fields]], whose outer array may be
+    // indefinite (plutus-core decodeConstrExtended reads it with decodeListLenOrIndef).
     private static long constrAlternative(Tag tag, List<DataItem> items) throws CborDeserializationException {
         if (tag.getValue() == GENERAL_FORM_TAG) {
-            if (items.size() != 2)
-                throw new CborDeserializationException("Cbor deserialization failed. Expected 2 DataItem, found : " + items.size());
+            int size = items.size() > 0 && items.get(items.size() - 1) == Special.BREAK ? items.size() - 1 : items.size();
+            if (size != 2)
+                throw new CborDeserializationException("Cbor deserialization failed. Expected 2 DataItem, found : " + size);
+            if (!(items.get(0) instanceof UnsignedInteger) || !(items.get(1) instanceof Array))
+                throw new CborDeserializationException("Cbor deserialization failed. Constructor 102 is [alternative, [fields]]");
             return ((UnsignedInteger) items.get(0)).getValue().longValue();
         }
         Long alternative = compactTagToAlternative(tag.getValue());
@@ -331,6 +335,9 @@ final class PlutusDataCodec {
     // ---- PlutusData -> DataItem
 
     static DataItem encode(PlutusData data) throws CborSerializationException {
+        DataItem shallow = encodeShallow(data, SHALLOW_DEPTH);
+        if (shallow != null)
+            return shallow;
         EncodeFrame top = open(data, null);
         if (top == null)
             return data.serialize();
@@ -355,6 +362,63 @@ final class PlutusDataCodec {
                 top.add(done);
             }
         }
+    }
+
+    // The recursive conversion, as for decoding: null when the data nests deeper than depth or holds something unusual
+    // (a null item or field), and the iterative path then converts it from the start, with the same result and errors.
+    private static DataItem encodeShallow(PlutusData data, int depth) throws CborSerializationException {
+        if (data instanceof ListPlutusData || data instanceof ConstrPlutusData) {
+            if (depth == 0)
+                return null;
+            ConstrPlutusData constr = data instanceof ConstrPlutusData ? (ConstrPlutusData) data : null;
+            ListPlutusData list = constr != null ? constr.getData() : (ListPlutusData) data;
+            List<PlutusData> items = list != null ? list.getPlutusDataList() : null;
+            if (items == null)
+                return null;
+            Array array = new Array(items.size() + 1);
+            for (PlutusData item : items) {
+                DataItem child = item != null ? encodeShallow(item, depth - 1) : null;
+                if (child == null)
+                    return null;
+                array.add(child);
+            }
+            if (!items.isEmpty() && list.isChunked()) {
+                array.setChunked(true);
+                array.add(Special.BREAK);
+            }
+            return constr == null ? array : constrItem(constr, array);
+        }
+        if (data instanceof MapPlutusData) {
+            if (depth == 0)
+                return null;
+            java.util.Map<PlutusData, PlutusData> entries = ((MapPlutusData) data).getMap();
+            if (entries == null)
+                return null;
+            EncodedKeyMap map = new EncodedKeyMap();
+            for (java.util.Map.Entry<PlutusData, PlutusData> entry : entries.entrySet()) {
+                DataItem key = entry.getKey() != null ? encodeShallow(entry.getKey(), depth - 1) : null;
+                DataItem value = key != null && entry.getValue() != null ? encodeShallow(entry.getValue(), depth - 1) : null;
+                if (value == null)
+                    return null;
+                map.put(key, value);
+            }
+            return map;
+        }
+        return data != null ? data.serialize() : null;
+    }
+
+    // A constructor's encoding around its encoded fields: the compact tag, or 102 [alternative, fields].
+    private static DataItem constrItem(ConstrPlutusData constr, Array fields) {
+        Long compactTag = alternativeToCompactTag(constr.getAlternative());
+        if (compactTag != null) {
+            fields.setTag(compactTag);
+            return fields;
+        }
+        Array general = new Array();
+        general.add(new UnsignedInteger(constr.getAlternative()));
+        general.add(fields);
+        general.setTag(GENERAL_FORM_TAG);
+        return general;
     }
 
     // A frame for a list, map or constructor of this library; null for anything else, which serializes itself.
@@ -431,18 +495,9 @@ final class PlutusDataCodec {
                 array.add(Special.BREAK);
             if (constr == null)
                 return array;
-            Long compactTag = alternativeToCompactTag(constr.getAlternative());
-            if (compactTag != null) {
-                if (array == null)
-                    throw new CborSerializationException("Cbor serialization failed for constr data. NULL serialized fields");
-                array.setTag(compactTag);
-                return array;
-            }
-            Array general = new Array();
-            general.add(new UnsignedInteger(constr.getAlternative()));
-            general.add(array);
-            general.setTag(GENERAL_FORM_TAG);
-            return general;
+            if (array == null && alternativeToCompactTag(constr.getAlternative()) != null)
+                throw new CborSerializationException("Cbor serialization failed for constr data. NULL serialized fields");
+            return constrItem(constr, array);
         }
     }
 

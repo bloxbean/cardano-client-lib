@@ -13,7 +13,9 @@ import static com.bloxbean.cardano.client.util.HexUtil.decodeHexString;
 /**
  * The shapes of {@link CborSpanDepthFixtures} through the {@link CborSerializationUtil} codec: each decodes to a
  * {@link DataItem} tree and encodes back to the same bytes (the fixtures are canonical, or indefinite, which the tree
- * keeps). {@link #main(String[])} runs them all, for a forked JVM.
+ * keeps). The real preprod trigger transaction and its block (a 5,383-level native script) decode too: the transaction
+ * re-encodes to the same bytes; the block has a redeemer with a chunked byte string, which the tree joins as cbor-java
+ * does, so its re-encoding is checked to be stable instead. {@link #main(String[])} runs them all, for a forked JVM.
  */
 final class DataItemCodecDepthFixtures {
     private static final byte[] PUBKEY_SCRIPT = decodeHexString("8200581c" + "00".repeat(28));
@@ -55,9 +57,43 @@ final class DataItemCodecDepthFixtures {
         }
     }
 
+    /**
+     * @return the real corpus items too deep for the recursive code: the preprod trigger transaction and its block
+     */
+    static java.util.Map<String, byte[]> real() {
+        java.util.Map<String, byte[]> fixtures = new LinkedHashMap<>();
+        for (RealCborCorpus.Item item : RealCborCorpus.all())
+            if (RealCborCorpus.tooDeepForRecursiveCode(item.cbor()))
+                fixtures.put(item.name(), item.cbor());
+        check(fixtures.size() == 2, "the trigger transaction and block are in the corpus");
+        return fixtures;
+    }
+
+    // The encoding of the decoded tree, not sorted, is the original bytes, unless they hold chunked strings, which the
+    // tree joins; then encoding is stable: decoding and encoding the encoding gives it back.
+    static void verifyReal(String name, byte[] bytes) {
+        try {
+            byte[] encoded = encode(bytes);
+            if (RealCborCorpus.hasChunkedStrings(bytes))
+                check(Arrays.equals(encode(encoded), encoded), name + ": stable re-encoding");
+            else
+                check(Arrays.equals(encoded, bytes), name + ": round trip");
+        } catch (CborException e) {
+            throw new AssertionError(name, e);
+        }
+    }
+
+    private static byte[] encode(byte[] bytes) throws CborException {
+        return CborSerializationUtil.serialize(CborSerializationUtil.deserializeAll(bytes).toArray(new DataItem[0]), false);
+    }
+
     public static void main(String[] args) {
         for (java.util.Map.Entry<String, byte[]> fixture : all().entrySet()) {
             verify(fixture.getKey(), fixture.getValue());
+            System.out.println("ok: " + fixture.getKey());
+        }
+        for (java.util.Map.Entry<String, byte[]> fixture : real().entrySet()) {
+            verifyReal(fixture.getKey(), fixture.getValue());
             System.out.println("ok: " + fixture.getKey());
         }
     }

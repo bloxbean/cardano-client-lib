@@ -23,12 +23,9 @@ class PlutusDataCodecDifferentialTest {
     void realDatumsAndRedeemersDecodeAndEncodeAsBefore() throws Exception {
         int compared = 0;
         for (PlutusDataCorpus.Datum datum : PlutusDataCorpus.all()) {
-            PlutusData legacy;
-            try {
-                legacy = LegacyPlutusData.deserialize(CborDecoder.decode(datum.cbor()).get(0));
-            } catch (StackOverflowError e) {
-                continue;
-            }
+            if (PlutusDataCorpus.tooDeepForRecursiveCode(datum.cbor()))
+                continue; // covered by the depth tests
+            PlutusData legacy = LegacyPlutusData.deserialize(CborDecoder.decode(datum.cbor()).get(0));
             assertSame(datum.toString(), datum.cbor(), legacy);
             compared++;
         }

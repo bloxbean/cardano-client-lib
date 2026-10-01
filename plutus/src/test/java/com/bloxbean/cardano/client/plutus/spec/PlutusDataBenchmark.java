@@ -36,11 +36,8 @@ class PlutusDataBenchmark {
         List<byte[]> datums = new ArrayList<>();
         Map<byte[], PlutusData> models = new IdentityHashMap<>();
         for (PlutusDataCorpus.Datum datum : PlutusDataCorpus.all()) {
-            try {
-                CborDecoder.decode(datum.cbor());
-            } catch (StackOverflowError e) {
-                continue;
-            }
+            if (PlutusDataCorpus.tooDeepForRecursiveCode(datum.cbor()))
+                continue; // the old path overflows
             datums.add(datum.cbor());
             models.put(datum.cbor(), PlutusData.deserialize(datum.cbor()));
         }
