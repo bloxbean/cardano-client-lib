@@ -37,10 +37,12 @@ class CborCodecBenchmark {
         List<byte[]> blocks = new ArrayList<>();
         Map<byte[], DataItem> trees = new IdentityHashMap<>();
         for (RealCborCorpus.Item item : RealCborCorpus.all()) {
+            if (RealCborCorpus.tooDeepForRecursiveCode(item.cbor()))
+                continue; // the old decoder overflows on the deeply nested trigger
             try {
                 trees.put(item.cbor(), CborDecoder.decode(item.cbor()).get(0));
-            } catch (StackOverflowError | CborException e) {
-                continue; // the old decoder overflows on the deeply nested trigger
+            } catch (CborException e) {
+                throw new IllegalStateException(e);
             }
             (item.name().startsWith("block") ? blocks : txs).add(item.cbor());
         }

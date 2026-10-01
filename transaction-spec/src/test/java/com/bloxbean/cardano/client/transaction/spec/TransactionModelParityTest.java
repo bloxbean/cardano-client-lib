@@ -17,11 +17,11 @@ class TransactionModelParityTest {
         int compared = 0;
         int failedOnBoth = 0;
         for (RealCborFixturesAccess.Tx tx : RealCborFixturesAccess.allTxsAndBlockTxs()) {
+            if (RealCborFixturesAccess.tooDeepForRecursiveCode(tx.cbor()))
+                continue; // the deeply nested trigger: the model codecs become iterative in later changes
             Transaction legacy;
             try {
                 legacy = LegacyTransactionDeserializer.deserialize(tx.cbor());
-            } catch (StackOverflowError e) {
-                continue; // the deeply nested trigger: the model codecs become iterative in later changes
             } catch (Exception e) {
                 // e.g. a Shelley tx with metadata: the new path must fail the same way
                 assertThat(tryDeserialize(tx.cbor())).as(tx.name()).isNull();
