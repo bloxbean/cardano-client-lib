@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -153,6 +154,41 @@ class TransactionBytesWitnessTest {
             assertThat(TransactionUtil.getTxHash(signed)).isEqualTo(tx.txHash());
             assertThat(verifiesLastWitness(signed)).as(tx.toString()).isTrue();
         }
+    }
+
+    /**
+     * Signing a {@link Transaction} model serializes it with cbor-java, signs those bytes and deserializes the result.
+     * The body hash is the hash of the model's own serialization, as before, and the signed model serializes to the same
+     * bytes as with the old decode/re-encode signer.
+     */
+    @Test
+    void signingATransactionModelGivesTheSameTransactionAsBefore() throws Exception {
+        SecretKey secretKey = SecretKey.create(decodeHexString("ede3104b2f4ff32daa3b620a9a272cd962cf504da44cf1cf0280aff43b65f807"));
+        int signed = 0;
+        for (RealCborFixtures.Tx tx : RealCborFixtures.txs()) {
+            Transaction model;
+            try {
+                model = Transaction.deserialize(tx.cbor());
+            } catch (Exception e) {
+                continue; // model gaps out of scope here, e.g. Shelley 3-element txs with metadata
+            }
+            byte[] modelBytes = model.serialize();
+
+            Transaction newSigned = TransactionSigner.INSTANCE.sign(model, secretKey);
+
+            byte[] newSignedBytes = TransactionSigner.INSTANCE.sign(modelBytes, secretKey);
+            List<CborSpan> vkeys = CborSpan.of(new TransactionBytes(newSignedBytes).getTxWitnessBytes())
+                    .field(0).orElseThrow().untagIf(258).items();
+            CborSpan witness = vkeys.get(vkeys.size() - 1);
+            Transaction oldSigned = Transaction.deserialize(LegacyTransactionSigner.addWitnessToTransaction(
+                    new TransactionBytes(modelBytes), witness.get(0).byteString(), witness.get(1).byteString()));
+
+            assertThat(newSigned.serialize()).as(tx.toString()).isEqualTo(oldSigned.serialize());
+            assertThat(TransactionUtil.getTxHash(newSigned)).isEqualTo(TransactionUtil.getTxHash(model));
+            assertThat(verifiesLastWitness(newSigned.serialize())).isTrue();
+            signed++;
+        }
+        assertThat(signed).isGreaterThan(50);
     }
 
     /**
