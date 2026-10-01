@@ -2,6 +2,8 @@
 
 **Status**: Proposed
 **Date**: 2026-10-01
+**Revised**: 2026-10-01, Phase 1 narrowed to the walker (section 7). D2–D4 and the signer splice in D5 are the target
+design and are implemented on demand.
 **Issue**: https://github.com/bloxbean/cardano-client-lib/issues/681
 **Modules**: `common`, `common-spec`, `plutus`, `metadata`, `transaction-spec`
 
@@ -14,7 +16,8 @@ and the new raw views.
 ### 1.1 Trigger
 
 On preprod, block 5183974 contains tx `f90dce5765108da976abdbb9fc618f9a6ffd9fa4d93b2f288eed1808545424c9`. It is
-16,181 bytes and carries a witness native script nested 5,383 levels deep (`[1, [[1, [ ... ]]]]`, 3 bytes per level).
+16,383 bytes as submitted (16,382 by the ledger's size measure, which leaves out the `isValid` flag) and carries a
+witness native script nested 5,383 levels deep (`[1, [[1, [ ... ]]]]`, 3 bytes per level).
 The Haskell node accepts it. cardano-ledger has no nesting limit: decoding runs on the heap (cborg's CPS decoder plus
 `MemoBytes`/Annotator), and the maximum tx size (16,384 bytes) is the only bound.
 
@@ -283,6 +286,12 @@ received bytes.
 
 ### D4. Stack-safe codecs behind the existing model API
 
+**Deferred (revision 2026-10-01).** Phase 1 leaves `CborSerializationUtil`, the encoders and the model parsing
+(`Transaction.deserialize`, `PlutusData`, `NativeScript`, `AuxiliaryData`) unchanged: the cbor-java path stays the
+standard, readable one and carries no regression risk. Original bytes are needed for hashes, and the walker provides
+them. The codecs below are built when a consumer needs a model path to be stack-safe; original bytes may then become a
+companion attribute of the models instead of, or next to, the D2 views. That choice is made at that point.
+
 The fix goes in the codecs, so the public model API keeps working on inputs of any depth.
 
 1. **`DataItem` codec (`common`).** `CborSerializationUtil.deserialize` becomes iterative. It produces the same
@@ -339,7 +348,7 @@ says so. Hashes, preimages and anything a validator inspects come from spans.
 ### D5. `TransactionBytes`, `TransactionUtil`, `TransactionSigner`
 
 `TransactionBytes` keeps its public surface: the constructor, the getters, `getTxBytes()` and
-`withNewWitnessSetBytes()`. Internally it parses through `RawTx.of(txBytes)`.
+`withNewWitnessSetBytes()`. Internally it parses through `CborSpan` (Phase 1; through `RawTx` once that view exists).
 
 | Field / method | Today | With the walker |
 |---|---|---|
@@ -352,11 +361,12 @@ says so. Hashes, preimages and anything a validator inspects come from spans.
 
 The other two classes change as follows:
 
-- **`TransactionUtil.extractTransactionBodyFromTx`** returns `RawTx.of(tx).body().bytes()`, and `getTxHash(byte[])`
-  returns `RawTx.txId()`. Any header width now works. The whole tx is walked once, iteratively, so malformed later
-  elements now raise an error (section 8).
+- **`TransactionUtil.extractTransactionBodyFromTx`** returns the body span of the walked tx array (Phase 1:
+  `CborSpan.at(tx, 0).get(0).bytes()`), and `getTxHash(byte[])` hashes it. Any header width now works. The whole tx is
+  walked once, iteratively, so malformed later elements now raise an error (section 8). Bytes after the tx array are
+  ignored, as before, here and in `TransactionBytes`.
 - **`TransactionSigner.addWitnessToTransaction`** (`TransactionSigner.java:132-158`) splices instead of decoding and
-  re-encoding. This lands as its own PR.
+  re-encoding. This lands as its own PR, on demand (section 7).
   - It appends the new `[vkey, sig]` to the field 0 array. The array keeps its tag 258; for an indefinite array the
     witness is inserted before `ff`.
   - If field 0 is absent, it appends the entry `00 → [witness]` and increments the map count. This is the key
@@ -449,6 +459,8 @@ Existing public signatures are kept where possible.
 // common: com.bloxbean.cardano.client.common.cbor
 public final class CborSpan {
     public static CborSpan of(byte[] buf);                        // exactly one item; walks it once
+    public static CborSpan of(byte[] buf, int offset, int length); // exactly one item in that window
+    public static CborSpan at(byte[] buf, int offset);            // the item at offset; later bytes are not read
     public static int skip(byte[] buf, int offset, int limit);    // the iterative walker
 
     public byte[] buffer(); public int offset(); public int length(); public int headerLength();
@@ -504,6 +516,14 @@ public final class NativeScriptEvaluator {
                                    Long invalidBefore, Long invalidHereafter);
 }
 ```
+
+Phase 1 settled the accessor semantics: `majorType()` and `isIndefinite()` look through tags; `headerLength()` counts
+the tag heads plus the item's head (so `offset() + headerLength()` is where the content starts); navigation
+(`size`, `get`, `items`, `entries`, `field`) and the scalar accessors need an untagged span, so callers strip a set tag
+with `untagIf(258)` first and any other tag at that position is an error; `asBigInteger()` also reads tags 2/3; and
+`field(k)` rejects the record if any unsigned key occurs twice. Navigating is linear in the size of what is skipped, so
+going down every level of a deep chain is quadratic; views navigate only shallow CDDL positions and hash or hand off
+deep content as one span.
 
 The names (`CborSpan`, `RawTx`, `RawBlock`) and the `transaction.raw` package are decided. There are no new options,
 no depth settings and no SPI. The iterative codecs are package-private and are reached through the existing static
@@ -652,24 +672,27 @@ Java 17 and on a virtual thread under JDK 21 (section 10).
 
 ## 7. Migration plan
 
-**Phase 1: CCL.** Each step is one PR and is green on its own.
+**Phase 1: CCL** (revised 2026-10-01: the maintainer narrowed it to the walker and the byte-level utilities, so
+nothing in the existing parsing path changes).
 
-1. `common`: `CborSpan`, the single-pass iterative `DataItem` decoder and encoder, the `Map` subclass, and
-   `CborSerializationUtil` routed through them. Differential tests against cbor-java.
-2. `plutus`: the iterative Data codec and iterative `equals`/`hashCode`; the `PlutusData` entry points delegate to it.
-3. `transaction-spec`, in this order:
-   - the native script codec and `NativeScriptEvaluator`;
-   - the `Era` constants (D7), then `RawTx`, `RawBlock` and the hashes;
-   - `TransactionBytes` and `TransactionUtil`;
-   - `Transaction.deserialize`, including the Shelley/Allegra shapes;
-   - the remaining `CborDecoder.decode` call sites routed through `CborSerializationUtil`.
-4. `transaction-spec`: the `TransactionSigner` splice, as its own PR.
-5. Release as the next `0.8.0-preN`.
+1. `common`: `CborSpan` (D1). `transaction-spec`: `TransactionBytes` and
+   `TransactionUtil.extractTransactionBodyFromTx` / `getTxHash(byte[])` move onto it (D5 without `RawTx`). Tests: real
+   txs and blocks of every era from mainnet, preprod and preview, the trigger tx and block, depth fixtures, malformed
+   input and fuzzing, and the JDK 21 virtual-thread job. This step is enough to slice blocks and txs and to hash any
+   slice from its original bytes; it does not make the model API stack-safe.
+2. Release as the next `0.8.0-preN`.
+
+**On demand** (each its own PR, green on its own, when a consumer needs it):
+
+- the `DataItem`, Plutus Data, native script and metadata codecs and `NativeScriptEvaluator` (D4), and the
+  `Transaction.deserialize` fixes (Shelley 3-element with metadata, Allegra/Mary aux, unknown native script types);
+- the `Era` constants (D7), `RawTx`, `RawBlock` and the hashes (D2, D3), with the per-era rules table (D8);
+- the `TransactionSigner` splice (D5).
 
 **Phase 2: Yaci.** Yaci `main` pins CCL 0.7.2 (`gradle/libs.versions.toml:2`); `next` already uses 0.8.0-pre4. Phase 2
 lands on `next` and bumps CCL to the release that carries Phase 1. It then:
 
-- replaces `CborSlice` with `CborSpan`, and `ArrayCborDecoder` with `CborSerializationUtil`;
+- replaces `CborSlice` with `CborSpan`; `ArrayCborDecoder` stays until the iterative `DataItem` codec (D4) exists;
 - builds raw tx, datum, redeemer and witness extraction on `RawBlock`/`RawTx`, attaching spans and original-byte
   hashes (TxId, datum hash, script hash).
 
@@ -695,12 +718,18 @@ Each phase bumps its dependency only after the previous release is on Central.
 **Public signatures:** no changes. All additions are new types, methods or `Era` constants. An exhaustive `switch`
 over `Era` without `default` in consumer code must add the new cases.
 
-**Behaviour changes** (all of them fixes):
+**Behaviour changes** (all of them fixes). Phase 1:
 
-- Deep inputs decode instead of throwing `StackOverflowError`.
-- `TransactionBytes` round-trips indefinite or non-minimal outer arrays, and detects validity by element count.
+- `TransactionBytes`, `TransactionUtil.extractTransactionBodyFromTx` and `getTxHash(byte[])` handle witness sets of
+  any depth instead of throwing `StackOverflowError` (`TransactionBytes` decoded the witness set; it now only walks it).
+- `TransactionBytes` round-trips indefinite or non-minimal outer arrays, and detects validity by element count: a
+  4-element tx must have a bool at element 2, and a tx array of any other size than 3 or 4 is rejected.
 - `TransactionUtil.extractTransactionBodyFromTx` and `getTxHash(byte[])` handle any header width. They also reject a
   tx whose later elements are malformed; today those elements are not read.
+
+With the on-demand steps:
+
+- Deep inputs decode through the model API instead of throwing `StackOverflowError`.
 - `TransactionSigner.addWitnessToTransaction` leaves every witness field except field 0 byte-identical. The output
   differs from today only where today's re-encoding was lossy, and in those cases today's output could invalidate
   `script_data_hash`.
@@ -735,7 +764,8 @@ hashed through `RawTx`, `RawDatum` and `RawScript`; the release notes and Javado
 
 - **Real trigger.** Preprod tx `f90dce57…24c9` and block 5183974, fetched once and committed under
   `transaction-spec/src/test/resources`. The tests check decode, TxId, native script hash, evaluation, block body hash
-  and the `TransactionBytes` round trip. Today Yaci has this tx only in a live integration test (`BlockFetcherIT`).
+  and the `TransactionBytes` round trip. Phase 1 covers TxId, the native script hash and block body hash from original
+  slices, and the `TransactionBytes` round trip; decode and evaluation come with D4. Today Yaci has this tx only in a live integration test (`BlockFetcherIT`).
 - **Depth fixtures at maximum tx size.** Every row of section 6.7, including the 16,250-level list datum. Each one goes
   through decode, re-encode, original-byte hash and model hash (equal for canonical input), and evaluation for native
   scripts.
@@ -756,8 +786,9 @@ hashed through `RawTx`, `RawDatum` and `RawScript`; the release notes and Javado
   and a seeded fuzz loop with time and heap assertions.
 - **Threads and modes.** The normal build targets Java 17, so the depth fixtures run there on a platform thread with
   the default stack, and in a forked JVM with `-Xint`. A separate JDK 21 CI job, shaped like `txflow-java21`
-  (`build.yml:46-63`), runs the same fixtures on a virtual thread; that test is `@EnabledForJreRange(min = JAVA_21)`
-  and creates the thread reflectively, so it compiles on 17. No test sets `-Xss`.
+  (`build.yml:46-63`), runs the same fixtures on a virtual thread; that test is enabled on Java 21 or later (`@EnabledIf` on
+  `Runtime.version()`, because the JUnit 5.9 API on CCL's test compile classpath has no `JRE.JAVA_21`) and creates the
+  thread reflectively, so it compiles on 17. No test sets `-Xss`.
 
 ## 11. Alternatives considered
 
