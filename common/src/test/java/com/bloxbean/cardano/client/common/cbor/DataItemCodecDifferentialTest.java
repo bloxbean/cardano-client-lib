@@ -31,13 +31,10 @@ class DataItemCodecDifferentialTest {
     void realTransactionsAndBlocksDecodeAndEncodeAsBefore() throws CborException {
         int compared = 0;
         for (RealCborCorpus.Item item : RealCborCorpus.all()) {
-            List<DataItem> decoded = CborSerializationUtil.deserializeAll(item.cbor());
-            List<DataItem> expected;
-            try {
-                expected = CborJava.decodeAll(item.cbor());
-            } catch (StackOverflowError e) {
+            if (RealCborCorpus.tooDeepForRecursiveCode(item.cbor()))
                 continue; // the deeply nested trigger: covered by the depth tests
-            }
+            List<DataItem> decoded = CborSerializationUtil.deserializeAll(item.cbor());
+            List<DataItem> expected = CborJava.decodeAll(item.cbor());
             try {
                 assertSameTrees(item.toString(), decoded, expected);
                 compared++;

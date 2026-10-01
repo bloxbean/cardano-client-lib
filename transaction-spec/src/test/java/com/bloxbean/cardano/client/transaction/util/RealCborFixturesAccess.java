@@ -14,6 +14,13 @@ public final class RealCborFixturesAccess {
     }
 
     /**
+     * @see RealCborFixtures#tooDeepForRecursiveCode(byte[])
+     */
+    public static boolean tooDeepForRecursiveCode(byte[] cbor) {
+        return RealCborFixtures.tooDeepForRecursiveCode(cbor);
+    }
+
+    /**
      * @return the committed transactions (with the trigger) and the transactions reassembled from the committed blocks
      */
     public static List<Tx> allTxsAndBlockTxs() {
