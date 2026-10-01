@@ -1,8 +1,5 @@
 package com.bloxbean.cardano.client.transaction;
 
-import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.model.*;
-import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.SecretKey;
@@ -122,41 +119,19 @@ public enum TransactionSigner {
     /**
      * Adds a witness to the given transaction by updating the transaction's witness set with
      * the provided verification key and signature.
+     * <p>
+     * The witness is spliced into the original bytes: it is appended to the vkey witnesses (witness set field 0) and
+     * every other byte of the transaction, including the other witness fields, is kept as received.
+     * See {@link TransactionBytes#withVkeyWitness(byte[], byte[])}.
      *
      * @param transactionBytes The transaction bytes containing the current transaction and witness data.
      * @param vkey The verification key to be added to the witness set.
      * @param signature The signature associated with the verification key to be added to the witness set.
      * @return The updated transaction bytes including the new witness.
-     * @throws CborRuntimeException If any CBOR serialization or deserialization error occurs during processing.
+     * @throws CborRuntimeException If the witness set is not well-formed or field 0 is not an array.
      */
     public byte[] addWitnessToTransaction(TransactionBytes transactionBytes, byte[] vkey, byte[] signature) {
-        try {
-            DataItem witnessSetDI = CborSerializationUtil.deserialize(transactionBytes.getTxWitnessBytes());
-            Map witnessSetMap = (Map) witnessSetDI;
-
-            DataItem vkWitnessArrayDI = witnessSetMap.get(new UnsignedInteger(0));
-            Array vkWitnessArray;
-            if (vkWitnessArrayDI != null) {
-                vkWitnessArray = (Array) vkWitnessArrayDI;
-            } else {
-                vkWitnessArray = new Array();
-                witnessSetMap.put(new UnsignedInteger(0), vkWitnessArray);
-            }
-
-            //Add witness
-            Array vkeyWitness = new Array();
-            vkeyWitness.add(new ByteString(vkey));
-            vkeyWitness.add(new ByteString(signature));
-
-            vkWitnessArray.add(vkeyWitness);
-
-            byte[] txWitnessBytes = CborSerializationUtil.serialize(witnessSetMap, false);
-
-            return transactionBytes.withNewWitnessSetBytes(txWitnessBytes)
-                    .getTxBytes();
-        } catch (CborException e) {
-            throw new CborRuntimeException(e);
-        }
+        return transactionBytes.withVkeyWitness(vkey, signature).getTxBytes();
     }
 
 }

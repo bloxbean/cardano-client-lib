@@ -1,6 +1,9 @@
 package com.bloxbean.cardano.client.transaction.util;
 
+import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.TransactionSigner;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,12 +15,14 @@ import static com.bloxbean.cardano.client.util.HexUtil.encodeHexString;
 /**
  * Transactions at the maximum size (16,384 bytes) carrying the deepest nesting each position allows (ADR 0001 section
  * 6.7): the real preprod trigger and synthetic witness scripts, datums, redeemers and metadata. {@link TransactionBytes}
- * and {@link TransactionUtil} must slice and hash each one on any thread and in any JVM mode.
+ * and {@link TransactionUtil} must slice and hash each one, and {@link TransactionSigner} must sign it, on any thread
+ * and in any JVM mode.
  * {@link #main(String[])} runs them all so that a forked JVM (for example with {@code -Xint}) can run them too.
  */
 final class TransactionBytesDepthFixtures {
     private static final int MAX_TX_SIZE = 16_384;
     private static final String BODY = "a3008001800200"; // {0: [], 1: [], 2: 0}
+    private static final SecretKey SECRET_KEY = secretKey("ede3104b2f4ff32daa3b620a9a272cd962cf504da44cf1cf0280aff43b65f807");
 
     private TransactionBytesDepthFixtures() {
     }
@@ -44,12 +49,25 @@ final class TransactionBytesDepthFixtures {
         check(TransactionUtil.getTxHash(tx).equals(expectedHash), name + ": tx hash");
         check(java.util.Arrays.equals(TransactionUtil.extractTransactionBodyFromTx(tx), transactionBytes.getTxBodyBytes()),
                 name + ": body");
+
+        byte[] signed = TransactionSigner.INSTANCE.sign(tx, SECRET_KEY);
+        TransactionBytesWitnessTest.assertOnlyVkeyWitnessAdded(tx, signed);
+        check(TransactionUtil.getTxHash(signed).equals(expectedHash), name + ": signed tx hash");
+        check(TransactionBytesWitnessTest.verifiesLastWitness(signed), name + ": signature");
     }
 
     public static void main(String[] args) {
         for (Map.Entry<String, byte[]> tx : all().entrySet()) {
             verify(tx.getKey(), tx.getValue());
             System.out.println("ok: " + tx.getKey());
+        }
+    }
+
+    private static SecretKey secretKey(String hex) {
+        try {
+            return SecretKey.create(decodeHexString(hex));
+        } catch (CborSerializationException e) {
+            throw new IllegalStateException(e);
         }
     }
 
