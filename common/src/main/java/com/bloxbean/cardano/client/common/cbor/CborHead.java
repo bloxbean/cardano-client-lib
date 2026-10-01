@@ -43,7 +43,8 @@ final class CborHead {
             indefinite = true;
             argument = INDEFINITE;
         } else if (info == 31) {
-            throw error(major == MAJOR_SIMPLE ? "unexpected BREAK" : "indefinite length is not allowed for major type " + major, start);
+            throw error(major == MAJOR_SIMPLE ? "unexpected BREAK"
+                    : "indefinite length is not allowed for major type " + major, start);
         } else {
             throw error("reserved CBOR additional information " + info, start);
         }
@@ -69,7 +70,8 @@ final class CborHead {
     static int checkedCount(CborHead head, int itemsPerEntry, int pos, int limit) {
         if (head.argument < 0 || head.argument > (limit - pos) / itemsPerEntry)
             throw error("declared CBOR " + (itemsPerEntry == 1 ? "array" : "map") + " size "
-                    + Long.toUnsignedString(head.argument) + " exceeds the remaining " + (limit - pos) + " bytes", head.start);
+                    + Long.toUnsignedString(head.argument) + " exceeds the remaining " + (limit - pos) + " bytes",
+                    head.start);
         return (int) head.argument * itemsPerEntry;
     }
 

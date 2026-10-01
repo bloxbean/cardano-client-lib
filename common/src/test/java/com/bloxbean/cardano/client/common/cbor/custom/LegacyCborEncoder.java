@@ -15,6 +15,7 @@ import java.util.TreeMap;
  * The recursive encoder that {@link CustomCborEncoder} was before it became iterative (with the CustomMapEncoder it
  * used), kept as a test oracle: the iterative encoder must produce the same bytes.
  */
+@SuppressWarnings("deprecation")
 public class LegacyCborEncoder extends CborEncoder {
     private final LegacyMapEncoder mapEncoder;
     private final CustomByteStringEncoder byteStringEncoder;

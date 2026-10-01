@@ -31,9 +31,9 @@ import java.util.List;
  * Decodes CBOR bytes into the same {@link DataItem} trees as cbor-java 0.9's {@code CborDecoder} with its default
  * settings, without recursion: containers are frames on an explicit stack, so any nesting depth decodes on any thread.
  * <p>
- * Trees match cbor-java's: an indefinite array is {@code chunked} and ends with {@link Special#BREAK}; an indefinite map
- * is {@code chunked}; chunked byte and text strings are joined and not marked chunked; the innermost tag is attached to
- * the item and outer tags are chained on it; tag 30 becomes a {@link RationalNumber} and tag 38 a
+  * Trees match cbor-java's: an indefinite array is {@code chunked} and ends with {@link Special#BREAK}; an indefinite
+  * map is {@code chunked}; chunked byte and text strings are joined and not marked chunked; the innermost tag is
+  * attached to the item and outer tags are chained on it; tag 30 becomes a {@link RationalNumber} and tag 38 a
  * {@link LanguageTaggedString}; untagged {@code false/true/null/undefined} are cbor-java's singletons; a repeated map
  * key keeps its first position and the last value. Maps are {@link EncodedKeyMap}s.
  * <p>
@@ -135,7 +135,8 @@ final class DataItemDecoder {
                     head.read(buffer, pos, limit);
                     if (top != null && (top.bytes != null || top.text != null)
                             && (head.major != top.major || head.indefinite))
-                        throw CborHead.error("indefinite-length string chunk must be a definite string of the same major type", pos);
+                        throw CborHead.error("indefinite-length string chunk must be a definite string of the same"
+                                + " major type", pos);
                     pos = head.end;
                     if (head.major == MAJOR_TAG) {
                         tags = Arrays.copyOf(tags, tags.length + 1);
@@ -269,8 +270,8 @@ final class DataItemDecoder {
     }
 
     /**
-     * Applies tags innermost first, as cbor-java does: tag 30 turns the item into a {@link RationalNumber}, tag 38 into a
-     * {@link LanguageTaggedString}, and any other tag is chained outside the item's existing tags.
+     * Applies tags innermost first, as cbor-java does: tag 30 turns the item into a {@link RationalNumber}, tag 38 into
+     * a {@link LanguageTaggedString}, and any other tag is chained outside the item's existing tags.
      */
     private static DataItem applyTags(long[] tags, DataItem item) {
         DataItem outermost = item;
@@ -304,7 +305,8 @@ final class DataItemDecoder {
     private static LanguageTaggedString languageTaggedString(DataItem item) {
         List<DataItem> items = item instanceof Array ? ((Array) item).getDataItems() : List.of();
         if (items.size() != 2 || !(items.get(0) instanceof UnicodeString) || !(items.get(1) instanceof UnicodeString))
-            throw new CborRuntimeException("CBOR tag 38 (language-tagged string) must wrap an array of two text strings");
+            throw new CborRuntimeException(
+                    "CBOR tag 38 (language-tagged string) must wrap an array of two text strings");
         return new LanguageTaggedString((UnicodeString) items.get(0), (UnicodeString) items.get(1));
     }
 
