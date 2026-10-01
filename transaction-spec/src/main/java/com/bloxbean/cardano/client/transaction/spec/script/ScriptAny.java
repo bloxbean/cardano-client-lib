@@ -2,8 +2,6 @@ package com.bloxbean.cardano.client.transaction.spec.script;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.SimpleValue;
-import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -32,29 +30,11 @@ public class ScriptAny implements NativeScript {
     //script_any = (2, [ * native_script ])
     @Override
     public DataItem serializeAsDataItem() throws CborSerializationException {
-        Array array = new Array();
-        array.add(new UnsignedInteger(2));
-
-        Array scriptsArray = new Array();
-        for (NativeScript script : scripts) {
-            scriptsArray.add(script.serializeAsDataItem());
-        }
-
-        array.add(scriptsArray);
-        return array;
+        return NativeScriptCodec.encode(this);
     }
 
     public static ScriptAny deserialize(Array array) throws CborDeserializationException {
-        ScriptAny scriptAny = new ScriptAny();
-        Array scriptsDIArray = (Array) (array.getDataItems().get(1));
-        for (DataItem scriptDI : scriptsDIArray.getDataItems()) {
-            if (scriptDI == SimpleValue.BREAK) continue;
-            Array scriptArray = (Array) scriptDI;
-            NativeScript nativeScript = NativeScript.deserialize(scriptArray);
-            if (nativeScript != null)
-                scriptAny.addScript(nativeScript);
-        }
-        return scriptAny;
+        return NativeScriptCodec.decode(array, ScriptAny.class);
     }
 
     public static ScriptAny deserialize(JsonNode jsonNode) throws CborDeserializationException {
@@ -66,5 +46,23 @@ public class ScriptAny implements NativeScript {
             scriptAny.addScript(nativeScript);
         }
         return scriptAny;
+    }
+
+    /**
+     * Value equality, computed without recursion so that scripts of any nesting depth can be compared.
+     */
+    @Override
+    public boolean equals(Object o) {
+        return NativeScriptCodec.equal(this, o);
+    }
+
+    @Override
+    public int hashCode() {
+        return NativeScriptCodec.hash(this);
+    }
+
+    @Override
+    public String toString() {
+        return NativeScriptCodec.toString(this);
     }
 }

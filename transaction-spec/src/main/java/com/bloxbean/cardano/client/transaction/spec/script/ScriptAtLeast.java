@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
 import co.nstant.in.cbor.model.*;
-import co.nstant.in.cbor.model.Number;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -45,40 +44,11 @@ public class ScriptAtLeast implements NativeScript {
     //Conway: script_n_of_k = (3, int64, [* native_script])
     @Override
     public DataItem serializeAsDataItem() throws CborSerializationException {
-        Array array = new Array();
-        array.add(new UnsignedInteger(3));
-
-        if (required == null)
-            required = BigInteger.ZERO;
-
-        if (required.signum() >= 0) {
-            array.add(new UnsignedInteger(required));
-        } else {
-            array.add(new NegativeInteger(required));
-        }
-
-        Array scriptsArray = new Array();
-        for (NativeScript script : scripts) {
-            scriptsArray.add(script.serializeAsDataItem());
-        }
-
-        array.add(scriptsArray);
-        return array;
+        return NativeScriptCodec.encode(this);
     }
 
     public static ScriptAtLeast deserialize(Array array) throws CborDeserializationException {
-        BigInteger required = ((Number) (array.getDataItems().get(1))).getValue();
-        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(required);
-        Array scriptsDIArray = (Array) (array.getDataItems().get(2));
-        for (DataItem scriptDI : scriptsDIArray.getDataItems()) {
-            if (scriptDI == SimpleValue.BREAK) continue;
-            Array scriptArray = (Array) scriptDI;
-            NativeScript nativeScript = NativeScript.deserialize(scriptArray);
-            if (nativeScript != null)
-                scriptAtLeast.addScript(nativeScript);
-        }
-
-        return scriptAtLeast;
+        return NativeScriptCodec.decode(array, ScriptAtLeast.class);
     }
 
     public static ScriptAtLeast deserialize(JsonNode jsonNode) throws CborDeserializationException {
@@ -91,5 +61,23 @@ public class ScriptAtLeast implements NativeScript {
             scriptAtLeast.addScript(nativeScript);
         }
         return scriptAtLeast;
+    }
+
+    /**
+     * Value equality, computed without recursion so that scripts of any nesting depth can be compared.
+     */
+    @Override
+    public boolean equals(Object o) {
+        return NativeScriptCodec.equal(this, o);
+    }
+
+    @Override
+    public int hashCode() {
+        return NativeScriptCodec.hash(this);
+    }
+
+    @Override
+    public String toString() {
+        return NativeScriptCodec.toString(this);
     }
 }

@@ -10,7 +10,18 @@ public final class RealCborFixturesAccess {
     public record Tx(String name, String txHash, byte[] cbor) {
     }
 
+    public static final String TRIGGER_NATIVE_SCRIPT_HASH = RealCborFixtures.TRIGGER_NATIVE_SCRIPT_HASH;
+    public static final int TRIGGER_NATIVE_SCRIPT_LEVELS = RealCborFixtures.TRIGGER_NATIVE_SCRIPT_LEVELS;
+
     private RealCborFixturesAccess() {
+    }
+
+    /**
+     * @return the preprod trigger transaction of ADR 0001, with its 5,383-level witness native script
+     */
+    public static Tx trigger() {
+        RealCborFixtures.Tx tx = RealCborFixtures.trigger();
+        return new Tx(tx.toString(), tx.txHash(), tx.cbor());
     }
 
     /**
