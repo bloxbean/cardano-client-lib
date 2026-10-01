@@ -146,7 +146,10 @@ In scope:
 
 Out of scope:
 
-- Byron blocks and txs. They are rejected with a clear error; Yaci keeps its Byron path.
+- Byron: regular and epoch-boundary blocks, and Byron txs. They are rejected with a clear error. Yano does not
+  validate Byron; it stores Byron block bytes and UTxOs as they are. CCL is almost entirely Shelley-family, and Yaci
+  parses Byron with its own `ByronBlock` parser. This ADR therefore covers Shelley and the eras after it; D8 keeps
+  room for a Byron view.
 - Dijkstra (era 8), still in development at `f649f975`. Its block is `[header, block_body]` with unsegregated
   `transactions`, Leios/Peras certificates and a different body hash, and it adds sub-transactions and Plutus V4
   (`dijkstra.cddl:3-102, 785-798`). `RawBlock` rejects era 8 and the 2-element body. Support is a follow-up once the
@@ -274,8 +277,9 @@ Script integrity terms (alonzo `Tx.hs:391-423`). "Empty" means zero entries, wha
   `IllegalArgumentException`, because there is no script integrity before Alonzo.
 
 These are the bytes Haskell hashes. The block body hash and the script integrity hash are reconstructed preimages:
-fixed framing around original slices (and, for integrity, the caller's language views). The existing model hash methods stay as they are. They remain correct for txs
-that CCL builds, and the Javadoc points to the raw views for received bytes.
+fixed framing around original slices (and, for integrity, the caller's language views). The existing model hash
+methods stay as they are. They remain correct for txs that CCL builds, and the Javadoc points to the raw views for
+received bytes.
 
 ### D4. Stack-safe codecs behind the existing model API
 
@@ -421,6 +425,23 @@ existing two, and `Era.fromValue(int)`. One enum is reused rather than adding a 
   shapes, so the earlier constants are for decoding and verification.
 - `RawBlock` takes its era from the envelope or from `of(bytes, era)`. `RawTx` never guesses an era.
 - Byron and Dijkstra get no constant (section 2).
+
+### D8. Adding an era or era family
+
+Existing APIs do not change when an era is added.
+
+- **New Shelley-family era (Dijkstra and later).** Add an `Era` constant. New or changed CDDL fields are reached by
+  key through `field()`, never by position. Era-dependent rules live in one per-era table in `transaction.raw`: record
+  keys, aux shapes, set tags, redeemer form, block body hash parts and the D6 duplicate rules. A new era is one row
+  there plus its scenario-matrix fixtures. A changed block or tx layout, such as Dijkstra's `[header, block_body]`,
+  gets its own branch, selected by the D2 envelope dispatch.
+- **Another era family (Byron).** `CborSpan` is era-agnostic. A future `RawByronBlock`, or a sealed era-family
+  type, sits on the same walker and the same envelope dispatch (era 0/1); `RawBlock`/`RawTx` stay Shelley-family.
+  Starting points, checked at `f649f975`: header hash `blake2b256(82 01 | 82 00 ‖ header)` (byron
+  `Block/Header.hs:482-490`), witnesses hashed with `9f … ff` framing (`UTxO/TxPayload.hs:82-92`), and a Merkle
+  split at the largest power of two below the count (`Common/Merkle.hs:150-175`).
+- **Model and signer APIs** (`Transaction`, `TransactionBytes`, `TransactionUtil`, `TransactionSigner`) stay
+  Shelley-family only, and Byron bytes are never routed into them.
 
 ## 4. API sketch
 
