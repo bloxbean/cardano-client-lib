@@ -428,13 +428,13 @@ existing two, and `Era.fromValue(int)`. One enum is reused rather than adding a 
 
 ### D8. Adding an era or era family
 
-Existing APIs do not change when an era is added.
+Existing public signatures are kept where possible.
 
-- **New Shelley-family era (Dijkstra and later).** Add an `Era` constant. New or changed CDDL fields are reached by
-  key through `field()`, never by position. Era-dependent rules live in one per-era table in `transaction.raw`: record
-  keys, aux shapes, set tags, redeemer form, block body hash parts and the D6 duplicate rules. A new era is one row
-  there plus its scenario-matrix fixtures. A changed block or tx layout, such as Dijkstra's `[header, block_body]`,
-  gets its own branch, selected by the D2 envelope dispatch.
+- **New Shelley-family era (Dijkstra and later).** Add an `Era` constant, its entry in the one per-era rules table in
+  `transaction.raw` (record keys, aux shapes, set tags, redeemer form, block body hash parts, the D6 duplicate rules)
+  and its scenario-matrix fixtures. Keyed records are read by numeric key through `field()`; arrays and tuples by the
+  era's schema positions. A new layout, script language or hash rule, such as Dijkstra's `[header, block_body]`, is
+  implemented explicitly and selected by the D2 envelope dispatch.
 - **Another era family (Byron).** `CborSpan` is era-agnostic. A future `RawByronBlock`, or a sealed era-family
   type, sits on the same walker and the same envelope dispatch (era 0/1); `RawBlock`/`RawTx` stay Shelley-family.
   Starting points, checked at `f649f975`: header hash `blake2b256(82 01 | 82 00 ‖ header)` (byron
