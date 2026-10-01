@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.transaction.spec.script;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.NegativeInteger;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.Special;
@@ -105,7 +106,7 @@ final class NativeScriptCodec {
     private static List<DataItem> items(DataItem item, String what) throws CborDeserializationException {
         if (!(item instanceof Array) || item.hasTag())
             throw new CborDeserializationException("NativeScript deserialization failed. Expected an untagged array for "
-                    + what + ", found " + item);
+                    + what + ", found " + describe(item));
         List<DataItem> items = ((Array) item).getDataItems();
         int size = items.size();
         if (size > 0 && items.get(size - 1) == Special.BREAK)
@@ -122,7 +123,7 @@ final class NativeScriptCodec {
             if (value.compareTo(BigInteger.valueOf(5)) <= 0)
                 return value.intValue();
         }
-        throw new CborDeserializationException("NativeScript deserialization failed. Unknown native script type " + type);
+        throw new CborDeserializationException("NativeScript deserialization failed. Unknown native script type " + describe(type));
     }
 
     private static void arity(List<DataItem> fields, int expected, int type) throws CborDeserializationException {
@@ -134,7 +135,7 @@ final class NativeScriptCodec {
     private static String keyHash(DataItem item) throws CborDeserializationException {
         if (!(item instanceof ByteString) || item.hasTag() || ((ByteString) item).getBytes().length != KEY_HASH_SIZE)
             throw new CborDeserializationException("NativeScript deserialization failed. Expected a " + KEY_HASH_SIZE
-                    + "-byte key hash, found " + item);
+                    + "-byte key hash, found " + describe(item));
         return HexUtil.encodeHexString(((ByteString) item).getBytes());
     }
 
@@ -144,13 +145,21 @@ final class NativeScriptCodec {
             if (value.compareTo(INT64_MIN) >= 0 && value.compareTo(INT64_MAX) <= 0)
                 return value;
         }
-        throw new CborDeserializationException("NativeScript deserialization failed. Expected a 64-bit signed integer for m, found " + item);
+        throw new CborDeserializationException("NativeScript deserialization failed. Expected a 64-bit signed integer for m, found " + describe(item));
     }
 
     private static BigInteger slot(DataItem item) throws CborDeserializationException {
         if (!(item instanceof UnsignedInteger) || item.hasTag())
-            throw new CborDeserializationException("NativeScript deserialization failed. Expected a slot, found " + item);
+            throw new CborDeserializationException("NativeScript deserialization failed. Expected a slot, found " + describe(item));
         return ((UnsignedInteger) item).getValue();
+    }
+
+    // An item for an error message: an array or map by its type only, as its text can be as deep as the script (and
+    // cbor-java prints it recursively).
+    private static String describe(DataItem item) {
+        if (item instanceof Array || item instanceof Map)
+            return (item.hasTag() ? "a tagged " : "an ") + (item instanceof Array ? "array" : "map");
+        return String.valueOf(item);
     }
 
     private static final class DecodeFrame {

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.management.ManagementFactory;
 import java.math.BigInteger;
 
 import static com.bloxbean.cardano.client.util.HexUtil.decodeHexString;
@@ -89,6 +90,25 @@ class NativeScriptCodecTest {
     })
     void malformedScriptsAreRejected(String hex) {
         assertThatThrownBy(() -> decode(hex)).as(hex).isInstanceOf(CborDeserializationException.class);
+    }
+
+    /**
+     * A deep array where a script has a scalar is rejected without printing the array: cbor-java's text of a deep item is
+     * recursive and quadratic in its depth.
+     */
+    @Test
+    void deepItemInTheWrongPlaceIsRejectedCheaply() {
+        String deep = "81".repeat(10_000) + "00";
+        for (String hex : new String[]{"8200" + deep, "82" + deep + "00", "830301" + "a1" + deep + "00", "8204" + deep}) {
+            long allocatedBefore = allocatedBytes();
+            assertThatThrownBy(() -> decode(hex)).isInstanceOf(CborDeserializationException.class)
+                    .satisfies(e -> assertThat(e.getMessage()).hasSizeLessThan(200));
+            assertThat(allocatedBytes() - allocatedBefore).isLessThan(16_000_000);
+        }
+    }
+
+    private static long allocatedBytes() {
+        return ((com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean()).getCurrentThreadAllocatedBytes();
     }
 
     @Test
