@@ -2,8 +2,8 @@
 
 **Status**: Proposed
 **Date**: 2026-10-01
-**Issue**: https://github.com/bloxbean/cardano-client-lib/issues/TBD
-**Modules**: `common`, `plutus`, `metadata`, `transaction-spec`
+**Issue**: https://github.com/bloxbean/cardano-client-lib/issues/681
+**Modules**: `common`, `common-spec`, `plutus`, `metadata`, `transaction-spec`
 
 This ADR lives in `transaction-spec/adr/` (numbering starts at 0001) because `transaction-spec` depends on every
 affected module and owns the entry points: `Transaction`, `TransactionBytes`, `TransactionUtil`, `TransactionSigner`
@@ -135,7 +135,8 @@ Haskell hashes original bytes in every case.
 In scope:
 
 - one iterative span walker in `common`;
-- raw views `RawTx` and `RawBlock` (Shelley through Conway) in `transaction-spec`;
+- raw views `RawTx` and `RawBlock` for the released Shelley-based eras, Shelley (2) through Conway (7), in
+  `transaction-spec`, plus the missing decoding eras in CCL's `Era` (D7);
 - every ledger hash computed from original slices, including the block body hash;
 - stack-safe `DataItem` decode and encode, and stack-safe Plutus Data, native script and metadata codecs that the
   existing model API delegates to;
@@ -146,6 +147,10 @@ In scope:
 Out of scope:
 
 - Byron blocks and txs. They are rejected with a clear error; Yaci keeps its Byron path.
+- Dijkstra (era 8), still in development at `f649f975`. Its block is `[header, block_body]` with unsegregated
+  `transactions`, Leios/Peras certificates and a different body hash, and it adds sub-transactions and Plutus V4
+  (`dijkstra.cddl:3-102, 785-798`). `RawBlock` rejects era 8 and the 2-element body. Support is a follow-up once the
+  era is frozen for a hard fork; nothing here claims forward-era compatibility (see D6 on unknown keys).
 - Ledger validation rules (bounded bytes ≤ 64, non-empty sets, set duplicates, unknown keys and so on). The walker
   checks CBOR well-formedness and the structural decisions in D6 only.
 - Recursive `toString()`. Jackson JSON (de)serializers for Data and metadata are also out of scope: Jackson 2.21 caps
@@ -206,23 +211,27 @@ Views are thin, immutable and lazy, and every accessor returns spans of the call
 CDDL position needs: a few ints, bools and tags. They never build the unbounded types unless asked to
 (`toPlutusData()`, `toScript()`).
 
-- **`RawBlock`** accepts `[era, block]` (HFC envelope; era 2–7), the bare block, or either one wrapped in tag 24. It
-  exposes:
-  - the header span;
+- **`RawBlock`** accepts `[era, block]` (HFC envelope; era 2–7), the bare block, or either one wrapped in tag 24. The
+  era decides the D6 rules, and bare CBOR cannot tell Alonzo from Babbage or Conway, so `of(bytes)` requires the
+  envelope and `of(bytes, era)` takes it explicitly (an envelope, if present, must agree). It exposes:
+  - `era()` and the header span;
   - the tx-bodies, witness-sets, aux-data-map and invalid-txs spans;
-  - `txCount()`, `tx(i)` (a `RawTx` built from the parallel arrays, with validity taken from `invalid_transactions`)
-    and `invalidTxIndexes()`;
+  - `txCount()`, `tx(i)` (a `RawTx` built from the parallel arrays) and `invalidTxIndexes()` (as encoded). Validity is
+    `i ∈ invalidTxIndexes()` (D6);
   - `txBytes(i)`, which assembles a full tx for callers that need it: Yaci's full tx CBOR, and submission;
   - `bodyHash()`, defined below.
 
-  It rejects Byron (era 0/1 or a Byron shape), mismatched tx counts and the cases in D6.
+  It rejects Byron (era 0/1 or a Byron shape), Dijkstra (era 8 or its 2-element body), mismatched tx counts and the
+  cases in D6.
 - **`RawBlock.bodyHash()`** is `blake2b256(h(bodies) ‖ h(witnesses) ‖ h(auxMap) [‖ h(invalidTxs)])`, where `h` is
   `blake2b256` of the original segment bytes. Shelley–Mary use three parts; Alonzo+ add the fourth (shelley
   `BlockBody/Internal.hs:211-229`; alonzo `BlockBody/Internal.hs:188-211`). Yano already builds blocks with this
   formula (`DevnetBlockBuilder`) and must verify it during sync.
-- **`RawTx`** accepts the submission form `[body, witnesses, aux / null]` (Shelley–Mary) or
-  `[body, witnesses, isValid, aux / null]` (Alonzo+). Validity is read by element count. This is equivalent to the
-  Haskell Alonzo+ decoder, which peeks at the type of element 2 (alonzo `Tx.hs:541-553`). It exposes:
+- **`RawTx`** accepts the submission form `[body, witnesses, aux / null]` (any era; `isValid` is true) or
+  `[body, witnesses, isValid, aux / null]` (Alonzo+; element 2 must be a bool). The Alonzo–Conway decoder accepts
+  both: it peeks at the type of element 2 and defaults to `IsValid True` (alonzo `Tx.hs:541-553`). `RawTx` is
+  era-agnostic; the era-dependent `scriptDataHash` takes an `Era`, which a block supplies via `RawBlock.era()`. It
+  exposes:
   - `body()`, `witnessSet()`, `auxData()` and `isValid()`;
   - `bodyField(key)` and `witnessField(key)`;
   - `outputs()` and `collateralReturn()` as `RawOutput`. Legacy array outputs `[addr, value, ?datum_hash]` and map
@@ -247,15 +256,22 @@ CDDL position needs: a few ints, bools and tags. They never build the unbounded 
 | Block body hash | see `RawBlock.bodyHash()` in D2 |
 | Script integrity | `blake2b256(redeemers ‖ datums ‖ languageViews)` (see below) |
 
-Script integrity terms:
+Script integrity terms (alonzo `Tx.hs:391-423`). "Empty" means zero entries, whatever the encoding (`80`, `9fff`,
+`a0`, `d9 0102 80`):
 
-- `redeemers` is the original bytes of witness field 5. When the field is absent, the era's empty encoding is used:
-  `80` before Conway, `a0` in Conway, the same rule as `ScriptDataHashGenerator.java:75-84`.
-- `datums` is the original bytes of witness field 4, including any tag 258, or empty when absent.
-- The caller supplies the language-views encoding: `CostMdls.getLanguageViewEncoding()` from protocol params, or
-  `a0` for the empty set.
-- The result is empty only when the redeemers, the datums **and** the language views are all empty (alonzo
-  `Tx.hs:413-417`).
+- `redeemers` is the original bytes of witness field 5, even when empty. When the field is absent, the era's empty
+  encoding is used: `80` before Conway, `a0` in Conway (alonzo `TxWits.hs:157-162`, the same rule as
+  `ScriptDataHashGenerator.java:75-84`).
+- `datums` is the original bytes of witness field 4, including any tag 258, when it has at least one entry. An absent
+  **or empty** field contributes zero bytes (`Tx.hs:393`).
+- `languageViews` is supplied by the caller for exactly the Plutus languages the tx runs: the languages of the needed
+  scripts, whether provided as witnesses or as reference scripts in the UTxO (`asatPlutusLanguagesUsed`, alonzo
+  `Alonzo.hs:156-157`, used at `Rules/Utxow.hs:370`). It is not every cost model in the protocol params. `RawTx`
+  cannot compute it, because reference scripts need the UTxO; callers build it with
+  `CostModelUtil.getLanguageViewsEncoding(CostModel...)` for those languages, or pass `a0` for none.
+- The result is empty only when the redeemers, the datums **and** the language views are all empty (`Tx.hs:413-417`).
+- The `Era` argument selects only the absent-redeemers encoding. It must be Alonzo or later; an earlier era raises
+  `IllegalArgumentException`, because there is no script integrity before Alonzo.
 
 These are the bytes Haskell hashes. The existing model hash methods stay as they are. They remain correct for txs
 that CCL builds, and the Javadoc points to the raw views for received bytes.
@@ -367,18 +383,21 @@ The views keep every entry in encoded order. Validation stays the ledger's job, 
   - babbage `TxOut.hs:614-615`;
   - alonzo `TxAuxData.hs:260`.
 - **Unknown record keys are passed through, deliberately.** Haskell rejects them (`invalidField`). The views do not,
-  so that they keep working across eras, for example with Haskell master's aux tag-259 key 5 (PlutusV4, alonzo
-  `TxAuxData.hs:299`).
+  so that an additive key (for example aux tag-259 key 5, PlutusV4, alonzo `TxAuxData.hs:299`) does not break span
+  access or hashing. This is not a claim of support for a later era (section 2).
 - **Aux-map index out of range: rejected.** This fails in every Haskell era (`auxDataSeqDecoder`, shelley
   `BlockBody/Internal.hs:231-239`).
-- **Duplicate aux-map keys: rejected.** Haskell keeps the last value from Shelley to Babbage (`IntMap.fromList`) and
-  rejects duplicates from Conway (`decodeIntMap`, `Decoder.hs:858-869`). Rejecting in earlier eras is stricter only
-  for blocks a Haskell producer cannot emit.
+- **Duplicate aux-map keys follow the era.** Shelley to Babbage accept them and the last value wins
+  (`IntMap.fromList`); Conway rejects them (`decodeIntMap`, `Decoder.hs:858-875`). The aux-map span and `bodyHash()`
+  keep every byte either way; `tx(i).auxData()` applies the era's lookup. Producer behaviour does not define
+  acceptance: any block the reference decoder accepts must be readable.
 - **`invalid_transactions` index out of range: rejected.** Haskell fails the same way (alonzo
   `BlockBody/Internal.hs:240-243`).
-- **Duplicate or non-ascending `invalid_transactions`: rejected.** Haskell does not check them, and
-  `alignedValidFlags` (`:283-290`) then silently misaligns validity. Rejecting is stricter only for shapes a Haskell
-  producer cannot emit.
+- **Duplicate or non-ascending `invalid_transactions`: rejected, as Haskell's decoder actually behaves.** There is no
+  explicit check, but `alignedValidFlags` (`:283-290`) calls `Seq.replicate (x - prev - 1)`, which is negative for
+  any duplicate or descending pair, and containers' `Data.Sequence.replicate` calls `error` for a negative count.
+  The flags are forced when the txs are built (`zipWith4`, `:250`), so no such block decodes. Strictly ascending
+  in-range indexes are the only accepted form; validity is then `i ∈ indexes`.
 - **Aux-data keys are era-dependent, in three layers.** The decoder version is the era's `ProtVerLow` (`Era.hs:132`,
   Conway = 9), not the live protocol version.
   1. The Alonzo tag-259 record rejects duplicate keys (above).
@@ -388,6 +407,19 @@ The views keep every entry in encoded order. Validation stays the ledger's job, 
 
   The views keep every entry; `field()` rejects duplicates only on records. The model's deduplication is lossy and
   documented (D4).
+
+### D7. Decoding eras in `Era` (`common-spec`)
+
+CCL's `Era` has only `Babbage(6)` and `Conway(7)`, so a caller cannot name Alonzo without calling it Babbage. The
+enum gains `Shelley(2)`, `Allegra(3)`, `Mary(4)` and `Alonzo(5)`, with `value` equal to the HFC era index, as for the
+existing two, and `Era.fromValue(int)`. One enum is reused rather than adding a second decoding-era type.
+
+- Every existing use compares `era.value >= Era.Conway.value` (`SerializationUtil.java:13`,
+  `TransactionWitnessSet.java:111`, `ScriptDataHashGenerator.java:38, 58, 75`), so the new constants serialize as
+  Babbage does today, which is also correct for Alonzo. The Javadoc says the builders do not produce pre-Alonzo
+  shapes, so the earlier constants are for decoding and verification.
+- `RawBlock` takes its era from the envelope or from `of(bytes, era)`. `RawTx` never guesses an era.
+- Byron and Dijkstra get no constant (section 2).
 
 ## 4. API sketch
 
@@ -421,15 +453,16 @@ public final class RawTx {
     public CborSpan span(); public CborSpan body(); public CborSpan witnessSet();
     public Optional<CborSpan> auxData(); public boolean isValid();
     public byte[] txId(); public Optional<byte[]> auxDataHash();
-    public Optional<byte[]> scriptDataHash(Era era, byte[] languageViews);
+    public Optional<byte[]> scriptDataHash(Era era, byte[] languageViews);  // era >= Alonzo; D3
     public Optional<CborSpan> bodyField(int key); public Optional<CborSpan> witnessField(int key);
     public List<RawOutput> outputs(); public Optional<RawOutput> collateralReturn();
     public List<RawDatum> witnessDatums(); public List<RawRedeemer> redeemers(); public List<RawScript> scripts();
     public List<CborSpan> vkeyWitnesses(); public List<CborSpan> bootstrapWitnesses();
 }
 public final class RawBlock {
-    public static RawBlock of(byte[] blockCbor);                 // [era, block] | block | #6.24(...)
-    public OptionalInt era(); public CborSpan header();
+    public static RawBlock of(byte[] blockCbor);                 // [era, block], optionally in #6.24
+    public static RawBlock of(byte[] blockCbor, Era era);        // also a bare block; envelope must agree
+    public Era era(); public CborSpan header();
     public int txCount(); public RawTx tx(int i); public byte[] txBytes(int i);
     public int[] invalidTxIndexes(); public byte[] bodyHash();
 }
@@ -438,6 +471,10 @@ public record RawOutput(CborSpan span, CborSpan address, CborSpan value, Optiona
 public record RawDatum(CborSpan span) { public byte[] hash(); public PlutusData toPlutusData(); }
 public record RawScript(int type, CborSpan span) { public byte[] hash(); public Script toScript(); }
 public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits) {}
+
+// common-spec: com.bloxbean.cardano.client.spec (existing enum, D7)
+public enum Era { Shelley(2), Allegra(3), Mary(4), Alonzo(5), Babbage(6), Conway(7);
+    public static Era fromValue(int hfcEraIndex); }
 
 // transaction-spec: com.bloxbean.cardano.client.transaction.spec.script
 public final class NativeScriptEvaluator {
@@ -456,6 +493,7 @@ benchmark shows a need.
 | Component | Module | Uses (existing dependencies only) |
 |---|---|---|
 | `CborSpan`, iterative `DataItem` codec, `Map` subclass | `common` | cbor-java (already `api`) |
+| `Era` constants (D7) | `common-spec` | none new |
 | Plutus Data codec, iterative `equals`/`hashCode` | `plutus` | `common`, `common-spec` |
 | Metadata routing | `metadata` | `common` |
 | Native script codec and evaluator, `RawTx`/`RawBlock`/records, hashes, `TransactionBytes`/`TransactionUtil`/`TransactionSigner` | `transaction-spec` | `common`, `crypto`, `common-spec`, `plutus`, `metadata` |
@@ -469,16 +507,22 @@ A **gap** marker means CCL fails on that scenario today.
 
 ### 6.1 Era shapes (block and submission)
 
+Every era row from Shelley to Conway has a real block and real txs, plus a synthetic non-canonical variant (indefinite
+containers, non-minimal heads, unsorted maps). Each asserts TxId, aux data hash, block body hash and, from Alonzo,
+the script integrity hash against the on-chain values.
+
 | Scenario | Handling | Fixture |
 |---|---|---|
 | Byron | Out of scope. `RawBlock` rejects era 0/1 and Byron shapes; `RawTx` rejects 2-element `[tx, witnesses]`. The error message says Byron is out of scope. | mainnet Byron block, Byron tx → expected error |
+| Dijkstra (8) | Out of scope (section 2). `RawBlock` rejects era 8 and the 2-element `[header, block_body]` shape. | synthetic from the pinned CDDL → expected error |
 | Shelley (2) | 3 elements: `[body, wits, metadata / null]`. Body keys 0–7; witness keys 0, 1, 2; aux is the metadata map. **Gap:** `Transaction.deserialize` throws (`Transaction.java:169-171`). | mainnet Shelley tx with metadata; synthetic `83 body a0 a1…` |
 | Allegra (3) | Body key 8 (validity start); timelock script types 4/5; aux may be `[metadata, [scripts]]`. **Gap:** array-form aux dropped (`Transaction.java:172`). | Allegra tx with aux scripts |
 | Mary (4) | Mint (key 9); value `[coin, multiasset]`. | Mary mint tx |
-| Alonzo (5) | 4 elements with `isValid`. Body keys 11, 13, 14, 15; witness keys 3, 4 and 5 (array form); aux `#6.259{…}`; legacy array outputs with a datum hash. | Alonzo Plutus V1 spend |
+| Alonzo (5) | 4 elements with `isValid`, or 3 elements with implicit `isValid = true` (also Babbage and Conway; alonzo `Tx.hs:541-553`). Body keys 11, 13, 14, 15; witness keys 3, 4 and 5 (array form); aux `#6.259{…}`; legacy array outputs with a datum hash. | Alonzo Plutus V1 spend; 3-element Alonzo, Babbage and Conway submissions |
 | Babbage (6) | Map outputs (datum option, script ref); body keys 16, 17, 18; witness key 6. | Babbage inline-datum and reference-script txs |
 | Conway (7) | Body keys 19–22; witness key 7; map-form redeemers; optional tag 258 on sets. | Conway vote, proposal, V3 txs |
 | Block vs submission | Same `RawTx` view. In a block, validity comes from `invalid_transactions`; `txBytes(i)` assembles `[body, wits, isValid, aux / null]`, or 3 elements before Alonzo. | per-era block; `txBytes(i)` hash equals the block-derived TxId |
+| Era context | `RawBlock.of(bytes)` without an envelope is an error; `of(bytes, era)` with a mismatching envelope is an error | bare and enveloped blocks |
 
 ### 6.2 Outputs, datums, script refs
 
@@ -504,7 +548,7 @@ non-empty (conway `TxBody.hs:199-258`).
 | `d9 0102` | `untagIf(258)` | Conway tx |
 | `da 00000102`, `db 0000000000000102` | numeric argument equals 258, so accepted (the julc #221 review finding) | synthetic, at every set position: inputs, collateral, reference inputs, required signers, certs, proposals, witness arrays |
 | A tag other than 258 at a set position | error | synthetic |
-| Tagged datums in the script integrity preimage | witness field 4 bytes taken as encoded, including the tag | Conway Plutus tx; `scriptDataHash` equals body key 11 |
+| Tagged datums in the script integrity preimage | non-empty witness field 4 bytes taken as encoded, including the tag; `d9 0102 80` is empty and contributes nothing (D3) | Conway Plutus tx; `scriptDataHash` equals body key 11 |
 
 ### 6.4 Non-canonical CBOR
 
@@ -524,11 +568,14 @@ non-empty (conway `TxBody.hs:199-258`).
 | Shelley aux: metadata map | aux span; hash = span hash; duplicate labels per D6 layer 2 | Shelley metadata tx |
 | Allegra/Mary aux: `[metadata, scripts]` | aux span; scripts via `RawScript` | Mary tx with aux scripts |
 | Alonzo+ aux: `#6.259{0..4}` | aux span; unknown keys (e.g. key 5, PlutusV4 on Haskell master) passed through | Babbage/Conway aux with scripts; synthetic key 5 |
+| Legacy aux shapes in later eras | the Shelley map and the Allegra `[metadata, scripts]` shapes stay valid from Alonzo on (alonzo `TxAuxData.hs:304-312`); hash = span hash | Alonzo, Babbage and Conway txs with each legacy shape |
 | `null` aux | `auxData()` empty | any tx without aux |
 | Redeemers, array form `[[tag, idx, data, ex]*]` | `RawRedeemer` list. Conway still accepts this form; Haskell rejects it only from protocol version 12 (alonzo `TxWits.hs:551-560`). | Alonzo/Babbage tx; Conway tx in array form |
 | Redeemers, Conway map form `{[tag, idx] => [data, ex]}` | `RawRedeemer` list in encoded order, duplicates kept. Haskell requires the map to be non-empty and keeps the last value for a duplicate key; consumers that evaluate apply last-wins. | Conway tx; synthetic duplicate key |
 | Witness datums (Conway) | every entry kept. Haskell requires the set to be non-empty and allows duplicates until protocol version 12 (alonzo `TxWits.hs:336-347`). | Conway tx with a duplicated datum |
-| `isValid = false` and `invalid_transactions` | `RawTx.isValid()`; `RawBlock` maps the indexes; out-of-range, duplicate and non-ascending indexes are rejected (D6) | preprod block with an invalid tx |
+| `isValid = false` and `invalid_transactions` | `RawTx.isValid()`; `RawBlock` maps the indexes; out-of-range, duplicate and non-ascending indexes are rejected, as in Haskell (D6) | preprod block with an invalid tx; synthetic `[1, 1]` and `[2, 0]` → error |
+| Script integrity: datums | non-empty redeemers with datums absent, `80`, `9fff` and `d9 0102 80`: all four give the same hash, with zero datum bytes (D3) | synthetic Alonzo, Babbage, Conway |
+| Script integrity: language views | the caller passes views for the languages used only (D3) | single-language tx under protocol params with V1–V3 cost models; language supplied only by a reference script; an unneeded reference script of another language |
 | Collateral return (body key 16) | `collateralReturn()`; output index = `outputs().size()` | invalid tx with collateral return |
 
 ### 6.6 Big integers and constr encodings
@@ -541,8 +588,8 @@ non-empty (conway `TxBody.hs:199-258`).
 
 ### 6.7 Deep nesting at maximum tx size
 
-All cases decode, hash, re-encode and evaluate with the default stack, on platform and virtual threads, and with
-`-Xint`.
+All cases decode, hash, re-encode and evaluate with the default stack and with `-Xint`, on a platform thread under
+Java 17 and on a virtual thread under JDK 21 (section 10).
 
 | Location | Depth in 16,384 bytes | Fixture |
 |---|---:|---|
@@ -571,9 +618,9 @@ All cases decode, hash, re-encode and evaluate with the default stack, on platfo
 
 | Scenario | Handling | Fixture |
 |---|---|---|
-| Envelope `[era, block]`, bare block, tag-24 wrapper | all accepted; `era()` set when an envelope is present | the same block in all three forms |
+| Envelope `[era, block]`, bare block, tag-24 wrapper | all accepted; a block without an envelope needs `of(bytes, era)` (D2) | the same block in all three forms |
 | Tx count alignment (bodies vs witness sets) | mismatch is an error | synthetic |
-| Aux map keys | uint `< txCount`; out-of-range or duplicate keys are rejected (D6) | synthetic |
+| Aux map keys | uint `< txCount`, else an error. Duplicates: the last value wins Shelley–Babbage, an error in Conway (D6) | synthetic duplicate-index Babbage block (last value used, `bodyHash()` unchanged) and Conway block (error) |
 | Invalid-tx indexes | Alonzo+ only; absent before Alonzo; rules per D6 | Shelley and Conway blocks |
 | Header vs body spans | `header()` and the four body spans are disjoint and cover the block | assert concatenation equals the original |
 | Block body hash | `bodyHash()` equals the header's body hash, with 3 parts before Alonzo and 4 from Alonzo | one block per era |
@@ -587,7 +634,7 @@ All cases decode, hash, re-encode and evaluate with the default stack, on platfo
 2. `plutus`: the iterative Data codec and iterative `equals`/`hashCode`; the `PlutusData` entry points delegate to it.
 3. `transaction-spec`, in this order:
    - the native script codec and `NativeScriptEvaluator`;
-   - `RawTx`, `RawBlock` and the hashes;
+   - the `Era` constants (D7), then `RawTx`, `RawBlock` and the hashes;
    - `TransactionBytes` and `TransactionUtil`;
    - `Transaction.deserialize`, including the Shelley/Allegra shapes;
    - the remaining `CborDecoder.decode` call sites routed through `CborSerializationUtil`.
@@ -620,7 +667,8 @@ Each phase bumps its dependency only after the previous release is on Central.
 
 ## 8. Compatibility and release notes
 
-**Public signatures:** no changes. All additions are new types or methods.
+**Public signatures:** no changes. All additions are new types, methods or `Era` constants. An exhaustive `switch`
+over `Era` without `default` in consumer code must add the new cases.
 
 **Behaviour changes** (all of them fixes):
 
@@ -681,8 +729,10 @@ hashed through `RawTx`, `RawDatum` and `RawScript`; the release notes and Javado
   An optional integration test runs the same checks over a block range from a local node.
 - **Malformed input and fuzzing.** Every section 6.8 row, every rejection in D6, a truncation sweep over all fixtures,
   and a seeded fuzz loop with time and heap assertions.
-- **Threads and modes.** The depth fixtures run on a platform thread and on a virtual thread with the default stack,
-  and in a forked JVM with `-Xint`. No test sets `-Xss`.
+- **Threads and modes.** The normal build targets Java 17, so the depth fixtures run there on a platform thread with
+  the default stack, and in a forked JVM with `-Xint`. A separate JDK 21 CI job, shaped like `txflow-java21`
+  (`build.yml:46-63`), runs the same fixtures on a virtual thread; that test is `@EnabledForJreRange(min = JAVA_21)`
+  and creates the thread reflectively, so it compiles on 17. No test sets `-Xss`.
 
 ## 11. Alternatives considered
 
