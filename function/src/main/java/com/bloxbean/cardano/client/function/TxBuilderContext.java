@@ -57,6 +57,10 @@ public class TxBuilderContext {
 
     @Getter(AccessLevel.NONE)
     @Setter(AccessLevel.NONE)
+    private Boolean mergeChange;
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     private Era serializationEra;
 
     public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
@@ -164,6 +168,24 @@ public class TxBuilderContext {
     public TxBuilderContext mergeOutputs(boolean mergeOutputs) {
         this.mergeOutputs = mergeOutputs;
         return this;
+    }
+
+    /**
+     * If false, the change is always a separate change output, even if {@code mergeOutputs} is true (payment
+     * outputs are still merged). Default: same as {@code mergeOutputs}.
+     * Wallet shapers need a separate change output to shape it.
+     * @param mergeChange whether the change may be merged into an existing output at the change address
+     */
+    public TxBuilderContext mergeChange(boolean mergeChange) {
+        this.mergeChange = mergeChange;
+        return this;
+    }
+
+    /**
+     * @return whether the change may be merged into an existing output at the change address
+     */
+    public boolean isMergeChange() {
+        return mergeChange != null ? mergeChange : mergeOutputs;
     }
 
     /**

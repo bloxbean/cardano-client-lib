@@ -17,6 +17,7 @@ import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.*;
+import com.bloxbean.cardano.client.function.walletshape.WalletShaper;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.quicktx.intent.MintingIntent;
 import com.bloxbean.cardano.client.quicktx.intent.NativeScriptAttachmentIntent;
@@ -289,6 +290,8 @@ public class QuickTxBuilder {
 
         private TxBuilder preBalanceTrasformer;
         private TxBuilder postBalanceTrasformer;
+        private boolean walletShaperUsed;
+        private boolean outputMergerUsed;
 
         private int additionalSignerCount = 0;
         private int signersCount = 0;
@@ -484,14 +487,26 @@ public class QuickTxBuilder {
         }
 
         /**
-         * Set a TxBuilder function to transform the transaction before balance calculation.
-         * This is useful when additional transformation logic is required before balance calculation.
+         * Add a TxBuilder function to transform the transaction before balance calculation.
+         * This is useful when additional transformation logic is required before balance calculation,
+         * e.g. a {@link WalletShaper} such as
+         * {@link com.bloxbean.cardano.client.function.walletshape.DefaultWalletShaper} to shape the change.
+         * Can be called multiple times; functions are applied in the order they were added.
+         * <p>
+         * With a {@link WalletShaper}, the change is kept as its own change output, also with
+         * {@link #mergeOutputs(boolean) mergeOutputs(true)}, which then merges payment outputs only.
          *
          * @param txBuilder TxBuilder function
          * @return TxContext
          */
         public TxContext preBalanceTx(TxBuilder txBuilder) {
-            this.preBalanceTrasformer = txBuilder;
+            if (txBuilder instanceof WalletShaper)
+                walletShaperUsed = true;
+            if (txBuilder instanceof OutputMerger)
+                outputMergerUsed = true;
+            this.preBalanceTrasformer = this.preBalanceTrasformer == null
+                    ? txBuilder
+                    : this.preBalanceTrasformer.andThen(txBuilder);
             return this;
         }
 
@@ -504,6 +519,8 @@ public class QuickTxBuilder {
          * @return TxContext
          */
         public TxContext postBalanceTx(TxBuilder txBuilder) {
+            if (txBuilder instanceof OutputMerger)
+                outputMergerUsed = true;
             this.postBalanceTrasformer = txBuilder;
             return this;
         }
@@ -694,6 +711,14 @@ public class QuickTxBuilder {
 
             //Set merge outputs flag
             txBuilderContext.mergeOutputs(mergeOutputs);
+
+            //A wallet shaper needs the change as its own output
+            if (walletShaperUsed) {
+                txBuilderContext.mergeChange(false);
+                if (outputMergerUsed)
+                    log.warn("Outputs are merged (OutputMergers) in a transaction with a WalletShaper. " +
+                            "Merging outputs after wallet shaping will probably undo it.");
+            }
 
             //Enable/Disable search by address vkh
             txBuilderContext.withSearchUtxoByAddressVkh(searchUtxoByAddressVkh);
@@ -1354,6 +1379,9 @@ public class QuickTxBuilder {
         /**
          * Define if outputs with the same address should be merged into one output.
          * Default is false
+         * <p>
+         * With a {@link WalletShaper} in {@link #preBalanceTx(TxBuilder)}, only payment outputs are merged; the change
+         * stays a separate output so that it can be shaped.
          *
          * @param merge
          * @return TxContext
