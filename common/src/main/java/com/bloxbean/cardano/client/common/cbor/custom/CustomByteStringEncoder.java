@@ -12,7 +12,10 @@ import java.util.List;
 
 /**
  * A custom ByteStringEncoder impl to handle serialization of {@link ChunkedByteString} in PlutusData.
+ *
+ * @deprecated {@link CustomCborEncoder} no longer uses it: it writes byte strings, chunked ones included, itself.
  */
+@Deprecated
 public class CustomByteStringEncoder extends ByteStringEncoder {
     public CustomByteStringEncoder(CborEncoder encoder, OutputStream outputStream) {
         super(encoder, outputStream);
