@@ -18,7 +18,6 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@EqualsAndHashCode
 @JsonSerialize(using = ConstrDataJsonSerializer.class)
 @JsonDeserialize(using = ConstrDataJsonDeserializer.class)
 public class ConstrPlutusData implements PlutusData {
@@ -40,67 +39,24 @@ public class ConstrPlutusData implements PlutusData {
     }
 
     public static ConstrPlutusData deserialize(DataItem di) throws CborDeserializationException {
-        Tag tag = di.getTag();
-        Long alternative = null;
-        ListPlutusData data = null;
-
-        if (GENERAL_FORM_TAG == tag.getValue()) { //general form
-            Array constrArray = (Array) di;
-            List<DataItem> dataItems = constrArray.getDataItems();
-
-            if (dataItems.size() != 2)
-                throw new CborDeserializationException("Cbor deserialization failed. Expected 2 DataItem, found : " + dataItems.size());
-
-            alternative = ((UnsignedInteger) dataItems.get(0)).getValue().longValue();
-            data = ListPlutusData.deserialize((Array) dataItems.get(1));
-
-        } else { //concise form
-            alternative = compactCborTagToAlternative(tag.getValue());
-            data = ListPlutusData.deserialize((Array) di);
-        }
-
-        return ConstrPlutusData.builder()
-                .alternative(alternative)
-                .data(data)
-                .build();
-    }
-
-    private static Long alternativeToCompactCborTag(long alt) {
-        if (alt <= 6) {
-            return 121 + alt;
-        } else if (alt >= 7 && alt <= 127) {
-            return 1280 - 7 + alt;
-        } else
-            return null;
-    }
-
-    private static Long compactCborTagToAlternative(long cborTag) {
-        if (cborTag >= 121 && cborTag <= 127) {
-            return cborTag - 121;
-        } else if (cborTag >= 1280 && cborTag <= 1400) {
-            return cborTag - 1280 + 7;
-        } else
-            return null;
+        return PlutusDataCodec.decodeConstr(di);
     }
 
     @Override
     public DataItem serialize() throws CborSerializationException {
-        Long cborTag = alternativeToCompactCborTag(alternative);
-        DataItem dataItem = null;
+        return PlutusDataCodec.encode(this);
+    }
 
-        if (cborTag != null) {
-            // compact form
-            dataItem = data.serialize();
-            dataItem.setTag(cborTag);
-        } else {
-            //general form
-            Array constrArray = new Array();
-            constrArray.add(new UnsignedInteger(alternative));
-            constrArray.add(data.serialize());
-            dataItem = constrArray;
-            dataItem.setTag(GENERAL_FORM_TAG);
-        }
+    /**
+     * Value equality, computed without recursion so that data of any nesting depth can be compared.
+     */
+    @Override
+    public boolean equals(Object o) {
+        return PlutusDataCodec.equal(this, o);
+    }
 
-        return dataItem;
+    @Override
+    public int hashCode() {
+        return PlutusDataCodec.hash(this);
     }
 }

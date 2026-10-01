@@ -16,7 +16,6 @@ import java.util.LinkedHashMap;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@EqualsAndHashCode
 @JsonSerialize(using = MapDataJsonSerializer.class)
 @JsonDeserialize(using = MapDataJsonDeserializer.class)
 public class MapPlutusData implements PlutusData {
@@ -28,16 +27,7 @@ public class MapPlutusData implements PlutusData {
         if (mapDI == null) {
             return null;
         }
-
-        MapPlutusData mapPlutusData = new MapPlutusData();
-        for (DataItem keyDI : mapDI.getKeys()) {
-            PlutusData key = PlutusData.deserialize(keyDI);
-            PlutusData value = PlutusData.deserialize(mapDI.get(keyDI));
-
-            mapPlutusData.put(key, value);
-        }
-
-        return mapPlutusData;
+        return (MapPlutusData) PlutusDataCodec.decode(mapDI);
     }
 
     public MapPlutusData put(PlutusData key, PlutusData value) {
@@ -51,23 +41,19 @@ public class MapPlutusData implements PlutusData {
 
     @Override
     public DataItem serialize() throws CborSerializationException {
-        if (map == null)
-            return null;
+        return PlutusDataCodec.encode(this);
+    }
 
-        Map plutusDataMap = new Map();
-        for (java.util.Map.Entry<PlutusData, PlutusData> entry : map.entrySet()) {
-            DataItem key = entry.getKey().serialize();
-            DataItem value = entry.getValue().serialize();
+    /**
+     * Value equality, computed without recursion so that data of any nesting depth can be compared.
+     */
+    @Override
+    public boolean equals(Object o) {
+        return PlutusDataCodec.equal(this, o);
+    }
 
-            if (key == null)
-                throw new CborSerializationException("Cbor serialization failed for PlutusData.  NULL serialized value found for key");
-
-            if (value == null)
-                throw new CborSerializationException("Cbor serialization failed for PlutusData.  NULL serialized value found for value");
-
-            plutusDataMap.put(key, value);
-        }
-
-        return plutusDataMap;
+    @Override
+    public int hashCode() {
+        return PlutusDataCodec.hash(this);
     }
 }

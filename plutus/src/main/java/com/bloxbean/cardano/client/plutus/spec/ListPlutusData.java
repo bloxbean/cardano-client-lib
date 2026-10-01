@@ -19,7 +19,6 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@EqualsAndHashCode
 @JsonSerialize(using = ListDataJsonSerializer.class)
 @JsonDeserialize(using = ListDataJsonDeserializer.class)
 public class ListPlutusData implements PlutusData {
@@ -40,25 +39,7 @@ public class ListPlutusData implements PlutusData {
     public static ListPlutusData deserialize(Array arrayDI) throws CborDeserializationException {
         if (arrayDI == null)
             return null;
-
-        boolean isChunked = false;
-        ListPlutusData listPlutusData = new ListPlutusData();
-        for (DataItem di : arrayDI.getDataItems()) {
-            if (di == Special.BREAK) {
-                isChunked = true;
-                break;
-            }
-
-            PlutusData plutusData = PlutusData.deserialize(di);
-            if (plutusData == null)
-                throw new CborDeserializationException("Null value found during PlutusData de-serialization");
-
-            listPlutusData.add(plutusData);
-        }
-
-        listPlutusData.isChunked = isChunked;
-
-        return listPlutusData;
+        return PlutusDataCodec.decodeList(arrayDI);
     }
 
     public void add(PlutusData plutusData) {
@@ -70,29 +51,19 @@ public class ListPlutusData implements PlutusData {
 
     @Override
     public DataItem serialize() throws CborSerializationException {
-        if (plutusDataList == null)
-            return null;
+        return PlutusDataCodec.encode(this);
+    }
 
-        Array plutusDataArray = new Array();
+    /**
+     * Value equality, computed without recursion so that data of any nesting depth can be compared.
+     */
+    @Override
+    public boolean equals(Object o) {
+        return PlutusDataCodec.equal(this, o);
+    }
 
-        if (plutusDataList.size() == 0)
-            return plutusDataArray;
-
-        if (isChunked)
-            plutusDataArray.setChunked(true);
-
-        for (PlutusData plutusData : plutusDataList) {
-            DataItem di = plutusData.serialize();
-            if (di == null) {
-                throw new CborSerializationException("Cbor Serialization failed for plutus data. NULL serialized value found in the list");
-            }
-
-            plutusDataArray.add(di);
-        }
-
-        if (isChunked)
-            plutusDataArray.add(Special.BREAK);
-
-        return plutusDataArray;
+    @Override
+    public int hashCode() {
+        return PlutusDataCodec.hash(this);
     }
 }

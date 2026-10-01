@@ -3,6 +3,10 @@ dependencies {
     api project(':common-spec')
 }
 
+// The real transactions and blocks committed with the transaction-spec tests are also the corpus of the Plutus data
+// codec differential tests here.
+sourceSets.test.resources.srcDir "$rootDir/transaction-spec/src/test/resources/cbor"
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
