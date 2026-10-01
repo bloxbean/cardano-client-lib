@@ -4,6 +4,8 @@ import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import com.bloxbean.cardano.client.transaction.spec.LegacyTransactionDeserializer;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -37,6 +39,7 @@ class TransactionBytesBenchmark {
         String trigger = RealCborFixtures.trigger().txHash();
         // The old path overflows the stack on the trigger, so the corpus for the comparison leaves it out
         List<byte[]> txs = RealCborFixtures.txs().stream().map(RealCborFixtures.Tx::cbor).collect(Collectors.toList());
+        RealCborFixtures.blockTxs().stream().filter(tx -> !tx.txHash().equals(trigger)).forEach(tx -> txs.add(tx.cbor()));
         List<byte[]> blocks = RealCborFixtures.blocks().stream().filter(b -> !b.txHashes().contains(trigger))
                 .map(RealCborFixtures.Block::cbor).collect(Collectors.toList());
 
@@ -58,6 +61,9 @@ class TransactionBytesBenchmark {
         compare(report, "`TransactionSigner.addWitnessToTransaction` (witness step)", txs.size() + " txs", txs,
                 tx -> LegacyTransactionSigner.addWitnessToTransaction(sliced.get(tx), vkey, signature),
                 tx -> sliced.get(tx).withVkeyWitness(vkey, signature).getTxBytes());
+        List<byte[]> modelTxs = txs.stream().filter(TransactionBytesBenchmark::decodesOnBothPaths).collect(Collectors.toList());
+        compare(report, "`Transaction.deserialize` (cbor-java vs iterative decoder)", modelTxs.size() + " txs", modelTxs,
+                TransactionBytesBenchmark::legacyDeserialize, TransactionBytesBenchmark::deserialize);
         compare(report, "walk a whole tx (cbor-java `decode` vs `CborSpan.of`)", txs.size() + " txs", txs,
                 TransactionBytesBenchmark::cborJavaDecode, CborSpan::of);
         compare(report, "walk a whole block (cbor-java `decode` vs `CborSpan.of`)", blocks.size() + " blocks", blocks,
@@ -110,6 +116,32 @@ class TransactionBytesBenchmark {
         long[] sorted = nanos.clone();
         Arrays.sort(sorted);
         return sorted[(int) Math.min(sorted.length - 1, Math.floor(percentile * sorted.length))] / 1_000.0;
+    }
+
+    private static boolean decodesOnBothPaths(byte[] tx) {
+        try {
+            LegacyTransactionDeserializer.deserialize(tx);
+            Transaction.deserialize(tx);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static void legacyDeserialize(byte[] tx) {
+        try {
+            LegacyTransactionDeserializer.deserialize(tx);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static void deserialize(byte[] tx) {
+        try {
+            Transaction.deserialize(tx);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static void cborJavaDecode(byte[] bytes) {

@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.transaction.util;
 
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -8,8 +10,10 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.GZIPInputStream;
 
 import static com.bloxbean.cardano.client.util.HexUtil.decodeHexString;
+import static com.bloxbean.cardano.client.util.HexUtil.encodeHexString;
 
 /**
  * Real transactions and blocks committed under {@code src/test/resources/cbor}: mainnet Shelley to Conway, preprod and
@@ -56,15 +60,57 @@ final class RealCborFixtures {
         return txs;
     }
 
+    /**
+     * @return the committed blocks: one per era, the trigger block, and the larger corpus when present
+     */
     static List<Block> blocks() {
         List<Block> blocks = new ArrayList<>();
-        for (JsonNode node : read("cbor/real-blocks.json").get("blocks")) {
+        addBlocks(blocks, read("cbor/real-blocks.json"));
+        JsonNode corpus = readOptional("cbor/corpus-blocks.json.gz");
+        if (corpus != null)
+            addBlocks(blocks, corpus);
+        return blocks;
+    }
+
+    /**
+     * Every transaction of every block, reassembled from the block's slices as it was submitted:
+     * {@code [body, witnesses, isValid, aux / null]} from Alonzo, {@code [body, witnesses, aux / null]} before.
+     */
+    static List<Tx> blockTxs() {
+        List<Tx> txs = new ArrayList<>();
+        for (Block block : blocks()) {
+            CborSpan envelope = CborSpan.of(block.cbor());
+            int era = (int) envelope.get(0).asLong();
+            List<CborSpan> parts = envelope.get(1).items();
+            List<CborSpan> bodies = parts.get(1).items();
+            List<CborSpan> witnesses = parts.get(2).items();
+            java.util.Map<Long, CborSpan> aux = new java.util.HashMap<>();
+            parts.get(3).entries().forEach(e -> aux.put(e.getKey().asLong(), e.getValue()));
+            java.util.Set<Long> invalid = new java.util.HashSet<>();
+            if (era >= 5)
+                parts.get(4).items().forEach(index -> invalid.add(index.asLong()));
+            for (int i = 0; i < bodies.size(); i++) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                out.write(era >= 5 ? 0x84 : 0x83);
+                out.writeBytes(bodies.get(i).bytes());
+                out.writeBytes(witnesses.get(i).bytes());
+                if (era >= 5)
+                    out.write(invalid.contains((long) i) ? 0xf4 : 0xf5);
+                out.writeBytes(aux.containsKey((long) i) ? aux.get((long) i).bytes() : new byte[]{(byte) 0xf6});
+                String txHash = encodeHexString(Blake2bUtil.blake2bHash256(bodies.get(i).bytes()));
+                txs.add(new Tx(block.network(), block.era(), block.blockHeight(), txHash, out.toByteArray()));
+            }
+        }
+        return txs;
+    }
+
+    private static void addBlocks(List<Block> blocks, JsonNode file) {
+        for (JsonNode node : file.get("blocks")) {
             List<String> txHashes = new ArrayList<>();
             node.get("txHashes").forEach(hash -> txHashes.add(hash.asText()));
             blocks.add(new Block(node.get("network").asText(), node.get("era").asText(), node.get("blockHeight").asLong(),
                     node.get("blockHash").asText(), txHashes, decodeHexString(node.get("cbor").asText())));
         }
-        return blocks;
     }
 
     private static Tx tx(JsonNode node) {
@@ -73,10 +119,17 @@ final class RealCborFixtures {
     }
 
     private static JsonNode read(String resource) {
+        JsonNode node = readOptional(resource);
+        if (node == null)
+            throw new IllegalStateException("missing test resource " + resource);
+        return node;
+    }
+
+    private static JsonNode readOptional(String resource) {
         try (InputStream in = RealCborFixtures.class.getClassLoader().getResourceAsStream(resource)) {
             if (in == null)
-                throw new IllegalStateException("missing test resource " + resource);
-            return new ObjectMapper().readTree(in);
+                return null;
+            return new ObjectMapper().readTree(resource.endsWith(".gz") ? new GZIPInputStream(in) : in);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

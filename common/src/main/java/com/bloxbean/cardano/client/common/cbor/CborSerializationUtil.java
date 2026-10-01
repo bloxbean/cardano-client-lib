@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.common.cbor;
 
 import co.nstant.in.cbor.CborBuilder;
-import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
@@ -11,7 +10,10 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
 
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.List;
 
 public class CborSerializationUtil {
 
@@ -156,7 +158,7 @@ public class CborSerializationUtil {
      * @throws CborException
      */
     public static byte[] serialize(DataItem[] values, boolean canonical) throws CborException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        EncodedBytes out = new EncodedBytes();
         CborBuilder cborBuilder = new CborBuilder();
 
         for (DataItem value : values) {
@@ -164,27 +166,70 @@ public class CborSerializationUtil {
         }
 
         if (canonical) {
-            new CustomCborEncoder(baos).encode(cborBuilder.build());
+            new CustomCborEncoder(out).encode(cborBuilder.build());
         } else {
-            new CustomCborEncoder(baos).nonCanonical().encode(cborBuilder.build());
+            new CustomCborEncoder(out).nonCanonical().encode(cborBuilder.build());
         }
 
-        byte[] encodedBytes = baos.toByteArray();
+        return out.toByteArray();
+    }
 
-        return encodedBytes;
+    // CustomCborEncoder writes each item with one write call; keeping that array saves a copy for the usual single item.
+    private static final class EncodedBytes extends OutputStream {
+        private byte[] single;
+        private ByteArrayOutputStream several;
 
+        @Override
+        public void write(int b) {
+            write(new byte[]{(byte) b}, 0, 1);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) {
+            if (single == null && several == null) {
+                single = Arrays.copyOfRange(b, off, off + len);
+                return;
+            }
+            if (several == null) {
+                several = new ByteArrayOutputStream(single.length + len);
+                several.write(single, 0, single.length);
+            }
+            several.write(b, off, len);
+        }
+
+        byte[] toByteArray() {
+            if (several != null)
+                return several.toByteArray();
+            return single != null ? single : new byte[0];
+        }
     }
 
     /**
-     * Deserialize bytes to DataItem
-     * @param bytes
+     * Deserialize bytes to DataItem. Every item in the bytes is decoded and must be well-formed; the first is returned.
+     * <p>
+     * Decoding is iterative, so items of any nesting depth decode on any thread, and produces the same trees as
+     * cbor-java's {@code CborDecoder}, except that maps are {@link com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap}s.
+     * Input that is not well-formed CBOR (RFC 8949) is rejected.
+     *
+     * @param bytes CBOR bytes
      * @return DataItem
+     * @throws CborRuntimeException if the bytes are empty or not well-formed CBOR
      */
     public static DataItem deserialize(@NonNull byte[] bytes) {
-        try {
-            return CborDecoder.decode(bytes).get(0);
-        } catch (CborException e) {
-            throw new CborRuntimeException("Cbor de-serialization error", e);
-        }
+        List<DataItem> items = deserializeAll(bytes);
+        if (items.isEmpty())
+            throw new CborRuntimeException("Cbor de-serialization error: no data item");
+        return items.get(0);
+    }
+
+    /**
+     * Deserialize every CBOR data item in the bytes, as {@link #deserialize(byte[])} does.
+     *
+     * @param bytes CBOR bytes
+     * @return the data items, in order; empty for empty input
+     * @throws CborRuntimeException if the bytes are not well-formed CBOR
+     */
+    public static List<DataItem> deserializeAll(@NonNull byte[] bytes) {
+        return DataItemDecoder.decodeAll(bytes);
     }
 }
