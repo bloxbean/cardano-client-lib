@@ -1,9 +1,11 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -38,6 +40,21 @@ class PlutusDataCodecTest {
         assertThat(ConstrPlutusData.of(127).serializeToHex()).isEqualTo("d9057880");
         assertThat(ConstrPlutusData.of(128).serializeToHex()).isEqualTo("d86682188080");
         assertThat(ConstrPlutusData.of(1, BigIntPlutusData.of(5)).serializeToHex()).isEqualTo("d87a9f05ff");
+    }
+
+    @Test
+    void generalFormMayBeIndefinite() throws Exception {
+        // plutus-core's decodeConstrExtended reads [alternative, [fields]] with decodeListLenOrIndef
+        ConstrPlutusData constr = (ConstrPlutusData) decode("d8669f" + "182a" + "9f01ff" + "ff");
+        assertThat(constr.getAlternative()).isEqualTo(42);
+        assertThat(constr.getData().getPlutusDataList()).containsExactly(BigIntPlutusData.of(1));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"d866822080", "d866820100", "d86683008000", "d8668100"})
+    void malformedGeneralFormIsRejected(String hex) {
+        // a negative alternative, fields that are not a list, the wrong number of items
+        assertThatThrownBy(() -> decode(hex)).isInstanceOf(CborDeserializationException.class);
     }
 
     @Test
@@ -90,6 +107,27 @@ class PlutusDataCodecTest {
         String hex = map.serializeToHex();
         assertThat(hex).startsWith("a2");
         assertThat(decode(hex)).isEqualTo(map);
+    }
+
+    @Test
+    void mapsWithByteStringKeysOver64BytesKeepEveryEntry() throws Exception {
+        // a valid on-chain map whose two keys are chunked 65-byte strings: serializing it kept one entry, as every
+        // chunked byte string was equal to every other
+        String keyA = "5f" + "5840" + "aa".repeat(64) + "41aa" + "ff";
+        String keyB = "5f" + "5840" + "bb".repeat(64) + "41bb" + "ff";
+        MapPlutusData decoded = (MapPlutusData) decode("a2" + keyA + "01" + keyB + "02");
+        assertThat(decoded.getMap()).hasSize(2);
+        String hex = decoded.serializeToHex();
+        assertThat(hex).isEqualTo("a2" + keyA + "01" + keyB + "02");
+        assertThat(decode(hex)).isEqualTo(decoded);
+        assertThat(decoded.getDatumHash()).isEqualTo(encodeHexString(Blake2bUtil.blake2bHash256(decodeHexString(hex))));
+
+        MapPlutusData built = new MapPlutusData();
+        built.put(BytesPlutusData.of(new byte[100]), BigIntPlutusData.of(1));
+        byte[] other = new byte[100];
+        other[99] = 1;
+        built.put(BytesPlutusData.of(other), BigIntPlutusData.of(2));
+        assertThat(((MapPlutusData) decode(built.serializeToHex())).getMap()).hasSize(2);
     }
 
     @Test
