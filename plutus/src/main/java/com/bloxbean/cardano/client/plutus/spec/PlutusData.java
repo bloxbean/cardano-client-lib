@@ -63,6 +63,10 @@ public interface PlutusData {
 
     /**
      * Returns the datum hash as hex string
+     * <p>
+     * This hashes the re-encoded model, which is right for data built with CCL. For data received in a transaction, the
+     * model may re-encode to other bytes (map entries, chunking, non-canonical heads); take the hash from the original
+     * bytes with {@code RawDatum.hash()} (transaction-spec, {@code RawTx}).
      * @return datum hash as hex string
      * @throws CborRuntimeException
      */
@@ -73,6 +77,10 @@ public interface PlutusData {
 
     /**
      * Returns the datum hash as byte array
+     * <p>
+     * This hashes the re-encoded model, which is right for data built with CCL. For data received in a transaction, the
+     * model may re-encode to other bytes (map entries, chunking, non-canonical heads); take the hash from the original
+     * bytes with {@code RawDatum.hash()} (transaction-spec, {@code RawTx}).
      * @return datum hash as byte array
      * @throws CborRuntimeException
      */

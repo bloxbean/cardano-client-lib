@@ -28,7 +28,9 @@ public class TransactionUtil {
     }
 
     /**
-     * Get transaction hash from Transaction
+     * Get transaction hash from Transaction. This hashes the serialized model, which is right for a transaction built
+     * with CCL. For a transaction received as bytes, use {@link #getTxHash(byte[])} or
+     * {@link com.bloxbean.cardano.client.transaction.raw.RawTx#txId()}, which hash the body as it was encoded.
      * @param transaction
      * @return transaction hash
      */

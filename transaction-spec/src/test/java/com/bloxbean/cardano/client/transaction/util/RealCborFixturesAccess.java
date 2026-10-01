@@ -7,7 +7,10 @@ import java.util.List;
  * {@link RealCborFixtures} for tests in other packages.
  */
 public final class RealCborFixturesAccess {
-    public record Tx(String name, String txHash, byte[] cbor) {
+    public record Tx(String name, String network, String era, String txHash, byte[] cbor) {
+    }
+
+    public record Block(String name, String network, String era, String blockHash, List<String> txHashes, byte[] cbor) {
     }
 
     public static final String TRIGGER_NATIVE_SCRIPT_HASH = RealCborFixtures.TRIGGER_NATIVE_SCRIPT_HASH;
@@ -20,8 +23,7 @@ public final class RealCborFixturesAccess {
      * @return the preprod trigger transaction of ADR 0001, with its 5,383-level witness native script
      */
     public static Tx trigger() {
-        RealCborFixtures.Tx tx = RealCborFixtures.trigger();
-        return new Tx(tx.toString(), tx.txHash(), tx.cbor());
+        return tx(RealCborFixtures.trigger(), "");
     }
 
     /**
@@ -29,8 +31,22 @@ public final class RealCborFixturesAccess {
      */
     public static List<Tx> allTxsAndBlockTxs() {
         List<Tx> txs = new ArrayList<>();
-        RealCborFixtures.allTxs().forEach(tx -> txs.add(new Tx(tx.toString(), tx.txHash(), tx.cbor())));
-        RealCborFixtures.blockTxs().forEach(tx -> txs.add(new Tx("block " + tx, tx.txHash(), tx.cbor())));
+        RealCborFixtures.allTxs().forEach(tx -> txs.add(tx(tx, "")));
+        RealCborFixtures.blockTxs().forEach(tx -> txs.add(tx(tx, "block ")));
         return txs;
+    }
+
+    /**
+     * @return the committed blocks, each in its {@code [era, block]} envelope
+     */
+    public static List<Block> blocks() {
+        List<Block> blocks = new ArrayList<>();
+        RealCborFixtures.blocks().forEach(block -> blocks.add(new Block(block.toString(), block.network(), block.era(),
+                block.blockHash(), block.txHashes(), block.cbor())));
+        return blocks;
+    }
+
+    private static Tx tx(RealCborFixtures.Tx tx, String prefix) {
+        return new Tx(prefix + tx, tx.network(), tx.era(), tx.txHash(), tx.cbor());
     }
 }
