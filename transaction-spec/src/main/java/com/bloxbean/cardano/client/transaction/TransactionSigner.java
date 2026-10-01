@@ -121,7 +121,8 @@ public enum TransactionSigner {
      * the provided verification key and signature.
      * <p>
      * The witness is spliced into the original bytes: it is appended to the vkey witnesses (witness set field 0) and
-     * every other byte of the transaction, including the other witness fields, is kept as received.
+     * every other byte of the transaction, including the other witness fields, is kept as received. If the transaction
+     * already has a vkey witness for {@code vkey}, it is returned unchanged.
      * See {@link TransactionBytes#withVkeyWitness(byte[], byte[])}.
      *
      * @param transactionBytes The transaction bytes containing the current transaction and witness data.
