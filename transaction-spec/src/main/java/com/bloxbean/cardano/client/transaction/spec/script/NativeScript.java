@@ -26,7 +26,8 @@ public interface NativeScript extends Script {
      * @param nativeScriptArray the script, {@code [type, fields]}
      * @return the script
      * @throws CborDeserializationException if the script is not well-formed: an unknown type, the wrong number of fields
-     *                                      or a field of the wrong type, as the ledger rejects it
+     *                                      or a field of the wrong type, as the ledger rejects it (a key hash in a
+     *                                      chunked byte string is accepted, while the ledger rejects it)
      */
     static NativeScript deserialize(Array nativeScriptArray) throws CborDeserializationException {
         return NativeScriptCodec.decode(nativeScriptArray);
