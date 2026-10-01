@@ -85,8 +85,8 @@ public class CustomCborEncoder extends CborEncoder {
     /**
      * A hash of {@link #encodeKey(DataItem)} computed without building it: the head bytes of every item (tags, type and
      * length) and the full encoding of leaves, combined in order for arrays and regardless of order for maps (the key
-     * encoding sorts map entries). Two keys with the same key encoding have the same hash, and computing it never copies
-     * a nested map's entries, so hashing a key is linear in its size whatever its nesting.
+     * encoding sorts map entries). Two keys with the same key encoding have the same hash, and computing it never
+     * copies a nested map's entries, so hashing a key is linear in its size whatever its nesting.
      */
     static int keyHash(DataItem key) throws CborException {
         return new Writer(true, true).hash(key);
@@ -363,7 +363,8 @@ public class CustomCborEncoder extends CborEncoder {
                     // an EncodedKeyMap already holds its keys' hashes, so nesting through map keys is not hashed again
                     Iterator<java.util.Map.Entry<EncodedKeyMap.Key, DataItem>> keyed =
                             current instanceof EncodedKeyMap ? ((EncodedKeyMap) current).keyedEntries() : null;
-                    opened = new HashFrame(top, frame, current.getMajorType() == MajorType.MAP, hashBytes(scratch), keyed);
+                    opened = new HashFrame(top, frame, current.getMajorType() == MajorType.MAP, hashBytes(scratch),
+                            keyed);
                 }
                 if (opened != null) {
                     top = opened;
