@@ -43,7 +43,7 @@ class DataItemCodecDepthTest {
             process.destroyForcibly();
         assertThat(finished).as("forked -Xint JVM finished in time").isTrue();
         assertThat(process.exitValue()).as(output).isZero();
-        assertThat(output).contains("ok: definite list (200,000 levels)");
+        assertThat(output).contains("ok: definite list (200,000 levels)").contains("ok: tx preprod trigger");
     }
 
     // Created reflectively so the class compiles on Java 17; the JDK 21 CI job runs it. (The JUnit 5.9 API on the
@@ -65,6 +65,7 @@ class DataItemCodecDepthTest {
     private static void runFixtures(AtomicReference<Throwable> failure) {
         try {
             DataItemCodecDepthFixtures.all().forEach(DataItemCodecDepthFixtures::verify);
+            DataItemCodecDepthFixtures.real().forEach(DataItemCodecDepthFixtures::verifyReal);
         } catch (Throwable t) {
             failure.set(t);
         }

@@ -163,7 +163,8 @@ public final class CborSpan {
             if (frameKind == FRAME_BYTE_CHUNKS || frameKind == FRAME_TEXT_CHUNKS) {
                 int chunkMajor = frameKind == FRAME_BYTE_CHUNKS ? MAJOR_BYTES : MAJOR_TEXT;
                 if (head.major != chunkMajor || head.indefinite)
-                    throw CborHead.error("indefinite-length string chunk must be a definite string of the same major type", pos);
+                    throw CborHead.error("indefinite-length string chunk must be a definite string of the same major"
+                            + " type", pos);
             }
             pos = head.end;
 
@@ -373,7 +374,8 @@ public final class CborSpan {
             if (head.major != MAJOR_UNSIGNED)
                 continue;
             if (!seen.add(head.argument))
-                throw CborHead.error("duplicate key " + Long.toUnsignedString(head.argument) + " in CBOR record", keySpan.offset);
+                throw CborHead.error("duplicate key " + Long.toUnsignedString(head.argument) + " in CBOR record",
+                        keySpan.offset);
             if (head.argument == key)
                 value = children.get(i + 1);
         }
@@ -520,7 +522,8 @@ public final class CborSpan {
     private byte[] stringPayload(int major) {
         CborHead head = untaggedHead();
         if (head.major != major)
-            throw CborHead.error(major == MAJOR_BYTES ? "expected a CBOR byte string" : "expected a CBOR text string", offset);
+            throw CborHead.error(major == MAJOR_BYTES ? "expected a CBOR byte string" : "expected a CBOR text string",
+                    offset);
         if (!head.indefinite)
             return Arrays.copyOfRange(buffer, head.end, head.end + (int) head.argument);
         ByteArrayOutputStream out = new ByteArrayOutputStream();

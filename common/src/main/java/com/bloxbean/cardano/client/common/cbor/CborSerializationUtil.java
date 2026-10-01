@@ -174,7 +174,8 @@ public class CborSerializationUtil {
         return out.toByteArray();
     }
 
-    // CustomCborEncoder writes each item with one write call; keeping that array saves a copy for the usual single item.
+    // CustomCborEncoder writes each item with one write call; keeping that array saves a copy for the usual single
+    // item.
     private static final class EncodedBytes extends OutputStream {
         private byte[] single;
         private ByteArrayOutputStream several;
@@ -208,7 +209,8 @@ public class CborSerializationUtil {
      * Deserialize bytes to DataItem. Every item in the bytes is decoded and must be well-formed; the first is returned.
      * <p>
      * Decoding is iterative, so items of any nesting depth decode on any thread, and produces the same trees as
-     * cbor-java's {@code CborDecoder}, except that maps are {@link com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap}s.
+     * cbor-java's {@code CborDecoder}, except that maps are
+     * {@link com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap}s.
      * Input that is not well-formed CBOR (RFC 8949) is rejected.
      *
      * @param bytes CBOR bytes
