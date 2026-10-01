@@ -62,13 +62,15 @@ class CborCodecBenchmark {
         report.append("\nJVM: ").append(System.getProperty("java.vm.name")).append(' ').append(System.getProperty("java.version"))
                 .append(", ").append(System.getProperty("os.name")).append(' ').append(System.getProperty("os.arch"))
                 .append(". ").append(ROUNDS).append(" measured rounds after ").append(WARMUP_NANOS / 1_000_000_000L)
-                .append(" s warm-up per path; one sample per item per round.\n");
+                .append(" s warm-up per path; one sample per item per round, each the mean of enough repetitions to last about 2 µs.\n");
         Path out = Path.of("build", "cbor-codec-benchmark.md");
         Files.createDirectories(out.getParent());
         Files.write(out, report.toString().getBytes(StandardCharsets.UTF_8));
         System.out.println(report);
     }
 
+    // Each sample times enough repetitions of one item to last about 2 µs (the clock ticks in tens of nanoseconds), the
+    // same count for the old and the new path, and records the time per operation.
     private static void compare(StringBuilder report, String path, String corpus, List<byte[]> items,
                                 Consumer<byte[]> oldPath, Consumer<byte[]> newPath) {
         long warmupEnd = System.nanoTime() + WARMUP_NANOS;
@@ -76,34 +78,46 @@ class CborCodecBenchmark {
             items.forEach(oldPath);
             items.forEach(newPath);
         }
-        long[] oldTimes = new long[ROUNDS * items.size()];
-        long[] newTimes = new long[ROUNDS * items.size()];
+        int[] repetitions = new int[items.size()];
+        for (int i = 0; i < items.size(); i++) {
+            long start = System.nanoTime();
+            for (int r = 0; r < 100; r++)
+                oldPath.accept(items.get(i));
+            long perOperation = Math.max(1, (System.nanoTime() - start) / 100);
+            repetitions[i] = (int) Math.min(1_000, Math.max(1, 2_000 / perOperation));
+        }
+        long operationsPerRound = Arrays.stream(repetitions).asLongStream().sum();
+        double[] oldTimes = new double[ROUNDS * items.size()];
+        double[] newTimes = new double[ROUNDS * items.size()];
         long oldAllocated = 0;
         long newAllocated = 0;
         for (int round = 0; round < ROUNDS; round++) {
-            oldAllocated += measure(items, oldPath, oldTimes, round * items.size());
-            newAllocated += measure(items, newPath, newTimes, round * items.size());
+            oldAllocated += measure(items, repetitions, oldPath, oldTimes, round * items.size());
+            newAllocated += measure(items, repetitions, newPath, newTimes, round * items.size());
         }
-        long operations = (long) ROUNDS * items.size();
+        long operations = ROUNDS * operationsPerRound;
         double oldMedian = percentile(oldTimes, 0.50);
         double newMedian = percentile(newTimes, 0.50);
-        report.append(String.format("| %s | %s | %.2f | %.2f | %.2f | %.2f | %,d | %,d | %.2f |%n", path, corpus,
+        report.append(String.format("| %s | %s | %.3f | %.3f | %.2f | %.2f | %,d | %,d | %.2f |%n", path, corpus,
                 oldMedian, newMedian, percentile(oldTimes, 0.99), percentile(newTimes, 0.99),
                 oldAllocated / operations, newAllocated / operations, newMedian / oldMedian));
     }
 
-    private static long measure(List<byte[]> items, Consumer<byte[]> path, long[] times, int from) {
+    private static long measure(List<byte[]> items, int[] repetitions, Consumer<byte[]> path, double[] times, int from) {
         long allocatedBefore = allocatedBytes();
         for (int i = 0; i < items.size(); i++) {
+            byte[] item = items.get(i);
+            int count = repetitions[i];
             long start = System.nanoTime();
-            path.accept(items.get(i));
-            times[from + i] = System.nanoTime() - start;
+            for (int r = 0; r < count; r++)
+                path.accept(item);
+            times[from + i] = (System.nanoTime() - start) / (double) count;
         }
         return allocatedBytes() - allocatedBefore;
     }
 
-    private static double percentile(long[] nanos, double percentile) {
-        long[] sorted = nanos.clone();
+    private static double percentile(double[] nanos, double percentile) {
+        double[] sorted = nanos.clone();
         Arrays.sort(sorted);
         return sorted[(int) Math.min(sorted.length - 1, Math.floor(percentile * sorted.length))] / 1_000.0;
     }

@@ -216,10 +216,7 @@ public class CborSerializationUtil {
      * @throws CborRuntimeException if the bytes are empty or not well-formed CBOR
      */
     public static DataItem deserialize(@NonNull byte[] bytes) {
-        List<DataItem> items = deserializeAll(bytes);
-        if (items.isEmpty())
-            throw new CborRuntimeException("Cbor de-serialization error: no data item");
-        return items.get(0);
+        return DataItemDecoder.decodeFirst(bytes);
     }
 
     /**

@@ -67,6 +67,19 @@ final class DataItemDecoder {
     }
 
     /**
+     * @return the first data item in the buffer; the items after it are decoded too, so they must be well-formed
+     */
+    static DataItem decodeFirst(byte[] buffer) {
+        DataItemDecoder decoder = new DataItemDecoder(buffer, 0, buffer.length);
+        if (buffer.length == 0)
+            throw new CborRuntimeException("Cbor de-serialization error: no data item");
+        DataItem first = decoder.decodeItem();
+        while (decoder.pos < decoder.limit)
+            decoder.decodeItem();
+        return first;
+    }
+
+    /**
      * @return every data item in the buffer, in order
      */
     static List<DataItem> decodeAll(byte[] buffer) {
