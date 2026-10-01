@@ -507,7 +507,7 @@ final class PlutusDataCodec {
      * by entries regardless of order, constructors by alternative and fields. Both sides are reduced to their
      * {@link #equalityKey(PlutusData) equality keys}, so comparing never recurses, not even through map keys.
      */
-    static boolean equal(PlutusData data, Object other) {
+    static boolean valueEquals(PlutusData data, Object other) {
         if (data == other)
             return true;
         if (other == null || other.getClass() != data.getClass())
@@ -516,7 +516,7 @@ final class PlutusDataCodec {
     }
 
     /**
-     * A hash consistent with {@link #equal(PlutusData, Object)}, computed in one walk with an explicit stack: lists in
+     * A hash consistent with {@link #valueEquals(PlutusData, Object)}, computed in one walk with an explicit stack: lists in
      * order with their chunked flag, maps regardless of order, constructors by alternative and fields. Nothing is
      * encoded, so hashing a map key is linear in its size.
      */

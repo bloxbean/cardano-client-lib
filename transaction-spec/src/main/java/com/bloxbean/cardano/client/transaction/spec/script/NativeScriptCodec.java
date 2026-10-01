@@ -265,7 +265,7 @@ final class NativeScriptCodec {
      * The equality the generated equals had: the same class, the same {@code required} for atLeast and equal sub-scripts
      * in order.
      */
-    static boolean equal(NativeScript script, Object other) {
+    static boolean valueEquals(NativeScript script, Object other) {
         Deque<Object> pairs = new ArrayDeque<>();
         Object left = script;
         Object right = other;

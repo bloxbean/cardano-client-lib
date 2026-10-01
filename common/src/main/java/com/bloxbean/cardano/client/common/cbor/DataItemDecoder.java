@@ -321,6 +321,6 @@ final class DataItemDecoder {
             return (float) ((s != 0 ? -1 : 1) * Math.pow(2, -14) * (f / Math.pow(2, 10)));
         else if (e == 0x1F)
             return f != 0 ? Float.NaN : (s != 0 ? -1 : 1) * Float.POSITIVE_INFINITY;
-        return (float) ((s != 0 ? -1 : 1) * Math.pow(2, e - 15) * (1 + f / Math.pow(2, 10)));
+        return (float) ((s != 0 ? -1 : 1) * Math.pow(2, e - 15.0) * (1 + f / Math.pow(2, 10)));
     }
 }
