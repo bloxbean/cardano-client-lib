@@ -68,7 +68,7 @@ public class ScriptAtLeast implements NativeScript {
      */
     @Override
     public boolean equals(Object o) {
-        return NativeScriptCodec.equal(this, o);
+        return NativeScriptCodec.valueEquals(this, o);
     }
 
     @Override

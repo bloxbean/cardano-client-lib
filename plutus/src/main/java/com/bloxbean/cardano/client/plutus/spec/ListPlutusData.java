@@ -59,7 +59,7 @@ public class ListPlutusData implements PlutusData {
      */
     @Override
     public boolean equals(Object o) {
-        return PlutusDataCodec.equal(this, o);
+        return PlutusDataCodec.valueEquals(this, o);
     }
 
     @Override
