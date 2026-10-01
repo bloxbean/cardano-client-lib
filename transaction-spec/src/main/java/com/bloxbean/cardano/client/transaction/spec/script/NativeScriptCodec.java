@@ -28,6 +28,10 @@ import java.util.Objects;
  * a key hash is 28 bytes; {@code m} of {@code atLeast} is a signed 64-bit integer ({@code TimelockMOf !Int}); a slot is
  * an unsigned 64-bit integer. Types 4 and 5 (time locks) exist from Allegra on; Shelley's multisig scripts have types 0-3
  * only.
+ * <p>
+ * One difference remains: a key hash in an indefinite-length (chunked) byte string is accepted, because the decoded
+ * tree joins chunks, while the ledger's {@code decodeBytes} rejects it. A validator of received bytes that must match
+ * the ledger exactly checks the key hashes in the original bytes.
  */
 final class NativeScriptCodec {
     private static final int KEY_HASH_SIZE = 28;

@@ -17,7 +17,8 @@ import static com.bloxbean.cardano.client.util.HexUtil.encodeHexString;
 /**
  * Every position of unbounded nesting at the maximum transaction size (ADR 0001 section 6.7), read through the raw
  * views: the real preprod trigger transaction and its block, and synthetic witness, reference and aux data native
- * scripts, witness list and constructor datums, an inline datum, redeemer data in both forms and metadata. Each is hashed
+ * scripts, witness list and constructor datums, an inline datum, redeemer data in both forms, and metadata lists, maps
+ * and a deep map key. Each is hashed
  * from its original bytes, decoded, and hashed again from the model (equal, as the fixtures are canonical); native
  * scripts are evaluated. {@link #main(String[])} runs them all, for a forked JVM.
  */
@@ -66,9 +67,15 @@ final class RawViewDepthFixtures {
         tx = tx(BODY, "a105a1820000" + "82" + redeemerData + "820000", "f6");
         datum("redeemer data, map form (16,240 levels)", new RawDatum(tx.redeemers().get(0).data()), redeemerData);
 
-        String metadata = "a100" + "81".repeat(16_250) + "00";
-        tx = tx(BODY, "a0", metadata);
-        check(Arrays.equals(tx.auxDataHash().orElseThrow(), hash256(metadata)), "metadata (16,250 levels): aux data hash");
+        String[][] metadata = {
+                {"metadata lists (16,250 levels)", "a100" + "81".repeat(16_250) + "00"},
+                {"metadata maps (8,000 levels)", "a100" + "a100".repeat(8_000) + "00"},
+                {"metadata map key (16,000 levels)", "a100" + "a1" + "81".repeat(16_000) + "00" + "00"},
+        };
+        for (String[] fixture : metadata) {
+            tx = tx(BODY, "a0", fixture[1]);
+            check(Arrays.equals(tx.auxDataHash().orElseThrow(), hash256(fixture[1])), fixture[0] + ": aux data hash");
+        }
     }
 
     // The real trigger: its TxId, its script's hash as on chain, evaluation as the ledger decided, and its block's body hash.

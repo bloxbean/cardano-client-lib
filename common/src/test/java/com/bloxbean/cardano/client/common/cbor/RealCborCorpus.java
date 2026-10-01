@@ -48,6 +48,18 @@ final class RealCborCorpus {
      * it is no oracle there; the depth tests cover such input.
      */
     static boolean tooDeepForRecursiveCode(byte[] cbor) {
+        return anyItem(cbor, (span, depth) -> depth > 1_000);
+    }
+
+    /**
+     * @return whether the item holds an indefinite-length (chunked) byte or text string
+     */
+    static boolean hasChunkedStrings(byte[] cbor) {
+        return anyItem(cbor, (span, depth) -> (span.majorType() == 2 || span.majorType() == 3) && span.isIndefinite());
+    }
+
+    // Visits every item, iteratively, with its nesting depth, until the test holds.
+    private static boolean anyItem(byte[] cbor, java.util.function.BiPredicate<CborSpan, Integer> test) {
         Deque<CborSpan> spans = new ArrayDeque<>();
         Deque<Integer> depths = new ArrayDeque<>();
         spans.push(CborSpan.of(cbor));
@@ -55,10 +67,10 @@ final class RealCborCorpus {
         while (!spans.isEmpty()) {
             CborSpan span = spans.pop();
             int depth = depths.pop();
-            if (depth > 1_000)
-                return true;
             while (span.tag() != -1)
                 span = span.untag();
+            if (test.test(span, depth))
+                return true;
             List<CborSpan> children = new ArrayList<>();
             if (span.majorType() == 4) {
                 children.addAll(span.items());

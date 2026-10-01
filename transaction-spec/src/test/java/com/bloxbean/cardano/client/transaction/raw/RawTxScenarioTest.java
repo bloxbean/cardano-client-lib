@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.MapPlutusData;
 import com.bloxbean.cardano.client.spec.Era;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -120,6 +121,30 @@ class RawTxScenarioTest {
         assertThat(raw.vkeyWitnesses()).hasSize(1);
         assertThat(raw.vkeyWitnesses().get(0).bytes()).isEqualTo(decodeHexString(VKEY_WITNESS));
         assertThat(raw.witnessDatums()).hasSize(2); // a repeated datum is kept
+    }
+
+    /**
+     * Every set position of the body (inputs, certificates, collateral, required signers, reference inputs, proposals)
+     * and of the witness set, with its tag 258 at each width or without it (ADR 0001 section 6.3).
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"", "d90102", "da00000102", "db0000000000000102"})
+    void setTagAtEverySetPosition(String tag) {
+        String item = "8100";
+        String body = "a8" + "00" + tag + "81" + item + "0180" + "0200" + "04" + tag + "81" + item + "0d" + tag + "81" + item
+                + "0e" + tag + "81" + "581c" + "66".repeat(28) + "12" + tag + "81" + item + "14" + tag + "81" + item;
+        String witnesses = "a7" + "00" + tag + "81" + VKEY_WITNESS + "01" + tag + "81" + NATIVE + "02" + tag + "81" + "84" + "40404040"
+                + "03" + tag + "81" + PLUTUS + "04" + tag + "81" + DATUM + "06" + tag + "81" + PLUTUS + "07" + tag + "81" + PLUTUS;
+        RawTx raw = tx(body, witnesses, "f6");
+        for (int key : new int[]{0, 4, 13, 14, 18, 20})
+            assertThat(raw.bodySetItems(key)).as("body key %d", key).hasSize(1);
+        for (int key : new int[]{0, 1, 2, 3, 4, 6, 7})
+            assertThat(raw.witnessSetItems(key)).as("witness key %d", key).hasSize(1);
+        assertThat(raw.scripts()).extracting(RawScript::type).containsExactly(0, 1, 2, 3);
+        assertThat(raw.vkeyWitnesses()).hasSize(1);
+        assertThat(raw.bootstrapWitnesses()).hasSize(1);
+        assertThat(raw.witnessDatums()).hasSize(1);
+        assertThat(raw.bodySetItems(19)).isEmpty();
     }
 
     @Test
@@ -309,6 +334,13 @@ class RawTxScenarioTest {
     }
 
     @Test
+    void languageViewsAreRequired() {
+        RawTx raw = tx(BODY, "a0", "f6");
+        assertThatThrownBy(() -> raw.scriptDataHash(Era.Conway, null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> raw.scriptDataHash(null, decodeHexString("a0"))).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void noScriptIntegrityBeforeAlonzo() {
         RawTx raw = tx(BODY, "a0", "f6");
         for (Era era : new Era[]{Era.Shelley, Era.Allegra, Era.Mary})
@@ -328,6 +360,18 @@ class RawTxScenarioTest {
         }
         String aux = "b90001" + "1801" + "7f61616161ff"; // {1: "aa" in two chunks}, non-minimal count and key
         assertThat(tx(BODY, "a0", aux).auxDataHash().map(RawTxScenarioTest::hex)).contains(hash256(aux));
+    }
+
+    @Test
+    void datumWithARepeatedMapKeyIsHashedAsEncoded() throws Exception {
+        // {1: 0, 1: 1}: on chain a list of two pairs; the model keeps one entry and re-encodes to other bytes
+        RawDatum datum = tx(BODY, "a1" + "04" + "81" + "a201000101", "f6").witnessDatums().get(0);
+        assertThat(datum.span().bytes()).isEqualTo(decodeHexString("a201000101"));
+        assertThat(datum.span().entries()).hasSize(2);
+        assertThat(hex(datum.hash())).isEqualTo(hash256("a201000101"));
+        MapPlutusData model = (MapPlutusData) datum.toPlutusData();
+        assertThat(model.getMap()).hasSize(1);
+        assertThat(model.getDatumHashAsBytes()).isNotEqualTo(datum.hash());
     }
 
     @Test

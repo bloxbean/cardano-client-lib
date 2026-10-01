@@ -7,11 +7,9 @@ import com.bloxbean.cardano.client.spec.Era;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * A transaction as received, read from its original bytes: every accessor returns spans of the caller's buffer, and
@@ -22,8 +20,9 @@ import java.util.Set;
  * Accepts the submission form {@code [body, witnesses, aux / null]} (any era; valid) and the Alonzo form
  * {@code [body, witnesses, isValid, aux / null]}. A view is era-agnostic: records are read by key, unknown keys are passed
  * through, tag 258 is accepted on sets, and both redeemer forms and every aux data shape are read. Only
- * {@link #scriptDataHash(Era, byte[])} depends on the era. A record (the body, the witness set, a map output, the tag-259
- * aux data) with a repeated key is rejected, as the ledger rejects it.
+ * {@link #scriptDataHash(Era, byte[])} depends on the era. A record with a repeated key is rejected, as the ledger
+ * rejects it: the body, the witness set and the tag-259 aux data when the view is created, and an output in map form
+ * (and the collateral return) when it is read with {@link #outputs()} or {@link #collateralReturn()}.
  * <p>
  * Byron transactions are not supported.
  */
@@ -36,6 +35,7 @@ public final class RawTx {
     private final List<Map.Entry<CborSpan, CborSpan>> bodyFields;
     private final List<Map.Entry<CborSpan, CborSpan>> witnessFields;
     private final CborSpan auxData;
+    private final List<Map.Entry<CborSpan, CborSpan>> auxFields;
     private final boolean valid;
     private final boolean validityFlag;
 
@@ -46,10 +46,9 @@ public final class RawTx {
         this.bodyFields = record(body, "transaction body");
         this.witnessFields = record(witnessSet, "witness set");
         this.auxData = auxData;
+        this.auxFields = auxData != null && auxData.tag() == 259 ? record(auxData.untag(), "aux data") : null;
         this.valid = valid;
         this.validityFlag = validityFlag;
-        if (auxData != null && auxData.tag() == 259)
-            record(auxData.untag(), "aux data");
     }
 
     /**
@@ -85,33 +84,15 @@ public final class RawTx {
     }
 
     /**
-     * The entries of a CDDL record, an untagged map whose unsigned keys are all distinct (D6): a record that repeats a
-     * key is rejected as a whole, as the ledger rejects it. Record keys are small, so a bit set finds repeats.
+     * The entries of a CDDL record: an untagged map whose unsigned keys are all distinct (D6). {@link CborSpan#field}
+     * rejects a record that repeats a key as a whole, whichever key is asked for, as the ledger does; the entries are
+     * then looked up without walking the map again.
      */
     static List<Map.Entry<CborSpan, CborSpan>> record(CborSpan span, String what) {
         if (span.majorType() != 5 || span.tag() != -1)
             throw error("The " + what + " is an untagged map", span);
-        List<Map.Entry<CborSpan, CborSpan>> entries = span.entries();
-        long small = 0;
-        Set<Long> large = null;
-        for (Map.Entry<CborSpan, CborSpan> entry : entries) {
-            CborSpan key = entry.getKey();
-            if (key.majorType() != 0 || key.tag() != -1)
-                continue;
-            long value = key.asLong();
-            boolean repeated;
-            if (value < 64) {
-                repeated = (small & (1L << value)) != 0;
-                small |= 1L << value;
-            } else {
-                if (large == null)
-                    large = new HashSet<>();
-                repeated = !large.add(value);
-            }
-            if (repeated)
-                throw error("duplicate key " + value + " in the " + what, key);
-        }
-        return entries;
+        span.field(0);
+        return span.entries();
     }
 
     // The value of an unsigned key in a record's entries.
@@ -213,6 +194,8 @@ public final class RawTx {
      * @throws IllegalArgumentException if the era is before Alonzo, which has no script integrity hash
      */
     public Optional<byte[]> scriptDataHash(Era era, byte[] languageViews) {
+        if (era == null || languageViews == null)
+            throw new IllegalArgumentException("era and languageViews are required (a0 for no language views)");
         byte[] absentRedeemers = EraRules.of(era).absentRedeemers();
         Optional<CborSpan> redeemers = witnessField(5);
         Optional<CborSpan> datums = witnessField(4);
@@ -266,7 +249,7 @@ public final class RawTx {
      */
     public List<RawDatum> witnessDatums() {
         List<RawDatum> datums = new ArrayList<>();
-        set(4).forEach(datum -> datums.add(new RawDatum(datum)));
+        witnessSetItems(4).forEach(datum -> datums.add(new RawDatum(datum)));
         return datums;
     }
 
@@ -303,10 +286,10 @@ public final class RawTx {
      */
     public List<RawScript> scripts() {
         List<RawScript> scripts = new ArrayList<>();
-        set(1).forEach(script -> scripts.add(new RawScript(NATIVE, script)));
-        set(3).forEach(script -> scripts.add(new RawScript(1, script)));
-        set(6).forEach(script -> scripts.add(new RawScript(2, script)));
-        set(7).forEach(script -> scripts.add(new RawScript(3, script)));
+        witnessSetItems(1).forEach(script -> scripts.add(new RawScript(NATIVE, script)));
+        witnessSetItems(3).forEach(script -> scripts.add(new RawScript(1, script)));
+        witnessSetItems(6).forEach(script -> scripts.add(new RawScript(2, script)));
+        witnessSetItems(7).forEach(script -> scripts.add(new RawScript(3, script)));
         return scripts;
     }
 
@@ -327,10 +310,9 @@ public final class RawTx {
         }
         if (auxData.tag() != 259)
             throw error("Unknown aux data shape", auxData);
-        List<Map.Entry<CborSpan, CborSpan>> record = record(auxData.untag(), "aux data");
         for (int key = 1; key <= 4; key++) {
             int type = key - 1;
-            field(record, key).ifPresent(list -> list.items().forEach(script -> scripts.add(new RawScript(type, script))));
+            field(auxFields, key).ifPresent(list -> list.items().forEach(script -> scripts.add(new RawScript(type, script))));
         }
         return scripts;
     }
@@ -339,18 +321,38 @@ public final class RawTx {
      * @return the vkey witnesses {@code [vkey, signature]} (witness field 0)
      */
     public List<CborSpan> vkeyWitnesses() {
-        return set(0);
+        return witnessSetItems(0);
     }
 
     /**
      * @return the bootstrap witnesses {@code [vkey, signature, chain_code, attributes]} (witness field 2)
      */
     public List<CborSpan> bootstrapWitnesses() {
-        return set(2);
+        return witnessSetItems(2);
     }
 
-    // The entries of a witness set field that is a set, with or without its tag 258.
-    private List<CborSpan> set(int key) {
+    /**
+     * The items of a body field that is a set (in Conway CDDL {@code set<a>} or {@code nonempty_set<a>}), with or
+     * without its tag 258 at any width: inputs (0), certificates (4), collateral inputs (13), required signers (14),
+     * reference inputs (18), proposals (20).
+     *
+     * @param key the body field key
+     * @return the items, none if the field is absent
+     * @throws CborRuntimeException if the field is not an array, optionally tagged 258
+     */
+    public List<CborSpan> bodySetItems(int key) {
+        return bodyField(key).map(field -> field.untagIf(258).items()).orElse(List.of());
+    }
+
+    /**
+     * The items of a witness set field that is a set, with or without its tag 258 at any width: vkey witnesses (0),
+     * native scripts (1), bootstrap witnesses (2), Plutus scripts (3, 6, 7), datums (4).
+     *
+     * @param key the witness set field key
+     * @return the items, none if the field is absent
+     * @throws CborRuntimeException if the field is not an array, optionally tagged 258
+     */
+    public List<CborSpan> witnessSetItems(int key) {
         return witnessField(key).map(field -> field.untagIf(258).items()).orElse(List.of());
     }
 }

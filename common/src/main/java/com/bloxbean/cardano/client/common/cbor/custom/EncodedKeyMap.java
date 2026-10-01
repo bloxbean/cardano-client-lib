@@ -16,19 +16,24 @@ import java.util.Objects;
 
 /**
  * A cbor-java {@link Map} whose entries are looked up by the CBOR encoding of their keys instead of
- * {@link DataItem#hashCode()}, which recurses through nested keys. Keys of any nesting depth can therefore be stored and
- * found on any thread.
+ * {@link DataItem#hashCode()}, which recurses through nested keys. Keys of any nesting depth can therefore be stored
+ * and found on any thread.
  * <p>
  * Untagged integers, strings and simple values are compared with their own {@code equals}; any other key by its
  * canonical encoding with every nested map sorted, built only when two keys' hashes meet (the hash is computed without
  * it, in time linear in the key's size). Two keys therefore match exactly when cbor-java considers them equal
- * (numbers by value, maps regardless of entry order, arrays by order, tags and chunked flags included). Like cbor-java's map, a repeated key keeps its first position and takes the last value, so this model is
- * lossy where Cardano keeps every entry (Plutus data and metadatum maps are lists of pairs); read such maps from the
- * original bytes with {@link com.bloxbean.cardano.client.common.cbor.CborSpan#entries()} when that matters.
+ * (numbers by value, maps regardless of entry order, arrays by order, tags and chunked flags included). Like
+ * cbor-java's map, a repeated key keeps its first position and takes the last value, so this model is lossy where
+ * Cardano keeps every entry (Plutus data and metadatum maps are lists of pairs); read such maps from the original bytes
+ * with {@link com.bloxbean.cardano.client.common.cbor.CborSpan#entries()} when that matters.
  * <p>
  * {@code CborSerializationUtil.deserialize} returns maps of this type. {@code equals} accepts any cbor-java map, but a
  * plain cbor-java map compares its own private storage and so never equals a non-empty instance of this class; compare
  * with this map as the receiver, or compare encodings.
+ * <p>
+ * Only the key lookups are stack-safe. {@link #equals(Object)} and {@link #hashCode()} compare and hash the values
+ * (and keys, in {@code hashCode}) with cbor-java's own recursive {@code equals} and {@code hashCode}, so do not compare
+ * deeply nested maps, or put them in hash-based collections; compare their encodings instead.
  */
 public class EncodedKeyMap extends Map {
     private final LinkedHashMap<Key, DataItem> entries;
@@ -148,8 +153,9 @@ public class EncodedKeyMap extends Map {
         return out.append(" }").toString();
     }
 
-    // An untagged leaf (integer, string, simple value) is compared with its own equals and hashCode, which do not recurse;
-    // any other key (a container, or a tagged item) by its key encoding, which is only built when two keys' hashes meet.
+    // An untagged leaf (integer, string, simple value) is compared with its own equals and hashCode, which do not
+    // recurse; any other key (a container, or a tagged item) by its key encoding, which is only built when two keys'
+    // hashes meet.
     static final class Key {
         final DataItem item;
         final boolean leaf;
