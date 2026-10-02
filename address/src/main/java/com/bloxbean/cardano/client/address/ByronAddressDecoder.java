@@ -112,6 +112,19 @@ final class ByronAddressDecoder {
 
     /**
      * Minimal CBOR reader for the definite-length items a Byron address is made of.
+     * <p>
+     * cbor-java (co.nstant.in.cbor), used elsewhere in CCL, is not used here because its decoder cannot enforce the
+     * ledger rules above and is unsafe on untrusted input:
+     * <ul>
+     *     <li>it discards how an integer or length was encoded ({@code 18 02} and {@code 02} decode to the same value),
+     *     so the canonical encoding of the address type, protocol magic and derivation path cannot be checked</li>
+     *     <li>an indefinite-length byte string is merged into one and not marked as chunked</li>
+     *     <li>duplicate map keys are silently merged</li>
+     *     <li>it allocates from a declared length before checking the input: {@code 5a 7fffffff} throws
+     *     {@link OutOfMemoryError}, so a 9 character Base58 string ({@code 27uung4Ye}) could exhaust the heap</li>
+     * </ul>
+     * TODO: replace with a shared CBOR utility (bounded, definite-length, encoding-width and offset aware) once one exists
+     * in a common module. Other components need the same checks, e.g. {@code BoundedCbor} in jellyfish-merkle.
      */
     private static final class CborReader {
         private static final int MAJOR_UINT = 0;
