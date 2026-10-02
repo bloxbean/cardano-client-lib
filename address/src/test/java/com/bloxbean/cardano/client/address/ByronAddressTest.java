@@ -117,6 +117,7 @@ class ByronAddressTest {
     @ValueSource(strings = {
             "Ah7V1nBomind8SQegZr48LK2PmMYsBgHiKZwEYkWuDod", //32 bytes of invalid CBOR starting with 0x8f
             "FtnfEJw", //84 01 02 03 04
+            "27uung4Ye", //82 5a 7fffffff: byte string length beyond the input must be rejected without allocating
             "",
             "0OIl", //Not base58
             "ExxxFFzCqrhszg6cqZvDhEwUX7cZyNzdycAVpm4Uo2vjKMgTLrVqiVKi3MBt2tFAtDe7NkptK6TAhVkiYzhavmKV5hE79CWwJnPCJTREk",
