@@ -4,7 +4,6 @@ import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressType;
 import com.bloxbean.cardano.client.address.ByronAddress;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 
 public class AddressUtil {
 
@@ -15,13 +14,14 @@ public class AddressUtil {
      * @return true if address is valid, false otherwise
      */
     public static boolean isValidAddress(String addr) {
+        if (addr == null)
+            return false;
+
         try {
             addressToBytes(addr);
 
             return true;
-        } catch (AddressExcepion e) {
-            return false;
-        } catch (AddressRuntimeException e) {
+        } catch (AddressExcepion | RuntimeException e) { //Malformed input fails in decoding with different runtime exceptions
             return false;
         }
     }
