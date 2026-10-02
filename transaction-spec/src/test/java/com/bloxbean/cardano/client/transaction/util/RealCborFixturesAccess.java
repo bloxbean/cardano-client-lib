@@ -34,6 +34,15 @@ public final class RealCborFixturesAccess {
     }
 
     /**
+     * @see RealCborFixtures#indefinitePoolRegistrationTxs()
+     */
+    public static List<Tx> indefinitePoolRegistrationTxs() {
+        List<Tx> txs = new ArrayList<>();
+        RealCborFixtures.indefinitePoolRegistrationTxs().forEach(tx -> txs.add(tx(tx, "")));
+        return txs;
+    }
+
+    /**
      * @return the committed transactions (with the trigger) and the transactions reassembled from the committed blocks
      */
     public static List<Tx> allTxsAndBlockTxs() {
