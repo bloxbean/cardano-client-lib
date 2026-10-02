@@ -124,7 +124,7 @@ final class ByronAddressDecoder {
      *     {@link OutOfMemoryError}, so a 9 character Base58 string ({@code 27uung4Ye}) could exhaust the heap</li>
      * </ul>
      * TODO: replace with a shared CBOR utility (bounded, definite-length, encoding-width and offset aware) once one exists
-     * in a common module. Other components need the same checks, e.g. {@code BoundedCbor} in jellyfish-merkle.
+     * in a common module.
      */
     private static final class CborReader {
         private static final int MAJOR_UINT = 0;
