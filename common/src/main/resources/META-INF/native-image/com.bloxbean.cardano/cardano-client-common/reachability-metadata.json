@@ -1,0 +1,41 @@
+{
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-common. Serializers referenced from @JsonSerialize/@JsonDeserialize(using = ...) are instantiated reflectively once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.util.serializers.ByteArrayToHexSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.util.serializers.HexToByteArrayDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.util.serializers.InetAddressDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.util.serializers.InetAddressSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    }
+  ]
+}

@@ -1,0 +1,2773 @@
+{
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-transaction-spec. Transaction model bound by Jackson bean introspection (Transaction.toJson(), JsonUtil), including polymorphic Relay subtypes and custom (de)serializers; registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.Asset",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getName",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNameAsBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNameAsHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        },
+        {
+          "name": "setName",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setValue",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.AuxiliaryData",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAuxiliaryDataHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAuxiliaryDataHash",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.Era"
+          ]
+        },
+        {
+          "name": "getMetadata",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNativeScripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusV1Scripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusV2Scripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusV3Scripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "setMetadata",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.metadata.Metadata"
+          ]
+        },
+        {
+          "name": "setNativeScripts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPlutusV1Scripts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPlutusV2Scripts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPlutusV3Scripts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.BootstrapWitness",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAttributes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getChainCode",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPublicKey",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSignature",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAttributes",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setChainCode",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setPublicKey",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setSignature",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.ChangeOutput",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getInlineDatum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDatumHash",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setInlineDatum",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setScriptRef",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setScriptRef",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.Script"
+          ]
+        },
+        {
+          "name": "setValue",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.Value"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.Comparators",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.MetadataJacksonSerializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.MultiAsset",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAssets",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAssets",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPolicyId",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.Policy",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getName",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyKeys",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyScript",
+          "parameterTypes": []
+        },
+        {
+          "name": "setName",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setPolicyKeys",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPolicyScript",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.script.NativeScript"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAdaPerUtxoByte",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCollateralPercent",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCostModels",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDecentralisationConstant",
+          "parameterTypes": []
+        },
+        {
+          "name": "getExecutionCosts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getExpansionRate",
+          "parameterTypes": []
+        },
+        {
+          "name": "getExtraEntropy",
+          "parameterTypes": []
+        },
+        {
+          "name": "getKeyDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxBlockExUnits",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxBlockHeaderSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxBlockSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxCollateralInputs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxEpoch",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxTxExUnits",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxTxSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMaxValSize",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinFeeA",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinFeeB",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinPoolCost",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinUtxo",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNOpt",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolPledgeInfluence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getProtocolVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTreasuryGrowthRate",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.ProtocolVersion",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getMajor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMinor",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.Transaction",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAuxiliaryData",
+          "parameterTypes": []
+        },
+        {
+          "name": "getBody",
+          "parameterTypes": []
+        },
+        {
+          "name": "getEra",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMetadata",
+          "parameterTypes": []
+        },
+        {
+          "name": "getWitnessSet",
+          "parameterTypes": []
+        },
+        {
+          "name": "isValid",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAuxiliaryData",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.AuxiliaryData"
+          ]
+        },
+        {
+          "name": "setBody",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.TransactionBody"
+          ]
+        },
+        {
+          "name": "setEra",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.Era"
+          ]
+        },
+        {
+          "name": "setMetadata",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.metadata.Metadata"
+          ]
+        },
+        {
+          "name": "setValid",
+          "parameterTypes": [
+            "boolean"
+          ]
+        },
+        {
+          "name": "setWitnessSet",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.TransactionBody",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAuxiliaryDataHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCerts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCollateral",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCollateralReturn",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCurrentTreasuryValue",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDonation",
+          "parameterTypes": []
+        },
+        {
+          "name": "getFee",
+          "parameterTypes": []
+        },
+        {
+          "name": "getInputs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMint",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNetworkId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOutputs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getProposalProcedures",
+          "parameterTypes": []
+        },
+        {
+          "name": "getReferenceInputs",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRequiredSigners",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptDataHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTotalCollateral",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTtl",
+          "parameterTypes": []
+        },
+        {
+          "name": "getUpdate",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValidityStartInterval",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVotingProcedures",
+          "parameterTypes": []
+        },
+        {
+          "name": "getWithdrawals",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAuxiliaryDataHash",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setCerts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setCollateral",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setCollateralReturn",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.TransactionOutput"
+          ]
+        },
+        {
+          "name": "setCurrentTreasuryValue",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setDonation",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setFee",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setInputs",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setMint",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setNetworkId",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.NetworkId"
+          ]
+        },
+        {
+          "name": "setOutputs",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setProposalProcedures",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setReferenceInputs",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setRequiredSigners",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setScriptDataHash",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setTotalCollateral",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setTtl",
+          "parameterTypes": [
+            "long"
+          ]
+        },
+        {
+          "name": "setUpdate",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.Update"
+          ]
+        },
+        {
+          "name": "setValidityStartInterval",
+          "parameterTypes": [
+            "long"
+          ]
+        },
+        {
+          "name": "setVotingProcedures",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures"
+          ]
+        },
+        {
+          "name": "setWithdrawals",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.TransactionInput",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTransactionId",
+          "parameterTypes": []
+        },
+        {
+          "name": "setIndex",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setTransactionId",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.TransactionOutput",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAddress",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDatumHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getInlineDatum",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptRef",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAddress",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDatumHash",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setInlineDatum",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
+          ]
+        },
+        {
+          "name": "setScriptRef",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setScriptRef",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.Script"
+          ]
+        },
+        {
+          "name": "setValue",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.Value"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getBootstrapWitnesses",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNativeScripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusDataList",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusV1Scripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusV2Scripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPlutusV3Scripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRedeemers",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVkeyWitnesses",
+          "parameterTypes": []
+        },
+        {
+          "name": "setBootstrapWitnesses",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setNativeScripts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPlutusDataList",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPlutusV1Scripts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPlutusV2Scripts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setPlutusV3Scripts",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setRedeemers",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setVkeyWitnesses",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.Update",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getEpoch",
+          "parameterTypes": []
+        },
+        {
+          "name": "getProtocolParamUpdates",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.Value",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMultiAssets",
+          "parameterTypes": []
+        },
+        {
+          "name": "isPositive",
+          "parameterTypes": []
+        },
+        {
+          "name": "isZero",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCoin",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setMultiAssets",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.VkeyWitness",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getSignature",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVkey",
+          "parameterTypes": []
+        },
+        {
+          "name": "setSignature",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setVkey",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.Withdrawal",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRewardAddress",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.AuthCommitteeHotCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCommitteeColdCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCommitteeHotCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCommitteeColdCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Credential"
+          ]
+        },
+        {
+          "name": "setCommitteeHotCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Credential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.Certificate",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.CertificateType",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGenesisDelegateHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGenesisHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVrfKeyHash",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.MirPot",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAccountingPotCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPot",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredentialCoinMap",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.MultiHostName",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDnsName",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getBech32PoolId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCost",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMargin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getOperator",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPledge",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolMetadataHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolMetadataUrl",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolOwners",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRelays",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRewardAccount",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVrfKeyHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "serialize",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.Era"
+          ]
+        },
+        {
+          "name": "setCost",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setMargin",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setOperator",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setPledge",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setPoolMetadataHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setPoolMetadataUrl",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setPoolOwners",
+          "parameterTypes": [
+            "java.util.Set"
+          ]
+        },
+        {
+          "name": "setRelays",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "setRewardAccount",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setVrfKeyHash",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.PoolRetirement",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getEpoch",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolKeyHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.RegCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCoin",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setStakeCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.RegDRepCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.Relay",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.ResignCommitteeColdCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCommitteeColdCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAnchor",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Anchor"
+          ]
+        },
+        {
+          "name": "setCommitteeColdCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Credential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.SingleHostAddr",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getIpv4",
+          "parameterTypes": []
+        },
+        {
+          "name": "getIpv6",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPort",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.SingleHostName",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getDnsName",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPort",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.StakeCredType",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.StakeDelegation",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakePoolId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.StakePoolId",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getBech32PoolId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolKeyHash",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.StakeRegDelegCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolKeyHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCoin",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setPoolKeyHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setStakeCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.StakeVoteDelegCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrep",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolKeyHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setDrep",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.DRep"
+          ]
+        },
+        {
+          "name": "setPoolKeyHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setStakeCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.StakeVoteRegDelegCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrep",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolKeyHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCoin",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setDrep",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.DRep"
+          ]
+        },
+        {
+          "name": "setPoolKeyHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setStakeCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.UnregCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCoin",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setStakeCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.UnregDRepCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCoin",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setDrepCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Credential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.UpdateDRepCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAnchor",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Anchor"
+          ]
+        },
+        {
+          "name": "setDrepCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Credential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.VoteDelegCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrep",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setDrep",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.DRep"
+          ]
+        },
+        {
+          "name": "setStakeCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.cert.VoteRegDelegCert",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoin",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrep",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStakeCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCoin",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setDrep",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.DRep"
+          ]
+        },
+        {
+          "name": "setStakeCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.Anchor",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchorDataHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getAnchorUrl",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAnchorDataHash",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setAnchorUrl",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.Committee",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCommitteeColdCredentialEpoch",
+          "parameterTypes": []
+        },
+        {
+          "name": "getThreshold",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.Constitution",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScripthash",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.DRep",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.DRepType",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovAction",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRewardAccount",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAnchor",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Anchor"
+          ]
+        },
+        {
+          "name": "setDeposit",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        },
+        {
+          "name": "setGovAction",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction"
+          ]
+        },
+        {
+          "name": "setRewardAccount",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.Vote",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.Voter",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCredential",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCredential",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.address.Credential"
+          ]
+        },
+        {
+          "name": "setType",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.VoterType"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.VoterType",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedure",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAnchor",
+          "parameterTypes": []
+        },
+        {
+          "name": "getVote",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAnchor",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Anchor"
+          ]
+        },
+        {
+          "name": "setVote",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Vote"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getVoting",
+          "parameterTypes": []
+        },
+        {
+          "name": "setVoting",
+          "parameterTypes": [
+            "java.util.Map"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getGovActionIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTransactionId",
+          "parameterTypes": []
+        },
+        {
+          "name": "setGovActionIndex",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "setTransactionId",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionType",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.HardForkInitiationAction",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPrevGovActionId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getProtocolVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setPrevGovActionId",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId"
+          ]
+        },
+        {
+          "name": "setProtocolVersion",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.ProtocolVersion"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.InfoAction",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.NewConstitution",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getConstitution",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPrevGovActionId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setConstitution",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.Constitution"
+          ]
+        },
+        {
+          "name": "setPrevGovActionId",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.NoConfidence",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPrevGovActionId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setPrevGovActionId",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPolicyHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPrevGovActionId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getProtocolParamUpdate",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setPolicyHash",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setPrevGovActionId",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId"
+          ]
+        },
+        {
+          "name": "setProtocolParamUpdate",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.TreasuryWithdrawalsAction",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPolicyHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getWithdrawals",
+          "parameterTypes": []
+        },
+        {
+          "name": "setPolicyHash",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setWithdrawals",
+          "parameterTypes": [
+            "java.util.List"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.actions.UpdateCommittee",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getMembersForRemoval",
+          "parameterTypes": []
+        },
+        {
+          "name": "getNewMembersAndTerms",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPrevGovActionId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getQuorumThreshold",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setMembersForRemoval",
+          "parameterTypes": [
+            "java.util.Set"
+          ]
+        },
+        {
+          "name": "setNewMembersAndTerms",
+          "parameterTypes": [
+            "java.util.Map"
+          ]
+        },
+        {
+          "name": "setPrevGovActionId",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId"
+          ]
+        },
+        {
+          "name": "setQuorumThreshold",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.script.NativeScript",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.script.RequireTimeAfter",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSlot",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setSlot",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.script.RequireTimeBefore",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSlot",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setSlot",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.script.ScriptAll",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.script.ScriptAny",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.script.ScriptAtLeast",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRequired",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScripts",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setRequired",
+          "parameterTypes": [
+            "java.math.BigInteger"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getKeyHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPolicyId",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptHash",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setKeyHash",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.script.ScriptType",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.util.NativeScriptDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    }
+  ]
+}
