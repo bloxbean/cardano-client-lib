@@ -112,7 +112,9 @@ final class DataItemDecoder {
 
     private DataItem decodeItem() {
         Frame top = null; // the innermost open container; frames are chained through parent
-        long[] tags = NO_TAGS;
+        // the tags read before the next head, innermost last; the buffer grows geometrically, so a run of tags is linear
+        long[] tagBuffer = NO_TAGS;
+        int tagCount = 0;
         while (true) {
             DataItem item;
             if (top != null && top.remaining == 0) {
@@ -122,7 +124,7 @@ final class DataItemDecoder {
                 if (pos >= limit)
                     throw CborHead.error("truncated CBOR: expected a data item", pos);
                 if ((buffer[pos] & 0xff) == BREAK) {
-                    if (top == null || top.remaining != CborHead.INDEFINITE || tags.length > 0)
+                    if (top == null || top.remaining != CborHead.INDEFINITE || tagCount > 0)
                         throw CborHead.error("unexpected BREAK", pos);
                     if (top.key != null)
                         throw CborHead.error("BREAK after a map key without its value", pos);
@@ -139,24 +141,21 @@ final class DataItemDecoder {
                                 + " major type", pos);
                     pos = head.end;
                     if (head.major == MAJOR_TAG) {
-                        tags = Arrays.copyOf(tags, tags.length + 1);
-                        tags[tags.length - 1] = head.argument;
+                        if (tagCount == tagBuffer.length)
+                            tagBuffer = Arrays.copyOf(tagBuffer, Math.max(4, 2 * tagCount));
+                        tagBuffer[tagCount++] = head.argument;
                         continue;
                     }
+                    long[] tags = tagCount == 0 ? NO_TAGS : Arrays.copyOf(tagBuffer, tagCount);
+                    tagCount = 0;
                     if (top != null && top.remaining > 0)
                         top.remaining--;
                     Frame opened = open(top, tags);
                     if (opened != null) {
                         top = opened;
-                        tags = NO_TAGS;
                         continue;
                     }
-                    if (tags.length == 0) {
-                        item = leaf(false);
-                    } else {
-                        item = applyTags(tags, leaf(true));
-                        tags = NO_TAGS;
-                    }
+                    item = tags.length == 0 ? leaf(false) : applyTags(tags, leaf(true));
                 }
             }
 
