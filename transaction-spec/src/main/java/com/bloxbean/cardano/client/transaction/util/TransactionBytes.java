@@ -102,7 +102,7 @@ public class TransactionBytes {
         witness.writeBytes(vkey);
         writeHead(witness, MAJOR_BYTES, signature.length);
         witness.writeBytes(signature);
-        return withNewWitnessSetBytes(addWitness(txWitnessBytes, VKEY_WITNESSES, vkey, witness.toByteArray()));
+        return withNewWitnessSetBytes(addWitness(txWitnessBytes, VKEY_WITNESSES, CborSpan.of(witness.toByteArray())));
     }
 
     /**
@@ -143,10 +143,12 @@ public class TransactionBytes {
      * <p>
      * Each witness is appended the way {@link #withVkeyWitness(byte[], byte[])} appends one: tag 258 and indefinite
      * lengths are kept, counts are rewritten with a minimal header, and a missing field is added at the end of the
-     * witness set. A witness whose vkey is already present is skipped, so adding the same witness set twice changes
-     * nothing. Any other field in {@code witnessSet} is skipped when it is byte-identical to this transaction's (some
-     * wallets return the whole witness set) and rejected otherwise: scripts, datums and redeemers are added by the
-     * transaction builder, and adding them here would change bytes covered by the script data hash.
+     * witness set. A witness that is already present is skipped, so adding the same witness set twice changes nothing: a
+     * vkey witness with the same vkey, or a bootstrap witness with the same vkey, chain code and attributes (together
+     * they make the Byron address root, so one vkey can sign for several Byron addresses). Any other field in
+     * {@code witnessSet} is skipped when it is byte-identical to this transaction's (some wallets return the whole
+     * witness set) and rejected otherwise: scripts, datums and redeemers are added by the transaction builder, and
+     * adding them here would change bytes covered by the script data hash.
      * <p>
      * Unlike {@link #withNewWitnessSetBytes(byte[])}, which replaces the whole witness set, this keeps the existing
      * witnesses.
@@ -154,8 +156,9 @@ public class TransactionBytes {
      * @param witnessSet CBOR of a transaction witness set, for example the result of CIP-30 {@code signTx}
      * @return a new TransactionBytes with the signatures added
      * @throws CborRuntimeException if either witness set is not a CBOR map with unique unsigned integer keys, a signature
-     *                              field is not an array (optionally tagged 258) of witnesses, or {@code witnessSet} has
-     *                              another field that differs from this transaction's
+     *                              field is not an array (optionally tagged 258) of witnesses ({@code [vkey, signature]}
+     *                              in field 0, {@code [vkey, signature, chain_code, attributes]} in field 2), or
+     *                              {@code witnessSet} has another field that differs from this transaction's
      */
     public TransactionBytes withSignaturesFrom(byte[] witnessSet) {
         CborSpan signatures = CborSpan.of(witnessSet);
@@ -179,28 +182,54 @@ public class TransactionBytes {
             if (field.isEmpty())
                 continue;
             for (CborSpan witness : setItems(field.get(), key))
-                witnesses = addWitness(witnesses, key, witness.get(0).byteString(), witness.bytes());
+                witnesses = addWitness(witnesses, key, witness);
         }
         return withNewWitnessSetBytes(witnesses);
     }
 
-    // Adds one witness to field 0 or 2 of a witness set, unless the field already has a witness for the same vkey.
-    private static byte[] addWitness(byte[] witnessSetBytes, long key, byte[] vkey, byte[] witness) {
+    // Adds one witness to field 0 or 2 of a witness set, unless the field already has a witness with the same identity.
+    private static byte[] addWitness(byte[] witnessSetBytes, long key, CborSpan witness) {
+        List<byte[]> identity = identity(witness, key);
         CborSpan witnessSet = CborSpan.of(witnessSetBytes);
         Optional<CborSpan> field = witnessSet.field(key);
         if (field.isPresent()) {
             for (CborSpan existing : setItems(field.get(), key)) {
-                if (Arrays.equals(existing.get(0).byteString(), vkey))
+                if (sameIdentity(identity(existing, key), identity))
                     return witnessSetBytes;
             }
             CborSpan array = field.get().untagIf(SET_TAG);
-            return witnessSet.replacing(List.of(array), List.of(appendItem(array, MAJOR_ARRAY, witness)));
+            return witnessSet.replacing(List.of(array), List.of(appendItem(array, MAJOR_ARRAY, witness.bytes())));
         }
         ByteArrayOutputStream entry = new ByteArrayOutputStream();
         writeHead(entry, 0, key);
         writeHead(entry, MAJOR_ARRAY, 1);
-        entry.writeBytes(witness);
+        entry.writeBytes(witness.bytes());
         return appendItem(witnessSet, MAJOR_MAP, entry.toByteArray());
+    }
+
+    /*
+     * What makes two witnesses the same witness. A vkey witness [vkey, signature]: its vkey (a key signs a body with one
+     * signature). A bootstrap witness [vkey, signature, chain_code, attributes]: its vkey, chain code and attributes,
+     * which the ledger hashes into the Byron address root it orders bootstrap witnesses by (bootstrapWitKeyHash), so
+     * one vkey with another chain code or other attributes witnesses another address.
+     */
+    private static List<byte[]> identity(CborSpan witness, long key) {
+        int size = key == VKEY_WITNESSES ? 2 : 4;
+        if (witness.tag() != -1 || witness.majorType() != MAJOR_ARRAY || witness.size() != size)
+            throw new CborRuntimeException((key == VKEY_WITNESSES ? "A vkey" : "A bootstrap") + " witness must be an array of "
+                    + size + " items, at offset " + witness.offset());
+        List<CborSpan> items = witness.items();
+        if (key == VKEY_WITNESSES)
+            return List.of(items.get(0).byteString());
+        return List.of(items.get(0).byteString(), items.get(2).byteString(), items.get(3).byteString());
+    }
+
+    private static boolean sameIdentity(List<byte[]> a, List<byte[]> b) {
+        for (int i = 0; i < a.size(); i++) {
+            if (!Arrays.equals(a.get(i), b.get(i)))
+                return false;
+        }
+        return true;
     }
 
     // The witnesses in field 0 or 2: an array, optionally tagged 258.

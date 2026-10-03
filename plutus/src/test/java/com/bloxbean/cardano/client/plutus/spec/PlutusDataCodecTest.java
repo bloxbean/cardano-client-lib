@@ -7,6 +7,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.management.ManagementFactory;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -128,6 +129,36 @@ class PlutusDataCodecTest {
         other[99] = 1;
         built.put(BytesPlutusData.of(other), BigIntPlutusData.of(2));
         assertThat(((MapPlutusData) decode(built.serializeToHex())).getMap()).hasSize(2);
+    }
+
+    /**
+     * Map keys that are maps are hashed once, when they are put: decoding a chain of map keys (and hashing it) takes space
+     * linear in its size. Each level rehashed the whole key below it, quadratic in the depth (about 1 GB for 4,000 levels).
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"a1", "a20101"})
+    void mapKeyChainsDecodeAndHashInLinearSpace(String level) throws Exception {
+        // {<next>: 0} at every level, or {1: 1, <next>: 0}
+        String small = level.repeat(1_000) + "00" + "00".repeat(1_000);
+        String large = level.repeat(4_000) + "00" + "00".repeat(4_000);
+        long smallDecode = allocated(() -> PlutusData.deserialize(decodeHexString(small)));
+        long largeDecode = allocated(() -> PlutusData.deserialize(decodeHexString(large)));
+        assertThat(largeDecode).as("decode, 4x the input").isLessThan(6 * smallDecode);
+        assertThat(largeDecode).as("decode, bytes per input byte").isLessThan(2_048L * large.length() / 2);
+        PlutusData data = PlutusData.deserialize(decodeHexString(large));
+        assertThat(allocated(data::hashCode)).as("hashCode").isLessThan(64 * 1024);
+        assertThat(PlutusData.deserialize(decodeHexString(large)).hashCode()).isEqualTo(data.hashCode());
+    }
+
+    private interface Operation {
+        Object run() throws Exception;
+    }
+
+    private static long allocated(Operation operation) throws Exception {
+        operation.run(); // warm up
+        long before = ((com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean()).getCurrentThreadAllocatedBytes();
+        operation.run();
+        return ((com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean()).getCurrentThreadAllocatedBytes() - before;
     }
 
     @Test
