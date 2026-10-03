@@ -39,6 +39,10 @@ final class CborHead {
             for (int i = 0; i < size; i++)
                 value = (value << 8) | (buffer[pos++] & 0xff);
             argument = value;
+            // RFC 8949 section 3.3: simple values below 32 have a one-byte encoding only; f8 00 to f8 1f are not
+            // well-formed
+            if (major == MAJOR_SIMPLE && info == 24 && value < 32)
+                throw error("two-byte simple value below 32", start);
         } else if (info == 31 && major >= MAJOR_BYTES && major <= MAJOR_MAP) {
             indefinite = true;
             argument = INDEFINITE;
