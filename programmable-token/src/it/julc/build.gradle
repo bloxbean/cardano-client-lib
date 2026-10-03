@@ -1,0 +1,46 @@
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+def julcVersion = '0.1.0-pre14'
+
+dependencies {
+    implementation("com.bloxbean.cardano:julc-stdlib:${julcVersion}") {
+        exclude group: 'com.bloxbean.cardano', module: 'cardano-client-lib'
+    }
+    annotationProcessor("com.bloxbean.cardano:julc-annotation-processor:${julcVersion}") {
+        exclude group: 'com.bloxbean.cardano', module: 'cardano-client-lib'
+    }
+}
+
+configurations.configureEach {
+    // JuLC's processor integration declares a released CCL version transitively. This isolated
+    // compiler project must never put that version beside the repository modules under test.
+    exclude group: 'com.bloxbean.cardano', module: 'cardano-client-lib'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Ajulc.sourceMap=true']
+}
+
+tasks.register('syncBlueprint', Copy) {
+    def generated = layout.projectDirectory.file('build/plutus/plutus.json')
+    from(generated)
+    into(layout.projectDirectory.dir('../resources/blueprint/txplan-substandard'))
+    doFirst {
+        if (!generated.asFile.exists()) {
+            throw new GradleException('Run `julc build -v .` before syncBlueprint')
+        }
+    }
+}
