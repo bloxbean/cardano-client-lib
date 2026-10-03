@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.spec.Era;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -95,14 +96,27 @@ public final class RawTx {
         return span.entries();
     }
 
-    // The value of an unsigned key in a record's entries.
+    // The value of an unsigned key in a record's entries. Keys are compared as unsigned 64-bit values, so an unknown key
+    // of 2^63 or more is passed over like any other unknown key.
     static Optional<CborSpan> field(List<Map.Entry<CborSpan, CborSpan>> record, long key) {
         for (Map.Entry<CborSpan, CborSpan> entry : record) {
             CborSpan candidate = entry.getKey();
-            if (candidate.majorType() == 0 && candidate.tag() == -1 && candidate.asLong() == key)
+            if (candidate.majorType() != 0 || candidate.tag() != -1)
+                continue;
+            // an 8-byte argument may not fit a long
+            boolean matches = candidate.length() == 9 ? candidate.asBigInteger().equals(BigInteger.valueOf(key))
+                    : candidate.asLong() == key;
+            if (matches)
                 return Optional.of(entry.getValue());
         }
         return Optional.empty();
+    }
+
+    // The two items of an untagged array [a, b], such as a datum option or a script reference.
+    static List<CborSpan> pair(CborSpan item, String what) {
+        if (item.majorType() != 4 || item.tag() != -1 || item.size() != 2)
+            throw error(what + " is an array of 2 items", item);
+        return item.items();
     }
 
     // A small unsigned integer, such as a redeemer tag or a script type.

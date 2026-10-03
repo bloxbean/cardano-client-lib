@@ -37,11 +37,12 @@ public record RawOutput(CborSpan span, CborSpan address, CborSpan value, Optiona
         Optional<CborSpan> datumOption = RawTx.field(record, 2);
         if (datumOption.isPresent()) {
             CborSpan option = datumOption.get();
-            long kind = option.get(0).asLong();
+            List<CborSpan> items = RawTx.pair(option, "A datum option");
+            long kind = items.get(0).asLong();
             if (kind == 0)
-                datumHash = Optional.of(option.get(1).byteString());
+                datumHash = Optional.of(items.get(1).byteString());
             else if (kind == 1)
-                inlineDatum = Optional.of(new RawDatum(option.get(1).embedded()));
+                inlineDatum = Optional.of(new RawDatum(items.get(1).embedded()));
             else
                 throw new CborRuntimeException("Unknown datum option " + kind + " at offset " + option.offset());
         }
