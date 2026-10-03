@@ -237,6 +237,62 @@ class TransactionBytesWitnessTest {
                 .isEqualTo(signed);
     }
 
+    /**
+     * A bootstrap witness is identified by its vkey, chain code and attributes (the Byron address root), not its vkey
+     * alone: one key can sign for several Byron addresses, and each needs its own witness.
+     */
+    @Test
+    void bootstrapWitnessesWithTheSameVkeyAreKeptWhenChainCodeOrAttributesDiffer() {
+        String a = bootstrap("33", "41a0", "22");
+        String otherAttributes = bootstrap("33", "43a10101", "22");
+        String otherChainCode = bootstrap("44", "41a0", "22");
+        byte[] tx = tx("a0");
+
+        // in one witness set
+        byte[] signed = new TransactionBytes(tx)
+                .withSignaturesFrom(decodeHexString("a10283" + a + otherAttributes + otherChainCode)).getTxBytes();
+        assertThat(encodeHexString(new TransactionBytes(signed).getTxWitnessBytes()))
+                .isEqualTo("a10283" + a + otherAttributes + otherChainCode);
+
+        // across successive witness sets, in either order
+        byte[] first = new TransactionBytes(tx).withSignaturesFrom(decodeHexString("a10281" + a)).getTxBytes();
+        byte[] second = new TransactionBytes(first).withSignaturesFrom(decodeHexString("a10281" + otherAttributes)).getTxBytes();
+        assertThat(encodeHexString(new TransactionBytes(second).getTxWitnessBytes())).isEqualTo("a10282" + a + otherAttributes);
+        byte[] reversed = new TransactionBytes(new TransactionBytes(tx).withSignaturesFrom(decodeHexString("a10281" + otherAttributes))
+                .getTxBytes()).withSignaturesFrom(decodeHexString("a10281" + a)).getTxBytes();
+        assertThat(encodeHexString(new TransactionBytes(reversed).getTxWitnessBytes())).isEqualTo("a10282" + otherAttributes + a);
+    }
+
+    @Test
+    void aRepeatedBootstrapWitnessIsAddedOnce() {
+        String a = bootstrap("33", "41a0", "22");
+        byte[] tx = tx("a0");
+        byte[] signed = new TransactionBytes(tx).withSignaturesFrom(decodeHexString("a10282" + a + a)).getTxBytes();
+        assertThat(encodeHexString(new TransactionBytes(signed).getTxWitnessBytes())).isEqualTo("a10281" + a);
+        // the same identity with another signature is the same witness
+        byte[] again = new TransactionBytes(signed).withSignaturesFrom(decodeHexString("a10281" + bootstrap("33", "41a0", "55")))
+                .getTxBytes();
+        assertThat(again).isEqualTo(signed);
+    }
+
+    @Test
+    void malformedWitnessesAreRejected() {
+        byte[] tx = tx("a10081" + OTHER);
+        for (String rejected : new String[]{
+                "a1008181" + "5820" + "11".repeat(32),                          // [vkey]
+                "a10281" + "83" + "5820" + "11".repeat(32) + "5840" + "22".repeat(64) + "5820" + "33".repeat(32), // no attributes
+                "a10281" + "01"}) {                                              // not an array
+            TransactionBytes transactionBytes = new TransactionBytes(tx);
+            assertThatThrownBy(() -> transactionBytes.withSignaturesFrom(decodeHexString(rejected)))
+                    .as(rejected).isInstanceOf(CborRuntimeException.class);
+        }
+    }
+
+    // [vkey, signature, chain_code, attributes] with a fixed vkey
+    private static String bootstrap(String chainCodeByte, String attributesHex, String signatureByte) {
+        return "84" + "5820" + "11".repeat(32) + "5840" + signatureByte.repeat(64) + "5820" + chainCodeByte.repeat(32) + attributesHex;
+    }
+
     @Test
     void withSignaturesFromSkipsAnIdenticalEchoedFieldAndRejectsOthers() {
         byte[] tx = tx("a2" + nativeScriptField() + "0081" + OTHER);
