@@ -614,8 +614,11 @@ final class PlutusDataCodec {
         }
         if (data instanceof MapPlutusData) {
             java.util.Map<PlutusData, PlutusData> map = ((MapPlutusData) data).getMap();
-            return new HashFrame(parent, map == null ? null : new MapItems(map).iterator(), true,
-                    31 * KEY_MAP + (map == null ? 7 : 0));
+            int seed = 31 * KEY_MAP + (map == null ? 7 : 0);
+            // a PlutusDataMap has its keys' hashes: only the values are walked
+            if (map instanceof PlutusDataMap)
+                return new HashFrame(parent, ((PlutusDataMap) map).keyedEntries(), seed);
+            return new HashFrame(parent, map == null ? null : new MapItems(map).iterator(), true, seed);
         }
         return null;
     }
@@ -633,6 +636,7 @@ final class PlutusDataCodec {
     private static final class HashFrame {
         final HashFrame parent;
         private final Iterator<PlutusData> items;
+        private final Iterator<java.util.Map.Entry<Object, PlutusData>> keyed;
         private final boolean pairs;
         private int hash;
         private int entries;
@@ -642,15 +646,33 @@ final class PlutusDataCodec {
         HashFrame(HashFrame parent, Iterator<PlutusData> items, boolean pairs, int seed) {
             this.parent = parent;
             this.items = items;
+            this.keyed = null;
             this.pairs = pairs;
             this.hash = seed;
         }
 
+        // A map whose keys' hashes are known: next() gives the values only.
+        HashFrame(HashFrame parent, Iterator<java.util.Map.Entry<Object, PlutusData>> keyed, int seed) {
+            this.parent = parent;
+            this.items = null;
+            this.keyed = keyed;
+            this.pairs = true;
+            this.hash = seed;
+        }
+
         boolean hasNext() {
+            if (keyed != null)
+                return keyed.hasNext();
             return items != null && items.hasNext();
         }
 
         PlutusData next() {
+            if (keyed != null) {
+                java.util.Map.Entry<Object, PlutusData> entry = keyed.next();
+                keyHash = PlutusDataMap.hash(entry.getKey());
+                onValue = true;
+                return entry.getValue();
+            }
             return items.next();
         }
 

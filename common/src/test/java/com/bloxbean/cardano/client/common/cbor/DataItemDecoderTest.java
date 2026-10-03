@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.management.ManagementFactory;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -125,6 +126,40 @@ class DataItemDecoderTest {
     }
 
     @Test
+    void twoByteSimpleValuesFrom32AreDecoded() {
+        for (int value = 0; value < 32; value++) {
+            byte[] bytes = {(byte) 0xf8, (byte) value};
+            assertThatThrownBy(() -> CborSerializationUtil.deserialize(bytes)).isInstanceOf(CborRuntimeException.class);
+        }
+        assertThat(decode("f820")).isEqualTo(new SimpleValue(32));
+        assertThat(decode("f8ff")).isEqualTo(new SimpleValue(255));
+    }
+
+    /**
+     * Each tag is read in constant time: a run of tags allocates in proportion to its length (it copied the tags read so
+     * far for every tag, quadratic in the run's length).
+     */
+    @Test
+    void aRunOfTagsIsDecodedInLinearSpace() {
+        long small = allocatedToDecode("c1".repeat(4_000) + "00");
+        long large = allocatedToDecode("c1".repeat(16_000) + "00");
+        assertThat(large).as("16,000 tags vs 4,000 (4x the input)").isLessThan(6 * small);
+        assertThat(large).as("bytes allocated per input byte").isLessThan(16_000L * 256);
+    }
+
+    private static long allocatedToDecode(String hex) {
+        byte[] bytes = decodeHexString(hex);
+        CborSerializationUtil.deserialize(bytes); // warm up
+        long before = allocatedBytes();
+        CborSerializationUtil.deserialize(bytes);
+        return allocatedBytes() - before;
+    }
+
+    private static long allocatedBytes() {
+        return ((com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean()).getCurrentThreadAllocatedBytes();
+    }
+
+    @Test
     void integersOfEveryWidth() {
         assertThat(((Number) decode("1bffffffffffffffff")).getValue()).isEqualTo(BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE));
         assertThat(((Number) decode("3bffffffffffffffff")).getValue()).isEqualTo(BigInteger.ONE.shiftLeft(64).negate());
@@ -165,6 +200,7 @@ class DataItemDecoderTest {
             "5fc14100ff",  // tagged chunk
             "5f6161ff",    // text chunk in a byte string
             "1c", "3d", "5e", "fc",   // reserved additional information
+            "f800", "f814", "f818", "f81f", "81f814", // two-byte simple values below 32 (RFC 8949 section 3.3)
             "1f", "df01",  // indefinite integer or tag
             "8201", "9f01", "a101", "c1", "4201", "1901", // truncated
             "9bffffffffffffffff", "9a7fffffff00", "5a7fffffff00", // declared size beyond the input
