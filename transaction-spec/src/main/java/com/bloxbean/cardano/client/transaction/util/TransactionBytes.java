@@ -5,8 +5,11 @@ import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import lombok.Data;
 
+import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Utility class to extract different parts of a transaction as raw bytes, without deserializing the entire transaction.
@@ -23,6 +26,13 @@ public class TransactionBytes {
     private static final byte INDEFINITE_ARRAY = (byte) 0x9f;
     private static final byte[] BREAK = {(byte) 0xff};
     private static final byte[] NONE = {};
+    private static final int MAJOR_BYTES = 2;
+    private static final int MAJOR_ARRAY = 4;
+    private static final int MAJOR_MAP = 5;
+    private static final long VKEY_WITNESSES = 0;
+    private static final long BOOTSTRAP_WITNESSES = 2;
+    private static final long[] SIGNATURE_FIELDS = {VKEY_WITNESSES, BOOTSTRAP_WITNESSES};
+    private static final long SET_TAG = 258;
 
     private byte[] initialBytes;
     private byte[] txBodyBytes;
@@ -66,6 +76,205 @@ public class TransactionBytes {
      */
     public TransactionBytes withNewWitnessSetBytes(byte[] witnessBytes) {
         return new TransactionBytes(initialBytes, txBodyBytes, witnessBytes, validBytes, auxiliaryDataBytes);
+    }
+
+    /**
+     * Returns a new TransactionBytes with the vkey witness {@code [vkey, signature]} added to the witness set, and every
+     * other byte of the transaction unchanged.
+     * <p>
+     * The witness is appended to the vkey witnesses (witness set field 0). An optional tag 258 is kept as encoded; a
+     * definite count is rewritten with a minimal header, which grows by one width step when the count reaches 24, 256
+     * or 65,536; an indefinite array gets the witness before its BREAK. When field 0 is absent, the entry
+     * {@code 0 => [witness]} is added at the end of the witness set, whose count is rewritten the same way. All other
+     * witness fields (scripts, datums, redeemers) keep their original bytes, so the script data hash stays valid.
+     * If the witness set already has a vkey witness for {@code vkey}, the transaction is returned unchanged.
+     *
+     * @param vkey      verification key
+     * @param signature signature of the transaction body hash
+     * @return a new TransactionBytes with the new witness set
+     * @throws CborRuntimeException if the witness set is not a CBOR map, has a duplicate key, or its field 0 is not an
+     *                              array (optionally tagged 258)
+     */
+    public TransactionBytes withVkeyWitness(byte[] vkey, byte[] signature) {
+        ByteArrayOutputStream witness = new ByteArrayOutputStream();
+        writeHead(witness, MAJOR_ARRAY, 2);
+        writeHead(witness, MAJOR_BYTES, vkey.length);
+        witness.writeBytes(vkey);
+        writeHead(witness, MAJOR_BYTES, signature.length);
+        witness.writeBytes(signature);
+        return withNewWitnessSetBytes(addWitness(txWitnessBytes, VKEY_WITNESSES, CborSpan.of(witness.toByteArray())));
+    }
+
+    /**
+     * Returns a new TransactionBytes with the signatures from {@code witnessSet} added to this transaction's witness set:
+     * its vkey witnesses (field 0) and bootstrap witnesses (field 2, used to spend from Byron-era addresses). The
+     * witnesses this transaction already has (signatures, scripts, datums, redeemers) and every other byte stay exactly
+     * as they are, so the transaction id and the script data hash do not change.
+     * <p>
+     * The typical use is signing with a browser wallet over CIP-30. {@code api.signTx(tx, partialSign)} returns only the
+     * witnesses the wallet created, as a {@code transaction_witness_set}, not the signed transaction. For one signature
+     * that is {@code {0: [[vkey, signature]]}}:
+     * <pre>
+     * a1                     map with 1 entry
+     *    00                  key 0: vkey witnesses
+     *    81                  array with 1 witness
+     *       82               [vkey, signature]
+     *          58 20 ...     vkey (32 bytes)
+     *          58 40 ...     signature (64 bytes)
+     * </pre>
+     * Adding it to the transaction:
+     * <pre>{@code
+     * // Backend: build the transaction and keep its exact bytes
+     * byte[] txBytes = quickTxBuilder.compose(tx).build().serialize();
+     *
+     * // Browser, CIP-30: the wallet signs and returns its witness set
+     * //   const witnessSetHex = await api.signTx(txHex, true);
+     *
+     * // Backend: add the wallet's signatures, then submit signedTx
+     * byte[] signedTx = new TransactionBytes(txBytes)
+     *         .withSignaturesFrom(HexUtil.decodeHexString(witnessSetHex))
+     *         .getTxBytes();
+     * }</pre>
+     * Apply it to the exact bytes the signers were given. The signatures cover the transaction body as encoded, so the
+     * transaction must not be rebuilt or re-serialized from a {@code Transaction} object in between. With several signers
+     * (multi-signature, several wallets, several rounds), call it once per witness set, in any order. Backend keys can
+     * sign the same bytes with
+     * {@link com.bloxbean.cardano.client.transaction.TransactionSigner#sign(byte[], com.bloxbean.cardano.client.crypto.SecretKey)}.
+     * <p>
+     * Each witness is appended the way {@link #withVkeyWitness(byte[], byte[])} appends one: tag 258 and indefinite
+     * lengths are kept, counts are rewritten with a minimal header, and a missing field is added at the end of the
+     * witness set. A witness that is already present is skipped, so adding the same witness set twice changes nothing: a
+     * vkey witness with the same vkey, or a bootstrap witness with the same vkey, chain code and attributes (together
+     * they make the Byron address root, so one vkey can sign for several Byron addresses). Any other field in
+     * {@code witnessSet} is skipped when it is byte-identical to this transaction's (some wallets return the whole
+     * witness set) and rejected otherwise: scripts, datums and redeemers are added by the transaction builder, and
+     * adding them here would change bytes covered by the script data hash.
+     * <p>
+     * Unlike {@link #withNewWitnessSetBytes(byte[])}, which replaces the whole witness set, this keeps the existing
+     * witnesses.
+     *
+     * @param witnessSet CBOR of a transaction witness set, for example the result of CIP-30 {@code signTx}
+     * @return a new TransactionBytes with the signatures added
+     * @throws CborRuntimeException if either witness set is not a CBOR map with unique unsigned integer keys, a signature
+     *                              field is not an array (optionally tagged 258) of witnesses ({@code [vkey, signature]}
+     *                              in field 0, {@code [vkey, signature, chain_code, attributes]} in field 2), or
+     *                              {@code witnessSet} has another field that differs from this transaction's
+     */
+    public TransactionBytes withSignaturesFrom(byte[] witnessSet) {
+        CborSpan signatures = CborSpan.of(witnessSet);
+        CborSpan current = CborSpan.of(txWitnessBytes);
+        for (Map.Entry<CborSpan, CborSpan> entry : signatures.entries()) {
+            CborSpan keySpan = entry.getKey();
+            if (keySpan.tag() != -1 || keySpan.majorType() != 0)
+                throw new CborRuntimeException("Witness set keys must be unsigned integers");
+            long key = keySpan.asLong();
+            if (key == VKEY_WITNESSES || key == BOOTSTRAP_WITNESSES)
+                continue;
+            Optional<CborSpan> existing = current.field(key);
+            if (existing.isEmpty() || !Arrays.equals(existing.get().bytes(), entry.getValue().bytes()))
+                throw new CborRuntimeException("Witness set field " + key + " differs from the transaction's; only "
+                        + "vkey (0) and bootstrap (2) witnesses are added");
+        }
+
+        byte[] witnesses = txWitnessBytes;
+        for (long key : SIGNATURE_FIELDS) {
+            Optional<CborSpan> field = signatures.field(key);
+            if (field.isEmpty())
+                continue;
+            for (CborSpan witness : setItems(field.get(), key))
+                witnesses = addWitness(witnesses, key, witness);
+        }
+        return withNewWitnessSetBytes(witnesses);
+    }
+
+    // Adds one witness to field 0 or 2 of a witness set, unless the field already has a witness with the same identity.
+    private static byte[] addWitness(byte[] witnessSetBytes, long key, CborSpan witness) {
+        List<byte[]> identity = identity(witness, key);
+        CborSpan witnessSet = CborSpan.of(witnessSetBytes);
+        Optional<CborSpan> field = witnessSet.field(key);
+        if (field.isPresent()) {
+            for (CborSpan existing : setItems(field.get(), key)) {
+                if (sameIdentity(identity(existing, key), identity))
+                    return witnessSetBytes;
+            }
+            CborSpan array = field.get().untagIf(SET_TAG);
+            return witnessSet.replacing(List.of(array), List.of(appendItem(array, MAJOR_ARRAY, witness.bytes())));
+        }
+        ByteArrayOutputStream entry = new ByteArrayOutputStream();
+        writeHead(entry, 0, key);
+        writeHead(entry, MAJOR_ARRAY, 1);
+        entry.writeBytes(witness.bytes());
+        return appendItem(witnessSet, MAJOR_MAP, entry.toByteArray());
+    }
+
+    /*
+     * What makes two witnesses the same witness. A vkey witness [vkey, signature]: its vkey (a key signs a body with one
+     * signature). A bootstrap witness [vkey, signature, chain_code, attributes]: its vkey, chain code and attributes,
+     * which the ledger hashes into the Byron address root it orders bootstrap witnesses by (bootstrapWitKeyHash), so
+     * one vkey with another chain code or other attributes witnesses another address.
+     */
+    private static List<byte[]> identity(CborSpan witness, long key) {
+        int size = key == VKEY_WITNESSES ? 2 : 4;
+        if (witness.tag() != -1 || witness.majorType() != MAJOR_ARRAY || witness.size() != size)
+            throw new CborRuntimeException((key == VKEY_WITNESSES ? "A vkey" : "A bootstrap") + " witness must be an array of "
+                    + size + " items, at offset " + witness.offset());
+        List<CborSpan> items = witness.items();
+        if (key == VKEY_WITNESSES)
+            return List.of(items.get(0).byteString());
+        return List.of(items.get(0).byteString(), items.get(2).byteString(), items.get(3).byteString());
+    }
+
+    private static boolean sameIdentity(List<byte[]> a, List<byte[]> b) {
+        for (int i = 0; i < a.size(); i++) {
+            if (!Arrays.equals(a.get(i), b.get(i)))
+                return false;
+        }
+        return true;
+    }
+
+    // The witnesses in field 0 or 2: an array, optionally tagged 258.
+    private static List<CborSpan> setItems(CborSpan field, long key) {
+        CborSpan array = field.untagIf(SET_TAG);
+        if (array.tag() != -1 || array.majorType() != MAJOR_ARRAY)
+            throw new CborRuntimeException("Witness set field " + key + " must be an array, optionally tagged 258");
+        return array.items();
+    }
+
+    // Appends encoded content to an untagged array or map: before the BREAK of an indefinite container, otherwise
+    // after the last item with the count (items or pairs) incremented in a minimal header.
+    private static byte[] appendItem(CborSpan container, int major, byte[] content) {
+        byte[] buffer = container.buffer();
+        int end = container.offset() + container.length();
+        ByteArrayOutputStream out = new ByteArrayOutputStream(container.length() + content.length + 8);
+        if (container.isIndefinite()) {
+            out.write(buffer, container.offset(), container.length() - 1);
+            out.writeBytes(content);
+            out.writeBytes(BREAK);
+        } else {
+            int contentStart = container.offset() + container.headerLength();
+            writeHead(out, major, container.size() + 1L);
+            out.write(buffer, contentStart, end - contentStart);
+            out.writeBytes(content);
+        }
+        return out.toByteArray();
+    }
+
+    private static void writeHead(ByteArrayOutputStream out, int major, long value) { // value < 2^32
+        int type = major << 5;
+        if (value < 24) {
+            out.write(type | (int) value);
+        } else if (value < 0x100) {
+            out.write(type | 24);
+            out.write((int) value);
+        } else if (value < 0x10000) {
+            out.write(type | 25);
+            out.write((int) (value >> 8));
+            out.write((int) value);
+        } else {
+            out.write(type | 26);
+            for (int shift = 24; shift >= 0; shift -= 8)
+                out.write((int) (value >> shift));
+        }
     }
 
     private void extractTransactionBytesFromTx(byte[] txBytes) {

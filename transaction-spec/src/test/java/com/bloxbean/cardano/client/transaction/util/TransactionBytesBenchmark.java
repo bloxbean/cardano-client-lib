@@ -14,7 +14,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -48,6 +50,14 @@ class TransactionBytesBenchmark {
                 TransactionUtil::getTxHash);
         compare(report, "`TransactionUtil.extractTransactionBodyFromTx`", txs.size() + " txs", txs,
                 LegacyTransactionBytes::extractTransactionBodyFromTx, TransactionUtil::extractTransactionBodyFromTx);
+        // The witness step alone: both sides start from the same TransactionBytes
+        byte[] vkey = new byte[32];
+        byte[] signature = new byte[64];
+        Map<byte[], TransactionBytes> sliced = new IdentityHashMap<>();
+        txs.forEach(tx -> sliced.put(tx, new TransactionBytes(tx)));
+        compare(report, "`TransactionSigner.addWitnessToTransaction` (witness step)", txs.size() + " txs", txs,
+                tx -> LegacyTransactionSigner.addWitnessToTransaction(sliced.get(tx), vkey, signature),
+                tx -> sliced.get(tx).withVkeyWitness(vkey, signature).getTxBytes());
         compare(report, "walk a whole tx (cbor-java `decode` vs `CborSpan.of`)", txs.size() + " txs", txs,
                 TransactionBytesBenchmark::cborJavaDecode, CborSpan::of);
         compare(report, "walk a whole block (cbor-java `decode` vs `CborSpan.of`)", blocks.size() + " blocks", blocks,
