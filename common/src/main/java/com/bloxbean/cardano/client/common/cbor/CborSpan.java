@@ -43,7 +43,6 @@ public final class CborSpan {
     private static final int MAJOR_ARRAY = 4;
     private static final int MAJOR_MAP = 5;
     private static final int MAJOR_TAG = 6;
-    private static final int MAJOR_SIMPLE = 7;
 
     private static final int BREAK = 0xff;
     private static final int SIMPLE_FALSE = 0xf4;
@@ -60,7 +59,7 @@ public final class CborSpan {
     private static final int FRAME_BYTE_CHUNKS = 3;
     private static final int FRAME_TEXT_CHUNKS = 4;
     private static final int FRAME_ODD = 8;
-    private static final int INDEFINITE = -1;
+    private static final int INDEFINITE = CborHead.INDEFINITE;
 
     private final byte[] buffer;
     private final int offset;
@@ -110,7 +109,7 @@ public final class CborSpan {
         Objects.checkFromIndexSize(offset, length, buffer.length);
         int end = skip(buffer, offset, offset + length);
         if (end != offset + length)
-            throw error("trailing bytes after the CBOR item", end);
+            throw CborHead.error("trailing bytes after the CBOR item", end);
         return new CborSpan(buffer, offset, length);
     }
 
@@ -136,7 +135,7 @@ public final class CborSpan {
         remaining[0] = 1;
         kind[0] = FRAME_ROOT;
 
-        Head head = new Head();
+        CborHead head = new CborHead();
         int pos = offset;
         boolean afterTag = false;
         while (true) {
@@ -146,14 +145,14 @@ public final class CborSpan {
                 depth--;
             }
             if (pos >= limit)
-                throw error("truncated CBOR: expected a data item", pos);
+                throw CborHead.error("truncated CBOR: expected a data item", pos);
 
             int frame = kind[depth];
             if ((buffer[pos] & 0xff) == BREAK) {
                 if (remaining[depth] != INDEFINITE || afterTag)
-                    throw error("unexpected BREAK", pos);
+                    throw CborHead.error("unexpected BREAK", pos);
                 if ((frame & FRAME_ODD) != 0)
-                    throw error("BREAK after a map key without its value", pos);
+                    throw CborHead.error("BREAK after a map key without its value", pos);
                 pos++;
                 depth--;
                 continue;
@@ -164,7 +163,8 @@ public final class CborSpan {
             if (frameKind == FRAME_BYTE_CHUNKS || frameKind == FRAME_TEXT_CHUNKS) {
                 int chunkMajor = frameKind == FRAME_BYTE_CHUNKS ? MAJOR_BYTES : MAJOR_TEXT;
                 if (head.major != chunkMajor || head.indefinite)
-                    throw error("indefinite-length string chunk must be a definite string of the same major type", pos);
+                    throw CborHead.error("indefinite-length string chunk must be a definite string of the same major"
+                            + " type", pos);
             }
             pos = head.end;
 
@@ -185,7 +185,7 @@ public final class CborSpan {
                 case MAJOR_BYTES:
                 case MAJOR_TEXT:
                     if (!head.indefinite) {
-                        pos = checkedStringEnd(head, pos, limit);
+                        pos = CborHead.checkedStringEnd(head, pos, limit);
                         continue;
                     }
                     pushKind = head.major == MAJOR_BYTES ? FRAME_BYTE_CHUNKS : FRAME_TEXT_CHUNKS;
@@ -193,11 +193,11 @@ public final class CborSpan {
                     break;
                 case MAJOR_ARRAY:
                     pushKind = FRAME_ARRAY;
-                    pushCount = head.indefinite ? INDEFINITE : checkedCount(head, 1, pos, limit);
+                    pushCount = head.indefinite ? INDEFINITE : CborHead.checkedCount(head, 1, pos, limit);
                     break;
                 case MAJOR_MAP:
                     pushKind = FRAME_MAP;
-                    pushCount = head.indefinite ? INDEFINITE : checkedCount(head, 2, pos, limit);
+                    pushCount = head.indefinite ? INDEFINITE : CborHead.checkedCount(head, 2, pos, limit);
                     break;
                 default:
                     continue; // integers and simple values are complete after their head
@@ -264,7 +264,7 @@ public final class CborSpan {
      * returned as negative values (unsigned 64-bit).
      */
     public long tag() {
-        Head head = head(offset);
+        CborHead head = head(offset);
         return head.major == MAJOR_TAG ? head.argument : -1;
     }
 
@@ -273,9 +273,9 @@ public final class CborSpan {
      * @throws CborRuntimeException if the item is not tagged
      */
     public CborSpan untag() {
-        Head head = head(offset);
+        CborHead head = head(offset);
         if (head.major != MAJOR_TAG)
-            throw error("CBOR item is not tagged", offset);
+            throw CborHead.error("CBOR item is not tagged", offset);
         return new CborSpan(buffer, head.end, offset + length - head.end);
     }
 
@@ -287,7 +287,7 @@ public final class CborSpan {
      * @return the payload, or this span
      */
     public CborSpan untagIf(long tag) {
-        Head head = head(offset);
+        CborHead head = head(offset);
         return head.major == MAJOR_TAG && head.argument == tag ? new CborSpan(buffer, head.end, offset + length - head.end) : this;
     }
 
@@ -303,9 +303,9 @@ public final class CborSpan {
      * @throws CborRuntimeException if the item is not an untagged array or map
      */
     public int size() {
-        Head head = untaggedHead();
+        CborHead head = untaggedHead();
         if (head.major != MAJOR_ARRAY && head.major != MAJOR_MAP)
-            throw error("expected a CBOR array or map", offset);
+            throw CborHead.error("expected a CBOR array or map", offset);
         if (!head.indefinite)
             return (int) head.argument;
         return head.major == MAJOR_ARRAY ? children(MAJOR_ARRAY).size() : children(MAJOR_MAP).size() / 2;
@@ -318,9 +318,9 @@ public final class CborSpan {
      * @throws IndexOutOfBoundsException if the index is out of range
      */
     public CborSpan get(int index) {
-        Head head = untaggedHead();
+        CborHead head = untaggedHead();
         if (head.major != MAJOR_ARRAY)
-            throw error("expected a CBOR array", offset);
+            throw CborHead.error("expected a CBOR array", offset);
         if (index < 0 || (!head.indefinite && index >= head.argument))
             throw new IndexOutOfBoundsException("Index " + index + " out of bounds for CBOR array");
         int end = offset + length;
@@ -370,11 +370,12 @@ public final class CborSpan {
         CborSpan value = null;
         for (int i = 0; i < children.size(); i += 2) {
             CborSpan keySpan = children.get(i);
-            Head head = head(keySpan.offset);
+            CborHead head = head(keySpan.offset);
             if (head.major != MAJOR_UNSIGNED)
                 continue;
             if (!seen.add(head.argument))
-                throw error("duplicate key " + Long.toUnsignedString(head.argument) + " in CBOR record", keySpan.offset);
+                throw CborHead.error("duplicate key " + Long.toUnsignedString(head.argument) + " in CBOR record",
+                        keySpan.offset);
             if (head.argument == key)
                 value = children.get(i + 1);
         }
@@ -386,11 +387,11 @@ public final class CborSpan {
      * @throws CborRuntimeException if the item is not an integer or does not fit a {@code long}
      */
     public long asLong() {
-        Head head = untaggedHead();
+        CborHead head = untaggedHead();
         if ((head.major != MAJOR_UNSIGNED && head.major != MAJOR_NEGATIVE))
-            throw error("expected a CBOR integer", offset);
+            throw CborHead.error("expected a CBOR integer", offset);
         if (head.argument < 0)
-            throw error("CBOR integer does not fit a long", offset);
+            throw CborHead.error("CBOR integer does not fit a long", offset);
         return head.major == MAJOR_UNSIGNED ? head.argument : -1 - head.argument;
     }
 
@@ -400,13 +401,13 @@ public final class CborSpan {
      * @throws CborRuntimeException if the item is neither
      */
     public BigInteger asBigInteger() {
-        Head head = head(offset);
+        CborHead head = head(offset);
         if (head.major == MAJOR_TAG && (head.argument == TAG_POSITIVE_BIGNUM || head.argument == TAG_NEGATIVE_BIGNUM)) {
             BigInteger magnitude = new BigInteger(1, untag().byteString());
             return head.argument == TAG_POSITIVE_BIGNUM ? magnitude : BigInteger.ONE.negate().subtract(magnitude);
         }
         if (head.major != MAJOR_UNSIGNED && head.major != MAJOR_NEGATIVE)
-            throw error("expected a CBOR integer or bignum", offset);
+            throw CborHead.error("expected a CBOR integer or bignum", offset);
         BigInteger argument = head.argument >= 0
                 ? BigInteger.valueOf(head.argument)
                 : new BigInteger(Long.toUnsignedString(head.argument));
@@ -420,7 +421,7 @@ public final class CborSpan {
     public boolean asBoolean() {
         int initial = buffer[offset] & 0xff;
         if (length != 1 || (initial != SIMPLE_FALSE && initial != SIMPLE_TRUE))
-            throw error("expected a CBOR boolean", offset);
+            throw CborHead.error("expected a CBOR boolean", offset);
         return initial == SIMPLE_TRUE;
     }
 
@@ -457,12 +458,12 @@ public final class CborSpan {
      *                              well-formed data item
      */
     public CborSpan embedded() {
-        Head tagHead = head(offset);
+        CborHead tagHead = head(offset);
         if (tagHead.major != MAJOR_TAG || tagHead.argument != TAG_EMBEDDED_CBOR)
-            throw error("expected tag 24 (embedded CBOR)", offset);
-        Head bytesHead = head(tagHead.end);
+            throw CborHead.error("expected tag 24 (embedded CBOR)", offset);
+        CborHead bytesHead = head(tagHead.end);
         if (bytesHead.major != MAJOR_BYTES)
-            throw error("tag 24 must wrap a byte string", tagHead.end);
+            throw CborHead.error("tag 24 must wrap a byte string", tagHead.end);
         if (bytesHead.indefinite)
             return of(untag().byteString());
         return of(buffer, bytesHead.end, (int) bytesHead.argument);
@@ -502,9 +503,9 @@ public final class CborSpan {
     }
 
     private List<CborSpan> children(int major) {
-        Head head = untaggedHead();
+        CborHead head = untaggedHead();
         if (head.major != major)
-            throw error(major == MAJOR_ARRAY ? "expected a CBOR array" : "expected a CBOR map", offset);
+            throw CborHead.error(major == MAJOR_ARRAY ? "expected a CBOR array" : "expected a CBOR map", offset);
         int end = offset + length;
         int pos = head.end;
         List<CborSpan> children = new ArrayList<>();
@@ -519,102 +520,40 @@ public final class CborSpan {
     }
 
     private byte[] stringPayload(int major) {
-        Head head = untaggedHead();
+        CborHead head = untaggedHead();
         if (head.major != major)
-            throw error(major == MAJOR_BYTES ? "expected a CBOR byte string" : "expected a CBOR text string", offset);
+            throw CborHead.error(major == MAJOR_BYTES ? "expected a CBOR byte string" : "expected a CBOR text string",
+                    offset);
         if (!head.indefinite)
             return Arrays.copyOfRange(buffer, head.end, head.end + (int) head.argument);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         int pos = head.end;
         while ((buffer[pos] & 0xff) != BREAK) {
-            Head chunk = head(pos);
+            CborHead chunk = head(pos);
             out.write(buffer, chunk.end, (int) chunk.argument);
             pos = chunk.end + (int) chunk.argument;
         }
         return out.toByteArray();
     }
 
-    private Head head(int pos) {
-        Head head = new Head();
+    private CborHead head(int pos) {
+        CborHead head = new CborHead();
         head.read(buffer, pos, offset + length);
         return head;
     }
 
-    private Head itemHead() {
-        Head head = head(offset);
+    private CborHead itemHead() {
+        CborHead head = head(offset);
         while (head.major == MAJOR_TAG)
             head.read(buffer, head.end, offset + length);
         return head;
     }
 
-    private Head untaggedHead() {
-        Head head = head(offset);
+    private CborHead untaggedHead() {
+        CborHead head = head(offset);
         if (head.major == MAJOR_TAG)
-            throw error("CBOR item is tagged; call untag() or untagIf() first", offset);
+            throw CborHead.error("CBOR item is tagged; call untag() or untagIf() first", offset);
         return head;
     }
-
-    private static int checkedStringEnd(Head head, int pos, int limit) {
-        if (head.argument < 0 || head.argument > limit - pos)
-            throw error("truncated CBOR string: declared length " + Long.toUnsignedString(head.argument)
-                    + " exceeds the remaining " + (limit - pos) + " bytes", head.start);
-        return pos + (int) head.argument;
-    }
-
-    // Every item takes at least one byte, so a count larger than the remaining input is rejected before anything
-    // is allocated for it.
-    private static int checkedCount(Head head, int itemsPerEntry, int pos, int limit) {
-        if (head.argument < 0 || head.argument > (limit - pos) / itemsPerEntry)
-            throw error("declared CBOR " + (itemsPerEntry == 1 ? "array" : "map") + " size "
-                    + Long.toUnsignedString(head.argument) + " exceeds the remaining " + (limit - pos) + " bytes", head.start);
-        return (int) head.argument * itemsPerEntry;
-    }
-
-    private static CborRuntimeException error(String reason, int offset) {
-        return new CborRuntimeException(reason + " at offset " + offset);
-    }
-
-    /**
-     * The head of one data item: major type, argument and where it ends. BREAK ({@code ff}) is handled by callers.
-     */
-    private static final class Head {
-        int start;
-        int major;
-        long argument; // value, length, count, tag number, or simple/float bits; unsigned 64-bit
-        boolean indefinite;
-        int end;
-
-        void read(byte[] buffer, int pos, int limit) {
-            if (pos >= limit)
-                throw error("truncated CBOR: missing header", pos);
-            start = pos;
-            int initial = buffer[pos++] & 0xff;
-            major = initial >>> 5;
-            int info = initial & 0x1f;
-            indefinite = false;
-            if (info < 24) {
-                argument = info;
-            } else if (info <= 27) {
-                int size = 1 << (info - 24);
-                if (size > limit - pos)
-                    throw error("truncated CBOR header argument", start);
-                long value = 0;
-                for (int i = 0; i < size; i++)
-                    value = (value << 8) | (buffer[pos++] & 0xff);
-                argument = value;
-                // RFC 8949 section 3.3: simple values below 32 have a one-byte encoding only; f8 00 to f8 1f are not
-                // well-formed
-                if (major == MAJOR_SIMPLE && info == 24 && value < 32)
-                    throw error("two-byte simple value below 32", start);
-            } else if (info == 31 && major >= MAJOR_BYTES && major <= MAJOR_MAP) {
-                indefinite = true;
-                argument = INDEFINITE;
-            } else if (info == 31) {
-                throw error(major == MAJOR_SIMPLE ? "unexpected BREAK" : "indefinite length is not allowed for major type " + major, start);
-            } else {
-                throw error("reserved CBOR additional information " + info, start);
-            }
-            end = pos;
-        }
-    }
 }
+

@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
-import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
@@ -72,9 +71,9 @@ public interface PlutusData {
 
     static PlutusData deserialize(@NonNull byte[] serializedBytes) throws CborDeserializationException {
         try {
-            DataItem dataItem = CborDecoder.decode(serializedBytes).get(0);
+            DataItem dataItem = CborSerializationUtil.deserialize(serializedBytes);
             return deserialize(dataItem);
-        } catch (CborException | CborDeserializationException e) {
+        } catch (CborRuntimeException | CborDeserializationException e) {
             throw new CborDeserializationException("Cbor de-serialization error", e);
         }
     }

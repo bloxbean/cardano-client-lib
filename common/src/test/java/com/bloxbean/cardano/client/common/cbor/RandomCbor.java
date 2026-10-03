@@ -7,16 +7,23 @@ import java.util.Random;
 /**
  * Seeded generator of well-formed CBOR items that uses the non-canonical forms Cardano data may contain: indefinite
  * arrays, maps and chunked strings, non-minimal heads, duplicate map keys, tags at any width and nested tags.
- * Tags 30 and 38 (decoded semantically by cbor-java) are never produced, and tags are never put directly on
- * {@code false/true/null/undefined} (cbor-java would tag its shared singletons).
+ * Tags are never put directly on {@code false/true/null/undefined}: cbor-java would tag its shared singletons, which
+ * changes later decodes. By default tags 30 and 38 (decoded semantically by cbor-java) are never produced; with
+ * {@code semanticTags} they are, with valid and invalid payloads, to compare decoders.
  */
 final class RandomCbor {
     private static final long[] TAGS = {0, 1, 2, 3, 24, 102, 121, 127, 258, 259, 1280, 1400};
 
     private final Random random;
+    private final boolean semanticTags;
 
     RandomCbor(long seed) {
+        this(seed, false);
+    }
+
+    RandomCbor(long seed, boolean semanticTags) {
         this.random = new Random(seed);
+        this.semanticTags = semanticTags;
     }
 
     byte[] next(int maxDepth) {
@@ -79,6 +86,10 @@ final class RandomCbor {
 
     private void tag(ByteArrayOutputStream out, int depth) {
         long tag = random.nextInt(5) == 0 ? random.nextLong() >>> random.nextInt(64) : TAGS[random.nextInt(TAGS.length)];
+        if (semanticTags && random.nextInt(4) == 0) {
+            semanticTag(out, depth);
+            return;
+        }
         if (tag == 30 || tag == 38)
             tag = 258;
         head(out, 6, tag);
@@ -98,6 +109,33 @@ final class RandomCbor {
                     out.write(payload, 0, payload.length);
                 }
             } while (out.size() == start);
+        }
+    }
+
+    // Tag 30 (rational) or 38 (language-tagged string), mostly well-typed, sometimes not.
+    private void semanticTag(ByteArrayOutputStream out, int depth) {
+        boolean rational = random.nextBoolean();
+        head(out, 6, rational ? 30 : 38);
+        switch (random.nextInt(6)) {
+            case 0: { // anything
+                byte[] payload = next(depth - 1);
+                out.write(payload, 0, payload.length);
+                break;
+            }
+            case 1: // wrong arity
+                head(out, 4, 1 + 2 * random.nextInt(2));
+                for (int i = 0; i < 3; i++)
+                    head(out, 0, random.nextInt(5));
+                break;
+            default:
+                head(out, 4, 2);
+                if (rational) {
+                    head(out, random.nextBoolean() ? 0 : 1, randomUnsigned());
+                    head(out, random.nextBoolean() ? 0 : 1, random.nextInt(8) == 0 ? 0 : 1 + random.nextInt(1000));
+                } else {
+                    string(out, 3);
+                    string(out, 3);
+                }
         }
     }
 

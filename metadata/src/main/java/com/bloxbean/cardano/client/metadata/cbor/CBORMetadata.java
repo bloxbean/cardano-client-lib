@@ -1,8 +1,7 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
-import co.nstant.in.cbor.CborDecoder;
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -142,8 +141,8 @@ public class CBORMetadata implements Metadata {
     public static CBORMetadata deserialize(byte[] cborBytes) throws MetadataDeSerializationException {
         List<DataItem> dataItemList = null;
         try {
-            dataItemList = CborDecoder.decode(cborBytes);
-        } catch (CborException e) {
+            dataItemList = CborSerializationUtil.deserializeAll(cborBytes);
+        } catch (CborRuntimeException e) {
             throw new MetadataDeSerializationException("Cbor deserialization failed", e);
         }
 
