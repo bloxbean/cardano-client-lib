@@ -136,8 +136,8 @@ final class RandomCbor {
                 out.write(0xe0 + random.nextInt(20)); // unassigned simple values 0..19
                 break;
             case 2:
-                out.write(0xf8);
-                out.write(random.nextInt(256));
+                out.write(0xf8); // two-byte simple value: 32..255 (below 32 is not well-formed)
+                out.write(32 + random.nextInt(224));
                 break;
             default:
                 int width = 1 << random.nextInt(3); // half, single, double float
