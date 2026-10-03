@@ -86,6 +86,21 @@ class CborSpanWellFormednessTest {
     }
 
     @Test
+    void twoByteSimpleValuesBelow32AreRejected() {
+        // RFC 8949 section 3.3: f8 00 to f8 1f are not well-formed (simple values below 32 take one byte)
+        for (int value = 0; value < 32; value++) {
+            byte[] bytes = {(byte) 0xf8, (byte) value};
+            assertThatThrownBy(() -> CborSpan.of(bytes)).as("f8 %02x", value)
+                    .isInstanceOf(CborRuntimeException.class).hasMessageContaining("at offset 0");
+            byte[] inArray = {(byte) 0x81, (byte) 0xf8, (byte) value};
+            assertThatThrownBy(() -> CborSpan.of(inArray)).as("[f8 %02x]", value)
+                    .isInstanceOf(CborRuntimeException.class).hasMessageContaining("at offset 1");
+        }
+        assertThat(CborSpan.of(decodeHexString("f820")).length()).isEqualTo(2);
+        assertThat(CborSpan.of(decodeHexString("f8ff")).length()).isEqualTo(2);
+    }
+
+    @Test
     void emptyInputIsRejected() {
         assertThatThrownBy(() -> CborSpan.of(new byte[0])).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> CborSpan.skip(new byte[0], 0, 0)).isInstanceOf(CborRuntimeException.class);
@@ -96,7 +111,7 @@ class CborSpanWellFormednessTest {
         for (String hex : List.of("1800", "190000", "1a00000000", "1b0000000000000000", "3800",
                 "9800", "990000", "9a00000000", "9b0000000000000000", "b800", "5800", "7800",
                 "d80001", "d9000001", "da0000000001", "db000000000000000001", // tag 0 at every width
-                "f800", "f8ff", "f90000", "fa00000000", "fb0000000000000000", "e0", "f7",
+                "f820", "f8ff", "f90000", "fa00000000", "fb0000000000000000", "e0", "f7",
                 "5fff", "7fff", "9fff", "bfff", "5f40ff", "a201000100")) {
             byte[] bytes = decodeHexString(hex);
             assertThat(CborSpan.of(bytes).length()).as(hex).isEqualTo(bytes.length);
@@ -170,9 +185,20 @@ class CborSpanWellFormednessTest {
         Random random = new Random(681_682);
         RandomCbor generator = new RandomCbor(682);
         long deadline = System.nanoTime() + 60_000_000_000L;
+        List<byte[]> inputs = new ArrayList<>();
+        for (int i = 0; i < 100_000; i++)
+            inputs.add(i % 4 == 0 ? randomBytes(random) : mutate(generator.next(5), random));
+        // a first pass runs every code path once (linking string concatenation in error messages, for example), so the
+        // measured pass sees steady-state allocation
+        for (byte[] input : inputs) {
+            try {
+                CborSpan.skip(input, 0, input.length);
+            } catch (CborRuntimeException e) {
+                // rejected
+            }
+        }
         int accepted = 0;
-        for (int i = 0; i < 100_000; i++) {
-            byte[] input = i % 4 == 0 ? randomBytes(random) : mutate(generator.next(5), random);
+        for (byte[] input : inputs) {
             long before = allocatedBytes();
             int end;
             try {
