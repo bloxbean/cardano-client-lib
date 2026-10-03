@@ -216,10 +216,46 @@ class RawTxScenarioTest {
             "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "4c" + "821b0000000100000001" + "8100", // type 2^32 + 1
             "a1" + "00" + ADDRESS,                                                       // no value
             "81" + ADDRESS,                                                              // a legacy output of one item
+            "a3" + "00" + ADDRESS + "01" + "00" + "02" + "8100",                         // datum option [0]
+            "a3" + "00" + ADDRESS + "01" + "00" + "02" + "80",                           // datum option []
+            "a3" + "00" + ADDRESS + "01" + "00" + "02" + "830058200000000000000000000000000000000000000000000000000000000000000000" + "00", // [0, hash, 0]
+            "a3" + "00" + ADDRESS + "01" + "00" + "02" + "00",                           // datum option not an array
+            "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "42" + "8100",          // script reference [0]
+            "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "41" + "80",            // script reference []
+            "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "46" + "830082000000",          // [0, [0, 0], 0]
     })
     void malformedOutputsAreRejected(String output) {
         RawTx raw = tx("a3" + "0080" + "0181" + output + "0200", "a0", "f6");
         assertThatThrownBy(raw::outputs).isInstanceOf(CborRuntimeException.class);
+    }
+
+    /**
+     * Short datum options and script references were read by index and escaped as IndexOutOfBoundsException; they are
+     * rejected with CborRuntimeException like any other malformed record.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"84a10181a300400100028100a0f5f6", "84a10181a30040010003d818428100a0f5f6"})
+    void shortDatumOptionAndScriptReferenceAreRejected(String hex) {
+        RawTx raw = RawTx.of(decodeHexString(hex));
+        assertThatThrownBy(raw::outputs).isInstanceOf(CborRuntimeException.class).hasMessageContaining("at offset");
+    }
+
+    /**
+     * Unknown record keys are passed over whatever their value: a key of 2^63 or more, before or after the known ones,
+     * does not stop the known fields from being read.
+     */
+    @Test
+    void largeUnknownKeysArePassedOver() {
+        String body = "a5" + "1b8000000000000000" + "00" + "0180" + "0080" + "0200" + "1bffffffffffffffff" + "00";
+        String witnesses = "a2" + "1b8000000000000000" + "00" + "00" + "81" + VKEY_WITNESS;
+        RawTx raw = tx(body, witnesses, "f6");
+        assertThat(raw.outputs()).isEmpty();
+        assertThat(raw.bodyField(2).orElseThrow().asLong()).isZero();
+        assertThat(raw.bodyField(9)).isEmpty();
+        assertThat(raw.vkeyWitnesses()).hasSize(1);
+        assertThat(raw.witnessField(5)).isEmpty();
+        // the reviewer's case: the only other key is 2^63
+        assertThat(RawTx.of(decodeHexString("84a21b8000000000000000000180a0f5f6")).outputs()).isEmpty();
     }
 
     @Test

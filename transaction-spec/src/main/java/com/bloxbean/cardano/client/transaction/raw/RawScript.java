@@ -14,6 +14,8 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 
+import java.util.List;
+
 /**
  * A script as received: a witness or aux data script, or a reference script ({@code script_ref}).
  *
@@ -32,7 +34,8 @@ public record RawScript(int type, CborSpan span) {
      * @return the script
      */
     static RawScript ofScriptRef(CborSpan scriptRef) {
-        return new RawScript(RawTx.smallInt(scriptRef.get(0)), scriptRef.get(1));
+        List<CborSpan> items = RawTx.pair(scriptRef, "A script reference");
+        return new RawScript(RawTx.smallInt(items.get(0)), items.get(1));
     }
 
     /**
