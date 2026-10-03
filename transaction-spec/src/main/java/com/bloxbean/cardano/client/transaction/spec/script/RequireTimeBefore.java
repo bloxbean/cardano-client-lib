@@ -37,8 +37,7 @@ public class RequireTimeBefore implements NativeScript {
     }
 
     public static RequireTimeBefore deserialize(Array array) throws CborDeserializationException {
-        long slot = ((UnsignedInteger)array.getDataItems().get(1)).getValue().longValue();
-        return new RequireTimeBefore(slot);
+        return NativeScriptCodec.decode(array, RequireTimeBefore.class);
     }
 
     public static RequireTimeBefore deserialize(JsonNode jsonNode) throws CborDeserializationException {
