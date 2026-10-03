@@ -457,3 +457,6 @@ for monitoring and profiling Java and .NET applications.
 YourKit is the creator of <a href="https://www.yourkit.com/java/profiler/">YourKit Java Profiler</a>,
 <a href="https://www.yourkit.com/.net/profiler/">YourKit .NET Profiler</a>,
 and <a href="https://www.yourkit.com/youmonitor/">YourKit YouMonitor</a>.
+
+<!-- Scarf pixel: cookie-free traffic analytics for this page (https://docs.scarf.sh/web-traffic/) -->
+<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=228307f6-d0ce-4c76-9eab-6f5d619d12c1&page=README.md" alt="" width="1" height="1" />
