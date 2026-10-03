@@ -49,6 +49,16 @@ final class RealCborFixtures {
         return txs;
     }
 
+    /**
+     * @return the pool registrations with an indefinite-length owners or relays array, which did not decode before
+     */
+    static List<Tx> indefinitePoolRegistrationTxs() {
+        List<Tx> txs = new ArrayList<>();
+        for (JsonNode node : read("cbor/indefinite-pool-registration-txs.json").get("txs"))
+            txs.add(tx(node));
+        return txs;
+    }
+
     static Tx trigger() {
         return tx(read("cbor/preprod-trigger-tx.json"));
     }

@@ -13,6 +13,7 @@ import java.util.*;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
 
 /**
  * {@literal
@@ -81,7 +82,7 @@ public class UpdateCommittee implements GovAction {
         GovActionId govActionId = GovAction.getGovActionId(actionIdDI);
 
         //committee_cold_credentials
-        List<DataItem> committeeColdCredArray = ((Array) govActionDIList.get(2)).getDataItems();
+        List<DataItem> committeeColdCredArray = withoutBreak(((Array) govActionDIList.get(2)).getDataItems());
         Set<Credential> committeeColdCredSet = new LinkedHashSet<>();
         committeeColdCredArray.stream()
                 .map(coldCredDI -> CredentialSerializer.deserialize((Array) coldCredDI))

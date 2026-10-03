@@ -24,6 +24,8 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -60,12 +62,12 @@ public class AuxiliaryData {
      * @throws CborDeserializationException if the array is not of that shape
      */
     public static AuxiliaryData deserialize(Array array) throws CborDeserializationException {
-        List<DataItem> items = Transaction.withoutBreak(array.getDataItems());
+        List<DataItem> items = withoutBreak(array.getDataItems());
         if (items.size() != 2 || !(items.get(0) instanceof Map) || !(items.get(1) instanceof Array))
             throw new CborDeserializationException("Aux data [metadata, scripts] expected");
         AuxiliaryData auxiliaryData = new AuxiliaryData();
         auxiliaryData.setMetadata(CBORMetadata.deserialize((Map) items.get(0)));
-        for (DataItem nativeScriptDI : Transaction.withoutBreak(((Array) items.get(1)).getDataItems())) {
+        for (DataItem nativeScriptDI : withoutBreak(((Array) items.get(1)).getDataItems())) {
             if (!(nativeScriptDI instanceof Array))
                 throw new CborDeserializationException("Native script expected in aux data");
             auxiliaryData.getNativeScripts().add(NativeScript.deserialize((Array) nativeScriptDI));
