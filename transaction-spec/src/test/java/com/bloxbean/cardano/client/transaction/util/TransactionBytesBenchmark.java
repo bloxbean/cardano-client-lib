@@ -2,14 +2,27 @@ package com.bloxbean.cardano.client.transaction.util;
 
 import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.DataItem;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.spec.Script;
+import com.bloxbean.cardano.client.transaction.raw.RawBlock;
+import com.bloxbean.cardano.client.transaction.raw.RawDatum;
+import com.bloxbean.cardano.client.transaction.raw.RawOutput;
+import com.bloxbean.cardano.client.transaction.raw.RawScript;
+import com.bloxbean.cardano.client.transaction.raw.RawTx;
 import com.bloxbean.cardano.client.transaction.spec.LegacyTransactionDeserializer;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
@@ -68,6 +81,15 @@ class TransactionBytesBenchmark {
                 TransactionBytesBenchmark::cborJavaDecode, CborSpan::of);
         compare(report, "walk a whole block (cbor-java `decode` vs `CborSpan.of`)", blocks.size() + " blocks", blocks,
                 TransactionBytesBenchmark::cborJavaDecode, CborSpan::of);
+
+        // Raw views: the TxId alone, every hash of a received transaction, and a block's body hash with every TxId
+        compare(report, "TxId (cbor-java slicing vs `RawTx.of(tx).txId()`)", txs.size() + " txs", txs,
+                tx -> Blake2bUtil.blake2bHash256(LegacyTransactionBytes.extractTransactionBodyFromTx(tx)),
+                tx -> RawTx.of(tx).txId());
+        compare(report, "every hash of a received tx (model vs `RawTx`)", modelTxs.size() + " txs", modelTxs,
+                TransactionBytesBenchmark::modelHashes, TransactionBytesBenchmark::rawHashes);
+        compare(report, "block body hash and every TxId (cbor-java decode and re-encode vs `RawBlock`)", blocks.size() + " blocks",
+                blocks, TransactionBytesBenchmark::reencodedBlockHashes, TransactionBytesBenchmark::rawBlockHashes);
 
         report.append("\nJVM: ").append(System.getProperty("java.vm.name")).append(' ').append(System.getProperty("java.version"))
                 .append(", ").append(System.getProperty("os.name")).append(' ').append(System.getProperty("os.arch"))
@@ -156,6 +178,64 @@ class TransactionBytesBenchmark {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    // What a receiver computes from the models: TxId, aux data hash, witness script and datum hashes, inline datum hashes.
+    private static void modelHashes(byte[] bytes) {
+        try {
+            Transaction tx = Transaction.deserialize(bytes);
+            TransactionUtil.getTxHash(tx);
+            if (tx.getAuxiliaryData() != null)
+                tx.getAuxiliaryData().getAuxiliaryDataHash();
+            TransactionWitnessSet witnesses = tx.getWitnessSet();
+            for (List<? extends Script> scripts : Arrays.asList(witnesses.getNativeScripts(), witnesses.getPlutusV1Scripts(),
+                    witnesses.getPlutusV2Scripts(), witnesses.getPlutusV3Scripts())) {
+                if (scripts != null)
+                    for (Script script : scripts)
+                        script.getScriptHash();
+            }
+            if (witnesses.getPlutusDataList() != null)
+                witnesses.getPlutusDataList().forEach(PlutusData::getDatumHashAsBytes);
+            for (TransactionOutput output : tx.getBody().getOutputs())
+                if (output.getInlineDatum() != null)
+                    output.getInlineDatum().getDatumHashAsBytes();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    // The same hashes from the original bytes.
+    private static void rawHashes(byte[] bytes) {
+        RawTx tx = RawTx.of(bytes);
+        tx.txId();
+        tx.auxDataHash();
+        tx.scripts().forEach(RawScript::hash);
+        tx.witnessDatums().forEach(RawDatum::hash);
+        for (RawOutput output : tx.outputs())
+            output.inlineDatum().ifPresent(RawDatum::hash);
+    }
+
+    // A block's body hash and TxIds without spans: decode the block and re-encode each part (right only for canonical
+    // blocks).
+    private static void reencodedBlockHashes(byte[] bytes) {
+        try {
+            List<DataItem> parts = ((Array) ((Array) CborDecoder.decode(bytes).get(0)).getDataItems().get(1)).getDataItems();
+            ByteArrayOutputStream hashes = new ByteArrayOutputStream();
+            for (DataItem part : parts.subList(1, parts.size()))
+                hashes.writeBytes(Blake2bUtil.blake2bHash256(CborSerializationUtil.serialize(part, false)));
+            Blake2bUtil.blake2bHash256(hashes.toByteArray());
+            for (DataItem body : ((Array) parts.get(1)).getDataItems())
+                Blake2bUtil.blake2bHash256(CborSerializationUtil.serialize(body, false));
+        } catch (CborException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static void rawBlockHashes(byte[] bytes) {
+        RawBlock block = RawBlock.of(bytes);
+        block.bodyHash();
+        for (int i = 0; i < block.txCount(); i++)
+            block.tx(i).txId();
     }
 
     private static void cborJavaDecode(byte[] bytes) {

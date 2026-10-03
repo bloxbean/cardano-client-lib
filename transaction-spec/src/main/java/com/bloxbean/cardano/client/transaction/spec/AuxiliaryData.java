@@ -114,6 +114,14 @@ public class AuxiliaryData {
         return auxiliaryData;
     }
 
+    /**
+     * The hash of the serialized aux data, which is right for aux data built with CCL. For aux data received in a
+     * transaction, take the hash from the original bytes with
+     * {@link com.bloxbean.cardano.client.transaction.raw.RawTx#auxDataHash()}: the model keeps one entry per metadata
+     * key and re-encodes in its own shape.
+     *
+     * @return the aux data hash
+     */
     @JsonIgnore
     public byte[] getAuxiliaryDataHash() throws MetadataSerializationException {
         return getAuxiliaryDataHash(EraSerializationConfig.INSTANCE.getEra());
