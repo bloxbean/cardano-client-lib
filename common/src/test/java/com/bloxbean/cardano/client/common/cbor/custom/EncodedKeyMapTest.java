@@ -98,4 +98,16 @@ class EncodedKeyMapTest {
         assertThat(CborSerializationUtil.serialize(map)).isEqualTo(LegacyCborEncoder.encode(plain, true));
         assertThat(CborSerializationUtil.serialize(map, false)).isEqualTo(LegacyCborEncoder.encode(plain, false));
     }
+
+    @Test
+    void aRepeatedKeyIsNoted() {
+        // {1: 0, 1 (non-minimal): 2}: kept once, with the last value
+        EncodedKeyMap repeated = (EncodedKeyMap) CborSerializationUtil.deserialize(decodeHexString("a2" + "0100" + "1801" + "02"));
+        assertThat(repeated.hasRepeatedKey()).isTrue();
+        assertThat(repeated.getKeys()).hasSize(1);
+        EncodedKeyMap distinct = (EncodedKeyMap) CborSerializationUtil.deserialize(decodeHexString("a2" + "0100" + "0201"));
+        assertThat(distinct.hasRepeatedKey()).isFalse();
+        // a tagged key is another key
+        assertThat(((EncodedKeyMap) CborSerializationUtil.deserialize(decodeHexString("a2" + "0100" + "c10100"))).hasRepeatedKey()).isFalse();
+    }
 }

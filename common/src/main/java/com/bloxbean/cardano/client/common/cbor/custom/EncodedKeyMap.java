@@ -37,6 +37,7 @@ import java.util.Objects;
  */
 public class EncodedKeyMap extends Map {
     private final LinkedHashMap<Key, DataItem> entries;
+    private boolean repeatedKey;
 
     public EncodedKeyMap() {
         this(16);
@@ -49,8 +50,17 @@ public class EncodedKeyMap extends Map {
 
     @Override
     public Map put(DataItem key, DataItem value) {
-        entries.put(new Key(key), value);
+        if (entries.put(new Key(key), value) != null)
+            repeatedKey = true;
         return this;
+    }
+
+    /**
+     * @return true if a key was put more than once: for a decoded map, the CBOR repeats a key, which this map keeps once.
+     * A CDDL record (a transaction body, a witness set) that repeats a key is invalid on chain.
+     */
+    public boolean hasRepeatedKey() {
+        return repeatedKey;
     }
 
     @Override
