@@ -37,14 +37,13 @@ class CborScanTest {
         assertEquals(canonical, hex.equals(PlutusData.deserialize(bytes).serializeToHex()));
     }
 
-    /**
-     * Integers outside -2^64..2^64-1 in minimal bytes, as plutus-core encodeData writes them; the model does so from the
-     * BigIntPlutusData fix (#693), before which it writes them chunked.
-     */
+    /** Integers outside -2^64..2^64-1 in minimal bytes, as plutus-core encodeData writes them (and the model, #693). */
     @Test
-    void minimalBignumsAreCanonical() {
+    void minimalBignumsAreCanonical() throws Exception {
         for (String hex : List.of("c249010000000000000000", "c349010000000000000000", // 2^64, -2^64 - 1
-                "c25840" + "01" + "00".repeat(63)))                                // 2^504
+                "c25840" + "01" + "00".repeat(63))) {                              // 2^504
             assertTrue(CborScan.scan(HexUtil.decodeHexString(hex), true).canonical, hex);
+            assertEquals(hex, PlutusData.deserialize(HexUtil.decodeHexString(hex)).serializeToHex(), hex);
+        }
     }
 }

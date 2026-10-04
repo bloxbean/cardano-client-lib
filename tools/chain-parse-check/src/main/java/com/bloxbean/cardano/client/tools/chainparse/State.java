@@ -46,6 +46,11 @@ final class State {
         processedBlocks++;
     }
 
+    /** Counts one issue of {@code check}; returns the new count. */
+    synchronized long countIssue(String check) {
+        return issueCounts.merge(check, 1L, Long::sum);
+    }
+
     /** The last block of a fully processed batch: the resume point. */
     void advance(long slot, String hash, long blockNo) {
         lastSlot = slot;
@@ -83,10 +88,7 @@ final class Issues {
     }
 
     synchronized void report(String check, Map<String, Object> m, byte[] txCbor, byte[] blockCbor) {
-        long n;
-        synchronized (state) {
-            n = state.issueCounts.merge(check, 1L, Long::sum);
-        }
+        long n = state.countIssue(check);
         if (n > 5000)
             return;
         try {

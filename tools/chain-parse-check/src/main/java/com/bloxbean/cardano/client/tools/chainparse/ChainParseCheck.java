@@ -270,7 +270,7 @@ public final class ChainParseCheck {
                             checkers.get().block(b);
                         } catch (Throwable t) {
                             log.error("block check error: {}", Checker.trace(t));
-                            synchronized (state) { state.issueCounts.merge("block_harness_error", 1L, Long::sum); }
+                            state.countIssue("block_harness_error");
                         }
                         return null;
                     });
