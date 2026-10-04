@@ -1,0 +1,117 @@
+# From the release-ops standard (templates/workflows/bloxbean-snapshot-cleanup.yml, 2026-10-04).
+name: Clean up old snapshots in the BloxBean Maven repository
+
+# Removes old commit snapshots that bloxbean-snapshot.yml published, under the retention policy below
+# (bloxbean/release-ops docs/12-bloxbean-maven-repository.md, Snapshot retention). Releases are never touched.
+#
+# A run always plans first and reports what it would remove. With dry_run off it then waits for a release owner's
+# approval in the `release` environment, the same gate as publish-central.yml, and removes only the versions that
+# plan listed. The approval wait holds no lock; the removal runs in the publish workflow's concurrency group, so it
+# never interleaves with a publication. An approved removal still pending behind a publication is cancelled if
+# another publication is queued (GitHub keeps one pending job per group); dispatch and approve it again.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only report what would be removed'
+        type: boolean
+        default: true
+
+permissions: {}
+
+env:
+  GROUP_PATH: com/bloxbean/cardano
+  REPOSITORY_PREFIX: maven/snapshots
+  # Keep the newest 20 commit versions, anything published in the last 60 days, and every artifact's <latest>.
+  # cardano-client-lib publishes a moving snapshot version (gradle.properties, e.g. 0.8.0-pre6-SNAPSHOT), not one
+  # per commit: the current one is always kept as <latest>, and the older timestamped builds inside a version are
+  # not pruned. Only whole old snapshot versions (after a version bump) become eligible.
+  KEEP_VERSIONS: '20'
+  KEEP_DAYS: '60'
+  AWS_DEFAULT_REGION: auto
+  # AWS CLI 2.23+ sends request checksums R2 does not accept by default; send them only when an API needs one.
+  AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+  AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+
+jobs:
+  plan:
+    # The bucket credentials are secrets of this environment. Run from master only, so the policy applied is the
+    # reviewed one.
+    if: github.ref == 'refs/heads/master'
+    environment: release-staging
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      artifacts: ${{ steps.discover.outputs.artifacts }}
+      versions: ${{ steps.plan.outputs.versions }}
+    env:
+      BUCKET: ${{ vars.R2_BUCKET }}
+      AWS_ENDPOINT_URL: ${{ vars.R2_ENDPOINT }}
+      STAGING_DIR: ${{ github.workspace }}/build/bloxbean-maven
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      # The artifactIds this build publishes, and only those, are cleaned: the group may be shared with other
+      # repositories.
+      - name: Discover the Maven publications
+        id: discover
+        run: bash .github/scripts/bloxbean-maven.sh discover -PskipSigning=true
+      - name: Plan the cleanup
+        id: plan
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
+        run: python3 .github/scripts/clean-maven-snapshots.py plan
+
+  # The approval gate. The `release` environment holds no secrets; its reviewers are the release-owners team, and
+  # the person who started the run can't approve it.
+  approve:
+    needs: plan
+    if: ${{ !inputs.dry_run && needs.plan.outputs.versions != '' }}
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - name: Approved
+        env:
+          VERSIONS: ${{ needs.plan.outputs.versions }}
+        run: echo "Removal approved for $VERSIONS"
+
+  clean:
+    needs: [plan, approve]
+    environment: release-staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    concurrency:
+      group: bloxbean-maven-snapshots
+      cancel-in-progress: false
+    env:
+      BUCKET: ${{ vars.R2_BUCKET }}
+      AWS_ENDPOINT_URL: ${{ vars.R2_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Remove the approved versions
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          VERSIONS: ${{ needs.plan.outputs.versions }}
+          ARTIFACTS: ${{ needs.plan.outputs.artifacts }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086 # one argument per version
+          python3 .github/scripts/clean-maven-snapshots.py delete $VERSIONS

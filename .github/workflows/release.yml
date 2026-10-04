@@ -1,12 +1,18 @@
-name: Stage release to Maven Central
+# From the release-ops standard (templates/workflows/release.yml, 2026-10-04): Maven Central and the BloxBean Maven
+# repository, with the verified-structures load-tools jar as the GitHub release asset.
+name: Release Maven artifacts
 
-# Step 3 of the PR-gated release flow. A v* tag, created by tag-release.yml after a
-# code-owner-approved version bump merges, builds and signs every module and uploads a USER_MANAGED
-# Central Portal deployment. It stops there: nothing is on Maven Central until a human publishes the
-# deployment, via publish-central.yml or the portal.
+# A v* tag, created by tag-release.yml after a code-owner-approved version bump merges, builds and signs every module
+# once and publishes the Maven artifacts where gradle.properties says (release-ops docs/12):
+#   maven_central_publish  uploads a USER_MANAGED Central Portal deployment. It stops there: nothing is on Maven
+#                          Central until a human publishes the deployment, via publish-central.yml or the portal.
+#   bloxbean_repo_publish  publishes to https://repo.bloxbean.org/maven/releases, public and permanent at once.
+# With both on, both receive the same signed files: one Gradle run builds the staged repository and the Central
+# bundle, which are checked byte for byte, and the Central upload reuses that bundle. The BloxBean repository goes
+# first, so a Central failure (e.g. its quota) leaves the release there.
 #
-# The GitHub release (with the load-tools jar) is a separate job, gated by github_release in
-# gradle.properties. It is the only job with a write token, and it never sees the release secrets.
+# The GitHub release (with the load-tools jar) is a separate job, gated by github_release in gradle.properties. It is
+# the only job with a write token, and it never sees the release secrets.
 
 on:
   push:
@@ -23,21 +29,43 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-24.04
-    # The signing subkey and Central Portal token are secrets of this environment, which only accepts
-    # v* tags (plus master and release/** for the other release workflows). Only the release App and
-    # org admins can create v* tags.
+    # The signing subkey, Central Portal token and bucket credentials are secrets of this environment, which only
+    # accepts v* tags (plus master and release/** for the other release workflows). Only the release App and org
+    # admins can create v* tags.
     environment: release-staging
     permissions:
       contents: read
+    # Seeding, staging and uploading to the BloxBean repository is a read-modify-write of each artifact's version
+    # list, so releases of different tags run one at a time. A pending run has uploaded nothing; if GitHub cancels
+    # it because a third release queued behind it, run it again.
+    concurrency:
+      group: bloxbean-maven-releases
+      cancel-in-progress: false
     outputs:
       version: ${{ steps.version.outputs.version }}
       is_final: ${{ steps.version.outputs.is_final }}
       github_release: ${{ steps.version.outputs.github_release }}
+    env:
+      GROUP_PATH: com/bloxbean/cardano
+      BUCKET: ${{ vars.R2_BUCKET }}
+      REPOSITORY_PREFIX: maven/releases
+      PUBLIC_REPOSITORY_URL: https://repo.bloxbean.org/maven/releases
+      # What the Gradle consumer check resolves, and which of this build's jars it must get.
+      CONSUMER_DEPENDENCIES: >-
+        com.bloxbean.cardano:cardano-client-lib
+        com.bloxbean.cardano:cardano-client-backend-blockfrost
+      CONSUMER_REQUIRED: cardano-client-lib cardano-client-core cardano-client-backend-blockfrost
+      # Absolute, because the stagingRepository hook resolves it against each project's own directory.
+      STAGING_DIR: ${{ github.workspace }}/build/bloxbean-maven
+      AWS_ENDPOINT_URL: ${{ vars.R2_ENDPOINT }}
+      AWS_DEFAULT_REGION: auto
+      # AWS CLI 2.23+ sends request checksums R2 does not accept by default; send them only when an API needs one.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -67,41 +95,112 @@ jobs:
           if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             IS_FINAL=true
           fi
-          # A GitHub release is deletable, unlike a Central version, but it still notifies watchers
-          # and advertises the tag as a real release. Gating it lets a tag rehearse the whole
-          # pipeline and stage Maven Central only.
+          # Where the Maven artifacts go must be stated, not defaulted: a missing line is an error.
+          MAVEN_CENTRAL_PUBLISH=$(awk '/^maven_central_publish:/ { print $2; exit }' <<< "$PROPS")
+          BLOXBEAN_REPO_PUBLISH=$(awk '/^bloxbean_repo_publish:/ { print $2; exit }' <<< "$PROPS")
+          for flag in "maven_central_publish=$MAVEN_CENTRAL_PUBLISH" "bloxbean_repo_publish=$BLOXBEAN_REPO_PUBLISH"; do
+            if [[ "${flag#*=}" != true && "${flag#*=}" != false ]]; then
+              echo "::error::gradle.properties must set ${flag%%=*} to true or false." >&2
+              exit 1
+            fi
+          done
+          # A GitHub release is deletable, unlike a Central version, but it still notifies watchers and
+          # advertises the tag as a real release. Gating it lets a tag rehearse the whole pipeline and
+          # stage Maven Central only.
           GITHUB_RELEASE=$(awk '/^github_release:/ { print $2; exit }' <<< "$PROPS")
           {
             echo "version=$VERSION"
             echo "is_final=$IS_FINAL"
             echo "github_release=${GITHUB_RELEASE:-false}"
+            echo "maven_central_publish=$MAVEN_CENTRAL_PUBLISH"
+            echo "bloxbean_repo_publish=$BLOXBEAN_REPO_PUBLISH"
           } >> "$GITHUB_OUTPUT"
-          echo "Version $VERSION (final: $IS_FINAL), GitHub release: ${GITHUB_RELEASE:-false}"
+          echo "Version $VERSION (final: $IS_FINAL), Maven Central: $MAVEN_CENTRAL_PUBLISH," \
+            "BloxBean repository: $BLOXBEAN_REPO_PUBLISH, GitHub release: ${GITHUB_RELEASE:-false}"
 
       - name: Build with Gradle
         run: ./gradlew clean build --stacktrace
 
-      # Uploads a USER_MANAGED deployment and waits for Sonatype validation. It stops there: nothing
-      # is on Maven Central until a human publishes it. See nmcpAggregation in build.gradle.
-      - name: Upload deployment to Maven Central staging
-        id: upload
+      # Learns the artifactIds this build owns; unsigned, its staged files are discarded.
+      - name: Discover the Maven publications
+        id: discover
+        if: steps.version.outputs.bloxbean_repo_publish == 'true'
+        run: bash .github/scripts/bloxbean-maven.sh discover -PskipSigning=true
+
+      - name: Seed metadata from the BloxBean repository
+        if: steps.version.outputs.bloxbean_repo_publish == 'true'
         env:
-          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
-          # Signing subkey passed to Gradle in memory (see configureReleaseSigning in build.gradle):
-          # nothing is written to disk and nothing appears on the command line.
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/bloxbean-maven.sh seed
+
+      # The one step that signs, with the subkey passed to Gradle in memory (see configureReleaseSigning in
+      # build.gradle): nothing is written to disk and nothing appears on the command line. One Gradle run builds both
+      # destinations' files: the staged repository and the Central bundle.
+      - name: Stage and sign the Maven publications
+        env:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY_ASC }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+        run: >-
+          ./gradlew publishAllPublicationsToStagingRepository nmcpZipAggregation
+          -PstagingRepository="$STAGING_DIR" --stacktrace
+
+      # Also proves the two destinations get the same release: every file of the Central bundle must be
+      # byte-identical to the staged one, and every staged artifact and signature must be in the bundle. A version
+      # the BloxBean repository already has is refused: a release is never replaced.
+      - name: Verify the staged repository and the Central bundle
+        if: steps.version.outputs.bloxbean_repo_publish == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
         shell: bash
         run: |
           set -euo pipefail
-          # Do not add --warn here. It lowers Gradle below LIFECYCLE, which is the level nmcp reports
-          # the deployment id at, and the grep below would then fail every release after a
-          # successful upload.
-          ./gradlew publishAggregationToCentralPortal --stacktrace 2>&1 | tee upload.log
-          # The deployment id exists only in nmcp's output. Fail loudly if the log format changes
-          # rather than reporting a release with no id.
+          # shellcheck disable=SC2086 # one argument per artifactId
+          python3 .github/scripts/verify-maven-staging.py --central-bundle build/nmcp/zip/aggregation.zip \
+            "$STAGING_DIR" "$RUNNER_TEMP/maven-seed" "$GROUP_PATH" "$VERSION" $ARTIFACTS
+
+      # Once the BloxBean repository has this version, a re-run of the tag is refused. If the Central upload then
+      # fails, this exact bundle is how Central still gets the same bytes: upload it in the Central Portal.
+      - name: Keep the Central bundle
+        if: steps.version.outputs.maven_central_publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: central-bundle-${{ steps.version.outputs.version }}
+          path: build/nmcp/zip/aggregation.zip
+          retention-days: 90
+          if-no-files-found: error
+
+      # Both uploads come before any public check, so a flaky check can never keep the release off Central.
+      - name: Upload to the BloxBean repository
+        id: bloxbean
+        if: steps.version.outputs.bloxbean_repo_publish == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/bloxbean-maven.sh upload
+
+      # Uploads a USER_MANAGED deployment and waits for Sonatype validation. It stops there: nothing is
+      # on Maven Central until a human publishes it. See nmcpAggregation in build.gradle. `-x nmcpZipAggregation`
+      # uploads the bundle built and checked above instead of rebuilding it: nothing compiles or signs here.
+      - name: Upload deployment to Maven Central staging
+        id: upload
+        if: steps.version.outputs.maven_central_publish == 'true'
+        env:
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Do not add --warn here. It lowers Gradle below LIFECYCLE, which is the level nmcp reports the
+          # deployment id at, and the grep below would then fail every release after a successful upload.
+          ./gradlew publishAggregationToCentralPortal -x nmcpZipAggregation --stacktrace 2>&1 | tee upload.log
+          # The deployment id exists only in nmcp's output. Fail loudly if the log format changes rather
+          # than reporting a release with no id.
           id=$(grep -oE "deployment bundle '[0-9a-f-]{36}'" upload.log \
             | head -1 | grep -oE '[0-9a-f-]{36}' || true)
           if [[ -z "$id" ]]; then
@@ -110,30 +209,70 @@ jobs:
           fi
           echo "deployment-id=$id" >> "$GITHUB_OUTPUT"
 
-      - name: Record the pending deployment
+      # The BloxBean copy is checked even when the Central upload failed: then it is the release's only copy.
+      - name: Verify the BloxBean repository
+        if: ${{ !cancelled() && steps.bloxbean.outcome == 'success' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
+        run: bash .github/scripts/bloxbean-maven.sh verify-public
+
+      - name: Resolve from the BloxBean repository with a Gradle consumer
+        if: ${{ !cancelled() && steps.bloxbean.outcome == 'success' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
+        run: bash .github/scripts/bloxbean-maven.sh consume
+
+      # Reports what actually happened, including on failure, so a partly published release is never mistaken for
+      # a complete one.
+      - name: Record the release
+        if: ${{ !cancelled() && steps.version.outcome == 'success' }}
         env:
           DEPLOYMENT_ID: ${{ steps.upload.outputs.deployment-id }}
           VERSION: ${{ steps.version.outputs.version }}
+          MAVEN_CENTRAL_PUBLISH: ${{ steps.version.outputs.maven_central_publish }}
+          BLOXBEAN_REPO_PUBLISH: ${{ steps.version.outputs.bloxbean_repo_publish }}
+          BLOXBEAN_OUTCOME: ${{ steps.bloxbean.outcome }}
           GITHUB_RELEASE: ${{ steps.version.outputs.github_release }}
         shell: bash
         run: |
           set -euo pipefail
           {
-            echo "## Maven Central deployment staged - NOT published"
+            echo "## Maven artifacts of \`cardano-client-lib:$VERSION\`"
             echo
-            echo "Deployment \`$DEPLOYMENT_ID\` (\`cardano-client-lib:$VERSION\`) passed validation"
-            echo "and is waiting for a human."
+            if [[ "$BLOXBEAN_REPO_PUBLISH" != true ]]; then
+              echo "BloxBean repository: not published (bloxbean_repo_publish=false)."
+            elif [[ "$BLOXBEAN_OUTCOME" == success ]]; then
+              echo "**BloxBean repository: published** at $PUBLIC_REPOSITORY_URL (public and permanent)."
+            else
+              echo "**BloxBean repository: NOT published** - the upload failed or did not run."
+            fi
             echo
-            echo "Publish it through the approval-gated workflow:"
-            echo "https://github.com/$GITHUB_REPOSITORY/actions/workflows/publish-central.yml"
-            echo
-            echo "Or from the portal: https://central.sonatype.com/publishing/deployments"
+            if [[ "$MAVEN_CENTRAL_PUBLISH" != true ]]; then
+              echo "Maven Central: not published (maven_central_publish=false)."
+            elif [[ -n "$DEPLOYMENT_ID" ]]; then
+              echo "**Maven Central: deployment \`$DEPLOYMENT_ID\` staged - NOT published.** It passed"
+              echo "validation and is waiting for a human. Publish it through the approval-gated workflow:"
+              echo "https://github.com/$GITHUB_REPOSITORY/actions/workflows/publish-central.yml"
+              echo
+              echo "Or from the portal: https://central.sonatype.com/publishing/deployments"
+            else
+              echo "**Maven Central: NOT staged** - the upload failed or did not run."
+              if [[ "$BLOXBEAN_OUTCOME" == success ]]; then
+                echo "The BloxBean repository has this version, so re-running the tag is refused. To put the"
+                echo "same bytes on Central, upload this run's \`central-bundle-$VERSION\` artifact at"
+                echo "https://central.sonatype.com/publishing (release-ops docs/12)."
+              fi
+            fi
             echo
             if [[ "$GITHUB_RELEASE" == "true" ]]; then
               echo "The GitHub release job runs next (github_release = true)."
             else
               echo "No GitHub release for this tag (github_release = false)."
-              echo "If this was a rehearsal, drop the deployment in the portal."
+              if [[ "$BLOXBEAN_REPO_PUBLISH" != true ]]; then
+                echo "If this was a rehearsal, drop any Central deployment in the portal."
+              fi
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -150,8 +289,8 @@ jobs:
 
   github-release:
     needs: publish
-    # Gated by github_release in gradle.properties. Runs only after the Central deployment is staged,
-    # and on failure can be re-run on its own without touching Central.
+    # Gated by github_release in gradle.properties. Runs only after the Central deployment is staged, and
+    # on failure can be re-run on its own without touching Central.
     if: needs.publish.outputs.github_release == 'true'
     runs-on: ubuntu-24.04
     permissions:
@@ -163,8 +302,8 @@ jobs:
           name: load-tools-jar
           path: dist
 
-      # Creates the release for the tag, or adds the asset if it already exists. Do not pre-create a
-      # draft release for the tag: the action publishes an existing draft.
+      # Creates the release for the tag, or adds the asset if it already exists. Do not pre-create a draft
+      # release for the tag: the action publishes an existing draft.
       - name: Create GitHub release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
@@ -172,6 +311,6 @@ jobs:
           files: dist/cardano-client-vds-load-tools-*-all.jar
           fail_on_unmatched_files: true
           prerelease: ${{ needs.publish.outputs.is_final != 'true' }}
-          # Latest is decided by semantic version and date, so a maintenance release (e.g. 0.7.3
-          # after 0.8.0) does not take the Latest badge.
+          # Latest is decided by semantic version and date, so a maintenance release (e.g. 0.7.3 after
+          # 0.8.0) does not take the Latest badge.
           make_latest: legacy
