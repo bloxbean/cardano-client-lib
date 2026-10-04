@@ -1,5 +1,5 @@
 {
-  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-cip30. DataSignature is (de)serialized by Jackson through its private fields; registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-cip30. DataSignature is (de)serialized by Jackson through its private fields; registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods declared by each type.",
   "reflection": [
     {
       "condition": {

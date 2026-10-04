@@ -1,6 +1,9 @@
 dependencies {
     api project(':common')
     api project(':crypto')
+    testImplementation(project(':test-support')) {
+        exclude group: 'net.jqwik'
+    }
 }
 
 publishing {

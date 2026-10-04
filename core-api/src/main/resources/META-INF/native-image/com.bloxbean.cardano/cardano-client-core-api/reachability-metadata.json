@@ -1,5 +1,5 @@
 {
-  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-core-api. Provider-format models (Utxo, Amount, ProtocolParams, ...) bound from JSON; @JsonNaming(SnakeCaseStrategy) instantiates the strategy reflectively. Registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-core-api. Provider-format models (Utxo, Amount, ProtocolParams, ...) bound from JSON; @JsonNaming(SnakeCaseStrategy) instantiates the strategy reflectively. Registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods declared by each type.",
   "reflection": [
     {
       "condition": {
@@ -800,83 +800,13 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getAddress",
-          "parameterTypes": []
-        },
-        {
-          "name": "getAmount",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDataHash",
-          "parameterTypes": []
-        },
-        {
           "name": "getDerivationPath",
           "parameterTypes": []
-        },
-        {
-          "name": "getInlineDatum",
-          "parameterTypes": []
-        },
-        {
-          "name": "getOutputIndex",
-          "parameterTypes": []
-        },
-        {
-          "name": "getReferenceScriptHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getTxHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "setAddress",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
-        },
-        {
-          "name": "setAmount",
-          "parameterTypes": [
-            "java.util.List"
-          ]
-        },
-        {
-          "name": "setDataHash",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
         },
         {
           "name": "setDerivationPath",
           "parameterTypes": [
             "com.bloxbean.cardano.client.crypto.cip1852.DerivationPath"
-          ]
-        },
-        {
-          "name": "setInlineDatum",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
-        },
-        {
-          "name": "setOutputIndex",
-          "parameterTypes": [
-            "int"
-          ]
-        },
-        {
-          "name": "setReferenceScriptHash",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
-        },
-        {
-          "name": "setTxHash",
-          "parameterTypes": [
-            "java.lang.String"
           ]
         }
       ]

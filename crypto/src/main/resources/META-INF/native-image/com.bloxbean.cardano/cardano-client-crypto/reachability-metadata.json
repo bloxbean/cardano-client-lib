@@ -1,5 +1,197 @@
 {
-  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-crypto. The BIP39 English word list is loaded from the class path by MnemonicCode.",
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-crypto. The BIP39 English word list is loaded from the class path by MnemonicCode. SecretKey, VerificationKey (key files, Policy.policyKeys) and DerivationPath (WalletUtxo) are bound by Jackson once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods declared by each type.",
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.crypto.SecretKey",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setBytes",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setCborHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setType",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.crypto.VerificationKey",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCborHex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDescription",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        },
+        {
+          "name": "setBytes",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        },
+        {
+          "name": "setCborHex",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setDescription",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setType",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.crypto.cip1852.DerivationPath",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getAccount",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCoinType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getIndex",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPurpose",
+          "parameterTypes": []
+        },
+        {
+          "name": "getRole",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAccount",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.crypto.cip1852.Segment"
+          ]
+        },
+        {
+          "name": "setCoinType",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.crypto.cip1852.Segment"
+          ]
+        },
+        {
+          "name": "setIndex",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.crypto.cip1852.Segment"
+          ]
+        },
+        {
+          "name": "setPurpose",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.crypto.cip1852.Segment"
+          ]
+        },
+        {
+          "name": "setRole",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.crypto.cip1852.Segment"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.crypto.cip1852.Segment",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        },
+        {
+          "name": "isHarden",
+          "parameterTypes": []
+        },
+        {
+          "name": "setHarden",
+          "parameterTypes": [
+            "boolean"
+          ]
+        },
+        {
+          "name": "setValue",
+          "parameterTypes": [
+            "int"
+          ]
+        }
+      ]
+    }
+  ],
   "resources": [
     {
       "condition": {

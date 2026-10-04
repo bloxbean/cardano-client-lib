@@ -1,9 +1,9 @@
 {
-  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-quicktx. TxPlan documents and polymorphic intents (@JsonSubTypes) are (de)serialized by Jackson through YamlSerializer; entries apply once YamlSerializer is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-quicktx. TxPlan documents and polymorphic intents (@JsonSubTypes) are (de)serialized by Jackson, through YamlSerializer and through other mappers (e.g. txflow); registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods declared by each type.",
   "reflection": [
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.CollectFromIntent",
       "allDeclaredConstructors": true,
@@ -37,7 +37,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.DRepDeregistrationIntent",
       "allDeclaredConstructors": true,
@@ -121,7 +121,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.DRepRegistrationIntent",
       "allDeclaredConstructors": true,
@@ -225,7 +225,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.DRepUpdateIntent",
       "allDeclaredConstructors": true,
@@ -319,7 +319,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.DepositHelper",
       "allDeclaredConstructors": true,
@@ -328,7 +328,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.DepositHelper$DepositType",
       "allDeclaredConstructors": true,
@@ -337,7 +337,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.DonationIntent",
       "allDeclaredConstructors": true,
@@ -371,7 +371,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.FlowOutputRef",
       "allDeclaredConstructors": true,
@@ -382,56 +382,16 @@
           "parameterTypes": []
         },
         {
-          "name": "getOutputIndex",
-          "parameterTypes": []
-        },
-        {
-          "name": "getOutputIndexForYaml",
-          "parameterTypes": []
-        },
-        {
-          "name": "getOutputIndexTemplate",
-          "parameterTypes": []
-        },
-        {
-          "name": "getTxHash",
-          "parameterTypes": []
-        },
-        {
           "name": "setFlowOutput",
           "parameterTypes": [
             "com.bloxbean.cardano.client.quicktx.intent.FlowOutputRef$Pointer"
-          ]
-        },
-        {
-          "name": "setOutputIndex",
-          "parameterTypes": [
-            "java.lang.Integer"
-          ]
-        },
-        {
-          "name": "setOutputIndexFromYaml",
-          "parameterTypes": [
-            "java.lang.Object"
-          ]
-        },
-        {
-          "name": "setOutputIndexTemplate",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
-        },
-        {
-          "name": "setTxHash",
-          "parameterTypes": [
-            "java.lang.String"
           ]
         }
       ]
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.FlowOutputRef$Pointer",
       "allDeclaredConstructors": true,
@@ -461,7 +421,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.GovernanceProposalIntent",
       "allDeclaredConstructors": true,
@@ -565,7 +525,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.MetadataIntent",
       "allDeclaredConstructors": true,
@@ -589,7 +549,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.MintingIntent",
       "allDeclaredConstructors": true,
@@ -703,7 +663,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.NativeScriptAttachmentIntent",
       "allDeclaredConstructors": true,
@@ -789,7 +749,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.PaymentIntent",
       "allDeclaredConstructors": true,
@@ -913,7 +873,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.PoolRegistrationIntent",
       "allDeclaredConstructors": true,
@@ -953,7 +913,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.PoolRetirementIntent",
       "allDeclaredConstructors": true,
@@ -987,7 +947,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntent",
       "allDeclaredConstructors": true,
@@ -1011,7 +971,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent",
       "allDeclaredConstructors": true,
@@ -1149,7 +1109,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent$SpendingContext",
       "allDeclaredConstructors": true,
@@ -1179,7 +1139,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.ScriptMintingIntent",
       "allDeclaredConstructors": true,
@@ -1283,7 +1243,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntent",
       "allDeclaredConstructors": true,
@@ -1389,7 +1349,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.StakeDelegationIntent",
       "allDeclaredConstructors": true,
@@ -1443,7 +1403,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.StakeDeregistrationIntent",
       "allDeclaredConstructors": true,
@@ -1497,7 +1457,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.StakeRegistrationIntent",
       "allDeclaredConstructors": true,
@@ -1521,7 +1481,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.StakeWithdrawalIntent",
       "allDeclaredConstructors": true,
@@ -1585,21 +1545,15 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.TxInputIntent",
       "allDeclaredConstructors": true,
-      "allDeclaredFields": true,
-      "methods": [
-        {
-          "name": "getType",
-          "parameterTypes": []
-        }
-      ]
+      "allDeclaredFields": true
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.TxInputRef",
       "allDeclaredConstructors": true,
@@ -1608,7 +1562,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.TxIntent",
       "allDeclaredConstructors": true,
@@ -1622,21 +1576,15 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.TxScriptAttachmentIntent",
       "allDeclaredConstructors": true,
-      "allDeclaredFields": true,
-      "methods": [
-        {
-          "name": "getType",
-          "parameterTypes": []
-        }
-      ]
+      "allDeclaredFields": true
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.UtxoRef",
       "allDeclaredConstructors": true,
@@ -1686,7 +1634,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.UtxoRefDeserializer",
       "allDeclaredConstructors": true,
@@ -1695,7 +1643,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.VotingDelegationIntent",
       "allDeclaredConstructors": true,
@@ -1789,7 +1737,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.intent.VotingIntent",
       "allDeclaredConstructors": true,
@@ -1935,7 +1883,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.MetadataDeserializer",
       "allDeclaredConstructors": true,
@@ -1944,7 +1892,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.MetadataSerializer",
       "allDeclaredConstructors": true,
@@ -1953,7 +1901,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.MetadataSerializer$Format",
       "allDeclaredConstructors": true,
@@ -1962,7 +1910,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.PlaceholderMetadata",
       "allDeclaredConstructors": true,
@@ -1984,7 +1932,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.PlutusDataYamlUtil",
       "allDeclaredConstructors": true,
@@ -1993,7 +1941,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument",
       "allDeclaredConstructors": true,
@@ -2043,7 +1991,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$ScriptTxContent",
       "allDeclaredConstructors": true,
@@ -2052,7 +2000,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$SignerRef",
       "allDeclaredConstructors": true,
@@ -2082,7 +2030,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$TxContent",
       "allDeclaredConstructors": true,
@@ -2182,7 +2130,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$TxContext",
       "allDeclaredConstructors": true,
@@ -2292,7 +2240,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$TxEntry",
       "allDeclaredConstructors": true,
@@ -2330,77 +2278,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
-      },
-      "type": "com.bloxbean.cardano.client.quicktx.serialization.TxPlan",
-      "allDeclaredConstructors": true,
-      "allDeclaredFields": true,
-      "methods": [
-        {
-          "name": "getCollateralPayer",
-          "parameterTypes": []
-        },
-        {
-          "name": "getCollateralPayerRef",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDepositMode",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDepositPayer",
-          "parameterTypes": []
-        },
-        {
-          "name": "getFeePayer",
-          "parameterTypes": []
-        },
-        {
-          "name": "getFeePayerRef",
-          "parameterTypes": []
-        },
-        {
-          "name": "getRequiredSigners",
-          "parameterTypes": []
-        },
-        {
-          "name": "getSignerRefs",
-          "parameterTypes": []
-        },
-        {
-          "name": "getTxs",
-          "parameterTypes": []
-        },
-        {
-          "name": "getValidFromSlot",
-          "parameterTypes": []
-        },
-        {
-          "name": "getValidToSlot",
-          "parameterTypes": []
-        },
-        {
-          "name": "getVariables",
-          "parameterTypes": []
-        },
-        {
-          "name": "setRequiredSigners",
-          "parameterTypes": [
-            "java.util.Set"
-          ]
-        },
-        {
-          "name": "setVariables",
-          "parameterTypes": [
-            "java.util.Map"
-          ]
-        }
-      ]
-    },
-    {
-      "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.VariableResolver",
       "allDeclaredConstructors": true,
@@ -2409,7 +2287,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer",
       "allDeclaredConstructors": true,

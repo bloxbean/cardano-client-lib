@@ -1,6 +1,20 @@
 {
-  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-transaction-spec. Transaction model bound by Jackson bean introspection (Transaction.toJson(), JsonUtil), including polymorphic Relay subtypes and custom (de)serializers; registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-transaction-spec. Transaction model bound by Jackson bean introspection (Transaction.toJson(), JsonUtil), including polymorphic Relay subtypes and custom (de)serializers; plus Nonce (ProtocolParamUpdate.extraEntropy); registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods declared by each type.",
   "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.Nonce",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getHash",
+          "parameterTypes": []
+        }
+      ]
+    },
     {
       "condition": {
         "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
@@ -165,65 +179,7 @@
       },
       "type": "com.bloxbean.cardano.client.transaction.spec.ChangeOutput",
       "allDeclaredConstructors": true,
-      "allDeclaredFields": true,
-      "methods": [
-        {
-          "name": "getAddress",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDatumHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getInlineDatum",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptRef",
-          "parameterTypes": []
-        },
-        {
-          "name": "getValue",
-          "parameterTypes": []
-        },
-        {
-          "name": "setAddress",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
-        },
-        {
-          "name": "setDatumHash",
-          "parameterTypes": [
-            "byte[]"
-          ]
-        },
-        {
-          "name": "setInlineDatum",
-          "parameterTypes": [
-            "com.bloxbean.cardano.client.plutus.spec.PlutusData"
-          ]
-        },
-        {
-          "name": "setScriptRef",
-          "parameterTypes": [
-            "byte[]"
-          ]
-        },
-        {
-          "name": "setScriptRef",
-          "parameterTypes": [
-            "com.bloxbean.cardano.client.spec.Script"
-          ]
-        },
-        {
-          "name": "setValue",
-          "parameterTypes": [
-            "com.bloxbean.cardano.client.transaction.spec.Value"
-          ]
-        }
-      ]
+      "allDeclaredFields": true
     },
     {
       "condition": {
@@ -1034,10 +990,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
           "name": "getCommitteeColdCredential",
           "parameterTypes": []
         },
@@ -1100,10 +1052,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
           "name": "getGenesisDelegateHash",
           "parameterTypes": []
         },
@@ -1148,10 +1096,6 @@
           "parameterTypes": []
         },
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
           "name": "getPot",
           "parameterTypes": []
         },
@@ -1189,10 +1133,6 @@
       "methods": [
         {
           "name": "getBech32PoolId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getCborHex",
           "parameterTypes": []
         },
         {
@@ -1316,10 +1256,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
           "name": "getEpoch",
           "parameterTypes": []
         },
@@ -1341,10 +1277,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
         {
           "name": "getCoin",
           "parameterTypes": []
@@ -1384,10 +1316,6 @@
           "parameterTypes": []
         },
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
           "name": "getCoin",
           "parameterTypes": []
         },
@@ -1420,10 +1348,6 @@
       "methods": [
         {
           "name": "getAnchor",
-          "parameterTypes": []
-        },
-        {
-          "name": "getCborHex",
           "parameterTypes": []
         },
         {
@@ -1528,10 +1452,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
           "name": "getStakeCredential",
           "parameterTypes": []
         },
@@ -1553,10 +1473,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
         {
           "name": "getStakeCredential",
           "parameterTypes": []
@@ -1593,10 +1509,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
         {
           "name": "getCoin",
           "parameterTypes": []
@@ -1642,10 +1554,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
           "name": "getStakeCredential",
           "parameterTypes": []
         },
@@ -1663,10 +1571,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
         {
           "name": "getDrep",
           "parameterTypes": []
@@ -1711,10 +1615,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
         {
           "name": "getCoin",
           "parameterTypes": []
@@ -1770,10 +1670,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
           "name": "getCoin",
           "parameterTypes": []
         },
@@ -1807,10 +1703,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
         {
           "name": "getCoin",
           "parameterTypes": []
@@ -1850,10 +1742,6 @@
           "parameterTypes": []
         },
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
           "name": "getDrepCredential",
           "parameterTypes": []
         },
@@ -1883,10 +1771,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
         {
           "name": "getDrep",
           "parameterTypes": []
@@ -1921,10 +1805,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
         {
           "name": "getCoin",
           "parameterTypes": []
@@ -2502,14 +2382,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
-          "parameterTypes": []
-        },
-        {
           "name": "getScriptType",
           "parameterTypes": []
         },
@@ -2527,22 +2399,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptType",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptTypeBytes",
-          "parameterTypes": []
-        },
         {
           "name": "getSlot",
           "parameterTypes": []
@@ -2568,22 +2424,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptType",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptTypeBytes",
-          "parameterTypes": []
-        },
-        {
           "name": "getSlot",
           "parameterTypes": []
         },
@@ -2608,22 +2448,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptType",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptTypeBytes",
-          "parameterTypes": []
-        },
-        {
           "name": "getScripts",
           "parameterTypes": []
         },
@@ -2641,22 +2465,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptType",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptTypeBytes",
-          "parameterTypes": []
-        },
         {
           "name": "getScripts",
           "parameterTypes": []
@@ -2676,23 +2484,7 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
           "name": "getRequired",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptType",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptTypeBytes",
           "parameterTypes": []
         },
         {
@@ -2721,22 +2513,6 @@
       "methods": [
         {
           "name": "getKeyHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptType",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptTypeBytes",
           "parameterTypes": []
         },
         {

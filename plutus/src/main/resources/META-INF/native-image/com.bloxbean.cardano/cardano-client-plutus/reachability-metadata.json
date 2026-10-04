@@ -1,5 +1,5 @@
 {
-  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-plutus. PlutusData JSON (de)serializers (PlutusDataJsonConverter) and Plutus model types are bound by Jackson once ObjectMapper is reached; the CIP-57 blueprint model is bound only once PlutusBlueprintLoader is reached. Methods: bean accessors and Jackson-annotated methods.",
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-plutus. PlutusData JSON (de)serializers (PlutusDataJsonConverter) and Plutus model types are bound by Jackson once ObjectMapper is reached; the CIP-57 blueprint model is bound only once PlutusBlueprintLoader is reached, except PlutusVersion, which QuickTx intents also bind. Methods: bean accessors and Jackson-annotated methods declared by each type.",
   "reflection": [
     {
       "condition": {
@@ -451,7 +451,7 @@
     },
     {
       "condition": {
-        "typeReached": "com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader"
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion",
       "allDeclaredConstructors": true,
@@ -626,14 +626,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getDatumHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDatumHashAsBytes",
-          "parameterTypes": []
-        },
-        {
           "name": "getValue",
           "parameterTypes": []
         }
@@ -647,14 +639,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getDatumHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDatumHashAsBytes",
-          "parameterTypes": []
-        },
         {
           "name": "getValue",
           "parameterTypes": []
@@ -675,14 +659,6 @@
         },
         {
           "name": "getData",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDatumHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDatumHashAsBytes",
           "parameterTypes": []
         }
       ]
@@ -794,14 +770,6 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getDatumHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDatumHashAsBytes",
-          "parameterTypes": []
-        },
-        {
           "name": "getPlutusDataList",
           "parameterTypes": []
         },
@@ -819,14 +787,6 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [
-        {
-          "name": "getDatumHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDatumHashAsBytes",
-          "parameterTypes": []
-        },
         {
           "name": "getMap",
           "parameterTypes": []
@@ -872,22 +832,6 @@
           "parameterTypes": []
         },
         {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptType",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptTypeBytes",
-          "parameterTypes": []
-        },
-        {
           "name": "getType",
           "parameterTypes": []
         },
@@ -914,23 +858,7 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDescription",
-          "parameterTypes": []
-        },
-        {
           "name": "getLanguage",
-          "parameterTypes": []
-        },
-        {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
           "parameterTypes": []
         },
         {
@@ -940,22 +868,6 @@
         {
           "name": "getScriptTypeBytes",
           "parameterTypes": []
-        },
-        {
-          "name": "getType",
-          "parameterTypes": []
-        },
-        {
-          "name": "setCborHex",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
-        },
-        {
-          "name": "setDescription",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
         }
       ]
     },
@@ -968,23 +880,7 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDescription",
-          "parameterTypes": []
-        },
-        {
           "name": "getLanguage",
-          "parameterTypes": []
-        },
-        {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
           "parameterTypes": []
         },
         {
@@ -994,22 +890,6 @@
         {
           "name": "getScriptTypeBytes",
           "parameterTypes": []
-        },
-        {
-          "name": "getType",
-          "parameterTypes": []
-        },
-        {
-          "name": "setCborHex",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
-        },
-        {
-          "name": "setDescription",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
         }
       ]
     },
@@ -1022,23 +902,7 @@
       "allDeclaredFields": true,
       "methods": [
         {
-          "name": "getCborHex",
-          "parameterTypes": []
-        },
-        {
-          "name": "getDescription",
-          "parameterTypes": []
-        },
-        {
           "name": "getLanguage",
-          "parameterTypes": []
-        },
-        {
-          "name": "getPolicyId",
-          "parameterTypes": []
-        },
-        {
-          "name": "getScriptHash",
           "parameterTypes": []
         },
         {
@@ -1048,22 +912,6 @@
         {
           "name": "getScriptTypeBytes",
           "parameterTypes": []
-        },
-        {
-          "name": "getType",
-          "parameterTypes": []
-        },
-        {
-          "name": "setCborHex",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
-        },
-        {
-          "name": "setDescription",
-          "parameterTypes": [
-            "java.lang.String"
-          ]
         }
       ]
     },
