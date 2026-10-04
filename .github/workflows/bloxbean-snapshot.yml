@@ -1,0 +1,161 @@
+# From the release-ops standard (templates/workflows/bloxbean-snapshot.yml, 2026-10-04), without the
+# `github-snapshot` job for now (the Development snapshot release is proven on Yano first).
+name: Publish snapshot to the BloxBean Maven repository
+
+# Publishes the commit's Maven publications to the BloxBean Maven repository on Cloudflare R2, which consumers
+# read anonymously at https://repo.bloxbean.org/maven/snapshots. See
+# bloxbean/release-ops docs/12-bloxbean-maven-repository.md. Independent of snapshot_manual.yml (Central Portal
+# snapshots) and of the release workflows; it publishes no distribution, image or npm package.
+#
+# Gradle only publishes to a local directory, through the `stagingRepository` hook in build.gradle; it knows nothing
+# about the storage. .github/scripts/bloxbean-maven.sh, shared with release.yml, owns the transfer: it seeds each
+# artifact's maven-metadata.xml from the bucket so that Gradle appends the new version instead of replacing the
+# version list, uploads the checked tree with the AWS CLI, and verifies the result through the public URL with a
+# real Gradle consumer. It never deletes and never writes outside maven/snapshots/com/bloxbean/cardano/, which other
+# BloxBean projects share a bucket with.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Reads the commit's CI runs (require-green-ci.sh).
+  actions: read
+
+# Seed, publish and upload are a read-modify-write of every artifact's maven-metadata.xml: two concurrent runs
+# would each drop the other's version from the list. Never cancel a run that may be uploading.
+concurrency:
+  group: bloxbean-maven-snapshots
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # The bucket credentials are secrets of this environment, which only accepts master, release/** and v* tags.
+    # Skip other branches rather than fail on the environment's branch policy.
+    if: >-
+      github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/')
+    environment: release-staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GROUP_PATH: com/bloxbean/cardano
+      BUCKET: ${{ vars.R2_BUCKET }}
+      REPOSITORY_PREFIX: maven/snapshots
+      PUBLIC_REPOSITORY_URL: https://repo.bloxbean.org/maven/snapshots
+      # What the Gradle consumer check resolves, and which of this build's jars it must get.
+      CONSUMER_DEPENDENCIES: >-
+        com.bloxbean.cardano:cardano-client-lib
+        com.bloxbean.cardano:cardano-client-backend-blockfrost
+      CONSUMER_REQUIRED: cardano-client-lib cardano-client-core cardano-client-backend-blockfrost
+      # Absolute, because build.gradle resolves stagingRepository against each project's own directory.
+      STAGING_DIR: ${{ github.workspace }}/build/bloxbean-maven
+      AWS_ENDPOINT_URL: ${{ vars.R2_ENDPOINT }}
+      AWS_DEFAULT_REGION: auto
+      # AWS CLI 2.23+ sends request checksums R2 does not accept by default; send them only when an API needs one.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Publish only a commit whose push CI passed, rather than repeat the same tests here.
+      - name: Require green CI for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_WORKFLOWS: build.yml integration-tests.yml codegen-tests.yml
+        run: bash .github/scripts/require-green-ci.sh
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Only -SNAPSHOT versions belong in the snapshot repository. The version is the moving one in gradle.properties
+      # (e.g. 0.8.0-pre6-SNAPSHOT): each publication adds a timestamped build of it, the newest one resolving.
+      - name: Resolve the snapshot version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(./gradlew -q properties -PskipSigning=true | awk '/^version:/ { print $2; exit }')
+          if [[ "$VERSION" != *-SNAPSHOT ]]; then
+            echo "::error::Snapshot publishing requires a -SNAPSHOT version. Got: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing $VERSION"
+
+      - name: Discover the Maven publications
+        id: discover
+        run: bash .github/scripts/bloxbean-maven.sh discover -PskipSigning=true
+
+      - name: Seed metadata from the repository
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/bloxbean-maven.sh seed
+
+      - name: Stage the Maven publications
+        run: >-
+          ./gradlew publishAllPublicationsToStagingRepository
+          -PstagingRepository="$STAGING_DIR" -PskipSigning=true --stacktrace
+
+      - name: Verify the staged repository
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086 # one argument per artifactId
+          python3 .github/scripts/verify-maven-staging.py "$STAGING_DIR" "$RUNNER_TEMP/maven-seed" "$GROUP_PATH" \
+            "$VERSION" $ARTIFACTS
+
+      - name: Upload to the repository
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: bash .github/scripts/bloxbean-maven.sh upload
+
+      - name: Verify the public repository
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
+        run: bash .github/scripts/bloxbean-maven.sh verify-public
+
+      - name: Resolve with a Gradle consumer
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
+        run: bash .github/scripts/bloxbean-maven.sh consume
+
+      - name: Record the publication
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARTIFACTS: ${{ steps.discover.outputs.artifacts }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Published \`$VERSION\` to the BloxBean Maven repository"
+            echo
+            echo "$(wc -w <<< "$ARTIFACTS") artifacts under $PUBLIC_REPOSITORY_URL/$GROUP_PATH/"
+            echo
+            echo '```groovy'
+            echo 'repositories {'
+            echo '    mavenCentral()'
+            echo '    maven {'
+            echo "        url = uri('$PUBLIC_REPOSITORY_URL')"
+            echo '        mavenContent { snapshotsOnly() }'
+            echo '    }'
+            echo '}'
+            echo 'dependencies {'
+            echo "    implementation 'com.bloxbean.cardano:cardano-client-lib:$VERSION'"
+            echo '}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
