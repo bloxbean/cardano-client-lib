@@ -20,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -196,12 +198,6 @@ public class Transaction {
         if (item instanceof EncodedKeyMap && ((EncodedKeyMap) item).hasRepeatedKey())
             throw new CborDeserializationException("The " + what + " repeats a key");
         return (Map) item;
-    }
-
-    // The items of an array, without the BREAK that ends an indefinite one.
-    static List<DataItem> withoutBreak(List<DataItem> items) {
-        int size = items.size();
-        return size > 0 && items.get(size - 1) == Special.BREAK ? items.subList(0, size - 1) : items;
     }
 
     public String toJson() {

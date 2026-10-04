@@ -6,7 +6,6 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.NegativeInteger;
 import co.nstant.in.cbor.model.Number;
-import co.nstant.in.cbor.model.Special;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -17,6 +16,8 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
+
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
 
 /**
  * Converts native scripts between {@link DataItem} trees and models, and compares, hashes and prints the models, without
@@ -111,11 +112,7 @@ final class NativeScriptCodec {
         if (!(item instanceof Array) || item.hasTag())
             throw new CborDeserializationException("NativeScript deserialization failed. Expected an untagged array for "
                     + what + ", found " + describe(item));
-        List<DataItem> items = ((Array) item).getDataItems();
-        int size = items.size();
-        if (size > 0 && items.get(size - 1) == Special.BREAK)
-            return items.subList(0, size - 1);
-        return items;
+        return withoutBreak(((Array) item).getDataItems());
     }
 
     private static int type(List<DataItem> fields) throws CborDeserializationException {
