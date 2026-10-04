@@ -24,11 +24,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,7 +64,7 @@ public final class ChainParseCheck {
               --run-dir=<dir>              state and results (default: runs/<network>)
               --fresh                      discard the saved state and issues of a previous run
               --workers=<n>                parser threads (default 1)
-              --max-blocks=<n>             stop after n blocks in this session
+              --max-blocks=<n>             stop after n blocks in this session (n > 0)
               --stop-slot=<slot>           stop after the last block at or before this slot
               --koios=<url>                Koios API for cost models (default: the network's public Koios)
               --no-script-data-hash        skip the script data hash check (no Koios requests)
@@ -85,41 +91,55 @@ public final class ChainParseCheck {
     }
 
     private static final byte[] DONE = new byte[0];
+    private static final String NETWORK = "network";
+    private static final String IDENTITY = "identity";
+    private static final String ISSUES = "issues.jsonl";
+    private static final String SUMMARY_TXT = "summary.txt";
+    private static final String FAILED_BLOCKS = "failed-blocks";
 
     public static void main(String[] args) throws Exception {
         Map<String, String> opts = parse(args);
-        if (opts.containsKey("help") || !opts.containsKey("network")) {
+        if (opts.containsKey("help") || !opts.containsKey(NETWORK)) {
             System.out.print(USAGE);
             System.exit(opts.containsKey("help") ? 0 : 2);
         }
-        Net net = net(opts.get("network"));
+        Net net = net(opts.get(NETWORK));
         String host = opts.getOrDefault("host", net.host());
         int port = Integer.parseInt(opts.getOrDefault("port", String.valueOf(net.port())));
         boolean fresh = opts.containsKey("fresh");
-        long maxBlocks = Long.parseLong(opts.getOrDefault("max-blocks", String.valueOf(Long.MAX_VALUE)));
+        long maxBlocks = positive(opts, "max-blocks", Long.MAX_VALUE);
         long stopSlot = Long.parseLong(opts.getOrDefault("stop-slot", String.valueOf(Long.MAX_VALUE)));
-        int workers = Integer.parseInt(opts.getOrDefault("workers", "1"));
+        int workers = Math.toIntExact(positive(opts, "workers", 1));
+        boolean scriptDataHash = !opts.containsKey("no-script-data-hash");
         Path dir = Paths.get(opts.getOrDefault("run-dir", "runs/" + net.name()));
         Files.createDirectories(dir);
         Path stateFile = dir.resolve("state.json");
         if (fresh) {
-            for (String f : List.of("state.json", "issues.jsonl", "status.json", "summary.json", "summary.txt"))
+            for (String f : List.of("state.json", ISSUES, "status.json", "summary.json", SUMMARY_TXT))
                 Files.deleteIfExists(dir.resolve(f));
-            if (Files.exists(dir.resolve("failed-blocks")))
-                try (Stream<Path> files = Files.walk(dir.resolve("failed-blocks"))) {
+            if (Files.exists(dir.resolve(FAILED_BLOCKS)))
+                try (Stream<Path> files = Files.walk(dir.resolve(FAILED_BLOCKS))) {
                     for (Path p : files.sorted(Comparator.reverseOrder()).toList()) Files.delete(p);
                 }
         }
 
+        Map<String, String> identity = identity(net.name(), scriptDataHash);
         State state;
         Point from;
         if (Files.exists(stateFile)) {
-            state = State.load(stateFile);
+            try {
+                state = State.resume(stateFile, identity);
+            } catch (IllegalStateException e) {
+                log.error("cannot resume: {}", e.getMessage());
+                System.exit(2);
+                return;
+            }
             from = new Point(state.lastSlot, state.lastHash);
             log.info("resuming {} after slot {} block {}", net.name(), state.lastSlot, state.lastBlockNo);
         } else {
             state = new State();
             state.network = net.name();
+            state.identity = identity;
             from = null;
         }
         log.info("reading {} from {}:{}, results in {}", net.name(), host, port, dir.toAbsolutePath());
@@ -129,7 +149,7 @@ public final class ChainParseCheck {
         log.info("range {} .. tip {}", from, tip);
 
         CostModels costModels = null;
-        if (opts.containsKey("no-script-data-hash")) {
+        if (!scriptDataHash) {
             log.info("script data hash check skipped (--no-script-data-hash)");
         } else {
             try {
@@ -138,7 +158,7 @@ public final class ChainParseCheck {
                 log.warn("cost models unavailable, script data hash check skipped: {}", e.toString());
             }
         }
-        Issues issues = new Issues(state, dir.resolve("issues.jsonl"), dir.resolve("failed-blocks"));
+        Issues issues = new Issues(state, dir.resolve(ISSUES), dir.resolve(FAILED_BLOCKS));
         CostModels cm = costModels;
         ThreadLocal<Checker> checkers = ThreadLocal.withInitial(() -> new Checker(state, issues, cm, net.epochOfSlot()));
         ExecutorService pool = Executors.newFixedThreadPool(workers);
@@ -147,72 +167,8 @@ public final class ChainParseCheck {
         AtomicLong lastProgress = new AtomicLong(System.currentTimeMillis());
         CompletableFuture<String> finished = new CompletableFuture<>();
 
-        // dispatcher: batches of blocks run on the pool; the resume point advances only after a whole batch is done
-        Thread dispatcher = new Thread(() -> {
-            long startMs = System.currentTimeMillis(), lastSave = startMs, startBlocks = state.processedBlocks;
-            long baseElapsed = state.elapsedMillis;
-            long windowStart = startMs, windowBlocks = state.processedBlocks, windowTxs = txs(state);
-            double recentBps = 0, recentTps = 0;
-            String outcome = null;
-            long dispatchedSlot = state.lastSlot;
-            try {
-                while (outcome == null) {
-                    List<Callable<Void>> batch = new ArrayList<>();
-                    Point batchLast = null;
-                    long batchLastNo = 0;
-                    while (batch.size() < 256) {
-                        byte[] b = batch.isEmpty() ? queue.take() : queue.poll(200, TimeUnit.MILLISECONDS);
-                        if (b == null) break;
-                        if (b == DONE) {
-                            outcome = dispatchedSlot >= tip.getSlot() ? "complete" : "range ended early";
-                            break;
-                        }
-                        Point p = pointOf(b);
-                        if (p != null) {
-                            if (p.getSlot() <= dispatchedSlot) continue; // replay after a reconnect
-                            if (p.getSlot() > stopSlot) { outcome = "stopped at --stop-slot"; break; }
-                            dispatchedSlot = p.getSlot();
-                            batchLast = p;
-                            batchLastNo = blockNoOf(b);
-                        }
-                        batch.add(() -> {
-                            try {
-                                checkers.get().block(b);
-                            } catch (Throwable t) {
-                                log.error("block check error: {}", Checker.trace(t));
-                                synchronized (state) { state.issueCounts.merge("block_harness_error", 1L, Long::sum); }
-                            }
-                            return null;
-                        });
-                    }
-                    for (Future<Void> f : pool.invokeAll(batch)) f.get();
-                    if (batchLast != null) state.advance(batchLast.getSlot(), batchLast.getHash(), batchLastNo);
-                    lastProgress.set(System.currentTimeMillis());
-                    if (outcome == null && state.processedBlocks - startBlocks >= maxBlocks)
-                        outcome = "stopped at --max-blocks";
-                    long now = System.currentTimeMillis();
-                    if (outcome == null && now - lastSave > 15_000) {
-                        double secs = (now - windowStart) / 1000.0;
-                        recentBps = (state.processedBlocks - windowBlocks) / secs;
-                        recentTps = (txs(state) - windowTxs) / secs;
-                        windowStart = now; windowBlocks = state.processedBlocks; windowTxs = txs(state);
-                        state.elapsedMillis = baseElapsed + (now - startMs);
-                        state.save(stateFile);
-                        writeStatus(dir, state, tip, "running", recentBps, recentTps, queue.size());
-                        log.info("slot {} ({}%) blocks {} txs {} - {} blocks/s, issues {}", state.lastSlot,
-                                percent(state, tip), state.processedBlocks, txs(state), Math.round(recentBps),
-                                state.issueCounts);
-                        lastSave = now;
-                    }
-                }
-                state.elapsedMillis = baseElapsed + (System.currentTimeMillis() - startMs);
-                state.save(stateFile);
-                writeStatus(dir, state, tip, outcome, recentBps, recentTps, 0);
-            } catch (Throwable t) {
-                outcome = "failed: " + t;
-            }
-            finished.complete(outcome);
-        }, "dispatcher");
+        Thread dispatcher = new Thread(() -> finished.complete(
+                dispatch(state, queue, tip, stopSlot, maxBlocks, checkers, pool, lastProgress, dir)), "dispatcher");
         dispatcher.setDaemon(true);
         dispatcher.start();
 
@@ -249,7 +205,12 @@ public final class ChainParseCheck {
             Thread.sleep(1000);
             long now = System.currentTimeMillis();
             if (now - lastKeepAlive > 20_000) {
-                try { keepAlive.sendKeepAlive(cookie = cookie % 60000 + 1); } catch (Exception ignored) { }
+                cookie = cookie % 60000 + 1;
+                try {
+                    keepAlive.sendKeepAlive(cookie);
+                } catch (Exception e) {
+                    log.debug("keep-alive not sent: {}", e.toString()); // the stall check below reconnects if needed
+                }
                 lastKeepAlive = now;
             }
             if (now - lastProgress.get() > 180_000 && queue.isEmpty()) { // stalled: reconnect from the last block
@@ -260,9 +221,141 @@ public final class ChainParseCheck {
         }
         String outcome = finished.get();
         writeSummary(dir, state, tip, outcome);
-        log.info("done: {}; summary in {}", outcome, dir.resolve("summary.txt").toAbsolutePath());
+        log.info("done: {}; summary in {}", outcome, dir.resolve(SUMMARY_TXT).toAbsolutePath());
         // no client.shutdown(): the event loop may be parked on the full queue; exiting closes the socket
         System.exit(outcome.startsWith("failed") ? 1 : 0);
+    }
+
+    /**
+     * Runs the queued blocks in batches on the pool until the range ends, the stop slot or {@code maxBlocks} blocks in
+     * this session; the resume point advances only after a whole batch is done. Returns the outcome.
+     */
+    static String dispatch(State state, BlockingQueue<byte[]> queue, Point tip, long stopSlot, long maxBlocks,
+                           ThreadLocal<Checker> checkers, ExecutorService pool, AtomicLong lastProgress, Path dir) {
+        Path stateFile = dir.resolve("state.json");
+        long startMs = System.currentTimeMillis();
+        long lastSave = startMs;
+        long baseElapsed = state.elapsedMillis;
+        long windowStart = startMs;
+        long windowBlocks = state.processedBlocks;
+        long windowTxs = txs(state);
+        double recentBps = 0;
+        double recentTps = 0;
+        long dispatched = 0; // blocks of this session put into batches
+        long dispatchedSlot = state.lastSlot;
+        String outcome = null;
+        try {
+            while (outcome == null) {
+                List<Callable<Void>> batch = new ArrayList<>();
+                Point batchLast = null;
+                long batchLastNo = 0;
+                long batchSize = Math.min(256, maxBlocks - dispatched);
+                while (batch.size() < batchSize) {
+                    byte[] b = batch.isEmpty() ? queue.take() : queue.poll(200, TimeUnit.MILLISECONDS);
+                    if (b == null) break;
+                    if (b == DONE) {
+                        outcome = dispatchedSlot >= tip.getSlot() ? "complete" : "range ended early";
+                        break;
+                    }
+                    Point p = pointOf(b);
+                    if (p != null) {
+                        if (p.getSlot() <= dispatchedSlot) continue; // replay after a reconnect
+                        if (p.getSlot() > stopSlot) { outcome = "stopped at --stop-slot"; break; }
+                        dispatchedSlot = p.getSlot();
+                        batchLast = p;
+                        batchLastNo = blockNoOf(b);
+                    }
+                    batch.add(() -> {
+                        try {
+                            checkers.get().block(b);
+                        } catch (Throwable t) {
+                            log.error("block check error: {}", Checker.trace(t));
+                            synchronized (state) { state.issueCounts.merge("block_harness_error", 1L, Long::sum); }
+                        }
+                        return null;
+                    });
+                }
+                dispatched += batch.size();
+                for (Future<Void> f : pool.invokeAll(batch)) f.get();
+                if (batchLast != null) state.advance(batchLast.getSlot(), batchLast.getHash(), batchLastNo);
+                lastProgress.set(System.currentTimeMillis());
+                if (outcome == null && dispatched >= maxBlocks)
+                    outcome = "stopped at --max-blocks";
+                long now = System.currentTimeMillis();
+                if (outcome == null && now - lastSave > 15_000) {
+                    double secs = (now - windowStart) / 1000.0;
+                    recentBps = (state.processedBlocks - windowBlocks) / secs;
+                    recentTps = (txs(state) - windowTxs) / secs;
+                    windowStart = now;
+                    windowBlocks = state.processedBlocks;
+                    windowTxs = txs(state);
+                    state.elapsedMillis = baseElapsed + (now - startMs);
+                    state.save(stateFile);
+                    writeStatus(dir, state, tip, "running", recentBps, recentTps, queue.size());
+                    log.info("slot {} ({}%) blocks {} txs {} - {} blocks/s, issues {}", state.lastSlot,
+                            percent(state, tip), state.processedBlocks, txs(state), Math.round(recentBps),
+                            state.issueCounts);
+                    lastSave = now;
+                }
+            }
+            state.elapsedMillis = baseElapsed + (System.currentTimeMillis() - startMs);
+            state.save(stateFile);
+            writeStatus(dir, state, tip, outcome, recentBps, recentTps, 0);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            outcome = "failed: interrupted";
+        } catch (Throwable t) {
+            outcome = "failed: " + t;
+        }
+        return outcome;
+    }
+
+    /** A positive number option, or the default when it is absent. */
+    static long positive(Map<String, String> opts, String key, long defaultValue) {
+        String v = opts.get(key);
+        if (v == null) return defaultValue;
+        long n;
+        try {
+            n = Long.parseLong(v);
+        } catch (NumberFormatException e) {
+            n = 0;
+        }
+        if (n <= 0) throw new IllegalArgumentException("--" + key + " must be a positive number, not '" + v + "'");
+        return n;
+    }
+
+    /**
+     * What a run's counters depend on, saved with its state: the network, the CCL under test (its version and a hash of
+     * its jars, as a SNAPSHOT can be republished with other code) and the check options. A run resumes only with the
+     * same identity.
+     */
+    static Map<String, String> identity(String network, boolean scriptDataHash) throws IOException {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put(NETWORK, network);
+        m.put("cclVersion", System.getProperty("ccl.version", "unknown"));
+        m.put("cclJarsSha256", cclJarsSha256(System.getProperty("java.class.path")));
+        m.put("scriptDataHash", String.valueOf(scriptDataHash));
+        return m;
+    }
+
+    /** SHA-256 over the names and contents of the {@code cardano-client-*.jar}s on a class path, in name order. */
+    static String cclJarsSha256(String classPath) throws IOException {
+        MessageDigest sha;
+        try {
+            sha = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+        List<Path> jars = Arrays.stream(classPath.split(File.pathSeparator)).map(Paths::get)
+                .filter(p -> p.getFileName() != null && p.getFileName().toString().startsWith("cardano-client-")
+                        && p.getFileName().toString().endsWith(".jar"))
+                .sorted(Comparator.comparing(p -> p.getFileName().toString()))
+                .toList();
+        for (Path jar : jars) {
+            sha.update(jar.getFileName().toString().getBytes(StandardCharsets.UTF_8));
+            sha.update(Files.readAllBytes(jar));
+        }
+        return HexUtil.encodeHexString(sha.digest());
     }
 
     /** {@code --key=value} options and {@code --flag}s. */
@@ -403,9 +496,9 @@ public final class ChainParseCheck {
     static void writeStatus(Path dir, State s, Point tip, String status, double bps, double tps, int queued)
             throws Exception {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("network", s.network);
+        m.put(NETWORK, s.network);
         m.put("status", status);
-        m.put("cclVersion", System.getProperty("ccl.version", "unknown"));
+        m.put(IDENTITY, s.identity);
         m.put("updated", Instant.now().toString());
         m.put("pid", ProcessHandle.current().pid());
         m.put("lastSlot", s.lastSlot);
@@ -425,9 +518,9 @@ public final class ChainParseCheck {
 
     static void writeSummary(Path dir, State s, Point tip, String outcome) throws Exception {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("network", s.network);
+        m.put(NETWORK, s.network);
         m.put("outcome", outcome);
-        m.put("cclVersion", System.getProperty("ccl.version", "unknown"));
+        m.put(IDENTITY, s.identity);
         m.put("finished", Instant.now().toString());
         m.put("tipAtStart", tip.toString());
         m.put("lastSlot", s.lastSlot);
@@ -441,7 +534,7 @@ public final class ChainParseCheck {
         m.put("maxima", s.maxima);
         m.put("eras", s.eras);
         State.JSON.writeValue(dir.resolve("summary.json").toFile(), m);
-        Files.writeString(dir.resolve("summary.txt"), summaryText(dir, s, outcome));
+        Files.writeString(dir.resolve(SUMMARY_TXT), summaryText(dir, s, outcome));
     }
 
     private static final List<String> TABLE_KEYS = List.of("blocks", "txs", "invalid_txs", "deserialize_ok", "aux",
@@ -452,8 +545,8 @@ public final class ChainParseCheck {
     /** A readable summary: counters per era, issue counts and the first three examples of each issue kind. */
     static String summaryText(Path dir, State s, String outcome) throws Exception {
         StringBuilder out = new StringBuilder();
-        out.append("network ").append(s.network).append("  outcome ").append(outcome).append("  CCL ")
-                .append(System.getProperty("ccl.version", "unknown")).append('\n');
+        out.append("network ").append(s.network).append("  outcome ").append(outcome).append('\n');
+        out.append("identity ").append(s.identity).append('\n');
         out.append("last slot ").append(s.lastSlot).append(" block ").append(s.lastBlockNo).append("  blocks ")
                 .append(s.processedBlocks).append("  elapsed ").append(s.elapsedMillis / 1000).append(" s\n\n");
         out.append(pad("era", 9, false));
@@ -474,7 +567,7 @@ public final class ChainParseCheck {
         s.issueCounts.forEach((k, v) -> out.append("  ").append(k).append(": ").append(v).append('\n'));
         out.append("\nfirst examples per check (issues.jsonl has detail and txCbor):\n");
         Map<String, List<Map<?, ?>>> first = new LinkedHashMap<>();
-        Path issues = dir.resolve("issues.jsonl");
+        Path issues = dir.resolve(ISSUES);
         if (Files.exists(issues)) {
             try (BufferedReader r = Files.newBufferedReader(issues)) {
                 for (String line; (line = r.readLine()) != null; ) {

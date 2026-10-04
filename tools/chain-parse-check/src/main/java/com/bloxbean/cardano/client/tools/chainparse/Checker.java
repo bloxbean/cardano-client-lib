@@ -43,8 +43,10 @@ final class Checker {
     private final LongToIntFunction epochOfSlot;
 
     // current block context
-    long slot, blockNo;
-    String blockHash, era;
+    long slot;
+    long blockNo;
+    String blockHash;
+    String era;
 
     Checker(State state, Issues issues, CostModels costModels, LongToIntFunction epochOfSlot) {
         this.state = state;
@@ -414,7 +416,7 @@ final class Checker {
         m.put("tx", txHash);
         m.put("check", check);
         m.put("detail", detail);
-        issues.record(check, m, txCbor, blockCbor);
+        issues.report(check, m, txCbor, blockCbor);
     }
 
     static String trace(Throwable t) {

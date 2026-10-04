@@ -111,7 +111,13 @@ and counted (`sdh_skipped_no_costmodels`); `--no-script-data-hash` skips it with
 
 State is saved every 15 seconds and at the end in `<run-dir>/state.json`. Running again with the same network and
 run directory resumes after the last saved block — after a stop, a crash, or a completed run, to check the blocks
-added since. `--fresh` starts over. After a crash, `issues.jsonl` can repeat entries for the blocks processed after
+added since. `--fresh` starts over.
+
+The state records the run's identity: the network, the CCL version, a SHA-256 of the `cardano-client-*` jars on the
+class path (a SNAPSHOT can be republished with other code) and whether the script data hash is checked. A run
+resumes only with the same identity; after rebuilding against another CCL, or with other options, it refuses to
+start and asks for `--fresh` or another `--run-dir`, so the counters of a run always come from one implementation.
+The summary shows the identity. After a crash, `issues.jsonl` can repeat entries for the blocks processed after
 the last save; the counts in `state.json` and the summary do not.
 
 ## Results

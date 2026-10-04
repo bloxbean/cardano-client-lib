@@ -20,6 +20,7 @@ final class State {
     static final ObjectMapper JSON = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
     public String network;
+    public Map<String, String> identity;  // what produced the counters: see ChainParseCheck.identity
     public long lastSlot = -1;
     public String lastHash;
     public long lastBlockNo;
@@ -58,8 +59,13 @@ final class State {
         Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
-    static State load(Path file) throws IOException {
-        return JSON.readValue(file.toFile(), State.class);
+    /** Loads a saved run; it must have this identity, as counters of another CCL build or check option don't add up. */
+    static State resume(Path file, Map<String, String> identity) throws IOException {
+        State s = JSON.readValue(file.toFile(), State.class);
+        if (!identity.equals(s.identity))
+            throw new IllegalStateException("the run in " + file.toAbsolutePath().getParent() + " was made by "
+                    + s.identity + ", not " + identity + ": start over with --fresh or use another --run-dir");
+        return s;
     }
 }
 
@@ -76,7 +82,7 @@ final class Issues {
         this.blockDir = blockDir;
     }
 
-    synchronized void record(String check, Map<String, Object> m, byte[] txCbor, byte[] blockCbor) {
+    synchronized void report(String check, Map<String, Object> m, byte[] txCbor, byte[] blockCbor) {
         long n;
         synchronized (state) {
             n = state.issueCounts.merge(check, 1L, Long::sum);
