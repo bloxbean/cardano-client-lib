@@ -24,6 +24,8 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -50,6 +52,27 @@ public class AuxiliaryData {
 
     public DataItem serialize(Era era) throws CborSerializationException {
         return getAuxiliaryData(era);
+    }
+
+    /**
+     * Decodes aux data in the Allegra/Mary shape {@code [metadata, [* native_script]]}, which stays valid in later eras.
+     *
+     * @param array the aux data
+     * @return the aux data, with its metadata and native scripts
+     * @throws CborDeserializationException if the array is not of that shape
+     */
+    public static AuxiliaryData deserialize(Array array) throws CborDeserializationException {
+        List<DataItem> items = withoutBreak(array.getDataItems());
+        if (items.size() != 2 || !(items.get(0) instanceof Map) || !(items.get(1) instanceof Array))
+            throw new CborDeserializationException("Aux data [metadata, scripts] expected");
+        AuxiliaryData auxiliaryData = new AuxiliaryData();
+        auxiliaryData.setMetadata(CBORMetadata.deserialize((Map) items.get(0)));
+        for (DataItem nativeScriptDI : withoutBreak(((Array) items.get(1)).getDataItems())) {
+            if (!(nativeScriptDI instanceof Array))
+                throw new CborDeserializationException("Native script expected in aux data");
+            auxiliaryData.getNativeScripts().add(NativeScript.deserialize((Array) nativeScriptDI));
+        }
+        return auxiliaryData;
     }
 
     public static AuxiliaryData deserialize(Map map) throws CborDeserializationException {
@@ -114,6 +137,14 @@ public class AuxiliaryData {
         return auxiliaryData;
     }
 
+    /**
+     * The hash of the serialized aux data, which is right for aux data built with CCL. For aux data received in a
+     * transaction, take the hash from the original bytes with
+     * {@link com.bloxbean.cardano.client.transaction.raw.RawTx#auxDataHash()}: the model keeps one entry per metadata
+     * key and re-encodes in its own shape.
+     *
+     * @return the aux data hash
+     */
     @JsonIgnore
     public byte[] getAuxiliaryDataHash() throws MetadataSerializationException {
         return getAuxiliaryDataHash(EraSerializationConfig.INSTANCE.getEra());

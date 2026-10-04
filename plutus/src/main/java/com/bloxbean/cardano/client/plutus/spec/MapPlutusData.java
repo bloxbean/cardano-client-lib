@@ -10,39 +10,31 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
-import java.util.LinkedHashMap;
-
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@EqualsAndHashCode
 @JsonSerialize(using = MapDataJsonSerializer.class)
 @JsonDeserialize(using = MapDataJsonDeserializer.class)
 public class MapPlutusData implements PlutusData {
 
+    /**
+     * The entries, in insertion order. By default each key's hash is computed once, when it is put, so data whose map keys
+     * are maps hashes and decodes in linear time; as in any hash map, a key must not change while it is in the map.
+     */
     @Builder.Default
-    private java.util.Map<PlutusData, PlutusData> map = new LinkedHashMap<>();
+    private java.util.Map<PlutusData, PlutusData> map = new PlutusDataMap();
 
     public static MapPlutusData deserialize(Map mapDI) throws CborDeserializationException {
         if (mapDI == null) {
             return null;
         }
-
-        MapPlutusData mapPlutusData = new MapPlutusData();
-        for (DataItem keyDI : mapDI.getKeys()) {
-            PlutusData key = PlutusData.deserialize(keyDI);
-            PlutusData value = PlutusData.deserialize(mapDI.get(keyDI));
-
-            mapPlutusData.put(key, value);
-        }
-
-        return mapPlutusData;
+        return (MapPlutusData) PlutusDataCodec.decode(mapDI);
     }
 
     public MapPlutusData put(PlutusData key, PlutusData value) {
         if (map == null)
-            map = new LinkedHashMap<>();
+            map = new PlutusDataMap();
 
         map.put(key, value);
 
@@ -51,23 +43,19 @@ public class MapPlutusData implements PlutusData {
 
     @Override
     public DataItem serialize() throws CborSerializationException {
-        if (map == null)
-            return null;
+        return PlutusDataCodec.encode(this);
+    }
 
-        Map plutusDataMap = new Map();
-        for (java.util.Map.Entry<PlutusData, PlutusData> entry : map.entrySet()) {
-            DataItem key = entry.getKey().serialize();
-            DataItem value = entry.getValue().serialize();
+    /**
+     * Value equality, computed without recursion so that data of any nesting depth can be compared.
+     */
+    @Override
+    public boolean equals(Object o) {
+        return PlutusDataCodec.valueEquals(this, o);
+    }
 
-            if (key == null)
-                throw new CborSerializationException("Cbor serialization failed for PlutusData.  NULL serialized value found for key");
-
-            if (value == null)
-                throw new CborSerializationException("Cbor serialization failed for PlutusData.  NULL serialized value found for value");
-
-            plutusDataMap.put(key, value);
-        }
-
-        return plutusDataMap;
+    @Override
+    public int hashCode() {
+        return PlutusDataCodec.hash(this);
     }
 }

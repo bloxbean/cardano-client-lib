@@ -125,9 +125,11 @@ public class NexusTransactionService implements TransactionService {
         tc.setSize(tx.getTxSize());
         tc.setInvalidBefore(tx.getInvalidBefore());
         tc.setInvalidHereafter(tx.getInvalidAfter());
-        // Nexus has no per-block tx index or Plutus valid-contract flag in this model; leave unmapped.
-        tc.setIndex(null);
-        tc.setValidContract(null);
+        // Both are null when the provider behind Nexus does not report them, which is a real
+        // claim rather than a gap: index in particular is 0-based, so 0 is a position and null
+        // is an absence.
+        tc.setIndex(tx.getIndex());
+        tc.setValidContract(tx.getValidContract());
         tc.setUtxoCount(utxoCount(tx));
         tc.setWithdrawalCount(tx.getWithdrawals() == null ? null : tx.getWithdrawals().size());
         // Line-item count (number of mint/burn actions, Blockfrost-style) — deliberately not koios's abs-quantity sum.

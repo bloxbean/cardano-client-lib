@@ -1,0 +1,47 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+// The CCL version under test defaults to the root project's version; publish it first with
+// `./gradlew publishToMavenLocal` at the repository root, or pass -PcclVersion=<version>.
+def rootProperties = new Properties()
+file('../../gradle.properties').withInputStream { rootProperties.load(it) }
+def cclVersion = findProperty('cclVersion') ?: rootProperties.getProperty('version')
+def yaciVersion = findProperty('yaciVersion') ?: '0.5.0-pre13'
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+// yaci-core 0.5.x is compiled for Java 25
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+
+dependencies {
+    implementation "com.bloxbean.cardano:cardano-client-transaction-spec:${cclVersion}"
+    implementation "com.bloxbean.cardano:yaci-core:${yaciVersion}"
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+    implementation 'org.slf4j:slf4j-api:2.0.13'
+    runtimeOnly 'org.slf4j:slf4j-simple:2.0.13'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test { useJUnitPlatform() }
+
+// Yaci brings its own (older) CCL: every CCL module resolves to the version under test.
+configurations.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'com.bloxbean.cardano' && details.requested.name.startsWith('cardano-client-'))
+            details.useVersion cclVersion
+    }
+}
+
+application {
+    mainClass = 'com.bloxbean.cardano.client.tools.chainparse.ChainParseCheck'
+    // Netty still uses sun.misc.Unsafe: allow it without the JDK 24+ warning
+    applicationDefaultJvmArgs = ['-Xmx3g', '--sun-misc-unsafe-memory-access=allow', "-Dccl.version=${cclVersion}"]
+}
