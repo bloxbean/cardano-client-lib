@@ -4,16 +4,17 @@ bloxbean/release-ops docs/12-bloxbean-maven-repository.md and templates/scripts/
 repositories.
 
 Usage: verify-maven-staging.py [--central-bundle <zip>] <repository-dir> <seed-dir> <group-path> <version>
-           <artifactId>...
+           <artifact path>...
 
-The repository must hold exactly the given artifactIds under <group-path>, each with <version> as its only
+An artifact path is relative to <group-path>: usually the artifactId, nested for a Gradle plugin marker (e.g.
+julc/org.julclang.julc.gradle.plugin, group org.julclang.julc). The repository must hold exactly the given artifacts, each with <version> as its only
 version, artifact-level maven-metadata.xml that names that version, a checksum for every file, and binary, sources
 and javadoc jars plus Gradle module metadata for every jar-packaged module. A snapshot also needs version-level
 metadata naming each of its timestamped files; a release needs a signature (.asc) for each of its files. A file of
 any other kind or outside <group-path> - a distribution zip, a native binary, another project's metadata - fails
 the check, because whatever is staged is uploaded to the shared bucket.
 
-<seed-dir> holds <artifactId>.xml, the artifact-level metadata the repository was seeded with. Every version it
+<seed-dir> holds <artifact path>.xml, the artifact-level metadata the repository was seeded with. Every version it
 lists must still be listed after staging: uploading a list Gradle failed to merge would erase published versions.
 A release version the seed already lists is refused, because releases are never replaced.
 
@@ -94,7 +95,8 @@ def release_files(version_dir, artifact, version, errors):
 
 def check_artifact(artifact_dir, seed, group_id, artifact, version):
     errors = []
-    staged_versions = sorted(p.name for p in artifact_dir.iterdir() if p.is_dir())
+    # Version directories hold a POM; any other directory belongs to a nested artifact path, checked on its own.
+    staged_versions = sorted(p.name for p in artifact_dir.iterdir() if p.is_dir() and any(p.glob('*.pom')))
     if staged_versions != [version]:
         return [f'{artifact}: staged versions {staged_versions}, expected [{version}]']
     if not (artifact_dir / 'maven-metadata.xml').is_file():
@@ -166,13 +168,14 @@ def main(bundle, root, seed_dir, group_path, version, artifacts):
         elif not f.name.endswith(CHECKSUMS) and not f.with_name(f.name + '.sha1').is_file():
             errors.append(f'no checksum: {rel}')
 
-    staged = sorted(p.name for p in group_dir.iterdir() if p.is_dir()) if group_dir.is_dir() else []
+    staged = sorted({pom.parent.parent.relative_to(group_dir).as_posix() for pom in group_dir.rglob('*.pom')}
+                    ) if group_dir.is_dir() else []
     if staged != sorted(artifacts):
         errors.append(f'staged artifacts {staged} do not match the build publications {sorted(artifacts)}')
-    group_id = group_path.replace('/', '.')
     for artifact in staged:
-        errors += check_artifact(group_dir / artifact, Path(seed_dir) / f'{artifact}.xml', group_id, artifact,
-                                 version)
+        path = Path(group_path) / artifact
+        errors += check_artifact(group_dir / artifact, Path(seed_dir) / f'{artifact}.xml',
+                                 path.parent.as_posix().replace('/', '.'), path.name, version)
     bundled = None
     if bundle:
         bundle_errors, bundled = check_bundle(bundle, root)

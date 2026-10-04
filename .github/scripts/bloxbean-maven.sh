@@ -13,26 +13,31 @@
 # Environment: GROUP_PATH, STAGING_DIR (absolute), BUCKET, REPOSITORY_PREFIX (maven/snapshots or maven/releases),
 # PUBLIC_REPOSITORY_URL, VERSION, ARTIFACTS (from discover), RUNNER_TEMP, and the AWS CLI's endpoint and
 # credentials. consume also reads CONSUMER_DEPENDENCIES ("group:artifact ..."), optional CONSUMER_PLATFORM (a
-# BOM's "group:artifact") and CONSUMER_REQUIRED (artifactIds whose jars must resolve). Only keys under
-# $REPOSITORY_PREFIX/$GROUP_PATH/<staged artifactId>/ are ever written; nothing is deleted. A group can be shared
-# by several repositories (com/bloxbean/cardano), so everything is scoped to this build's own artifactIds.
+# BOM's "group:artifact") and CONSUMER_REQUIRED (artifactIds whose jars must resolve). ARTIFACTS holds artifact
+# paths relative to GROUP_PATH: usually the artifactId, nested for a Gradle plugin marker (e.g.
+# julc/org.julclang.julc.gradle.plugin). Only keys under $REPOSITORY_PREFIX/$GROUP_PATH/<staged artifact path>/ are
+# ever written; nothing is deleted. A group can be shared by several repositories (com/bloxbean/cardano), so
+# everything is scoped to this build's own artifacts.
 set -euo pipefail
 
 # Both are removed and recreated below; refuse to start without them.
 : "${STAGING_DIR:?}" "${RUNNER_TEMP:?}"
 SEED_DIR="$RUNNER_TEMP/maven-seed"
 
-# Stages every publication to learn which artifactIds this build owns: those, and only those, are seeded and
-# uploaded. The scope check ties that set to the Maven Central deployment scope.
+# Stages every publication to learn which artifacts this build owns: those, and only those, are seeded and
+# uploaded. An artifact is a directory holding version directories with a POM. The scope check ties that set to the
+# Maven Central deployment scope; Gradle plugin markers (*.gradle.plugin) come on top of their projects.
 discover() {
   ./gradlew verifyMavenReleasePublicationScope publishAllPublicationsToStagingRepository \
     -PstagingRepository="$STAGING_DIR" "$@" --stacktrace | tee "$RUNNER_TEMP/discover.log"
-  local scope owned count
+  local scope owned count markers
   scope=$(grep -oE 'Central deployment scope: [0-9]+ projects' "$RUNNER_TEMP/discover.log" | grep -oE '[0-9]+')
-  owned=$(find "$STAGING_DIR/$GROUP_PATH" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+  owned=$(cd "$STAGING_DIR/$GROUP_PATH" && find . -name '*.pom' -printf '%h\n' | sed 's:^\./::; s:/[^/]*$::' | sort -u)
   count=$(wc -l <<< "$owned")
-  if [[ "$count" != "$scope" ]]; then
-    echo "::error::Staged $count artifacts, but the Central deployment scope has $scope projects." >&2
+  markers=$(grep -c '\.gradle\.plugin$' <<< "$owned" || true)
+  if [[ $((count - markers)) != "$scope" ]]; then
+    echo "::error::Staged $count artifacts ($markers plugin markers), but the Central deployment scope has" \
+      "$scope projects." >&2
     exit 1
   fi
   echo "artifacts=$(tr '\n' ' ' <<< "$owned")" >> "$GITHUB_OUTPUT"
@@ -74,17 +79,17 @@ seed() {
 
 # Artifacts, then each version's metadata (snapshots only), then each artifact's version list, so a reader never
 # sees metadata naming something that is not there yet. A filter pattern's `*` also matches `/`, and the last
-# matching filter wins: `*/*/maven-metadata.xml*` is the version level only. `cp` without --delete only adds or
-# replaces the staged keys. Metadata is marked no-cache so an edge cache rule on the domain can never serve a stale
-# version list. A run stopped part-way is repaired by running it again.
+# matching filter wins: `*/$VERSION/maven-metadata.xml*` is the version level only, whatever the artifact path's
+# depth. `cp` without --delete only adds or replaces the staged keys. Metadata is marked no-cache so an edge cache
+# rule on the domain can never serve a stale version list. A run stopped part-way is repaired by running it again.
 upload() {
   local source="$STAGING_DIR/$GROUP_PATH/" target="s3://$BUCKET/$REPOSITORY_PREFIX/$GROUP_PATH/"
   aws s3 cp "$source" "$target" --recursive --only-show-errors \
     --exclude '*maven-metadata.xml*'
   aws s3 cp "$source" "$target" --recursive --only-show-errors --cache-control no-cache \
-    --exclude '*' --include '*/*/maven-metadata.xml*'
+    --exclude '*' --include "*/${VERSION:?}/maven-metadata.xml*"
   aws s3 cp "$source" "$target" --recursive --only-show-errors --cache-control no-cache \
-    --exclude '*' --include '*maven-metadata.xml*' --exclude '*/*/maven-metadata.xml*'
+    --exclude '*' --include '*maven-metadata.xml*' --exclude "*/$VERSION/maven-metadata.xml*"
   echo "Uploaded $(find "$source" -type f | wc -l) files to $REPOSITORY_PREFIX/$GROUP_PATH/"
 }
 
@@ -111,15 +116,17 @@ verify_public() {
   echo "Public metadata and POMs match for every artifact."
 }
 
-# Resolves CONSUMER_DEPENDENCIES the way a consumer would: this build's artifactIds only from the public URL,
-# everything else - including other projects in a shared group - from Maven Central. Every jar of this build that
-# Gradle downloads must be byte-identical to the staged one.
+# Resolves CONSUMER_DEPENDENCIES the way a consumer would: this build's artifacts only from the public URL;
+# everything else - including other projects in a shared group - from Maven Central, then the BloxBean releases and
+# snapshots repositories (as the README tells users), so dependencies on other BloxBean snapshots or BloxBean-only
+# releases resolve too. Every jar of this build that Gradle downloads must be byte-identical to the staged one.
 consume() {
   local content=releasesOnly consumer="$RUNNER_TEMP/maven-consumer" group="${GROUP_PATH//\//.}"
-  local modules="" dependencies="" artifact coordinate
+  local modules="" dependencies="" artifact coordinate path
   [[ "$VERSION" != *-SNAPSHOT ]] || content=snapshotsOnly
   for artifact in $ARTIFACTS; do
-    modules+="            includeModule '$group', '$artifact'"$'\n'
+    path="$GROUP_PATH/$artifact"
+    modules+="            includeModule '$(dirname "$path" | tr / .)', '$(basename "$path")'"$'\n'
   done
   if [[ -n "${CONSUMER_PLATFORM:-}" ]]; then
     dependencies+="    implementation platform(\"$CONSUMER_PLATFORM:\${testVersion}\")"$'\n'
@@ -147,6 +154,18 @@ repositories {
 $modules        }
     }
     mavenCentral()
+    maven {
+        url = uri(providers.gradleProperty('repositoryBase').get() + '/releases')
+        mavenContent {
+            releasesOnly()
+        }
+    }
+    maven {
+        url = uri(providers.gradleProperty('repositoryBase').get() + '/snapshots')
+        mavenContent {
+            snapshotsOnly()
+        }
+    }
 }
 dependencies {
 $dependencies}
@@ -163,14 +182,17 @@ tasks.register('resolveArtifacts') {
 }
 EOF
   ./gradlew -p "$consumer" resolveArtifacts --refresh-dependencies -q \
-    -PtestVersion="$VERSION" -PrepositoryUrl="$PUBLIC_REPOSITORY_URL" | tee "$RUNNER_TEMP/resolved.txt"
+    -PtestVersion="$VERSION" -PrepositoryUrl="$PUBLIC_REPOSITORY_URL" -PrepositoryBase="${PUBLIC_REPOSITORY_URL%/*}" \
+    | tee "$RUNNER_TEMP/resolved.txt"
   # Only this build's jars are compared, by the module id Gradle resolved, never by file name: a dependency can
   # share this build's version string. Gradle caches a snapshot jar under its base version; the staged file carries the
   # timestamped value that the version-level metadata names. A release jar keeps its name.
-  local matched=0 resolved_group resolved staged value
-  while read -r resolved_group artifact resolved; do
-    [[ " $ARTIFACTS " == *" $artifact "* && "$resolved_group" == "$group" ]] || continue
-    staged="$STAGING_DIR/$GROUP_PATH/$artifact/$VERSION"
+  local matched=0 resolved_group module resolved staged value
+  while read -r resolved_group module resolved; do
+    path="${resolved_group//.//}/$module"
+    artifact="${path#"$GROUP_PATH"/}"
+    [[ "$path" != "$artifact" && " $ARTIFACTS " == *" $artifact "* ]] || continue
+    staged="$STAGING_DIR/$path/$VERSION"
     value="$VERSION"
     if [[ "$VERSION" == *-SNAPSHOT ]]; then
       value=""
@@ -178,7 +200,7 @@ EOF
         value=$(sed -n '/<value>/{s:.*<value>\(.*\)</value>.*:\1:p;q}' "$staged/maven-metadata.xml")
       fi
     fi
-    if [[ -z "$value" ]] || ! cmp -s "$resolved" "$staged/$artifact-$value.jar"; then
+    if [[ -z "$value" ]] || ! cmp -s "$resolved" "$staged/$module-$value.jar"; then
       echo "::error::Resolved $artifact does not match the staged artifact." >&2
       exit 1
     fi
