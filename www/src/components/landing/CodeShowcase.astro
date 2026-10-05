@@ -1,0 +1,175 @@
+---
+/**
+ * Tabbed code samples, driven entirely by radio inputs and `:checked` — no JS,
+ * no hydration, and it works before (and without) any script running.
+ *
+ * Snippets are the real QuickTx API, kept short enough to read at a glance.
+ */
+
+const samples = [
+  {
+    id: 'send',
+    label: 'Send ADA',
+    code: `Tx tx = new Tx()
+        .payToAddress(receiver, Amount.ada(10))
+        .from(sender.baseAddress());
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait();
+
+System.out.println(result.getTxHash());`,
+  },
+  {
+    id: 'mint',
+    label: 'Mint a token',
+    code: `Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("mint", 1);
+Asset asset = new Asset("MyToken", BigInteger.valueOf(1000));
+
+Tx tx = new Tx()
+        .mintAssets(policy.getPolicyScript(), asset, receiver)
+        .from(sender.baseAddress());
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .withSigner(SignerProviders.signerFrom(policy))
+        .completeAndWait();`,
+  },
+  {
+    id: 'script',
+    label: 'Call a script',
+    code: `Tx tx = new Tx()
+        .collectFrom(scriptUtxo, redeemer)
+        .attachSpendingValidator(plutusScript)
+        .payToAddress(receiver, Amount.ada(5))
+        .from(sender.baseAddress());
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait();`,
+  },
+  {
+    id: 'stake',
+    label: 'Delegate stake',
+    code: `Tx tx = new Tx()
+        .registerStakeAddress(sender.baseAddress())
+        .delegateTo(sender.baseAddress(), poolId)
+        .from(sender.baseAddress());
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .withSigner(SignerProviders.stakeKeySignerFrom(sender))
+        .completeAndWait();`,
+  },
+];
+---
+
+<div class="showcase" role="group" aria-label="Example transactions">
+  {samples.map((s, i) => (
+    <input type="radio" name="showcase" id={`tab-${s.id}`} checked={i === 0} />
+  ))}
+
+  <div class="tabs">
+    {samples.map((s) => (
+      <label class="tab" for={`tab-${s.id}`}>{s.label}</label>
+    ))}
+  </div>
+
+  <div class="panels">
+    {samples.map((s) => (
+      <pre class={`panel panel-${s.id}`}><code>{s.code}</code></pre>
+    ))}
+  </div>
+</div>
+
+<style>
+  .showcase {
+    border: 1px solid var(--ccl-border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--ccl-surface);
+  }
+
+  /* The radios drive everything; they never need to be seen. */
+  .showcase > input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--ccl-border);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .tab {
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--ccl-text-dim);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .tab:hover {
+    color: var(--ccl-text);
+    background: rgba(167, 139, 250, 0.1);
+  }
+
+  .panels {
+    position: relative;
+  }
+
+  .panel {
+    display: none;
+    margin: 0;
+    padding: 1.25rem 1.4rem;
+    overflow-x: auto;
+    font-family: var(--sl-font-system-mono, 'JetBrains Mono', ui-monospace, monospace);
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: #cdc6e8;
+    tab-size: 4;
+  }
+
+  /*
+   * One rule per tab: the checked radio lights its own label and shows its own
+   * panel. `~` reaches the .tabs/.panels siblings that follow all the inputs.
+   */
+  #tab-send:checked   ~ .tabs .tab:nth-child(1),
+  #tab-mint:checked   ~ .tabs .tab:nth-child(2),
+  #tab-script:checked ~ .tabs .tab:nth-child(3),
+  #tab-stake:checked  ~ .tabs .tab:nth-child(4) {
+    color: #fff;
+    background: rgba(167, 139, 250, 0.2);
+  }
+
+  #tab-send:checked   ~ .panels .panel-send,
+  #tab-mint:checked   ~ .panels .panel-mint,
+  #tab-script:checked ~ .panels .panel-script,
+  #tab-stake:checked  ~ .panels .panel-stake {
+    display: block;
+  }
+
+  /* Focus lands on the radio; show it on the label the radio controls. */
+  #tab-send:focus-visible   ~ .tabs .tab:nth-child(1),
+  #tab-mint:focus-visible   ~ .tabs .tab:nth-child(2),
+  #tab-script:focus-visible ~ .tabs .tab:nth-child(3),
+  #tab-stake:focus-visible  ~ .tabs .tab:nth-child(4) {
+    outline: 2px solid var(--ccl-accent);
+    outline-offset: 2px;
+  }
+
+  :global([data-theme='light']) .panel { color: #2c2352; }
+  :global([data-theme='light']) .tabs { background: rgba(0, 0, 0, 0.02); }
+</style>
