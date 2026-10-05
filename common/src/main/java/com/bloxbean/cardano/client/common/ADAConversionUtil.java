@@ -18,10 +18,8 @@ public class ADAConversionUtil {
         if(decimals == 0)
             return new BigDecimal(amount);
 
-        double oneUnit = Math.pow(10, decimals);
-
         BigDecimal bigDecimalAmt = new BigDecimal(amount);
-        BigDecimal decimalAmt = bigDecimalAmt.divide(new BigDecimal(oneUnit));
+        BigDecimal decimalAmt = bigDecimalAmt.divide(unit(decimals));
 
         return decimalAmt;
     }
@@ -30,11 +28,17 @@ public class ADAConversionUtil {
         if(decimals == 0)
             return doubleAmout.toBigInteger();
 
-        double oneUnit = Math.pow(10, decimals);
-
-        BigDecimal amount = new BigDecimal(oneUnit).multiply(doubleAmout);
+        BigDecimal amount = unit(decimals).multiply(doubleAmout);
 
         return amount.toBigInteger();
+    }
+
+    // Math.pow(10, n) is not an integer once n is 23 or higher.
+    private static BigDecimal unit(long decimals) {
+        if (decimals > 0 && decimals <= Integer.MAX_VALUE) {
+            return new BigDecimal(BigInteger.TEN.pow((int) decimals));
+        }
+        return BigDecimal.valueOf(Math.pow(10, decimals));
     }
 
     public static BigInteger adaToLovelace(double amount) {
