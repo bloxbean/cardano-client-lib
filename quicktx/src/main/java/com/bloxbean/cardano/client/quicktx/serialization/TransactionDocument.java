@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.quicktx.serialization;
 import com.bloxbean.cardano.client.quicktx.intent.TxInputIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxScriptAttachmentIntent;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
@@ -29,6 +30,10 @@ public class TransactionDocument {
     @JsonProperty("variables")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)  // Don't show if empty
     private Map<String, Object> variables = new HashMap<>();
+
+    @JsonProperty("extensions")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private Map<String, ExtensionMetadata> extensions = new HashMap<>();
 
     @JsonProperty("context")
     @JsonInclude(JsonInclude.Include.NON_NULL)

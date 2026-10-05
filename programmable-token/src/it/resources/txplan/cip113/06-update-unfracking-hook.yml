@@ -1,0 +1,60 @@
+# Set the token's unfracking hook: a registry update authorised by the token's minting logic.
+# The registry node's frozen fields (key, next, minting_logic_script) are repeated unchanged.
+version: '1.0'
+variables:
+  network_id: 0
+  authorization_action: 1
+  authorization_nonce: 42
+  holder_schema: 1
+  holder_tag: 113
+  witness_lovelace: 2000000
+extensions:
+  pt:
+    extension: programmable-token
+    schema_version: '1'
+    protocol: cip-113
+    contract_version: 0.5.0-alpha.2
+    deployment:
+      network: ${network_id}
+      bootstrap_tx: ${bootstrap_tx}
+context:
+  fee_payer: ${owner_address}
+transaction:
+  - tx:
+      from: ${owner_address}
+      intents:
+        - type: pt:update_registry
+          policy_id: ${policy_id}
+          update:
+            next: ${policy_next}
+            minting_logic_script:
+              type: Script
+              hash: ${logic_script_hash}
+            transfer_logic_script:
+              type: Script
+              hash: ${logic_script_hash}
+            third_party_transfer_logic_script:
+              type: Script
+              hash: ${logic_script_hash}
+            unfracking_logic_script:
+              type: Script
+              hash: ${logic_script_hash}
+            global_state_cs: ''
+          authorization:
+            constructor: 0
+            fields:
+              - int: ${authorization_action}
+              - int: ${authorization_nonce}
+        # The JuLC substandard's withdraw requires a HolderDatum(1, 113) somewhere in the
+        # transaction. A registry update spends no holder UTxO, so an ordinary output back to the
+        # owner carries it; the extension ignores core intents and the update stays alone.
+        - type: payment
+          address: ${owner_address}
+          amounts:
+            - unit: lovelace
+              quantity: ${witness_lovelace}
+          datum:
+            constructor: 0
+            fields:
+              - int: ${holder_schema}
+              - int: ${holder_tag}
