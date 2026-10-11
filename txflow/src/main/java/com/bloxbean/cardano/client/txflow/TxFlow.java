@@ -1,7 +1,5 @@
 package com.bloxbean.cardano.client.txflow;
 
-import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
-import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.yaml.FlowDocument;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
@@ -103,11 +101,6 @@ public class TxFlow {
         return ids;
     }
 
-    private static boolean usesExtensions(TxPlan plan) {
-        return !plan.getExtensions().isEmpty() || plan.getTxs().stream()
-                .anyMatch(tx -> tx.getIntentions().stream().anyMatch(ExtensionIntent.class::isInstance));
-    }
-
     /**
      * Validate this flow for correctness.
      * <p>
@@ -139,7 +132,7 @@ public class TxFlow {
             if (!step.hasTxPlan() && !step.hasTxContextFactory() && !step.hasTransactionTemplate()) {
                 errors.add("Step '" + step.getId() + "' has no transaction definition");
             }
-            if (step.hasTxPlan() && usesExtensions(step.getTxPlan())) {
+            if (step.hasTxPlan() && step.getTxPlan().hasExtensions()) {
                 // Execution snapshots each plan through core TxPlan YAML, which cannot carry
                 // extension intents. Refuse here, before any earlier step is submitted.
                 errors.add("Step '" + step.getId() + "' uses QuickTx extension intents, which TxFlow "

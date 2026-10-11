@@ -102,6 +102,18 @@ class QuickTxExtensionTest {
     }
 
     @Test
+    void plainFromStillExpandsAPlaceholderTypeWhoseNameContainsAColon() {
+        String yaml = "version: '1.0'\nvariables:\n  'intent:type': payment\n"
+                + "transaction:\n  - tx:\n      from: " + ADDRESS + "\n      intents:\n"
+                + "        - type: '${intent:type}'\n          address: " + ADDRESS + "\n"
+                + "          amounts:\n            - unit: lovelace\n              quantity: 1000000\n";
+
+        assertThat(TxPlan.from(yaml).getTxs().get(0).getIntentions()).singleElement()
+                .extracting(intent -> intent.getType()).isEqualTo("payment");
+        assertThat(TxPlan.getTxs(yaml)).hasSize(1);
+    }
+
+    @Test
     void corePlansStillRoundTripThroughPlainYaml() {
         TxPlan plan = new TxPlan().addTransaction(new Tx().payToAddress(ADDRESS,
                 Amount.ada(1)).from(ADDRESS));

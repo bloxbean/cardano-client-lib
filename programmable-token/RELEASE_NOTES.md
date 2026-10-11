@@ -30,9 +30,10 @@ Guarantees in this release:
 
 Known limitations:
 
-- Plain `TxPlan.toYaml()` / `TxPlan.from(yaml)` refuse programmable-token plans with an error that
-  points to `TxPlanCodec`, the only supported YAML path for them.
-- TxFlow (Java and YAML) does not support programmable-token steps yet; flow validation refuses
-  them before any step is submitted.
+- Plain `TxPlan.toYaml()` / `TxPlan.from(yaml)` refuse programmable-token plans, including plans
+  that only declare the extension, with an error that points to `TxPlanCodec`, the only supported
+  YAML path for them.
+- TxFlow and TxFlowStream `TxPlan` steps/items that use QuickTx extensions are not supported yet;
+  flow validation refuses them (`TXFLOW_NON_PORTABLE_EXTENSION`) before any step is submitted.
 
 Public types may still change before the module is promoted to beta.

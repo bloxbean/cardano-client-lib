@@ -452,17 +452,32 @@ public class TxPlan {
      * @throws IllegalStateException if the plan declares extensions or holds extension intents
      */
     public String toYaml() {
-        String extensionType = txList.stream()
-                .flatMap(tx -> tx.getIntentions().stream())
-                .filter(ExtensionIntent.class::isInstance)
-                .map(TxIntent::getType)
-                .findFirst().orElse(null);
-        if (extensionType != null || !extensions.isEmpty())
+        if (hasExtensions()) {
+            String extensionType = firstExtensionIntentType();
             throw new IllegalStateException("TxPlan.toYaml() supports core intents only, but this plan "
                     + (extensionType != null ? "contains extension intent '" + extensionType + "'"
                             : "declares extensions " + extensions.keySet())
                     + ". Serialize it with a TxPlanCodec configured with the extension.");
+        }
         return YamlSerializer.serialize(toDocument());
+    }
+
+    /**
+     * Whether this plan declares extensions or holds extension intents. Such a plan can only be
+     * serialized with a {@link TxPlanCodec}.
+     *
+     * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
+     */
+    public boolean hasExtensions() {
+        return !extensions.isEmpty() || firstExtensionIntentType() != null;
+    }
+
+    private String firstExtensionIntentType() {
+        return txList.stream()
+                .flatMap(tx -> tx.getIntentions().stream())
+                .filter(ExtensionIntent.class::isInstance)
+                .map(TxIntent::getType)
+                .findFirst().orElse(null);
     }
 
     /**
@@ -570,7 +585,9 @@ public class TxPlan {
             for (JsonNode entry : root.path("transaction")) {
                 for (JsonNode intent : entry.path("tx").path("intents")) {
                     String type = intent.path("type").asText("");
-                    if (type.indexOf(':') > 0) {
+                    // A ${...} placeholder may itself contain ':'; it is expanded later and the
+                    // resolved type is checked by deserialization.
+                    if (type.indexOf(':') > 0 && !type.contains("${")) {
                         reason = "uses extension intent '" + type + "'";
                         break;
                     }

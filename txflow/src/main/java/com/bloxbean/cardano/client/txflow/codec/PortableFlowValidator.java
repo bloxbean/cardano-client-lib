@@ -70,6 +70,11 @@ public final class PortableFlowValidator {
                         path));
             }
             if (step.hasTxPlan()) {
+                if (step.getTxPlan().hasExtensions()) {
+                    diagnostics.add(error("TXFLOW_NON_PORTABLE_EXTENSION",
+                            "TxPlans that use QuickTx extensions are not supported by TxFlow yet",
+                            path + ".transaction"));
+                }
                 if (!step.getTxPlan().getVariables().isEmpty()) {
                     diagnostics.add(error("TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES",
                             "TxPlan variables are not portable; declare parameters and provide "

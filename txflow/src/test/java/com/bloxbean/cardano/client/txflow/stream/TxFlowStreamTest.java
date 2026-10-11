@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow.stream;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.exec.FlowError;
@@ -224,6 +225,29 @@ class TxFlowStreamTest {
     // ------------------------------------------------------------------
     // Eager portability validation
     // ------------------------------------------------------------------
+
+    @Test
+    void extensionPlanWithoutFundingSourceFailsTypedBeforeLaneCopy() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        RecordingStateStore store = new RecordingStateStore();
+        try (TxFlowStream stream = builder("payouts", gateway).stateStore(store).build()) {
+            stream.start();
+            // No from: lane enforcement would copy the plan through plain TxPlan YAML.
+            TxPlan extensionPlan = TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1)))
+                    .withExtension("ex", ExtensionMetadata.builder()
+                            .extension("example").schemaVersion("1").build());
+
+            TxStreamItemResult outcome = stream.submit(TxWorkItem.fromTxPlan("extension-item", extensionPlan))
+                    .completion().toCompletableFuture().join();
+            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            TxStreamException error = assertInstanceOf(TxStreamException.class, outcome.getError());
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", error.getCode());
+            assertTrue(error.getMessage().contains("TXFLOW_NON_PORTABLE_EXTENSION"));
+            assertTrue(store.calls.isEmpty(), "nothing may be registered: " + store.calls);
+            assertTrue(gateway.started.isEmpty());
+            stream.drain();
+        }
+    }
 
     @Test
     void javaFactoryPayloadFailsTypedAtSubmitAndIsNeverRegistered() {

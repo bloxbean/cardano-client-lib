@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.txflow;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import org.junit.jupiter.api.Test;
 
@@ -97,6 +98,18 @@ class TxFlowTest {
         assertThat(result.getErrors()).singleElement().asString()
                 .contains("Step 'extension'")
                 .contains("extension intents");
+    }
+
+    @Test
+    void validate_shouldRejectAPlanThatOnlyDeclaresExtensions() {
+        TxPlan plan = TxPlan.from(new Tx().from("addr1").payToAddress("addr1_receiver", Amount.ada(1)))
+                .withExtension("ex", ExtensionMetadata.builder().extension("example").schemaVersion("1").build());
+        TxFlow flow = TxFlow.builder("metadata-only-flow")
+                .addStep(FlowStep.builder("declared").withTxPlan(plan).build())
+                .build();
+
+        assertThat(flow.validate().getErrors()).singleElement().asString()
+                .contains("Step 'declared'");
     }
 
     private static final class ExampleExtensionIntent implements ExtensionIntent {

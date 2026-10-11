@@ -48,8 +48,9 @@ is preserved, but it is not used for dispatch or compatibility validation. Ordin
 `TxPlanCodec` builder when combining multiple extensions.
 
 Plain `TxPlan.toYaml()` and `TxPlan.from(yaml)` handle core intents only. They refuse a plan or
-document with programmable-token intents (or an `extensions:` block) and point to `TxPlanCodec`,
-because the core reader could not reconstruct those intents.
+document with programmable-token intents or declared extensions (an `extensions:` block, as added by
+`extension.configure(...)`) and point to `TxPlanCodec`, because the core reader could not
+reconstruct those intents.
 
 ## Operations
 
@@ -91,6 +92,9 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
   once whatever order the operations are written in.
 - Programmable outputs hold one policy each; inline datums are bounded by the deployment's
   `max_inline_datum_bytes`.
-- TxFlow does not support programmable-token steps yet, in Java or in YAML: it snapshots each step
-  plan through plain `TxPlan` YAML. `TxFlow.validate()` refuses such a flow before any step is
-  submitted. Run these transactions with `QuickTxBuilder` directly.
+- TxFlow and TxFlowStream do not support `TxPlan` steps or items that use programmable-token
+  intents or declared extensions yet, in Java or YAML: they copy each plan through plain `TxPlan`
+  YAML. Flow validation (`TxFlow.validate()`, the TxFlow compiler and stream submission) refuses
+  them before any step is submitted. Run these transactions with `QuickTxBuilder` directly. A
+  legacy Java `withTxContext(...)` factory step builds through the `QuickTxBuilder` it is given and
+  is not inspected by this check.
