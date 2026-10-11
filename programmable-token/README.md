@@ -8,7 +8,7 @@ The module is not part of the `cardano-client-lib` or `cardano-client-cip` aggre
 experimental. Add it explicitly:
 
 ```groovy
-implementation 'com.bloxbean.cardano:cardano-client-programmable-token:${cardanoClientLibVersion}'
+implementation "com.bloxbean.cardano:cardano-client-programmable-token:${cardanoClientLibVersion}"
 ```
 
 ```java
