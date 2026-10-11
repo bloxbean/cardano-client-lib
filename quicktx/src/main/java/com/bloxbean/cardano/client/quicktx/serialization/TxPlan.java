@@ -83,6 +83,11 @@ public class TxPlan {
         return variables;
     }
 
+    /**
+     * Bind an extension to a document namespace.
+     *
+     * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
+     */
     public TxPlan withExtension(String namespace, ExtensionMetadata metadata) {
         if (namespace == null || !namespace.matches("[a-z][a-z0-9_-]{0,31}"))
             throw new IllegalArgumentException("Invalid extension namespace: " + namespace);
@@ -100,6 +105,11 @@ public class TxPlan {
         return this;
     }
 
+    /**
+     * Extensions bound to this plan, by document namespace.
+     *
+     * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
+     */
     public Map<String, ExtensionMetadata> getExtensions() {
         return java.util.Collections.unmodifiableMap(extensions);
     }

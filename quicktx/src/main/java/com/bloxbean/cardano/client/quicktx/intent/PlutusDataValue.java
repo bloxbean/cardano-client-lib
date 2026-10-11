@@ -15,6 +15,8 @@ import java.util.Objects;
  * <p>The value object owns representation and variable resolution, but not requiredness. An
  * owning intent decides whether the corresponding property may be absent. When this object is
  * present it always contains exactly one representation.</p>
+ *
+ * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
  */
 public final class PlutusDataValue {
     public enum Form {

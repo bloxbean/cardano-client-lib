@@ -18,6 +18,8 @@ import java.util.Map;
 /**
  * Instance-scoped TxPlan codec for typed, qualified extension intents.
  * Core intent serialization remains backward compatible through {@link TxPlan#toYaml()}.
+ *
+ * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
  */
 public final class TxPlanCodec {
     private final Map<String, QuickTxExtension> extensions;

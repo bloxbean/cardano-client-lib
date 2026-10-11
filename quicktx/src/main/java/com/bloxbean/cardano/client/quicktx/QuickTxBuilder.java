@@ -90,7 +90,11 @@ public class QuickTxBuilder {
     private final Map<String, QuickTxExtension> extensions = new LinkedHashMap<>();
     private static final int MAX_EXTENSION_STABILIZATION_PASSES = 3;
 
-    /** Register an extension for this builder instance. */
+    /**
+     * Register an extension for this builder instance.
+     *
+     * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
+     */
     public QuickTxBuilder withExtension(QuickTxExtension extension) {
         if (extension == null) throw new IllegalArgumentException("extension is required");
         if (extension.id() == null || extension.id().isBlank())
