@@ -57,10 +57,10 @@ reconstruct those intents.
 | Verb | YAML type | Notes |
 |------|-----------|-------|
 | `transfer(receiver, amount, redeemer[, datum])` | `pt:transfer` | Owner transfer to a smart wallet; optional bounded inline datum on the receiving output. The unit is read as standard QuickTx reads it (hex in any case; a 56-character unit is the empty asset name). |
-| `mint(policy, receiver, assets, redeemer, datum)` | `pt:mint` | Policy may be a literal id or the name of a registration in the same plan. |
-| `burn(policyId, assets, authorization)` | `pt:burn` | Literal `policy_id` only: a `policy_ref` names a registration in the same transaction, whose tokens cannot already be held. Transfer and issuance redeemers are distinct; every burn of one policy in a transaction must agree on both. |
+| `mint(policy, receiver, assets, redeemer, datum)` | `pt:mint` | Policy may be a literal id or the name of a registration in the same transaction. |
+| `burn(policyId, assets, authorization)` | `pt:burn` | Literal `policy_id` only: a `policy_ref` names a registration in the same transaction, and a burn needs the policy's registry node and held tokens, which do not exist until that registration is on chain. Transfer and issuance redeemers are distinct; every burn of one policy in a transaction must agree on both. |
 | `thirdPartyTransfer(holder, receiver, amount, redeemer)` | `pt:third_party_transfer` | One holder and one policy per transaction; many outputs for that policy aggregate. |
-| `register(name, registration, redeemer)` | `pt:register` | Publishes a named policy for later intents in the same plan. |
+| `register(name, registration, redeemer)` | `pt:register` | Publishes a named policy for mints in the same transaction, wherever they are written. |
 | `updateRegistry(policy, update, authorization)` | `pt:update_registry` | Must be its own transaction. |
 | `unfrack(policy, authorization)` | `pt:unfrack` | Regroups one policy out of the sender's shared smart-wallet UTxOs into a fresh single-policy output. Must be its own transaction; the token's `unfracking_logic_script` hook authorises it, and a token whose issuer left the hook unset cannot be unfracked. |
 

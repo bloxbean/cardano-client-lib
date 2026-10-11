@@ -103,8 +103,9 @@ public class ProgrammableTokenTx extends Tx {
      *
      * <p>Unlike {@link #mint(ProgrammableTokenPolicyRef, String, List, PlutusData, PlutusData)},
      * a burn takes a literal policy id, not a {@link ProgrammableTokenPolicyRef}: a named ref
-     * resolves only to a registration in the same transaction, and tokens of a policy registered
-     * there cannot already be held.</p>
+     * resolves only to a registration in the same transaction, while a burn needs the policy's
+     * registry node and tokens already held, neither of which exists until that registration is
+     * on chain.</p>
      */
     public ProgrammableTokenTx burn(String policyId, List<Asset> assets,
                                     BurnAuthorization authorization) {
