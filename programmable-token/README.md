@@ -40,6 +40,10 @@ is preserved, but it is not used for dispatch or compatibility validation. Ordin
 `programmableTokens.txPlanCodec("tokens")` when a document needs a custom namespace; use the generic
 `TxPlanCodec` builder when combining multiple extensions.
 
+Plain `TxPlan.toYaml()` and `TxPlan.from(yaml)` handle core intents only. They refuse a plan or
+document with programmable-token intents (or an `extensions:` block) and point to `TxPlanCodec`,
+because the core reader could not reconstruct those intents.
+
 ## Operations
 
 | Verb | YAML type | Notes |
@@ -80,3 +84,6 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
   once whatever order the operations are written in.
 - Programmable outputs hold one policy each; inline datums are bounded by the deployment's
   `max_inline_datum_bytes`.
+- TxFlow does not support programmable-token steps yet, in Java or in YAML: it snapshots each step
+  plan through plain `TxPlan` YAML. `TxFlow.validate()` refuses such a flow before any step is
+  submitted. Run these transactions with `QuickTxBuilder` directly.

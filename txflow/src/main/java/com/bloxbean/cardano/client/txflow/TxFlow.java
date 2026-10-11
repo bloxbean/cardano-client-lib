@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow;
 
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.yaml.FlowDocument;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
@@ -101,6 +103,11 @@ public class TxFlow {
         return ids;
     }
 
+    private static boolean usesExtensions(TxPlan plan) {
+        return !plan.getExtensions().isEmpty() || plan.getTxs().stream()
+                .anyMatch(tx -> tx.getIntentions().stream().anyMatch(ExtensionIntent.class::isInstance));
+    }
+
     /**
      * Validate this flow for correctness.
      * <p>
@@ -110,6 +117,7 @@ public class TxFlow {
      *     <li>Circular dependencies</li>
      *     <li>References to non-existent steps</li>
      *     <li>Each step has valid transaction definition</li>
+     *     <li>No step plan uses QuickTx extension intents (not supported by TxFlow yet)</li>
      * </ul>
      *
      * @return validation result
@@ -130,6 +138,12 @@ public class TxFlow {
         for (FlowStep step : steps) {
             if (!step.hasTxPlan() && !step.hasTxContextFactory() && !step.hasTransactionTemplate()) {
                 errors.add("Step '" + step.getId() + "' has no transaction definition");
+            }
+            if (step.hasTxPlan() && usesExtensions(step.getTxPlan())) {
+                // Execution snapshots each plan through core TxPlan YAML, which cannot carry
+                // extension intents. Refuse here, before any earlier step is submitted.
+                errors.add("Step '" + step.getId() + "' uses QuickTx extension intents, which TxFlow "
+                        + "does not support yet; build that transaction with QuickTxBuilder");
             }
             if (new HashSet<>(step.getNeeds()).size() != step.getNeeds().size()) {
                 errors.add("Step '" + step.getId() + "' contains duplicate needs entries");

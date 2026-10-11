@@ -28,4 +28,11 @@ Guarantees in this release:
 - Runtime TxPlan variables are resolved structurally, preserving native types; a value is never
   re-read as YAML or as a template.
 
+Known limitations:
+
+- Plain `TxPlan.toYaml()` / `TxPlan.from(yaml)` refuse programmable-token plans with an error that
+  points to `TxPlanCodec`, the only supported YAML path for them.
+- TxFlow (Java and YAML) does not support programmable-token steps yet; flow validation refuses
+  them before any step is submitted.
+
 Public types may still change before the module is promoted to beta.

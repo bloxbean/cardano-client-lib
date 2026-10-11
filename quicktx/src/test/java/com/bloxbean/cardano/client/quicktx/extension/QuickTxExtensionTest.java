@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.quicktx.extension;
 
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
@@ -25,6 +26,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class QuickTxExtensionTest {
+    private static final String ADDRESS =
+            "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qqgsmdwqq3";
+
 
     @Test
     void qualifiedIntentRoundTripsWithoutAQuickTxDependencyOnItsOwner() {
@@ -43,6 +47,69 @@ class QuickTxExtensionTest {
         assertThat(intent.getExtensionId()).isEqualTo("example");
         assertThat(intent.getOperation()).isEqualTo("act");
         assertThat(intent.getValue()).isEqualTo(42);
+    }
+
+    @Test
+    void plainToYamlRefusesExtensionIntentsAndPointsToTheCodec() {
+        Tx tx = new Tx();
+        tx.addIntention(new ExampleIntent(42));
+        TxPlan plan = new TxPlan().addTransaction(tx);
+
+        assertThatThrownBy(plan::toYaml)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("example:act")
+                .hasMessageContaining("TxPlanCodec");
+    }
+
+    @Test
+    void plainToYamlRefusesDeclaredExtensions() {
+        TxPlan plan = new TxPlan().addTransaction(new Tx().payToAddress(ADDRESS,
+                        Amount.ada(1)).from(ADDRESS))
+                .withExtension("ex", extension(new AtomicBoolean()).metadata());
+
+        assertThatThrownBy(plan::toYaml)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("[ex]")
+                .hasMessageContaining("TxPlanCodec");
+    }
+
+    @Test
+    void plainFromRefusesAnExtensionAwareDocumentAndPointsToTheCodec() {
+        QuickTxExtension extension = extension(new AtomicBoolean());
+        Tx tx = new Tx();
+        tx.addIntention(new ExampleIntent(42));
+        String yaml = TxPlanCodec.builder().withExtension("ex", extension).build()
+                .toYaml(new TxPlan().addTransaction(tx).withExtension("ex", extension.metadata()));
+
+        assertThatThrownBy(() -> TxPlan.from(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("[ex]")
+                .hasMessageContaining("TxPlanCodec");
+        assertThatThrownBy(() -> TxPlan.getTxs(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("TxPlanCodec");
+    }
+
+    @Test
+    void plainFromRefusesANamespacedIntentWithoutDeclaredExtensions() {
+        String yaml = "version: '1.0'\ntransaction:\n  - tx:\n      intents:\n"
+                + "        - type: ex:act\n          value: 1\n";
+
+        assertThatThrownBy(() -> TxPlan.from(yaml))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("'ex:act'")
+                .hasMessageContaining("TxPlanCodec");
+    }
+
+    @Test
+    void corePlansStillRoundTripThroughPlainYaml() {
+        TxPlan plan = new TxPlan().addTransaction(new Tx().payToAddress(ADDRESS,
+                Amount.ada(1)).from(ADDRESS));
+
+        TxPlan restored = TxPlan.from(plan.toYaml());
+
+        assertThat(restored.getTxs()).hasSize(1);
+        assertThat(restored.getTxs().get(0).getIntentions()).hasSize(1);
     }
 
     @Test
@@ -198,7 +265,7 @@ class QuickTxExtensionTest {
                         .address(sender)
                         .txHash("7e1eecf7439fb5119a6762985a61c9fb3ca8158d9fc38361f0c4746430d5e0c7")
                         .outputIndex(0)
-                        .amount(List.of(com.bloxbean.cardano.client.api.model.Amount.ada(100)))
+                        .amount(List.of(Amount.ada(100)))
                         .build()));
         when(protocolParamsSupplier.getProtocolParams())
                 .thenReturn(com.bloxbean.cardano.client.api.model.ProtocolParams.builder()
@@ -221,7 +288,7 @@ class QuickTxExtensionTest {
                             if (context.extensionIntents(tx, "example").isEmpty()) continue;
                             context.addPreparedIntent(tx, com.bloxbean.cardano.client.quicktx.intent
                                     .PaymentIntent.builder().address(receiver)
-                                    .amounts(List.of(com.bloxbean.cardano.client.api.model.Amount.ada(5)))
+                                    .amounts(List.of(Amount.ada(5)))
                                     .build());
                         }
                     }
@@ -327,7 +394,7 @@ class QuickTxExtensionTest {
                         .address(sender)
                         .txHash("7e1eecf7439fb5119a6762985a61c9fb3ca8158d9fc38361f0c4746430d5e0c7")
                         .outputIndex(0)
-                        .amount(List.of(com.bloxbean.cardano.client.api.model.Amount.ada(100)))
+                        .amount(List.of(Amount.ada(100)))
                         .build()));
         when(protocolParamsSupplier.getProtocolParams())
                 .thenReturn(com.bloxbean.cardano.client.api.model.ProtocolParams.builder()
