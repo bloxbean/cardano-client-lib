@@ -88,6 +88,12 @@ public class ProgrammableBurnIntent implements ProgrammableTokenIntent {
     public void validate() {
         if (policy == null) throw new IllegalStateException("policy is required");
         policy.validate();
+        // A named ref resolves only to a registration in the same transaction, and a burn spends
+        // tokens the holder already has: a policy registered in this transaction has none yet.
+        if (policy.getName() != null)
+            throw new IllegalStateException("burn requires a literal policy_id; policy_ref '"
+                    + policy.getName() + "' names a registration in the same transaction, whose"
+                    + " tokens cannot already be held");
         ProgrammableIntentValidation.assets(assets, OPERATION);
         if (transferRedeemer == null)
             throw new IllegalStateException("transfer_redeemer is required");

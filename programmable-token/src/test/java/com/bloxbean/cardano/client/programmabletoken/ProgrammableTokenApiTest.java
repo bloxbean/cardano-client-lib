@@ -217,6 +217,55 @@ class ProgrammableTokenApiTest {
     }
 
     @Test
+    void burnRefusesANamedPolicyRefInYaml() {
+        ProgrammableTokenExtension extension = extension(protocol(new AtomicInteger()));
+        TxPlanCodec codec = codec(extension);
+        String yaml = """
+                version: '1.0'
+                extensions:
+                  pt:
+                    extension: programmable-token
+                    schema_version: '1'
+                    protocol: test-protocol
+                    contract_version: '1'
+                    deployment:
+                      network: preview
+                transaction:
+                  - tx:
+                      from: %s
+                      intents:
+                        - type: pt:burn
+                          policy_ref: fresh-policy
+                          assets:
+                            - name: '00ff'
+                              quantity: 1
+                          transfer_redeemer:
+                            int: 1
+                          issuance_redeemer:
+                            int: 2
+                """.formatted(address());
+
+        assertThatThrownBy(() -> codec.fromYaml(yaml))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("burn requires a literal policy_id")
+                .hasMessageContaining("fresh-policy");
+    }
+
+    @Test
+    void burnIntentWithANamedPolicyRefFailsValidation() {
+        ProgrammableBurnIntent burn = ProgrammableBurnIntent.builder()
+                .policy(ProgrammableTokenPolicyRef.named("fresh-policy"))
+                .assets(List.of(new ProgrammableTokenAsset("00ff", BigInteger.ONE)))
+                .transferRedeemer(PlutusDataValue.of(BigIntPlutusData.of(1)))
+                .issuanceRedeemer(PlutusDataValue.of(BigIntPlutusData.of(2)))
+                .build();
+
+        assertThatThrownBy(burn::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("burn requires a literal policy_id");
+    }
+
+    @Test
     void handWrittenProgrammableTokenYamlParsesToTypedSemanticIntent() {
         ProgrammableTokenExtension extension = extension(protocol(new AtomicInteger()));
         TxPlanCodec codec = codec(extension);

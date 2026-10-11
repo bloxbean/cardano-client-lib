@@ -100,6 +100,11 @@ public class ProgrammableTokenTx extends Tx {
      * issuance policy additionally runs the token's <i>minting</i> logic — two authorizations
      * with two redeemers, which {@link BurnAuthorization} keeps distinct. A mint needs neither
      * an input nor the transfer logic, only a receiver.</p>
+     *
+     * <p>Unlike {@link #mint(ProgrammableTokenPolicyRef, String, List, PlutusData, PlutusData)},
+     * a burn takes a literal policy id, not a {@link ProgrammableTokenPolicyRef}: a named ref
+     * resolves only to a registration in the same transaction, and tokens of a policy registered
+     * there cannot already be held.</p>
      */
     public ProgrammableTokenTx burn(String policyId, List<Asset> assets,
                                     BurnAuthorization authorization) {
