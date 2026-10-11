@@ -4,6 +4,13 @@
 CIP-113 is the initial protocol adapter and has been tested against reference contract suite
 `0.5.0-alpha.2` (see `src/it/resources/blueprint/cip113/compatibility.yml` for the pinned snapshot).
 
+The module is not part of the `cardano-client-lib` or `cardano-client-cip` aggregates while it is
+experimental. Add it explicitly:
+
+```groovy
+implementation 'com.bloxbean.cardano:cardano-client-programmable-token:${cardanoClientLibVersion}'
+```
+
 ```java
 ProgrammableTokenService programmableTokens =
         Cip113ProgrammableTokenService.create(backend, Cip113Deployments.PREVIEW);
