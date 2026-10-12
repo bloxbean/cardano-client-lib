@@ -2162,7 +2162,8 @@ final class Cip113TransactionMaterializer extends Tx {
      * @throws Cip113Exception when the amount is not a native-asset amount
      */
     static Amount canonicalAmount(Amount amount) {
-        String unit = amount == null ? null : amount.getUnit();
+        if (amount == null) throw new Cip113Exception(notANativeAssetUnit(null));
+        String unit = amount.getUnit();
         String canonical;
         try {
             canonical = AssetUtil.normalizeUnit(unit);
