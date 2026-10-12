@@ -237,14 +237,13 @@ class TxFlowStreamTest {
                     .withExtension("ex", ExtensionMetadata.builder()
                             .extension("example").schemaVersion("1").build());
 
-            TxStreamItemResult outcome = stream.submit(TxWorkItem.fromTxPlan("extension-item", extensionPlan))
-                    .completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            TxStreamException error = assertInstanceOf(TxStreamException.class, outcome.getError());
+            TxStreamException error = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromTxPlan("extension-item", extensionPlan)));
             assertEquals("TXSTREAM_NON_PORTABLE_ITEM", error.getCode());
             assertTrue(error.getMessage().contains("TXFLOW_NON_PORTABLE_EXTENSION"));
             assertTrue(store.calls.isEmpty(), "nothing may be registered: " + store.calls);
             assertTrue(gateway.started.isEmpty());
+            assertTrue(stream.getItemStatus("extension-item").isEmpty());
             stream.drain();
         }
     }
