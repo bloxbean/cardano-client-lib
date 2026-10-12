@@ -514,7 +514,7 @@ class TxFlowStreamDurableReattachTest {
     // ------------------------------------------------------------------
 
     @Test
-    void anAcceptedButUnboundGhostIsReapedOnReattachAndNotReturnedNextRestart() {
+    void anAcceptedButUnboundRegistrationRequiresExplicitRecoveryAcrossRestarts() {
         SharedDurableTxStreamStore store = new SharedDurableTxStreamStore();
         StubEngineGateway engine = durableEngine();
         // Registered + projected ACCEPTED before the crash, never bound (no
@@ -532,16 +532,19 @@ class TxFlowStreamDurableReattachTest {
             assertEquals(0, report.reattachedItems());
             assertEquals(0, report.redispatched());
             TxStreamItemResult reaped = store.getItem("payouts", "ghost").orElseThrow();
-            assertEquals(TxStreamItemStatus.CANCELLED, reaped.getStatus());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, reaped.getStatus());
             assertEquals("TXSTREAM_ABANDONED", ((TxStreamException) reaped.getError()).getCode());
-            assertFalse(store.listNonTerminalItemIds("payouts").contains("ghost"),
-                    "a reaped ghost leaves the non-terminal set");
+            assertTrue(store.listNonTerminalItemIds("payouts").contains("ghost"),
+                    "incomplete accepted work remains visible for recovery");
+            assertEquals(1, report.recoveryRequired());
         }
 
         try (TxFlowStream c = durableBuilder(engine, store).build()) {
             ReattachReport report = c.reattach();
-            assertEquals(0, report.reattachedItems() + report.redispatched()
-                    + report.recoveryRequired(), "the reaped ghost is not re-scanned");
+            assertEquals(0, report.reattachedItems() + report.redispatched());
+            assertEquals(1, report.recoveryRequired());
+            assertEquals(2, store.lastProjectionSequence("payouts", "ghost").orElseThrow(),
+                    "restarting must not repeatedly rewrite the incomplete projection");
         }
     }
 

@@ -1,9 +1,9 @@
 package com.bloxbean.cardano.client.metadata.helper;
 
-import co.nstant.in.cbor.CborDecoder;
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import co.nstant.in.cbor.model.Map;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.metadata.cbor.MetadataHelper;
 import com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException;
@@ -31,8 +31,8 @@ public abstract class AbstractMetadataConverter {
         byte[] cborBytes = HexUtil.decodeHexString(hex);
         List<DataItem> dataItemList = null;
         try {
-            dataItemList = CborDecoder.decode(cborBytes);
-        } catch (CborException e) {
+            dataItemList = CborSerializationUtil.deserializeAll(cborBytes);
+        } catch (CborRuntimeException e) {
             throw new CborDeserializationException("Cbor deserialization failed", e);
         }
 

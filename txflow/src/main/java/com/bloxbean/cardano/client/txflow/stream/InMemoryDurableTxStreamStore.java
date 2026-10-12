@@ -137,6 +137,16 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
     }
 
     @Override
+    public boolean registerOrMatch(TxStreamItemRecord record) {
+        Objects.requireNonNull(record, "record");
+        TxStreamItemRecord existing = records.putIfAbsent(record.itemId(), record);
+        if (existing == null) return true;
+        if (existing.matches(record)) return false;
+        throw new TxStreamDuplicateItemException(record.itemId(),
+                "Item registration has different content: " + record.itemId());
+    }
+
+    @Override
     public void registerItem(TxStreamItemRecord record) {
         Objects.requireNonNull(record, "record");
         if (records.putIfAbsent(record.itemId(), record) != null) {
@@ -203,6 +213,35 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
     }
 
     @Override
+    public Optional<TxStreamPlannedRecord> findPlanned(String streamId, String itemId) {
+        TxStreamBinding binding = bindings.get(itemId);
+        if (binding == null) return Optional.empty();
+        TxStreamPlannedRecord record = planned.get(binding.executionId());
+        return record != null && record.streamId().equals(streamId)
+                ? Optional.of(record) : Optional.empty();
+    }
+
+    @Override
+    public boolean acknowledgeAbandoned(String streamId, String itemId,
+                                        long expectedSequence, String reason, Instant acknowledgedAt) {
+        if (reason == null || reason.isBlank()) throw new IllegalArgumentException("reason is required");
+        boolean[] applied = new boolean[1];
+        projections.computeIfPresent(itemId, (ignored, entry) -> {
+            TxStreamItemResult result = entry.result();
+            if (entry.sequence() != expectedSequence || !result.getStreamId().equals(streamId)
+                    || result.getStatus() != TxStreamItemStatus.RECOVERY_REQUIRED
+                    || !(result.getError() instanceof TxStreamException error)
+                    || !"TXSTREAM_ABANDONED".equals(error.getCode())) return entry;
+            TxStreamItemResult acknowledged = result.toBuilder().status(TxStreamItemStatus.FAILED)
+                    .error(new TxStreamException("TXSTREAM_ABANDONED", "Operator acknowledgement: " + reason))
+                    .updatedAt(Objects.requireNonNull(acknowledgedAt, "acknowledgedAt")).build();
+            applied[0] = true;
+            return new ProjectionEntry(acknowledged, Math.addExact(expectedSequence, 1));
+        });
+        return applied[0];
+    }
+
+    @Override
     public List<String> listNonTerminalItemIds(String streamId) {
         List<String> result = new ArrayList<>();
         for (ProjectionEntry entry : projections.values()) {
@@ -241,6 +280,13 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
             return Optional.empty();
         }
         return Optional.of(entry.result());
+    }
+
+    @Override
+    public Optional<TxStreamStoredProjection> getStoredProjection(String streamId, String itemId) {
+        ProjectionEntry entry = projections.get(itemId);
+        if (entry == null || !entry.result().getStreamId().equals(streamId)) return Optional.empty();
+        return Optional.of(new TxStreamStoredProjection(entry.result(), entry.sequence()));
     }
 
     @Override

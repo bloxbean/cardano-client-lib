@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -16,10 +17,11 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Iteration 2c {@link LanePolicy#byFundingAddress()}: the stream derives each
+ * Iteration 2c / ADR 0005 {@link LanePolicy#byFundingSource()}: the stream derives each
  * item's lane from its transaction's own funding source, so items from
  * different senders lane concurrently while items from the same sender
  * serialize — with no resolver, no per-item lane name, and no bootstrap.
@@ -31,9 +33,78 @@ class TxFlowStreamByFundingAddressTest {
     private static final String STEP_ID = StreamIdentities.GENERATED_STEP_ID;
 
     @Test
+    void byFundingSourceIsTheDefaultAndOldNameForwardsToIt() {
+        assertEquals(LanePolicy.byFundingSource().mode(),
+                LanePolicy.byFundingAddress().mode());
+
+        StubEngineGateway gateway = new StubEngineGateway();
+        try (TxFlowStream stream = new TxFlowStream.Builder("payouts", gateway)
+                .executor(Runnable::run)
+                .clock(Clock.fixed(StubEngineGateway.NOW, ZoneOffset.UTC))
+                .build()) {
+            stream.start();
+            TxStreamReceipt receipt = stream.submit(fromItem("default-1", SENDER_A));
+            gateway.lastHandle().completeConfirmed(STEP_ID, "tx-default");
+            assertEquals(TxStreamItemStatus.CONFIRMED,
+                    receipt.completion().toCompletableFuture().join().getStatus());
+            assertEquals(SENDER_A, receipt.current().getLaneName());
+        }
+    }
+
+    @Test
+    void bothFundingFormsFailWithAmbiguousDiagnostic() throws Exception {
+        StubEngineGateway gateway = new StubEngineGateway();
+        try (TxFlowStream stream = new TxFlowStream.Builder("payouts", gateway)
+                .executor(Runnable::run)
+                .clock(Clock.fixed(StubEngineGateway.NOW, ZoneOffset.UTC))
+                .build()) {
+            stream.start();
+            Tx ambiguous = new Tx().from(SENDER_A)
+                    .payToAddress(RECEIVER, Amount.ada(1.5));
+            // The public Tx builder already prevents this invalid shape. Set
+            // the field reflectively to prove the stream's defensive boundary
+            // still rejects malformed/deserialized plans carrying both forms.
+            Field fromRef = Tx.class.getDeclaredField("fromRef");
+            fromRef.setAccessible(true);
+            fromRef.set(ambiguous, "account://sender");
+
+            TxStreamException result = assertThrows(TxStreamException.class,
+                    () -> stream.submit(
+                            TxWorkItem.fromTxPlan("ambiguous", TxPlan.from(ambiguous))));
+
+            assertEquals("TXSTREAM_LANE_AMBIGUOUS", result.getCode());
+            assertTrue(gateway.started.isEmpty());
+        }
+    }
+
+    @Test
+    void addressAndReferenceForOneWalletRemainDistinctSyntacticLanes() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        try (TxFlowStream stream = new TxFlowStream.Builder("payouts", gateway)
+                .executor(Runnable::run)
+                .clock(Clock.fixed(StubEngineGateway.NOW, ZoneOffset.UTC))
+                .build()) {
+            stream.start();
+            TxStreamReceipt address = stream.submit(fromItem("address", SENDER_A));
+            TxPlan refPlan = TxPlan.from(new Tx().fromRef("account://sender-a")
+                    .payToAddress(RECEIVER, Amount.ada(1.5)));
+            TxStreamReceipt ref = stream.submit(TxWorkItem.fromTxPlan("reference", refPlan));
+
+            assertEquals(2, gateway.started.size(),
+                    "addr: and ref: identities are intentionally distinct and may contend if mixed");
+            gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-address");
+            gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-reference");
+            assertEquals(TxStreamItemStatus.CONFIRMED,
+                    address.completion().toCompletableFuture().join().getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED,
+                    ref.completion().toCompletableFuture().join().getStatus());
+        }
+    }
+
+    @Test
     void differentSendersLaneConcurrentlyWhileTheSameSenderStaysSerialFifo() {
         StubEngineGateway gateway = new StubEngineGateway();
-        try (TxFlowStream stream = byFundingAddress(gateway).build()) {
+        try (TxFlowStream stream = byFundingSource(gateway).build()) {
             stream.start();
             TxStreamReceipt a1 = stream.submit(fromItem("a-1", SENDER_A));
             TxStreamReceipt a2 = stream.submit(fromItem("a-2", SENDER_A));
@@ -87,7 +158,7 @@ class TxFlowStreamByFundingAddressTest {
         };
         gateway.handleCreatedHook = bothHandlesCreated::countDown;
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        try (TxFlowStream stream = byFundingAddress(gateway).executor(pool).build()) {
+        try (TxFlowStream stream = byFundingSource(gateway).executor(pool).build()) {
             stream.start();
             TxStreamReceipt first = stream.submit(fromItem("a-1", SENDER_A));
             TxStreamReceipt second = stream.submit(fromItem("b-1", SENDER_B));
@@ -107,30 +178,30 @@ class TxFlowStreamByFundingAddressTest {
     }
 
     @Test
-    void itemWithNoFundingSourceFailsUnderivableAndIsSettledAndRetained() {
+    void itemWithNoFundingSourceIsRejectedUnderivableAndRetainedNowhere() {
         StubEngineGateway gateway = new StubEngineGateway();
-        try (TxFlowStream stream = byFundingAddress(gateway).build()) {
+        try (TxFlowStream stream = byFundingSource(gateway).build()) {
             stream.start();
             // No from / from_ref: the lane cannot be derived.
             TxPlan sourceless = TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1)));
-            TxStreamReceipt receipt = stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless));
-
-            TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_LANE_UNDERIVABLE", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+            TxStreamException outcome = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless)));
+            assertEquals("TXSTREAM_LANE_UNDERIVABLE", outcome.getCode());
+            assertTrue(outcome.getMessage().contains("from / from_ref"));
+            assertTrue(outcome.getMessage().contains("requires the transaction to name its sender"),
+                    "the default-lane diagnostic must teach how to supply funding");
             assertTrue(gateway.started.isEmpty(), "an underivable item never reaches the engine");
-            // Settled and retained: an identical redelivery attaches.
-            assertTrue(stream.getItemStatus("no-src").isPresent(),
-                    "an underivable item is settled and retained (content failure)");
-            assertSame(receipt, stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless)));
+            assertTrue(stream.getItemStatus("no-src").isEmpty(),
+                    "a rejected item is retained nowhere");
+            assertEquals("TXSTREAM_LANE_UNDERIVABLE", assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless))).getCode());
         }
     }
 
     @Test
     void fromRefBackedItemsLaneByTheirFundingReference() {
         StubEngineGateway gateway = new StubEngineGateway();
-        try (TxFlowStream stream = byFundingAddress(gateway).build()) {
+        try (TxFlowStream stream = byFundingSource(gateway).build()) {
             stream.start();
             TxPlan plan = TxPlan.from(
                     new Tx().fromRef("account://treasury").payToAddress(RECEIVER, Amount.ada(2)));
@@ -149,7 +220,7 @@ class TxFlowStreamByFundingAddressTest {
     @Test
     void executionIdIsClaimKeyDerivedAndUnperturbedByTheDerivedLane() {
         StubEngineGateway gateway = new StubEngineGateway();
-        try (TxFlowStream stream = byFundingAddress(gateway).build()) {
+        try (TxFlowStream stream = byFundingSource(gateway).build()) {
             stream.start();
             TxStreamReceipt receipt = stream.submit(TxWorkItem.builder("pay-42")
                     .withTxPlan(fromPlan(SENDER_A))
@@ -171,17 +242,15 @@ class TxFlowStreamByFundingAddressTest {
     @Test
     void namingALaneThatDisagreesWithTheFundingSourceFailsMismatchButAgreeingNameIsAccepted() {
         StubEngineGateway gateway = new StubEngineGateway();
-        try (TxFlowStream stream = byFundingAddress(gateway).build()) {
+        try (TxFlowStream stream = byFundingSource(gateway).build()) {
             stream.start();
             // A lane name that disagrees with the derived (from) lane fails typed.
-            TxStreamItemResult mismatch = stream.submit(TxWorkItem.builder("bad-1")
+            TxStreamException mismatch = assertThrows(TxStreamException.class,
+                    () -> stream.submit(TxWorkItem.builder("bad-1")
                             .withTxPlan(fromPlan(SENDER_A))
                             .withLane("some-other-lane")
-                            .build())
-                    .completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, mismatch.getStatus());
-            assertEquals("TXSTREAM_LANE_MISMATCH", assertInstanceOf(TxStreamException.class,
-                    mismatch.getError()).getCode());
+                            .build()));
+            assertEquals("TXSTREAM_LANE_MISMATCH", mismatch.getCode());
             assertTrue(gateway.started.isEmpty());
 
             // A lane name equal to the funding source is accepted.
@@ -197,11 +266,11 @@ class TxFlowStreamByFundingAddressTest {
     }
 
     @Test
-    void noLaneResolverIsRequiredForByFundingAddress() {
+    void noLaneResolverIsRequiredForByFundingSource() {
         StubEngineGateway gateway = new StubEngineGateway();
-        // build() must not demand a laneResolver for byFundingAddress().
+        // build() must not demand a laneResolver for byFundingSource().
         try (TxFlowStream stream = new TxFlowStream.Builder("payouts", gateway)
-                .lanes(LanePolicy.byFundingAddress())
+                .lanes(LanePolicy.byFundingSource())
                 .executor(Runnable::run)
                 .clock(Clock.fixed(StubEngineGateway.NOW, ZoneOffset.UTC))
                 .build()) {
@@ -217,9 +286,9 @@ class TxFlowStreamByFundingAddressTest {
     // Helpers
     // ------------------------------------------------------------------
 
-    private TxFlowStream.Builder byFundingAddress(StubEngineGateway gateway) {
+    private TxFlowStream.Builder byFundingSource(StubEngineGateway gateway) {
         return new TxFlowStream.Builder("payouts", gateway)
-                .lanes(LanePolicy.byFundingAddress())
+                .lanes(LanePolicy.byFundingSource())
                 .executor(Runnable::run)
                 .clock(Clock.fixed(StubEngineGateway.NOW, ZoneOffset.UTC));
     }

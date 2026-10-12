@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.txflow.stream;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.exec.FlowError;
 import com.bloxbean.cardano.client.txflow.exec.FlowErrorCategory;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult;
@@ -52,9 +53,9 @@ class TxFlowStreamSharedFlowTest {
     // ------------------------------------------------------------------
 
     @Test
-    void mixedStepOutcomesProjectPerItemStatusesAndPartiallyCompletedBatch() {
+    void pipelinedMixedStepOutcomesProjectPerItemStatusesAndPartiallyCompletedBatch() {
         StubEngineGateway gateway = new StubEngineGateway();
-        try (TxFlowStream stream = sharedFlowBuilder(gateway).build()) {
+        try (TxFlowStream stream = sharedPipelinedFlowBuilder(gateway).build()) {
             stream.start();
             TxStreamReceipt a = stream.submit(planItem("pay-a"));
             TxStreamReceipt b = stream.submit(planItem("pay-b"));
@@ -91,9 +92,9 @@ class TxFlowStreamSharedFlowTest {
     }
 
     @Test
-    void inProgressMemberBecomesRecoveryRequiredWhileSiblingConfirms() {
+    void pipelinedInProgressMemberBecomesRecoveryRequiredWhileSiblingConfirms() {
         StubEngineGateway gateway = new StubEngineGateway();
-        try (TxFlowStream stream = sharedFlowBuilder(gateway).build()) {
+        try (TxFlowStream stream = sharedPipelinedFlowBuilder(gateway).build()) {
             stream.start();
             TxStreamReceipt a = stream.submit(planItem("pay-a"));
             TxStreamReceipt b = stream.submit(planItem("pay-b"));
@@ -662,6 +663,16 @@ class TxFlowStreamSharedFlowTest {
         return new TxFlowStream.Builder("payouts", gateway)
                 .lane(ResolvedLane.ofAddress("payouts-lane", SENDER))
                 .planner(TxStreamPlanner.perWindow())
+                .window(WindowPolicy.count(2))
+                .executor(Runnable::run)
+                .clock(Clock.fixed(StubEngineGateway.NOW, ZoneOffset.UTC));
+    }
+
+    /** Same generated shared-flow shape, with planner-local engine pipelining. */
+    private TxFlowStream.Builder sharedPipelinedFlowBuilder(StubEngineGateway gateway) {
+        return new TxFlowStream.Builder("payouts", gateway)
+                .lane(ResolvedLane.ofAddress("payouts-lane", SENDER))
+                .planner(TxStreamPlanner.perWindow(ChainingMode.PIPELINED))
                 .window(WindowPolicy.count(2))
                 .executor(Runnable::run)
                 .clock(Clock.fixed(StubEngineGateway.NOW, ZoneOffset.UTC));

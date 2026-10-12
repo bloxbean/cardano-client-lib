@@ -1,6 +1,29 @@
 /**
  * Streaming transaction workflows on the {@code FlowEngine} durable runtime.
  * <p>
+ * The managed beginner path uses
+ * {@link com.bloxbean.cardano.client.txflow.FlowRuntime} to own one ordinary
+ * engine, its executors, and opened streams. The default lane is derived from
+ * each plan's funding source, and the common submission overload uses the item
+ * id as its idempotency key:
+ * <pre>{@code
+ * try (FlowRuntime runtime = FlowRuntime.builder(backend)
+ *         .account("account://sender", sender)
+ *         .build();
+ *      TxFlowStream stream = runtime.open("payouts")) {
+ *     TxPlan plan = TxPlan.from(new Tx()
+ *                     .payToAddress(receiver, Amount.ada(2))
+ *                     .fromRef("account://sender"))
+ *             .withSigner("account://sender");
+ *     TxStreamItemResult result = stream.submit("order-0042", plan)
+ *             .awaitConfirmed(Duration.ofMinutes(5));
+ * }
+ * }</pre>
+ * Direct engine and stream builders remain the advanced/server path and never
+ * take ownership of caller-supplied executors. See the module's
+ * {@code TXSTREAM_GETTING_STARTED.md} for typed uncertainty recovery and the
+ * effective defaults.
+ * <p>
  * A {@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream} accepts
  * portable {@link com.bloxbean.cardano.client.txflow.stream.TxWorkItem}s and
  * plans them into idempotent engine executions on lanes — a lane is a funding
@@ -12,7 +35,11 @@
  * with a multi-item planner (for example
  * {@link com.bloxbean.cardano.client.txflow.stream.TxStreamPlanner#perWindow()})
  * groups a window of items into shared multi-step flows, each item riding its
- * own step and projecting from its own step's outcome. An item may instead be
+ * own step and projecting from its own step's outcome. Generated per-window
+ * flows can opt into planner-local pipelining through
+ * {@link com.bloxbean.cardano.client.txflow.stream.TxStreamPlanner#perWindow(com.bloxbean.cardano.client.txflow.ChainingMode)};
+ * this never overrides per-item, batching, custom-planner, or template flow
+ * settings. An item may instead be
  * a reference to a pre-registered parameterized template
  * ({@link com.bloxbean.cardano.client.txflow.stream.TxWorkItem.Builder#withTemplate}
  * against a definition registered with
@@ -26,7 +53,7 @@
  * {@link com.bloxbean.cardano.client.txflow.stream.LaneIdentityResolver}
  * ({@link com.bloxbean.cardano.client.txflow.stream.LanePolicy#explicit}),
  * derived from each item's transaction funding source
- * ({@link com.bloxbean.cardano.client.txflow.stream.LanePolicy#byFundingAddress}),
+ * ({@link com.bloxbean.cardano.client.txflow.stream.LanePolicy#byFundingSource}),
  * or hash-partitioned across N application-provided lane addresses with an
  * optional one-time fan-out bootstrap
  * ({@link com.bloxbean.cardano.client.txflow.stream.LanePolicy#partitioned}).
@@ -52,6 +79,51 @@
  * is opted in — push-repaired by a periodic stream-owned observer that runs on
  * the caller-owned maintenance scheduler, so a durable
  * {@code RECOVERY_REQUIRED} item is repaired after an operator runs
- * {@code engine.recover(...)} without anyone polling.
+ * {@code engine.recover(...)} without anyone polling. Eager validation and
+ * authoritative registration failures are rejected before any receipt or item
+ * state is created; blocking submission throws the typed cause and
+ * non-blocking submission returns
+ * {@link com.bloxbean.cardano.client.txflow.stream.EmitResult.Status#REJECTED}.
+ *
+ * <h2>Error-code handling</h2>
+ * Compare {@link com.bloxbean.cardano.client.txflow.stream.TxStreamException#getCode()}
+ * with the public constants in
+ * {@link com.bloxbean.cardano.client.txflow.stream.TxStreamCodes}; do not copy
+ * literals. The complete per-code reference is in
+ * {@code docs/in-progress/TXSTREAM_DESIGN.md}. The operational families are:
+ * <table>
+ *   <caption>TxStream error-code families</caption>
+ *   <tr><th>Codes</th><th>Meaning</th><th>Caller action</th></tr>
+ *   <tr><td>{@code INVALID_ITEM}, {@code NON_PORTABLE_ITEM},
+ *       {@code DUPLICATE_ITEM}, {@code IDEMPOTENCY_KEY_REUSE},
+ *       {@code REGISTRATION_FAILED}, {@code NON_PERSISTABLE_SECRET}</td>
+ *       <td>Work was rejected before acceptance</td>
+ *       <td>Correct the same stable item; a rejection is not an accepted receipt</td></tr>
+ *   <tr><td>{@code LANE_*}, {@code TEMPLATE_*}</td>
+ *       <td>Funding identity or registered definition is invalid</td>
+ *       <td>Repair configuration/content; never route around a scope mismatch</td></tr>
+ *   <tr><td>{@code PLANNER_*}, {@code PLAN_*}, {@code BINDING_*},
+ *       {@code PLANNED_*}, {@code BATCH_INELIGIBLE_ITEM},
+ *       {@code DISPATCH_FAILED}, {@code EXECUTION_FAILED},
+ *       {@code EXECUTION_CANCELLED}, {@code PROJECTION_FAILED}</td>
+ *       <td>Planning or write-ahead dispatch failed</td>
+ *       <td>Inspect durable/engine state before deciding whether retry is safe</td></tr>
+ *   <tr><td>{@code RECOVERY_REQUIRED}, {@code REATTACH_*},
+ *       {@code EXECUTION_UNOBSERVABLE}</td>
+ *       <td>A submitted or durable outcome is not proven</td>
+ *       <td>Do not resubmit; reconcile by the existing item/execution identity</td></tr>
+ *   <tr><td>{@code CLOSED}, {@code NOT_ACTIVE}, {@code ABORTED},
+ *       {@code ABANDONED}, {@code UNHEALTHY}, {@code DRAIN_FAILED},
+ *       {@code ITEM_*}, {@code BOOTSTRAP_*}, {@code OWNERSHIP_*},
+ *       {@code TIMEOUT}, {@code INTERRUPTED}</td>
+ *       <td>Lifecycle, ownership, or caller-budget condition</td>
+ *       <td>Route/start/wait according to the specific code; none alone proves chain failure</td></tr>
+ *   <tr><td>{@code STORE_CODEC_*}</td>
+ *       <td>Core persisted representation is corrupt or unsupported</td>
+ *       <td>Quarantine, repair, or migrate; never guess transaction state</td></tr>
+ *   <tr><td>{@code SOURCE_FAILED}, {@code SUBSCRIBER_OVERFLOW}</td>
+ *       <td>Publisher/source or downstream status-adapter failure</td>
+ *       <td>Repair/restart the adapter; accepted receipts remain authoritative</td></tr>
+ * </table>
  */
 package com.bloxbean.cardano.client.txflow.stream;

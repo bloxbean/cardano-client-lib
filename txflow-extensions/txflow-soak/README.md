@@ -298,3 +298,12 @@ addition to this tool.
   out — itself a useful signal.
 - `SIGTERM` (Ctrl-C) stops submission, drains what was accepted, and still reconciles. A soak
   interrupted early still produces a valid report.
+
+## Qualifying the SDK indexing check
+
+The soak engine now uses `FlowEngine.builder(backend)`, enabling the SDK's
+between-execution output-visibility check. `--utxo-gate=false` disables only the
+soak application's extra submission gate; it leaves the SDK check enabled. Use
+that profile when measuring ordinary TxStream dispatch behavior and record the
+flag alongside results. Neither a short smoke run nor a gated run establishes
+public-network throughput or crash durability across every acceptance boundary.

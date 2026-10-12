@@ -15,6 +15,11 @@ import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.List;
 
+/**
+ * Computes the script integrity hash (body field 11) of a transaction being built, from its models. To verify a received
+ * transaction, compute it from the original bytes with {@code RawTx.scriptDataHash(era, languageViews)}
+ * (transaction-spec).
+ */
 public class ScriptDataHashGenerator {
 
     public static byte[] generate(List<Redeemer> redeemers, List<PlutusData> datums, CostMdls costMdls)

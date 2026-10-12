@@ -27,6 +27,14 @@ public interface Script {
         return finalBytes;
     }
 
+    /**
+     * The script hash of the serialized script. For a native script received in a transaction, which may be encoded
+     * otherwise than CCL re-encodes it (indefinite arrays, non-minimal heads), take the hash from the original bytes with
+     * {@code RawScript.hash()} (transaction-spec, {@code RawTx}).
+     *
+     * @return the script hash
+     * @throws CborSerializationException if the script cannot be serialized
+     */
     @JsonIgnore
     default byte[] getScriptHash() throws CborSerializationException {
         return blake2bHash224(serialize());

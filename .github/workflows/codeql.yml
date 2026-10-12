@@ -20,6 +20,10 @@ on:
   schedule:
     - cron: '42 14 * * 3'
 
+# Read-only token: the jobs run the branch's or pull request's own code.
+permissions:
+  contents: read
+
 jobs:
   analyze:
     name: Analyze
@@ -39,6 +43,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+      with:
+        persist-credentials: false
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL

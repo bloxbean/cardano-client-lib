@@ -78,6 +78,31 @@ class TxFlowCodecTest {
             """;
 
     @Test
+    void portableFundingRelationshipRoundTripsCanonically() {
+        String source = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: chained}
+                spec:
+                  steps:
+                    - id: first
+                      transaction: {tx: {intents: []}}
+                    - id: second
+                      funding_from: [first]
+                      transaction: {tx: {intents: []}}
+                """;
+
+        TxFlow parsed = codec.parse(source, FlowParseOptions.serverDefaults()).requireFlow();
+        assertEquals(List.of("first"), parsed.getSteps().get(1).getFundingFrom());
+
+        String json = codec.write(parsed,
+                FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+        assertTrue(json.contains("funding_from"));
+        assertEquals(List.of("first"), codec.parse(json, FlowParseOptions.serverDefaults())
+                .requireFlow().getSteps().get(1).getFundingFrom());
+    }
+
+    @Test
     void parsesAndCanonicallyRoundTripsPortableYamlAndJson() {
         FlowParseResult parsed = codec.parse(PORTABLE, FlowParseOptions.serverDefaults());
         assertFalse(parsed.hasErrors(), parsed.getDiagnostics().toString());

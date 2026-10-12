@@ -234,6 +234,7 @@ public final class TxFlowCodec {
                     .withDescription(step.description)
                     .withTransactionTemplate(new TransactionTemplate(step.transaction));
             if (step.needs != null) step.needs.forEach(stepBuilder::needs);
+            if (step.fundingFrom != null) step.fundingFrom.forEach(stepBuilder::fundsFrom);
             if (step.outputs != null) {
                 step.outputs.forEach((name, output) -> {
                     if (output.select == null || output.select.outputIndex == null) {
@@ -315,6 +316,9 @@ public final class TxFlowCodec {
                 stepNode.put("id", step.getId());
                 if (step.getDescription() != null) stepNode.put("description", step.getDescription());
                 if (!step.getNeeds().isEmpty()) stepNode.set("needs", JSON.valueToTree(step.getNeeds()));
+                if (!step.getFundingFrom().isEmpty()) {
+                    stepNode.set("funding_from", JSON.valueToTree(step.getFundingFrom()));
+                }
                 if (!step.getOutputBindings().isEmpty()) {
                     ObjectNode outputs = stepNode.putObject("outputs");
                     step.getOutputBindings().forEach((name, selector) -> {
@@ -617,6 +621,7 @@ public final class TxFlowCodec {
             validateText(step, "id", path + ".id", diagnostics);
             validateText(step, "description", path + ".description", diagnostics);
             validateStringArray(step, "needs", path + ".needs", diagnostics);
+            validateStringArray(step, "funding_from", path + ".funding_from", diagnostics);
             requireField(step, "transaction", path + ".transaction", diagnostics);
             validateObject(step, "transaction", path + ".transaction", diagnostics);
             validateOutputs(step, path, diagnostics);
@@ -927,7 +932,7 @@ public final class TxFlowCodec {
             JsonNode step = steps.get(i);
             String path = "$.spec.steps[" + i + "]";
             warnUnknown(step, path, diagnostics, policy,
-                    "id", "description", "needs", "transaction", "outputs");
+                    "id", "description", "needs", "funding_from", "transaction", "outputs");
             step.path("outputs").fields().forEachRemaining(entry -> {
                 String outputPath = path + ".outputs." + entry.getKey();
                 warnUnknown(entry.getValue(), outputPath, diagnostics, policy, "select", "expect");
@@ -1003,6 +1008,7 @@ public final class TxFlowCodec {
         public String id;
         public String description;
         public List<String> needs = new ArrayList<>();
+        @JsonProperty("funding_from") public List<String> fundingFrom = new ArrayList<>();
         public JsonNode transaction;
         public Map<String, PortableOutput> outputs = new LinkedHashMap<>();
     }

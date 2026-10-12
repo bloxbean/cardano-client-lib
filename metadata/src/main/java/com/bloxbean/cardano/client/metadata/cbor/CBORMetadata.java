@@ -1,8 +1,7 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
-import co.nstant.in.cbor.CborDecoder;
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -21,6 +20,22 @@ import java.util.stream.Collectors;
 import static co.nstant.in.cbor.model.MajorType.*;
 import static com.bloxbean.cardano.client.metadata.cbor.MetadataHelper.*;
 
+/**
+ * Transaction metadata, {@code {* label => metadatum}}, backed by a cbor-java {@link Map}.
+ * <p>
+ * Decoding and encoding go through {@link CborSerializationUtil}, which is iterative, so metadata of any nesting depth
+ * converts and hashes on any thread.
+ * <p>
+ * The model is lossy where the ledger is not. Like a cbor-java map, it keeps one entry per key: the first position and
+ * the last value. On chain:
+ * <ul>
+ *     <li>a metadatum map is a list of pairs, so it keeps every entry and its order, duplicate keys included;</li>
+ *     <li>a repeated label keeps the last value from Shelley to Babbage, and is rejected from Conway.</li>
+ * </ul>
+ * Re-encoding a decoded model can therefore give other bytes than were received (duplicate keys, non-canonical heads,
+ * chunked strings). Take hashes of received metadata from the original bytes, and read them with
+ * {@link com.bloxbean.cardano.client.common.cbor.CborSpan#entries()} where every entry matters.
+ */
 public class CBORMetadata implements Metadata {
     private Map map;
 
@@ -110,6 +125,14 @@ public class CBORMetadata implements Metadata {
         return newMetadata;
     }
 
+    /**
+     * Wraps a decoded metadata map. A label repeated in the CBOR is already one entry in a cbor-java map (see the class
+     * documentation).
+     *
+     * @param metadataMap the metadata map
+     * @return the metadata
+     * @throws MetadataDeSerializationException if a value is not a metadatum
+     */
     public static CBORMetadata deserialize(Map metadataMap) throws MetadataDeSerializationException {
         CBORMetadata cborMetadata = new CBORMetadata();
         Collection<DataItem> keys = metadataMap.getKeys();
@@ -139,11 +162,19 @@ public class CBORMetadata implements Metadata {
         return cborMetadata;
     }
 
+    /**
+     * Decodes metadata, iteratively, so metadata of any nesting depth decodes on any thread. Maps keep one entry per key
+     * (see the class documentation).
+     *
+     * @param cborBytes the metadata map
+     * @return the metadata
+     * @throws MetadataDeSerializationException if the bytes are not one CBOR map of metadatums
+     */
     public static CBORMetadata deserialize(byte[] cborBytes) throws MetadataDeSerializationException {
         List<DataItem> dataItemList = null;
         try {
-            dataItemList = CborDecoder.decode(cborBytes);
-        } catch (CborException e) {
+            dataItemList = CborSerializationUtil.deserializeAll(cborBytes);
+        } catch (CborRuntimeException e) {
             throw new MetadataDeSerializationException("Cbor deserialization failed", e);
         }
 

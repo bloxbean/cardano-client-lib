@@ -1,0 +1,47 @@
+
+==============================================================================
+  SOAK RECONCILIATION
+==============================================================================
+  planned duration     2m
+  lanes                2
+  chaos                disabled
+
+  submitted (journal)  60
+  confirmed            60
+  failed               0
+  cancelled            0
+  recovery required    0
+  non-terminal         0
+  never registered     0   
+
+  -- value conservation (the double-pay check) --
+  expected total       73280000 lovelace
+  actual total         73280000 lovelace
+  transactions checked 60 on chain
+
+  -- resources --
+  heap trend           run too short to trend (needs 15m+)
+  throughput           30.0/min  (first third 0.0 -> last third 0.0)
+  orphan leases        0
+    txflow_event                            660 rows
+    txflow_execution                         60 rows
+    txflow_execution_lease                    0 rows
+    txflow_idempotency                       60 rows
+    txflow_lease_epoch                        1 rows
+    txflow_resource_lease                     0 rows
+    txflow_schema_history                     1 rows
+    txstream_batch                           60 rows
+    txstream_binding                         60 rows
+    txstream_bootstrap                        0 rows
+    txstream_item                            60 rows
+    txstream_ownership                        0 rows
+    txstream_planned                         60 rows
+    txstream_schema_history                   1 rows
+
+  LOST / NOT ON CHAIN    none
+  DOUBLE PAID            none
+  UNDER PAID             none
+  PAID BUT NOT REPORTED CONFIRMED none
+==============================================================================
+  RESULT: CLEAN — nothing lost, nothing paid twice, nothing left behind
+==============================================================================

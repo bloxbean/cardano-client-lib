@@ -139,11 +139,11 @@ class TxFlowStreamReconciliationObserverTest {
                     attemptData(STEP_ID, AttemptState.CONFIRMED, "tx-remote"));
 
             // Precondition: the row is durable-non-terminal but NOT in the
-            // observer's live map (getItemStatus returns the stored projection
-            // verbatim, no read-through repair for a non-live item).
+            // observer's live map. Inspect the store directly because public
+            // getItemStatus now performs the same hydration as the observer.
             assertTrue(store.listNonTerminalItemIds("payouts").contains("pay-remote"));
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    observer.getItemStatus("pay-remote").orElseThrow().getStatus());
+                    store.getItem("payouts", "pay-remote").orElseThrow().getStatus());
 
             // The observer must recover by READ-THROUGH only: capture the engine's
             // start count so we can prove it never re-executes the foreign item.
@@ -483,9 +483,9 @@ class TxFlowStreamReconciliationObserverTest {
 
             // Without the phase-alternation, phase-1 residency (2 == batchSize)
             // starves phase 2 on EVERY fire and pay-remote is never discovered.
-            // Alternation guarantees discovery within a bounded number of fires.
-            scheduler.pending().fire();
-            scheduler.pending().fire();
+            // Every inspected durable row now consumes budget, including live rows.
+            // The cursor advances past those rows on the next durable-first pass.
+            for (int fire = 0; fire < 4; fire++) scheduler.pending().fire();
 
             assertEquals(TxStreamItemStatus.CONFIRMED,
                     store.getItem("payouts", "pay-remote").orElseThrow().getStatus(),

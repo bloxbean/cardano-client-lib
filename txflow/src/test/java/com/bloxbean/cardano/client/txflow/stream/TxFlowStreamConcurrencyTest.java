@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -130,13 +131,14 @@ class TxFlowStreamConcurrencyTest {
     }
 
     @Test
-    void attachRacingFailedRegistrationSettlesAttachedReceiptTyped() throws Exception {
+    void concurrentSameItemRegistrationFailureRejectsBothWithoutPublishingAReceipt()
+            throws Exception {
         StubEngineGateway gateway = new StubEngineGateway();
         RecordingStateStore store = new RecordingStateStore();
         store.registerEntered = new CountDownLatch(1);
         store.registerGate = new CountDownLatch(1);
         store.registerFailure = new IllegalStateException("registry storage down");
-        ExecutorService pool = Executors.newSingleThreadExecutor();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
         try (TxFlowStream stream = builder("payouts", gateway).stateStore(store).build()) {
             stream.start();
             Future<TxStreamException> registrant = pool.submit(() -> {
@@ -150,21 +152,23 @@ class TxFlowStreamConcurrencyTest {
             assertTrue(store.registerEntered.await(10, TimeUnit.SECONDS),
                     "registration must be in flight before attaching");
 
-            // Attach while the registration is still blocked in the store.
-            TxStreamReceipt attached = stream.submit(planItem("pay-1"));
-            assertFalse(attached.completion().toCompletableFuture().isDone());
+            Future<TxStreamException> contender = pool.submit(() -> {
+                try {
+                    stream.submit(planItem("pay-1"));
+                    return null;
+                } catch (TxStreamException expected) {
+                    return expected;
+                }
+            });
 
             store.registerGate.countDown();
             TxStreamException thrown = registrant.get(10, TimeUnit.SECONDS);
+            TxStreamException alsoThrown = contender.get(10, TimeUnit.SECONDS);
             assertNotNull(thrown, "the registering submit must throw typed");
+            assertNotNull(alsoThrown, "the concurrent submit must also reject without a receipt");
             assertEquals("TXSTREAM_REGISTRATION_FAILED", thrown.getCode());
-
-            // BUG-2: the concurrently attached receipt settles instead of hanging.
-            TxStreamItemResult outcome = attached.completion().toCompletableFuture()
-                    .get(10, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("TXSTREAM_REGISTRATION_FAILED",
-                    assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+            assertEquals("TXSTREAM_REGISTRATION_FAILED", alsoThrown.getCode());
+            assertTrue(stream.getItemStatus("pay-1").isEmpty());
 
             // The failed registration left no residue: a fresh submit works.
             store.registerFailure = null;
@@ -180,29 +184,29 @@ class TxFlowStreamConcurrencyTest {
     }
 
     @Test
-    void concurrentIdenticalNonPortableSubmitsBothSettleFailedWithoutConflict()
+    void concurrentIdenticalNonPortableSubmitsBothRejectWithoutConflict()
             throws Exception {
         StubEngineGateway gateway = new StubEngineGateway();
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try (TxFlowStream stream = builder("payouts", gateway).build()) {
             stream.start();
             CountDownLatch go = new CountDownLatch(1);
-            Future<TxStreamReceipt> first = pool.submit(() -> {
+            Future<TxStreamException> first = pool.submit(() -> {
                 go.await(10, TimeUnit.SECONDS);
-                return stream.submit(nonPortableItem("bad-item"));
+                return assertThrows(TxStreamException.class,
+                        () -> stream.submit(nonPortableItem("bad-item")));
             });
-            Future<TxStreamReceipt> second = pool.submit(() -> {
+            Future<TxStreamException> second = pool.submit(() -> {
                 go.await(10, TimeUnit.SECONDS);
-                return stream.submit(nonPortableItem("bad-item"));
+                return assertThrows(TxStreamException.class,
+                        () -> stream.submit(nonPortableItem("bad-item")));
             });
             go.countDown();
-            for (Future<TxStreamReceipt> future : List.of(first, second)) {
-                TxStreamItemResult outcome = future.get(10, TimeUnit.SECONDS)
-                        .completion().toCompletableFuture().get(10, TimeUnit.SECONDS);
-                assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            for (Future<TxStreamException> future : List.of(first, second)) {
                 assertEquals("TXSTREAM_NON_PORTABLE_ITEM",
-                        assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+                        future.get(10, TimeUnit.SECONDS).getCode());
             }
+            assertTrue(stream.getItemStatus("bad-item").isEmpty());
             assertTrue(gateway.started.isEmpty());
         } finally {
             pool.shutdownNow();

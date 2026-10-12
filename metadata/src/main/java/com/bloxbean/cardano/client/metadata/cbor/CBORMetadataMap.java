@@ -15,6 +15,10 @@ import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.metadata.cbor.MetadataHelper.*;
 
+/**
+ * A metadatum map, backed by a cbor-java {@link Map}. On chain a metadatum map is a list of pairs that keeps every entry
+ * and its order; this model keeps one entry per key, the first position and the last value (see {@link CBORMetadata}).
+ */
 public class CBORMetadataMap implements MetadataMap {
     private Map map;
 

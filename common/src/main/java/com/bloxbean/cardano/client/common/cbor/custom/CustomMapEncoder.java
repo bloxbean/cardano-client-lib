@@ -18,7 +18,11 @@ import java.util.TreeMap;
  * This class is exactly same as MapEncoder except
  *  - ignore canonical ordering if Map is of type SortedMap
  *  - so, if DataItem = SortedMap, ignore canonical encoding even if canonical = true
+ *
+ * @deprecated {@link CustomCborEncoder} no longer uses it: it encodes maps itself, with an explicit stack. This encoder
+ * recurses through nested items, so it overflows the stack on deeply nested data.
  */
+@Deprecated
 public class CustomMapEncoder extends MapEncoder {
     public CustomMapEncoder(CborEncoder encoder, OutputStream outputStream) {
         super(encoder, outputStream);

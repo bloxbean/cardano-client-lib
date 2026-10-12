@@ -23,11 +23,13 @@ import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -35,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Failure-path behavior from the 1A review pass: MATCHED re-attach projection,
  * typed dispatch/execution/registration failures, isolated confirm failures,
- * non-portable redelivery attach semantics, and the buffered-item vs systemic
+ * honest non-portable rejection semantics, and the buffered-item vs systemic
  * failure race.
  */
 class TxFlowStreamFailurePathTest {
@@ -166,43 +168,92 @@ class TxFlowStreamFailurePathTest {
     }
 
     // ------------------------------------------------------------------
-    // BUG-3: non-portable redelivery
+    // Honest validation rejection: no retained failed receipt
     // ------------------------------------------------------------------
 
     @Test
-    void identicalNonPortableRedeliveryAttachesToSettledFailedReceipt() {
+    void identicalNonPortableRedeliveryIsRejectedFreshWithoutAReceipt() {
         StubEngineGateway gateway = new StubEngineGateway();
         try (TxFlowStream stream = builder("payouts", gateway).build()) {
             stream.start();
-            TxStreamReceipt first = stream.submit(nonPortableItem("bad-item", "v1"));
-            assertEquals(TxStreamItemStatus.FAILED,
-                    first.completion().toCompletableFuture().join().getStatus());
-
-            TxStreamReceipt redelivered = stream.submit(nonPortableItem("bad-item", "v1"));
-            assertSame(first, redelivered,
-                    "identical redelivery of a validation-failed item must attach");
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", assertThrows(TxStreamException.class,
+                    () -> stream.submit(nonPortableItem("bad-item", "v1"))).getCode());
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", assertThrows(TxStreamException.class,
+                    () -> stream.submit(nonPortableItem("bad-item", "v1"))).getCode());
 
             EmitResult emit = stream.trySubmit(nonPortableItem("bad-item", "v1"));
-            assertEquals(EmitResult.Status.DUPLICATE_ATTACHED, emit.getStatus());
-            assertSame(first, emit.getReceipt());
+            assertEquals(EmitResult.Status.REJECTED, emit.getStatus());
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", emit.getRejection().getCode());
+            assertNull(emit.getReceipt());
+            assertTrue(stream.getItemStatus("bad-item").isEmpty());
             assertTrue(gateway.started.isEmpty());
         }
     }
 
     @Test
-    void differentNonPortableContentConflictsWithAccurateMessage() {
+    void differentNonPortableContentIsAlsoRejectedBecauseNoPriorItemWasAccepted() {
         StubEngineGateway gateway = new StubEngineGateway();
         try (TxFlowStream stream = builder("payouts", gateway).build()) {
             stream.start();
-            stream.submit(nonPortableItem("bad-item", "v1"));
+            assertThrows(TxStreamException.class,
+                    () -> stream.submit(nonPortableItem("bad-item", "v1")));
 
-            TxStreamDuplicateItemException conflict = assertThrows(
-                    TxStreamDuplicateItemException.class,
+            TxStreamException rejection = assertThrows(TxStreamException.class,
                     () -> stream.submit(nonPortableItem("bad-item", "v2")));
-            assertEquals("bad-item", conflict.getItemId());
-            assertTrue(conflict.getMessage().contains("settled as FAILED"),
-                    "message must state the actual situation: " + conflict.getMessage());
-            assertTrue(conflict.getMessage().contains("different content"));
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", rejection.getCode());
+            assertTrue(stream.getItemStatus("bad-item").isEmpty());
+        }
+    }
+
+    @Test
+    void rejectionCallbackIsExactlyOnceIsolatedAndCorrectedSameIdCanSucceed() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        RecordingStateStore store = new RecordingStateStore();
+        AtomicInteger rejectedCallbacks = new AtomicInteger();
+        AtomicInteger acceptedCallbacks = new AtomicInteger();
+        TxStreamEventListener listener = new TxStreamEventListener() {
+            @Override
+            public void onItemRejected(String itemId, TxStreamException cause) {
+                assertEquals("bad-item", itemId);
+                assertEquals("TXSTREAM_NON_PORTABLE_ITEM", cause.getCode());
+                rejectedCallbacks.incrementAndGet();
+                throw new IllegalStateException("observer failure must be isolated");
+            }
+
+            @Override
+            public void onItemAccepted(TxWorkItem item, TxStreamReceipt receipt) {
+                acceptedCallbacks.incrementAndGet();
+            }
+        };
+        try (TxFlowStream stream = builder("payouts", gateway)
+                .stateStore(store)
+                .eventListener(listener)
+                .build()) {
+            stream.start();
+
+            assertThrows(TxStreamException.class,
+                    () -> stream.submit(nonPortableItem("bad-item", "v1")));
+            assertEquals(1, rejectedCallbacks.get(),
+                    "blocking rejection emits exactly one callback");
+
+            EmitResult emitted = stream.trySubmit(nonPortableItem("bad-item", "v1"));
+            assertEquals(EmitResult.Status.REJECTED, emitted.getStatus());
+            assertNull(emitted.getReceipt());
+            assertEquals(2, rejectedCallbacks.get(),
+                    "non-blocking rejection emits exactly one callback");
+            assertEquals(0, acceptedCallbacks.get());
+            assertTrue(store.calls.isEmpty());
+            assertTrue(stream.getItemStatus("bad-item").isEmpty());
+            TxStreamStats rejectedStats = stream.getStats();
+            assertEquals(0, rejectedStats.acceptedItemCount());
+            assertEquals(0, rejectedStats.failedItemCount());
+            assertEquals(0, rejectedStats.pendingBufferSize());
+
+            TxStreamReceipt corrected = stream.submit(planItem("bad-item"));
+            assertEquals(1, acceptedCallbacks.get());
+            gateway.lastHandle().completeConfirmed(STEP_ID, "tx-corrected");
+            assertEquals(TxStreamItemStatus.CONFIRMED,
+                    corrected.completion().toCompletableFuture().join().getStatus());
         }
     }
 

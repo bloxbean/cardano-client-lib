@@ -18,8 +18,9 @@ import java.util.Optional;
  * best-effort and guarded by a per-item sequence so a stale write can never
  * overwrite a newer one.
  * <p>
- * Iteration 1A ships the in-memory implementation only; a durable
- * implementation arrives with iteration 2 and keeps this contract.
+ * Implementations include process-local stores and the optional H2/PostgreSQL
+ * relational adapter. Registration identity is scoped to a store; applications
+ * must not reuse an item id for unrelated streams sharing that store.
  */
 public interface TxStreamStateStore {
     /**
@@ -30,6 +31,22 @@ public interface TxStreamStateStore {
      * @throws TxStreamException when the record cannot be stored
      */
     void registerItem(TxStreamItemRecord record);
+
+    /**
+     * Atomically registers a new identity or matches its authoritative content.
+     * A matched record must never be planned as new work. Implementations must
+     * exclude acceptance time from equality and serialize concurrent writers,
+     * including writers using different database connections.
+     * The compatibility default retains legacy duplicate-rejection behavior.
+     *
+     * @param record proposed registration
+     * @return true for a newly registered item, false for identical existing work
+     * @throws TxStreamDuplicateItemException for different-content reuse
+     */
+    default boolean registerOrMatch(TxStreamItemRecord record) {
+        registerItem(record);
+        return true;
+    }
 
     /**
      * Writes the item's write-ahead execution binding with state
@@ -72,6 +89,30 @@ public interface TxStreamStateStore {
      * @return stored projection when present
      */
     Optional<TxStreamItemResult> getItem(String streamId, String itemId);
+
+    /**
+     * Reads a projection with its matching CAS sequence. Shipped durable stores
+     * override this with one atomic entry/row read. The compatibility fallback
+     * retries when the watermark changes; stores without watermarks retain the
+     * legacy hydration sequence floor and should implement this method before
+     * claiming concurrent hydration support.
+     *
+     * @param streamId stream identity
+     * @param itemId work identity
+     * @return coherent projection, or empty if no projection exists
+     */
+    default Optional<TxStreamStoredProjection> getStoredProjection(String streamId, String itemId) {
+        for (int attempt = 0; attempt < 8; attempt++) {
+            Optional<Long> before = lastProjectionSequence(streamId, itemId);
+            Optional<TxStreamItemResult> result = getItem(streamId, itemId);
+            Optional<Long> after = lastProjectionSequence(streamId, itemId);
+            if (before.equals(after)) {
+                return result.map(value -> new TxStreamStoredProjection(value, after.orElse(1L << 42)));
+            }
+        }
+        throw new TxStreamException("TXSTREAM_PROJECTION_BUSY",
+                "Item projection changed repeatedly during hydration: " + itemId);
+    }
 
     /**
      * Returns the per-item projection sequence of the latest stored projection —
@@ -210,6 +251,43 @@ public interface TxStreamStateStore {
      */
     default List<TxStreamPlannedRecord> listPlanned(String streamId) {
         return List.of();
+    }
+
+    /**
+     * Looks up only the plan containing one item. Custom stores may use this
+     * compatibility scan; shipped stores use the item's persisted binding.
+     */
+    default Optional<TxStreamPlannedRecord> findPlanned(String streamId, String itemId) {
+        return listPlanned(streamId).stream()
+                .filter(record -> record.members().stream().anyMatch(member -> member.itemId().equals(itemId)))
+                .findFirst();
+    }
+
+    /**
+     * A bounded, item-id-ordered page of recovery candidates after an exclusive
+     * cursor (null starts a pass). Every returned row consumes observer budget,
+     * including incomplete registrations. Custom stores may override this scan.
+     */
+    default List<String> listRecoveryItemIds(String streamId, String afterItemId, int limit) {
+        if (limit <= 0) throw new IllegalArgumentException("limit must be positive");
+        return listNonTerminalItemIds(streamId).stream()
+                .filter(id -> afterItemId == null || id.compareTo(afterItemId) > 0)
+                .sorted().limit(limit).toList();
+    }
+
+    /**
+     * Atomically acknowledges an investigated RECOVERY_REQUIRED/TXSTREAM_ABANDONED
+     * projection at exactly expectedSequence, marking its bookkeeping FAILED and
+     * retaining its registration, hash and binding. Returns false on a stale
+     * sequence or any other state. This is an operator action, never automatic:
+     * stop/fence all producers and recovery workers first and investigate any
+     * engine transaction. Acknowledgement does NOT prove a payment failed and
+     * does NOT authorize replacement submission. Custom stores must implement
+     * the atomic check before supporting this operation.
+     */
+    default boolean acknowledgeAbandoned(String streamId, String itemId,
+                                         long expectedSequence, String reason, Instant acknowledgedAt) {
+        throw new UnsupportedOperationException("Atomic abandoned acknowledgement is not supported");
     }
 
     /**

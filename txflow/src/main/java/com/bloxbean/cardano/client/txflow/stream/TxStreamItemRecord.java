@@ -40,4 +40,16 @@ public record TxStreamItemRecord(String itemId, String idempotencyKey, String la
             throw new IllegalArgumentException(label + " cannot be blank");
         }
     }
+
+    /**
+     * Compares authoritative identity and content, excluding acceptance time.
+     *
+     * @param other incoming registration
+     * @return whether the registration describes the same accepted intent
+     */
+    public boolean matches(TxStreamItemRecord other) {
+        return other != null && itemId.equals(other.itemId)
+                && idempotencyKey.equals(other.idempotencyKey)
+                && laneName.equals(other.laneName) && fingerprint.equals(other.fingerprint);
+    }
 }

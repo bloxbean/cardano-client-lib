@@ -18,19 +18,35 @@ import java.util.function.BooleanSupplier;
  */
 interface FlowScheduler {
 
-    /** Returns wall-clock time for timestamps and absolute deadlines. */
+    /**
+     * Returns wall-clock time for timestamps and absolute deadlines.
+     *
+     * @return current wall-clock instant
+     */
     Instant now();
 
-    /** Monotonic time used only for elapsed-time budgets. */
+    /**
+     * Returns monotonic time used only for elapsed-time budgets.
+     *
+     * @return monotonic nanosecond reading
+     */
     long monotonicNanos();
 
-    /** Delays the calling task for the requested non-negative duration. */
+    /**
+     * Delays the calling task for the requested non-negative duration.
+     *
+     * @param delay non-negative caller-thread delay
+     * @throws InterruptedException when the calling thread is interrupted
+     */
     void sleep(Duration delay) throws InterruptedException;
 
     /**
      * Delays the calling task while honoring a cooperative cancellation signal.
      *
+     * @param delay non-negative caller-thread delay
+     * @param cancelled cooperative cancellation signal
      * @return {@code true} when the delay completed without cancellation
+     * @throws InterruptedException when the calling thread is interrupted
      */
     default boolean sleep(Duration delay, BooleanSupplier cancelled) throws InterruptedException {
         Objects.requireNonNull(cancelled, "cancelled");
@@ -39,7 +55,12 @@ interface FlowScheduler {
         return !cancelled.getAsBoolean();
     }
 
-    /** Returns the production implementation backed by UTC and monotonic system time. */
+    /**
+     * Returns the production implementation backed by UTC and monotonic system
+     * time.
+     *
+     * @return system-backed caller-thread scheduler
+     */
     static FlowScheduler system() {
         return new SystemFlowScheduler(Clock.systemUTC());
     }
@@ -73,7 +94,9 @@ final class SystemFlowScheduler implements FlowScheduler {
             throw new IllegalArgumentException("delay cannot be negative");
         }
         if (!delay.isZero()) {
-            Thread.sleep(delay.toMillis());
+            long millis = delay.toMillis();
+            int nanos = delay.minusMillis(millis).getNano();
+            Thread.sleep(millis, nanos);
         }
     }
 

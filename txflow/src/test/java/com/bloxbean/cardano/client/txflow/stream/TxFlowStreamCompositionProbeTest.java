@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -248,12 +249,10 @@ class TxFlowStreamCompositionProbeTest {
                     .withBinding("amount", 1L)
                     .withLane("part-0-payouts")   // the REAL partition-0 lane label
                     .build();
-            TxStreamReceipt receipt = stream.submit(templated);
-            TxStreamItemResult result = receipt.completion().toCompletableFuture().join();
+            TxStreamException result = assertThrows(TxStreamException.class,
+                    () -> stream.submit(templated));
 
-            assertEquals(TxStreamItemStatus.FAILED, result.getStatus());
-            assertEquals("TXSTREAM_LANE_REQUIRED",
-                    ((TxStreamException) result.getError()).getCode(),
+            assertEquals("TXSTREAM_LANE_REQUIRED", result.getCode(),
                     "naming a real partition lane label must not bypass the template-lane"
                             + " restriction under partitioned()");
             assertEquals(0, engine.started.size(), "nothing reached the engine");
@@ -340,10 +339,10 @@ class TxFlowStreamCompositionProbeTest {
             stream.start();
 
             // 1. Validation failure: wrong lane on a single-lane stream.
-            stream.submit(TxWorkItem.builder("bad-lane")
+            assertThrows(TxStreamException.class, () -> stream.submit(TxWorkItem.builder("bad-lane")
                     .withTxPlan(payment())
                     .withLane("some-other-lane")
-                    .build());
+                    .build()));
             // 2. Windowed then cancelled before its window closed.
             stream.submit(planItem("cancel-me"));
             assertEquals(CancelOutcome.Kind.CANCELLED_BUFFERED,
@@ -362,9 +361,9 @@ class TxFlowStreamCompositionProbeTest {
             engine.handles.get(2).completeConfirmed(STEP_ID, "tx-t");
 
             TxStreamStats stats = stream.getStats();
-            assertEquals(5, stats.acceptedItemCount());
+            assertEquals(4, stats.acceptedItemCount());
             assertEquals(3, stats.confirmedItemCount());
-            assertEquals(1, stats.failedItemCount());
+            assertEquals(0, stats.failedItemCount());
             assertEquals(1, stats.cancelledItemCount());
             assertEquals(0, stats.recoveryRequiredItemCount());
             assertEquals(0, stats.pendingBufferSize());

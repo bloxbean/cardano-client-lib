@@ -4,6 +4,10 @@ dependencies {
     implementation(libs.guava)
 }
 
+// The real transactions and blocks committed with the transaction-spec tests are also the corpus of the CBOR codec
+// differential tests here.
+sourceSets.test.resources.srcDir "$rootDir/transaction-spec/src/test/resources/cbor"
+
 publishing {
     publications {
         mavenJava(MavenPublication) {

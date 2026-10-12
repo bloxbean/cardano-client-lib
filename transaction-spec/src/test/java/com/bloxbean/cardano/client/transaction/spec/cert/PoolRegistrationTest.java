@@ -2,15 +2,22 @@ package com.bloxbean.cardano.client.transaction.spec.cert;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.UnitInterval;
+import com.bloxbean.cardano.client.transaction.raw.RawTx;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.util.RealCborFixturesAccess;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -64,5 +71,68 @@ class PoolRegistrationTest {
 
         PoolRegistration poolRegistration = PoolRegistration.deserialize(registrationCbor);
         assertThat(poolRegistration.getBech32PoolId()).isEqualTo("pool1upg9ukst2jsw8katgzhfu4vth7v78n4htq2kgd7sjn0ryhsf2yl");
+    }
+
+    /**
+     * Owners are a set (cardano-ledger decodeSet: definite or indefinite, tag 258 allowed from Conway) and relays a
+     * sequence (decodeStrictSeq: definite or indefinite). The BREAK of an indefinite one was read as an owner or a relay.
+     */
+    @Test
+    void indefiniteOwnersAndRelaysDecodeAsDefiniteOnes() throws Exception {
+        String owner = "581cf3c3d69b1d4eca197096cbfd67450f64123de4a5ed61b1f94a356134";
+        String relays = "8400190bb94436b12923f6" + "8400190bb944037dfcb6f6" + "8400190bb944343fe1bef6";
+        String definite = "8a03581ced40b0a319f639a70b1e2a4de00f112c4f7b7d4849f0abd25c4336a45820b95af7a0a58928fbd0e73b03ce81dedd42d4a776685b443cf2016c18438a3b9b1b00000600aea7d0001a1dcd6500d81e820d1903e8581de1f3c3d69b1d4eca197096cbfd67450f64123de4a5ed61b1f94a356134"
+                + "d9010281" + owner + "83" + relays
+                + "827468747470733a2f2f6769742e696f2f4a7474546c582051700f7e33476a20b6e5a3f681e31d2cf0d8e706393f45912a5dbe3a8d7edd41";
+        PoolRegistration expected = PoolRegistration.deserialize(definite);
+
+        for (String indefinite : List.of(
+                definite.replace("d9010281" + owner, "d901029f" + owner + "ff"),
+                definite.replace("d9010281" + owner, "9f" + owner + "ff"),
+                definite.replace("83" + relays, "9f" + relays + "ff"),
+                definite.replace("d9010281" + owner + "83" + relays, "9f" + owner + "ff" + "9f" + relays + "ff"))) {
+            PoolRegistration poolRegistration = PoolRegistration.deserialize(indefinite);
+            assertThat(poolRegistration).as(indefinite).isEqualTo(expected);
+            // the model serializes definite arrays, as before
+            assertThat(HexUtil.encodeHexString(CborSerializationUtil.serialize(poolRegistration.serialize())))
+                    .isEqualTo(definite);
+        }
+    }
+
+    /**
+     * Every pool registration on mainnet, preprod and preview with an indefinite owners or relays array: the
+     * transactions decode, with the owners and relays of the original bytes.
+     */
+    @Test
+    void realIndefiniteOwnersAndRelaysDecode() throws Exception {
+        List<RealCborFixturesAccess.Tx> txs = RealCborFixturesAccess.indefinitePoolRegistrationTxs();
+        assertThat(txs).hasSize(10);
+        for (RealCborFixturesAccess.Tx tx : txs) {
+            RawTx raw = RawTx.of(tx.cbor());
+            assertThat(HexUtil.encodeHexString(raw.txId())).isEqualTo(tx.txHash());
+            Transaction transaction = Transaction.deserialize(tx.cbor());
+
+            List<CborSpan> certs = raw.bodyField(4).orElseThrow().untagIf(258).items();
+            int indefinite = 0;
+            for (int i = 0; i < certs.size(); i++) {
+                CborSpan cert = certs.get(i);
+                if (cert.get(0).asLong() != 3)
+                    continue;
+                PoolRegistration poolRegistration = (PoolRegistration) transaction.getBody().getCerts().get(i);
+                CborSpan owners = cert.get(7).untagIf(258);
+                CborSpan relays = cert.get(8);
+                Set<String> expectedOwners = new HashSet<>();
+                owners.items().forEach(item -> expectedOwners.add(HexUtil.encodeHexString(item.byteString())));
+                assertThat(poolRegistration.getPoolOwners()).as(tx.name()).isEqualTo(expectedOwners);
+                assertThat(poolRegistration.getRelays()).as(tx.name()).hasSize(relays.size());
+                if (owners.isIndefinite() || relays.isIndefinite())
+                    indefinite++;
+
+                PoolRegistration again = PoolRegistration.deserialize(
+                        CborSerializationUtil.deserialize(CborSerializationUtil.serialize(poolRegistration.serialize())));
+                assertThat(again).as(tx.name()).isEqualTo(poolRegistration);
+            }
+            assertThat(indefinite).as(tx.name()).isPositive();
+        }
     }
 }

@@ -1,10 +1,20 @@
 package com.bloxbean.cardano.client.transaction.util;
 
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.Arrays;
+
+import static com.bloxbean.cardano.client.util.HexUtil.decodeHexString;
+import static com.bloxbean.cardano.client.util.HexUtil.encodeHexString;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TransactionBytesTest {
 
@@ -45,6 +55,117 @@ public class TransactionBytesTest {
         String finalTxHex = HexUtil.encodeHexString(finalBytes);
 
         assertThat(finalTxHex).isEqualTo(txHex);
+    }
+
+    @Test
+    void realTransactionsRoundTripAndMatchTheOldSlices() {
+        for (RealCborFixtures.Tx tx : RealCborFixtures.allTxs()) {
+            TransactionBytes transactionBytes = new TransactionBytes(tx.cbor());
+            assertThat(transactionBytes.getTxBytes()).as(tx.toString()).isEqualTo(tx.cbor());
+            assertThat(TransactionUtil.getTxHash(tx.cbor())).as(tx.toString()).isEqualTo(tx.txHash());
+            assertThat(encodeHexString(Blake2bUtil.blake2bHash256(transactionBytes.getTxBodyBytes()))).isEqualTo(tx.txHash());
+            assertThat(transactionBytes.getValidBytes() == null).as(tx.toString())
+                    .isEqualTo(tx.era().equals("Shelley") || tx.era().equals("Allegra") || tx.era().equals("Mary"));
+
+            // The old cbor-java slicing overflows the stack on the trigger's 5,383-level witness script
+            if (tx.txHash().equals(RealCborFixtures.trigger().txHash()))
+                continue;
+            LegacyTransactionBytes legacy = new LegacyTransactionBytes(tx.cbor());
+            assertThat(transactionBytes.getInitialBytes()).isEqualTo(legacy.initialBytes);
+            assertThat(transactionBytes.getTxBodyBytes()).isEqualTo(legacy.txBodyBytes);
+            assertThat(transactionBytes.getTxWitnessBytes()).isEqualTo(legacy.txWitnessBytes);
+            assertThat(transactionBytes.getValidBytes()).isEqualTo(legacy.validBytes);
+            assertThat(transactionBytes.getAuxiliaryDataBytes()).isEqualTo(legacy.auxiliaryDataBytes);
+            assertThat(TransactionUtil.extractTransactionBodyFromTx(tx.cbor()))
+                    .isEqualTo(LegacyTransactionBytes.extractTransactionBodyFromTx(tx.cbor()));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"9804", "990004", "9a00000004", "9b0000000000000004"})
+    void anyArrayHeaderWidth(String header) {
+        RealCborFixtures.Tx tx = RealCborFixtures.txs().get(40);
+        byte[] reencoded = BytesUtil.merge(decodeHexString(header), Arrays.copyOfRange(tx.cbor(), 1, tx.cbor().length));
+
+        TransactionBytes transactionBytes = new TransactionBytes(reencoded);
+        assertThat(encodeHexString(transactionBytes.getInitialBytes())).isEqualTo(header);
+        assertThat(transactionBytes.getTxBytes()).isEqualTo(reencoded);
+        assertThat(transactionBytes.getTxBodyBytes()).isEqualTo(new TransactionBytes(tx.cbor()).getTxBodyBytes());
+        assertThat(TransactionUtil.getTxHash(reencoded)).isEqualTo(tx.txHash());
+    }
+
+    @Test
+    void indefiniteTransactionArrayKeepsItsBreak() {
+        for (RealCborFixtures.Tx tx : RealCborFixtures.txs()) {
+            byte[] indefinite = BytesUtil.merge(new byte[]{(byte) 0x9f}, Arrays.copyOfRange(tx.cbor(), 1, tx.cbor().length),
+                    new byte[]{(byte) 0xff});
+
+            TransactionBytes transactionBytes = new TransactionBytes(indefinite);
+            assertThat(transactionBytes.getInitialBytes()).containsExactly(0x9f);
+            assertThat(transactionBytes.getTxBytes()).as(tx.toString()).isEqualTo(indefinite);
+            assertThat(TransactionUtil.getTxHash(indefinite)).isEqualTo(tx.txHash());
+
+            byte[] newWitnesses = decodeHexString("a0");
+            byte[] replaced = transactionBytes.withNewWitnessSetBytes(newWitnesses).getTxBytes();
+            assertThat(replaced[replaced.length - 1]).isEqualTo((byte) 0xff);
+            assertThat(new TransactionBytes(replaced).getTxWitnessBytes()).isEqualTo(newWitnesses);
+            assertThat(new TransactionBytes(replaced).getTxBodyBytes()).isEqualTo(transactionBytes.getTxBodyBytes());
+        }
+    }
+
+    @Test
+    void threeElementTransactions() {
+        // Shelley-style [body, witnesses, metadata] and an Alonzo+ submission [body, witnesses, null]
+        TransactionBytes withMetadata = new TransactionBytes(decodeHexString("83" + "a10080" + "a0" + "a1016178"));
+        assertThat(withMetadata.getValidBytes()).isNull();
+        assertThat(encodeHexString(withMetadata.getAuxiliaryDataBytes())).isEqualTo("a1016178");
+
+        TransactionBytes withoutAux = new TransactionBytes(decodeHexString("83" + "a10080" + "a0" + "f6"));
+        assertThat(withoutAux.getValidBytes()).isNull();
+        assertThat(encodeHexString(withoutAux.getAuxiliaryDataBytes())).isEqualTo("f6");
+        assertThat(encodeHexString(withoutAux.getTxBytes())).isEqualTo("83a10080a0f6");
+
+        // Allegra/Mary auxiliary data [metadata, scripts] and Alonzo+ tag 259 are kept as encoded
+        TransactionBytes allegraAux = new TransactionBytes(decodeHexString("83" + "a10080" + "a0" + "82a080"));
+        assertThat(encodeHexString(allegraAux.getAuxiliaryDataBytes())).isEqualTo("82a080");
+        TransactionBytes alonzoAux = new TransactionBytes(decodeHexString("84" + "a10080" + "a0" + "f4" + "d90103a0"));
+        assertThat(encodeHexString(alonzoAux.getValidBytes())).isEqualTo("f4");
+        assertThat(encodeHexString(alonzoAux.getAuxiliaryDataBytes())).isEqualTo("d90103a0");
+    }
+
+    @Test
+    void malformedTransactionsAreRejected() {
+        // element 2 of a 4-element transaction must be a bool
+        assertThatThrownBy(() -> new TransactionBytes(decodeHexString("84a0a0f6f6"))).isInstanceOf(CborRuntimeException.class);
+        // a Byron-shaped or 5-element array, a map, a tagged array
+        assertThatThrownBy(() -> new TransactionBytes(decodeHexString("82a0a0"))).isInstanceOf(CborRuntimeException.class);
+        assertThatThrownBy(() -> new TransactionBytes(decodeHexString("85a0a0f5f6f6"))).isInstanceOf(CborRuntimeException.class);
+        assertThatThrownBy(() -> new TransactionBytes(decodeHexString("a0"))).isInstanceOf(CborRuntimeException.class);
+        assertThatThrownBy(() -> new TransactionBytes(decodeHexString("d81884a0a0f5f6"))).isInstanceOf(CborRuntimeException.class);
+        // malformed witness set: an integer chunk inside an indefinite byte string
+        assertThatThrownBy(() -> new TransactionBytes(decodeHexString("84a0a1005f01fff5f6"))).isInstanceOf(CborRuntimeException.class);
+        assertThatThrownBy(() -> new TransactionBytes(new byte[0])).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void bytesAfterTheTransactionArrayAreIgnoredAsBefore() {
+        RealCborFixtures.Tx tx = RealCborFixtures.txs().get(0);
+        byte[] withTrailingBytes = BytesUtil.merge(tx.cbor(), decodeHexString("00ff"));
+        assertThat(new TransactionBytes(withTrailingBytes).getTxBytes()).isEqualTo(tx.cbor());
+        assertThat(TransactionUtil.getTxHash(withTrailingBytes)).isEqualTo(tx.txHash());
+    }
+
+    @Test
+    void everyTruncatedTransactionIsRejected() {
+        for (RealCborFixtures.Tx tx : RealCborFixtures.allTxs()) {
+            for (int cut = 1; cut < tx.cbor().length; cut++) {
+                byte[] prefix = Arrays.copyOf(tx.cbor(), cut);
+                assertThatThrownBy(() -> new TransactionBytes(prefix)).as("%s cut at %d", tx, cut)
+                        .isInstanceOf(CborRuntimeException.class);
+                assertThatThrownBy(() -> TransactionUtil.extractTransactionBodyFromTx(prefix)).as("%s cut at %d", tx, cut)
+                        .isInstanceOf(CborRuntimeException.class);
+            }
+        }
     }
 
 }

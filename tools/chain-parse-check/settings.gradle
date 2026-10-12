@@ -1,0 +1,2 @@
+// A standalone build: not included in the root settings.gradle (it depends on Yaci, which depends on CCL).
+rootProject.name = 'chain-parse-check'

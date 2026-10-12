@@ -141,6 +141,9 @@ public class TxFlow {
             if (new HashSet<>(step.getNeeds()).size() != step.getNeeds().size()) {
                 errors.add("Step '" + step.getId() + "' contains duplicate needs entries");
             }
+            if (new HashSet<>(step.getFundingFrom()).size() != step.getFundingFrom().size()) {
+                errors.add("Step '" + step.getId() + "' contains duplicate funding_from entries");
+            }
             for (String depId : step.getDependencyStepIds()) {
                 if (!allStepIds.contains(depId)) {
                     errors.add("Step '" + step.getId() + "' depends on non-existent step: " + depId);
@@ -149,6 +152,12 @@ public class TxFlow {
             for (String neededId : step.getNeeds()) {
                 if (!allStepIds.contains(neededId)) {
                     errors.add("Step '" + step.getId() + "' needs non-existent step: " + neededId);
+                }
+            }
+            for (String fundingId : step.getFundingFrom()) {
+                if (!allStepIds.contains(fundingId)) {
+                    errors.add("Step '" + step.getId()
+                            + "' funds from non-existent step: " + fundingId);
                 }
             }
         }
@@ -179,6 +188,13 @@ public class TxFlow {
                     errors.add("Step '" + step.getId() + "' needs later step '" + neededId + "'.");
                 }
             }
+            for (String fundingId : step.getFundingFrom()) {
+                Integer fundingIndex = stepOrder.get(fundingId);
+                if (fundingIndex != null && fundingIndex >= stepIndex) {
+                    errors.add("Step '" + step.getId() + "' funds from later step '"
+                            + fundingId + "'.");
+                }
+            }
         }
 
         return new ValidationResult(errors.isEmpty(), errors);
@@ -194,6 +210,7 @@ public class TxFlow {
         for (FlowStep step : steps) {
             List<String> predecessors = new ArrayList<>(step.getDependencyStepIds());
             predecessors.addAll(step.getNeeds());
+            predecessors.addAll(step.getFundingFrom());
             graph.put(step.getId(), predecessors);
         }
 

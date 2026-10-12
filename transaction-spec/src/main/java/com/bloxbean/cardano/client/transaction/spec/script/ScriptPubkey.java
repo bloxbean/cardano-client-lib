@@ -49,10 +49,7 @@ public class ScriptPubkey implements NativeScript {
     }
 
     public static ScriptPubkey deserialize(Array array) throws CborDeserializationException {
-        ScriptPubkey scriptPubkey = new ScriptPubkey();
-        ByteString keyHashBS = (ByteString) (array.getDataItems().get(1));
-        scriptPubkey.setKeyHash(HexUtil.encodeHexString(keyHashBS.getBytes()));
-        return scriptPubkey;
+        return NativeScriptCodec.decode(array, ScriptPubkey.class);
     }
 
     public static ScriptPubkey deserialize(JsonNode jsonNode) throws CborDeserializationException {

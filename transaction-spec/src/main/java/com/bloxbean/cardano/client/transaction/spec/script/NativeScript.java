@@ -20,28 +20,17 @@ import java.util.List;
 @JsonDeserialize(using = NativeScriptDeserializer.class)
 public interface NativeScript extends Script {
 
+    /**
+     * Converts a native script from CBOR, without recursion, so scripts of any nesting depth convert on any thread.
+     *
+     * @param nativeScriptArray the script, {@code [type, fields]}
+     * @return the script
+     * @throws CborDeserializationException if the script is not well-formed: an unknown type, the wrong number of fields
+     *                                      or a field of the wrong type, as the ledger rejects it (a key hash in a
+     *                                      chunked byte string is accepted, while the ledger rejects it)
+     */
     static NativeScript deserialize(Array nativeScriptArray) throws CborDeserializationException {
-        List<DataItem> dataItemList = nativeScriptArray.getDataItems();
-        if (dataItemList == null || dataItemList.size() == 0) {
-            throw new CborDeserializationException("NativeScript deserialization failed. Invalid no of DataItem");
-        }
-
-        int type = ((UnsignedInteger) dataItemList.get(0)).getValue().intValue();
-        if (type == 0) {
-            return ScriptPubkey.deserialize(nativeScriptArray);
-        } else if (type == 1) {
-            return ScriptAll.deserialize(nativeScriptArray);
-        } else if (type == 2) {
-            return ScriptAny.deserialize(nativeScriptArray);
-        } else if (type == 3) {
-            return ScriptAtLeast.deserialize(nativeScriptArray);
-        } else if (type == 4) {
-            return RequireTimeAfter.deserialize(nativeScriptArray);
-        } else if (type == 5) {
-            return RequireTimeBefore.deserialize(nativeScriptArray);
-        } else {
-            return null;
-        }
+        return NativeScriptCodec.decode(nativeScriptArray);
     }
 
     default byte[] serializeScriptBody() throws CborSerializationException {

@@ -76,6 +76,43 @@ class NexusTransactionServiceTest {
     }
 
     @Test
+    void getTransaction_mapsIndexAndValidContractWhenReported() throws Exception {
+        var sdkSvc = mock(adlabs.nexus.client.backend.api.transaction.TransactionService.class);
+        Transaction tx = Transaction.builder()
+                .txHash("txh1")
+                .validContract(true)
+                .index(5)
+                .build();
+        when(sdkSvc.getTransaction(eq(adlabs.nexus.client.util.Network.MAINNET), eq("txh1")))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, tx));
+
+        var svc = new NexusTransactionService(sdkSvc, adlabs.nexus.client.util.Network.MAINNET);
+        Result<TransactionContent> r = svc.getTransaction("txh1");
+
+        assertThat(r.isSuccessful()).isTrue();
+        assertThat(r.getValue().getValidContract()).isTrue();
+        assertThat(r.getValue().getIndex()).isEqualTo(5);
+    }
+
+    @Test
+    void getTransaction_indexZeroIsAPositionNotAnAbsence() throws Exception {
+        var sdkSvc = mock(adlabs.nexus.client.backend.api.transaction.TransactionService.class);
+        Transaction tx = Transaction.builder()
+                .txHash("txh1")
+                .validContract(false)
+                .index(0)
+                .build();
+        when(sdkSvc.getTransaction(eq(adlabs.nexus.client.util.Network.MAINNET), eq("txh1")))
+                .thenReturn(adlabs.nexus.client.backend.api.base.Result.success(200, tx));
+
+        var svc = new NexusTransactionService(sdkSvc, adlabs.nexus.client.util.Network.MAINNET);
+        Result<TransactionContent> r = svc.getTransaction("txh1");
+
+        assertThat(r.getValue().getIndex()).isEqualTo(0);
+        assertThat(r.getValue().getValidContract()).isFalse();
+    }
+
+    @Test
     void getTransaction_maps() throws Exception {
         var sdkSvc = mock(adlabs.nexus.client.backend.api.transaction.TransactionService.class);
         Transaction tx = Transaction.builder()
@@ -115,6 +152,7 @@ class NexusTransactionServiceTest {
         assertThat(tc.getSize()).isEqualTo(300);
         assertThat(tc.getInvalidBefore()).isEqualTo("10");
         assertThat(tc.getInvalidHereafter()).isEqualTo("2000");
+        // Not set on the payload above: absent stays absent rather than defaulting to 0/false.
         assertThat(tc.getIndex()).isNull();
         assertThat(tc.getValidContract()).isNull();
         assertThat(tc.getUtxoCount()).isEqualTo(3);

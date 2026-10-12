@@ -62,6 +62,12 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
      */
     volatile boolean supportsOwnership = true;
 
+    /** Test hook for a fatal ownership-start failure that must escape cleanup. */
+    volatile Error ownershipAcquireError;
+
+    /** Test hook for a fatal re-attach failure that must escape cleanup. */
+    volatile Error reattachListError;
+
     @Override
     public boolean isDurable() {
         return true;
@@ -75,6 +81,9 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
     @Override
     public Optional<StreamOwnershipLease> tryAcquireOwnership(String streamId, String ownerToken,
                                                              Instant now, Duration duration) {
+        if (ownershipAcquireError != null) {
+            throw ownershipAcquireError;
+        }
         Objects.requireNonNull(streamId, "streamId");
         Objects.requireNonNull(ownerToken, "ownerToken");
         validateLeaseRequest(now, duration);
@@ -142,6 +151,16 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
     public Optional<String> getBootstrapFingerprint(String streamId) {
         Objects.requireNonNull(streamId, "streamId");
         return Optional.ofNullable(bootstrapFingerprints.get(streamId));
+    }
+
+    @Override
+    public boolean registerOrMatch(TxStreamItemRecord record) {
+        Objects.requireNonNull(record, "record");
+        TxStreamItemRecord existing = records.putIfAbsent(record.itemId(), record);
+        if (existing == null) return true;
+        if (existing.matches(record)) return false;
+        throw new TxStreamDuplicateItemException(record.itemId(),
+                "Item registration has different content: " + record.itemId());
     }
 
     @Override
@@ -231,6 +250,9 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
 
     @Override
     public List<String> listNonTerminalItemIds(String streamId) {
+        if (reattachListError != null) {
+            throw reattachListError;
+        }
         List<String> result = new ArrayList<>();
         for (ProjectionEntry entry : projections.values()) {
             TxStreamItemResult projection = entry.result();
@@ -268,6 +290,13 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
             return Optional.empty();
         }
         return Optional.of(entry.result());
+    }
+
+    @Override
+    public Optional<TxStreamStoredProjection> getStoredProjection(String streamId, String itemId) {
+        ProjectionEntry entry = projections.get(itemId);
+        if (entry == null || !entry.result().getStreamId().equals(streamId)) return Optional.empty();
+        return Optional.of(new TxStreamStoredProjection(entry.result(), entry.sequence()));
     }
 
     @Override

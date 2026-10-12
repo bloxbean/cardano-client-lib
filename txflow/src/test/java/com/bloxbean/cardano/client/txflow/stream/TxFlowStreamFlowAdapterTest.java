@@ -99,6 +99,29 @@ class TxFlowStreamFlowAdapterTest {
     }
 
     @Test
+    void realStreamValidationRejectionRefillsSourceDemandImmediately() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        ManualPublisher publisher = new ManualPublisher();
+        FlowWorkSource source = TxWorkSource.fromPublisher(publisher, 2);
+        try (TxFlowStream stream = builder(gateway).source(source).build()) {
+            stream.start();
+            assertEquals(2L, publisher.requested.get());
+
+            TxWorkItem wrongFundingLane = TxWorkItem.fromTxPlan("wrong-lane",
+                    TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1.5))
+                            .from(SENDER2)));
+            publisher.next(wrongFundingLane);
+
+            assertEquals(3L, publisher.requested.get(),
+                    "a real eager rejection is a content outcome, not capacity backpressure");
+            assertTrue(stream.getItemStatus("wrong-lane").isEmpty(),
+                    "rejected source work must not create retained item state");
+            assertTrue(gateway.started.isEmpty(),
+                    "rejected source work must never reach the engine");
+        }
+    }
+
+    @Test
     void aFullStreamAppliesBackpressureAndHeldItemsAreNeverDropped() {
         StubEngineGateway gateway = new StubEngineGateway();
         ManualPublisher publisher = new ManualPublisher();

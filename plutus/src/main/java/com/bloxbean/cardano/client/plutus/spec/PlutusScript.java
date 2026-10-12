@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
-import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
@@ -32,13 +31,8 @@ public abstract class PlutusScript implements Script {
         byte[] bytes = HexUtil.decodeHexString(cborHex);
         if (bytes.length > 0) {
             try {
-                List<DataItem> diList = CborDecoder.decode(bytes);
-                if (diList == null || diList.size() == 0)
-                    throw new CborSerializationException("Serialization failed");
-
-                DataItem di = diList.get(0);
-                return (ByteString)di;
-            } catch (CborException e) {
+                return (ByteString) CborSerializationUtil.deserialize(bytes);
+            } catch (CborRuntimeException e) {
                 throw new CborSerializationException("Serialization failed", e);
             }
         } else {

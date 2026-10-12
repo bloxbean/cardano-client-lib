@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Production {@link EngineGateway} delegating to a caller-owned
@@ -32,6 +34,22 @@ final class FlowEngineGateway implements EngineGateway {
     @Override
     public boolean durableExecution() {
         return engine.capabilities().durableExecution();
+    }
+
+    @Override
+    public boolean isTransactionOutputVisible(String transactionHash) {
+        return engine.isTransactionOutputVisible(transactionHash);
+    }
+
+    @Override
+    public Optional<Executor> executionExecutor() {
+        return Optional.of(engine.executionExecutor());
+    }
+
+    @Override
+    public Optional<ScheduledExecutorService> maintenanceScheduler() {
+        return engine.maintenanceExecutor() instanceof ScheduledExecutorService scheduler
+                ? Optional.of(scheduler) : Optional.empty();
     }
 
     @Override

@@ -26,17 +26,21 @@ import java.util.Objects;
  *       different canonical identities execute concurrently, bounded by the
  *       builder's {@code maxInFlight}; alias names resolving to one identity
  *       share a single FIFO.</li>
- *   <li>{@link #byFundingAddress()} — the stream <em>derives</em> each item's
+ *   <li>{@link #byFundingSource()} — the stream <em>derives</em> each item's
  *       lane from its transaction's own funding source (its {@code from}
  *       address or {@code from_ref}). No resolver, no per-item lane name, and
  *       no bootstrap: items from different senders lane concurrently while
  *       items from the same sender serialize (the canonical-identity scheduler
  *       already does this). An item whose transaction names no funding source
- *       fails typed ({@code TXSTREAM_LANE_UNDERIVABLE}); an item that also
+ *       fails typed ({@code TXSTREAM_LANE_UNDERIVABLE}); an item naming both
+ *       {@code from} and {@code from_ref} fails typed
+ *       ({@code TXSTREAM_LANE_AMBIGUOUS}); an item that also
  *       names a lane must name the derived one or fails
  *       ({@code TXSTREAM_LANE_MISMATCH}). Because the lane <em>is</em> the
  *       funding source, its lane-scoped coin selection is trivially
- *       satisfied.</li>
+ *       satisfied. Address and reference forms are deliberately distinct
+ *       syntactic identities; do not mix them for the same wallet within one
+ *       stream because they can dispatch concurrently and contend.</li>
  *   <li>{@link #partitioned(PartitionedLanes)} — the full UTXO throughput
  *       story: the caller supplies one funding source and N application-owned
  *       lane addresses, items are assigned to a lane by
@@ -59,7 +63,7 @@ public final class LanePolicy {
         /** Item-named lanes resolved dynamically through a resolver. */
         EXPLICIT,
         /** Lane derived from the item transaction's own funding source. */
-        BY_FUNDING_ADDRESS,
+        BY_FUNDING_SOURCE,
         /** Hash-partitioned across N application-provided lane addresses. */
         PARTITIONED
     }
@@ -105,14 +109,30 @@ public final class LanePolicy {
      * share one lane (serialize) and items from different senders run
      * concurrently. No {@link LaneIdentityResolver} and no bootstrap are
      * required. An item whose transaction names no funding source fails typed
-     * {@code TXSTREAM_LANE_UNDERIVABLE}; an item that also
+     * {@code TXSTREAM_LANE_UNDERIVABLE}; an item naming both {@code from} and
+     * {@code from_ref} fails {@code TXSTREAM_LANE_AMBIGUOUS}; an item that also
      * {@link TxWorkItem.Builder#withLane(String) names a lane} must name the
      * derived one, or fails {@code TXSTREAM_LANE_MISMATCH}.
+     * Address-backed and reference-backed lanes intentionally use different
+     * syntactic identities even when they resolve to the same wallet; callers
+     * must use one form consistently within a stream.
      *
-     * @return funding-address-derived lane policy
+     * @return funding-source-derived lane policy
      */
+    public static LanePolicy byFundingSource() {
+        return new LanePolicy(Mode.BY_FUNDING_SOURCE, null, null);
+    }
+
+    /**
+     * Compatibility alias for {@link #byFundingSource()}.
+     *
+     * @return funding-source-derived lane policy
+     * @deprecated use {@link #byFundingSource()}; references as well as
+     *             addresses are supported
+     */
+    @Deprecated
     public static LanePolicy byFundingAddress() {
-        return new LanePolicy(Mode.BY_FUNDING_ADDRESS, null, null);
+        return byFundingSource();
     }
 
     /**

@@ -9,6 +9,8 @@ import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Thin seam over the engine surface the stream depends on, so stream behavior
@@ -16,6 +18,10 @@ import java.util.concurrent.CompletionStage;
  * always runs through {@link FlowEngineGateway}.
  */
 interface EngineGateway {
+    /** Indexing check only; custom gateways without backend reads default to ready. */
+    default boolean isTransactionOutputVisible(String transactionHash) {
+        return true;
+    }
     /**
      * Compiles and starts (or idempotently matches) one execution.
      *
@@ -37,6 +43,22 @@ interface EngineGateway {
      */
     default boolean durableExecution() {
         return false;
+    }
+
+    /**
+     * Returns the caller-owned execution dispatcher when the underlying engine
+     * can expose it. Test/custom gateways may return empty and require an
+     * explicit stream executor.
+     *
+     * @return execution dispatcher available for stream inheritance
+     */
+    default Optional<Executor> executionExecutor() {
+        return Optional.empty();
+    }
+
+    /** Caller-owned scheduler available for inheritance; absent for plain executors. */
+    default Optional<ScheduledExecutorService> maintenanceScheduler() {
+        return Optional.empty();
     }
 
     /**
