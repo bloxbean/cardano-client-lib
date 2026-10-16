@@ -32,4 +32,10 @@ class ADAConversionUtilTest {
         BigInteger baseUnits = ADAConversionUtil.assetFromDecimal(BigDecimal.ONE, 23);
         assertEquals(BigInteger.TEN.pow(23), baseUnits);
     }
+
+    @Test
+    void assetToDecimal_keepsScalePastDoublePrecision() {
+        BigDecimal amount = ADAConversionUtil.assetToDecimal(BigInteger.TEN.pow(23), 23);
+        assertEquals(BigDecimal.ONE, amount);
+    }
 }
