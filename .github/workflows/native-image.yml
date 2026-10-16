@@ -15,24 +15,6 @@ on:
       - master
       - develop
       - release/*
-    paths:
-      - 'common/**'
-      - 'crypto/**'
-      - 'address/**'
-      - 'common-spec/**'
-      - 'transaction-spec/**'
-      - 'plutus/**'
-      - 'core-api/**'
-      - 'core/**'
-      - 'quicktx/**'
-      - 'cip/cip30/**'
-      - 'test-support/**'
-      - 'native-image-test/**'
-      - 'gradle/**'
-      - '*.gradle'
-      - '.github/workflows/native-image.yml'
-  schedule:
-    - cron: '0 3 * * *'
   workflow_dispatch:
 
 # Read-only token: the job runs the branch's or pull request's own code.
