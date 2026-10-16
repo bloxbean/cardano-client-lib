@@ -23,7 +23,7 @@ class TxPlanNativeTest {
 
     @Test
     void txPlanYamlWithPaymentStakeRegistrationAndValidator() throws IOException {
-        String yaml = resource("native/txplan.yaml");
+        String yaml = resource("nativeimage/txplan.yaml");
 
         TxPlan plan = TxPlan.from(yaml);
 

@@ -157,7 +157,7 @@ class JacksonModelNativeTest {
     @Test
     void plutusBlueprint() throws Exception {
         PlutusContractBlueprint blueprint;
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream("native/blueprint.json")) {
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream("nativeimage/blueprint.json")) {
             assertNotNull(in);
             blueprint = PlutusBlueprintLoader.loadBlueprint(in);
         }
