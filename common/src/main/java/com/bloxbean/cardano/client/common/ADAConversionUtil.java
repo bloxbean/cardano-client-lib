@@ -33,7 +33,7 @@ public class ADAConversionUtil {
         return amount.toBigInteger();
     }
 
-    // Math.pow(10, n) is not an integer once n is 23 or higher.
+    // Math.pow(10, n) may not equal the exact power of ten for n >= 23.
     private static BigDecimal unit(long decimals) {
         if (decimals > 0 && decimals <= Integer.MAX_VALUE) {
             return new BigDecimal(BigInteger.TEN.pow((int) decimals));
