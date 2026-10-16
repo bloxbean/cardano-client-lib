@@ -14,6 +14,9 @@
 # Every workflow runs with the repository's secrets once it is on a protected branch.
 /.github/workflows/      @bloxbean/release-owners
 
+# Scripts the workflows run.
+/.github/scripts/        @bloxbean/release-owners
+
 # Version bump -> automatic tag and release.
 /gradle.properties       @bloxbean/release-owners
 

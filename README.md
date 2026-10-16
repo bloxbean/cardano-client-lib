@@ -4,6 +4,7 @@
 [![Clean, Build](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml)
 [![CodeQL](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml)
 [![License](https://img.shields.io:/github/license/bloxbean/cardano-client-lib?color=blue&label=license)](https://github.com/bloxbean/cardano-client-lib/blob/master/LICENSE)
+[![snapshot](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Frepo.bloxbean.org%2Fmaven%2Fsnapshots%2Fcom%2Fbloxbean%2Fcardano%2Fcardano-client-lib%2Fmaven-metadata.xml&strategy=latestProperty&label=snapshot)](#for-snapshot-binaries)
 
 </div>
 
@@ -172,10 +173,16 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.7.1'
 
 ```
 
+From 0.8.0-pre6 on, releases from master are also in the BloxBean Maven repository,
+`https://repo.bloxbean.org/maven/releases`, with the same files as on Maven Central.
 
 ### For snapshot binaries
 
-**SNAPSHOT_VERSION :** 0.8.0-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
+Development snapshots are in the BloxBean Maven repository, `https://repo.bloxbean.org/maven/snapshots`. They use
+master's snapshot version (the `version` in [gradle.properties](gradle.properties)); each publication adds a newer
+timestamped build of that version, which Maven and Gradle resolve.
+
+**SNAPSHOT_VERSION :** the version on the snapshot badge at the top (master's `version` in gradle.properties)
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```
@@ -194,8 +201,8 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.7.1'
     
     <repositories>
         <repository>
-            <id>snapshots-repo</id>
-            <url>https://central.sonatype.com/repository/maven-snapshots</url>
+            <id>bloxbean-snapshots</id>
+            <url>https://repo.bloxbean.org/maven/snapshots</url>
             <releases>
                 <enabled>false</enabled>
             </releases>
@@ -207,16 +214,19 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.7.1'
 ```
 - For Gradle, add the following dependencies and repository to build.gradle
 
-```
+```gradle
 repositories {
-    ...
+    mavenCentral()
     maven {
-        url "https://central.sonatype.com/repository/maven-snapshots"
+        url = uri('https://repo.bloxbean.org/maven/snapshots')
+        mavenContent { snapshotsOnly() }
     }
 }
 
-implementation 'com.bloxbean.cardano:cardano-client-lib:{SNAPSHOT_VERSION}'
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:{SNAPSHOT_VERSION}'
+dependencies {
+    implementation 'com.bloxbean.cardano:cardano-client-lib:{SNAPSHOT_VERSION}'
+    implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:{SNAPSHOT_VERSION}'
+}
 ```
 
 ### Usages

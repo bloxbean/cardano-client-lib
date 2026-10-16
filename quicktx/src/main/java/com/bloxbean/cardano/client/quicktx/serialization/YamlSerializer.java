@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.quicktx.serialization;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ public class YamlSerializer {
         factory.enable(YAMLGenerator.Feature.MINIMIZE_QUOTES);
         factory.disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
         factory.disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID); // Disable !<type> tags
+        factory.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
 
         YAML_MAPPER = new ObjectMapper(factory);
         // Exclude null values from serialization

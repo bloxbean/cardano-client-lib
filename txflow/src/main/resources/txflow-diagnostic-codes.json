@@ -61,6 +61,7 @@
     "TXFLOW_NON_PORTABLE_RETRY_FILTERS": "Legacy retry filter flags have no portable v1alpha1 representation.",
     "TXFLOW_NON_PORTABLE_ROLLBACK_STRATEGY": "A legacy rollback strategy has no lossless portable representation; use RollbackPolicy.",
     "TXFLOW_NON_PORTABLE_STEP_RETRY": "A step-level retry override has no portable v1alpha1 representation.",
+    "TXFLOW_NON_PORTABLE_EXTENSION": "TxPlans that use QuickTx extensions are not supported by TxFlow yet.",
     "TXFLOW_NON_PORTABLE_TXPLAN_CARDINALITY": "A portable step must contain exactly one QuickTx transaction.",
     "TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES": "QuickTx plan variables must be migrated to portable parameters and execution bindings.",
     "TXFLOW_OUTPUT_EXPECT_UNSUPPORTED": "The requested output-selector cardinality is unsupported.",

@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.txflow.compile;
 
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
@@ -191,6 +192,11 @@ class TxFlowCompilerTest {
                 "$.spec.steps[0].transaction");
         assertPortableDiagnostic(legacyRollback, "TXFLOW_NON_PORTABLE_ROLLBACK_STRATEGY",
                 "$.spec.execution.rollback");
+        TxFlow extensionPlan = oneStep("extension-plan", FlowStep.builder("one")
+                .withTxPlan(TxPlan.from(new Tx()).withExtension("ex", ExtensionMetadata.builder()
+                        .extension("example").schemaVersion("1").build())).build());
+        assertPortableDiagnostic(extensionPlan, "TXFLOW_NON_PORTABLE_EXTENSION",
+                "$.spec.steps[0].transaction");
     }
 
     @Test

@@ -9,6 +9,11 @@ plugins {
 
 repositories {
     mavenCentral()
+    // BloxBean Maven repository: development snapshots of BloxBean projects (release-ops docs/12).
+    maven {
+        url "https://repo.bloxbean.org/maven/snapshots"
+        mavenContent { snapshotsOnly() }
+    }
 }
 
 dependencies {
@@ -142,6 +147,11 @@ subprojects {
 
     repositories {
         mavenCentral()
+        // BloxBean Maven repository: development snapshots of BloxBean projects (release-ops docs/12).
+        maven {
+            url "https://repo.bloxbean.org/maven/snapshots"
+            mavenContent { snapshotsOnly() }
+        }
     }
 
     //Jars are with cardano-client prefix
@@ -306,6 +316,24 @@ subprojects {
 
     if (isMavenPublishedProject && isReleaseVersion && !project.hasProperty("skipSigning")) {
         configureReleaseSigning(project)
+    }
+}
+
+// The `stagingRepository` hook (release-ops docs/12-bloxbean-maven-repository.md): publishes the same
+// MavenPublications as the Central deployment to an isolated directory - no second publication definition. CI
+// passes an absolute path: `./gradlew publishAllPublicationsToStagingRepository -PstagingRepository=$PWD/...`, and
+// owns the transfer to the BloxBean Maven repository.
+def stagingRepository = providers.gradleProperty('stagingRepository')
+allprojects { candidate ->
+    candidate.pluginManager.withPlugin('maven-publish') {
+        if (stagingRepository.isPresent()) {
+            candidate.publishing.repositories {
+                maven {
+                    name = 'staging'
+                    url = candidate.uri(stagingRepository.get())
+                }
+            }
+        }
     }
 }
 
