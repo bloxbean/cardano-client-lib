@@ -130,6 +130,7 @@ if (isReleaseVersion && !project.hasProperty("skipSigning")) {
 // be published to Maven repositories. Add future build-only modules here by project path.
 def mavenPublicationExcludedProjectPaths = [
         ':integration-test',
+        ':native-image-test',
         ':txflow-extensions:txflow-soak',
         ':verified-structures:load-tools'
 ] as Set

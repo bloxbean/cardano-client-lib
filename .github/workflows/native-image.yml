@@ -1,0 +1,79 @@
+name: Native Image
+
+# Builds the native-image-test module's tests as a GraalVM Native Image and runs them, against only the
+# reachability metadata the CCL jars ship. CCL itself stays on JDK 17: Gradle runs on Temurin 17 and the
+# GraalVM build tools take native-image from GRAALVM_HOME. GraalVM for JDK 23+ is needed because older
+# releases do not read the unified reachability-metadata.json.
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - release/*
+  pull_request:
+    branches:
+      - master
+      - develop
+      - release/*
+    paths:
+      - 'common/**'
+      - 'crypto/**'
+      - 'address/**'
+      - 'common-spec/**'
+      - 'transaction-spec/**'
+      - 'plutus/**'
+      - 'core-api/**'
+      - 'core/**'
+      - 'quicktx/**'
+      - 'cip/cip30/**'
+      - 'test-support/**'
+      - 'native-image-test/**'
+      - 'gradle/**'
+      - '*.gradle'
+      - '.github/workflows/native-image.yml'
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+# Read-only token: the job runs the branch's or pull request's own code.
+permissions:
+  contents: read
+
+jobs:
+  native-test:
+    name: Native Image tests (GraalVM 25)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: 'true'
+      # Sets GRAALVM_HOME. The JDK 17 step below then takes over JAVA_HOME and PATH for Gradle.
+      - name: Set up GraalVM 25
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Show toolchains
+        run: |
+          java -version
+          "$GRAALVM_HOME/bin/native-image" --version
+      - name: Run tests as a native image
+        run: ./gradlew :native-image-test:nativeTest -PskipSigning=true --stacktrace
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-image-test-reports
+          path: |
+            native-image-test/build/reports/tests/
+            native-image-test/build/test-results/
