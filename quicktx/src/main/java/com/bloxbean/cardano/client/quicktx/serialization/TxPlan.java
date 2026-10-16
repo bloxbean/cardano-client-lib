@@ -7,7 +7,10 @@ import com.bloxbean.cardano.client.quicktx.intent.TxInputIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxScriptAttachmentIntent;
 import com.bloxbean.cardano.client.quicktx.signing.SignerScopes;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,6 +26,7 @@ import java.util.Set;
 public class TxPlan {
 
     private Map<String, Object> variables = new HashMap<>();
+    private Map<String, ExtensionMetadata> extensions = new java.util.LinkedHashMap<>();
     private List<AbstractTx<?>> txList = new ArrayList<>();
 
     // TxContext properties for serialization
@@ -77,6 +81,37 @@ public class TxPlan {
      */
     public Map<String, Object> getVariables() {
         return variables;
+    }
+
+    /**
+     * Bind an extension to a document namespace.
+     *
+     * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
+     */
+    public TxPlan withExtension(String namespace, ExtensionMetadata metadata) {
+        if (namespace == null || !namespace.matches("[a-z][a-z0-9_-]{0,31}"))
+            throw new IllegalArgumentException("Invalid extension namespace: " + namespace);
+        if (java.util.Set.of("tx", "core", "context", "transaction", "variables", "extensions")
+                .contains(namespace))
+            throw new IllegalArgumentException("Reserved extension namespace: " + namespace);
+        if (metadata == null || metadata.getExtension() == null || metadata.getExtension().isBlank())
+            throw new IllegalArgumentException("Extension metadata and extension id are required");
+        if (extensions.values().stream().anyMatch(existing ->
+                metadata.getExtension().equals(existing.getExtension())))
+            throw new IllegalArgumentException("Extension already bound to another namespace: "
+                    + metadata.getExtension());
+        if (extensions.putIfAbsent(namespace, metadata) != null)
+            throw new IllegalArgumentException("Duplicate extension namespace: " + namespace);
+        return this;
+    }
+
+    /**
+     * Extensions bound to this plan, by document namespace.
+     *
+     * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
+     */
+    public Map<String, ExtensionMetadata> getExtensions() {
+        return java.util.Collections.unmodifiableMap(extensions);
     }
 
     /**
@@ -298,13 +333,10 @@ public class TxPlan {
         return validToSlot;
     }
 
-    /**
-     * Serialize this plan to YAML format.
-     * @return YAML string representation
-     */
-    public String toYaml() {
+    TransactionDocument toDocument() {
         TransactionDocument doc = new TransactionDocument();
         doc.setVariables(variables);
+        doc.setExtensions(new java.util.LinkedHashMap<>(extensions));
 
         // Set context properties if any are specified
         if (feePayer != null || collateralPayer != null || feePayerRef != null || collateralPayerRef != null ||
@@ -406,18 +438,68 @@ public class TxPlan {
         }
 
         doc.setTransaction(entries);
-        return YamlSerializer.serialize(doc);
+        return doc;
+    }
+
+    /**
+     * Serialize this plan to YAML format.
+     *
+     * <p>Only core intents are supported. A plan that declares extensions or holds extension
+     * intents must be written with a {@link TxPlanCodec} configured with those extensions:
+     * plain {@link #from(String)} could not read the result back.</p>
+     *
+     * @return YAML string representation
+     * @throws IllegalStateException if the plan declares extensions or holds extension intents
+     */
+    public String toYaml() {
+        if (hasExtensions()) {
+            String extensionType = firstExtensionIntentType();
+            throw new IllegalStateException("TxPlan.toYaml() supports core intents only, but this plan "
+                    + (extensionType != null ? "contains extension intent '" + extensionType + "'"
+                            : "declares extensions " + extensions.keySet())
+                    + ". Serialize it with a TxPlanCodec configured with the extension.");
+        }
+        return YamlSerializer.serialize(toDocument());
+    }
+
+    /**
+     * Whether this plan declares extensions or holds extension intents. Such a plan can only be
+     * serialized with a {@link TxPlanCodec}.
+     *
+     * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
+     */
+    public boolean hasExtensions() {
+        return !extensions.isEmpty() || firstExtensionIntentType() != null;
+    }
+
+    private String firstExtensionIntentType() {
+        return txList.stream()
+                .flatMap(tx -> tx.getIntentions().stream())
+                .filter(ExtensionIntent.class::isInstance)
+                .map(TxIntent::getType)
+                .findFirst().orElse(null);
     }
 
     /**
      * Deserialize YAML string to a complete TxPlan with context.
      * @param yaml the YAML string
      * @return reconstructed TxPlan with all properties restored
+     * @throws IllegalArgumentException if the document declares extensions or uses extension intents;
+     *         read those with a {@link TxPlanCodec}
      * @throws RuntimeException if deserialization fails
      */
     public static TxPlan from(String yaml) {
+        rejectExtensionDocument(yaml);
         TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
+        return from(doc);
+    }
+
+    static TxPlan from(TransactionDocument doc) {
         TxPlan plan = new TxPlan();
+
+        if (doc.getExtensions() != null) {
+            doc.getExtensions().forEach(plan::withExtension);
+        }
 
         // Restore variables
         if (doc.getVariables() != null) {
@@ -475,8 +557,47 @@ public class TxPlan {
      * @throws RuntimeException if deserialization fails
      */
     public static List<AbstractTx<?>> getTxs(String yaml) {
+        rejectExtensionDocument(yaml);
         TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
         return getTxs(doc);
+    }
+
+    /**
+     * Core deserialization only knows core intent types. Without this check an extension-aware
+     * document fails deep inside Jackson with an unknown type id that does not say what to use.
+     */
+    private static void rejectExtensionDocument(String yaml) {
+        JsonNode root;
+        try {
+            root = YamlSerializer.getYamlMapper().readTree(yaml);
+        } catch (Exception e) {
+            return; // Malformed YAML: deserialization reports it.
+        }
+        if (root == null || !root.isObject()) return;
+
+        String reason = null;
+        JsonNode declared = root.get("extensions");
+        if (declared != null && !declared.isNull() && !declared.isEmpty()) {
+            List<String> namespaces = new ArrayList<>();
+            declared.fieldNames().forEachRemaining(namespaces::add);
+            reason = "declares extensions " + namespaces;
+        } else {
+            for (JsonNode entry : root.path("transaction")) {
+                for (JsonNode intent : entry.path("tx").path("intents")) {
+                    String type = intent.path("type").asText("");
+                    // A ${...} placeholder may itself contain ':'; it is expanded later and the
+                    // resolved type is checked by deserialization.
+                    if (type.indexOf(':') > 0 && !type.contains("${")) {
+                        reason = "uses extension intent '" + type + "'";
+                        break;
+                    }
+                }
+                if (reason != null) break;
+            }
+        }
+        if (reason != null)
+            throw new IllegalArgumentException("TxPlan.from() supports core intents only, but this document "
+                    + reason + ". Read it with a TxPlanCodec configured with the extension.");
     }
 
     /**

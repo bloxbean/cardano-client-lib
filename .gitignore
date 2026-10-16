@@ -174,3 +174,9 @@ rust/jniLibs
 # txflow-soak run output: H2 store, journal, samples.csv, report.txt
 soak-data/
 **/soak-data/
+
+# macOS
+.DS_Store
+
+# Node dependencies
+node_modules/

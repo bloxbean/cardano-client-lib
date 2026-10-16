@@ -1,0 +1,50 @@
+# Two transfers of one policy to another owner's smart wallet, aggregated into one transaction.
+# The first carries a structured redeemer and datum built from variables; the second the same
+# values as CBOR hex. Both must agree on the transfer redeemer (one transfer-logic invocation per
+# policy); the datums are written on the receiver's outputs and bounded by the deployment.
+version: '1.0'
+variables:
+  network_id: 0
+  first_quantity: 1
+  second_quantity: 2
+  authorization_action: 1
+  authorization_nonce: 42
+  authorization_cbor: d8798201182a
+  holder_schema: 1
+  holder_tag: 113
+  holder_datum_cbor: d87982011871
+extensions:
+  pt:
+    extension: programmable-token
+    schema_version: '1'
+    protocol: cip-113
+    contract_version: 0.5.0-alpha.2
+    deployment:
+      network: ${network_id}
+      bootstrap_tx: ${bootstrap_tx}
+context:
+  fee_payer: ${owner_address}
+transaction:
+  - tx:
+      from: ${owner_address}
+      intents:
+        - type: pt:transfer
+          receiver: ${recipient_address}
+          unit: ${token_unit}
+          quantity: ${first_quantity}
+          transfer_redeemer:
+            constructor: 0
+            fields:
+              - int: ${authorization_action}
+              - int: ${authorization_nonce}
+          inline_datum:
+            constructor: 0
+            fields:
+              - int: ${holder_schema}
+              - int: ${holder_tag}
+        - type: pt:transfer
+          receiver: ${recipient_address}
+          unit: ${token_unit}
+          quantity: ${second_quantity}
+          transfer_redeemer_hex: ${authorization_cbor}
+          inline_datum_hex: ${holder_datum_cbor}

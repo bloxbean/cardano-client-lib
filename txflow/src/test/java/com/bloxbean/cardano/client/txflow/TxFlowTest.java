@@ -2,6 +2,9 @@ package com.bloxbean.cardano.client.txflow;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,6 +76,45 @@ class TxFlowTest {
         // Then
         assertThat(result.isValid()).isTrue();
         assertThat(result.getErrors()).isEmpty();
+    }
+
+    @Test
+    void validate_shouldRejectExtensionIntentStepsBeforeAnyStepRuns() {
+        Tx extensionTx = new Tx().from("addr1");
+        extensionTx.addIntention(new ExampleExtensionIntent());
+        TxFlow flow = TxFlow.builder("extension-flow")
+                .addStep(FlowStep.builder("plain")
+                        .withTxPlan(TxPlan.from(new Tx().from("addr1")
+                                .payToAddress("addr1_receiver", Amount.ada(1))))
+                        .build())
+                .addStep(FlowStep.builder("extension")
+                        .withTxPlan(TxPlan.from(extensionTx))
+                        .build())
+                .build();
+
+        TxFlow.ValidationResult result = flow.validate();
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getErrors()).singleElement().asString()
+                .contains("Step 'extension'")
+                .contains("extension intents");
+    }
+
+    @Test
+    void validate_shouldRejectAPlanThatOnlyDeclaresExtensions() {
+        TxPlan plan = TxPlan.from(new Tx().from("addr1").payToAddress("addr1_receiver", Amount.ada(1)))
+                .withExtension("ex", ExtensionMetadata.builder().extension("example").schemaVersion("1").build());
+        TxFlow flow = TxFlow.builder("metadata-only-flow")
+                .addStep(FlowStep.builder("declared").withTxPlan(plan).build())
+                .build();
+
+        assertThat(flow.validate().getErrors()).singleElement().asString()
+                .contains("Step 'declared'");
+    }
+
+    private static final class ExampleExtensionIntent implements ExtensionIntent {
+        @Override public String getExtensionId() { return "example"; }
+        @Override public String getOperation() { return "act"; }
     }
 
     @Test
