@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.test.graalvm;
 import com.bloxbean.cardano.client.test.graalvm.fixture.FixtureChild;
 import com.bloxbean.cardano.client.test.graalvm.fixture.FixtureParent;
 import com.bloxbean.cardano.client.test.graalvm.fixture.FixturePart;
+import com.bloxbean.cardano.client.test.graalvm.fixture.builder.FixtureImmutable;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,6 +48,28 @@ class ReachabilityMetadataGuardTest {
                 .types(FixtureChild.class.getName(), FixtureParent.class.getName()).problems())
                 .containsExactly(FixtureChild.class.getName() + " reaches " + FixturePart.class.getName()
                         + " (field part), which is not registered in any CCL reachability metadata");
+    }
+
+    @Test
+    void builderBoundTypeWithRegisteredBuilderHasNoProblems() {
+        assertThat(builderGuard("guard-fixture-builder-ok").problems()).isEmpty();
+    }
+
+    @Test
+    void reportsUnregisteredJacksonBuilder() {
+        assertThat(builderGuard("guard-fixture-builder-missing-entry").problems())
+                .containsExactly(FixtureImmutable.class.getName() + " reaches " + FixtureImmutable.Builder.class.getName()
+                        + " (@JsonDeserialize(builder) on class), which is not registered in any CCL reachability metadata");
+    }
+
+    @Test
+    void reportsMissingBuilderWithMethod() {
+        assertThat(builderGuard("guard-fixture-builder-missing-method").problems())
+                .containsExactly(FixtureImmutable.Builder.class.getName() + ": missing methods [name(java.lang.String)]");
+    }
+
+    private static ReachabilityMetadataGuard builderGuard(String artifactId) {
+        return ReachabilityMetadataGuard.of(FixtureImmutable.class, artifactId).types(FixtureImmutable.class.getName());
     }
 
     @Test

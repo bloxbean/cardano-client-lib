@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 import java.io.IOException;
@@ -58,7 +59,7 @@ import java.util.stream.Stream;
  *     {@code getDeclaredMethod}, so a method inherited from a supertype must be listed on the supertype's entry</li>
  *     <li>every listed method is declared by the type, so a renamed or removed method is reported</li>
  *     <li>every CCL type Jackson can reach from a registered type (supertypes, field and getter types including
- *     generic arguments, {@code @JsonSerialize}/{@code @JsonDeserialize} classes) is registered in some CCL
+ *     generic arguments, {@code @JsonSerialize}/{@code @JsonDeserialize} classes and builders) is registered in some CCL
  *     module's metadata</li>
  * </ul>
  * Tests assert that {@link #problems()} is empty; each problem says what to add or remove.
@@ -247,7 +248,7 @@ public final class ReachabilityMetadataGuard {
         for (Map.Entry<Class<?>, String> ref : referenced.entrySet()) {
             Class<?> c = ref.getKey();
             if (!c.getName().startsWith(CCL_PREFIX) || c.isAnonymousClass() || c.isLocalClass()
-                    || NOT_BOUND.matcher(c.getName()).find() || isExcluded(c.getName()))
+                    || (NOT_BOUND.matcher(c.getName()).find() && !isPojoBuilder(c)) || isExcluded(c.getName()))
                 continue;
             if (!ownEntries.contains(c.getName()) && !registeredAt(c).contains(c.getName()))
                 problems.add(clazz.getName() + " reaches " + c.getName() + " (" + ref.getValue()
@@ -255,7 +256,11 @@ public final class ReachabilityMetadataGuard {
         }
     }
 
-    /** Serializer and deserializer classes Jackson instantiates for an annotated class, field or getter. */
+    /**
+     * Serializer, deserializer and builder classes Jackson instantiates for an annotated class, field or getter.
+     * A builder ({@code @JsonDeserialize(builder = ...)}, e.g. from Lombok's {@code @Jacksonized}) is bound instead of
+     * the type's own constructor and setters.
+     */
     private static void addSerializers(AnnotatedElement element, String where, Map<Class<?>, String> referenced) {
         JsonSerialize serialize = element.getAnnotation(JsonSerialize.class);
         if (serialize != null) {
@@ -268,7 +273,12 @@ public final class ReachabilityMetadataGuard {
             referenced.putIfAbsent(deserialize.using(), "@JsonDeserialize on " + where);
             referenced.putIfAbsent(deserialize.contentUsing(), "@JsonDeserialize on " + where);
             referenced.putIfAbsent(deserialize.keyUsing(), "@JsonDeserialize on " + where);
+            referenced.putIfAbsent(deserialize.builder(), "@JsonDeserialize(builder) on " + where);
         }
+    }
+
+    private static boolean isPojoBuilder(Class<?> clazz) {
+        return clazz.isAnnotationPresent(JsonPOJOBuilder.class);
     }
 
     /** Jackson ignores the whole property when its field or its getter has {@code @JsonIgnore}. */
@@ -340,14 +350,21 @@ public final class ReachabilityMetadataGuard {
         }
     }
 
-    /** Methods Jackson may invoke that {@code clazz} declares: public bean accessors and Jackson-annotated methods. */
+    /**
+     * Methods Jackson may invoke that {@code clazz} declares: public bean accessors and Jackson-annotated methods, and
+     * for a {@code @JsonPOJOBuilder} its with-methods and build method.
+     */
     private static Set<String> bindableMethods(Class<?> clazz) {
         Set<String> methods = new TreeSet<>();
+        JsonPOJOBuilder pojoBuilder = clazz.getAnnotation(JsonPOJOBuilder.class);
         for (Method m : clazz.getDeclaredMethods()) {
             if (m.isSynthetic() || m.isBridge()) continue;
             boolean accessor = (m.getName().startsWith("get") && m.getParameterCount() == 0)
                     || (m.getName().startsWith("is") && m.getParameterCount() == 0)
                     || (m.getName().startsWith("set") && m.getParameterCount() == 1);
+            if (pojoBuilder != null && !Modifier.isStatic(m.getModifiers()))
+                accessor |= (m.getName().startsWith(pojoBuilder.withPrefix()) && m.getParameterCount() == 1)
+                        || (m.getName().equals(pojoBuilder.buildMethodName()) && m.getParameterCount() == 0);
             if ((Modifier.isPublic(m.getModifiers()) && accessor) || jacksonAnnotated(m))
                 methods.add(signature(m));
         }

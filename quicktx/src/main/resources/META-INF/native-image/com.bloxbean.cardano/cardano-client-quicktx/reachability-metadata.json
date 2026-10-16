@@ -1,6 +1,80 @@
 {
-  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-quicktx. TxPlan documents and polymorphic intents (@JsonSubTypes) are (de)serialized by Jackson, through YamlSerializer and through other mappers (e.g. txflow); registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods declared by each type.",
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-quicktx. TxPlan documents and polymorphic intents (@JsonSubTypes) are (de)serialized by Jackson, through YamlSerializer and through other mappers (e.g. txflow); registered once ObjectMapper is reached. ExtensionMetadata (TransactionDocument.extensions) is bound through its Lombok builder. Methods: bean accessors and Jackson-annotated methods declared by each type.",
   "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getContractVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDeployment",
+          "parameterTypes": []
+        },
+        {
+          "name": "getExtension",
+          "parameterTypes": []
+        },
+        {
+          "name": "getProtocol",
+          "parameterTypes": []
+        },
+        {
+          "name": "getSchemaVersion",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata$ExtensionMetadataBuilder",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "build",
+          "parameterTypes": []
+        },
+        {
+          "name": "contractVersion",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "deployment",
+          "parameterTypes": [
+            "java.util.Map"
+          ]
+        },
+        {
+          "name": "extension",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "protocol",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "schemaVersion",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
     {
       "condition": {
         "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
@@ -1952,6 +2026,10 @@
           "parameterTypes": []
         },
         {
+          "name": "getExtensions",
+          "parameterTypes": []
+        },
+        {
           "name": "getTransaction",
           "parameterTypes": []
         },
@@ -1967,6 +2045,12 @@
           "name": "setContext",
           "parameterTypes": [
             "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument$TxContext"
+          ]
+        },
+        {
+          "name": "setExtensions",
+          "parameterTypes": [
+            "java.util.Map"
           ]
         },
         {
