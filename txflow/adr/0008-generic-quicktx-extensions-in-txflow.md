@@ -2,13 +2,13 @@
 
 **Status**: Proposed
 
-**ADR Document Version**: 1.0.0
+**ADR Document Version**: 1.1.0
 
 **Date**: 2026-10-17
 
-**Last Updated**: 2026-10-17
+**Last Updated**: 2026-10-18
 
-**Review State**: Initial review draft (review round 1)
+**Review State**: Revised for review round 2 (r2)
 
 **Target Release**: To be decided
 
@@ -27,6 +27,7 @@ All code references are to `origin/master` at `dfd8540d`.
 ## Revision History
 
 - **r1** (2026-10-17): Initial proposal.
+- **r2** (2026-10-18; responds to the review of `9037614`): F1 (and the Aster comment) → M1 now includes the extension-aware portability check, the canonical writer, the `spec.extensions` parser field and schema (new D6a); D5, M1 and M2 rescoped; OQ1 and OQ2 become M1 entry gates. F2 → new D4a: TxFlow copies and decodes extension plans literally and never runs TxPlan variable expansion on them; D4, D6 and D8 use it; new I11; the example now uses `${{ inputs.receiver }}`. F3 → new D9a: the visibility contract separates address scans (`funding_from`, legacy `depends_on`) from exact lookups; C1 and I10 narrowed; the example declares `funding_from`; new I12; M1b exit criteria updated. F4 → D6a: every binding must be used by at least one extension intent, otherwise `TXFLOW_EXTENSION_BINDING_UNUSED`; new I13; fixtures added.
 
 ## 1. Context
 
@@ -76,7 +77,7 @@ Some paths already work generically and need no change:
 There are three limits, each handled explicitly below:
 
 1. **Registration stays explicit.** Extensions are constructed with operator configuration (a protocol, a deployment, a backend), so TxFlow cannot discover or build them from a document. See D1 and alternative A1.
-2. **Correctness under PIPELINED depends on the extension.** It must read the chain through the build's `UtxoSupplier`. This becomes a documented SPI contract (D9). CIP-113 does not meet it yet (§11).
+2. **Correctness under PIPELINED depends on the extension and on the flow's edges.** The extension must read the chain through the build's `UtxoSupplier` (D9, C1). That supplier exposes another step's pending outputs only along declared edges: `funding_from` for address scans, and legacy `depends_on` or a core `flow_output` for exact lookups (D9a). `needs` gives ordering only. CIP-113 does not meet C1 yet (§13).
 3. **Two features need SPI hooks that do not exist yet:** `flow_output` references inside extension-intent fields, and spending-resource identities for inputs an extension chooses at build time. Both are rejected or documented as limits until a real extension needs them (D8, OQ4, OQ5).
 
 ## 2. Goals
@@ -152,9 +153,28 @@ When a document declares namespace `ns` with `extension: X`, the codec resolves 
 At each plan-copy and write site listed in §1.2:
 
 - If `plan.hasExtensions()` is false, keep the existing core path unchanged. This is what preserves I2.
-- Otherwise copy with `codec.fromYaml(codec.toYaml(plan))`. Snapshots taken by `FlowExecutionContext.snapshotPlan` store the codec YAML. `TxFlowCodec.transactionNode` writes the step's extension bindings and its namespaced intents.
+- Otherwise copy with the codec's **literal** copy (D4a), never with `codec.fromYaml(codec.toYaml(plan))`. Snapshots taken by `FlowExecutionContext.snapshotPlan` store the codec YAML. `TxFlowCodec.transactionNode` writes the step's extension bindings and its namespaced intents.
 
-The codec already deep-copies `ExtensionMetadata` and validates intents on both read and write (`TxPlanCodec.java:60-132`). A copy is therefore isolated per attempt, exactly as core plans are today (ADR 0002, transaction schema rule 7).
+The codec deep-copies `ExtensionMetadata` and validates intents on both read and write (`TxPlanCodec.java:60-132`). A copy is therefore isolated per attempt, exactly as core plans are today (ADR 0002, transaction schema rule 7).
+
+### D4a. Literal copy and decode boundary (added in r2, F2)
+
+`TxPlanCodec.fromYaml(yaml, variables)` is the standalone *authoring* decoder. It runs `VariableResolver.resolveTree` over every document field (`TxPlanCodec.java:99-114`) and keeps the variables on the plan (`:124`). Applying it to an already-resolved plan reinterprets literal text: a value `"literal ${other} stays"` becomes `"literal REINTERPRETED stays"` when the plan also carries `other`, and fails with `Variable not found` when it does not (reproduced by the r1 review).
+
+TxFlow therefore never runs TxPlan variable expansion on an extension plan. QuickTx gets one additive codec entry point, used by every TxFlow site:
+
+```java
+// Illustrative only
+TxPlan TxPlanCodec.copy(TxPlan plan);          // write, then read the tree literally
+TxPlan TxPlanCodec.readLiteral(String yaml);   // read an already-bound document literally
+```
+
+- A literal read runs the same steps as `fromYaml` (binding validation, namespace rewrite, typed decode, intent validation), except that it skips `resolveTree`. It also hands the core reconstruction a document without `variables`, as `fromYaml` already does (`:119-123`).
+- `copy` keeps the source plan's `variables` map on the copy as inert data, so that `getVariables()` is equal on both. It never applies them.
+- **Binding happens once, when the plan is authored.** A Java-built plan holds final values: standalone QuickTx never expands variables in an in-memory plan, and `compose(plan)` does not read `getVariables()`. A plan decoded with `codec.fromYaml(yaml, vars)` was bound by that call. TxFlow runs an extension plan with exactly the values standalone `QuickTxBuilder.compose(plan)` would use.
+- **Legacy flow variables** (`TxFlow.addVariable`) are not merged into extension plans. `TxPlanExecutionMaterializer` keeps merging them into core plans as today (`:54-58`), which preserves I2. Extension plans cannot come from the legacy YAML format (§13), so no legacy document depends on that merge.
+- **Portable steps** (M2) are bound by TxFlow's `${{ … }}` binder on the JSON tree (`TxFlowCompiler.java:100-101`), and the bound tree is decoded with `readLiteral`. A bound value that contains `${other}` stays literal.
+- A core field of an extension plan that holds literal `${…}` text, and that the core reconstruction must parse (for example `from` or `change_address`), still fails with the codec's existing "kept literal and this field cannot hold it" error (`TxPlanCodec.java:139-151`). That fails closed and is never reinterpreted. It is the same limit core plans have today.
 
 ### D5. Requirement check moves to where the registrations are
 
@@ -163,7 +183,8 @@ The codec already deep-copies `ExtensionMetadata` and validates intents on both 
   1. every declared namespace's `extension` id is registered;
   2. `validateMetadata` accepts the declared metadata;
   3. every `ExtensionIntent` belongs to a declared and registered extension, has the registered concrete type for its operation, and passes `validate()`.
-- `PortableFlowValidator` stops emitting `TXFLOW_NON_PORTABLE_EXTENSION` once M2 can write extension steps portably. Until then the code stays, with its message pointing at engine registration.
+- `PortableFlowValidator` takes the registered extensions as input (none for `TxFlowCodec.standard()`). It reports an extension step as `TXFLOW_EXTENSION_UNREGISTERED` only when a required extension is missing, and stops emitting `TXFLOW_NON_PORTABLE_EXTENSION` in **M1** (F1). The compiler (`TxFlowCompiler.java:76-81`) and the canonical writer (`TxFlowCodec.java:343`) both call it with the engine's registrations, so neither the portability check nor the fingerprint is bypassed.
+- The legacy code `TXFLOW_NON_PORTABLE_EXTENSION` stays in `txflow-diagnostic-codes.json` for compatibility, but is no longer emitted.
 
 New stable diagnostic codes (added to `txflow-diagnostic-codes.json`):
 
@@ -173,6 +194,8 @@ New stable diagnostic codes (added to `txflow-diagnostic-codes.json`):
 | `TXFLOW_EXTENSION_METADATA_INVALID` | `validateMetadata` rejected the declared binding. |
 | `TXFLOW_EXTENSION_INTENT_INVALID` | Unknown operation, wrong concrete type, or `validate()` failed. |
 | `TXFLOW_EXTENSION_BINDING_CONFLICT` | Flow-level and step-level bindings disagree (D6). |
+| `TXFLOW_EXTENSION_BINDING_UNUSED` | A declared binding is used by no extension intent (D6a). |
+| `TXFLOW_EXTENSION_TEMPLATE_UNSUPPORTED` | M1 only: a portable template uses an extension intent before M2 lands (D6a). Retired in M2. |
 | `TXFLOW_EXTENSION_INTENT_LOSSY` | The round-trip guard failed (D7). |
 | `TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED` | A `flow_output` reference appears inside an extension intent (D8). |
 
@@ -202,24 +225,34 @@ spec:
               # extension-defined fields
     - id: transfer
       needs: [register]
+      funding_from: [register]   # D9a: lets the build see register's pending outputs by address
       transaction:
         tx:
           from_ref: wallet://issuer
           intents:
             - type: pt:transfer
-              receiver: ${receiver}
+              receiver: '${{ inputs.receiver }}'
               # extension-defined fields
 ```
+
+(`spec.parameters.receiver` with `type: address` is declared but omitted above for brevity.)
 
 - **Why flow-level.** ADR 0002 forbids nesting standalone TxPlan envelope fields inside a step (transaction schema rule 2). The binding describes the runtime contract of the whole flow. One binding per flow also gives one canonical place for the fingerprint.
 - **Compilation.** For a step whose `tx.intents` contains a namespaced type:
   1. Remove the extension intents. Run the existing strict core materializer on the rest, unchanged.
-  2. Decode each extension intent through the engine codec, wrapping it in a one-transaction document whose `extensions:` block holds only the flow-level bindings the step uses.
+  2. Decode each extension intent with the engine codec's `readLiteral` (D4a), wrapping it in a one-transaction document whose `extensions:` block holds the flow-level bindings the step uses.
   3. Re-insert the extension intents in their authored positions.
 
   Namespaced types are allowed only in `tx.intents`, the only array `TxPlanCodec` rewrites (`TxPlanCodec.java:262-275`). Anywhere else they are `TXFLOW_EXTENSION_INTENT_INVALID`.
 - **Writing Java steps.** A Java `withTxPlan` extension step is written portably by hoisting its plan's `getExtensions()` into `spec.extensions`. If two steps bind the same namespace to different metadata, or the same extension id to different namespaces, the write fails with `TXFLOW_EXTENSION_BINDING_CONFLICT`.
 - **Schema.** `txflow-v1alpha1.schema.json` gains `spec.extensions`. The shared QuickTx intent schema already allows any `type` string (`quicktx-transaction-v1alpha1.schema.json:57`). See OQ1 and OQ2 for the field name and versioning.
+
+### D6a. Where bindings live, and unused bindings (added in r2, F1 and F4)
+
+- **Model.** `TxFlow` gains a read-only `extensions` map (namespace → `ExtensionMetadata`). The portable parser fills it from `spec.extensions`. Java authors normally leave it empty and bind on the plan (`extension.configure(plan)`).
+- **Canonical form.** The writer emits `spec.extensions` as the flow-level map merged with every step plan's `getExtensions()`. Conflicts are `TXFLOW_EXTENSION_BINDING_CONFLICT`. Steps are written with namespaced intent types. The compiled fingerprint uses this form, so the bindings are part of it (I8).
+- **Unused bindings are rejected.** Every namespace in the merged map must be used by at least one extension intent of some step, otherwise `TXFLOW_EXTENSION_BINDING_UNUSED`. This applies to a core-only flow that declares a binding, to an extra binding next to a used one, and to a Java plan bound with `configure(plan)` but holding no intent of that extension. The check runs before any registry lookup, so an unused binding is reported as unused whether or not it is registered or valid. Rejecting, rather than retaining, keeps the canonical form a function of what executes: two documents that differ only in an unused binding cannot share a fingerprint, because neither compiles.
+- **Milestones (F1).** The writer, the parser field, the unused check and the schema change all land in **M1**, because `FlowEngine` compilation fingerprints through the writer. M2 adds only template materialization (D6 compilation, D7, D8). Between M1 and M2, a parsed YAML step that uses a namespaced intent compiles to `TXFLOW_EXTENSION_TEMPLATE_UNSUPPORTED`. It never reaches a Jackson exception, and the code is retired in M2.
 
 ### D7. Generic losslessness guard for unknown intent schemas
 
@@ -232,7 +265,7 @@ This makes "round-trip lossless" part of the extension contract (D9, C2). CIP-11
 
 ### D8. Bindings, policy and resources
 
-- Parameter binding, policy evaluation and `*_ref` resource preflight apply to extension intents unchanged (§1.2).
+- Parameter binding, policy evaluation and `*_ref` resource preflight apply to extension intents unchanged (§1.2). The bound tree is decoded literally (D4a).
 - A `flow_output` pointer anywhere inside an extension intent is rejected (`TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED`). `TxPlanExecutionMaterializer` resolves `FlowOutputRef` only in the three core intent types it knows (`TxPlanExecutionMaterializer.java:59-72`), so accepting the pointer would leave it unresolved. A generic hook is OQ4.
 - Inputs an extension selects during `prepare` (for example protocol UTxOs) are not known when the flow compiles, so they are not covered by spending-resource leases. This is documented as a limit (R3, OQ5).
 
@@ -240,12 +273,31 @@ This makes "round-trip lossless" part of the extension contract (D9, C2). CIP-11
 
 An extension works under TxFlow without TxFlow changes if it meets these conditions. They are added to the `quicktx.extension` package documentation:
 
-- **C1.** Every chain read made while building (`prepare`, `afterBalance`, `verify`) goes through `ExtensionBuildContext.getUtxoSupplier()`. Under TxFlow that is the flow-aware supplier, which sees outputs of earlier pipelined steps. A private backend supplier sees only confirmed state.
+- **C1.** Every chain read made while building (`prepare`, `afterBalance`, `verify`) goes through `ExtensionBuildContext.getUtxoSupplier()`. Under TxFlow that is the flow-aware supplier. It hides outputs that earlier flow steps spent, and it exposes pending outputs only as D9a describes. A private backend supplier sees neither, so it can build on state that an earlier pipelined step already spent.
 - **C2.** Intents are pure data, and a decode-then-encode round trip through `TxPlanCodec` reproduces the authored tree (D7).
 - **C3.** `validateMetadata` and `ExtensionIntent.validate()` are pure: no chain or network I/O. They run during compilation and validation.
 - **C4.** `newBuildExtension` returns a fresh participant for each build. This is already required by `TxBuildExtension`'s Javadoc.
 
 CIP-113 meets C2–C4 but not C1: registry nodes are read through the service's own `DefaultUtxoSupplier` (`cip113/tx/DefaultCip113ProtocolService.java:79`, `:99-100`; `cip113/tx/Cip113BuildExtension.java:98`). That is milestone M1b.
+
+### D9a. Visibility contract for pending outputs (added in r2, F3)
+
+TxFlow keeps the visibility rules it has today. It adds no extension-specific or global visibility. The flow-aware supplier is built in `FlowExecutor.createUtxoSupplier` (`FlowExecutor.java:2397-2411`) and behaves as `FlowUtxoSupplier` does today:
+
+| Read | Pending outputs of an earlier step S are visible when the current step declares | Code |
+|---|---|---|
+| Address scan (`getAll`, `getPage`) | `funding_from: [S]` (`fundsFrom(S)`), or a legacy `depends_on` on S; only outputs at the scanned address | `FlowUtxoSupplier.java:143-191` |
+| Exact lookup (`getTxOutput`) | a legacy `depends_on` on S, or a **core** `flow_output` reference to S in the same plan | `FlowUtxoSupplier.java:95-104`, `:201-235` |
+| Either | `needs: [S]` alone gives **no** visibility; it is ordering only | `FlowExecutor.java:2406-2410` |
+
+In all cases, outputs spent by earlier flow steps are filtered out (`filterOutSpentUtxos`).
+
+Consequences for extensions:
+
+- **Supported pattern.** An extension finds protocol state by an **address scan** (for example the CIP-113 registry scan, `RegistryLookup.Scanning`). A step that must see protocol outputs created by an earlier pipelined step S declares `funding_from: [S]`. That is the existing meaning of `funding_from`: the step may select and consume S's outputs at the addresses it scans. An extension that consumes a protocol output S created therefore falls within the authority the author already granted.
+- **Without the edge, it fails closed.** If S spent a confirmed protocol output and replaced it, the old output is filtered as spent, and the new one is not visible. The extension reports "not found" instead of building on stale state. Under SEQUENTIAL mode, S is confirmed before the next step builds, so no edge is needed.
+- **Unsupported.** An extension cannot use an exact lookup to read a *pending* output, because extension-owned `flow_output` pointers are rejected (D8, OQ4). Exact lookups of confirmed outputs, such as the CIP-113 deployment or bootstrap references, work as today.
+- **Extension-free flows are unaffected.** Nothing in D9a changes how the supplier is constructed.
 
 ### D10. TxFlowStream
 
@@ -264,18 +316,22 @@ Each invariant names the decisions it constrains and must have at least one test
 - **I1. Fail before submission** (D5). A flow that needs an unregistered extension, has invalid metadata or holds an invalid extension intent is rejected before any step is built or submitted. This holds for `FlowExecutor` (sync and async), `FlowEngine`, `FlowRuntime` and TxFlowStream.
 - **I2. Extension-free flows unchanged** (D4, D6). For flows with no extension, compiled fingerprints, portable YAML/JSON output and plan snapshots are byte-identical to `dfd8540d`. A golden test over the existing conformance fixtures enforces this.
 - **I3. No extension-specific code** (D2). `txflow` main sources import no concrete `ExtensionIntent` or `QuickTxExtension` and no `programmable-token` type, and the `txflow` build has no dependency on `programmable-token`. A source-scan test enforces this.
-- **I4. Copies preserve extensions** (D3, D4). For any extension plan, a TxFlow copy has equal `getExtensions()` and equal codec YAML, and shares no mutable intent instance with its source.
+- **I4. Copies preserve extensions** (D3, D4, D4a). For any extension plan, a TxFlow copy has equal `getExtensions()`, equal `getVariables()` and equal codec YAML, and shares no mutable intent instance with its source.
 - **I5. Builders carry exactly the registered set** (D1, D2). Every `QuickTxBuilder` that TxFlow creates for a TxPlan step has the registered extensions, no others, and no duplicates.
 - **I6. Documents never configure extensions** (D1, D5, §4). Document metadata is only validated against registered instances. A document cannot cause an extension to be constructed, and a metadata mismatch (id, `schema_version`, `validateMetadata`) is rejected.
 - **I7. Lossless extension intents** (D6, D7). An unknown field, or any field that does not round-trip, in an extension intent is rejected at compile time with a path-precise diagnostic.
-- **I8. Fingerprint covers extensions** (D6). Changing any `spec.extensions` field (including a nested `deployment` value), or any field of an extension intent, changes the compiled fingerprint. Reordering `deployment` map keys does not.
+- **I8. Fingerprint covers extensions** (D6, D6a). Changing any `spec.extensions` field (including a nested `deployment` value), or any field of an extension intent, changes the compiled fingerprint. Reordering `deployment` map keys does not. This holds for Java steps (bindings hoisted from plans) in M1 and for portable steps in M2.
 - **I9. No batching of extension items** (D10). A planner never merges an item that holds an `ExtensionIntent`.
-- **I10. Pipelined visibility under C1** (D9). An extension that reads through `ExtensionBuildContext.getUtxoSupplier()` sees outputs of earlier PIPELINED steps of the same flow.
+- **I10. Pipelined visibility under C1** (D9, D9a). An extension that reads through `ExtensionBuildContext.getUtxoSupplier()` finds, by address scan, a pending output of an earlier PIPELINED step S at the scanned address **if and only if** the step declares `funding_from: [S]` or a legacy dependency on S. With `needs: [S]` alone it does not find it.
+- **I11. No reinterpretation** (D4a). A literal `${other}` value in an extension intent survives every TxFlow copy, snapshot, retry and compilation unchanged: with a plan variable `other` present, without one, and when it arrives as a portable binding value. Legacy flow variables never reach an extension plan.
+- **I12. Exact pending lookups stay scoped** (D9a). An extension's `getTxOutput` on a pending output of S returns empty unless the step declares a legacy dependency on S or holds a core `flow_output` reference to S. D9a widens nothing.
+- **I13. No unused bindings** (D6a). A flow whose merged bindings include a namespace that no extension intent uses is rejected with `TXFLOW_EXTENSION_BINDING_UNUSED` at parse, compile and write, whether or not that binding is registered or valid.
 
 ## 7. Compatibility
 
 - **Java API.** Additive only (D1, D3). No signature changes.
 - **Behaviour.** `TxFlow.validate()` no longer reports extension steps. Executing such a flow without registering the extension fails in the executor before submission (I1) instead of in `validate()`. It still fails before any submission.
+- **Diagnostics.** `TXFLOW_NON_PORTABLE_EXTENSION` is no longer emitted (D5). Callers that matched on it see `TXFLOW_EXTENSION_UNREGISTERED` instead.
 - **Schema.** `spec.extensions` is an additive optional field (OQ2). Older readers reject it under the default unknown-field policy. Under `WARN` or `IGNORE` they drop it, and the namespaced intent then fails strict materialization. Either way they fail closed.
 - **Fingerprints.** Unchanged for extension-free flows (I2). Extension flows could not compile before, so they have no prior fingerprint.
 - **Experimental SPI.** The QuickTx extension SPI is experimental (`extension/package-info.java`). TxFlow's extension entry points are marked experimental too.
@@ -286,27 +342,41 @@ Each milestone is one PR.
 
 ### M1. Java `withTxPlan` steps on FlowExecutor, FlowEngine and FlowRuntime
 
-- **Entry gate:** ADR accepted.
-- **Scope:** D1, D2, D3, D4 (executor, compiler and snapshot sites), D5.
+- **Entry gate:** ADR accepted, with OQ1 and OQ2 decided. M1 fixes the canonical `spec.extensions` form that the fingerprint uses.
+- **Scope:**
+  - D1, D2, D3, D4, D4a (`copy`, `readLiteral`) and D5, including the extension-aware `PortableFlowValidator`.
+  - D6a: the `TxFlow.extensions` field, the canonical writer, the parser field, the unused check and the schema change.
+  - D9a: documentation only.
 - **Exit:**
-  - Unit tests for I1–I6 and I10, written against a **test-only fake extension** in `txflow` test sources. It is a trivial `QuickTxExtension` with one intent that reads a UTxO through the context supplier and adds a payment via `addPreparedIntent`. This proves the design is generic without CIP-113.
-  - QuickTx unit tests for id-bound codec resolution.
+  - Unit tests for I1–I6, I8 (Java steps), I10–I13, written against a **test-only fake extension** in `txflow` test sources. It is a trivial `QuickTxExtension` with one intent that scans an address through the context supplier and adds a payment via `addPreparedIntent`. This proves the design is generic without CIP-113. They cover:
+    - **I10:** pending visible with `fundsFrom(S)`, absent with `needs(S)` only.
+    - **I11:** literal `${other}` with and without a variable `other`, across a retry.
+    - **I13:** a core-only flow with a binding, and a used-plus-unused pair.
+  - A `FlowEngine` and `FlowRuntime` test that compiles, fingerprints and runs a Java extension flow (F1).
+  - QuickTx unit tests for id-bound codec resolution, `copy` and `readLiteral`.
   - Yaci DevKit IT: CIP-113 register → mint → transfer as a 3-step flow in **SEQUENTIAL** mode.
-  - Full `:quicktx:test` and `:txflow:test` pass on Java 17.
+  - The I2 golden test passes, and the full `:quicktx:test` and `:txflow:test` suites pass on Java 17.
 
 ### M1b. CIP-113 C1 conformance (programmable-token, separate PR)
 
 - **Entry gate:** M1 merged.
 - **Scope:** read registry nodes and the coordination UTxO through the build's `UtxoSupplier`.
-- **Exit:** the M1 IT also passes in **PIPELINED** mode, and a unit test shows a pending registry node is visible.
+- **Exit:** the M1 IT also passes in **PIPELINED** mode, with `fundsFrom` edges from the register step (D9a). A unit test shows that a pending registry node is visible with `fundsFrom(register)` and that the build fails closed (registry node not found) with `needs(register)` only.
 
 ### M2. Portable YAML
 
-- **Entry gate:** M1 merged; OQ1 and OQ2 decided.
-- **Scope:** D6, D7, D8; the schema update; `PortableFlowValidator` cleanup.
+- **Entry gate:** M1 merged.
+- **Scope:** D6 compilation of templates (strict core plus `readLiteral` for extension intents), D7, D8; retire `TXFLOW_EXTENSION_TEMPLATE_UNSUPPORTED`.
 - **Exit:**
-  - Tests for I7 and I8.
-  - Conformance fixtures: valid extension flows; an unknown field; a non-round-tripping field; a binding conflict; an unregistered extension; a `flow_output` inside an extension intent.
+  - Tests for I7, I8 (portable steps) and I11 (a binding value containing `${other}`).
+  - Conformance fixtures:
+    - a valid extension flow;
+    - an unknown field;
+    - a non-round-tripping field;
+    - a binding conflict;
+    - an unregistered extension;
+    - a `flow_output` inside an extension intent;
+    - a core-only flow with a binding, and a used-plus-unused binding map (I13), each with round-trip and fingerprint assertions.
   - The I2 golden test still passes.
   - DevKit IT that runs the M1 flow from YAML.
 
@@ -328,7 +398,9 @@ Each milestone is one PR.
   - a namespaced type in `inputs`/`scripts`;
   - conflicting bindings;
   - a `flow_output` inside an extension intent;
-  - a duplicate registration with different instances.
+  - a duplicate registration with different instances;
+  - an unused binding, registered and unregistered (I13);
+  - a pending protocol output read without a `funding_from` edge (fails closed, I10).
 
   Each must fail before submission, with its stable code.
 - **Golden values** for I2 are produced from `dfd8540d` **before** any change, not from the code under test.
@@ -350,6 +422,7 @@ Each milestone is one PR.
 
 **Negative and risks**
 - **R1.** TxFlow's correctness under PIPELINED depends on each extension meeting C1. A non-conforming extension fails with "insufficient" or "not found" errors from the extension, not with a TxFlow diagnostic. Mitigation: documentation, plus a reusable conformance test kit (follow-up).
+- **R5.** Flow authors must declare `funding_from` to let a pipelined extension step see protocol outputs created by an earlier step (D9a). Forgetting it fails closed with an extension error, not a TxFlow diagnostic. Mitigation: document the edge in the extension's TxFlow guide.
 - **R2.** The round-trip guard (D7) may reject an extension that normalizes its input, for example an extension that writes a canonical form different from the authored one. That is intended (ADR 0002 Decision 6), but it constrains extension authors.
 - **R3.** Inputs an extension selects (for example a shared CIP-113 registry node) can contend across concurrent executions without lease protection. Ledger validation still catches a double spend, but the losing execution fails rather than waiting.
 - **R4.** The experimental QuickTx SPI may change. TxFlow's extension surface is experimental too, so it can follow.
@@ -360,12 +433,12 @@ Each milestone is one PR.
   - (a) `spec.extensions`: the same name and shape as TxPlan's block.
   - (b) `spec.quicktx_extensions`.
 
-  **Lean: (a).** It is the documented map that sentence anticipated, and authors already know it from TxPlan.
+  **Lean: (a).** It is the documented map that sentence anticipated, and authors already know it from TxPlan. **M1 entry gate (r2):** accepting this ADR without an objection adopts the lean.
 - **OQ2. Schema versioning.**
   - (a) An additive field in v1alpha1.
   - (b) A new `v1alpha2`.
 
-  **Lean: (a).** The version is alpha, the change is additive, and older readers fail closed (§7).
+  **Lean: (a).** The version is alpha, the change is additive, and older readers fail closed (§7). **M1 entry gate (r2):** accepting this ADR without an objection adopts the lean.
 - **OQ3. `withTxContext` factory steps.** If the engine pre-registers extensions on factory builders, a factory that registers its own instance with the same id would now throw "Extension already registered" (`QuickTxBuilder.java:106-108`).
   - (a) Apply the registrations to TxPlan steps only, so factories behave as today.
   - (b) Apply them everywhere and document the change.
