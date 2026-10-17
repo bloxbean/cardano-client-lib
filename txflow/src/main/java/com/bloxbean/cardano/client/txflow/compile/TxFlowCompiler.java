@@ -56,6 +56,8 @@ public final class TxFlowCompiler {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final QuickTxTemplateMaterializer QUICK_TX_MATERIALIZER =
             new QuickTxTemplateMaterializer();
+    private static final ExtensionTemplateMaterializer EXTENSION_MATERIALIZER =
+            new ExtensionTemplateMaterializer(QUICK_TX_MATERIALIZER);
 
     private final FlowExtensions extensions;
     private final TxFlowCodec codec;
@@ -144,8 +146,10 @@ public final class TxFlowCompiler {
                             spendingResources, stepPath + ".transaction");
                     if (hasErrors(diagnostics)) continue;
                     try {
-                        target.withTxPlan(QUICK_TX_MATERIALIZER.materialize(
-                                bound, stepPath + ".transaction"));
+                        target.withTxPlan(ExtensionTemplateMaterializer.usesExtensions(bound)
+                                ? EXTENSION_MATERIALIZER.materialize(bound, definition.getExtensions(),
+                                        extensions, stepPath + ".transaction")
+                                : QUICK_TX_MATERIALIZER.materialize(bound, stepPath + ".transaction"));
                     } catch (QuickTxTemplateMaterializer.MaterializationException failure) {
                         diagnostics.add(FlowDiagnostic.error(failure.code(),
                                 failure.getMessage(), failure.documentPath()));

@@ -250,7 +250,16 @@ public final class TxFlowCodec {
                 .withNetwork(document.spec.network)
                 .withExecutionSettings(parseExecution(document.spec.execution));
         if (document.spec.extensions != null) {
+            Map<String, String> namespaceById = new LinkedHashMap<>();
             document.spec.extensions.forEach((namespace, metadata) -> {
+                String other = metadata == null ? null
+                        : namespaceById.putIfAbsent(metadata.getExtension(), namespace);
+                if (other != null) {
+                    diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_BINDING_CONFLICT",
+                            "Extension '" + metadata.getExtension() + "' is bound to namespaces '"
+                                    + other + "' and '" + namespace + "'", "$.spec.extensions." + namespace));
+                    return;
+                }
                 try {
                     flow.withExtension(namespace, metadata);
                 } catch (IllegalArgumentException invalid) {

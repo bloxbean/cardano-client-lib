@@ -91,9 +91,9 @@ class ExtensionCodecAndRuntimeTest {
                 .hasMessageContaining("TXFLOW_EXTENSION_BINDING_CONFLICT");
     }
 
-    /** Until M2, a parsed template that uses an extension intent is rejected with a stable code. */
+    /** The portable form and the Java model compile to the same fingerprint (D6a, M2). */
     @Test
-    void writtenExtensionFlowsParseButTemplatesWaitForM2() {
+    void aWrittenExtensionFlowParsesAndCompilesToTheJavaFingerprint() {
         String yaml = TxFlowCodec.withExtensions(List.of(extension)).write(flow(), YAML);
         FlowParseResult parsed = TxFlowCodec.standard().parse(yaml, FlowParseOptions.serverDefaults());
 
@@ -101,10 +101,11 @@ class ExtensionCodecAndRuntimeTest {
         TxFlow flow = parsed.requireFlow();
         assertThat(flow.getExtensions()).containsOnlyKeys("fk");
         assertThat(flow.getExtensions().get("fk")).isEqualTo(extension.metadata());
-        assertThat(new TxFlowCompiler(List.of(extension))
-                .compile(FlowCompilationRequest.of(flow, FlowBindings.empty())).getDiagnostics())
-                .extracting(FlowDiagnostic::code)
-                .containsExactly("TXFLOW_EXTENSION_TEMPLATE_UNSUPPORTED");
+        TxFlowCompiler compiler = new TxFlowCompiler(List.of(extension));
+        assertThat(compiler.compile(FlowCompilationRequest.of(flow, FlowBindings.empty()))
+                .requireCompiledFlow().getFingerprint())
+                .isEqualTo(compiler.compile(FlowCompilationRequest.of(flow(), FlowBindings.empty()))
+                        .requireCompiledFlow().getFingerprint());
     }
 
     /** I13 at parse time, plus binding shape and unknown-field checks. */

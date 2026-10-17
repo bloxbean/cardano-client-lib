@@ -163,10 +163,8 @@ public final class FlowExtensions {
         for (int index = 0; index < flow.getSteps().size(); index++) {
             FlowStep step = flow.getSteps().get(index);
             String path = stepPath(index) + ".transaction";
-            if (step.hasTransactionTemplate() && !templateNamespaces(step).isEmpty()) {
-                diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_TEMPLATE_UNSUPPORTED",
-                        "Portable transaction templates cannot use QuickTx extension intents yet; "
-                                + "use a Java TxPlan step", path));
+            if (step.hasTransactionTemplate()) {
+                checkTemplateIntents(flow, step, path, diagnostics);
             }
             if (step.hasTxPlan() && step.getTxPlan().hasExtensions()) {
                 checkIntents(step.getTxPlan(), path, diagnostics);
@@ -241,6 +239,59 @@ public final class FlowExtensions {
         }
     }
 
+    /**
+     * Checks what a portable template can be checked for before binding: each
+     * {@code <namespace>:<operation>} intent sits in {@code tx.intents}, names a declared
+     * namespace and a known operation, and holds no {@code flow_output} pointer (ADR 0008 D6, D8).
+     * Decoding and the round-trip guard run in the compiler on the bound tree.
+     */
+    private void checkTemplateIntents(TxFlow flow, FlowStep step, String path,
+                                      List<FlowDiagnostic> diagnostics) {
+        JsonNode tx = step.getTransactionTemplate().toJsonNode().path("tx");
+        for (String array : List.of("inputs", "scripts")) {
+            JsonNode entries = tx.path(array);
+            for (int i = 0; i < entries.size(); i++) {
+                if (isNamespaced(entries.get(i))) {
+                    diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_INTENT_INVALID",
+                            "Extension intents are allowed only in tx.intents",
+                            path + ".tx." + array + "[" + i + "]"));
+                }
+            }
+        }
+        JsonNode intents = tx.path("intents");
+        for (int i = 0; i < intents.size(); i++) {
+            JsonNode intent = intents.get(i);
+            if (!isNamespaced(intent)) continue;
+            String intentPath = path + ".tx.intents[" + i + "]";
+            String type = intent.path("type").asText();
+            String namespace = type.substring(0, type.indexOf(':'));
+            String operation = type.substring(type.indexOf(':') + 1);
+            ExtensionMetadata metadata = flow.getExtensions().get(namespace);
+            if (metadata == null) {
+                diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_INTENT_INVALID",
+                        "Intent " + type + " uses undeclared extension namespace '" + namespace
+                                + "'; declare it in spec.extensions", intentPath));
+                continue;
+            }
+            if (!intent.findValues("flow_output").isEmpty()) {
+                diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED",
+                        "flow_output references are not supported inside extension intents",
+                        intentPath));
+            }
+            QuickTxExtension extension = extensions.get(metadata.getExtension());
+            if (extension != null && (!extension.operations().contains(operation)
+                    || !extension.intentTypes().containsKey(operation))) {
+                diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_INTENT_INVALID",
+                        "Extension " + extension.id() + " has no operation '" + operation + "'",
+                        intentPath));
+            }
+        }
+    }
+
+    private static boolean isNamespaced(JsonNode intent) {
+        return intent.path("type").asText("").indexOf(':') > 0;
+    }
+
     /** Flow-level bindings first, then each plan's, reporting namespace and id conflicts. */
     private static Map<String, Binding> mergeBindings(TxFlow flow, List<FlowDiagnostic> diagnostics) {
         Map<String, Binding> merged = new LinkedHashMap<>();
@@ -310,15 +361,13 @@ public final class FlowExtensions {
                 .findFirst().orElse(null);
     }
 
-    /** Namespaces of {@code <namespace>:<operation>} intent types in a portable template. */
-    private static Set<String> templateNamespaces(FlowStep step) {
+    /** Namespaces of {@code <namespace>:<operation>} intents in a portable template's tx.intents. */
+    public static Set<String> templateNamespaces(FlowStep step) {
         Set<String> namespaces = new LinkedHashSet<>();
-        JsonNode tx = step.getTransactionTemplate().toJsonNode().path("tx");
-        for (String array : List.of("intents", "inputs", "scripts")) {
-            for (JsonNode intent : tx.path(array)) {
-                String type = intent.path("type").asText("");
-                int separator = type.indexOf(':');
-                if (separator > 0) namespaces.add(type.substring(0, separator));
+        for (JsonNode intent : step.getTransactionTemplate().toJsonNode().path("tx").path("intents")) {
+            if (isNamespaced(intent)) {
+                String type = intent.path("type").asText();
+                namespaces.add(type.substring(0, type.indexOf(':')));
             }
         }
         return namespaces;

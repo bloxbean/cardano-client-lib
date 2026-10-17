@@ -147,6 +147,7 @@
     "TXFLOW_EXTENSION_INTENT_INVALID": "A QuickTx extension intent has no binding, an unknown operation, the wrong type, or fails validation.",
     "TXFLOW_EXTENSION_BINDING_CONFLICT": "Extension bindings disagree: one namespace with different metadata, or one extension under two namespaces.",
     "TXFLOW_EXTENSION_BINDING_UNUSED": "An extension binding is declared but no extension intent uses it.",
-    "TXFLOW_EXTENSION_TEMPLATE_UNSUPPORTED": "Portable transaction templates cannot use QuickTx extension intents yet; use a Java TxPlan step."
+    "TXFLOW_EXTENSION_INTENT_LOSSY": "An extension intent does not round-trip through its extension codec, so compiling it would change what was authored.",
+    "TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED": "flow_output references are not supported inside extension intents."
   }
 }

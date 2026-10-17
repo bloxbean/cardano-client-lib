@@ -1,0 +1,92 @@
+# CIP-113 register -> mint -> transfer as one portable TxFlow (ADR 0008 M2).
+# The intents are the same as the TxPlan resources under txplan/cip113, written with TxFlow
+# parameters instead of TxPlan variables. The deployment binding omits bootstrap_tx, which
+# binds it to the deployment the operator registered the extension with.
+api_version: txflow.cardano-client.dev/v1alpha1
+kind: TxFlow
+metadata:
+  name: cip113-lifecycle
+spec:
+  parameters:
+    owner_address: {type: address, required: true}
+    logic_script_hash: {type: string, required: true}
+    policy_id: {type: string, required: true}
+    token_unit: {type: string, required: true}
+  execution:
+    mode: SEQUENTIAL
+    confirmation: {min_confirmations: 1, check_interval: 1s, timeout: 2m}
+  extensions:
+    pt:
+      extension: programmable-token
+      schema_version: "1"
+      protocol: cip-113
+      contract_version: 0.5.0-alpha.2
+      deployment: {network: 0}
+  steps:
+    - id: register
+      transaction:
+        tx:
+          from: '${{ inputs.owner_address }}'
+          intents:
+            - type: pt:register
+              name: yaml-policy
+              registration:
+                minting_logic_script: {type: Script, hash: '${{ inputs.logic_script_hash }}'}
+                transfer_logic_script: {type: Script, hash: '${{ inputs.logic_script_hash }}'}
+                third_party_transfer_logic_script: {type: Script, hash: '${{ inputs.logic_script_hash }}'}
+                unfracking_logic_script: {type: Key, hash: ''}
+              registration_redeemer:
+                constructor: 0
+                fields: [{int: 1}, {int: 42}]
+            - type: pt:mint
+              policy_ref: yaml-policy
+              receiver: '${{ inputs.owner_address }}'
+              assets:
+                - {name: 5478506c616e546f6b656e, quantity: 50}
+              issuance_redeemer:
+                constructor: 0
+                fields: [{int: 1}, {int: 42}]
+              inline_datum:
+                constructor: 0
+                fields: [{int: 1}, {int: 113}]
+        context:
+          fee_payer: '${{ inputs.owner_address }}'
+          signers: [{ref: 'account://owner', scope: payment}]
+    - id: mint
+      needs: [register]
+      transaction:
+        tx:
+          from: '${{ inputs.owner_address }}'
+          intents:
+            - type: pt:mint
+              policy_id: '${{ inputs.policy_id }}'
+              receiver: '${{ inputs.owner_address }}'
+              assets:
+                - {name: 5478506c616e546f6b656e, quantity: 100}
+              issuance_redeemer:
+                constructor: 0
+                fields: [{int: 1}, {int: 42}]
+              inline_datum:
+                constructor: 0
+                fields: [{int: 1}, {int: 113}]
+        context:
+          fee_payer: '${{ inputs.owner_address }}'
+          signers: [{ref: 'account://owner', scope: payment}]
+    - id: transfer
+      needs: [mint]
+      transaction:
+        tx:
+          from: '${{ inputs.owner_address }}'
+          intents:
+            - type: pt:transfer
+              receiver: '${{ inputs.owner_address }}'
+              unit: '${{ inputs.token_unit }}'
+              quantity: 1
+              # Structured, as the extension writes it back: an extension intent must round-trip
+              # unchanged (TXFLOW_EXTENSION_INTENT_LOSSY). Hex input is decoded and re-encoded.
+              transfer_redeemer:
+                constructor: 0
+                fields: [{int: 1}, {int: 42}]
+        context:
+          fee_payer: '${{ inputs.owner_address }}'
+          signers: [{ref: 'account://owner', scope: payment}]

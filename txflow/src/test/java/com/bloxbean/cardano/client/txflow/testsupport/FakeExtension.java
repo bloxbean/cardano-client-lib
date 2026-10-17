@@ -85,7 +85,7 @@ public final class FakeExtension implements QuickTxExtension {
                         if (intent.getScanAddress() != null) {
                             seen = context.getUtxoSupplier().getAll(intent.getScanAddress());
                             scans.add(List.copyOf(seen));
-                            if (intent.isRequireScanHit() && seen.isEmpty())
+                            if (Boolean.TRUE.equals(intent.getRequireScanHit()) && seen.isEmpty())
                                 throw new IllegalStateException("fake protocol state not found at "
                                         + intent.getScanAddress());
                         }
@@ -127,7 +127,7 @@ public final class FakeExtension implements QuickTxExtension {
         private long lovelace;
         private String note;
         private String scanAddress;
-        private boolean requireScanHit;
+        private Boolean requireScanHit;
         private String lookup;
 
         @Override public String getExtensionId() { return ID; }
@@ -151,11 +151,11 @@ public final class FakeExtension implements QuickTxExtension {
         @JsonProperty("scan_address") public void setScanAddress(String scanAddress) { this.scanAddress = scanAddress; }
         public PayIntent scan(String address, boolean requireHit) {
             this.scanAddress = address;
-            this.requireScanHit = address != null && requireHit;
+            this.requireScanHit = address != null && requireHit ? Boolean.TRUE : null;
             return this;
         }
-        @JsonProperty("require_scan_hit") public boolean isRequireScanHit() { return requireScanHit; }
-        @JsonProperty("require_scan_hit") public void setRequireScanHit(boolean value) { this.requireScanHit = value; }
+        @JsonProperty("require_scan_hit") public Boolean getRequireScanHit() { return requireScanHit; }
+        @JsonProperty("require_scan_hit") public void setRequireScanHit(Boolean value) { this.requireScanHit = value; }
         public String getLookup() { return lookup; }
         public void setLookup(String lookup) { this.lookup = lookup; }
         public PayIntent lookup(String txHash, int index) { this.lookup = txHash + "#" + index; return this; }

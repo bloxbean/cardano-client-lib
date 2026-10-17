@@ -22,12 +22,15 @@ import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.codec.FlowParseOptions;
+import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionRequest;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
+import com.bloxbean.cardano.client.txflow.model.FlowBindings;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -107,6 +110,40 @@ class Cip113TxFlowEndToEndIT {
             assertThat(step.getTransactionHash()).isNull();
         });
         log.info("needs-only mint failed as expected: {}", result.error());
+    }
+
+    /** The same lifecycle authored as a portable TxFlow document with parameters (ADR 0008 M2). */
+    @Test
+    void runsTheLifecycleFromAPortableTxFlowDocument() throws Exception {
+        Lifecycle lifecycle = deploy();
+        TxFlow flow = TxFlowCodec.standard().parse(loadResource("/txflow/cip113-lifecycle.yaml"),
+                FlowParseOptions.serverDefaults()).requireFlow();
+        FlowBindings bindings = FlowBindings.builder()
+                .put("owner_address", lifecycle.owner.baseAddress())
+                .put("logic_script_hash", TxPlanSubstandardScripts.scriptHash())
+                .put("policy_id", lifecycle.policyId)
+                .put("token_unit", lifecycle.unit)
+                .build();
+        FlowEngine engine = FlowEngine.builder(lifecycle.backend)
+                .executor(Runnable::run)
+                .account(OWNER_REF, lifecycle.owner)
+                .extension(lifecycle.extension)
+                .build();
+        lifecycle.smartWalletBefore = smartWalletUtxos(lifecycle.protocol, lifecycle.ownerAddress);
+
+        FlowExecutionResult result = engine.start(FlowExecutionRequest.builder(flow).bindings(bindings)
+                .executionId("cip113-portable-" + System.nanoTime()).build()).await();
+
+        assertThat(result.state()).as("flow result: %s", result).isEqualTo(FlowExecutionState.COMPLETED);
+        log.info("CIP-113 portable TxFlow completed with fingerprint {}", result.definitionFingerprint());
+        lifecycle.assertMintedAndTransferred();
+    }
+
+    private static String loadResource(String path) throws Exception {
+        try (java.io.InputStream input = Cip113TxFlowEndToEndIT.class.getResourceAsStream(path)) {
+            if (input == null) throw new IllegalStateException("Missing resource " + path);
+            return new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
     }
 
     private FlowExecutionResult run(Lifecycle lifecycle, ChainingMode mode, boolean fundingEdges) {

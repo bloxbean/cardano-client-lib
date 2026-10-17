@@ -101,5 +101,7 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
   of that token needs `fundsFrom(register)` and `fundsFrom(mint)`. Without the edge the build
   fails with "not registered" rather than using stale state. Pipelined CIP-113 steps also need a
   local script evaluator (`txEvaluator(...)` on the engine), because the backend evaluator cannot
-  see pending inputs. Portable YAML templates with `pt:*` intents, and TxFlowStream items, are not
-  supported yet; TxFlow rejects them before any submission.
+  see pending inputs. Portable TxFlow documents declare the binding in `spec.extensions` and use
+  `pt:*` intents in a step's `tx.intents`. Write Plutus data there in structured form: the
+  extension writes it back structured, and TxFlow rejects an intent that does not round-trip
+  (`TXFLOW_EXTENSION_INTENT_LOSSY`). TxFlowStream items are not supported yet.
