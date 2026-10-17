@@ -104,4 +104,5 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
   see pending inputs. Portable TxFlow documents declare the binding in `spec.extensions` and use
   `pt:*` intents in a step's `tx.intents`. Write Plutus data there in structured form: the
   extension writes it back structured, and TxFlow rejects an intent that does not round-trip
-  (`TXFLOW_EXTENSION_INTENT_LOSSY`). TxFlowStream items are not supported yet.
+  (`TXFLOW_EXTENSION_INTENT_LOSSY`). TxFlowStream items work the same way on an engine that
+  registers the extension; each item is its own transaction.

@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.txflow.exec.ExecutionEventView;
 import com.bloxbean.cardano.client.txflow.exec.FlowEvent;
 import com.bloxbean.cardano.client.txflow.exec.FlowEventType;
@@ -10,6 +11,7 @@ import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,8 +70,17 @@ final class StubEngineGateway implements EngineGateway {
     /** When set, invoked after a start's handle is registered in {@link #handles}. */
     volatile Runnable handleCreatedHook;
 
+    /** QuickTx extensions the scripted engine reports as registered (ADR 0008 M3). */
+    volatile Collection<QuickTxExtension>
+            extensions = List.of();
+
     StubEngineGateway() {
         this(new CopyOnWriteArrayList<>());
+    }
+
+    @Override
+    public Collection<QuickTxExtension> extensions() {
+        return extensions;
     }
 
     StubEngineGateway(List<String> callLog) {

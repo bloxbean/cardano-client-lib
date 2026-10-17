@@ -221,8 +221,9 @@ FlowRuntime runtime = FlowRuntime.builder(backend)
 - Portable documents declare bindings in `spec.extensions` and use intents as
   `<namespace>:<operation>` in a step's `tx.intents` only. Every extension intent must round-trip
   through its extension unchanged (`TXFLOW_EXTENSION_INTENT_LOSSY` otherwise), and `flow_output`
-  references are not supported inside extension intents. TxStream items are not supported yet
-  (ADR 0008 M3).
+  references are not supported inside extension intents.
+- TxStream items may use extensions too: a stream uses the registrations of the engine it runs
+  on, and the batching planner never merges an item that holds an extension intent.
 - Under PIPELINED, an extension that scans an address sees an earlier step's pending outputs only
   when the step declares `fundsFrom(thatStep)`, one edge per producer it reads from; `needs` gives
   ordering only. Exact lookups (`getTxOutput`) of pending outputs are not exposed to extensions.

@@ -31,6 +31,9 @@ import com.bloxbean.cardano.client.txflow.exec.FlowExecutionRequest;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
 import com.bloxbean.cardano.client.txflow.model.FlowBindings;
+import com.bloxbean.cardano.client.txflow.stream.TxFlowStream;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -137,6 +140,34 @@ class Cip113TxFlowEndToEndIT {
         assertThat(result.state()).as("flow result: %s", result).isEqualTo(FlowExecutionState.COMPLETED);
         log.info("CIP-113 portable TxFlow completed with fingerprint {}", result.definitionFingerprint());
         lifecycle.assertMintedAndTransferred();
+    }
+
+    /** The lifecycle as three TxFlowStream items on an engine with the extension (ADR 0008 M3). */
+    @Test
+    void runsTheLifecycleAsTxFlowStreamItems() throws Exception {
+        Lifecycle lifecycle = deploy();
+        FlowEngine engine = FlowEngine.builder(lifecycle.backend)
+                .executor(Runnable::run)
+                .account(OWNER_REF, lifecycle.owner)
+                .extension(lifecycle.extension)
+                .build();
+        lifecycle.smartWalletBefore = smartWalletUtxos(lifecycle.protocol, lifecycle.ownerAddress);
+
+        try (TxFlowStream stream = TxFlowStream.open("cip113-items", engine)) {
+            submitAndConfirm(stream, "register", plan(lifecycle.codec, "01-register-and-initial-mint.yml",
+                    with(lifecycle.common, "logic_script_hash", TxPlanSubstandardScripts.scriptHash())));
+            submitAndConfirm(stream, "mint", plan(lifecycle.codec, "02-mint.yml",
+                    with(lifecycle.common, "policy_id", lifecycle.policyId)));
+            submitAndConfirm(stream, "transfer", plan(lifecycle.codec, "03-transfer.yml",
+                    with(lifecycle.common, "token_unit", lifecycle.unit)));
+        }
+        lifecycle.assertMintedAndTransferred();
+    }
+
+    private static void submitAndConfirm(TxFlowStream stream, String itemId, TxPlan plan) {
+        TxStreamItemResult outcome = stream.submit(itemId, plan).completion().toCompletableFuture().join();
+        assertThat(outcome.getStatus()).as("item %s: %s", itemId, outcome).isEqualTo(TxStreamItemStatus.CONFIRMED);
+        log.info("stream item {} confirmed in {}", itemId, outcome.getTransactionHash());
     }
 
     private static String loadResource(String path) throws Exception {

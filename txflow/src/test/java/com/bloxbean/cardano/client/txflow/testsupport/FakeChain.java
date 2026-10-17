@@ -52,6 +52,8 @@ public final class FakeChain {
     public final DefaultSignerRegistry signers = new DefaultSignerRegistry().addAccount(SIGNER, ACCOUNT);
     public final List<String> submitted = new CopyOnWriteArrayList<>();
     private final Map<String, List<Utxo>> confirmed = new ConcurrentHashMap<>();
+    /** When set, a submitted transaction's outputs are immediately visible by exact lookup. */
+    public volatile boolean confirmOnSubmit;
 
     public FakeChain() {
         confirmed.put(SENDER, List.of(utxo(SENDER, "7e1eecf7439fb5119a6762985a61c9fb3ca8158d9fc38361f0c4746430d5e0c7",
@@ -66,9 +68,11 @@ public final class FakeChain {
         when(utxoSupplier.getTxOutput(anyString(), anyInt())).thenAnswer(invocation -> {
             String hash = invocation.getArgument(0);
             int index = invocation.getArgument(1);
-            return confirmed.values().stream().flatMap(List::stream)
+            Optional<Utxo> found = confirmed.values().stream().flatMap(List::stream)
                     .filter(utxo -> utxo.getTxHash().equals(hash) && utxo.getOutputIndex() == index)
                     .findFirst();
+            return found.isEmpty() && confirmOnSubmit && submitted.contains(hash)
+                    ? Optional.of(utxo(SENDER, hash, index, 1)) : found;
         });
         when(protocolParamsSupplier.getProtocolParams()).thenReturn(ProtocolParams.builder()
                 .minFeeA(44).minFeeB(155381).minUtxo("1000000").coinsPerUtxoSize("4312")

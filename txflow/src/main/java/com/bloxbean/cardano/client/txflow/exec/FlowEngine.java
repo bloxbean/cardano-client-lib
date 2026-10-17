@@ -48,6 +48,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -196,6 +197,17 @@ public final class FlowEngine {
                 new DefaultChainDataSupplier(blockService, transactionService))
                 .backendVisibilityChecks(true)
                 .scriptSupplier(FlowExecutor.backendScriptSupplier(backendService));
+    }
+
+    /**
+     * The QuickTx extensions registered with this engine, in registration order.
+     *
+     * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+     *
+     * @return registered extensions
+     */
+    public Collection<QuickTxExtension> extensions() {
+        return extensions.extensions();
     }
 
     /**
