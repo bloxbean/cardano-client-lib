@@ -2,13 +2,13 @@
 
 **Status**: Proposed
 
-**ADR Document Version**: 1.1.0
+**ADR Document Version**: 1.2.0
 
 **Date**: 2026-10-17
 
 **Last Updated**: 2026-10-18
 
-**Review State**: Revised for review round 2 (r2)
+**Review State**: Revised for review round 3 (r3)
 
 **Target Release**: To be decided
 
@@ -28,6 +28,7 @@ All code references are to `origin/master` at `dfd8540d`.
 
 - **r1** (2026-10-17): Initial proposal.
 - **r2** (2026-10-18; responds to the review of `9037614`): F1 (and the Aster comment) → M1 now includes the extension-aware portability check, the canonical writer, the `spec.extensions` parser field and schema (new D6a); D5, M1 and M2 rescoped; OQ1 and OQ2 become M1 entry gates. F2 → new D4a: TxFlow copies and decodes extension plans literally and never runs TxPlan variable expansion on them; D4, D6 and D8 use it; new I11; the example now uses `${{ inputs.receiver }}`. F3 → new D9a: the visibility contract separates address scans (`funding_from`, legacy `depends_on`) from exact lookups; C1 and I10 narrowed; the example declares `funding_from`; new I12; M1b exit criteria updated. F4 → D6a: every binding must be used by at least one extension intent, otherwise `TXFLOW_EXTENSION_BINDING_UNUSED`; new I13; fixtures added.
+- **r3** (2026-10-18; responds to the review of `7b2ba7e`): F2 completion → D4a now also states that the portable path (FlowEngine, FlowRuntime, the compiler and the canonical writer) keeps rejecting any plan with a non-empty `getVariables()` (`TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES`), extension or core alike. Only the FlowExecutor path accepts retained variables as inert data. I11 is split by path, and the M1 exit criteria include an already-bound plan. F5 → D9a, C1 and §1.3 now limit spent-output filtering and the fail-closed claim to address scans. The exact-lookup gap is recorded as R6 and a follow-up. The "Unsupported" bullet matches the table and I12. §9 separates the missing-`funding_from` case, a runtime build failure, from the fails-before-submission cases.
 
 ## 1. Context
 
@@ -77,7 +78,7 @@ Some paths already work generically and need no change:
 There are three limits, each handled explicitly below:
 
 1. **Registration stays explicit.** Extensions are constructed with operator configuration (a protocol, a deployment, a backend), so TxFlow cannot discover or build them from a document. See D1 and alternative A1.
-2. **Correctness under PIPELINED depends on the extension and on the flow's edges.** The extension must read the chain through the build's `UtxoSupplier` (D9, C1). That supplier exposes another step's pending outputs only along declared edges: `funding_from` for address scans, and legacy `depends_on` or a core `flow_output` for exact lookups (D9a). `needs` gives ordering only. CIP-113 does not meet C1 yet (§13).
+2. **Correctness under PIPELINED depends on the extension and on the flow's edges.** The extension must read the chain through the build's `UtxoSupplier` (D9, C1). That supplier exposes another step's pending outputs only along declared edges: `funding_from` for address scans, and legacy `depends_on` or a core `flow_output` for exact lookups (D9a). `needs` gives ordering only. Only address scans filter outputs spent by earlier steps (R6). CIP-113 does not meet C1 yet (§13).
 3. **Two features need SPI hooks that do not exist yet:** `flow_output` references inside extension-intent fields, and spending-resource identities for inputs an extension chooses at build time. Both are rejected or documented as limits until a real extension needs them (D8, OQ4, OQ5).
 
 ## 2. Goals
@@ -172,6 +173,7 @@ TxPlan TxPlanCodec.readLiteral(String yaml);   // read an already-bound document
 - A literal read runs the same steps as `fromYaml` (binding validation, namespace rewrite, typed decode, intent validation), except that it skips `resolveTree`. It also hands the core reconstruction a document without `variables`, as `fromYaml` already does (`:119-123`).
 - `copy` keeps the source plan's `variables` map on the copy as inert data, so that `getVariables()` is equal on both. It never applies them.
 - **Binding happens once, when the plan is authored.** A Java-built plan holds final values: standalone QuickTx never expands variables in an in-memory plan, and `compose(plan)` does not read `getVariables()`. A plan decoded with `codec.fromYaml(yaml, vars)` was bound by that call. TxFlow runs an extension plan with exactly the values standalone `QuickTxBuilder.compose(plan)` would use.
+- **Retained variables on the portable path (r3).** `PortableFlowValidator` already rejects any step plan with a non-empty `getVariables()` (`TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES`, `PortableFlowValidator.java:78-82`). That check stays as it is and applies to extension plans exactly as to core plans. The portable form has no TxPlan `variables` (ADR 0002, transaction schema rule 2), and dropping them silently would break I4. So FlowEngine, FlowRuntime, the compiler and the canonical writer reject a plan decoded with `codec.fromYaml(yaml, vars)` until the author clears the inert map (`plan.setVariables(Map.of())`, public at `TxPlan.java:63-66`). Because they are inert, clearing them changes no executed value. The FlowExecutor path is not portable and does not run this check, so it accepts the plan and keeps the variables as inert data. Behaviour for extension-free plans is unchanged.
 - **Legacy flow variables** (`TxFlow.addVariable`) are not merged into extension plans. `TxPlanExecutionMaterializer` keeps merging them into core plans as today (`:54-58`), which preserves I2. Extension plans cannot come from the legacy YAML format (§13), so no legacy document depends on that merge.
 - **Portable steps** (M2) are bound by TxFlow's `${{ … }}` binder on the JSON tree (`TxFlowCompiler.java:100-101`), and the bound tree is decoded with `readLiteral`. A bound value that contains `${other}` stays literal.
 - A core field of an extension plan that holds literal `${…}` text, and that the core reconstruction must parse (for example `from` or `change_address`), still fails with the codec's existing "kept literal and this field cannot hold it" error (`TxPlanCodec.java:139-151`). That fails closed and is never reinterpreted. It is the same limit core plans have today.
@@ -183,7 +185,7 @@ TxPlan TxPlanCodec.readLiteral(String yaml);   // read an already-bound document
   1. every declared namespace's `extension` id is registered;
   2. `validateMetadata` accepts the declared metadata;
   3. every `ExtensionIntent` belongs to a declared and registered extension, has the registered concrete type for its operation, and passes `validate()`.
-- `PortableFlowValidator` takes the registered extensions as input (none for `TxFlowCodec.standard()`). It reports an extension step as `TXFLOW_EXTENSION_UNREGISTERED` only when a required extension is missing, and stops emitting `TXFLOW_NON_PORTABLE_EXTENSION` in **M1** (F1). The compiler (`TxFlowCompiler.java:76-81`) and the canonical writer (`TxFlowCodec.java:343`) both call it with the engine's registrations, so neither the portability check nor the fingerprint is bypassed.
+- `PortableFlowValidator` takes the registered extensions as input (none for `TxFlowCodec.standard()`). It reports an extension step as `TXFLOW_EXTENSION_UNREGISTERED` only when a required extension is missing, and stops emitting `TXFLOW_NON_PORTABLE_EXTENSION` in **M1** (F1). The compiler (`TxFlowCompiler.java:76-81`) and the canonical writer (`TxFlowCodec.java:343`) both call it with the engine's registrations, so neither the portability check nor the fingerprint is bypassed. Its other checks are unchanged. In particular, `TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES` still applies to extension plans (D4a, r3).
 - The legacy code `TXFLOW_NON_PORTABLE_EXTENSION` stays in `txflow-diagnostic-codes.json` for compatibility, but is no longer emitted.
 
 New stable diagnostic codes (added to `txflow-diagnostic-codes.json`):
@@ -273,7 +275,7 @@ This makes "round-trip lossless" part of the extension contract (D9, C2). CIP-11
 
 An extension works under TxFlow without TxFlow changes if it meets these conditions. They are added to the `quicktx.extension` package documentation:
 
-- **C1.** Every chain read made while building (`prepare`, `afterBalance`, `verify`) goes through `ExtensionBuildContext.getUtxoSupplier()`. Under TxFlow that is the flow-aware supplier. It hides outputs that earlier flow steps spent, and it exposes pending outputs only as D9a describes. A private backend supplier sees neither, so it can build on state that an earlier pipelined step already spent.
+- **C1.** Every chain read made while building (`prepare`, `afterBalance`, `verify`) goes through `ExtensionBuildContext.getUtxoSupplier()`. Under TxFlow that is the flow-aware supplier. Its **address scans** hide outputs that earlier flow steps spent, and it exposes pending outputs only as D9a describes. Its exact lookups do not filter spent outputs (D9a, R6). A private backend supplier does neither, so its address scans can build on state that an earlier pipelined step already spent.
 - **C2.** Intents are pure data, and a decode-then-encode round trip through `TxPlanCodec` reproduces the authored tree (D7).
 - **C3.** `validateMetadata` and `ExtensionIntent.validate()` are pure: no chain or network I/O. They run during compilation and validation.
 - **C4.** `newBuildExtension` returns a fresh participant for each build. This is already required by `TxBuildExtension`'s Javadoc.
@@ -290,13 +292,13 @@ TxFlow keeps the visibility rules it has today. It adds no extension-specific or
 | Exact lookup (`getTxOutput`) | a legacy `depends_on` on S, or a **core** `flow_output` reference to S in the same plan | `FlowUtxoSupplier.java:95-104`, `:201-235` |
 | Either | `needs: [S]` alone gives **no** visibility; it is ordering only | `FlowExecutor.java:2406-2410` |
 
-In all cases, outputs spent by earlier flow steps are filtered out (`filterOutSpentUtxos`).
+**Address scans** filter out outputs spent by earlier flow steps (`filterOutSpentUtxos`, `FlowUtxoSupplier.java:75-123`). **Exact lookups do not.** `getTxOutput` returns a backend hit as is, and its pending fallback does not filter either (`:95-104`, `:201-235`). In the pipelined window, an exact lookup of a confirmed output that an earlier step has already spent still returns it (R6).
 
 Consequences for extensions:
 
 - **Supported pattern.** An extension finds protocol state by an **address scan** (for example the CIP-113 registry scan, `RegistryLookup.Scanning`). A step that must see protocol outputs created by an earlier pipelined step S declares `funding_from: [S]`. That is the existing meaning of `funding_from`: the step may select and consume S's outputs at the addresses it scans. An extension that consumes a protocol output S created therefore falls within the authority the author already granted.
-- **Without the edge, it fails closed.** If S spent a confirmed protocol output and replaced it, the old output is filtered as spent, and the new one is not visible. The extension reports "not found" instead of building on stale state. Under SEQUENTIAL mode, S is confirmed before the next step builds, so no edge is needed.
-- **Unsupported.** An extension cannot use an exact lookup to read a *pending* output, because extension-owned `flow_output` pointers are rejected (D8, OQ4). Exact lookups of confirmed outputs, such as the CIP-113 deployment or bootstrap references, work as today.
+- **Without the edge, an address scan fails closed.** If S spent a confirmed protocol output and replaced it, the scan filters out the old output as spent and does not see the new one. The extension reports "not found" instead of building on stale state. Under SEQUENTIAL mode, S is confirmed before the next step builds, so no edge is needed.
+- **Exact lookups.** A pending output of S can be read exactly only if the step declares a legacy dependency on S or holds a **core** `flow_output` reference to S (table above, I12). An extension intent cannot declare its own exact-reference edge, because extension-owned `flow_output` pointers are rejected (D8, OQ4). Exact lookups of confirmed outputs, such as the CIP-113 deployment or bootstrap references, work as today. They are **not** spent-filtered, so an extension must not rely on an exact lookup to decide whether protocol state is still live (R6). Protocol state that flow steps may spend should be read by address scan.
 - **Extension-free flows are unaffected.** Nothing in D9a changes how the supplier is constructed.
 
 ### D10. TxFlowStream
@@ -323,7 +325,10 @@ Each invariant names the decisions it constrains and must have at least one test
 - **I8. Fingerprint covers extensions** (D6, D6a). Changing any `spec.extensions` field (including a nested `deployment` value), or any field of an extension intent, changes the compiled fingerprint. Reordering `deployment` map keys does not. This holds for Java steps (bindings hoisted from plans) in M1 and for portable steps in M2.
 - **I9. No batching of extension items** (D10). A planner never merges an item that holds an `ExtensionIntent`.
 - **I10. Pipelined visibility under C1** (D9, D9a). An extension that reads through `ExtensionBuildContext.getUtxoSupplier()` finds, by address scan, a pending output of an earlier PIPELINED step S at the scanned address **if and only if** the step declares `funding_from: [S]` or a legacy dependency on S. With `needs: [S]` alone it does not find it.
-- **I11. No reinterpretation** (D4a). A literal `${other}` value in an extension intent survives every TxFlow copy, snapshot, retry and compilation unchanged: with a plan variable `other` present, without one, and when it arrives as a portable binding value. Legacy flow variables never reach an extension plan.
+- **I11. No reinterpretation** (D4a). A literal `${other}` value in an extension intent is never re-expanded:
+  - **FlowExecutor path:** it survives every copy, snapshot and retry unchanged, with a plan variable `other` present and without one.
+  - **Portable path (FlowEngine, FlowRuntime, compiler, writer):** an already-bound plan that still has `variables` is rejected with `TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES` before submission. Once its variables are cleared, the same plan compiles and runs with the literal value unchanged. A portable binding value containing `${other}` stays literal (M2).
+  - Legacy flow variables never reach an extension plan.
 - **I12. Exact pending lookups stay scoped** (D9a). An extension's `getTxOutput` on a pending output of S returns empty unless the step declares a legacy dependency on S or holds a core `flow_output` reference to S. D9a widens nothing.
 - **I13. No unused bindings** (D6a). A flow whose merged bindings include a namespace that no extension intent uses is rejected with `TXFLOW_EXTENSION_BINDING_UNUSED` at parse, compile and write, whether or not that binding is registered or valid.
 
@@ -350,7 +355,7 @@ Each milestone is one PR.
 - **Exit:**
   - Unit tests for I1–I6, I8 (Java steps), I10–I13, written against a **test-only fake extension** in `txflow` test sources. It is a trivial `QuickTxExtension` with one intent that scans an address through the context supplier and adds a payment via `addPreparedIntent`. This proves the design is generic without CIP-113. They cover:
     - **I10:** pending visible with `fundsFrom(S)`, absent with `needs(S)` only.
-    - **I11:** literal `${other}` with and without a variable `other`, across a retry.
+    - **I11:** literal `${other}` with and without a variable `other`, across a retry, on the FlowExecutor path. On FlowEngine, an **already-bound** plan (`codec.fromYaml(yaml, vars)`) with retained variables is rejected with `TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES` and not with any extension code; after `setVariables(Map.of())` it compiles, and the literal survives.
     - **I13:** a core-only flow with a binding, and a used-plus-unused pair.
   - A `FlowEngine` and `FlowRuntime` test that compiles, fingerprints and runs a Java extension flow (F1).
   - QuickTx unit tests for id-bound codec resolution, `copy` and `readLiteral`.
@@ -400,9 +405,10 @@ Each milestone is one PR.
   - a `flow_output` inside an extension intent;
   - a duplicate registration with different instances;
   - an unused binding, registered and unregistered (I13);
-  - a pending protocol output read without a `funding_from` edge (fails closed, I10).
+  - an already-bound plan with retained variables on FlowEngine (I11).
 
   Each must fail before submission, with its stable code.
+- **Runtime negative case (not a pre-submission diagnostic):** a pipelined extension step that reads a pending protocol output without a `funding_from` edge (I10, R5). The build fails with the extension's own error, such as "registry node not found", when that step builds. The producer step may already have been submitted. The test asserts that this step builds nothing, not that it gets a stable TxFlow code.
 - **Golden values** for I2 are produced from `dfd8540d` **before** any change, not from the code under test.
 
 ## 10. Alternatives Considered
@@ -423,6 +429,7 @@ Each milestone is one PR.
 **Negative and risks**
 - **R1.** TxFlow's correctness under PIPELINED depends on each extension meeting C1. A non-conforming extension fails with "insufficient" or "not found" errors from the extension, not with a TxFlow diagnostic. Mitigation: documentation, plus a reusable conformance test kit (follow-up).
 - **R5.** Flow authors must declare `funding_from` to let a pipelined extension step see protocol outputs created by an earlier step (D9a). Forgetting it fails closed with an extension error, not a TxFlow diagnostic. Mitigation: document the edge in the extension's TxFlow guide.
+- **R6.** `FlowUtxoSupplier.getTxOutput` does not filter outputs spent by earlier flow steps (`FlowUtxoSupplier.java:95-104`). This is existing behaviour and affects core lookups too. An extension that reads protocol state by exact lookup in the pipelined window can see an output an earlier step already spent. The ledger then rejects the double spend at submission, so no funds are at risk, but the step fails late. Mitigation: D9a tells extensions to read spendable protocol state by address scan. Follow-up (out of scope): spent-filter exact lookups in `FlowUtxoSupplier`, under its own change and with its own tests, because it changes core behaviour.
 - **R2.** The round-trip guard (D7) may reject an extension that normalizes its input, for example an extension that writes a canonical form different from the authored one. That is intended (ADR 0002 Decision 6), but it constrains extension authors.
 - **R3.** Inputs an extension selects (for example a shared CIP-113 registry node) can contend across concurrent executions without lease protection. Ledger validation still catches a double spend, but the losing execution fails rather than waiting.
 - **R4.** The experimental QuickTx SPI may change. TxFlow's extension surface is experimental too, so it can follow.
@@ -451,6 +458,7 @@ Each milestone is one PR.
 
 ## 13. Related Findings (Out of Scope)
 
+- `FlowUtxoSupplier.getTxOutput` does not filter spent outputs (R6). Follow-up issue to be filed; not changed here.
 - CIP-113 reads registry nodes outside the build supplier (`DefaultCip113ProtocolService.java:79`, `:99-100`; `Cip113BuildExtension.java:98`). This is tracked as M1b and in issue #700.
 - The legacy `FlowDocument` YAML path copies plans through core YAML (`yaml/FlowDocument.java:428`, `:748`). It will keep rejecting extension plans, now with `TXFLOW_EXTENSION_UNREGISTERED` instead of a Jackson error.
 - `TxFlow.fromYaml()` parses with `TxFlowCodec.standard()` (`TxFlow.java:277`), and `TxFlow.toYaml()` writes through the legacy `FlowDocument` (`TxFlow.java:265-266`). Both stay extension-free. Callers who need extensions use `TxFlowCodec.withExtensions(...)`.
