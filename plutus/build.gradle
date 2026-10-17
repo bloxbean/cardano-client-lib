@@ -1,6 +1,9 @@
 dependencies {
     api project(':common')
     api project(':common-spec')
+    testImplementation(project(':test-support')) {
+        exclude group: 'net.jqwik'
+    }
 }
 
 // The real transactions and blocks committed with the transaction-spec tests are also the corpus of the Plutus data

@@ -1,0 +1,49 @@
+{
+  "comment": "Test fixture for ReachabilityMetadataGuardTest.",
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.test.graalvm.fixture.FixtureChild",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getHidden",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPart",
+          "parameterTypes": []
+        },
+        {
+          "name": "setPart",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.test.graalvm.fixture.FixturePart"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.test.graalvm.fixture.FixtureParent",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getName",
+          "parameterTypes": []
+        },
+        {
+          "name": "setName",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    }
+  ]
+}

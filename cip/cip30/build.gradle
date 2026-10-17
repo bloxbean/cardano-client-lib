@@ -2,6 +2,9 @@ dependencies {
     api project(':cip:cip8')
     api project(':core')
     api(libs.co.nstant.in.cbor)
+    testImplementation(project(':test-support')) {
+        exclude group: 'net.jqwik'
+    }
 }
 
 publishing {

@@ -18,6 +18,9 @@ dependencies {
     integrationTestImplementation project(':backend-modules:ogmios')
 
     integrationTestAnnotationProcessor project(':annotation-processor')
+    testImplementation(project(':test-support')) {
+        exclude group: 'net.jqwik'
+    }
 }
 
 publishing {
