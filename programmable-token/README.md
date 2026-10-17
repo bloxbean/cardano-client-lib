@@ -92,9 +92,10 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
   once whatever order the operations are written in.
 - Programmable outputs hold one policy each; inline datums are bounded by the deployment's
   `max_inline_datum_bytes`.
-- TxFlow and TxFlowStream do not support `TxPlan` steps or items that use programmable-token
-  intents or declared extensions yet, in Java or YAML: they copy each plan through plain `TxPlan`
-  YAML. Flow validation (`TxFlow.validate()`, the TxFlow compiler and stream submission) refuses
-  them before any step is submitted. Run these transactions with `QuickTxBuilder` directly. A
-  legacy Java `withTxContext(...)` factory step builds through the `QuickTxBuilder` it is given and
-  is not inspected by this check.
+- TxFlow runs Java `TxPlan` steps that use programmable-token intents when the extension is
+  registered on the runtime (`FlowRuntime.builder(...).extension(ext)`,
+  `FlowEngine.builder(...).extension(ext)` or `FlowExecutor.withExtension(ext)`). Bind it on each
+  plan with `ext.configure(plan)`. A step that uses a token registered by an earlier step of the
+  same flow needs that registration confirmed first, so run such flows in SEQUENTIAL mode: the
+  registry is still read from confirmed chain state. Portable YAML templates with `pt:*` intents,
+  and TxFlowStream items, are not supported yet; TxFlow rejects them before any submission.

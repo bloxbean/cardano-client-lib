@@ -195,7 +195,8 @@ class TxFlowCompilerTest {
         TxFlow extensionPlan = oneStep("extension-plan", FlowStep.builder("one")
                 .withTxPlan(TxPlan.from(new Tx()).withExtension("ex", ExtensionMetadata.builder()
                         .extension("example").schemaVersion("1").build())).build());
-        assertPortableDiagnostic(extensionPlan, "TXFLOW_NON_PORTABLE_EXTENSION",
+        // ADR 0008 I13: a binding no extension intent uses is rejected before registration checks.
+        assertPortableDiagnostic(extensionPlan, "TXFLOW_EXTENSION_BINDING_UNUSED",
                 "$.spec.steps[0].transaction");
     }
 

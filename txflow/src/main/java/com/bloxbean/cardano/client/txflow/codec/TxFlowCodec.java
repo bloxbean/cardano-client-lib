@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow.codec;
 
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument;
 import com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer;
 import com.bloxbean.cardano.client.txflow.FlowStep;
@@ -9,6 +11,7 @@ import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import com.bloxbean.cardano.client.txflow.model.ParameterSpec;
 import com.bloxbean.cardano.client.txflow.model.ParameterType;
 import com.bloxbean.cardano.client.txflow.model.TransactionTemplate;
@@ -42,6 +45,7 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -70,16 +74,43 @@ public final class TxFlowCodec {
             .build())
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-    private TxFlowCodec() {
+    private final FlowExtensions extensions;
+
+    private TxFlowCodec(FlowExtensions extensions) {
+        this.extensions = extensions;
     }
 
     /**
-     * Creates the standard stateless codec.
+     * Creates the standard stateless codec. It knows no QuickTx extension, so it reports a step
+     * that uses one as unregistered instead of writing it.
      *
      * @return reusable codec instance
      */
     public static TxFlowCodec standard() {
-        return new TxFlowCodec();
+        return new TxFlowCodec(FlowExtensions.NONE);
+    }
+
+    /**
+     * Creates a codec that writes steps using the given QuickTx extensions: their bindings in
+     * {@code spec.extensions} and their intents as {@code <namespace>:<operation>}.
+     *
+     * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+     *
+     * @param extensions extensions registered by the operator
+     * @return reusable codec instance
+     */
+    public static TxFlowCodec withExtensions(Collection<? extends QuickTxExtension> extensions) {
+        return new TxFlowCodec(FlowExtensions.of(extensions));
+    }
+
+    /**
+     * Codec bound to an already frozen registration set; used by TxFlow components.
+     *
+     * @param extensions registered QuickTx extensions
+     * @return reusable codec instance
+     */
+    public static TxFlowCodec of(FlowExtensions extensions) {
+        return new TxFlowCodec(java.util.Objects.requireNonNull(extensions, "extensions"));
     }
 
     /**
@@ -218,6 +249,16 @@ public final class TxFlowCodec {
                 .withDefinitionVersion(document.metadata.version)
                 .withNetwork(document.spec.network)
                 .withExecutionSettings(parseExecution(document.spec.execution));
+        if (document.spec.extensions != null) {
+            document.spec.extensions.forEach((namespace, metadata) -> {
+                try {
+                    flow.withExtension(namespace, metadata);
+                } catch (IllegalArgumentException invalid) {
+                    diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_METADATA_INVALID",
+                            invalid.getMessage(), "$.spec.extensions." + namespace));
+                }
+            });
+        }
         if (document.metadata.annotations != null) {
             document.metadata.annotations.forEach(flow::addAnnotation);
         }
@@ -261,6 +302,7 @@ public final class TxFlowCodec {
         TxFlow.ValidationResult validation = parsed.validate();
         validation.getErrors().forEach(message -> diagnostics.add(
                 FlowDiagnostic.error("TXFLOW_GRAPH_INVALID", message, "$.spec.steps")));
+        diagnostics.addAll(FlowExtensions.checkBindings(parsed));
         return new FlowParseResult(parsed, diagnostics);
     }
 
@@ -310,6 +352,8 @@ public final class TxFlowCodec {
             if (flow.getExecutionSettings().hasAnySetting()) {
                 spec.set("execution", executionNode(flow.getExecutionSettings()));
             }
+            Map<String, ExtensionMetadata> bindings = FlowExtensions.bindings(flow);
+            if (!bindings.isEmpty()) spec.set("extensions", JSON.valueToTree(bindings));
             ArrayNode steps = spec.putArray("steps");
             for (FlowStep step : flow.getSteps()) {
                 ObjectNode stepNode = steps.addObject();
@@ -340,7 +384,7 @@ public final class TxFlowCodec {
     }
 
     private void validatePortableSemantics(TxFlow flow) {
-        List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(flow);
+        List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(flow, extensions);
         if (!diagnostics.isEmpty()) {
             FlowDiagnostic first = diagnostics.get(0);
             throw new FlowEncodingException(first.code() + " at " + first.documentPath()
@@ -353,6 +397,15 @@ public final class TxFlowCodec {
         if (!step.hasTxPlan() || step.getTxPlan().getTxs().size() != 1) {
             throw new FlowEncodingException("Step '" + step.getId()
                     + "' is not an exactly-one-transaction portable step");
+        }
+        if (step.getTxPlan().hasExtensions()) {
+            // The extension codec writes namespaced intents that the core document model cannot
+            // hold; take its tree as is. Bindings are hoisted into spec.extensions by write().
+            JsonNode written = YamlSerializer.getYamlMapper().readTree(extensions.write(step.getTxPlan()));
+            ObjectNode transaction = JSON.createObjectNode();
+            transaction.set("tx", written.path("transaction").path(0).path("tx"));
+            if (written.hasNonNull("context")) transaction.set("context", written.get("context"));
+            return transaction;
         }
         TransactionDocument plan = YamlSerializer.getYamlMapper()
                 .readValue(step.getTxPlan().toYaml(), TransactionDocument.class);
@@ -574,9 +627,27 @@ public final class TxFlowCodec {
         if (spec == null) return;
         validateText(spec, "network", "$.spec.network", diagnostics);
         validateParameters(spec, diagnostics);
+        validateExtensionsShape(spec, diagnostics);
         JsonNode execution = spec.get("execution");
         if (execution != null) validateExecutionShape(execution, diagnostics);
         validateSteps(spec, diagnostics);
+    }
+
+    private void validateExtensionsShape(JsonNode spec, List<FlowDiagnostic> diagnostics) {
+        JsonNode extensionBindings = validateObject(spec, "extensions", "$.spec.extensions", diagnostics);
+        if (extensionBindings == null) return;
+        extensionBindings.fields().forEachRemaining(entry -> {
+            String path = "$.spec.extensions." + entry.getKey();
+            JsonNode binding = validateObject(extensionBindings, entry.getKey(), path, diagnostics);
+            if (binding == null) return;
+            requireField(binding, "extension", path + ".extension", diagnostics);
+            validateText(binding, "extension", path + ".extension", diagnostics);
+            requireField(binding, "schema_version", path + ".schema_version", diagnostics);
+            validateText(binding, "schema_version", path + ".schema_version", diagnostics);
+            validateText(binding, "protocol", path + ".protocol", diagnostics);
+            validateText(binding, "contract_version", path + ".contract_version", diagnostics);
+            validateObject(binding, "deployment", path + ".deployment", diagnostics);
+        });
     }
 
     private void validateParameters(JsonNode spec,
@@ -883,6 +954,8 @@ public final class TxFlowCodec {
         LoaderOptions loader = loaderOptions(options);
         YAMLFactory factory = YAMLFactory.builder().loaderOptions(loader).build();
         factory.enable(YAMLGenerator.Feature.MINIMIZE_QUOTES);
+        // Keep number-like strings (e.g. an extension deployment network "0") strings on re-read.
+        factory.enable(YAMLGenerator.Feature.ALWAYS_QUOTE_NUMBERS_AS_STRINGS);
         factory.disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
         ObjectMapper mapper = new ObjectMapper(factory);
         if (options.getUnknownFieldPolicy() == UnknownFieldPolicy.REJECT) {
@@ -911,7 +984,10 @@ public final class TxFlowCodec {
                 "name", "description", "version", "annotations");
         JsonNode spec = root.path("spec");
         warnUnknown(spec, "$.spec", diagnostics, policy,
-                "network", "parameters", "execution", "steps");
+                "network", "parameters", "execution", "extensions", "steps");
+        spec.path("extensions").fields().forEachRemaining(entry -> warnUnknown(entry.getValue(),
+                "$.spec.extensions." + entry.getKey(), diagnostics, policy,
+                "extension", "schema_version", "protocol", "contract_version", "deployment"));
         spec.path("parameters").fields().forEachRemaining(entry -> warnUnknown(entry.getValue(),
                 "$.spec.parameters." + entry.getKey(), diagnostics, policy,
                 "type", "required", "default", "minimum", "maximum", "max_length", "sensitive"));
@@ -990,6 +1066,7 @@ public final class TxFlowCodec {
     static final class Spec {
         public String network;
         public JsonNode execution;
+        public Map<String, ExtensionMetadata> extensions;
         public Map<String, PortableParameter> parameters = new LinkedHashMap<>();
         public List<PortableStep> steps = new ArrayList<>();
     }

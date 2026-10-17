@@ -5,10 +5,13 @@ import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.txflow.codec.FlowDiagnostic;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * Unit tests for TxFlow.
@@ -78,8 +81,12 @@ class TxFlowTest {
         assertThat(result.getErrors()).isEmpty();
     }
 
+    /**
+     * {@code validate()} has no engine context, so extension requirements are checked where the
+     * registered extensions are known (ADR 0008 D5); without registrations the step is unregistered.
+     */
     @Test
-    void validate_shouldRejectExtensionIntentStepsBeforeAnyStepRuns() {
+    void validate_leavesExtensionRequirementsToTheRegisteredRuntime() {
         Tx extensionTx = new Tx().from("addr1");
         extensionTx.addIntention(new ExampleExtensionIntent());
         TxFlow flow = TxFlow.builder("extension-flow")
@@ -92,24 +99,25 @@ class TxFlowTest {
                         .build())
                 .build();
 
-        TxFlow.ValidationResult result = flow.validate();
-
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getErrors()).singleElement().asString()
-                .contains("Step 'extension'")
-                .contains("extension intents");
+        assertThat(flow.validate().isValid()).isTrue();
+        assertThat(FlowExtensions.NONE.check(flow))
+                .extracting(FlowDiagnostic::code, FlowDiagnostic::documentPath)
+                .containsExactly(tuple("TXFLOW_EXTENSION_INTENT_INVALID",
+                        "$.spec.steps[1].transaction.tx.intents[0]"));
     }
 
     @Test
-    void validate_shouldRejectAPlanThatOnlyDeclaresExtensions() {
+    void aPlanThatOnlyDeclaresAnExtensionHasAnUnusedBinding() {
         TxPlan plan = TxPlan.from(new Tx().from("addr1").payToAddress("addr1_receiver", Amount.ada(1)))
                 .withExtension("ex", ExtensionMetadata.builder().extension("example").schemaVersion("1").build());
         TxFlow flow = TxFlow.builder("metadata-only-flow")
                 .addStep(FlowStep.builder("declared").withTxPlan(plan).build())
                 .build();
 
-        assertThat(flow.validate().getErrors()).singleElement().asString()
-                .contains("Step 'declared'");
+        assertThat(flow.validate().isValid()).isTrue();
+        assertThat(FlowExtensions.checkBindings(flow))
+                .extracting(FlowDiagnostic::code)
+                .containsExactly("TXFLOW_EXTENSION_BINDING_UNUSED");
     }
 
     private static final class ExampleExtensionIntent implements ExtensionIntent {

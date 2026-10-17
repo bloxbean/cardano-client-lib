@@ -40,6 +40,11 @@
             "validity": { "$ref": "#/$defs/validity" }
           }
         },
+        "extensions": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_-]{0,31}$" },
+          "additionalProperties": { "$ref": "#/$defs/extensionBinding" }
+        },
         "steps": {
           "type": "array",
           "minItems": 1,
@@ -94,6 +99,18 @@
       "properties": {
         "window": { "$ref": "#/$defs/duration" },
         "resubmit_safety_margin": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "extensionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["extension", "schema_version"],
+      "properties": {
+        "extension": { "type": "string", "minLength": 1 },
+        "schema_version": { "type": "string", "minLength": 1 },
+        "protocol": { "type": "string" },
+        "contract_version": { "type": "string" },
+        "deployment": { "type": "object" }
       }
     },
     "parameter": {

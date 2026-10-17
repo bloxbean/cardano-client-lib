@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
 import com.bloxbean.cardano.client.txflow.stream.TxFlowStream;
 import com.bloxbean.cardano.hdwallet.Wallet;
@@ -287,6 +288,19 @@ public final class FlowRuntime implements AutoCloseable {
          */
         public Builder wallet(String ref, Wallet wallet) {
             engineBuilder.wallet(ref, wallet);
+            return this;
+        }
+
+        /**
+         * Registers a QuickTx extension on the runtime-owned engine for steps that use its intents.
+         *
+         * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+         *
+         * @param extension operator-configured extension
+         * @return this builder
+         */
+        public Builder extension(QuickTxExtension extension) {
+            engineBuilder.extension(extension);
             return this;
         }
 

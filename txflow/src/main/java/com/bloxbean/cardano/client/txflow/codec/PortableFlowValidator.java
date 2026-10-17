@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.StepDependency;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +30,20 @@ public final class PortableFlowValidator {
      * @return immutable, path-specific error diagnostics
      */
     public static List<FlowDiagnostic> validate(TxFlow flow) {
+        return validate(flow, FlowExtensions.NONE);
+    }
+
+    /**
+     * Reports every construct that portable v1alpha1 cannot encode, judging QuickTx extension
+     * steps against the extensions registered with the calling compiler or codec.
+     *
+     * @param flow flow definition to inspect
+     * @param extensions registered QuickTx extensions
+     * @return immutable, path-specific error diagnostics
+     */
+    public static List<FlowDiagnostic> validate(TxFlow flow, FlowExtensions extensions) {
         Objects.requireNonNull(flow, "flow");
+        Objects.requireNonNull(extensions, "extensions");
         List<FlowDiagnostic> diagnostics = new ArrayList<>();
         if (!flow.getVariables().isEmpty()) {
             diagnostics.add(error("TXFLOW_NON_PORTABLE_FLOW_VARIABLES",
@@ -70,11 +84,6 @@ public final class PortableFlowValidator {
                         path));
             }
             if (step.hasTxPlan()) {
-                if (step.getTxPlan().hasExtensions()) {
-                    diagnostics.add(error("TXFLOW_NON_PORTABLE_EXTENSION",
-                            "TxPlans that use QuickTx extensions are not supported by TxFlow yet",
-                            path + ".transaction"));
-                }
                 if (!step.getTxPlan().getVariables().isEmpty()) {
                     diagnostics.add(error("TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES",
                             "TxPlan variables are not portable; declare parameters and provide "
@@ -88,6 +97,7 @@ public final class PortableFlowValidator {
                 }
             }
         }
+        diagnostics.addAll(extensions.check(flow));
         return List.copyOf(diagnostics);
     }
 

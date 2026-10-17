@@ -200,6 +200,33 @@ pass `Executors.newVirtualThreadPerTaskExecutor()` instead. Keep the public inte
 - Consume handle events with an exclusive sequence cursor: `handle.getEventsAfter(lastSequence)`.
   Cancellation is cooperative and does not interrupt worker threads.
 
+## QuickTx extensions
+
+TxFlow runs `TxPlan` steps that use QuickTx extension intents, such as the programmable-token
+intents, once the operator registers the extension. TxFlow needs no code for a specific extension.
+
+```java
+FlowRuntime runtime = FlowRuntime.builder(backend)
+        .extension(programmableTokens)   // also FlowEngine.Builder.extension / FlowExecutor.withExtension
+        .build();
+```
+
+- Bind the extension on each plan (for example `extension.configure(plan)`). A binding that no
+  intent uses is rejected (`TXFLOW_EXTENSION_BINDING_UNUSED`). A step that needs an unregistered
+  extension, or whose binding the extension rejects, fails before any step is submitted.
+- Extension plans are copied literally: TxFlow never expands a `${...}` placeholder in them again,
+  and legacy flow variables are not merged into them. The portable path (FlowEngine, the compiler,
+  the writer) still rejects a plan that carries a `variables` map; clear it with
+  `plan.setVariables(Map.of())` first.
+- Portable output carries the bindings in `spec.extensions` and the intents as
+  `<namespace>:<operation>`. Portable YAML templates that use extension intents, and TxStream
+  items, are not supported yet (ADR 0008 M2 and M3).
+- Under PIPELINED, an extension that scans an address sees an earlier step's pending outputs only
+  when the step declares `fundsFrom(thatStep)`; `needs` gives ordering only. Exact lookups
+  (`getTxOutput`) of pending outputs are not exposed to extensions.
+
+See [ADR 0008](adr/0008-generic-quicktx-extensions-in-txflow.md).
+
 ## Durable execution
 
 `InMemoryFlowExecutionStore` is useful for tests and reference semantics; it does not survive a
@@ -340,6 +367,7 @@ dedup only — read the durability guide before pairing them with a redelivering
 - [Detailed design and compatibility reference](docs/DESIGN_AND_USAGE.md)
 - [ADR 0002: portable contract and runtime](adr/0002-portable-txflow-contract-and-runtime.md)
 - [ADR 0003: relational durable store extension](adr/0003-relational-durable-store-extension.md)
+- [ADR 0008: generic QuickTx extension support](adr/0008-generic-quicktx-extensions-in-txflow.md)
 
 The public guide is the recommended learning path. The design document and legacy public pages
 remain useful when maintaining an existing `FlowExecutor` integration.

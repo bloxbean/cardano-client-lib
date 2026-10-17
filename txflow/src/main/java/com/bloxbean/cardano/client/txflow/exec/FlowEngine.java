@@ -10,6 +10,8 @@ import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
+import com.bloxbean.cardano.client.api.ScriptSupplier;
 import com.bloxbean.cardano.client.quicktx.script.ScriptRegistry;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
 import com.bloxbean.cardano.client.quicktx.signing.SignerRegistry;
@@ -19,6 +21,7 @@ import com.bloxbean.cardano.client.txflow.compile.CompiledTxFlow;
 import com.bloxbean.cardano.client.txflow.compile.FlowCompilationRequest;
 import com.bloxbean.cardano.client.txflow.compile.FlowCompilationResult;
 import com.bloxbean.cardano.client.txflow.compile.TxFlowCompiler;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionPolicy;
 import com.bloxbean.cardano.client.txflow.config.SpendingContentionPolicy;
 import com.bloxbean.cardano.client.txflow.resource.FlowResourceCatalog;
@@ -96,6 +99,8 @@ public final class FlowEngine {
     private final FlowExecutionPolicy policy;
     private final SignerRegistry signerRegistry;
     private final ScriptRegistry scriptRegistry;
+    private final FlowExtensions extensions;
+    private final ScriptSupplier scriptSupplier;
     private final FlowExecutionStore store;
     private final Duration leaseDuration;
     private final String ownerToken;
@@ -122,7 +127,9 @@ public final class FlowEngine {
                 ? builder.maintenanceExecutor : this.executor;
         this.clock = builder.clock != null ? builder.clock : Clock.systemUTC();
         this.spendingCoordinator = new SpendingResourceCoordinator(new SystemFlowScheduler(this.clock));
-        this.compiler = builder.compiler != null ? builder.compiler : new TxFlowCompiler();
+        this.extensions = builder.extensions;
+        this.scriptSupplier = builder.scriptSupplier;
+        this.compiler = builder.compiler != null ? builder.compiler : TxFlowCompiler.of(this.extensions);
         this.resources = builder.resources;
         this.policy = builder.policy != null ? builder.policy : FlowExecutionPolicy.permissive();
         this.signerRegistry = builder.effectiveSignerRegistry();
@@ -183,7 +190,8 @@ public final class FlowEngine {
                 new DefaultProtocolParamsSupplier(epochService),
                 new DefaultTransactionProcessor(transactionService),
                 new DefaultChainDataSupplier(blockService, transactionService))
-                .backendVisibilityChecks(true);
+                .backendVisibilityChecks(true)
+                .scriptSupplier(FlowExecutor.backendScriptSupplier(backendService));
     }
 
     /**
@@ -780,6 +788,8 @@ public final class FlowEngine {
                             transactionProcessor, chainDataSupplier)
                     .withSignerRegistry(signerRegistry)
                     .withScriptRegistry(scriptRegistry)
+                    .withExtensions(extensions)
+                    .withScriptSupplier(scriptSupplier)
                     .withListener(eventListener(journal, compiled));
             if (store != null) {
                 facade.withPersistencePort(new DurableExecutionPersistence(
@@ -1183,6 +1193,8 @@ public final class FlowEngine {
         private final Map<String, Account> convenienceAccounts = new LinkedHashMap<>();
         private final Map<String, Wallet> convenienceWallets = new LinkedHashMap<>();
         private ScriptRegistry scriptRegistry;
+        private FlowExtensions extensions = FlowExtensions.NONE;
+        private ScriptSupplier scriptSupplier;
         private FlowExecutionStore store;
         private Duration leaseDuration;
         private String ownerToken;
@@ -1315,6 +1327,30 @@ public final class FlowEngine {
          * @return this builder
          */
         public Builder scriptRegistry(ScriptRegistry value) { this.scriptRegistry = value; return this; }
+
+        /**
+         * Supplies the script lookup used to resolve reference scripts while building steps.
+         * {@link FlowEngine#builder(BackendService)} uses the backend's by default.
+         *
+         * @param value script supplier, or {@code null} for none
+         * @return this builder
+         */
+        public Builder scriptSupplier(ScriptSupplier value) { this.scriptSupplier = value; return this; }
+
+        /**
+         * Registers a QuickTx extension for steps that use its intents. The default compiler and
+         * every executor this engine creates use the registered set; a custom
+         * {@link #compiler(TxFlowCompiler)} must be built with the same extensions.
+         *
+         * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+         *
+         * @param value operator-configured extension; a second instance with the same id is rejected
+         * @return this builder
+         */
+        public Builder extension(QuickTxExtension value) {
+            extensions = extensions.with(value);
+            return this;
+        }
 
         /**
          * Enables durable execution, idempotency, event journaling, and fenced
