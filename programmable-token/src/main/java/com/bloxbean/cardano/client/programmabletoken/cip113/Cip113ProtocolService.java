@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.programmabletoken.cip113;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -62,6 +63,22 @@ public interface Cip113ProtocolService {
 
     /** Advanced registry lookup used by the build adapter and indexer-backed implementations. */
     RegistryLookup registryLookup();
+
+    /**
+     * Registry lookup for one transaction build, reading through that build's UTxO supplier.
+     *
+     * <p>The build adapter uses this so the registry is read like every other chain input of
+     * the build: under TxFlow, the supplier hides registry nodes an earlier step already spent
+     * and shows nodes an earlier step created when the step is funded from it. The default
+     * keeps {@link #registryLookup()}, for implementations whose lookup cannot use a supplier
+     * (for example an indexer); those only see confirmed state.</p>
+     *
+     * @param buildSupplier the UTxO supplier of the build being prepared
+     * @return a registry lookup for that build
+     */
+    default RegistryLookup registryLookup(UtxoSupplier buildSupplier) {
+        return registryLookup();
+    }
 
     /**
      * The coordination UTxO carrying the protocol-params NFT, available once

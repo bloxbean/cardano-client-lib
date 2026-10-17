@@ -97,7 +97,13 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
      */
     @Override
     public RegistryLookup registryLookup() {
-        return new RegistryLookup.Scanning(utxoSupplier, resolved().getDeployment());
+        return registryLookup(utxoSupplier);
+    }
+
+    /** Scans the registry through the given supplier, bound to the resolved deployment. */
+    @Override
+    public RegistryLookup registryLookup(UtxoSupplier buildSupplier) {
+        return new RegistryLookup.Scanning(buildSupplier, resolved().getDeployment());
     }
 
     /** The live coordination UTxO. Resolves the deployment on first use if needed. */

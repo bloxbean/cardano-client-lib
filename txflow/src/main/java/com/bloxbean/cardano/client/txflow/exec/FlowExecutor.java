@@ -18,6 +18,7 @@ import com.bloxbean.cardano.client.quicktx.TxResult;
 import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.api.ScriptSupplier;
+import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.backend.api.DefaultScriptSupplier;
 import com.bloxbean.cardano.client.quicktx.script.ScriptRegistry;
 import com.bloxbean.cardano.client.quicktx.signing.SignerRegistry;
@@ -58,6 +59,8 @@ import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.LinkedHashSet;
+import java.util.function.BiFunction;
 
 /**
  * Executor for transaction flows.
@@ -99,6 +102,7 @@ public class FlowExecutor implements AutoCloseable {
     private volatile ScriptRegistry scriptRegistry;
     private volatile FlowExtensions extensions = FlowExtensions.NONE;
     private volatile ScriptSupplier scriptSupplier;
+    private volatile BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> txEvaluatorFactory;
     private volatile FlowListener listener = FlowListener.NOOP;
     private volatile Executor executor;
     private volatile Consumer<Transaction> txInspector;
@@ -239,6 +243,23 @@ public class FlowExecutor implements AutoCloseable {
      */
     public FlowExecutor withScriptSupplier(ScriptSupplier supplier) {
         this.scriptSupplier = supplier;
+        return this;
+    }
+
+    /**
+     * Supplies the script-cost evaluator for {@code TxPlan} steps, created per step from the
+     * step's flow-aware UTxO supplier and the protocol parameters. Without it, builds use the
+     * backend evaluator, which knows only confirmed UTxOs; a PIPELINED or BATCH step that spends
+     * or references an earlier step's pending output needs a local evaluator, for example
+     * {@code (utxos, params) -> new AikenTransactionEvaluator(utxos, params)}. Steps built by a
+     * {@code withTxContext} factory set their own evaluator.
+     *
+     * @param factory evaluator factory, or {@code null} for the backend evaluator
+     * @return this executor
+     */
+    public FlowExecutor withTxEvaluator(
+            BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> factory) {
+        this.txEvaluatorFactory = factory;
         return this;
     }
 
@@ -2273,6 +2294,9 @@ public class FlowExecutor implements AutoCloseable {
                 TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
                 if (plan.hasExtensions()) extensions.applyTo(quickTxBuilder);
                 txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
+                if (txEvaluatorFactory != null)
+                    txContext.withTxEvaluator(txEvaluatorFactory.apply(
+                            evaluationUtxoSupplier(step, context, utxoSupplier), protocolParamsSupplier));
             } else if (step.hasTxContextFactory()) {
                 // Call user's factory with our builder (which has chain-aware UTXO supplier)
                 txContext = step.getTxContextFactory().apply(quickTxBuilder);
@@ -2384,6 +2408,9 @@ public class FlowExecutor implements AutoCloseable {
                 TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
                 if (plan.hasExtensions()) extensions.applyTo(quickTxBuilder);
                 txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
+                if (txEvaluatorFactory != null)
+                    txContext.withTxEvaluator(txEvaluatorFactory.apply(
+                            evaluationUtxoSupplier(step, context, utxoSupplier), protocolParamsSupplier));
             } else if (step.hasTxContextFactory()) {
                 // Call user's factory with our builder (which has chain-aware UTXO supplier)
                 txContext = step.getTxContextFactory().apply(quickTxBuilder);
@@ -2453,6 +2480,25 @@ public class FlowExecutor implements AutoCloseable {
     /**
      * Create appropriate UTXO supplier based on step dependencies.
      */
+    /**
+     * UTxO view for the step's script-cost evaluator. An evaluator resolves every input and
+     * reference input of the transaction already built by exact lookup, so it also needs exact
+     * access to the funding steps' pending outputs the build selected by address. Selection
+     * itself keeps the narrower build supplier; the evaluator only reads what the built
+     * transaction references.
+     */
+    private UtxoSupplier evaluationUtxoSupplier(FlowStep step, FlowExecutionContext context,
+                                                UtxoSupplier buildSupplier) {
+        if (!(buildSupplier instanceof FlowUtxoSupplier) || step.getFundingFrom().isEmpty()) {
+            return buildSupplier;
+        }
+        Set<String> exactPendingStepIds = new LinkedHashSet<>(
+                planMaterializer.referencedStepIds(step.getTxPlan()));
+        exactPendingStepIds.addAll(step.getFundingFrom());
+        return new FlowUtxoSupplier(baseUtxoSupplier, context, step.getDependencies(),
+                exactPendingStepIds, step.getFundingFrom());
+    }
+
     private UtxoSupplier createUtxoSupplier(FlowStep step, FlowExecutionContext context) {
         if (!step.hasDependencies() && step.getFundingFrom().isEmpty()
                 && context.getCompletedStepCount() == 0) {
@@ -2941,6 +2987,9 @@ public class FlowExecutor implements AutoCloseable {
                 TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
                 if (plan.hasExtensions()) extensions.applyTo(quickTxBuilder);
                 txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
+                if (txEvaluatorFactory != null)
+                    txContext.withTxEvaluator(txEvaluatorFactory.apply(
+                            evaluationUtxoSupplier(step, context, utxoSupplier), protocolParamsSupplier));
             } else if (step.hasTxContextFactory()) {
                 txContext = step.getTxContextFactory().apply(quickTxBuilder);
             } else {

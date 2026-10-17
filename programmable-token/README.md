@@ -95,7 +95,11 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
 - TxFlow runs Java `TxPlan` steps that use programmable-token intents when the extension is
   registered on the runtime (`FlowRuntime.builder(...).extension(ext)`,
   `FlowEngine.builder(...).extension(ext)` or `FlowExecutor.withExtension(ext)`). Bind it on each
-  plan with `ext.configure(plan)`. A step that uses a token registered by an earlier step of the
-  same flow needs that registration confirmed first, so run such flows in SEQUENTIAL mode: the
-  registry is still read from confirmed chain state. Portable YAML templates with `pt:*` intents,
-  and TxFlowStream items, are not supported yet; TxFlow rejects them before any submission.
+  plan with `ext.configure(plan)`. The registry is read through the build's UTxO supplier, so in
+  PIPELINED mode a step sees the registry node an earlier pending step created once it declares
+  `fundsFrom(thatStep)` — a mint after a registration needs `fundsFrom(register)`, and a transfer
+  of that token needs `fundsFrom(register)` and `fundsFrom(mint)`. Without the edge the build
+  fails with "not registered" rather than using stale state. Pipelined CIP-113 steps also need a
+  local script evaluator (`txEvaluator(...)` on the engine), because the backend evaluator cannot
+  see pending inputs. Portable YAML templates with `pt:*` intents, and TxFlowStream items, are not
+  supported yet; TxFlow rejects them before any submission.

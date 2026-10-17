@@ -222,8 +222,13 @@ FlowRuntime runtime = FlowRuntime.builder(backend)
   `<namespace>:<operation>`. Portable YAML templates that use extension intents, and TxStream
   items, are not supported yet (ADR 0008 M2 and M3).
 - Under PIPELINED, an extension that scans an address sees an earlier step's pending outputs only
-  when the step declares `fundsFrom(thatStep)`; `needs` gives ordering only. Exact lookups
-  (`getTxOutput`) of pending outputs are not exposed to extensions.
+  when the step declares `fundsFrom(thatStep)`, one edge per producer it reads from; `needs` gives
+  ordering only. Exact lookups (`getTxOutput`) of pending outputs are not exposed to extensions.
+- Plutus steps that spend or reference pending outputs need a local script evaluator, because
+  the backend evaluator knows only confirmed UTxOs. Supply one per step from the step's UTxO view,
+  which also resolves the funding steps' outputs the built transaction references:
+  `.txEvaluator((utxos, params) -> new AikenTransactionEvaluator(utxos, params, scripts))` on
+  `FlowEngine.Builder` or `FlowRuntime.Builder`, or `FlowExecutor.withTxEvaluator(...)`.
 
 See [ADR 0008](adr/0008-generic-quicktx-extensions-in-txflow.md).
 

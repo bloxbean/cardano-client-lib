@@ -46,6 +46,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.ArgumentMatchers.any;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -238,6 +242,25 @@ class Cip113OwnerOperationsTest {
                 .isInstanceOf(Cip113Exception.class).hasMessageContaining("runs once");
     }
 
+    /**
+     * The registry is a chain input of the build, so it is read through the build's supplier
+     * (QuickTx extension contract C1). Under TxFlow that supplier sees registry nodes earlier
+     * pipelined steps created or spent; the service's own backend supplier would not.
+     */
+    @Test
+    void theRegistryIsReadThroughTheBuildSupplier() {
+        Cip113ProtocolService service = service();
+        UtxoSupplier buildSupplier = supplier(walletUtxo(1, Map.of(UNIT_A, 20)));
+        ProgrammableTokenTx tx = transfer(owner(), UNIT_A, 1);
+        ExtensionBuildContext context = new ExtensionBuildContext(new AbstractTx<?>[]{tx},
+                buildSupplier, mock(ProtocolParamsSupplier.class));
+
+        new Cip113BuildExtension(service, EnumSet.allOf(ProgrammableTokenCapability.class)).prepare(context);
+
+        verify(service).registryLookup(same(buildSupplier));
+        verify(service, never()).registryLookup();
+    }
+
     // ---------------------------------------------------------------- fixtures
 
     private static ProgrammableTokenTx owner() {
@@ -301,7 +324,7 @@ class Cip113OwnerOperationsTest {
 
         Cip113ProtocolService service = mock(Cip113ProtocolService.class);
         when(service.deployment()).thenReturn(DEPLOYMENT);
-        when(service.registryLookup()).thenReturn(registry);
+        when(service.registryLookup(any())).thenReturn(registry);
         when(service.scripts()).thenReturn(scripts);
         when(service.coordinationUtxo()).thenReturn(coordination);
         when(service.issuanceTemplateUtxo()).thenReturn(template);

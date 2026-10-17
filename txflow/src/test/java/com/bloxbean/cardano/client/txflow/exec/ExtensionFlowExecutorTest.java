@@ -161,6 +161,27 @@ class ExtensionFlowExecutorTest {
         assertThat(extension.lookups).containsExactly(Optional.empty());
     }
 
+    /**
+     * The evaluator factory gets a view that resolves, by exact lookup, the funding steps' pending
+     * outputs the built transaction references; the build itself still cannot (I12 above).
+     */
+    @Test
+    void theEvaluatorCanResolveFundingStepOutputsExactly() {
+        List<com.bloxbean.cardano.client.api.UtxoSupplier> evaluatorViews = new CopyOnWriteArrayList<>();
+        FlowResult result = executor(ChainingMode.PIPELINED).withExtension(extension)
+                .withTxEvaluator((utxos, params) -> {
+                    evaluatorViews.add(utxos);
+                    return null; // the fake intents need no script evaluation
+                })
+                .executeSync(protocolFlow(true));
+
+        assertThat(result.getStatus()).as(String.valueOf(result.getError())).isEqualTo(FlowStatus.COMPLETED);
+        assertThat(evaluatorViews).hasSize(2);
+        String registerHash = chain.submitted.get(0);
+        assertThat(evaluatorViews.get(1).getTxOutput(registerHash, 0)).isPresent();
+        assertThat(extension.scans.get(0)).extracting(Utxo::getTxHash).containsExactly(registerHash);
+    }
+
     /** I11 (FlowExecutor path): a literal placeholder is never expanded, with or without variables. */
     @Test
     void literalPlaceholdersReachTheBuildUnchanged() {

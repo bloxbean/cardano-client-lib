@@ -95,7 +95,10 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                     + " Move them into one Tx or split them into separate transactions.");
         active = true;
 
-        RegistryLookup registry = new SnapshotRegistryLookup(List.copyOf(service.registryLookup().all()));
+        // Read the registry through the build's supplier, like every other input (QuickTx extension
+        // contract C1): under TxFlow it sees nodes earlier steps created or spent.
+        RegistryLookup registry = new SnapshotRegistryLookup(List.copyOf(
+                service.registryLookup(context.getUtxoSupplier()).all()));
         for (Map.Entry<AbstractTx<?>, List<ProgrammableTokenIntent>> entry : work.entrySet()) {
             if (!(entry.getKey() instanceof Tx))
                 throw new Cip113Exception("Programmable-token intents require a Tx fragment");
