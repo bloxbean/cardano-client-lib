@@ -1,0 +1,350 @@
+---
+title: "TxStream Getting Started"
+description: "Continuous, idempotent transaction submission on the FlowEngine runtime"
+---
+
+:::tip[New to TxStream? Start here]
+**The problem:** you have many transactions to submit over time — a payout queue, an outbox
+table, a message stream — and each must land **exactly once**, even if your process crashes and
+the upstream queue redelivers the same item.
+
+**The shape of the answer:** you open a stream, submit work items with a business id you already
+have (an order id, a message id), and each item becomes its own idempotent execution. Redelivering
+an identical item attaches to the existing work instead of paying twice.
+
+Jump straight to [A minimal working stream](#a-minimal-working-stream) for the shortest version,
+then come back for the guarantees below.
+
+Submitting a *single* transaction? Use [QuickTx](/quicktx/overview/). Several transactions forming
+*one* workflow? Use [TxFlow](/txflow/your-first-flow/).
+:::
+
+TxStream (`TxFlowStream`) is txflow's streaming submission API: it accepts a continuous feed of
+transaction work items, executes each one as an idempotent `FlowEngine` execution, and reports
+progress as an honest projection of engine truth. Items carry an idempotency key, so redelivery
+from a queue or a retrying caller attaches to the existing work instead of paying twice; statuses
+are never asserted ahead of the chain (`SUBMITTED` means the backend saw the transaction, and an
+uncertain outcome is reported as `RECOVERY_REQUIRED`, never as a false failure); and every accepted
+item settles a receipt in bounded time.
+
+**When to use it:** reach for TxStream when you are submitting many transactions over time and
+care that each lands exactly once and survives failures; reach for QuickTx when you are building a
+single transaction, and for a `TxFlow` definition plus `FlowEngine` when several transactions form
+one multi-step workflow. TxStream is not the right tool for one-off transactions, for on-chain
+atomic multi-party logic (that is a contract), or for latency-critical paths — confirmation
+latency dominates; this is a throughput and reliability tool.
+
+> **Status:** TxStream ships with the txflow preview line (`0.8.0-pre*`) and is
+> preview/experimental. The scenarios below are validated end-to-end on a live Yaci DevKit devnet,
+> but sustained-load soak testing has not been done. Java 17 is the minimum. Direct engine/stream
+> builders use caller-owned executors; the optional `FlowRuntime` below explicitly owns its
+> documented executors for you.
+
+## Add the dependencies
+
+TxStream is part of the `cardano-client-txflow` module — no extra dependency beyond txflow itself:
+
+```gradle
+def cclVersion = "0.8.0-pre5-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
+}
+
+dependencies {
+    implementation "com.bloxbean.cardano:cardano-client-txflow:${cclVersion}"
+
+    // Choose a backend implementation. BFBackendService can target a compatible Yaci endpoint.
+    implementation "com.bloxbean.cardano:cardano-client-backend-blockfrost:${cclVersion}"
+}
+```
+
+For crash-durable streams add the optional relational store module; see
+[TxStream: Durability & Exactly-Once](/txstream/durability/).
+
+## A minimal working stream
+
+For a script, CLI, or small application, `FlowRuntime` is the shortest safe front door. It owns
+one ordinary `FlowEngine`, its task and maintenance executors, and every stream opened through
+it. The example assumes you already have a backend, funded sender account, and receiver address:
+
+```java
+try (FlowRuntime runtime = FlowRuntime.builder(backend)
+        .account("account://sender", sender)
+        .build();
+     TxFlowStream stream = runtime.open("payouts")) {
+    TxPlan plan = TxPlan.from(new Tx()
+                    .payToAddress(receiverAddress, Amount.ada(2))
+                    .fromRef("account://sender"))
+            .withSigner("account://sender");
+
+    TxStreamItemResult result = stream.submit("order-0042", plan)
+            .awaitConfirmed(Duration.ofMinutes(5));
+}
+```
+
+What the pieces do:
+
+- **`FlowRuntime`** owns one normal engine and its executors; `runtime.engine()` exposes that exact
+  engine for ordinary `TxFlow` execution. Advanced/server applications can construct the engine
+  and stream directly for explicit resource ownership or durable configuration.
+- **`streamId` (`"payouts"`)** defines the idempotency namespace `stream:payouts`. Keep it stable:
+  it is part of every item's engine claim.
+- **The default lane policy** derives a syntactic lane from each plan's `from` or `from_ref`.
+  Same-source items serialize; different sources can run concurrently. Do not mix address and
+  reference forms for one wallet within a stream.
+- **`TxPlan` payloads** are portable QuickTx plans. A `TxPlan` needs `.withSigner(...)` naming a
+  reference registered by `FlowRuntime.Builder.account(...)`; keys never travel inside items.
+
+## Item identity and idempotency
+
+Every item has two identities:
+
+- **`itemId`** — the caller-visible handle for receipts, `getItemStatus(...)`, and cancellation.
+- **`idempotencyKey`** — the business identity that defines the engine claim (defaults to the
+  `itemId` when unset). Use the upstream identity you already have: an order id, a message id, an
+  outbox row id.
+
+Redelivery is resolved by content, not blanket rejection:
+
+```java
+TxStreamReceipt first = stream.submit(TxWorkItem.builder("payment-1")
+        .withTxPlan(plan)
+        .withIdempotencyKey("order-1")
+        .build());
+
+// Redelivery with identical content attaches: the SAME receipt is returned.
+TxStreamReceipt redelivered = stream.submit(TxWorkItem.builder("payment-1")
+        .withTxPlan(plan)
+        .withIdempotencyKey("order-1")
+        .build());
+assert first == redelivered;
+
+// The same item id with different content is a typed conflict, never a
+// silent replacement.
+try {
+    stream.submit(TxWorkItem.builder("payment-1")
+            .withTxPlan(differentPlan)
+            .withIdempotencyKey("order-1")
+            .build());
+} catch (TxStreamDuplicateItemException conflict) {
+    // "payment-1" already means something else; decide, don't guess
+}
+```
+
+The redelivery fingerprint covers everything a planner can see — payload content, lane,
+idempotency key, metadata, and bindings — so "identical" means identical. Reusing an idempotency
+key under a *different* item id is rejected typed (`TXSTREAM_IDEMPOTENCY_KEY_REUSE`): redelivery
+must reuse the original item id.
+
+> **Guard window:** duplicate detection holds while the settled item is retained
+> (`maxRetainedSettledItems`, default 10,000). After eviction the engine claim is still the
+> exactly-once guard for identical resubmits, but the stream-level content-conflict check has
+> lapsed — see [the eviction guard window](/txstream/durability/#the-eviction-guard-window) for
+> the exact post-eviction guarantees. Shipped durable stores retain registration history and
+> attach identical redelivery after eviction; incomplete registrations require explicit recovery.
+
+For non-blocking producers, `trySubmit` mirrors `submit` without throwing and without blocking on
+a full buffer:
+
+```java
+EmitResult result = stream.trySubmit(item);
+switch (result.getStatus()) {
+    case OK:
+    case DUPLICATE_ATTACHED:
+        TxStreamReceipt receipt = result.getReceipt();
+        break;
+    case FULL:       // bounded buffer full — retry later
+        break;
+    case CONFLICT:   // same item id, different content: result.getConflict()
+        break;
+    case REJECTED:   // typed cause in result.getRejection()
+        break;
+    case PAUSED:     // ownership standby — park the item and retry; not terminal
+        break;
+    case CLOSED:     // not started, draining, closed, or unhealthy
+        break;
+}
+```
+
+An item that fails eager validation is not accepted. Blocking `submit` throws the typed cause;
+`trySubmit` returns `REJECTED`. No receipt, retained item, accepted/failed counter, or engine
+execution is created, so corrected content may reuse the same stable item ID.
+
+## Reading results
+
+For synchronous code, `awaitConfirmed(timeout)` returns only `CONFIRMED`. It classifies failure,
+cancellation, and uncertainty from the latest live projection and never performs hidden
+reconciliation:
+
+```java
+try {
+    return stream.submit("order-0042", plan)
+            .awaitConfirmed(Duration.ofMinutes(5));
+} catch (TxStreamUncertainException uncertain) {
+    // DO NOT RESUBMIT: reconcile this known item/transaction.
+    return stream.awaitResolution(uncertain.itemId(),
+            Duration.ofMinutes(5), Duration.ofSeconds(5));
+} catch (TxStreamTimeoutException timeout) {
+    // A caller wait expired; inspect timeout.result(). Timeout is not failure.
+    throw timeout;
+} catch (TxStreamCancelledException cancelled) {
+    throw cancelled;
+} catch (TxStreamFailedException failed) {
+    throw failed;
+}
+```
+
+`receipt.completion()` remains the non-cancelling asynchronous stage and `awaitSettled()` is the
+blocking API for callers that intentionally branch over every settled state. Both can expose
+`RECOVERY_REQUIRED`. `getItemStatus(itemId)` returns the live projection at any time:
+
+```java
+// Live projection; read-through repair for RECOVERY_REQUIRED items:
+Optional<TxStreamItemResult> current = stream.getItemStatus(receipt.itemId());
+
+TxStreamStats stats = stream.getStats();
+long confirmed = stats.confirmedItemCount();
+int inFlight = stats.inFlightCount();
+```
+
+| Status | Meaning | Final? |
+| --- | --- | --- |
+| `ACCEPTED` | The stream accepted the item and returned a receipt (the only stream-owned state) | no |
+| `PLANNED` | The item's execution binding was recorded and dispatch began | no |
+| `SUBMITTED` | The engine observed the transaction submission — never asserted in advance of the backend | no |
+| `CONFIRMED` | The item's transaction confirmed on chain | yes |
+| `FAILED` | Conclusive failure; when a transaction was submitted first, its hash is retained | yes |
+| `CANCELLED` | Cancelled before producing a confirmed transaction | yes |
+| `RECOVERY_REQUIRED` | Disposition uncertain — typically submitted but unconfirmed inside a terminal flow. **The transaction may still confirm: reconcile, do not retry blindly.** Settles the receipt as a point-in-time answer but remains repairable through `getItemStatus`/`reconcile` | settles the receipt; repairable |
+
+Two projection guarantees are worth internalizing: a transaction hash, once known, is never
+dropped from a later snapshot, and a submitted-but-unconfirmed transaction is never reported
+`FAILED` — that is exactly what `RECOVERY_REQUIRED` exists for.
+[Durability & Exactly-Once](/txstream/durability/#handling-recovery_required) covers the repair
+workflow.
+
+## Template items
+
+Besides `TxPlan` and portable `FlowStep` payloads, a stream can register one parameterized
+portable flow at build time and accept a stream of invocations — useful for bulk operations that
+are the same flow with different bindings. This template shape ran green on the devnet:
+
+```yaml
+api_version: txflow.cardano-client.dev/v1alpha1
+kind: TxFlow
+metadata: {name: payout-template}
+spec:
+  parameters:
+    beneficiary: {type: address, required: true}
+    amount: {type: integer, required: true}
+  steps:
+    - id: payment
+      transaction:
+        tx:
+          from_ref: account://sender
+          intents:
+            - type: payment
+              address: '${{ inputs.beneficiary }}'
+              amounts:
+                - unit: lovelace
+                  quantity: '${{ inputs.amount }}'
+        context:
+          signers:
+            - ref: account://sender
+          fee_payer_ref: account://sender
+```
+
+With that document in `yaml` (a string or a file read):
+
+```java
+TxFlow payoutTemplate = TxFlowCodec.standard()
+        .parse(yaml, FlowParseOptions.serverDefaults())
+        .requireFlow();
+
+try (TxFlowStream stream = TxFlowStream.builder("payouts-template", engine)
+        .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
+        .template("payout", payoutTemplate)
+        .executor(streamExecutor)
+        .open()) {
+    stream.submit(TxWorkItem.builder("payout-1")
+            .withTemplate("payout")
+            .withIdempotencyKey("payout-order-1")
+            .withBinding("beneficiary", receiverAddress)
+            .withBinding("amount", 1_500_000L)
+            .build());
+
+    stream.drain();
+}
+```
+
+The template is compiled, validated, and fingerprinted once at `build()`; an item referencing an
+unregistered id fails typed `TXSTREAM_TEMPLATE_UNKNOWN`. Redelivery of the same
+(template, bindings) attaches like any other item. A durable stream must re-register the same
+definition under the same id across restarts; a changed definition fails a re-attached item typed
+`TXSTREAM_TEMPLATE_DRIFT` rather than silently running the wrong flow.
+
+## Lifecycle
+
+```java
+stream.flush();                            // close the open window early
+stream.drain();                            // stop accepting; settle every accepted item
+stream.awaitDrain(Duration.ofMinutes(5));  // drain with a deadline
+
+stream.close();                            // graceful: drain, then release
+stream.close(Duration.ofSeconds(30));      // drain until deadline, then abort the rest
+
+AbortReport report = stream.abort("shutting down");
+report.quiescence().toCompletableFuture().join();   // signalled executions settled
+```
+
+- `open()` builds and starts with abort-on-startup-failure cleanup. `build(); start()` remains for
+  advanced wiring between construction and startup. A closed stream cannot be restarted.
+- `drain()` awaits every accepted item's completion promise — not queue emptiness heuristics — so
+  no accepted item can be left out. `awaitDrain(timeout)` throws a typed
+  `TxStreamTimeoutException` (`TXSTREAM_TIMEOUT`) when the deadline elapses first.
+- `close()` (and try-with-resources) is graceful: it drains, then releases. Nothing is cancelled.
+- `abort(reason)` is forced but honest: buffered items settle `CANCELLED`, in-flight executions
+  receive a *cooperative* cancellation signal — they may still run to completion, and their
+  receipts settle with the real outcome (possibly `CONFIRMED`). `AbortReport.quiescence()`
+  completes when the last signalled execution terminates.
+- `cancelItem(itemId, reason)` cancels one item with a typed outcome; a member of a shared
+  multi-item flow is rejected rather than silently cancelling its neighbours — escalate with
+  `cancelExecution(executionId, reason)` when cancelling the whole flow is intended.
+
+## Where to next
+
+- [TxStream: Durability & Exactly-Once](/txstream/durability/) — the durable store pairing,
+  restart re-attach, dedup scopes (read this before using multi-item planners), secrets policy,
+  `RECOVERY_REQUIRED` handling, and active/standby HA.
+- [TxStream: Lanes, Batching & Throughput](/txstream/throughput/) — the UTXO concurrency model,
+  lane policies, windows and planners, partitioned fan-out, and honest throughput expectations.
+- [TxStream: Smart Contracts](/txstream/smart-contracts/) — an order-escrow settlement tutorial with a
+  real Aiken vault: the portable script surface (`collectFrom` + validator attachment),
+  idempotent claims, and serializing contract-UTXO contention on one lane.
+
+## Preview operating limits
+
+- `FlowRuntime` retains at most **10,000 engine idempotency claims across all its
+  streams**, including completed executions. Receipt eviction does not reclaim
+  those claims. Configure `.maxInMemoryIdempotencyClaims(n)` for a larger bounded
+  job; use a directly configured engine and an appropriate store for long-lived
+  workloads. Exhaustion reports `TXFLOW_IDEMPOTENCY_CAPACITY_EXCEEDED`. Recreating
+  the runtime discards its process-local history and is not a safe capacity workaround.
+- Acceptance snapshots transaction plans, including a `FlowStep`'s plan. Later
+  mutation of your `Tx` or `TxPlan` cannot change queued work. Do not mutate during
+  submission; redelivery must carry the original content.
+- `FlowEngine.builder(backend)` and `FlowRuntime` enable backend output-visibility
+  checks between executions on the same lane. A previous confirmed or uncertain
+  transaction must expose output zero before the next execution starts. The stream
+  waits up to 60 seconds, polling every 2 seconds; advanced builders can configure
+  `.backendVisibility(timeout, pollInterval)`. `TXSTREAM_BACKEND_NOT_READY` fails
+  the new item before engine start and does not change the previous result.
+- Custom four-supplier engines can opt in with `.backendVisibilityChecks(true)`.
+  The UTxO supplier must support historical `getTxOutput` lookup. Visibility is an
+  indexing check, not a proof that every backend endpoint is consistent. Configure
+  backend I/O timeouts and qualify the provider you use. The check covers consecutive
+  executions in this live stream; it does not coordinate external wallet spenders.
+- Durable queue processing and transparent crash redelivery remain advanced,
+  experimental capabilities. Read the durability restrictions before enabling them.
