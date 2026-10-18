@@ -221,10 +221,12 @@ final class Cip113TransactionMaterializer extends Tx {
         this(service.deployment(), buildRegistry, utxoSupplier);
         this.scripts = service.scripts();
         this.protocolParamsSupplier = service.protocolParamsSupplier();
-        this.globalStateResolver = service::globalStateUtxo;
+        // Coordination and global state are read through the build's supplier, like the registry
+        // (QuickTx extension contract C1).
+        this.globalStateResolver = globalStateCs -> service.globalStateUtxo(globalStateCs, utxoSupplier);
         // Optional here: a service that could not resolve the coordination UTxO yields null, and
         // the verb that needs one says so by name instead of failing inside Tx.readFrom.
-        Utxo coordination = service.coordinationUtxo();
+        Utxo coordination = service.coordinationUtxo(utxoSupplier);
         if (coordination != null) {
             this.coordinationUtxo = coordination;
             readFrom(coordination);

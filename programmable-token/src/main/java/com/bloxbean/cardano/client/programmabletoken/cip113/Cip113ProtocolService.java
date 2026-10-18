@@ -61,6 +61,19 @@ public interface Cip113ProtocolService {
      */
     Utxo globalStateUtxo(String globalStateCs);
 
+    /**
+     * The global-state UTxO for one transaction build, reading UTxOs through that build's
+     * supplier like {@link #registryLookup(UtxoSupplier)}. The default keeps
+     * {@link #globalStateUtxo(String)}, which only sees confirmed state.
+     *
+     * @param globalStateCs the global-state policy
+     * @param buildSupplier the UTxO supplier of the build being prepared
+     * @return the UTxO carrying the global-state NFT, or null if the build cannot see one
+     */
+    default Utxo globalStateUtxo(String globalStateCs, UtxoSupplier buildSupplier) {
+        return globalStateUtxo(globalStateCs);
+    }
+
     /** Advanced registry lookup used by the build adapter and indexer-backed implementations. */
     RegistryLookup registryLookup();
 
@@ -86,6 +99,18 @@ public interface Cip113ProtocolService {
      * inputs to find it, so it is mandatory on every programmable transaction.
      */
     Utxo coordinationUtxo();
+
+    /**
+     * The coordination UTxO for one transaction build, reading through that build's supplier,
+     * so a build never references a coordination output an earlier TxFlow step spent. The
+     * default keeps {@link #coordinationUtxo()}, which only sees confirmed state.
+     *
+     * @param buildSupplier the UTxO supplier of the build being prepared
+     * @return the coordination UTxO the build can see
+     */
+    default Utxo coordinationUtxo(UtxoSupplier buildSupplier) {
+        return coordinationUtxo();
+    }
 
     /**
      * The issuance-template UTxO whose datum carries the prefix/postfix a policy id is derived
