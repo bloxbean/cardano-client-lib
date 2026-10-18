@@ -118,6 +118,48 @@ class TxFlowStreamExtensionTest {
     }
 
     /**
+     * perWindow puts a lane's items in one flow, whose bindings must merge (D6a). Items binding
+     * the extension under different namespaces ride separate flows on the lane; compatible items
+     * still share one.
+     */
+    @Test
+    void perWindowKeepsConflictingBindingsInSeparateFlows() {
+        StubEngineGateway gateway = new StubEngineGateway();
+        gateway.extensions = List.of(extension);
+        try (TxFlowStream stream = builder(gateway).planner(TxStreamPlanner.perWindow())
+                .window(WindowPolicy.count(3)).build()) {
+            stream.start();
+            stream.submit(extensionItem("ext-1"));
+            stream.submit(TxWorkItem.fromTxPlan("ext-2", aliased("other")));
+            stream.submit(extensionItem("ext-3"));
+
+            for (int i = 0; i < 3 && gateway.started.size() < 3; i++) completeAll(gateway);
+            assertThat(gateway.started).extracting(request -> request.getDefinition().getSteps().size())
+                    .containsExactlyInAnyOrder(1, 1, 1);
+            completeAll(gateway);
+        }
+
+        StubEngineGateway compatible = new StubEngineGateway();
+        compatible.extensions = List.of(extension);
+        try (TxFlowStream stream = builder(compatible).planner(TxStreamPlanner.perWindow())
+                .window(WindowPolicy.count(2)).build()) {
+            stream.start();
+            stream.submit(extensionItem("ext-1"));
+            stream.submit(extensionItem("ext-2"));
+
+            assertThat(compatible.started).singleElement()
+                    .satisfies(request -> assertThat(request.getDefinition().getSteps()).hasSize(2));
+            completeAll(compatible);
+        }
+    }
+
+    private TxPlan aliased(String namespace) {
+        TxPlan plan = TxPlan.from(new Tx().from(SENDER)).withExtension(namespace, extension.metadata());
+        plan.getTxs().get(0).addIntention(pay(RECEIVER, 3_000_000));
+        return plan;
+    }
+
+    /**
      * A durable item whose start was lost is re-dispatched after a restart from its persisted
      * portable payload, which therefore carries the extension binding and intent.
      */

@@ -187,6 +187,23 @@ public final class FlowExtensions {
     }
 
     /**
+     * Whether two binding maps can share one flow: merging them binds no namespace to different
+     * metadata and no extension under two namespaces, so it raises no
+     * {@code TXFLOW_EXTENSION_BINDING_CONFLICT}. Planners that put several items in one flow use it.
+     *
+     * @param left namespace to metadata
+     * @param right namespace to metadata
+     * @return whether the maps merge without conflict
+     */
+    public static boolean mergeable(Map<String, ExtensionMetadata> left, Map<String, ExtensionMetadata> right) {
+        List<FlowDiagnostic> diagnostics = new ArrayList<>();
+        Map<String, Binding> merged = new LinkedHashMap<>();
+        left.forEach((namespace, metadata) -> merge(merged, new Binding(namespace, metadata, ""), diagnostics));
+        right.forEach((namespace, metadata) -> merge(merged, new Binding(namespace, metadata, ""), diagnostics));
+        return diagnostics.isEmpty();
+    }
+
+    /**
      * The canonical flow-level binding map: the flow's own bindings merged with every step plan's
      * bindings, sorted by namespace. Callers check conflicts first with {@link #check(TxFlow)}.
      *
