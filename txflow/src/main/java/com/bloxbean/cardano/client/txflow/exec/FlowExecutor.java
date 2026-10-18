@@ -2291,12 +2291,7 @@ public class FlowExecutor implements AutoCloseable {
             // Get TxContext from step (either from TxPlan or TxContext factory)
             QuickTxBuilder.TxContext txContext;
             if (step.hasTxPlan()) {
-                TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
-                if (plan.hasExtensions()) extensions.applyTo(quickTxBuilder);
-                txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
-                if (txEvaluatorFactory != null)
-                    txContext.withTxEvaluator(txEvaluatorFactory.apply(
-                            evaluationUtxoSupplier(step, context, utxoSupplier), protocolParamsSupplier));
+                txContext = composePlanStep(step, context, variables, quickTxBuilder, utxoSupplier);
             } else if (step.hasTxContextFactory()) {
                 // Call user's factory with our builder (which has chain-aware UTXO supplier)
                 txContext = step.getTxContextFactory().apply(quickTxBuilder);
@@ -2405,12 +2400,7 @@ public class FlowExecutor implements AutoCloseable {
             // Get TxContext from step (either from TxPlan or TxContext factory)
             QuickTxBuilder.TxContext txContext;
             if (step.hasTxPlan()) {
-                TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
-                if (plan.hasExtensions()) extensions.applyTo(quickTxBuilder);
-                txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
-                if (txEvaluatorFactory != null)
-                    txContext.withTxEvaluator(txEvaluatorFactory.apply(
-                            evaluationUtxoSupplier(step, context, utxoSupplier), protocolParamsSupplier));
+                txContext = composePlanStep(step, context, variables, quickTxBuilder, utxoSupplier);
             } else if (step.hasTxContextFactory()) {
                 // Call user's factory with our builder (which has chain-aware UTXO supplier)
                 txContext = step.getTxContextFactory().apply(quickTxBuilder);
@@ -2478,8 +2468,22 @@ public class FlowExecutor implements AutoCloseable {
     }
 
     /**
-     * Create appropriate UTXO supplier based on step dependencies.
+     * Composes a {@code TxPlan} step on the step's builder. Registered extensions are applied
+     * only to builders of plans that use them, and the configured evaluator, if any, is created
+     * over the step's evaluation view.
      */
+    private QuickTxBuilder.TxContext composePlanStep(FlowStep step, FlowExecutionContext context,
+                                                     Map<String, Object> variables,
+                                                     QuickTxBuilder quickTxBuilder, UtxoSupplier utxoSupplier) {
+        TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
+        if (plan.hasExtensions()) extensions.applyTo(quickTxBuilder);
+        QuickTxBuilder.TxContext txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
+        if (txEvaluatorFactory != null)
+            txContext.withTxEvaluator(txEvaluatorFactory.apply(
+                    evaluationUtxoSupplier(step, context, utxoSupplier), protocolParamsSupplier));
+        return txContext;
+    }
+
     /**
      * UTxO view for the step's script-cost evaluator. An evaluator resolves every input and
      * reference input of the transaction already built by exact lookup, so it also needs exact
@@ -2499,6 +2503,9 @@ public class FlowExecutor implements AutoCloseable {
                 exactPendingStepIds, step.getFundingFrom());
     }
 
+    /**
+     * Create appropriate UTXO supplier based on step dependencies.
+     */
     private UtxoSupplier createUtxoSupplier(FlowStep step, FlowExecutionContext context) {
         if (!step.hasDependencies() && step.getFundingFrom().isEmpty()
                 && context.getCompletedStepCount() == 0) {
@@ -2984,12 +2991,7 @@ public class FlowExecutor implements AutoCloseable {
 
             QuickTxBuilder.TxContext txContext;
             if (step.hasTxPlan()) {
-                TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
-                if (plan.hasExtensions()) extensions.applyTo(quickTxBuilder);
-                txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
-                if (txEvaluatorFactory != null)
-                    txContext.withTxEvaluator(txEvaluatorFactory.apply(
-                            evaluationUtxoSupplier(step, context, utxoSupplier), protocolParamsSupplier));
+                txContext = composePlanStep(step, context, variables, quickTxBuilder, utxoSupplier);
             } else if (step.hasTxContextFactory()) {
                 txContext = step.getTxContextFactory().apply(quickTxBuilder);
             } else {
