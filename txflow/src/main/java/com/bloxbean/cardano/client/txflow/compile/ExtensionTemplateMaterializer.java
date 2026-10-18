@@ -8,10 +8,13 @@ import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.MissingNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -76,14 +79,30 @@ final class ExtensionTemplateMaterializer {
                     failure, "Extension intent could not be decoded"), path + ".tx.intents");
         }
 
+        // Core input and script intents move to tx.inputs and tx.scripts on write, so the n-th
+        // authored extension intent is compared with the n-th written one, not by array index.
+        List<JsonNode> writtenExtensionIntents = new ArrayList<>();
+        written.forEach(intent -> {
+            if (isNamespaced(intent)) writtenExtensionIntents.add(intent);
+        });
         JsonNode authored = transaction.path("tx").path("intents");
+        int n = 0;
         for (int i = 0; i < authored.size(); i++) {
-            if (isNamespaced(authored.get(i)) && !authored.get(i).equals(SAME_VALUE, written.path(i))) {
+            if (!isNamespaced(authored.get(i))) continue;
+            JsonNode writtenIntent = n < writtenExtensionIntents.size()
+                    ? writtenExtensionIntents.get(n) : MissingNode.getInstance();
+            n++;
+            if (!authored.get(i).equals(SAME_VALUE, writtenIntent)) {
                 throw new MaterializationException(INTENT_LOSSY, "Extension intent "
                         + authored.get(i).path("type").asText() + " does not round-trip: authored "
-                        + authored.get(i) + " but the extension writes " + written.path(i),
+                        + authored.get(i) + " but the extension writes " + writtenIntent,
                         path + ".tx.intents[" + i + "]");
             }
+        }
+        if (n != writtenExtensionIntents.size()) {
+            throw new MaterializationException(INTENT_LOSSY, "The extensions write "
+                    + writtenExtensionIntents.size() + " extension intents for the " + n + " authored",
+                    path + ".tx.intents");
         }
         return plan;
     }
