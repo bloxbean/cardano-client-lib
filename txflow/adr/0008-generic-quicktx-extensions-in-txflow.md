@@ -29,6 +29,15 @@ All code references are to `origin/master` at `dfd8540d`.
 - **r1** (2026-10-17): Initial proposal.
 - **r2** (2026-10-18; responds to the review of `9037614`): F1 (and the Aster comment) → M1 now includes the extension-aware portability check, the canonical writer, the `spec.extensions` parser field and schema (new D6a); D5, M1 and M2 rescoped; OQ1 and OQ2 become M1 entry gates. F2 → new D4a: TxFlow copies and decodes extension plans literally and never runs TxPlan variable expansion on them; D4, D6 and D8 use it; new I11; the example now uses `${{ inputs.receiver }}`. F3 → new D9a: the visibility contract separates address scans (`funding_from`, legacy `depends_on`) from exact lookups; C1 and I10 narrowed; the example declares `funding_from`; new I12; M1b exit criteria updated. F4 → D6a: every binding must be used by at least one extension intent, otherwise `TXFLOW_EXTENSION_BINDING_UNUSED`; new I13; fixtures added.
 - **r3** (2026-10-18; responds to the review of `7b2ba7e`): F2 completion → D4a now also states that the portable path (FlowEngine, FlowRuntime, the compiler and the canonical writer) keeps rejecting any plan with a non-empty `getVariables()` (`TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES`), extension or core alike. Only the FlowExecutor path accepts retained variables as inert data. I11 is split by path, and the M1 exit criteria include an already-bound plan. F5 → D9a, C1 and §1.3 now limit spent-output filtering and the fail-closed claim to address scans. The exact-lookup gap is recorded as R6 and a follow-up. The "Unsupported" bullet matches the table and I12. §9 separates the missing-`funding_from` case, a runtime build failure, from the fails-before-submission cases.
+- **r4** (2026-10-18; after the implementation review of #703–#706, approved at `cfc2fb19`): D10 gains the multi-item planner rule (F10). Implementation notes:
+  - I5 applies registrations only to builders of plans that use extensions.
+  - The preflight checks `schema_version` independently of the extension's `validateMetadata` hook (F6).
+  - Number-like strings are quoted only in extension plans and in the YAML of flows with extension bindings, so extension-free output stays byte-identical (I2, F7).
+  - The D7 guard matches extension intents by order, because core input and script intents move arrays on write (F8).
+  - D8 also scans Java-plan extension intents in their written form (F9).
+  - TxFlow builders now get a `ScriptSupplier`, and an optional per-step `txEvaluator` whose UTxO view resolves funding-step outputs exactly.
+  - CIP-113 also reads the coordination UTxO and global state through the build supplier (F11).
+  - The legacy `FlowDocument` rejects extension plans with a plain message.
 
 ## 1. Context
 
@@ -310,6 +319,8 @@ A stream opened on an engine shares the engine's `FlowExtensions`:
 - `enforceLaneFundingScope` copies through D4 (`:1903`).
 
 Batching needs no change, since extension items are never merged (§1.2). I9 locks that in with a test. Until M3 the stream keeps rejecting extension items with `TXSTREAM_NON_PORTABLE_ITEM`.
+
+**Multi-item planners (added in r4).** A planner that puts several items in one flow must emit a flow whose bindings merge under D6a. Two items can each be valid and still conflict: the same extension under two namespaces, or one namespace bound to different metadata. The built-in `perWindow` planner therefore splits a lane group, in claim-key order, into consecutive runs whose bindings merge, and emits one flow per run. The lane still runs one execution at a time. A window without conflicting bindings stays one flow, so its identities are unchanged. Custom planners are responsible for emitting valid flows. If they do not, the engine rejects the conflicting flow with `TXFLOW_EXTENSION_BINDING_CONFLICT` before any submission.
 
 ## 6. Invariants
 
