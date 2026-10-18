@@ -247,10 +247,11 @@ public final class FlowExtensions {
      */
     private void checkTemplateIntents(TxFlow flow, FlowStep step, String path,
                                       List<FlowDiagnostic> diagnostics) {
+        // A value that is not an array is left to the core template checks, which report it.
         JsonNode tx = step.getTransactionTemplate().toJsonNode().path("tx");
         for (String array : List.of("inputs", "scripts")) {
             JsonNode entries = tx.path(array);
-            for (int i = 0; i < entries.size(); i++) {
+            for (int i = 0; entries.isArray() && i < entries.size(); i++) {
                 if (isNamespaced(entries.get(i))) {
                     diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_INTENT_INVALID",
                             "Extension intents are allowed only in tx.intents",
@@ -259,7 +260,7 @@ public final class FlowExtensions {
             }
         }
         JsonNode intents = tx.path("intents");
-        for (int i = 0; i < intents.size(); i++) {
+        for (int i = 0; intents.isArray() && i < intents.size(); i++) {
             JsonNode intent = intents.get(i);
             if (!isNamespaced(intent)) continue;
             String intentPath = path + ".tx.intents[" + i + "]";

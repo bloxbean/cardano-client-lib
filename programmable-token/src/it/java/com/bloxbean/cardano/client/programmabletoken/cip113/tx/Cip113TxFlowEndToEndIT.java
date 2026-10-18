@@ -4,9 +4,18 @@ import com.bloxbean.cardano.aiken.AikenTransactionEvaluator;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.ScriptSupplier;
+import com.bloxbean.cardano.client.api.TransactionProcessor;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.common.OrderEnum;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultScriptSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
@@ -43,8 +52,11 @@ import org.slf4j.LoggerFactory;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.bloxbean.cardano.client.programmabletoken.cip113.tx.Cip113TxPlanResourceEndToEndIT.awaitSeedUtxos;
 import static com.bloxbean.cardano.client.programmabletoken.cip113.tx.Cip113TxPlanResourceEndToEndIT.loadYaml;
@@ -95,12 +107,15 @@ class Cip113TxFlowEndToEndIT {
     /**
      * Without funding edges the pending registration is invisible to the mint, which fails while
      * building instead of minting against stale registry state. The register step was already
-     * submitted, so this is a runtime build failure, not a pre-submission diagnostic.
+     * submitted, so this is a runtime build failure, not a pre-submission diagnostic. The engine's
+     * backend view holds back the flow's own outputs, so the registration stays pending however
+     * fast the devnet confirms it.
      */
     @Test
     void aPipelinedMintWithoutAFundingEdgeFailsClosed() throws Exception {
         Lifecycle lifecycle = deploy();
-        FlowExecutionResult result = run(lifecycle, ChainingMode.PIPELINED, false);
+        FlowExecutionResult result = run(lifecycle, ChainingMode.PIPELINED, false,
+                engineHidingSubmittedOutputs(lifecycle.backend));
 
         assertThat(result.state()).as("flow result: %s", result).isNotEqualTo(FlowExecutionState.COMPLETED);
         assertThat(result.steps()).anySatisfy(step -> {
@@ -112,6 +127,7 @@ class Cip113TxFlowEndToEndIT {
             assertThat(step.isSuccessful()).isFalse();
             assertThat(step.getTransactionHash()).isNull();
         });
+        assertThat(String.valueOf(result.error())).contains("is not registered");
         log.info("needs-only mint failed as expected: {}", result.error());
     }
 
@@ -178,6 +194,11 @@ class Cip113TxFlowEndToEndIT {
     }
 
     private FlowExecutionResult run(Lifecycle lifecycle, ChainingMode mode, boolean fundingEdges) {
+        return run(lifecycle, mode, fundingEdges, FlowEngine.builder(lifecycle.backend));
+    }
+
+    private FlowExecutionResult run(Lifecycle lifecycle, ChainingMode mode, boolean fundingEdges,
+                                    FlowEngine.Builder builder) {
         FlowStep.Builder mint = FlowStep.builder("mint").needs("register")
                 .withTxPlan(plan(lifecycle.codec, "02-mint.yml", with(lifecycle.common, "policy_id", lifecycle.policyId)));
         FlowStep.Builder transfer = FlowStep.builder("transfer").needs("mint")
@@ -202,8 +223,7 @@ class Cip113TxFlowEndToEndIT {
                 .addStep(transfer.build())
                 .build();
 
-        FlowEngine.Builder builder = FlowEngine.builder(lifecycle.backend)
-                .executor(Runnable::run)
+        builder.executor(Runnable::run)
                 .account(OWNER_REF, lifecycle.owner)
                 .extension(lifecycle.extension);
         if (mode != ChainingMode.SEQUENTIAL) {
@@ -219,6 +239,38 @@ class Cip113TxFlowEndToEndIT {
         log.info("CIP-113 {} TxFlow finished {} with fingerprint {}", mode, result.state(),
                 result.definitionFingerprint());
         return result;
+    }
+
+    /**
+     * An engine on the backend whose UTxO view never shows the outputs of a transaction it
+     * submitted, as if none of them had confirmed yet.
+     */
+    private static FlowEngine.Builder engineHidingSubmittedOutputs(BackendService backend) {
+        Set<String> submitted = ConcurrentHashMap.newKeySet();
+        UtxoSupplier confirmed = new DefaultUtxoSupplier(backend.getUtxoService());
+        UtxoSupplier view = new UtxoSupplier() {
+            @Override
+            public List<Utxo> getPage(String address, Integer nrOfItems, Integer page, OrderEnum order) {
+                return confirmed.getPage(address, nrOfItems, page, order).stream()
+                        .filter(utxo -> !submitted.contains(utxo.getTxHash())).toList();
+            }
+
+            @Override
+            public Optional<Utxo> getTxOutput(String txHash, int outputIndex) {
+                return submitted.contains(txHash) ? Optional.empty() : confirmed.getTxOutput(txHash, outputIndex);
+            }
+        };
+        TransactionProcessor processor = new DefaultTransactionProcessor(backend.getTransactionService()) {
+            @Override
+            public Result<String> submitTransaction(byte[] cborData) throws ApiException {
+                Result<String> result = super.submitTransaction(cborData);
+                if (result.isSuccessful()) submitted.add(result.getValue());
+                return result;
+            }
+        };
+        return FlowEngine.builder(view, new DefaultProtocolParamsSupplier(backend.getEpochService()), processor,
+                        new DefaultChainDataSupplier(backend.getBlockService(), backend.getTransactionService()))
+                .scriptSupplier(new DefaultScriptSupplier(backend.getScriptService()));
     }
 
     private Lifecycle deploy() throws Exception {

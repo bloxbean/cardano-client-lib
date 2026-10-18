@@ -152,6 +152,49 @@ class PortableExtensionTemplateTest {
                 tuple("TXFLOW_EXTENSION_INTENT_INVALID", "$.spec.steps[0].transaction.tx.intents[1]"));
     }
 
+    /**
+     * A core input intent authored in {@code tx.intents} is written back under {@code inputs};
+     * the guard compares the extension intents with each other, not by position in the array.
+     */
+    @Test
+    void coreIntentsThatMoveOnWriteDoNotShiftTheRoundTripGuard() {
+        String withReference = DOCUMENT.replace("            - type: fk:pay\n",
+                "            - type: reference_input\n"
+                        + FIELD + "refs: [{tx_hash: " + "ab".repeat(32) + ", output_index: 0}]\n"
+                        + "            - type: fk:pay\n");
+        assertThat(withReference).contains("reference_input");
+
+        CompiledTxFlow compiled = compile(withReference).requireCompiledFlow();
+
+        assertThat(compiled.getExecutionPlan().getSteps().get(0).getTxPlan().getTxs().get(0).getIntentions())
+                .hasSize(2).last().isInstanceOf(PayIntent.class);
+    }
+
+    /** A mapping where a template array is expected is a diagnostic, not an exception. */
+    @Test
+    void aMappingInPlaceOfATemplateArrayIsADiagnostic() {
+        String core = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: not-an-array}
+                spec:
+                  steps:
+                    - id: pay
+                      transaction:
+                        tx:
+                          from: SENDER
+                          ARRAY: {type: payment}
+                """.replace("SENDER", SENDER);
+        for (String array : List.of("intents", "inputs", "scripts")) {
+            FlowParseResult parsed = TxFlowCodec.standard().parse(core.replace("ARRAY", array),
+                    FlowParseOptions.serverDefaults());
+            List<FlowDiagnostic> diagnostics = parsed.hasErrors() ? parsed.getDiagnostics()
+                    : compiler.compile(FlowCompilationRequest.of(parsed.requireFlow(), FlowBindings.empty()))
+                    .getDiagnostics();
+            assertThat(errors(diagnostics)).as(array).isNotEmpty();
+        }
+    }
+
     /** A portable extension flow runs end to end on FlowEngine. */
     @Test
     void aPortableExtensionFlowRunsOnTheEngine() {
