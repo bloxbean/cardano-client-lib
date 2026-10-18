@@ -1,14 +1,14 @@
 # ADR 0008: Generic QuickTx Extension Support in TxFlow
 
-**Status**: Proposed
+**Status**: Accepted
 
-**ADR Document Version**: 1.2.0
+**ADR Document Version**: 1.3.0
 
 **Date**: 2026-10-17
 
 **Last Updated**: 2026-10-18
 
-**Review State**: Revised for review round 3 (r3)
+**Review State**: Design approved at r3 (`1be2134`); implementation approved at `cfc2fb19`
 
 **Target Release**: To be decided
 
