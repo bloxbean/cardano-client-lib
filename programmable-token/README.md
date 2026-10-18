@@ -95,11 +95,14 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
 - TxFlow runs Java `TxPlan` steps that use programmable-token intents when the extension is
   registered on the runtime (`FlowRuntime.builder(...).extension(ext)`,
   `FlowEngine.builder(...).extension(ext)` or `FlowExecutor.withExtension(ext)`). Bind it on each
-  plan with `ext.configure(plan)`. The registry is read through the build's UTxO supplier, so in
-  PIPELINED mode a step sees the registry node an earlier pending step created once it declares
+  plan with `ext.configure(plan)`. The registry, the coordination UTxO and global state are read
+  through the build's UTxO supplier, so in PIPELINED mode a step sees the registry node an earlier
+  pending step created once it declares
   `fundsFrom(thatStep)` — a mint after a registration needs `fundsFrom(register)`, and a transfer
   of that token needs `fundsFrom(register)` and `fundsFrom(mint)`. Without the edge the build
-  fails with "not registered" rather than using stale state. Pipelined CIP-113 steps also need a
+  fails with "not registered" rather than using stale state. A build that sees no coordination
+  UTxO, or one with other protocol parameters than the resolved deployment, fails instead of
+  referencing a spent or stale one; re-resolve the deployment after an in-place upgrade. Pipelined CIP-113 steps also need a
   local script evaluator (`txEvaluator(...)` on the engine), because the backend evaluator cannot
   see pending inputs. Portable TxFlow documents declare the binding in `spec.extensions` and use
   `pt:*` intents in a step's `tx.intents`. Write Plutus data there in structured form: the

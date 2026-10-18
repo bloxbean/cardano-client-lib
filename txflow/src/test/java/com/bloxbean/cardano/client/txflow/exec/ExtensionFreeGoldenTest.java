@@ -127,6 +127,25 @@ class ExtensionFreeGoldenTest {
         assertGolden("java.legacy-yaml", "dd94e0e7a75f63ccde03af30e6203c00a2fa358914a21ea44fdeb51811bde64d", sha256(flow.toYaml()));
     }
 
+    /**
+     * Number-like strings in an extension-free flow are written unquoted, as before; only flows
+     * with extension bindings quote them.
+     */
+    @Test
+    void numberLikeStringsAreWrittenAsBefore() {
+        TxFlow flow = TxFlow.builder("123")
+                .withDefinitionVersion("1")
+                .addAnnotation("number", "456")
+                .addStep(FlowStep.builder("789")
+                        .withTxPlan(TxPlan.from(new Tx()
+                                .payToAddress("addr_test1vzpwq95z3xyum8vqndgdd9mdnmafh3djcxnc6jemlgdmswcve6tkw", Amount.ada(1))
+                                .fromRef("account://sender")).withSigner("account://sender"))
+                        .build())
+                .build();
+        assertGolden("number-like.yaml", "68a5134885b000d990abe2a8e7f262c961f6ef9d0806ae9fe73234f7d7f72597", sha256(TxFlowCodec.standard().write(flow,
+                FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1))));
+    }
+
     @Test
     void planSnapshotsAreUnchanged() {
         TxFlow flow = javaFlow();

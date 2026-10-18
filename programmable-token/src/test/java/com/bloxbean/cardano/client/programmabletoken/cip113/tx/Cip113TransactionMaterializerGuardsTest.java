@@ -763,7 +763,7 @@ class Cip113TransactionMaterializerGuardsTest {
         when(service.deployment()).thenReturn(deployment);
         when(service.registryLookup(any())).thenReturn(registry);
         when(service.scripts()).thenReturn(scripts);
-        when(service.coordinationUtxo()).thenReturn(coordination);
+        when(service.coordinationUtxo(any())).thenReturn(coordination);
         return service;
     }
 
