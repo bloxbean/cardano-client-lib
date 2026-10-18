@@ -5,12 +5,14 @@ import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.AssetService;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.model.AssetAddress;
+import com.bloxbean.cardano.client.backend.model.PolicyAsset;
 import com.bloxbean.cardano.client.backend.model.TxContentOutputAmount;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxoOutputs;
@@ -267,6 +269,57 @@ class DefaultCip113ProtocolServiceTest {
     }
 
     // ------------------------------------------------------------- fixtures
+
+    /**
+     * A build reads the coordination UTxO through its own supplier (contract C1): it picks the
+     * replacement an earlier step created, and fails closed when it sees none or sees other
+     * protocol parameters than the deployment was resolved from.
+     */
+    @Test
+    void aBuildReadsTheCoordinationUtxoThroughItsSupplier() throws Exception {
+        bootstrapReads(0L, Result.success("ok").withValue(bootstrap()));
+        holderOfParamsNft(coordinationAddress);
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, 2048));
+        DefaultCip113ProtocolService service = service();
+        String replacementTx = "cd".repeat(32);
+
+        UtxoSupplier recreated = mock(UtxoSupplier.class);
+        when(recreated.getAll(coordinationAddress.toBech32())).thenReturn(List.of(coordinationUtxo(replacementTx, 2048)));
+        assertThat(service.coordinationUtxo(recreated).getTxHash()).isEqualTo(replacementTx);
+
+        UtxoSupplier spent = mock(UtxoSupplier.class);
+        when(spent.getAll(coordinationAddress.toBech32())).thenReturn(List.of());
+        assertThatThrownBy(() -> service.coordinationUtxo(spent))
+                .isInstanceOf(Cip113Exception.class)
+                .hasMessageContaining("is visible at " + coordinationAddress.toBech32());
+
+        UtxoSupplier upgraded = mock(UtxoSupplier.class);
+        when(upgraded.getAll(coordinationAddress.toBech32())).thenReturn(List.of(coordinationUtxo(replacementTx, 4096)));
+        assertThatThrownBy(() -> service.coordinationUtxo(upgraded))
+                .isInstanceOf(Cip113Exception.class)
+                .hasMessageContaining("other protocol parameters");
+    }
+
+    /** The global-state holder's UTxOs are read through the build's supplier too. */
+    @Test
+    void aBuildReadsTheGlobalStateUtxoThroughItsSupplier() throws Exception {
+        String globalStateCs = "99".repeat(28);
+        String unit = globalStateCs + "aa";
+        PolicyAsset asset = new PolicyAsset();
+        asset.setAsset(unit);
+        when(assetService.getAllPolicyAssets(globalStateCs)).thenReturn(Result.success("ok").withValue(List.of(asset)));
+        when(assetService.getAllAssetAddresses(unit)).thenReturn(Result.success("ok")
+                .withValue(List.of(AssetAddress.builder().address(registryAddress.toBech32()).quantity("1").build())));
+        Utxo state = Utxo.builder().txHash("ee".repeat(32)).outputIndex(0).address(registryAddress.toBech32())
+                .amount(List.of(Amount.builder().unit(unit).quantity(BigInteger.ONE).build())).build();
+        UtxoSupplier buildSupplier = mock(UtxoSupplier.class);
+        when(buildSupplier.getAll(registryAddress.toBech32())).thenReturn(List.of(state));
+
+        DefaultCip113ProtocolService service = service();
+
+        assertThat(service.globalStateUtxo(globalStateCs, buildSupplier)).isEqualTo(state);
+        assertThat(service.globalStateUtxo(globalStateCs)).as("the backend sees no such output").isNull();
+    }
 
     private static ExtensionMetadata metadata(Map<String, Object> deployment) {
         return ExtensionMetadata.builder()

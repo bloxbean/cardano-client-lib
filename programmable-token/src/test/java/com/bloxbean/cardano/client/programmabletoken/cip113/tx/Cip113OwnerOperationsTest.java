@@ -243,12 +243,13 @@ class Cip113OwnerOperationsTest {
     }
 
     /**
-     * The registry is a chain input of the build, so it is read through the build's supplier
-     * (QuickTx extension contract C1). Under TxFlow that supplier sees registry nodes earlier
-     * pipelined steps created or spent; the service's own backend supplier would not.
+     * The registry and the coordination UTxO are chain inputs of the build, so they are read
+     * through the build's supplier (QuickTx extension contract C1). Under TxFlow that supplier
+     * sees outputs earlier pipelined steps created or spent; the service's own backend supplier
+     * would not.
      */
     @Test
-    void theRegistryIsReadThroughTheBuildSupplier() {
+    void theRegistryAndCoordinationAreReadThroughTheBuildSupplier() {
         Cip113ProtocolService service = service();
         UtxoSupplier buildSupplier = supplier(walletUtxo(1, Map.of(UNIT_A, 20)));
         ProgrammableTokenTx tx = transfer(owner(), UNIT_A, 1);
@@ -259,6 +260,8 @@ class Cip113OwnerOperationsTest {
 
         verify(service).registryLookup(same(buildSupplier));
         verify(service, never()).registryLookup();
+        verify(service).coordinationUtxo(same(buildSupplier));
+        verify(service, never()).coordinationUtxo();
     }
 
     // ---------------------------------------------------------------- fixtures
@@ -326,7 +329,7 @@ class Cip113OwnerOperationsTest {
         when(service.deployment()).thenReturn(DEPLOYMENT);
         when(service.registryLookup(any())).thenReturn(registry);
         when(service.scripts()).thenReturn(scripts);
-        when(service.coordinationUtxo()).thenReturn(coordination);
+        when(service.coordinationUtxo(any())).thenReturn(coordination);
         when(service.issuanceTemplateUtxo()).thenReturn(template);
         return service;
     }

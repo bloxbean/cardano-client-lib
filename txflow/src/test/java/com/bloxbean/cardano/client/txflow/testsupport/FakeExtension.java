@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.quicktx.intent.PaymentIntent;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -129,6 +130,7 @@ public final class FakeExtension implements QuickTxExtension {
         private String scanAddress;
         private Boolean requireScanHit;
         private String lookup;
+        private JsonNode extra;
 
         @Override public String getExtensionId() { return ID; }
         @Override public String getOperation() { return OPERATION; }
@@ -159,5 +161,8 @@ public final class FakeExtension implements QuickTxExtension {
         public String getLookup() { return lookup; }
         public void setLookup(String lookup) { this.lookup = lookup; }
         public PayIntent lookup(String txHash, int index) { this.lookup = txHash + "#" + index; return this; }
+        /** Free-form structured data, such as a protocol datum the intent carries. */
+        public JsonNode getExtra() { return extra; }
+        public void setExtra(JsonNode extra) { this.extra = extra; }
     }
 }

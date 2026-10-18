@@ -384,7 +384,7 @@ public final class TxFlowCodec {
             }
             return options.format() == FlowFormat.JSON
                     ? JSON.writerWithDefaultPrettyPrinter().writeValueAsString(root)
-                    : yamlMapper(FlowParseOptions.serverDefaults()).writeValueAsString(root);
+                    : yamlMapper(FlowParseOptions.serverDefaults(), !bindings.isEmpty()).writeValueAsString(root);
         } catch (FlowEncodingException e) {
             throw e;
         } catch (Exception e) {
@@ -931,7 +931,7 @@ public final class TxFlowCodec {
     }
 
     private ObjectMapper mapperFor(String source, FlowParseOptions options) {
-        if (!source.stripLeading().startsWith("{")) return yamlMapper(options);
+        if (!source.stripLeading().startsWith("{")) return yamlMapper(options, false);
         if (options.getUnknownFieldPolicy() == UnknownFieldPolicy.REJECT) return JSON;
         return JSON.copy().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
@@ -959,12 +959,17 @@ public final class TxFlowCodec {
         }
     }
 
-    private ObjectMapper yamlMapper(FlowParseOptions options) {
+    /**
+     * @param quoteNumberLikeStrings quote strings such as {@code "0"} when writing, so untyped
+     *        extension values (an extension deployment network {@code "0"}) stay strings on re-read.
+     *        Only flows with extension bindings set it, which keeps extension-free YAML unchanged
+     *        (ADR 0008 I2); their typed fields read such values back as strings anyway.
+     */
+    private ObjectMapper yamlMapper(FlowParseOptions options, boolean quoteNumberLikeStrings) {
         LoaderOptions loader = loaderOptions(options);
         YAMLFactory factory = YAMLFactory.builder().loaderOptions(loader).build();
         factory.enable(YAMLGenerator.Feature.MINIMIZE_QUOTES);
-        // Keep number-like strings (e.g. an extension deployment network "0") strings on re-read.
-        factory.enable(YAMLGenerator.Feature.ALWAYS_QUOTE_NUMBERS_AS_STRINGS);
+        if (quoteNumberLikeStrings) factory.enable(YAMLGenerator.Feature.ALWAYS_QUOTE_NUMBERS_AS_STRINGS);
         factory.disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
         ObjectMapper mapper = new ObjectMapper(factory);
         if (options.getUnknownFieldPolicy() == UnknownFieldPolicy.REJECT) {

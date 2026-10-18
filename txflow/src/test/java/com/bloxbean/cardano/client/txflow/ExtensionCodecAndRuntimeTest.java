@@ -14,10 +14,13 @@ import com.bloxbean.cardano.client.txflow.codec.FlowFormat;
 import com.bloxbean.cardano.client.txflow.codec.FlowParseOptions;
 import com.bloxbean.cardano.client.txflow.codec.FlowParseResult;
 import com.bloxbean.cardano.client.txflow.codec.FlowSchemaVersion;
+import com.bloxbean.cardano.client.txflow.codec.PortableFlowValidator;
 import com.bloxbean.cardano.client.txflow.codec.FlowWriteOptions;
 import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
 import com.bloxbean.cardano.client.txflow.compile.FlowCompilationRequest;
 import com.bloxbean.cardano.client.txflow.compile.TxFlowCompiler;
+import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import com.bloxbean.cardano.client.txflow.model.FlowBindings;
 import com.bloxbean.cardano.client.txflow.testsupport.FakeChain;
 import com.bloxbean.cardano.client.txflow.testsupport.FakeExtension;
@@ -35,6 +38,7 @@ import static com.bloxbean.cardano.client.txflow.testsupport.FakeChain.SENDER;
 import static com.bloxbean.cardano.client.txflow.testsupport.FakeExtension.pay;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -134,6 +138,38 @@ class ExtensionCodecAndRuntimeTest {
         assertThat(codes(TxFlowCodec.standard().parse(
                 unused.replace(", schema_version: \"1\"", ""), FlowParseOptions.serverDefaults())))
                 .isNotEmpty();
+    }
+
+    /**
+     * D8 for Java plans: a flow_output pointer inside an extension intent is rejected by the
+     * shared check, the compiler, the canonical writer and executor preflight, as it is in a
+     * portable template, and nothing is submitted.
+     */
+    @Test
+    void aFlowOutputInsideAJavaExtensionIntentIsRejectedEverywhere() throws Exception {
+        FakeExtension.PayIntent intent = pay(RECEIVER, 3_000_000);
+        intent.setExtra(new ObjectMapper().readTree("{\"datum\": {\"flow_output\": {\"step\": \"core\", \"output\": \"x\"}}}"));
+        TxFlow flow = TxFlow.builder("flow-output")
+                .addStep(FlowStep.builder("extension").withTxPlan(extension.plan(SENDER, intent)).build())
+                .build();
+        String path = "$.spec.steps[0].transaction.tx.intents[0]";
+
+        assertThat(PortableFlowValidator.validate(flow, FlowExtensions.of(List.of(extension))))
+                .extracting(FlowDiagnostic::code, FlowDiagnostic::documentPath)
+                .containsExactly(tuple("TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED", path));
+        assertThat(new TxFlowCompiler(List.of(extension)).compile(FlowCompilationRequest.of(flow, FlowBindings.empty()))
+                .getDiagnostics()).extracting(FlowDiagnostic::code)
+                .containsExactly("TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED");
+        assertThatThrownBy(() -> TxFlowCodec.withExtensions(List.of(extension)).write(flow, YAML))
+                .hasMessageContaining("TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED");
+
+        FakeChain chain = new FakeChain();
+        assertThatThrownBy(() -> FlowExecutor.create(chain.utxoSupplier, chain.protocolParamsSupplier,
+                        chain.transactionProcessor, chain.chainDataSupplier)
+                .withExecutor(Runnable::run).withSignerRegistry(chain.signers).withExtension(extension)
+                .executeSync(flow))
+                .hasMessageContaining("TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED");
+        assertThat(chain.submitted).isEmpty();
     }
 
     @Test

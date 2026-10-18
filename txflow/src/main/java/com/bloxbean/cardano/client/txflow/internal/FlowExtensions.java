@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
+import com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.codec.FlowDiagnostic;
@@ -153,6 +154,15 @@ public final class FlowExtensions {
                         binding.path));
                 continue;
             }
+            // The schema version is checked here as the codec checks it, independently of the
+            // extension's overridable validateMetadata hook.
+            if (!extension.schemaVersion().equals(binding.metadata.getSchemaVersion())) {
+                diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_METADATA_INVALID",
+                        "Namespace '" + binding.namespace + "': unsupported schema_version '"
+                                + binding.metadata.getSchemaVersion() + "' for extension " + extension.id(),
+                        binding.path));
+                continue;
+            }
             try {
                 extension.validateMetadata(binding.metadata);
             } catch (RuntimeException e) {
@@ -251,6 +261,42 @@ public final class FlowExtensions {
                         diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_INTENT_INVALID",
                                 "Intent " + type + " is invalid: " + e.getMessage(), intentPath));
                     }
+                }
+            }
+        }
+        // Writing needs valid, registered bindings and intents, so it runs once nothing else failed.
+        if (diagnostics.isEmpty()) checkWrittenIntents(plan, path, diagnostics);
+    }
+
+    /**
+     * D8 for Java plans: an extension intent holds no {@code flow_output} pointer, checked on the
+     * form the canonical writer emits, exactly as a portable template is checked.
+     */
+    private void checkWrittenIntents(TxPlan plan, String path, List<FlowDiagnostic> diagnostics) {
+        JsonNode written;
+        try {
+            written = YamlSerializer.getYamlMapper().readTree(write(plan)).path("transaction");
+        } catch (Exception e) {
+            diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_INTENT_INVALID",
+                    "The plan's extension intents cannot be written: " + e.getMessage(), path));
+            return;
+        }
+        List<AbstractTx<?>> transactions = plan.getTxs();
+        for (int t = 0; t < transactions.size(); t++) {
+            List<JsonNode> writtenExtensionIntents = new ArrayList<>();
+            for (JsonNode content : written.path(t)) {
+                content.path("intents").forEach(intent -> {
+                    if (isNamespaced(intent)) writtenExtensionIntents.add(intent);
+                });
+            }
+            List<TxIntent> intents = transactions.get(t).getIntentions();
+            int n = 0;
+            for (int i = 0; i < intents.size() && n < writtenExtensionIntents.size(); i++) {
+                if (!(intents.get(i) instanceof ExtensionIntent)) continue;
+                if (!writtenExtensionIntents.get(n++).findValues("flow_output").isEmpty()) {
+                    diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED",
+                            "flow_output references are not supported inside extension intents",
+                            path + ".tx" + (t == 0 ? "" : "[" + t + "]") + ".intents[" + i + "]"));
                 }
             }
         }
