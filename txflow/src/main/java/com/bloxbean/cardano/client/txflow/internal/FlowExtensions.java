@@ -153,6 +153,15 @@ public final class FlowExtensions {
                         binding.path));
                 continue;
             }
+            // The schema version is checked here as the codec checks it, independently of the
+            // extension's overridable validateMetadata hook.
+            if (!extension.schemaVersion().equals(binding.metadata.getSchemaVersion())) {
+                diagnostics.add(FlowDiagnostic.error("TXFLOW_EXTENSION_METADATA_INVALID",
+                        "Namespace '" + binding.namespace + "': unsupported schema_version '"
+                                + binding.metadata.getSchemaVersion() + "' for extension " + extension.id(),
+                        binding.path));
+                continue;
+            }
             try {
                 extension.validateMetadata(binding.metadata);
             } catch (RuntimeException e) {

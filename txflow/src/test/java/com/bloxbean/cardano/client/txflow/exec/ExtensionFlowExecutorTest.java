@@ -3,6 +3,10 @@ package com.bloxbean.cardano.client.txflow.exec;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
+import com.bloxbean.cardano.client.quicktx.extension.TxBuildExtension;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
@@ -23,6 +27,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.bloxbean.cardano.client.txflow.testsupport.FakeChain.PROTOCOL;
@@ -98,6 +103,36 @@ class ExtensionFlowExecutorTest {
                 .withExtension(new FakeExtension("1")).executeSync(flow))
                 .hasMessageContaining("TXFLOW_EXTENSION_METADATA_INVALID")
                 .hasMessageContaining("does not match configured network 1");
+        assertThat(chain.submitted).isEmpty();
+    }
+
+    /**
+     * I6: the schema version is checked in preflight even when the extension's validateMetadata
+     * override checks only its deployment, as the codec checks it at copy time.
+     */
+    @Test
+    void anUnsupportedSchemaVersionFailsBeforeAnyStepIsBuilt() {
+        QuickTxExtension deploymentOnly = new QuickTxExtension() {
+            @Override public String id() { return extension.id(); }
+            @Override public String schemaVersion() { return extension.schemaVersion(); }
+            @Override public Set<String> operations() { return extension.operations(); }
+            @Override public Map<String, Class<? extends ExtensionIntent>> intentTypes() { return extension.intentTypes(); }
+            @Override public TxBuildExtension newBuildExtension() { return extension.newBuildExtension(); }
+            @Override public void validateMetadata(ExtensionMetadata metadata) { }
+        };
+        TxPlan schemaTwo = TxPlan.from(new Tx().from(SENDER)).withSigner(FakeChain.SIGNER)
+                .withExtension(FakeExtension.NAMESPACE, extension.metadata().toBuilder().schemaVersion("2").build());
+        schemaTwo.getTxs().get(0).addIntention(pay(RECEIVER, 3_000_000));
+        TxFlow flow = TxFlow.builder("schema-two")
+                .addStep(FlowStep.builder("core").withTxPlan(TxPlan.from(new Tx().from(SENDER)
+                        .payToAddress(RECEIVER, Amount.ada(2))).withSigner(FakeChain.SIGNER)).build())
+                .addStep(FlowStep.builder("extension").withTxPlan(schemaTwo).build())
+                .build();
+
+        assertThatThrownBy(() -> executor(ChainingMode.PIPELINED).withExtension(deploymentOnly).executeSync(flow))
+                .hasMessageContaining("TXFLOW_EXTENSION_METADATA_INVALID")
+                .hasMessageContaining("unsupported schema_version '2'");
+        assertThat(built).isEmpty();
         assertThat(chain.submitted).isEmpty();
     }
 
