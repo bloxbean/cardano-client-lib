@@ -12,7 +12,7 @@
  * extension works there when it meets these conditions:</p>
  * <ol>
  *   <li>Every chain read made while building ({@code prepare}, {@code afterBalance},
- *       {@code verify}) goes through {@link ExtensionBuildContext#getUtxoSupplier()}. Under TxFlow
+ *       {@code verify}) goes through {@link ExtensionBuildContext}{@code .getUtxoSupplier()}. Under TxFlow
  *       that supplier's address scans hide outputs earlier flow steps spent and show pending
  *       outputs of steps the current step is funded from; a private backend supplier does
  *       neither. Its exact lookups ({@code getTxOutput}) are not spent-filtered, so read
