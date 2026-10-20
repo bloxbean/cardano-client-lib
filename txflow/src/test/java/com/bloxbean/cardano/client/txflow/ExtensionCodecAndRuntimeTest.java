@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.codec.FlowDiagnostic;
 import com.bloxbean.cardano.client.txflow.codec.FlowEncodingException;
@@ -30,7 +31,9 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static com.bloxbean.cardano.client.txflow.testsupport.FakeChain.RECEIVER;
@@ -110,6 +113,31 @@ class ExtensionCodecAndRuntimeTest {
                 .requireCompiledFlow().getFingerprint())
                 .isEqualTo(compiler.compile(FlowCompilationRequest.of(flow(), FlowBindings.empty()))
                         .requireCompiledFlow().getFingerprint());
+    }
+
+    /**
+     * The compiler copies a plan through YAML, which reads a small long back as an int; the same
+     * binding at flow and plan level must still merge.
+     */
+    @Test
+    void anIntegerDeploymentValueSurvivesCompilationOfIdenticalBindings() {
+        Map<String, Object> deployment = new HashMap<>(extension.metadata().getDeployment());
+        deployment.put("revision", 7L);
+        ExtensionMetadata metadata = extension.metadata().toBuilder().deployment(deployment).build();
+        Tx tx = new Tx().from(SENDER);
+        tx.addIntention(pay(RECEIVER, 1_000_000));
+        TxFlow flow = TxFlow.builder("long-revision").withExtension(FakeExtension.NAMESPACE, metadata)
+                .addStep(FlowStep.builder("pay").withTxPlan(TxPlan.from(tx)
+                        .withExtension(FakeExtension.NAMESPACE, metadata).withSigner(FakeChain.SIGNER)).build())
+                .build();
+
+        assertThat(new TxFlowCompiler(List.of(extension))
+                .compile(FlowCompilationRequest.of(flow, FlowBindings.empty())).getDiagnostics()).isEmpty();
+        assertThat(FlowExtensions.mergeable(
+                Map.of(FakeExtension.NAMESPACE, metadata),
+                Map.of(FakeExtension.NAMESPACE, metadata.toBuilder()
+                        .deployment(Map.of("network", deployment.get("network"), "revision", 7)).build())))
+                .isTrue();
     }
 
     /** I13 at parse time, plus binding shape and unknown-field checks. */

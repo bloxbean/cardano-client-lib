@@ -128,7 +128,7 @@ class TxPlanCodecIdBindingTest {
 
         assertThat(copy.getExtensions().get("note")).isEqualTo(metadata);
         assertThat(copy.getExtensions().get("note").getDeployment().get("network")).isEqualTo("0");
-        assertThat(copy.getExtensions().get("note").getDeployment().get("count")).isEqualTo(7);
+        assertThat(copy.getExtensions().get("note").getDeployment().get("count")).isEqualTo(7L);
     }
 
     private static TxPlan plan(String note) {
