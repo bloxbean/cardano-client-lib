@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.programmabletoken.cip113;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -60,8 +61,37 @@ public interface Cip113ProtocolService {
      */
     Utxo globalStateUtxo(String globalStateCs);
 
+    /**
+     * The global-state UTxO for one transaction build, reading UTxOs through that build's
+     * supplier like {@link #registryLookup(UtxoSupplier)}. The default keeps
+     * {@link #globalStateUtxo(String)}, which only sees confirmed state.
+     *
+     * @param globalStateCs the global-state policy
+     * @param buildSupplier the UTxO supplier of the build being prepared
+     * @return the UTxO carrying the global-state NFT, or null if the build cannot see one
+     */
+    default Utxo globalStateUtxo(String globalStateCs, UtxoSupplier buildSupplier) {
+        return globalStateUtxo(globalStateCs);
+    }
+
     /** Advanced registry lookup used by the build adapter and indexer-backed implementations. */
     RegistryLookup registryLookup();
+
+    /**
+     * Registry lookup for one transaction build, reading through that build's UTxO supplier.
+     *
+     * <p>The build adapter uses this so the registry is read like every other chain input of
+     * the build: under TxFlow, the supplier hides registry nodes an earlier step already spent
+     * and shows nodes an earlier step created when the step is funded from it. The default
+     * keeps {@link #registryLookup()}, for implementations whose lookup cannot use a supplier
+     * (for example an indexer); those only see confirmed state.</p>
+     *
+     * @param buildSupplier the UTxO supplier of the build being prepared
+     * @return a registry lookup for that build
+     */
+    default RegistryLookup registryLookup(UtxoSupplier buildSupplier) {
+        return registryLookup();
+    }
 
     /**
      * The coordination UTxO carrying the protocol-params NFT, available once
@@ -69,6 +99,18 @@ public interface Cip113ProtocolService {
      * inputs to find it, so it is mandatory on every programmable transaction.
      */
     Utxo coordinationUtxo();
+
+    /**
+     * The coordination UTxO for one transaction build, reading through that build's supplier,
+     * so a build never references a coordination output an earlier TxFlow step spent. The
+     * default keeps {@link #coordinationUtxo()}, which only sees confirmed state.
+     *
+     * @param buildSupplier the UTxO supplier of the build being prepared
+     * @return the coordination UTxO the build can see
+     */
+    default Utxo coordinationUtxo(UtxoSupplier buildSupplier) {
+        return coordinationUtxo();
+    }
 
     /**
      * The issuance-template UTxO whose datum carries the prefix/postfix a policy id is derived

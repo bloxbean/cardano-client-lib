@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -97,13 +98,42 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
      */
     @Override
     public RegistryLookup registryLookup() {
-        return new RegistryLookup.Scanning(utxoSupplier, resolved().getDeployment());
+        return registryLookup(utxoSupplier);
+    }
+
+    /** Scans the registry through the given supplier, bound to the resolved deployment. */
+    @Override
+    public RegistryLookup registryLookup(UtxoSupplier buildSupplier) {
+        return new RegistryLookup.Scanning(buildSupplier, resolved().getDeployment());
     }
 
     /** The live coordination UTxO. Resolves the deployment on first use if needed. */
     @Override
     public Utxo coordinationUtxo() {
         return resolved().getCoordinationUtxo();
+    }
+
+    /**
+     * The output carrying the protocol-params NFT at the resolved coordination address, as the
+     * build's supplier sees it. The deployment was resolved from the coordination datum, so a
+     * visible output with another datum fails the build instead of using stale parameters.
+     */
+    @Override
+    public Utxo coordinationUtxo(UtxoSupplier buildSupplier) {
+        Resolved state = resolved();
+        Utxo resolvedCoordination = state.getCoordinationUtxo();
+        String unit = state.getDeployment().getParamsPolicy() + HexUtil.encodeHexString(
+                Cip113Deployment.PROTOCOL_PARAMS_ASSET_NAME.getBytes(StandardCharsets.UTF_8));
+        Utxo visible = utxoCarrying(buildSupplier, resolvedCoordination.getAddress(), unit)
+                .orElseThrow(() -> new Cip113Exception("No output carrying the protocol-params NFT " + unit
+                        + " is visible at " + resolvedCoordination.getAddress() + " to this build. An earlier"
+                        + " transaction may have spent the coordination UTxO; build after it confirms, or"
+                        + " fund this TxFlow step from the step that recreates it."));
+        if (!Objects.equals(visible.getInlineDatum(), resolvedCoordination.getInlineDatum()))
+            throw new Cip113Exception("The coordination UTxO " + visible.getTxHash() + "#" + visible.getOutputIndex()
+                    + " carries other protocol parameters than the resolved deployment. Resolve the"
+                    + " deployment again before building.");
+        return visible;
     }
 
     /** The issuance-template UTxO. Resolves the deployment on first use if needed. */
@@ -326,7 +356,11 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
 
     /** The unspent output at {@code address} holding {@code unit}, read through the UTxO supplier. */
     private Optional<Utxo> utxoCarrying(String address, String unit) {
-        for (Utxo utxo : utxoSupplier.getAll(address)) {
+        return utxoCarrying(utxoSupplier, address, unit);
+    }
+
+    private static Optional<Utxo> utxoCarrying(UtxoSupplier supplier, String address, String unit) {
+        for (Utxo utxo : supplier.getAll(address)) {
             for (Amount amount : utxo.getAmount()) {
                 if (unit.equals(amount.getUnit())) return Optional.of(utxo);
             }
@@ -369,6 +403,12 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
      */
     @Override
     public Utxo globalStateUtxo(String globalStateCs) {
+        return globalStateUtxo(globalStateCs, utxoSupplier);
+    }
+
+    /** As {@link #globalStateUtxo(String)}, reading the holders' UTxOs through the build's supplier. */
+    @Override
+    public Utxo globalStateUtxo(String globalStateCs, UtxoSupplier buildSupplier) {
         if (globalStateCs == null || globalStateCs.isEmpty()) return null;
         try {
             var assets = backendService.getAssetService().getAllPolicyAssets(globalStateCs);
@@ -379,7 +419,7 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
                 var holders = backendService.getAssetService().getAllAssetAddresses(unit);
                 if (!holders.isSuccessful() || holders.getValue() == null) continue;
                 for (var holder : holders.getValue()) {
-                    Optional<Utxo> found = utxoCarrying(holder.getAddress(), unit);
+                    Optional<Utxo> found = utxoCarrying(buildSupplier, holder.getAddress(), unit);
                     if (found.isPresent()) return found.get();
                 }
             }

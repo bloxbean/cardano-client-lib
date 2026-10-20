@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow;
 
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.yaml.FlowDocument;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
@@ -61,6 +63,13 @@ public class TxFlow {
     private final String network;
     private final Map<String, String> annotations;
     private final Map<String, ParameterSpec> parameters;
+    /**
+     * Flow-level QuickTx extension bindings, by document namespace ({@code spec.extensions}).
+     * Java steps usually bind extensions on their own plans instead.
+     *
+     * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+     */
+    private final Map<String, ExtensionMetadata> extensions;
 
     private TxFlow(Builder builder) {
         this.id = builder.id;
@@ -74,6 +83,8 @@ public class TxFlow {
         this.network = builder.network;
         this.annotations = Collections.unmodifiableMap(new LinkedHashMap<>(builder.annotations));
         this.parameters = Collections.unmodifiableMap(new LinkedHashMap<>(builder.parameters));
+        this.extensions = Collections.unmodifiableMap(
+                new LinkedHashMap<>(builder.extensionBindings.getExtensions()));
     }
 
     /**
@@ -110,8 +121,9 @@ public class TxFlow {
      *     <li>Circular dependencies</li>
      *     <li>References to non-existent steps</li>
      *     <li>Each step has valid transaction definition</li>
-     *     <li>No step plan uses QuickTx extension intents (not supported by TxFlow yet)</li>
      * </ul>
+     * QuickTx extension requirements are checked where the registered extensions are known:
+     * by the executor, the compiler and the codec.
      *
      * @return validation result
      */
@@ -131,12 +143,6 @@ public class TxFlow {
         for (FlowStep step : steps) {
             if (!step.hasTxPlan() && !step.hasTxContextFactory() && !step.hasTransactionTemplate()) {
                 errors.add("Step '" + step.getId() + "' has no transaction definition");
-            }
-            if (step.hasTxPlan() && step.getTxPlan().hasExtensions()) {
-                // Execution snapshots each plan through core TxPlan YAML, which cannot carry
-                // extension intents. Refuse here, before any earlier step is submitted.
-                errors.add("Step '" + step.getId() + "' uses QuickTx extension intents, which TxFlow "
-                        + "does not support yet; build that transaction with QuickTxBuilder");
             }
             if (new HashSet<>(step.getNeeds()).size() != step.getNeeds().size()) {
                 errors.add("Step '" + step.getId() + "' contains duplicate needs entries");
@@ -336,6 +342,8 @@ public class TxFlow {
         private String network;
         private final Map<String, String> annotations = new LinkedHashMap<>();
         private final Map<String, ParameterSpec> parameters = new LinkedHashMap<>();
+        // TxPlan owns the namespace rules, so a flow binding is valid exactly when a plan binding is.
+        private final TxPlan extensionBindings = new TxPlan();
 
         private Builder(String id) {
             if (id == null || id.isEmpty()) {
@@ -403,6 +411,24 @@ public class TxFlow {
             if (parameters.putIfAbsent(parameter.getName(), parameter) != null) {
                 throw new IllegalArgumentException("Duplicate parameter: " + parameter.getName());
             }
+            return this;
+        }
+
+        /**
+         * Binds a QuickTx extension to a document namespace for the whole flow
+         * ({@code spec.extensions}). Steps then use {@code <namespace>:<operation>} intents.
+         * Every binding must be used by some extension intent.
+         *
+         * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+         *
+         * @param namespace document-local namespace
+         * @param metadata binding metadata
+         * @return this builder
+         * @throws IllegalArgumentException for an invalid, reserved or duplicate namespace, or an
+         *                                  extension already bound to another namespace
+         */
+        public Builder withExtension(String namespace, ExtensionMetadata metadata) {
+            extensionBindings.withExtension(namespace, metadata);
             return this;
         }
 

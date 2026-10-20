@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.txflow.codec.FlowSchemaVersion;
 import com.bloxbean.cardano.client.txflow.codec.FlowWriteOptions;
 import com.bloxbean.cardano.client.txflow.codec.PortableFlowValidator;
 import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import com.bloxbean.cardano.client.txflow.model.FlowBindings;
 import com.bloxbean.cardano.client.txflow.exec.FlowError;
 import com.bloxbean.cardano.client.txflow.exec.FlowErrorCategory;
@@ -113,7 +114,9 @@ final class EngineTxFlowStream implements TxFlowStream {
     /** Reconciliation observer interval; {@code null} unless opted in (read-through only). */
     private final Duration reconciliationInterval;
     private final int reconciliationBatchSize;
-    private final TxFlowCodec codec = TxFlowCodec.standard();
+    /** The engine's registered QuickTx extensions (ADR 0008 M3); items use them like flows do. */
+    private final FlowExtensions extensions;
+    private final TxFlowCodec codec;
     private final StableIdFactory idFactory;
     /**
      * Pre-registered parameterized templates by id (ADR 0004, iteration 3):
@@ -282,6 +285,8 @@ final class EngineTxFlowStream implements TxFlowStream {
         this.streamId = builder.streamId;
         this.namespace = StreamIdentities.namespace(builder.streamId);
         this.gateway = builder.gateway;
+        this.extensions = FlowExtensions.of(gateway.extensions());
+        this.codec = TxFlowCodec.of(extensions);
         this.laneMode = builder.lanePolicy.mode();
         this.staticLane = builder.lanePolicy.staticLane();
         this.laneResolver = builder.laneResolver;
@@ -329,7 +334,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 throw new IllegalStateException(
                         "Template '" + templateId + "' declares no steps");
             }
-            List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(definition);
+            List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(definition, extensions);
             if (!diagnostics.isEmpty()) {
                 throw new IllegalStateException(
                         "Template '" + templateId + "' is not portable: " + diagnostics);
@@ -1560,14 +1565,14 @@ final class EngineTxFlowStream implements TxFlowStream {
         // payload — e.g. a multi-transaction plan under byFundingSource, which has
         // no single funding source to derive from — would surface the downstream
         // TXSTREAM_LANE_UNDERIVABLE instead of the precise TXSTREAM_NON_PORTABLE_ITEM.
-        List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(definition);
+        List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(definition, extensions);
         if (!diagnostics.isEmpty()) {
             throw new TxStreamException("TXSTREAM_NON_PORTABLE_ITEM",
                     "Item '" + item.getItemId() + "' is not portable: " + diagnostics);
         }
         if (step.getTxPlan() != null) {
             try {
-                step = rebuildStepWithPlan(step, TxPlan.from(step.getTxPlan().toYaml()));
+                step = rebuildStepWithPlan(step, copyPlan(step.getTxPlan()));
                 definition = TxFlow.builder(flowId).addStep(step).build();
             } catch (RuntimeException snapshotFailure) {
                 throw new TxStreamException("TXSTREAM_NON_PORTABLE_ITEM",
@@ -1826,6 +1831,11 @@ final class EngineTxFlowStream implements TxFlowStream {
     }
 
     /** The single {@link Tx} of a plan, or {@code null} when it is not exactly one Tx. */
+    /** Deep copy; a plan using extensions is copied literally through the registered extensions. */
+    private TxPlan copyPlan(TxPlan plan) {
+        return plan.hasExtensions() ? extensions.copy(plan) : TxPlan.from(plan.toYaml());
+    }
+
     private static Tx singleTx(TxPlan plan) {
         if (plan == null || plan.getTxs().size() != 1 || !(plan.getTxs().get(0) instanceof Tx)) {
             return null;
@@ -1900,7 +1910,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         if (!hasFrom && !hasFromRef) {
             // Absent: materialize the lane's declared source onto a defensive
             // copy of the plan (YAML round trip = the plan's own deep copy).
-            TxPlan copy = TxPlan.from(plan.toYaml());
+            TxPlan copy = copyPlan(plan);
             Tx copiedTx = (Tx) copy.getTxs().get(0);
             if (addressScope) {
                 copiedTx.from(scope.source());

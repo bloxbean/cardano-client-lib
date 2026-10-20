@@ -61,7 +61,7 @@
     "TXFLOW_NON_PORTABLE_RETRY_FILTERS": "Legacy retry filter flags have no portable v1alpha1 representation.",
     "TXFLOW_NON_PORTABLE_ROLLBACK_STRATEGY": "A legacy rollback strategy has no lossless portable representation; use RollbackPolicy.",
     "TXFLOW_NON_PORTABLE_STEP_RETRY": "A step-level retry override has no portable v1alpha1 representation.",
-    "TXFLOW_NON_PORTABLE_EXTENSION": "TxPlans that use QuickTx extensions are not supported by TxFlow yet.",
+    "TXFLOW_NON_PORTABLE_EXTENSION": "Retired by ADR 0008 and no longer emitted; extension steps report TXFLOW_EXTENSION_UNREGISTERED when their extension is not registered.",
     "TXFLOW_NON_PORTABLE_TXPLAN_CARDINALITY": "A portable step must contain exactly one QuickTx transaction.",
     "TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES": "QuickTx plan variables must be migrated to portable parameters and execution bindings.",
     "TXFLOW_OUTPUT_EXPECT_UNSUPPORTED": "The requested output-selector cardinality is unsupported.",
@@ -141,6 +141,13 @@
     "TXFLOW_UNBOUND_INPUT": "A portable input expression has no bound value.",
     "TXFLOW_UNKNOWN_BINDING": "A runtime binding is not declared as a parameter.",
     "TXFLOW_VALIDITY_INTERVAL_INVALID": "The validity interval has inconsistent bounds.",
-    "TXFLOW_VALIDITY_WINDOW_EXPIRED": "The identical payload is outside its safe resubmission window."
+    "TXFLOW_VALIDITY_WINDOW_EXPIRED": "The identical payload is outside its safe resubmission window.",
+    "TXFLOW_EXTENSION_UNREGISTERED": "A step needs a QuickTx extension that is not registered with this TxFlow runtime, compiler or codec.",
+    "TXFLOW_EXTENSION_METADATA_INVALID": "The registered QuickTx extension rejected the declared extension binding.",
+    "TXFLOW_EXTENSION_INTENT_INVALID": "A QuickTx extension intent has no binding, an unknown operation, the wrong type, or fails validation.",
+    "TXFLOW_EXTENSION_BINDING_CONFLICT": "Extension bindings disagree: one namespace with different metadata, or one extension under two namespaces.",
+    "TXFLOW_EXTENSION_BINDING_UNUSED": "An extension binding is declared but no extension intent uses it.",
+    "TXFLOW_EXTENSION_INTENT_LOSSY": "An extension intent does not round-trip through its extension codec, so compiling it would change what was authored.",
+    "TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED": "flow_output references are not supported inside extension intents."
   }
 }

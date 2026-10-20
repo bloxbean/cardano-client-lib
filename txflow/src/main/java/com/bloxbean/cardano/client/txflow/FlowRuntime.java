@@ -2,8 +2,12 @@ package com.bloxbean.cardano.client.txflow;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
 import com.bloxbean.cardano.client.txflow.stream.TxFlowStream;
+import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.TransactionEvaluator;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.hdwallet.Wallet;
 
 import java.lang.reflect.InvocationTargetException;
@@ -18,6 +22,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 /**
  * Optional managed composition root for scripts, tutorials, CLI tools, and
@@ -287,6 +292,32 @@ public final class FlowRuntime implements AutoCloseable {
          */
         public Builder wallet(String ref, Wallet wallet) {
             engineBuilder.wallet(ref, wallet);
+            return this;
+        }
+
+        /**
+         * Registers a QuickTx extension on the runtime-owned engine for steps that use its intents.
+         *
+         * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+         *
+         * @param extension operator-configured extension
+         * @return this builder
+         */
+        public Builder extension(QuickTxExtension extension) {
+            engineBuilder.extension(extension);
+            return this;
+        }
+
+        /**
+         * Supplies the script-cost evaluator for {@code TxPlan} steps on the runtime-owned
+         * engine; see {@code FlowEngine.Builder#txEvaluator}.
+         *
+         * @param factory evaluator factory from the step's UTxO supplier and protocol parameters
+         * @return this builder
+         */
+        public Builder txEvaluator(
+                BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> factory) {
+            engineBuilder.txEvaluator(factory);
             return this;
         }
 

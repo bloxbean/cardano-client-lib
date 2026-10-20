@@ -38,6 +38,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -423,7 +424,7 @@ class Cip113TransactionMaterializerGuardsTest {
                 .hasMessageContaining(POLICY)
                 .hasMessageContaining(OTHER_POLICY);
         verifyNoInteractions(utxoSupplier);
-        verify(service, never()).registryLookup();
+        verify(service, never()).registryLookup(any());
     }
 
     @Test
@@ -459,7 +460,7 @@ class Cip113TransactionMaterializerGuardsTest {
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("its own transaction");
         verifyNoInteractions(utxoSupplier);
-        verify(service, never()).registryLookup();
+        verify(service, never()).registryLookup(any());
     }
 
     // ---------------------------------- rules that span every Tx fragment of one transaction
@@ -484,7 +485,7 @@ class Cip113TransactionMaterializerGuardsTest {
                 .hasMessageContaining(POLICY)
                 .hasMessageContaining(OTHER_POLICY);
         verifyNoInteractions(utxoSupplier);
-        verify(service, never()).registryLookup();
+        verify(service, never()).registryLookup(any());
     }
 
     /** Each fragment would get its own materializer and withdraw-zero invocation. */
@@ -506,7 +507,7 @@ class Cip113TransactionMaterializerGuardsTest {
                 .hasMessageContaining("single Tx")
                 .hasMessageContaining("2 Tx fragments");
         verifyNoInteractions(utxoSupplier);
-        verify(service, never()).registryLookup();
+        verify(service, never()).registryLookup(any());
     }
 
     /** The unfracking validator requires an empty mint, wherever in the transaction it is authored. */
@@ -526,7 +527,7 @@ class Cip113TransactionMaterializerGuardsTest {
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("empty mint");
         verifyNoInteractions(utxoSupplier);
-        verify(service, never()).registryLookup();
+        verify(service, never()).registryLookup(any());
     }
 
     /**
@@ -550,7 +551,7 @@ class Cip113TransactionMaterializerGuardsTest {
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageNotContaining("cannot validate")
                 .hasMessageNotContaining("exactly one policy");
-        verify(service).registryLookup();
+        verify(service).registryLookup(any());
         verify(utxoSupplier).getAll(
                 SmartWalletAddress.ofPaymentCredential(deployment(), holderAddress()).toBech32());
     }
@@ -576,7 +577,7 @@ class Cip113TransactionMaterializerGuardsTest {
                         .doesNotContain("exactly one policy")
                         .doesNotContain("single Tx")
                         .doesNotContain("cannot validate"));
-        verify(service).registryLookup();
+        verify(service).registryLookup(any());
     }
 
     @Test
@@ -760,9 +761,9 @@ class Cip113TransactionMaterializerGuardsTest {
 
         Cip113ProtocolService service = mock(Cip113ProtocolService.class);
         when(service.deployment()).thenReturn(deployment);
-        when(service.registryLookup()).thenReturn(registry);
+        when(service.registryLookup(any())).thenReturn(registry);
         when(service.scripts()).thenReturn(scripts);
-        when(service.coordinationUtxo()).thenReturn(coordination);
+        when(service.coordinationUtxo(any())).thenReturn(coordination);
         return service;
     }
 

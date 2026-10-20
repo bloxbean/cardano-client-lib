@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Value;
 import lombok.extern.jackson.Jacksonized;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -18,6 +19,10 @@ import java.util.TreeMap;
  *
  * <p>Immutable. The deployment map is deep-copied on construction and exposed read-only, so a
  * descriptor shared between plans, codecs and builders cannot be changed through any of them.</p>
+ *
+ * <p>Integer deployment values are normalized to {@link Long}, or {@link BigInteger} beyond the
+ * long range, so metadata built in Java equals the same metadata read back from YAML or JSON,
+ * where a parser picks the narrowest integer type. Decimal values are kept as given.</p>
  */
 @Value
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -65,6 +70,12 @@ public class ExtensionMetadata {
             List<Object> copy = new ArrayList<>();
             ((Collection<?>) value).forEach(item -> copy.add(readOnlyValue(item)));
             return Collections.unmodifiableList(copy);
+        }
+        if (value instanceof Byte || value instanceof Short || value instanceof Integer) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof BigInteger && ((BigInteger) value).bitLength() < Long.SIZE) {
+            return ((BigInteger) value).longValue();
         }
         return value;
     }

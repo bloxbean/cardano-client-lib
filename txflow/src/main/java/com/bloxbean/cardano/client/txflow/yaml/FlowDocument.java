@@ -293,6 +293,12 @@ public class FlowDocument {
      * @return the FlowDocument
      */
     public static FlowDocument fromFlow(TxFlow flow) {
+        boolean usesExtensions = !flow.getExtensions().isEmpty() || flow.getSteps().stream()
+                .anyMatch(step -> step.hasTxPlan() && step.getTxPlan().hasExtensions());
+        if (usesExtensions) {
+            throw new IllegalStateException("The legacy TxFlow YAML format cannot carry QuickTx "
+                    + "extensions; write the portable format with TxFlowCodec.withExtensions(...)");
+        }
         FlowDocument doc = new FlowDocument();
         if (flow.getExecutionSettings() != null && flow.getExecutionSettings().hasAnySetting()) {
             doc.setContext(toExecutionContext(flow.getExecutionSettings()));

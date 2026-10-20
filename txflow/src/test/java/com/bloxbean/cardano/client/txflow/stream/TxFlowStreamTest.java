@@ -240,7 +240,7 @@ class TxFlowStreamTest {
             TxStreamException error = assertThrows(TxStreamException.class,
                     () -> stream.submit(TxWorkItem.fromTxPlan("extension-item", extensionPlan)));
             assertEquals("TXSTREAM_NON_PORTABLE_ITEM", error.getCode());
-            assertTrue(error.getMessage().contains("TXFLOW_NON_PORTABLE_EXTENSION"));
+            assertTrue(error.getMessage().contains("TXFLOW_EXTENSION_BINDING_UNUSED"));
             assertTrue(store.calls.isEmpty(), "nothing may be registered: " + store.calls);
             assertTrue(gateway.started.isEmpty());
             assertTrue(stream.getItemStatus("extension-item").isEmpty());

@@ -1,14 +1,17 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.bloxbean.cardano.client.quicktx.intent.PaymentIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -95,41 +98,75 @@ final class BuiltInPlanners {
         List<PlannedExecution> executions = new ArrayList<>(groups.size());
         for (List<TxWorkItem> group : groups.values()) {
             // Deterministic member order: sorted by claim key.
-            Map<String, TxWorkItem> byClaimKey = new TreeMap<>();
+            Map<String, TxWorkItem> sorted = new TreeMap<>();
             for (TxWorkItem item : group) {
-                byClaimKey.put(context.seed(item.getItemId()).claimKey, item);
+                sorted.put(context.seed(item.getItemId()).claimKey, item);
             }
-            List<String> sortedKeys = new ArrayList<>(byClaimKey.keySet());
-            String flowClaimKey = StreamIdentities.windowClaimKey(sortedKeys);
-            TxFlow.Builder flowBuilder = TxFlow.builder(context.ids().flowId(sortedKeys));
-            if (chainingMode != null) {
-                flowBuilder.withChainingMode(chainingMode);
+            for (Map<String, TxWorkItem> byClaimKey : bindingCompatibleRuns(sorted, context)) {
+                executions.add(planWindowFlow(byClaimKey, context, chainingMode));
             }
-            List<TxStreamPlannedItem> mappings = new ArrayList<>(byClaimKey.size());
-            String laneName = null;
-            List<String> earlierGeneratedStepIds = new ArrayList<>();
-            for (Map.Entry<String, TxWorkItem> member : byClaimKey.entrySet()) {
-                TxStreamPlanningContext.PlanningSeed seed =
-                        context.seed(member.getValue().getItemId());
-                if (laneName == null) {
-                    laneName = seed.lane.laneName();
-                }
-                String stepId = context.ids().stepId(member.getKey());
-                // Pipelining one funding lane requires every later build to see
-                // all earlier unspent same-lane change, not merely its immediate
-                // predecessor. A predecessor may have selected another base UTxO
-                // and left older pending change unconsumed.
-                List<String> pipelineFunding = chainingMode == ChainingMode.PIPELINED
-                        ? earlierGeneratedStepIds : List.of();
-                flowBuilder.addStep(copyStepWithId(
-                        seed.enforcedStep, stepId, pipelineFunding));
-                mappings.add(new TxStreamPlannedItem(member.getValue().getItemId(), stepId));
-                earlierGeneratedStepIds.add(stepId);
-            }
-            executions.add(new PlannedExecution(flowBuilder.build(), laneName,
-                    flowClaimKey, mappings));
         }
         return TxStreamPlan.of(executions);
+    }
+
+    /**
+     * Splits a lane group's claim-key-ordered members into consecutive runs whose QuickTx
+     * extension bindings can share one flow (ADR 0008 D6a). A member that binds a namespace to
+     * other metadata, or an extension under another namespace, starts a new flow on the same lane;
+     * the lane still runs one execution at a time. A window without conflicting bindings stays one
+     * flow, so its identities are unchanged.
+     */
+    private static List<Map<String, TxWorkItem>> bindingCompatibleRuns(Map<String, TxWorkItem> sorted,
+                                                                     TxStreamPlanningContext context) {
+        List<Map<String, TxWorkItem>> runs = new ArrayList<>();
+        Map<String, TxWorkItem> run = new TreeMap<>();
+        Map<String, ExtensionMetadata> runBindings = new HashMap<>();
+        for (Map.Entry<String, TxWorkItem> member : sorted.entrySet()) {
+            TxPlan plan = context.seed(member.getValue().getItemId()).enforcedStep.getTxPlan();
+            Map<String, ExtensionMetadata> bindings = plan != null ? plan.getExtensions() : Map.of();
+            if (!FlowExtensions.mergeable(runBindings, bindings)) {
+                runs.add(run);
+                run = new TreeMap<>();
+                runBindings = new HashMap<>();
+            }
+            run.put(member.getKey(), member.getValue());
+            runBindings.putAll(bindings);
+        }
+        runs.add(run);
+        return runs;
+    }
+
+    private static PlannedExecution planWindowFlow(Map<String, TxWorkItem> byClaimKey,
+                                                   TxStreamPlanningContext context,
+                                                   ChainingMode chainingMode) {
+        List<String> sortedKeys = new ArrayList<>(byClaimKey.keySet());
+        String flowClaimKey = StreamIdentities.windowClaimKey(sortedKeys);
+        TxFlow.Builder flowBuilder = TxFlow.builder(context.ids().flowId(sortedKeys));
+        if (chainingMode != null) {
+            flowBuilder.withChainingMode(chainingMode);
+        }
+        List<TxStreamPlannedItem> mappings = new ArrayList<>(byClaimKey.size());
+        String laneName = null;
+        List<String> earlierGeneratedStepIds = new ArrayList<>();
+        for (Map.Entry<String, TxWorkItem> member : byClaimKey.entrySet()) {
+            TxStreamPlanningContext.PlanningSeed seed =
+                    context.seed(member.getValue().getItemId());
+            if (laneName == null) {
+                laneName = seed.lane.laneName();
+            }
+            String stepId = context.ids().stepId(member.getKey());
+            // Pipelining one funding lane requires every later build to see
+            // all earlier unspent same-lane change, not merely its immediate
+            // predecessor. A predecessor may have selected another base UTxO
+            // and left older pending change unconsumed.
+            List<String> pipelineFunding = chainingMode == ChainingMode.PIPELINED
+                    ? earlierGeneratedStepIds : List.of();
+            flowBuilder.addStep(copyStepWithId(
+                    seed.enforcedStep, stepId, pipelineFunding));
+            mappings.add(new TxStreamPlannedItem(member.getValue().getItemId(), stepId));
+            earlierGeneratedStepIds.add(stepId);
+        }
+        return new PlannedExecution(flowBuilder.build(), laneName, flowClaimKey, mappings);
     }
 
     /**

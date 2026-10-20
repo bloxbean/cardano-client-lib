@@ -10,6 +10,9 @@ import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
+import com.bloxbean.cardano.client.api.ScriptSupplier;
+import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.quicktx.script.ScriptRegistry;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
 import com.bloxbean.cardano.client.quicktx.signing.SignerRegistry;
@@ -19,6 +22,7 @@ import com.bloxbean.cardano.client.txflow.compile.CompiledTxFlow;
 import com.bloxbean.cardano.client.txflow.compile.FlowCompilationRequest;
 import com.bloxbean.cardano.client.txflow.compile.FlowCompilationResult;
 import com.bloxbean.cardano.client.txflow.compile.TxFlowCompiler;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionPolicy;
 import com.bloxbean.cardano.client.txflow.config.SpendingContentionPolicy;
 import com.bloxbean.cardano.client.txflow.resource.FlowResourceCatalog;
@@ -44,6 +48,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -60,6 +65,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.UUID;
+import java.util.function.BiFunction;
 
 /**
  * Thread-safe entry point with immutable configuration for compiling and
@@ -96,6 +102,9 @@ public final class FlowEngine {
     private final FlowExecutionPolicy policy;
     private final SignerRegistry signerRegistry;
     private final ScriptRegistry scriptRegistry;
+    private final FlowExtensions extensions;
+    private final ScriptSupplier scriptSupplier;
+    private final BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> txEvaluatorFactory;
     private final FlowExecutionStore store;
     private final Duration leaseDuration;
     private final String ownerToken;
@@ -122,7 +131,10 @@ public final class FlowEngine {
                 ? builder.maintenanceExecutor : this.executor;
         this.clock = builder.clock != null ? builder.clock : Clock.systemUTC();
         this.spendingCoordinator = new SpendingResourceCoordinator(new SystemFlowScheduler(this.clock));
-        this.compiler = builder.compiler != null ? builder.compiler : new TxFlowCompiler();
+        this.extensions = builder.extensions;
+        this.scriptSupplier = builder.scriptSupplier;
+        this.txEvaluatorFactory = builder.txEvaluatorFactory;
+        this.compiler = builder.compiler != null ? builder.compiler : TxFlowCompiler.of(this.extensions);
         this.resources = builder.resources;
         this.policy = builder.policy != null ? builder.policy : FlowExecutionPolicy.permissive();
         this.signerRegistry = builder.effectiveSignerRegistry();
@@ -183,7 +195,19 @@ public final class FlowEngine {
                 new DefaultProtocolParamsSupplier(epochService),
                 new DefaultTransactionProcessor(transactionService),
                 new DefaultChainDataSupplier(blockService, transactionService))
-                .backendVisibilityChecks(true);
+                .backendVisibilityChecks(true)
+                .scriptSupplier(FlowExecutor.backendScriptSupplier(backendService));
+    }
+
+    /**
+     * The QuickTx extensions registered with this engine, in registration order.
+     *
+     * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+     *
+     * @return registered extensions
+     */
+    public Collection<QuickTxExtension> extensions() {
+        return extensions.extensions();
     }
 
     /**
@@ -780,6 +804,9 @@ public final class FlowEngine {
                             transactionProcessor, chainDataSupplier)
                     .withSignerRegistry(signerRegistry)
                     .withScriptRegistry(scriptRegistry)
+                    .withExtensions(extensions)
+                    .withScriptSupplier(scriptSupplier)
+                    .withTxEvaluator(txEvaluatorFactory)
                     .withListener(eventListener(journal, compiled));
             if (store != null) {
                 facade.withPersistencePort(new DurableExecutionPersistence(
@@ -1183,6 +1210,9 @@ public final class FlowEngine {
         private final Map<String, Account> convenienceAccounts = new LinkedHashMap<>();
         private final Map<String, Wallet> convenienceWallets = new LinkedHashMap<>();
         private ScriptRegistry scriptRegistry;
+        private FlowExtensions extensions = FlowExtensions.NONE;
+        private ScriptSupplier scriptSupplier;
+        private BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> txEvaluatorFactory;
         private FlowExecutionStore store;
         private Duration leaseDuration;
         private String ownerToken;
@@ -1315,6 +1345,46 @@ public final class FlowEngine {
          * @return this builder
          */
         public Builder scriptRegistry(ScriptRegistry value) { this.scriptRegistry = value; return this; }
+
+        /**
+         * Supplies the script lookup used to resolve reference scripts while building steps.
+         * {@link FlowEngine#builder(BackendService)} uses the backend's by default.
+         *
+         * @param value script supplier, or {@code null} for none
+         * @return this builder
+         */
+        public Builder scriptSupplier(ScriptSupplier value) { this.scriptSupplier = value; return this; }
+
+        /**
+         * Supplies the script-cost evaluator for {@code TxPlan} steps, created per step from the
+         * step's flow-aware UTxO supplier and the protocol parameters. Without it, builds use the
+         * backend evaluator, which knows only confirmed UTxOs; a PIPELINED or BATCH step that spends
+         * or references an earlier step's pending output needs a local evaluator, for example
+         * {@code (utxos, params) -> new AikenTransactionEvaluator(utxos, params)}. Steps built by a
+         * {@code withTxContext} factory set their own evaluator.
+         *
+         * @param value evaluator factory, or {@code null} for the backend evaluator
+         * @return this builder
+         */
+        public Builder txEvaluator(BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> value) {
+            this.txEvaluatorFactory = value;
+            return this;
+        }
+
+        /**
+         * Registers a QuickTx extension for steps that use its intents. The default compiler and
+         * every executor this engine creates use the registered set; a custom
+         * {@link #compiler(TxFlowCompiler)} must be built with the same extensions.
+         *
+         * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+         *
+         * @param value operator-configured extension; a second instance with the same id is rejected
+         * @return this builder
+         */
+        public Builder extension(QuickTxExtension value) {
+            extensions = extensions.with(value);
+            return this;
+        }
 
         /**
          * Enables durable execution, idempotency, event journaling, and fenced

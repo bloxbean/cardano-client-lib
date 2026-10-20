@@ -429,7 +429,7 @@ final class QuickTxTemplateMaterializer {
         return path.toString();
     }
 
-    private String rootMessage(Throwable failure, String fallback) {
+    static String rootMessage(Throwable failure, String fallback) {
         Throwable current = failure;
         while (current.getCause() != null && current.getCause() != current) {
             current = current.getCause();
@@ -484,7 +484,7 @@ final class QuickTxTemplateMaterializer {
         private final String code;
         private final String documentPath;
 
-        private MaterializationException(String code, String message, String documentPath) {
+        MaterializationException(String code, String message, String documentPath) {
             super(message);
             this.code = code;
             this.documentPath = documentPath;

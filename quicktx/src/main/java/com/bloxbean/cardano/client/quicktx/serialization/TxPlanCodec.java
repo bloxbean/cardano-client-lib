@@ -11,9 +11,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Instance-scoped TxPlan codec for typed, qualified extension intents.
@@ -22,12 +27,20 @@ import java.util.Map;
  * <p><b>Experimental:</b> part of the QuickTx extension SPI and may change in a minor release.</p>
  */
 public final class TxPlanCodec {
+    /** Extensions bound to one explicit document namespace. */
     private final Map<String, QuickTxExtension> extensions;
+    /** Extensions bound by id: any namespace whose metadata names that id resolves to them. */
+    private final Map<String, QuickTxExtension> extensionsById;
     private final ObjectMapper mapper;
 
-    private TxPlanCodec(Map<String, QuickTxExtension> extensions) {
+    private TxPlanCodec(Map<String, QuickTxExtension> extensions,
+                        Map<String, QuickTxExtension> extensionsById) {
         this.extensions = Map.copyOf(extensions);
+        this.extensionsById = Map.copyOf(extensionsById);
         this.mapper = YamlSerializer.getYamlMapper().copy();
+        // Quote strings that look like numbers so a written plan reads back with the same value
+        // types, e.g. deployment network "0" stays a String. Only this codec's mapper copy changes.
+        ((YAMLFactory) mapper.getFactory()).enable(YAMLGenerator.Feature.ALWAYS_QUOTE_NUMBERS_AS_STRINGS);
 
         SimpleModule plutusDataModule = new SimpleModule();
         plutusDataModule.addDeserializer(PlutusData.class,
@@ -46,7 +59,10 @@ public final class TxPlanCodec {
                 });
         mapper.registerModule(plutusDataModule);
 
-        this.extensions.values().forEach(extension -> {
+        Set<QuickTxExtension> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+        distinct.addAll(this.extensions.values());
+        distinct.addAll(this.extensionsById.values());
+        distinct.forEach(extension -> {
             validateIntentTypes(extension);
             extension.intentTypes().forEach((operation, type) -> mapper.registerSubtypes(
                     new NamedType(type, ExtensionIntent.canonicalType(extension.id(), operation))));
@@ -91,6 +107,37 @@ public final class TxPlanCodec {
     public TxPlan fromYaml(String yaml, Map<String, Object> runtimeVariables) {
         if (runtimeVariables == null)
             throw new IllegalArgumentException("runtimeVariables is required");
+        return read(yaml, runtimeVariables, true);
+    }
+
+    /**
+     * Deserialize an already-bound plan literally: no {@code ${...}} placeholder is expanded.
+     *
+     * <p>Use this for a document whose values were bound before it was written, for example a
+     * snapshot of an in-memory plan. Expanding it again would reinterpret literal text that only
+     * looks like a placeholder. Any {@code variables} block is kept on the plan as inert data.</p>
+     *
+     * @param yaml extension-aware plan YAML whose values are final
+     * @return the reconstructed plan
+     */
+    public TxPlan readLiteral(String yaml) {
+        return read(yaml, Map.of(), false);
+    }
+
+    /**
+     * Deep-copy a plan through this codec without re-binding any value.
+     * Equivalent to {@code readLiteral(toYaml(plan))}: the copy shares no intent instance with
+     * the source and keeps the source's variables as inert data.
+     *
+     * @param plan plan to copy
+     * @return an independent, literally equal plan
+     */
+    public TxPlan copy(TxPlan plan) {
+        if (plan == null) throw new IllegalArgumentException("plan is required");
+        return readLiteral(toYaml(plan));
+    }
+
+    private TxPlan read(String yaml, Map<String, Object> runtimeVariables, boolean resolve) {
         try {
             JsonNode unresolved = mapper.readTree(yaml);
             if (!(unresolved instanceof ObjectNode))
@@ -109,14 +156,15 @@ public final class TxPlanCodec {
             ObjectNode root = mapper.createObjectNode();
             unresolved.fields().forEachRemaining(entry -> {
                 if (!"variables".equals(entry.getKey()))
-                    root.set(entry.getKey(),
-                            VariableResolver.resolveTree(entry.getValue(), variables, entry.getKey()));
+                    root.set(entry.getKey(), resolve
+                            ? VariableResolver.resolveTree(entry.getValue(), variables, entry.getKey())
+                            : entry.getValue());
             });
 
             Map<String, ExtensionMetadata> declared = readMetadata(root);
             validateBindings(declared);
             transformForRead(root, declared);
-            // The tree is fully resolved, so the core reconstruction gets a document without
+            // The tree is final (resolved, or literal for readLiteral), so the core reconstruction gets a document without
             // variables: it decodes Plutus data exactly as for a literal plan and has nothing to
             // substitute, so a replacement value is never read as a template a second time.
             TransactionDocument document = mapper.treeToValue(root, TransactionDocument.class);
@@ -169,8 +217,8 @@ public final class TxPlanCodec {
 
     private void validateBindings(Map<String, ExtensionMetadata> declared) {
         for (Map.Entry<String, ExtensionMetadata> entry : declared.entrySet()) {
-            QuickTxExtension runtime = extensions.get(entry.getKey());
             ExtensionMetadata metadata = entry.getValue();
+            QuickTxExtension runtime = runtime(entry.getKey(), metadata);
             if (runtime == null)
                 throw new IllegalArgumentException("No codec extension registered for namespace '"
                         + entry.getKey() + "'");
@@ -196,7 +244,7 @@ public final class TxPlanCodec {
             ExtensionMetadata metadata = declared.get(alias);
             if (metadata == null)
                 throw new IllegalArgumentException("Intent uses undeclared extension namespace '" + alias + "'");
-            QuickTxExtension runtime = extensions.get(alias);
+            QuickTxExtension runtime = runtime(alias, metadata);
             requireIntentType(runtime, operation);
             intent.put("type", ExtensionIntent.canonicalType(metadata.getExtension(), operation));
         });
@@ -211,7 +259,7 @@ public final class TxPlanCodec {
             if (binding == null) return;
             String operation = canonicalType.substring(
                     binding.getValue().getExtension().length() + 1);
-            requireIntentType(extensions.get(binding.getKey()), operation);
+            requireIntentType(runtime(binding.getKey(), binding.getValue()), operation);
             intent.put("type", binding.getKey() + ":" + operation);
         });
     }
@@ -228,7 +276,7 @@ public final class TxPlanCodec {
                             .orElseThrow(() -> new IllegalArgumentException(
                                     "No document namespace declares extension "
                                             + intent.getExtensionId()));
-                    QuickTxExtension runtime = extensions.get(binding.getKey());
+                    QuickTxExtension runtime = runtime(binding.getKey(), binding.getValue());
                     Class<? extends ExtensionIntent> expected = requireIntentType(
                             runtime, intent.getOperation());
                     if (!expected.isInstance(intent))
@@ -237,6 +285,13 @@ public final class TxPlanCodec {
                                 + " but got " + intent.getClass().getName());
                     intent.validate();
                 }));
+    }
+
+    /** An explicit namespace binding wins; otherwise the namespace resolves by its declared id. */
+    private QuickTxExtension runtime(String namespace, ExtensionMetadata metadata) {
+        QuickTxExtension bound = extensions.get(namespace);
+        if (bound != null || metadata == null || metadata.getExtension() == null) return bound;
+        return extensionsById.get(metadata.getExtension());
     }
 
     private static Class<? extends ExtensionIntent> requireIntentType(
@@ -276,6 +331,7 @@ public final class TxPlanCodec {
 
     public static final class Builder {
         private final Map<String, QuickTxExtension> extensions = new LinkedHashMap<>();
+        private final Map<String, QuickTxExtension> extensionsById = new LinkedHashMap<>();
 
         public Builder withExtension(String namespace, QuickTxExtension extension) {
             if (namespace == null || !namespace.matches("[a-z][a-z0-9_-]{0,31}"))
@@ -287,8 +343,26 @@ public final class TxPlanCodec {
             return this;
         }
 
+        /**
+         * Bind an extension by its id rather than by one namespace. A document may then use any
+         * namespace whose declared metadata names this extension; the alias stays document-local.
+         * An explicit {@link #withExtension(String, QuickTxExtension)} binding takes precedence.
+         *
+         * @param extension runtime extension; registering the same instance twice is a no-op
+         * @return this builder
+         */
+        public Builder withExtension(QuickTxExtension extension) {
+            if (extension == null) throw new IllegalArgumentException("extension is required");
+            if (extension.id() == null || extension.id().isBlank())
+                throw new IllegalArgumentException("extension id is required");
+            QuickTxExtension existing = extensionsById.putIfAbsent(extension.id(), extension);
+            if (existing != null && existing != extension)
+                throw new IllegalArgumentException("Extension already registered: " + extension.id());
+            return this;
+        }
+
         public TxPlanCodec build() {
-            return new TxPlanCodec(extensions);
+            return new TxPlanCodec(extensions, extensionsById);
         }
     }
 

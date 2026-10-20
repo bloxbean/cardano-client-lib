@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.intent.UtxoRef;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -24,6 +25,10 @@ import java.util.Set;
  * Run-level variables fill only names not already defined by the plan. Each
  * {@link FlowOutputRef} is then replaced with the concrete UTxO captured for the
  * referenced step output.</p>
+ *
+ * <p>A plan that uses QuickTx extensions is snapshotted and reparsed literally through
+ * the registered extensions: its values were bound when it was authored, so no
+ * placeholder is expanded again and run-level variables are not merged into it.</p>
  *
  * <p>This helper only materializes QuickTx input; it neither signs nor submits a
  * transaction.</p>
@@ -48,12 +53,22 @@ final class TxPlanExecutionMaterializer {
 
     TxPlan materialize(TxPlan source, Map<String, Object> flowVariables,
                        FlowExecutionContext context) {
+        return materialize(source, flowVariables, context, FlowExtensions.NONE);
+    }
+
+    TxPlan materialize(TxPlan source, Map<String, Object> flowVariables,
+                       FlowExecutionContext context, FlowExtensions extensions) {
         // Snapshot the mutable source once per execution, then parse a fresh copy for
         // each attempt so retries remain isolated without repeatedly serializing it.
-        TxPlan copy = TxPlan.from(context.snapshotPlan(source));
-        for (Map.Entry<String, Object> entry : flowVariables.entrySet()) {
-            if (!copy.getVariables().containsKey(entry.getKey())) {
-                copy.addVariable(entry.getKey(), entry.getValue());
+        TxPlan copy;
+        if (source.hasExtensions()) {
+            copy = extensions.readLiteral(context.snapshotPlan(source, extensions::write));
+        } else {
+            copy = TxPlan.from(context.snapshotPlan(source));
+            for (Map.Entry<String, Object> entry : flowVariables.entrySet()) {
+                if (!copy.getVariables().containsKey(entry.getKey())) {
+                    copy.addVariable(entry.getKey(), entry.getValue());
+                }
             }
         }
         for (var transaction : copy.getTxs()) {

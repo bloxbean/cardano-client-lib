@@ -11,6 +11,7 @@ import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -244,6 +245,22 @@ class QuickTxExtensionTest {
         assertThatThrownBy(() -> plan.withExtension("other", metadata))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("another namespace");
+    }
+
+    /** A parser picks the narrowest integer type, so equality must not depend on it. */
+    @Test
+    void integerDeploymentValuesEqualWhateverTheirJavaType() {
+        ExtensionMetadata wide = ExtensionMetadata.builder().extension("example").schemaVersion("1")
+                .deployment(Map.of("revision", 7L, "nested", Map.of("ids", List.of(BigInteger.ONE))))
+                .build();
+        ExtensionMetadata narrow = ExtensionMetadata.builder().extension("example").schemaVersion("1")
+                .deployment(Map.of("revision", 7, "nested", Map.of("ids", List.of((short) 1))))
+                .build();
+        BigInteger huge = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+
+        assertThat(narrow).isEqualTo(wide).hasSameHashCodeAs(wide);
+        assertThat(ExtensionMetadata.builder().deployment(Map.of("n", huge)).build().getDeployment())
+                .containsEntry("n", huge);
     }
 
     @Test

@@ -270,7 +270,7 @@ class Cip113TxPlanResourceEndToEndIT {
         log.info("{} submitted in {}", label, result.getValue());
     }
 
-    private static String loadYaml(String resource) {
+    static String loadYaml(String resource) {
         try (InputStream input = Cip113TxPlanResourceEndToEndIT.class
                 .getResourceAsStream(RESOURCE_ROOT + resource)) {
             if (input == null) throw new IllegalStateException("Missing TxPlan resource " + resource);
@@ -280,7 +280,7 @@ class Cip113TxPlanResourceEndToEndIT {
         }
     }
 
-    private static Map<String, Object> with(Map<String, Object> base, String key, Object value) {
+    static Map<String, Object> with(Map<String, Object> base, String key, Object value) {
         Map<String, Object> result = new LinkedHashMap<>(base);
         result.put(key, value);
         return result;
@@ -306,7 +306,7 @@ class Cip113TxPlanResourceEndToEndIT {
                 .reduce(BigInteger.ZERO, BigInteger::add);
     }
 
-    private static BigInteger quantity(Cip113ProtocolService protocol, Address owner, String unit) {
+    static BigInteger quantity(Cip113ProtocolService protocol, Address owner, String unit) {
         Result<List<Amount>> balance = protocol.getProgrammableBalance(owner);
         assertThat(balance.isSuccessful()).as("programmable balance: %s", balance.getResponse())
                 .isTrue();
@@ -316,7 +316,7 @@ class Cip113TxPlanResourceEndToEndIT {
                 .findFirst().orElse(BigInteger.ZERO);
     }
 
-    private static Set<String> smartWalletUtxos(Cip113ProtocolService protocol, Address owner) {
+    static Set<String> smartWalletUtxos(Cip113ProtocolService protocol, Address owner) {
         Result<List<Utxo>> result = protocol.getUtxos(owner);
         assertThat(result.isSuccessful()).as("smart-wallet UTxOs: %s", result.getResponse()).isTrue();
         Set<String> references = new java.util.LinkedHashSet<>();
@@ -325,7 +325,7 @@ class Cip113TxPlanResourceEndToEndIT {
         return references;
     }
 
-    private static void awaitSeedUtxos(BackendService backend, String address, int required) {
+    static void awaitSeedUtxos(BackendService backend, String address, int required) {
         DefaultUtxoSupplier supplier = new DefaultUtxoSupplier(backend.getUtxoService());
         long deadline = System.currentTimeMillis() + 60_000L;
         int seen = 0;

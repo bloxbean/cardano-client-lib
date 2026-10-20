@@ -92,9 +92,20 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
   once whatever order the operations are written in.
 - Programmable outputs hold one policy each; inline datums are bounded by the deployment's
   `max_inline_datum_bytes`.
-- TxFlow and TxFlowStream do not support `TxPlan` steps or items that use programmable-token
-  intents or declared extensions yet, in Java or YAML: they copy each plan through plain `TxPlan`
-  YAML. Flow validation (`TxFlow.validate()`, the TxFlow compiler and stream submission) refuses
-  them before any step is submitted. Run these transactions with `QuickTxBuilder` directly. A
-  legacy Java `withTxContext(...)` factory step builds through the `QuickTxBuilder` it is given and
-  is not inspected by this check.
+- TxFlow runs Java `TxPlan` steps that use programmable-token intents when the extension is
+  registered on the runtime (`FlowRuntime.builder(...).extension(ext)`,
+  `FlowEngine.builder(...).extension(ext)` or `FlowExecutor.withExtension(ext)`). Bind it on each
+  plan with `ext.configure(plan)`. The registry, the coordination UTxO and global state are read
+  through the build's UTxO supplier, so in PIPELINED mode a step sees the registry node an earlier
+  pending step created once it declares
+  `fundsFrom(thatStep)` — a mint after a registration needs `fundsFrom(register)`, and a transfer
+  of that token needs `fundsFrom(register)` and `fundsFrom(mint)`. Without the edge the build
+  fails with "not registered" rather than using stale state. A build that sees no coordination
+  UTxO, or one with other protocol parameters than the resolved deployment, fails instead of
+  referencing a spent or stale one; re-resolve the deployment after an in-place upgrade. Pipelined CIP-113 steps also need a
+  local script evaluator (`txEvaluator(...)` on the engine), because the backend evaluator cannot
+  see pending inputs. Portable TxFlow documents declare the binding in `spec.extensions` and use
+  `pt:*` intents in a step's `tx.intents`. Write Plutus data there in structured form: the
+  extension writes it back structured, and TxFlow rejects an intent that does not round-trip
+  (`TXFLOW_EXTENSION_INTENT_LOSSY`). TxFlowStream items work the same way on an engine that
+  registers the extension; each item is its own transaction.

@@ -15,7 +15,11 @@ import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.TxResult;
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.api.ScriptSupplier;
+import com.bloxbean.cardano.client.api.TransactionEvaluator;
+import com.bloxbean.cardano.client.backend.api.DefaultScriptSupplier;
 import com.bloxbean.cardano.client.quicktx.script.ScriptRegistry;
 import com.bloxbean.cardano.client.quicktx.signing.SignerRegistry;
 import com.bloxbean.cardano.client.transaction.spec.*;
@@ -24,11 +28,13 @@ import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.codec.FlowDiagnostic;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
 import com.bloxbean.cardano.client.txflow.config.RollbackPolicy;
 import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
 import com.bloxbean.cardano.client.txflow.exec.registry.FlowRegistry;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import com.bloxbean.cardano.client.txflow.exec.store.*;
 import com.bloxbean.cardano.client.txflow.result.*;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -53,6 +59,8 @@ import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.LinkedHashSet;
+import java.util.function.BiFunction;
 
 /**
  * Executor for transaction flows.
@@ -92,6 +100,9 @@ public class FlowExecutor implements AutoCloseable {
 
     private volatile SignerRegistry signerRegistry;
     private volatile ScriptRegistry scriptRegistry;
+    private volatile FlowExtensions extensions = FlowExtensions.NONE;
+    private volatile ScriptSupplier scriptSupplier;
+    private volatile BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> txEvaluatorFactory;
     private volatile FlowListener listener = FlowListener.NOOP;
     private volatile Executor executor;
     private volatile Consumer<Transaction> txInspector;
@@ -141,6 +152,17 @@ public class FlowExecutor implements AutoCloseable {
              new DefaultProtocolParamsSupplier(backendService.getEpochService()),
              new DefaultTransactionProcessor(backendService.getTransactionService()),
              new DefaultChainDataSupplier(backendService));
+        this.scriptSupplier = backendScriptSupplier(backendService);
+    }
+
+    /** The backend's script lookup, as {@code new QuickTxBuilder(backendService)} configures it. */
+    static ScriptSupplier backendScriptSupplier(BackendService backendService) {
+        try {
+            return backendService.getScriptService() != null
+                    ? new DefaultScriptSupplier(backendService.getScriptService()) : null;
+        } catch (UnsupportedOperationException e) {
+            return null;
+        }
     }
 
     /**
@@ -191,6 +213,58 @@ public class FlowExecutor implements AutoCloseable {
      */
     public FlowExecutor withScriptRegistry(ScriptRegistry registry) {
         this.scriptRegistry = registry;
+        return this;
+    }
+
+    /**
+     * Registers a QuickTx extension for {@code TxPlan} steps that use its intents.
+     *
+     * <p>Plans that use extensions are copied literally through the registered extensions and
+     * built by a {@code QuickTxBuilder} carrying them. A flow that needs an unregistered
+     * extension, or whose bindings or extension intents are invalid, fails before any step is
+     * built. Steps without extension intents are unaffected.</p>
+     *
+     * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+     *
+     * @param extension extension to register; a second instance with the same id is rejected
+     * @return this executor
+     */
+    public FlowExecutor withExtension(QuickTxExtension extension) {
+        this.extensions = extensions.with(extension);
+        return this;
+    }
+
+    /**
+     * Sets the script lookup used to resolve reference scripts while building {@code TxPlan}
+     * steps. Executors created from a {@code BackendService} use the backend's by default.
+     *
+     * @param supplier script supplier, or {@code null} for none
+     * @return this executor
+     */
+    public FlowExecutor withScriptSupplier(ScriptSupplier supplier) {
+        this.scriptSupplier = supplier;
+        return this;
+    }
+
+    /**
+     * Supplies the script-cost evaluator for {@code TxPlan} steps, created per step from the
+     * step's flow-aware UTxO supplier and the protocol parameters. Without it, builds use the
+     * backend evaluator, which knows only confirmed UTxOs; a PIPELINED or BATCH step that spends
+     * or references an earlier step's pending output needs a local evaluator, for example
+     * {@code (utxos, params) -> new AikenTransactionEvaluator(utxos, params)}. Steps built by a
+     * {@code withTxContext} factory set their own evaluator.
+     *
+     * @param factory evaluator factory, or {@code null} for the backend evaluator
+     * @return this executor
+     */
+    public FlowExecutor withTxEvaluator(
+            BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> factory) {
+        this.txEvaluatorFactory = factory;
+        return this;
+    }
+
+    FlowExecutor withExtensions(FlowExtensions registered) {
+        this.extensions = Objects.requireNonNull(registered, "extensions");
         return this;
     }
 
@@ -688,6 +762,10 @@ public class FlowExecutor implements AutoCloseable {
                     "Portable transaction templates must be compiled with TxFlowCompiler "
                             + "or executed through FlowEngine before using FlowExecutor; template steps: "
                             + templateSteps);
+        }
+        List<FlowDiagnostic> extensionErrors = extensions.check(flow);
+        if (!extensionErrors.isEmpty()) {
+            throw new FlowExecutionException("Flow validation failed: " + extensionErrors);
         }
     }
 
@@ -2208,13 +2286,12 @@ public class FlowExecutor implements AutoCloseable {
             UtxoSupplier utxoSupplier = createUtxoSupplier(step, context);
 
             // Create QuickTxBuilder with the appropriate UTXO supplier
-            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, scriptSupplier, transactionProcessor);
 
             // Get TxContext from step (either from TxPlan or TxContext factory)
             QuickTxBuilder.TxContext txContext;
             if (step.hasTxPlan()) {
-                TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
-                txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
+                txContext = composePlanStep(step, context, variables, quickTxBuilder, utxoSupplier);
             } else if (step.hasTxContextFactory()) {
                 // Call user's factory with our builder (which has chain-aware UTXO supplier)
                 txContext = step.getTxContextFactory().apply(quickTxBuilder);
@@ -2318,13 +2395,12 @@ public class FlowExecutor implements AutoCloseable {
             UtxoSupplier utxoSupplier = createUtxoSupplier(step, context);
 
             // Create QuickTxBuilder with the appropriate UTXO supplier
-            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, scriptSupplier, transactionProcessor);
 
             // Get TxContext from step (either from TxPlan or TxContext factory)
             QuickTxBuilder.TxContext txContext;
             if (step.hasTxPlan()) {
-                TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
-                txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
+                txContext = composePlanStep(step, context, variables, quickTxBuilder, utxoSupplier);
             } else if (step.hasTxContextFactory()) {
                 // Call user's factory with our builder (which has chain-aware UTXO supplier)
                 txContext = step.getTxContextFactory().apply(quickTxBuilder);
@@ -2389,6 +2465,42 @@ public class FlowExecutor implements AutoCloseable {
             current = current.getCause();
         }
         return false;
+    }
+
+    /**
+     * Composes a {@code TxPlan} step on the step's builder. Registered extensions are applied
+     * only to builders of plans that use them, and the configured evaluator, if any, is created
+     * over the step's evaluation view.
+     */
+    private QuickTxBuilder.TxContext composePlanStep(FlowStep step, FlowExecutionContext context,
+                                                     Map<String, Object> variables,
+                                                     QuickTxBuilder quickTxBuilder, UtxoSupplier utxoSupplier) {
+        TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
+        if (plan.hasExtensions()) extensions.applyTo(quickTxBuilder);
+        QuickTxBuilder.TxContext txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
+        if (txEvaluatorFactory != null)
+            txContext.withTxEvaluator(txEvaluatorFactory.apply(
+                    evaluationUtxoSupplier(step, context, utxoSupplier), protocolParamsSupplier));
+        return txContext;
+    }
+
+    /**
+     * UTxO view for the step's script-cost evaluator. An evaluator resolves every input and
+     * reference input of the transaction already built by exact lookup, so it also needs exact
+     * access to the funding steps' pending outputs the build selected by address. Selection
+     * itself keeps the narrower build supplier; the evaluator only reads what the built
+     * transaction references.
+     */
+    private UtxoSupplier evaluationUtxoSupplier(FlowStep step, FlowExecutionContext context,
+                                                UtxoSupplier buildSupplier) {
+        if (!(buildSupplier instanceof FlowUtxoSupplier) || step.getFundingFrom().isEmpty()) {
+            return buildSupplier;
+        }
+        Set<String> exactPendingStepIds = new LinkedHashSet<>(
+                planMaterializer.referencedStepIds(step.getTxPlan()));
+        exactPendingStepIds.addAll(step.getFundingFrom());
+        return new FlowUtxoSupplier(baseUtxoSupplier, context, step.getDependencies(),
+                exactPendingStepIds, step.getFundingFrom());
     }
 
     /**
@@ -2875,12 +2987,11 @@ public class FlowExecutor implements AutoCloseable {
 
         try {
             UtxoSupplier utxoSupplier = createUtxoSupplier(step, context);
-            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, scriptSupplier, transactionProcessor);
 
             QuickTxBuilder.TxContext txContext;
             if (step.hasTxPlan()) {
-                TxPlan plan = copyPlanForExecution(step.getTxPlan(), variables, context);
-                txContext = quickTxBuilder.compose(plan, signerRegistry, scriptRegistry);
+                txContext = composePlanStep(step, context, variables, quickTxBuilder, utxoSupplier);
             } else if (step.hasTxContextFactory()) {
                 txContext = step.getTxContextFactory().apply(quickTxBuilder);
             } else {
@@ -2922,7 +3033,7 @@ public class FlowExecutor implements AutoCloseable {
 
     private TxPlan copyPlanForExecution(TxPlan source, Map<String, Object> flowVariables,
                                         FlowExecutionContext context) {
-        return planMaterializer.materialize(source, flowVariables, context);
+        return planMaterializer.materialize(source, flowVariables, context, extensions);
     }
 
     /**

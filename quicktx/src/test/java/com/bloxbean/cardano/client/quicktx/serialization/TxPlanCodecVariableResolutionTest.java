@@ -54,7 +54,7 @@ class TxPlanCodecVariableResolutionTest {
         assertThat(intent.getExtra()).containsEntry("nested", List.of(1, 2));
         assertThat(intent.getGreeting()).isEqualTo("hello world: 42");
         assertThat(plan.getExtensions().get("ex").getDeployment())
-                .containsEntry("network", 0)
+                .containsEntry("network", 0L)
                 .containsEntry("tags", List.of("a", "b"));
     }
 
@@ -118,7 +118,7 @@ class TxPlanCodecVariableResolutionTest {
         TxPlan plan = codec.fromYaml(yaml, Map.of("note", "runtime"));
 
         assertThat(((RichIntent) plan.getTxs().get(0).getIntentions().get(0)).getNote()).isEqualTo("runtime");
-        assertThat(plan.getExtensions().get("ex").getDeployment()).containsEntry("network", 9);
+        assertThat(plan.getExtensions().get("ex").getDeployment()).containsEntry("network", 9L);
         assertThat(plan.getVariables()).containsEntry("note", "runtime").containsEntry("network_id", 9);
     }
 
@@ -131,7 +131,7 @@ class TxPlanCodecVariableResolutionTest {
                 .extension("example").schemaVersion("1").deployment(deployment).build();
 
         deployment.put("network", 1);                       // caller mutation after construction
-        assertThat(metadata.getDeployment()).containsEntry("network", 0);
+        assertThat(metadata.getDeployment()).containsEntry("network", 0L);
         assertThatThrownBy(() -> metadata.getDeployment().put("x", "y"))
                 .isInstanceOf(UnsupportedOperationException.class);
         @SuppressWarnings("unchecked")
