@@ -1,0 +1,327 @@
+---
+import '../styles/landing.css';
+import HeroPipeline from '../components/landing/HeroPipeline.astro';
+import CodeShowcase from '../components/landing/CodeShowcase.astro';
+import { generateCatalog } from '../../scripts/generate-catalog.mjs';
+
+/*
+ * Counts and the version come from the repository's own catalog, so the landing
+ * page cannot advertise a module count or release the build does not produce.
+ */
+const catalog = await generateCatalog({ logger: { info: () => {} } });
+const { version, counts } = catalog;
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p) => `${base}${p}`;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cardano Client Lib — Cardano transactions in Java</title>
+    <meta
+      name="description"
+      content="A Java library for building, signing and submitting Cardano transactions. QuickTx for everyday transactions, TxPlan, TxFlow and TxStream for declarative and multi-step workflows, with full Conway-era support."
+    />
+    <link rel="icon" type="image/svg+xml" href={href('/favicon.svg')} />
+    <link rel="canonical" href="https://cardano-client.dev/" />
+    <meta property="og:title" content="Cardano Client Lib — Cardano transactions in Java" />
+    <meta
+      property="og:description"
+      content="Build, sign and submit Cardano transactions from Java. QuickTx for one transaction, TxFlow for many."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://cardano-client.dev/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      // Honour the theme the reader chose in the docs, before first paint.
+      try {
+        const stored = localStorage.getItem('starlight-theme');
+        if (stored === 'light' || stored === 'dark') {
+          document.documentElement.dataset.theme = stored;
+        } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      } catch {
+        /* localStorage can throw in private mode; the dark default is fine. */
+      }
+    </script>
+  </head>
+
+  <body>
+    <nav class="nav">
+      <div class="wrap nav-inner">
+        <a class="nav-brand" href={href('/')}>
+          <img src={href('/logo.svg')} alt="" width="26" height="26" />
+          <span>Cardano Client Lib</span>
+        </a>
+        <div class="nav-links">
+          <a class="nav-hide-sm" href={href('/start-here/why-ccl/')}>Docs</a>
+          <a class="nav-hide-sm" href={href('/learn/simple-transfer/')}>Learn</a>
+          <a class="nav-hide-sm" href={href('/quicktx/overview/')}>QuickTx</a>
+          <a class="nav-hide-sm" href={href('/ai/')}>AI</a>
+          <a href="https://github.com/bloxbean/cardano-client-lib">GitHub</a>
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <!-- Hero -->
+      <section class="hero">
+        <div class="wrap hero-inner">
+          <div>
+            <span class="eyebrow"><span class="dot"></span> v{version} · Conway era · Java 17+</span>
+            <h1>Cardano transactions,<br /><span class="grad">written in Java</span>.</h1>
+            <p class="lede">
+              Build, sign and submit any Cardano transaction — payments, native tokens, NFTs,
+              Plutus scripts, staking and governance — from an API that reads like what you meant.
+              Then chain them into multi-step workflows when one transaction is not enough.
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href={href('/learn/simple-transfer/')}>
+                Send your first transaction →
+              </a>
+              <a class="btn btn-ghost" href={href('/start-here/installation/')}>Installation</a>
+            </div>
+            <div class="hero-install">
+              <span class="k">implementation</span> "com.bloxbean.cardano:cardano-client-lib:{version}"
+            </div>
+          </div>
+
+          <div class="reveal">
+            <HeroPipeline />
+          </div>
+        </div>
+
+        <div class="wrap">
+          <div class="stats reveal">
+            <div class="stat">
+              <div class="n">{counts.modules}</div>
+              <div class="l">published modules</div>
+            </div>
+            <div class="stat">
+              <div class="n">{counts.backends}</div>
+              <div class="l">backend providers</div>
+            </div>
+            <div class="stat">
+              <div class="n">{counts.cips}</div>
+              <div class="l">CIP implementations</div>
+            </div>
+            <div class="stat">
+              <div class="n">Conway</div>
+              <div class="l">full governance support</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Code showcase -->
+      <section class="section section-alt">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>One API for every transaction</h2>
+            <p>
+              QuickTx handles UTXO selection, balancing, fee calculation and change for you. The
+              same shape works whether you are sending ADA or calling a validator.
+            </p>
+          </div>
+          <CodeShowcase />
+        </div>
+      </section>
+
+      <!-- Why -->
+      <section class="section">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Built for real applications</h2>
+            <p>Not a thin RPC wrapper — the parts that are genuinely hard are handled.</p>
+          </div>
+          <div class="grid">
+            <div class="card">
+              <h3><span class="icon">◈</span> Complete transaction support</h3>
+              <p>
+                Payments, multi-asset outputs, native-script and Plutus minting, reference scripts
+                and inputs, staking certificates, and every Conway governance action.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="icon">⛓</span> Backend independent</h3>
+              <p>
+                Blockfrost, Koios, Ogmios/Kupo or your own. Swap providers by changing one
+                constructor — or supply UTXOs yourself through <code>UtxoSupplier</code>.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="icon">◎</span> Type-safe on-chain data</h3>
+              <p>
+                Generate Java classes from a CIP-57 blueprint and get compile-time-checked datums
+                and redeemers instead of hand-built <code>PlutusData</code>.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="icon">↻</span> Chaining that actually works</h3>
+              <p>
+                TxFlow tracks UTXO dependencies between steps, so a follow-up transaction can spend
+                an output that is still pending — no "insufficient funds" from a race with the chain.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="icon">⎈</span> Rollback aware</h3>
+              <p>
+                Confirmation tracking detects rollbacks and rebuilds affected steps, rather than
+                assuming a transaction that was submitted stayed submitted.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="icon">✦</span> Agent friendly</h3>
+              <p>
+                A published <code>llms.txt</code>, a full-text corpus and a machine-readable module
+                catalog, all regenerated from the source tree on every build.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pick your API -->
+      <section class="section section-alt">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Start simple, scale when you need to</h2>
+            <p>Four APIs, one engine. Most applications never need more than the first.</p>
+          </div>
+          <div class="grid">
+            <a class="card" href={href('/quicktx/overview/')}>
+              <h3>QuickTx <span class="pill pill-rec">Recommended</span></h3>
+              <p>
+                One transaction, start to finish. The default choice, and far more capable than its
+                name suggests — scripts, certificates and governance all included.
+              </p>
+            </a>
+            <a class="card" href={href('/txplan/getting-started/')}>
+              <h3>TxPlan <span class="pill">Preview</span></h3>
+              <p>
+                The same transactions expressed as YAML your application loads at run time — so
+                operators can review a payout before it is submitted.
+              </p>
+            </a>
+            <a class="card" href={href('/txflow/overview/')}>
+              <h3>TxFlow <span class="pill">Preview</span></h3>
+              <p>
+                Multi-step workflows where one transaction spends what the last one produced, with
+                dependency tracking, retries and rollback strategies.
+              </p>
+            </a>
+            <a class="card" href={href('/txstream/getting-started/')}>
+              <h3>TxStream <span class="pill">Preview</span></h3>
+              <p>
+                Continuous submission with exactly-once delivery and durable recovery, for services
+                that must never double-submit across a restart.
+              </p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick start -->
+      <section class="section">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Running in four steps</h2>
+            <p>From an empty project to a confirmed transaction on preview.</p>
+          </div>
+          <div class="steps">
+            <div class="step">
+              <h3>Add the dependency</h3>
+              <p>
+                <code>cardano-client-lib</code> plus a backend module. One version for every CCL
+                artifact.
+              </p>
+            </div>
+            <div class="step">
+              <h3>Create an account</h3>
+              <p>
+                <code>new Account(Networks.preview(), mnemonic)</code> — then fund it from the
+                testnet faucet.
+              </p>
+            </div>
+            <div class="step">
+              <h3>Build the transaction</h3>
+              <p>
+                <code>new Tx().payToAddress(...).from(...)</code>. Inputs, fee and change are
+                worked out for you.
+              </p>
+            </div>
+            <div class="step">
+              <h3>Sign and wait</h3>
+              <p>
+                <code>completeAndWait()</code> submits and waits for the block — unlike
+                <code>complete()</code>, which only submits.
+              </p>
+            </div>
+          </div>
+          <div style="text-align:center;margin-top:2.5rem">
+            <a class="btn btn-primary" href={href('/learn/simple-transfer/')}>
+              Follow the full walkthrough →
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI -->
+      <section class="section section-alt">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Writing this code with an AI agent?</h2>
+            <p>
+              Point it at the artifacts below and it will generate against the current API rather
+              than a stale snapshot of it.
+            </p>
+          </div>
+          <div class="grid">
+            <a class="card" href={href('/llms.txt')}>
+              <h3><span class="icon">≡</span> llms.txt</h3>
+              <p>
+                Curated index following the llmstxt.org convention, led by the "which API do I use"
+                decision table.
+              </p>
+            </a>
+            <a class="card" href={href('/ai/starter-pack/')}>
+              <h3><span class="icon">✎</span> AI Starter Pack</h3>
+              <p>
+                The mistakes agents actually make with this library — mismatched networks,
+                <code>complete()</code> read as confirmation, invented classes — and how to avoid them.
+              </p>
+            </a>
+            <a class="card" href={href('/ai/catalog.json')}>
+              <h3><span class="icon">{ }</span> catalog.json</h3>
+              <p>
+                Every module, its artifact id, canonical entry-point class and recommendation tier.
+                Generated from the build.
+              </p>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-inner">
+        <span>MIT licensed · built by <a href="https://github.com/bloxbean">bloxbean</a></span>
+        <div class="footer-links">
+          <a href={href('/start-here/why-ccl/')}>Documentation</a>
+          <a href={href('/reference/modules/')}>Modules</a>
+          <a href={href('/ai/')}>AI agents</a>
+          <a href="https://github.com/bloxbean/cardano-client-examples">Examples</a>
+          <a href="https://github.com/bloxbean/cardano-client-lib">GitHub</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
