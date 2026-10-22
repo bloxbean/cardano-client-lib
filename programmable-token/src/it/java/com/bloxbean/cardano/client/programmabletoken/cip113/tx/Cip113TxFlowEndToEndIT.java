@@ -22,7 +22,6 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenExtension;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
-import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployments;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTokenService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
@@ -289,7 +288,7 @@ class Cip113TxFlowEndToEndIT {
 
         Cip113Bootstrap.Deployed deployed = new Cip113Bootstrap().deploy(lifecycle.backend, lifecycle.owner, network);
         Cip113ProgrammableTokenService programmableTokens = Cip113ProgrammableTokenService.create(lifecycle.backend,
-                Cip113Deployments.fromBootstrapTx(deployed.bootstrapTxHash(), network));
+                deployed.deployment());
         lifecycle.protocol = programmableTokens.advanced();
         lifecycle.protocol.scripts().registerAll(deployed.appliedScripts());
         lifecycle.protocol.scripts().register(TxPlanSubstandardScripts.SCRIPT);

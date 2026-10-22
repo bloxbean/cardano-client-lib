@@ -10,18 +10,19 @@ import com.bloxbean.cardano.client.quicktx.extension.TxBuildExtension;
 import java.util.EnumSet;
 import java.util.Set;
 
-/** CIP-113 protocol adapter tested against reference contract suite 0.5.0-alpha.2. */
+/** CIP-113 protocol adapter tested against CIP-113 core contract suite 0.0.1. */
 public final class Cip113Protocol implements ProgrammableTokenProtocol {
     public static final String ID = "cip-113";
 
     /**
-     * Informational version from the vendored CIP-113 reference implementation blueprint.
+     * Version from the vendored CIP-113 reference implementation blueprint.
      *
-     * <p>This is not a version discovered from, or required of, an on-chain deployment. Runtime
-     * compatibility is anchored by the explicit {@link Cip113Deployment} until CIP-113 defines a
-     * public deployment/version discovery mechanism.</p>
+     * <p>This is not a version discovered from an on-chain deployment, but persisted plans that
+     * name another contract suite are refused: they describe transaction shapes this adapter does
+     * not build. Runtime compatibility is otherwise anchored by the explicit
+     * {@link Cip113Deployment}.</p>
      */
-    public static final String CONTRACT_VERSION = "0.5.0-alpha.2";
+    public static final String CONTRACT_VERSION = "0.0.1";
 
     private final Cip113ProtocolService service;
 
@@ -35,9 +36,13 @@ public final class Cip113Protocol implements ProgrammableTokenProtocol {
                 .id(ID).contractVersion(CONTRACT_VERSION).build();
     }
 
+    /**
+     * Unfracking is a property of the deployment — its dispatcher either was or was not compiled
+     * against a real unfracking script — so it is offered only where the deployment enables it.
+     */
     @Override
     public Set<ProgrammableTokenCapability> capabilities() {
-        return java.util.Collections.unmodifiableSet(EnumSet.of(
+        EnumSet<ProgrammableTokenCapability> capabilities = EnumSet.of(
                 ProgrammableTokenCapability.TRANSFER,
                 ProgrammableTokenCapability.MINT,
                 ProgrammableTokenCapability.BURN,
@@ -46,21 +51,31 @@ public final class Cip113Protocol implements ProgrammableTokenProtocol {
                 ProgrammableTokenCapability.UPDATE_REGISTRY,
                 ProgrammableTokenCapability.UNFRACK,
                 ProgrammableTokenCapability.INLINE_DATUM,
-                ProgrammableTokenCapability.GLOBAL_STATE));
+                ProgrammableTokenCapability.GLOBAL_STATE);
+        if (!service.deployment().isUnfrackingEnabled())
+            capabilities.remove(ProgrammableTokenCapability.UNFRACK);
+        return java.util.Collections.unmodifiableSet(capabilities);
     }
 
     /**
      * Pin a persisted plan to the configured deployment before any chain I/O.
      *
-     * <p>{@code bootstrap_tx}, when present, must be a transaction hash equal to the configured
+     * <p>{@code contract_version}, when present, must be {@link #CONTRACT_VERSION}.
+     * {@code bootstrap_tx} and {@code params_policy}, when present, must equal the configured
      * deployment's; {@code network}, when present, must be the configured network id. Omitting
-     * either means "bind to the explicitly configured runtime deployment". Both are compared as
+     * any of them means "bind to the explicitly configured runtime deployment". Both are compared as
      * text so a plan whose {@code network} resolved to a number behaves the same as one that
      * wrote it as a string.</p>
      */
     @Override
     public void validateMetadata(ExtensionMetadata metadata) {
         ProgrammableTokenProtocol.super.validateMetadata(metadata);
+        String contractVersion = metadata.getContractVersion();
+        if (contractVersion != null && !CONTRACT_VERSION.equals(contractVersion.trim()))
+            throw new IllegalArgumentException("TxPlan contract_version '" + contractVersion
+                    + "' is not the CIP-113 contract suite this adapter builds for ("
+                    + CONTRACT_VERSION + "). Plans written for another suite describe other"
+                    + " transaction shapes; re-author the plan for " + CONTRACT_VERSION + ".");
         java.util.Map<String, Object> deployment = metadata.getDeployment();
         if (deployment == null) return;
         Cip113Deployment configured = service.deployment();
@@ -76,6 +91,19 @@ public final class Cip113Protocol implements ProgrammableTokenProtocol {
                 throw new IllegalArgumentException("TxPlan deployment bootstrap_tx " + hash
                         + " does not match configured CIP-113 deployment "
                         + configured.getBootstrapTxHash());
+        }
+
+        Object paramsPolicy = deployment.get("params_policy");
+        if (paramsPolicy != null) {
+            String policy = String.valueOf(paramsPolicy).trim();
+            if (!policy.matches("(?i)[0-9a-f]{56}"))
+                throw new IllegalArgumentException("TxPlan deployment params_policy must be a"
+                        + " 28-byte policy id but was '" + paramsPolicy + "'");
+            if (configured.getParamsPolicy() != null
+                    && !configured.getParamsPolicy().equalsIgnoreCase(policy))
+                throw new IllegalArgumentException("TxPlan deployment params_policy " + policy
+                        + " does not match configured CIP-113 deployment "
+                        + configured.getParamsPolicy());
         }
 
         Object network = deployment.get("network");

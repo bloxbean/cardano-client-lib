@@ -19,7 +19,6 @@ import com.bloxbean.cardano.client.plutus.spec.serializers.PlutusDataJsonConvert
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenExtension;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
-import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployments;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTokenService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.RegistryNode;
@@ -98,7 +97,7 @@ class Cip113TxPlanResourceEndToEndIT {
         Cip113Bootstrap.Deployed deployed = new Cip113Bootstrap().deploy(backend, owner, network);
         Cip113ProgrammableTokenService programmableTokens =
                 Cip113ProgrammableTokenService.create(backend,
-                        Cip113Deployments.fromBootstrapTx(deployed.bootstrapTxHash(), network));
+                        deployed.deployment());
         Cip113ProtocolService protocol = programmableTokens.advanced();
         protocol.scripts().registerAll(deployed.appliedScripts());
         protocol.scripts().register(TxPlanSubstandardScripts.SCRIPT);

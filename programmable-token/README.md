@@ -1,8 +1,10 @@
 # Programmable Token
 
 `cardano-client-programmable-token` adds protocol-neutral programmable-token intents to QuickTx.
-CIP-113 is the initial protocol adapter and has been tested against reference contract suite
-`0.5.0-alpha.2` (see `src/it/resources/blueprint/cip113/compatibility.yml` for the pinned snapshot).
+CIP-113 is the initial protocol adapter. It builds transactions for the CIP-113 core contract
+suite `v0.0.1` (cardano-foundation/cip113-programmable-tokens `6b75ba3`; see
+`src/it/resources/blueprint/cip113/compatibility.yml` for the pinned snapshot) and ships the
+public Preview, Preprod and Mainnet deployments of it.
 
 The module is not part of the `cardano-client-lib` or `cardano-client-cip` aggregates while it is
 experimental. Add it explicitly:
@@ -27,6 +29,30 @@ new QuickTxBuilder(backend)
         .completeAndWait();
 ```
 
+## Deployments
+
+`Cip113Deployments.PREVIEW`, `PREPROD` and `MAINNET` describe the public v0.0.1 deployments. Every
+script hash in them is re-derived from the vendored blueprint by `Cip113DeploymentsTest`, and the
+values were checked against each chain. A v0.0.1 deployment is *described*, not discovered: the
+base script, registry, inline-datum bound and unfracking script are compile-time parameters of
+other validators and appear nowhere on chain in readable form. To use another deployment, build a
+complete `Cip113Deployment` from its deployer's bootstrap record.
+
+Resolution (on first use, or `advanced().resolveDeployment()`) locates the live coordination
+UTxO by its NFT and adopts the dispatcher, issuance-logic and delegate credentials its datum names,
+logging a warning when they differ from the description — an in-place upgrade swaps exactly those.
+It also locates the issuance template and verifies each described reference script is still
+published where the description says; a spent one is skipped and the script is carried as a
+witness instead.
+
+**None of the public deployments can unfrack.** Each compiled its `programmable_logic_global`
+dispatcher with a placeholder instead of the unfracking script's hash, so `UnfrackingAct` can never
+be authorised. `Cip113Deployment.isUnfrackingEnabled()` is false for them and the adapter does not
+offer `UNFRACK`; a deployment whose dispatcher names the real script (as the integration suite's
+devnet deployment does) supports it.
+
+## Portable plans
+
 For a portable plan, configure the same extension on the plan codec and builder:
 
 ```java
@@ -40,9 +66,10 @@ new QuickTxBuilder(backend).withExtension(extension).compose(replay).build();
 ```
 
 The namespace `pt` is document-local. Persisted plans pin extension id, schema version, protocol,
-and deployment metadata (`network`, `bootstrap_tx`), which are validated against the configured
-deployment before any chain access. Optional `contract_version` is informational provenance and
-is preserved, but it is not used for dispatch or compatibility validation. Ordinary
+and deployment metadata (`network`, `bootstrap_tx`, `params_policy`), which are validated against
+the configured deployment before any chain access. `contract_version`, when present, must be
+`0.0.1`: a plan written for another CIP-113 contract suite describes transaction shapes this
+adapter does not build, and is refused rather than re-targeted. Ordinary
 `Tx.payToAddress(...)` never performs programmable-token routing. Use
 `programmableTokens.txPlanCodec("tokens")` when a document needs a custom namespace; use the generic
 `TxPlanCodec` builder when combining multiple extensions.
@@ -80,6 +107,10 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
 - Verification-key transfer, third-party and unfracking credentials are not invoked; registrations
   and registry updates naming one are refused so a token cannot be created that this library could
   not operate. The empty-key sentinel that forbids unfracking is data and remains valid.
+- Unfracking needs a deployment whose dispatcher was compiled against the real unfracking script;
+  none of the public deployments was (see Deployments).
+- Protocol-upgrade and authority operations (`ProtocolUpgrade`, `NominateAuthority`,
+  `PromoteAuthority`) are not authored by this module.
 - A third-party transaction acts on one policy, because the `third_party` redeemer names one
   registry node. Composition rules apply to the whole ledger transaction: every programmable-token
   operation of one transaction must be authored in a single `Tx` (fragments composed with

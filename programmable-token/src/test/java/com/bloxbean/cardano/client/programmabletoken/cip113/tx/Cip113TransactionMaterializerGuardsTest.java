@@ -15,6 +15,7 @@ import com.bloxbean.cardano.client.programmabletoken.BurnAuthorization;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenCapability;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
+import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployments;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Exception;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Protocol;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
@@ -186,8 +187,44 @@ class Cip113TransactionMaterializerGuardsTest {
 
     @Test
     void theAdapterAdvertisesUnfracking() {
-        assertThat(new Cip113Protocol(mock(Cip113ProtocolService.class)).capabilities())
+        assertThat(new Cip113Protocol(serviceFor(deployment())).capabilities())
                 .contains(ProgrammableTokenCapability.UNFRACK);
+    }
+
+    /**
+     * Every public v0.0.1 deployment compiled its dispatcher without a real unfracking script, so
+     * UnfrackingAct can never be authorised there; advertising the capability would invite
+     * transactions that fail in evaluation.
+     */
+    @Test
+    void aDeploymentThatCannotUnfrackDoesNotAdvertiseIt() {
+        Cip113Deployment cannot = deployment().toBuilder().unfrackingEnabled(false).build();
+        assertThat(new Cip113Protocol(serviceFor(cannot)).capabilities())
+                .doesNotContain(ProgrammableTokenCapability.UNFRACK)
+                .contains(ProgrammableTokenCapability.TRANSFER, ProgrammableTokenCapability.BURN);
+        assertThat(new Cip113Protocol(serviceFor(Cip113Deployments.MAINNET)).capabilities())
+                .doesNotContain(ProgrammableTokenCapability.UNFRACK);
+    }
+
+    @Test
+    void unfrackingOnADeploymentThatCannotIsRefusedBeforeUtxoSelection() {
+        Cip113Deployment cannot = deployment().toBuilder().unfrackingEnabled(false).build();
+        UtxoSupplier utxoSupplier = mock(UtxoSupplier.class);
+        RegistryNode onChain = node(POLICY, "ffff", LOGIC_HASH);
+        Cip113TransactionMaterializer tx = new Cip113TransactionMaterializer(
+                cannot, registryOf(onChain), utxoSupplier).from(ownerAddress().toBech32());
+
+        assertThatThrownBy(() -> tx.recordUnfrackForExtension(POLICY, BigIntPlutusData.of(0)))
+                .isInstanceOf(Cip113Exception.class)
+                .hasMessageContaining("cannot unfrack")
+                .hasMessageContaining(cannot.getParamsPolicy());
+        verifyNoInteractions(utxoSupplier);
+    }
+
+    private static Cip113ProtocolService serviceFor(Cip113Deployment deployment) {
+        Cip113ProtocolService service = mock(Cip113ProtocolService.class);
+        when(service.deployment()).thenReturn(deployment);
+        return service;
     }
 
     // ------------------------------------------------- guards on the verbs
@@ -723,10 +760,14 @@ class Cip113TransactionMaterializerGuardsTest {
     private static Cip113Deployment deployment() {
         return Cip113Deployment.builder()
                 .network(Networks.testnet())
+                .paramsPolicy("99".repeat(28))
                 .programmableLogicBaseHash(BASE_HASH)
+                .programmableLogicGlobalHash("77".repeat(28))
+                .issuanceLogicHash("88".repeat(28))
                 .transferScriptHash("44".repeat(28))
                 .thirdPartyScriptHash("55".repeat(28))
                 .unfrackingScriptHash("66".repeat(28))
+                .unfrackingEnabled(true)
                 .registryNodeCs(REGISTRY_NODE_CS)
                 .maxInlineDatumBytes(32)
                 .build();

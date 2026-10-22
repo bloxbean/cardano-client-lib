@@ -17,8 +17,10 @@ dependencies {
     integrationTestImplementation project(':txflow')
     // Applies parameters to the CIP-113 validators (every one of them is parameterized) and
     // evaluates scripts locally, which reports the actual failing validator instead of the
-    // empty ScriptFailures a remote evaluator returns when it cannot build a context.
-    integrationTestImplementation(libs.aiken.java.binding)
+    // empty ScriptFailures a remote evaluator returns when it cannot build a context. A test
+    // dependency (inherited by the integration tests) because Cip113DeploymentsTest re-derives
+    // every built-in deployment's hashes from the blueprint offline.
+    testImplementation(libs.aiken.java.binding)
     // SLF4J 2.x needs a 2.x provider; the root project's 1.7 binding is silently ignored, which
     // is why the suites' diagnostics used to go through System.out.
     integrationTestRuntimeOnly(libs.slf4j.reload4j)

@@ -20,7 +20,7 @@ spec:
       extension: programmable-token
       schema_version: "1"
       protocol: cip-113
-      contract_version: 0.5.0-alpha.2
+      contract_version: 0.0.1
       deployment: {network: 0}
   steps:
     - id: register
