@@ -642,7 +642,8 @@ class GcDataLossRegressionTest {
         try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
             ColumnFamilyHandle stale = st.db().createColumnFamily(new ColumnFamilyDescriptor(
                     (DiskMarkSet.CF_PREFIX + "12345").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-            st.db().put(stale, b("x"), b("y"));
+            DiskMarkSet.markOwned(st.db(), stale);
+            st.db().put(stale, new byte[32], new byte[]{1});
             stale.close(); // simulates a crash before the GC run dropped it
         }
         try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
@@ -732,8 +733,9 @@ class GcDataLossRegressionTest {
     }
 
     @Test
-    void legacyMarkColumnFamiliesFromPre6AreStillDropped() throws Exception {
-        // A genuine 0.8.0-pre6 leftover: "marks_" + nanoTime, 32-byte keys with value 0x01; and an empty one.
+    void legacyMarkColumnFamiliesFromPre6AreDroppedOnlyWhenNamed() throws Exception {
+        // A genuine 0.8.0-pre6 leftover ("marks_" + nanoTime, 32-byte keys with value 0x01) and an empty one. pre6
+        // wrote no ownership information, so opening the store keeps both; the caller drops the ones it names.
         String path = tmp.resolve("legacy-marks").toString();
         try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
             ColumnFamilyHandle h = st.db().createColumnFamily(new ColumnFamilyDescriptor("marks_1234567890123".getBytes()));
@@ -748,8 +750,61 @@ class GcDataLossRegressionTest {
         try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
             assertNotNull(st.nodeStore());
         }
+        assertTrue(columnFamilies(path).containsAll(List.of("marks_1234567890123", "marks_9876543210")));
+
+        List<ColumnFamilyDescriptor> all = new ArrayList<>();
+        for (String n : columnFamilies(path)) all.add(new ColumnFamilyDescriptor(n.getBytes()));
+        List<ColumnFamilyHandle> hs = new ArrayList<>();
+        try (org.rocksdb.DBOptions o = new org.rocksdb.DBOptions(); RocksDB db = RocksDB.open(o, path, all, hs)) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> GcManager.dropLegacyGcColumnFamilies(db, hs, List.of("default")));
+            assertEquals(1, GcManager.dropLegacyGcColumnFamilies(db, hs, List.of("marks_1234567890123")));
+            for (ColumnFamilyHandle x : hs) x.close();
+        }
         assertFalse(columnFamilies(path).contains("marks_1234567890123"));
-        assertFalse(columnFamilies(path).contains("marks_9876543210"));
+        assertTrue(columnFamilies(path).contains("marks_9876543210"));
+    }
+
+    @Test
+    void applicationHashSetWithALegacyMarkSetNameIsKept() throws Exception {
+        // PR #716 review F5: an application set of processed transaction ids, 32-byte keys with value {1}, in a
+        // column family named like a pre6 mark set, was dropped when the store was opened.
+        String path = tmp.resolve("app-hash-set").toString();
+        byte[] txId = new byte[32];
+        Arrays.fill(txId, (byte) 0xab);
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            ColumnFamilyHandle h = st.db().createColumnFamily(new ColumnFamilyDescriptor("marks_1700000000000".getBytes()));
+            st.db().put(h, txId, new byte[]{1});
+            h.close();
+        }
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            assertNotNull(st.nodeStore());
+        }
+        List<String> names = columnFamilies(path);
+        assertTrue(names.contains("marks_1700000000000"));
+        List<ColumnFamilyDescriptor> all = new ArrayList<>();
+        for (String n : names) all.add(new ColumnFamilyDescriptor(n.getBytes()));
+        List<ColumnFamilyHandle> hs = new ArrayList<>();
+        try (org.rocksdb.DBOptions o = new org.rocksdb.DBOptions(); RocksDB db = RocksDB.open(o, path, all, hs)) {
+            assertEquals(0, GcManager.dropLeftoverGcColumnFamilies(db, hs));
+            assertArrayEquals(new byte[]{1}, db.get(hs.get(names.indexOf("marks_1700000000000")), txId));
+            for (ColumnFamilyHandle x : hs) x.close();
+        }
+    }
+
+    @Test
+    void reservedNameWithoutTheOwnershipMarkerIsKept() throws Exception {
+        String path = tmp.resolve("reserved-unowned").toString();
+        String name = DiskMarkSet.CF_PREFIX + "777";
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            ColumnFamilyHandle h = st.db().createColumnFamily(new ColumnFamilyDescriptor(name.getBytes()));
+            st.db().put(h, b("someone-else"), b("data"));
+            h.close();
+        }
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            assertNotNull(st.nodeStore());
+        }
+        assertTrue(columnFamilies(path).contains(name));
     }
 
     @Test

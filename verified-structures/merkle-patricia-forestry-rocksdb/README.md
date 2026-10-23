@@ -131,7 +131,9 @@ Rules:
 - Prefer one strategy per namespace; run mark-sweep occasionally to reclaim what refcount GC leaks.
 - Both strategies use a temporary column family `__vds_gc_marks_<digits>`. If you open the `RocksDB` yourself, open it
   with all column families from `RocksDB.listColumnFamilies` and call `GcManager.dropLeftoverGcColumnFamilies` after a
-  crash (see [docs/gc.md](docs/gc.md#7-temporary-column-families-and-caller-managed-databases)).
+  crash. Leftovers of 0.8.0-pre6 (`marks_<digits>`) are never dropped automatically; drop the ones you have checked
+  with `GcManager.dropLegacyGcColumnFamilies` (see
+  [docs/gc.md](docs/gc.md#7-temporary-column-families-and-caller-managed-databases)).
 - Refcount GC removes the entries of the versions it drops from the roots index; mark-sweep leaves the index as it is.
 
 Retention policies: `RetentionPolicy.keepLatestN(n)`, `keepVersions(Collection<Long>)`, `keepRange(from, to)`, or any

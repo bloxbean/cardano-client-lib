@@ -69,7 +69,10 @@ A node's count is the number of recorded versions whose trie contains it.
 **Recording.** `RocksDbStateTrees.putRootWithRefcount(root)` assigns the next version, stores the root and adds one
 to the count of every node reachable from it, in one batch. Called inside `nodeStore().withBatch(..)` or
 `RocksDbMptSession.write(..)`, it stages everything in that open batch and reads the staged nodes, so nodes, root and
-counts commit together; several calls in one batch see each other's counts and versions. The version is the next
+counts commit together; several calls in one batch see each other's counts and versions. What counts as staged is
+what the batch actually holds: nodes discarded by `clear()` or `rollbackToSavePoint()` are not staged any more, and
+every node reachable from the root must be staged or committed, otherwise the call throws `IllegalStateException`
+and stages nothing (its partial writes are rolled back to a save point). The version is the next
 one after the highest of the committed last version and the last version staged in the batch, so sessions that
 share one uncommitted batch, roots recorded with `rootsIndex().put(..)` in the same batch, and versions undone by
 `rollbackToSavePoint()` are all taken into account. The all-zero root (the empty trie,
@@ -112,9 +115,17 @@ by earlier calls or by trie writes into the same batch are seen, a node whose de
 staged is written back when a later `incrementAll` counts it again, and clearing the batch, rolling it back to a
 save point, or reusing it after `db.write` is safe. The cost is one pass over the batch per call. Inside
 `nodeStore().withBatch(..)` / `RocksDbMptSession.write(..)`, `putRootWithRefcount` instead keeps the replayed view
-for the whole batch session, updated by the node store's own puts and deletes and checked against the batch's record
-count and data size before each use; it replays again only after writes it did not see (raw writes, `clear()`,
-`rollbackToSavePoint()`), so recording many versions in one batch stays linear. Pass a fresh batch
+for the whole batch session. The node store's puts and deletes and `putRootWithRefcount` itself update the view and
+remember the batch's record count and data size. Any other change makes the view stale until the next full replay:
+a store call (read, write or recording) that finds another count or size, which catches `clear()`,
+`rollbackToSavePoint()` and raw writes, and every write of the roots index or of the static helpers into the session
+batch, which mark it stale before writing. Staleness is sticky, so a batch that later returns to the same count and
+size, for example by being refilled after `clear()`, is still replayed. Recording many versions in one batch stays
+linear. The one change that goes unnoticed is raw writes (`batch.put(..)` on the `WriteBatch` itself) that refill a
+cleared or rolled-back batch to exactly the remembered count and size with no store call in between: inside a session,
+write to the batch only through the store APIs. Node reads in the session (`nodeStore().get`) follow the same view, so
+nodes discarded by `clear()` or `rollbackToSavePoint()` stop being visible; a trie object whose root was built from
+discarded nodes is itself stale and must be reopened at a recorded root. Pass a fresh batch
 or the batch you are about to write, and do not let another thread write to it during the call. The helpers do not
 know the retained roots, so they cannot protect nodes the way `run(..)` does: they trust the counts. `incrementAll`
 throws `IllegalStateException` when the root node is neither committed nor staged in the batch. A batch that
@@ -143,14 +154,17 @@ mark-sweep keeping that root.
 Both strategies keep their mark set in a temporary column family named `__vds_gc_marks_<digits>`, dropped at the end
 of the run. A run that crashes leaves it behind:
 
-- `RocksDbStateTrees`, `RocksDbNodeStore(String..)` and `RocksDbRootsIndex(String..)` open every existing column
-  family and drop leftovers right after opening, logging each drop. Names that match exactly
-  `__vds_gc_marks_<digits>` are dropped. `marks_<digits>` is treated as a legacy GC artefact of 0.8.0-pre6 (which
-  named it `marks_` + `System.nanoTime()`) only when it has at least 10 digits and its contents look like a mark set
-  (empty, or the first 1000 entries have equal-length digest keys and the value `0x01`); anything else, such as an
-  application column family `marks_2024`, is left alone with a warning. A column family the store itself uses is
-  never dropped. Namespace
-  column families are always named `<prefix>_nodes` / `<prefix>_roots`, so they never match these patterns.
+- The mark-set column family holds an ownership marker written right after it is created.
+  `RocksDbStateTrees`, `RocksDbNodeStore(String..)` and `RocksDbRootsIndex(String..)` open every existing column
+  family and, right after opening, drop the column families named exactly `__vds_gc_marks_<digits>` that hold the
+  marker or nothing at all, logging each drop. A column family with that name but other contents is left alone with
+  a warning. A column family the store itself uses is never dropped. Namespace column families are always named
+  `<prefix>_nodes` / `<prefix>_roots`, so they never match.
+- 0.8.0-pre6 named its mark set `marks_` + `System.nanoTime()` and wrote no ownership information, so such a name
+  cannot be told apart from an application column family (for example a set of processed transaction ids). Nothing
+  drops them automatically; opening the store logs a warning for each `marks_<10+ digits>` column family. After
+  checking that one is a GC leftover (keys are node hashes, every value is the single byte `0x01`), drop it with
+  `GcManager.dropLegacyGcColumnFamilies(db, handles, List.of("marks_..."))`, which accepts only such names.
 - A caller that opens the `RocksDB` itself with a fixed column-family list will fail to open after such a crash
   ("column families not opened"). Open with every column family listed by `RocksDB.listColumnFamilies(..)` instead,
   then call `GcManager.dropLeftoverGcColumnFamilies(db, handles)` before running GC.
