@@ -20,6 +20,8 @@ final class ProofDecoder {
     private static final int TAG_FORK = 122;
     private static final int TAG_LEAF = 123;
     private static final int MAX_STEPS = 1024;
+    /** Steps and Neighbor are constructors with at most 3 fields. */
+    private static final int MAX_FIELDS = 3;
     private static final int MAX_DEPTH = 8;
     private static final long MAX_SKIP = 4096;
 
@@ -234,7 +236,11 @@ final class ProofDecoder {
                 case 2:
                     return new Item(Kind.BYTES, 0, arg < 0 ? indefiniteBytes() : definiteBytes(arg), null);
                 case 4:
-                    return new Item(Kind.ARRAY, 0, null, arg < 0 ? indefiniteArray(depth) : definiteArray(arg, depth));
+                    // Element counts are bounded while reading, so untrusted input cannot make us allocate
+                    // one object per input byte.
+                    int maxItems = depth == 0 ? MAX_STEPS : MAX_FIELDS;
+                    return new Item(Kind.ARRAY, 0, null,
+                            arg < 0 ? indefiniteArray(depth, maxItems) : definiteArray(arg, depth, maxItems));
                 case 6: {
                     if (arg < 0) throw new IllegalArgumentException("Invalid CBOR tag");
                     // Reject a nested tag before descending, so tag chains cannot recurse without bound.
@@ -270,7 +276,8 @@ final class ProofDecoder {
             return out.toByteArray();
         }
 
-        private List<Item> definiteArray(long length, int depth) {
+        private List<Item> definiteArray(long length, int depth, int maxItems) {
+            if (length > maxItems) throw new IllegalArgumentException("Too many elements in MPF proof array");
             // Every element takes at least one byte, so a larger count cannot be satisfied by the input.
             if (length > remaining()) throw new IllegalArgumentException("Array longer than the proof");
             List<Item> items = new ArrayList<>((int) length);
@@ -278,9 +285,10 @@ final class ProofDecoder {
             return items;
         }
 
-        private List<Item> indefiniteArray(int depth) {
+        private List<Item> indefiniteArray(int depth, int maxItems) {
             List<Item> items = new ArrayList<>();
             while (peek() != BREAK) {
+                if (items.size() == maxItems) throw new IllegalArgumentException("Too many elements in MPF proof array");
                 items.add(readItem(depth + 1));
             }
             pos++; // BREAK

@@ -15,12 +15,14 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Non-membership proofs that "prove" a present key is missing.
+ * Forged proofs that CCL's verifier must reject.
  *
- * <p>Aiken's {@code miss} (merkle-patricia-forestry 2.1.0) does not check that a terminal {@code Leaf} or
- * {@code Fork} neighbor differs from the queried key, so it accepts these forged proofs (checked with
- * {@code aiken check}). Aiken's {@code insert} rejects them, because {@code do_fork} asserts the nibbles differ.
- * CCL's verifier applies that check to non-membership proofs too, so it rejects them.</p>
+ * <p>Aiken's {@code aiken-lang/merkle-patricia-forestry} 2.1.0 does not check the shape of proof steps (nibble range,
+ * prefix nibbles, digest lengths) nor that a terminal {@code Leaf}/{@code Fork} neighbor differs from the queried key.
+ * Checked with {@code aiken check}: {@code miss} accepts a forged proof for a present key (and, with an out-of-range
+ * Fork nibble, for any key), and {@code insert} accepts a forged Fork proof that re-inserts a key that is already
+ * present. CCL rejects all of these: it requires nibbles and prefix bytes in 0..15, digest-length fields, and a
+ * neighbor under a different nibble than the queried path.</p>
  */
 class MpfForgedProofTest {
 
@@ -75,6 +77,38 @@ class MpfForgedProofTest {
         // Reusing it for a present key is a forgery.
         assertFalse(trie.verifyProofWire(trie.getRootHash(), a, null, false, forkProof));
         assertFalse(trie.verifyProofWire(trie.getRootHash(), b, null, false, forkProof));
+    }
+
+    @Test
+    void outOfRangeForkNibbleIsRejected() throws Exception {
+        // Aiken 2.1.0 accepts this for miss on any key and for insert of the present key "only".
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
+        trie.put(utf8("only"), utf8("one"));
+        Array neighbor = new Array();
+        neighbor.add(new UnsignedInteger(255));
+        neighbor.add(new ByteString(Blake2b256.digest(utf8("only"))));
+        neighbor.add(new ByteString(Blake2b256.digest(utf8("one"))));
+        neighbor.setTag(new Tag(121));
+        Array fork = new Array();
+        fork.add(new UnsignedInteger(0));
+        fork.add(neighbor);
+        fork.setTag(new Tag(122));
+        Array proof = new Array();
+        proof.add(fork);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        new CborEncoder(bytes).encode(proof);
+
+        for (String key : new String[]{"only", "anything"}) {
+            assertFalse(trie.verifyProofWire(trie.getRootHash(), utf8(key), null, false, bytes.toByteArray()), key);
+        }
+    }
+
+    @Test
+    void hugeArraysAreRejectedWithoutAllocatingPerByte() {
+        byte[] payload = new byte[10_000_002];
+        payload[0] = (byte) 0x9F;
+        payload[payload.length - 1] = (byte) 0xFF;
+        assertFalse(com.bloxbean.cardano.vds.mpf.proof.ProofVerifier.verify(new byte[32], utf8("k"), null, false, payload));
     }
 
     @Test

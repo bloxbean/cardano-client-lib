@@ -96,6 +96,25 @@ class MpfTrieRootApiTest {
         assertFalse(Arrays.equals(unknown, new byte[32]));
     }
 
+    @Test
+    void zeroRootOfAnotherLengthIsNotTheEmptyTrie() {
+        TestNodeStore store = new TestNodeStore();
+        assertThrows(IllegalStateException.class, () -> MpfTrie.open(store, new byte[]{0}));
+        MpfTrie trie = new MpfTrie(store, new byte[16]);
+        assertArrayEquals(new byte[16], trie.getRootHash());
+        assertArrayEquals(new byte[16], trie.getRootHashOrEmpty());
+    }
+
+    @Test
+    void proofOnUnknownRootFailsFast() {
+        TestNodeStore store = new TestNodeStore();
+        MpfTrie trie = new MpfTrie(store);
+        trie.put(b("alice"), b("100"));
+        byte[] root = trie.getRootHash();
+        MpfTrie elsewhere = new MpfTrie(new TestNodeStore(), root);
+        assertThrows(IllegalStateException.class, () -> elsewhere.getProofWire(b("alice")));
+    }
+
     private static byte[] b(String s) {
         return s.getBytes(StandardCharsets.UTF_8);
     }

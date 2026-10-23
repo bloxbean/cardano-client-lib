@@ -75,7 +75,16 @@ open an empty trie, and verification treats a `null` root and the all-zero root 
 
 When the root comes from an on-chain datum, open the trie with `MpfTrie.open(store, root)`: it fails fast if the root
 is not in the store. The constructors are lenient: with an unknown root, reads return `null` and the next `put`
-starts a new trie.
+starts a new trie (`getProofWire` throws `IllegalStateException` for a root or node missing from the store).
+
+> **Security note for validators.** `aiken-lang/merkle-patricia-forestry` 2.1.0 does not check the shape of proof
+> steps (nibble range, prefix nibbles, digest lengths) or that a terminal `Leaf`/`Fork` neighbor differs from the
+> queried key. With a crafted proof, `mpf.miss` accepts a key that is present, and `mpf.insert` accepts re-inserting
+> a key that is already present (changing its value). We reproduced both with `aiken check`
+> (`MpfForgedProofTest` documents the cases). CCL never produces such proofs and `verifyProofWire` rejects them,
+> but on-chain code does not. A validator that relies on `miss` or `insert` to enforce absence or uniqueness should
+> also check every step of the redeemer proof: `Fork` nibble and prefix bytes in 0..15, 32-byte `root`, `key` and
+> `value`, and a neighbor nibble different from the key's nibble at that position.
 
 > Proofs produced by CCL 0.8.0-pre6 and earlier differ: exclusion proofs ending in a `Fork` step were rejected
 > by Aiken, and inclusion proofs only used `Branch` steps, which Aiken accepts for `has`/`update` but not for

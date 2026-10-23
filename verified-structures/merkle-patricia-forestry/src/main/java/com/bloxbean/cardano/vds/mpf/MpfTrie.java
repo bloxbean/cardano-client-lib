@@ -223,7 +223,8 @@ public final class MpfTrie {
      */
     public static MpfTrie open(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitmentScheme) {
         Objects.requireNonNull(store, "store");
-        if (!Impl.isEmptyRoot(root) && store.get(root) == null) {
+        Objects.requireNonNull(commitmentScheme, "commitmentScheme");
+        if (!Impl.isEmptyRoot(root, commitmentScheme.nullHash().length) && store.get(root) == null) {
             throw new IllegalStateException("MPF root " + HexUtil.encodeHexString(root) + " is not in the node store");
         }
         return new MpfTrie(store, hashFn, root, commitmentScheme);
@@ -267,7 +268,7 @@ public final class MpfTrie {
      */
     public byte[] getRootHashOrEmpty() {
         byte[] root = impl.getRootHash();
-        return root == null || Impl.isEmptyRoot(root) ? impl.emptyRoot() : root;
+        return root == null || impl.isEmpty(root) ? impl.emptyRoot() : root;
     }
 
     /**
@@ -319,8 +320,12 @@ public final class MpfTrie {
      *
      * <p>The key is automatically hashed before proof generation.</p>
      *
+     * <p>The proof is canonical (identical to the official off-chain library's): for a present key it proves
+     * inclusion, for an absent key it proves exclusion and is also the proof Aiken's {@code insert} expects.</p>
+     *
      * @param key the original key to generate proof for
-     * @return the wire-format proof bytes, or empty if proof cannot be generated
+     * @return the wire-format proof bytes
+     * @throws IllegalStateException if the root or a node on the path is missing from the store
      */
     public Optional<byte[]> getProofWire(byte[] key) {
         return impl.getProofWire(hashFn.digest(key));
@@ -743,7 +748,7 @@ public final class MpfTrie {
          * Sets the root hash of the trie (copied). {@code null}, empty and all-zero roots denote the empty trie.
          */
         void setRootHash(byte[] root) {
-            if (isEmptyRoot(root)) {
+            if (isEmpty(root)) {
                 this.root = null;
                 this.emptyRootAlias = root == null || root.length == 0 ? null : root.clone();
             } else {
@@ -759,6 +764,10 @@ public final class MpfTrie {
         byte[] getRootHash() {
             if (root != null) return root.clone();
             return emptyRootAlias == null ? null : emptyRootAlias.clone();
+        }
+
+        boolean isEmpty(byte[] root) {
+            return isEmptyRoot(root, commitments.nullHash().length);
         }
 
         /** The all-zero root of the empty trie (Aiken {@code mpf.empty}). */
@@ -815,7 +824,7 @@ public final class MpfTrie {
          */
         private TraversalProof getProof(byte[] key) {
             Objects.requireNonNull(key, "key");
-            if (isEmptyRoot(this.root)) {
+            if (this.root == null) {
                 return TraversalProof.nonInclusionMissingBranch(Collections.emptyList());
             }
 
@@ -825,11 +834,8 @@ public final class MpfTrie {
             List<Integer> traversedNibbles = new ArrayList<>();
             int depth = 0;
 
-            Node node = persistence.load(NodeHash.of(this.root));
-            if (node == null) {
-                // Unknown root: nothing to prove against (verification against this root fails).
-                return TraversalProof.nonInclusionMissingBranch(steps);
-            }
+            // An unknown root (not in the store) fails like any other missing node.
+            Node node = loadRequired(this.root);
 
             while (true) {
                 if (node instanceof BranchNode) {
@@ -1031,9 +1037,13 @@ public final class MpfTrie {
             return hashFn.digest(branch.getValue());
         }
 
-        /** {@code true} for the empty trie: no root, or the all-zero root (Aiken's {@code mpf.empty}). */
-        static boolean isEmptyRoot(byte[] root) {
+        /**
+         * {@code true} for the empty trie: no root, or the all-zero root of the digest length (Aiken's
+         * {@code mpf.empty}).
+         */
+        static boolean isEmptyRoot(byte[] root, int digestLength) {
             if (root == null || root.length == 0) return true;
+            if (root.length != digestLength) return false;
             for (byte b : root) {
                 if (b != 0) return false;
             }
