@@ -1,651 +1,124 @@
-# Garbage Collection Strategies
+# Garbage Collection — merkle-patricia-forestry-rocksdb
+
+MPF tries are persistent: a `put` or `delete` writes new nodes along the changed path and leaves the old ones in
+place, so every recorded root stays readable. GC deletes the nodes that no *retained* root reaches.
 
-**Module:** `merkle-patricia-trie-rocksdb`
+This document describes what the code does. Classes are in `com.bloxbean.cardano.vds.mpf.rocksdb.gc` unless stated
+otherwise.
 
-## Table of Contents
+## 1. On-disk layout
 
-1. [Overview](#overview)
-2. [Reference Counting GC](#reference-counting-gc)
-3. [Mark-and-Sweep GC](#mark-and-sweep-gc)
-4. [RDBMS Mark-and-Sweep GC](#rdbms-mark-and-sweep-gc)
-5. [Retention Policies](#retention-policies)
-6. [Performance Analysis](#performance-analysis)
-7. [Design Trade-offs](#design-trade-offs)
-8. [GcTool CLI](#gctool-cli)
-9. [References](#references)
+All keys of a namespace start with its one-byte key prefix `[ns]` (`0x00` unless
+`NamespaceOptions.keyPrefix(..)` is used). Namespaces created with `NamespaceOptions.columnFamily(..)` get their own
+column families instead.
 
----
+| Column family | Key | Value |
+|---|---|---|
+| `nodes` | `[ns][node hash]` (1 + digest bytes) | CBOR-encoded node |
+| `nodes` | `[ns][0xF0][node hash]` (2 + digest bytes) | refcount, 8-byte big-endian long (refcount GC only) |
+| `roots` | `[ns][version as 8-byte big-endian]` | root hash |
+| `roots` | `[ns]"LATEST"` | root of the last `put` |
+| `roots` | `[ns]"VERSION"` | highest version number (keeps `nextVersion()` monotonic) |
+| `roots` | `[ns]"_storage_mode"` | `MULTI_VERSION` or `SINGLE_VERSION` |
 
-## 1. Overview
+Node keys and refcount keys are told apart by **length**, not by the `0xF0` byte: about one node hash in 256 starts
+with `0xF0`.
 
-### 1.1 Why Garbage Collection?
+Every scan of a namespace (roots index listing, sweeps, tools) seeks to `[ns]` with a total-order iterator and stops
+at the first key with another prefix (`KeyPrefixer.namespaceStart()` / `createNamespaceScanReadOptions()`). Other
+namespaces in a shared column family are never read or modified.
 
-**Problem:** Copy-on-write creates new nodes on every update, old nodes become unreachable
+## 2. Which roots are kept
 
-**Without GC:**
-- 1M updates → 20-30M stale nodes (10-20 GB)
-- Storage grows indefinitely
-- Performance degrades (more data to scan)
+`RetentionPolicy` chooses roots from the namespace's `RocksDbRootsIndex`:
 
-**With GC:**
-- Reclaim space from old versions
-- Maintain bounded storage size
-- Keep performance consistent
+- `keepLatestN(n)` — roots of the `n` highest versions;
+- `keepVersions(versions)` — roots of the given versions;
+- `keepRange(from, to)` — roots of versions in `[from, to]`;
+- any lambda `index -> Collection<byte[]>`.
 
-### 1.2 GC Strategies Comparison
+On top of the policy, every strategy always keeps the root under `LATEST` and the root at `lastVersion()`
+(`gc.internal.GcRoots`). This also applies when a strategy is called directly through `GcStrategy.run(..)` and to
+`RocksDbStateTrees.cleanupOrphanedNodes(..)`.
 
-| Strategy | Tracking Overhead | GC Speed | Space Efficiency | Use Case |
-|----------|------------------|----------|------------------|----------|
-| **Reference Counting** | High (refcount per node) | Fast (incremental) | Good (immediate) | Multi-version, frequent updates |
-| **Mark-and-Sweep** | Low (no extra data) | Slow (full scan) | Excellent (reclaim all) | Single-version, batch cleanup |
-| **Retention Policy** | None (time-based) | N/A (prune old) | Good (predictable) | Historical queries with time limit |
+## 3. Mark-and-sweep — `strategy.OnDiskMarkSweepStrategy`
 
----
+Works on any store, including stores without refcounts.
 
-## 2. Reference Counting GC
+1. **Snapshot.** With `GcOptions.useSnapshot` (default `true`) a RocksDB snapshot is taken first.
+2. **Roots.** The retained roots are resolved (section 2). They must all have the same length; that length is the
+   digest length used to recognise node keys (32 bytes when there is no root).
+3. **Mark.** A temporary column family `marks_<nanoTime>` receives every node hash reachable from a retained root
+   (breadth-first walk). The mark set lives on disk, so memory stays flat for large tries.
+4. **Sweep.** The node keys of the namespace are scanned — through the snapshot, so nodes committed after step 1 are
+   never deleted. Each unmarked node is deleted together with its refcount entry, if any. Refcount entries of kept
+   nodes and every other key are left alone. Deletes are flushed every `deleteBatchSize` nodes and reported to
+   `progress`.
+5. The marks column family is dropped.
 
-### 2.1 Algorithm Overview
+`dryRun` reports what would be deleted without writing. The roots index is not modified: versions that were not
+retained stay listed, but their tries are no longer complete.
 
-**Concept:** Track how many tree roots reference each node
+## 4. Reference counting — `strategy.RefcountGcStrategy`
 
-**Data Structure:**
-```
-NodeRefcount: node_hash → refcount
-```
+A node's count is the number of recorded versions whose trie contains it.
 
-**Rules:**
-1. New node: refcount = 1 (referenced by new root)
-2. Shared node (across versions): refcount++
-3. Node removed from tree: refcount--
-4. When refcount = 0: Delete node
+**Recording.** `RocksDbStateTrees.putRootWithRefcount(root)` assigns the next version, stores the root and adds one
+to the count of every node reachable from it, in one batch. Called inside `nodeStore().withBatch(..)` or
+`RocksDbMptSession.write(..)`, it stages everything in that open batch and reads the staged nodes, so nodes, root and
+counts commit together; several calls in one batch see each other's counts and versions. The all-zero root (empty
+trie) is recorded without counts.
 
-### 2.2 Implementation
+**Collecting.** `run(..)` drops every listed version whose root is not retained:
 
-**Schema:**
-```sql
-CREATE TABLE node_refcounts (
-    node_hash BYTEA PRIMARY KEY,
-    refcount INTEGER NOT NULL DEFAULT 1
-);
+- If any retained root has no count, it throws `IllegalStateException` and changes nothing: the namespace holds
+  versions that were not recorded with `putRootWithRefcount`, so counts cannot be trusted. Use mark-sweep.
+- For each dropped version it subtracts one along that version's trie. A node is deleted only when its count goes
+  from 1 to 0. A node without a count is untracked: it is neither deleted nor descended into.
+- All decrements of one run share an overlay of the counts staged so far, so tries that share nodes are decremented
+  correctly in a single batch.
+- The dropped version entries are deleted from the roots index in the same batch (when the index and the nodes share
+  one RocksDB; otherwise the index entries are deleted first). Running GC again cannot decrement a version twice.
+  `LATEST` and `VERSION` are not changed.
 
-CREATE INDEX idx_refcount_zero ON node_refcounts (refcount)
-WHERE refcount = 0;
-```
+Nodes that were written but never part of a recorded root (for example intermediate nodes of several `put`s inside
+one batch) are never counted, so refcount GC never deletes them. Run mark-sweep occasionally if that matters.
 
-**Increment Refcount:**
-```java
-public void incrementRefcount(byte[] nodeHash) {
-    // Atomic increment
-    executeUpdate(
-        "INSERT INTO node_refcounts (node_hash, refcount) VALUES (?, 1) " +
-        "ON CONFLICT (node_hash) DO UPDATE SET refcount = node_refcounts.refcount + 1",
-        nodeHash
-    );
-}
-```
+The static helpers `incrementAll(..)` / `decrementAll(..)` apply the same rules to one root. `incrementAll` reads
+nodes from the database and throws `IllegalStateException` when the root node is not committed — the old pattern of
+staging trie nodes and `incrementAll` in one `WriteBatch` counted only the root and later freed live nodes. Prefer
+`putRootWithRefcount`.
 
-**Decrement Refcount:**
-```java
-public void decrementRefcount(byte[] nodeHash) {
-    executeUpdate(
-        "UPDATE node_refcounts SET refcount = refcount - 1 WHERE node_hash = ?",
-        nodeHash
-    );
-}
-```
+## 5. Rules
 
-**Collect Garbage:**
-```java
-public int collectGarbage() {
-    // Find nodes with refcount = 0
-    List<byte[]> deadNodes = query(
-        "SELECT node_hash FROM node_refcounts WHERE refcount = 0"
-    );
+- **No concurrent writers.** Pause every writer of the namespace while GC runs. The snapshot protects nodes written
+  after it from the sweep, but a root committed during GC can still reuse an old node that was not marked.
+- **One strategy per namespace.** Mark-sweep keeps refcount entries of live nodes, but refcount GC after mark-sweep
+  can leak, and refcount GC requires every version to be recorded with `putRootWithRefcount`.
+- **Pre-0.8.0 refcounts.** Stores whose counts were written with the same-batch pattern above have wrong counts.
+  Collect them with mark-sweep.
+- **Single hash function per namespace.** Mark-sweep fails fast when retained roots have different lengths.
 
-    // Delete nodes and refcount entries
-    try (WriteBatch batch = new WriteBatch()) {
-        for (byte[] hash : deadNodes) {
-            batch.delete(nodesColumnFamily, hash);
-        }
-        db.write(writeOptions, batch);
-    }
+## 6. Single-version mode
 
-    // Clean up refcount table
-    executeUpdate("DELETE FROM node_refcounts WHERE refcount = 0");
+In `SINGLE_VERSION` mode `putRootSnapshot(root)` overwrites version 0 and `cleanupOrphanedNodes(options)` runs
+mark-sweep keeping that root.
 
-    return deadNodes.size();
-}
-```
+## 7. Internal helpers
 
-### 2.3 Refcount Maintenance During Operations
+`gc.internal.RocksDbGc` (`gcKeepLatest`, `gcKeepVersions`, `markReachable`, `sweepUnreachable`) is an in-memory
+mark-and-sweep with the same namespace scoping, key handling and latest-root retention. It holds the mark set in a
+`Set<String>`, so prefer `OnDiskMarkSweepStrategy` for large tries.
 
-**Insert Operation:**
-```
-1. Create new nodes (refcount = 1 each)
-2. Delete old nodes on path:
-   - decrementRefcount(old_node_hash)
-   - If refcount = 0, mark for deletion
-3. Increment refcount for shared nodes:
-   - If branch child already exists: incrementRefcount(child_hash)
-```
+## 8. GcTool
 
-**Delete Operation:**
-```
-1. Navigate to leaf, delete it: decrementRefcount(leaf_hash)
-2. For each parent on path:
-   - decrementRefcount(old_parent_hash)
-   - Create new parent (refcount = 1)
-3. Compress tree (merge/remove unnecessary nodes)
-```
-
-**Root Change:**
-```
-1. New root: incrementRefcount(new_root_hash)
-2. Old root: decrementRefcount(old_root_hash)
-3. Run GC if needed
-```
-
-### 2.4 Complexity
-
-- **Increment/Decrement:** O(1) (index lookup + update)
-- **GC Scan:** O(n) where n = nodes with refcount = 0
-- **Space Overhead:** 4 bytes per node (refcount integer)
-
-**For 1M nodes:**
-- Refcount storage: 4 MB
-- Index overhead: ~1-2 MB
-- **Total: ~6 MB** (acceptable)
-
----
-
-## 3. Mark-and-Sweep GC
-
-### 3.1 Algorithm Overview
-
-**Concept:** Periodically scan reachable nodes, delete unreachable
-
-**Phases:**
-1. **Mark:** Starting from active roots, mark all reachable nodes
-2. **Sweep:** Delete all unmarked nodes
-
-**Advantage:** No ongoing overhead (no refcount tracking)
-
-**Disadvantage:** Requires full tree traversal (slow for large trees)
-
-### 3.2 Implementation
-
-**Mark Phase:**
-```java
-public Set<byte[]> markReachable(List<byte[]> rootHashes) {
-    Set<byte[]> reachable = new HashSet<>();
-    Queue<byte[]> queue = new LinkedList<>(rootHashes);
-
-    while (!queue.isEmpty()) {
-        byte[] nodeHash = queue.poll();
-
-        if (reachable.contains(nodeHash)) {
-            continue; // Already marked
-        }
-
-        reachable.add(nodeHash);
-
-        // Load node and mark children
-        byte[] nodeData = nodeStore.get(nodeHash);
-        if (nodeData == null) continue;
-
-        Node node = decode(nodeData);
-        node.accept(new NodeVisitor<Void>() {
-            public Void visitBranch(BranchNode branch) {
-                for (byte[] child : branch.getChildren()) {
-                    if (child != null && child.length > 0) {
-                        queue.offer(child);
-                    }
-                }
-                return null;
-            }
-
-            public Void visitExtension(ExtensionNode ext) {
-                queue.offer(ext.getChild());
-                return null;
-            }
-
-            public Void visitLeaf(LeafNode leaf) {
-                // Leaf has no children
-                return null;
-            }
-        });
-    }
-
-    return reachable;
-}
-```
-
-**Sweep Phase:**
-```java
-public int sweep(Set<byte[]> reachable) {
-    int deleted = 0;
-
-    try (RocksIterator it = db.newIterator(nodesColumnFamily)) {
-        it.seekToFirst();
-
-        while (it.isValid()) {
-            byte[] nodeHash = it.key();
-
-            if (!reachable.contains(nodeHash)) {
-                nodeStore.delete(nodeHash);
-                deleted++;
-            }
-
-            it.next();
-        }
-    }
-
-    return deleted;
-}
-```
-
-**Complete GC:**
-```java
-public GcResult runGarbageCollection() {
-    long startTime = System.currentTimeMillis();
-
-    // 1. Get active root hashes
-    List<byte[]> rootHashes = rootsIndex.getAllRoots();
-
-    // 2. Mark reachable nodes
-    Set<byte[]> reachable = markReachable(rootHashes);
-
-    // 3. Sweep unreachable nodes
-    int deleted = sweep(reachable);
-
-    long duration = System.currentTimeMillis() - startTime;
-
-    return new GcResult(deleted, reachable.size(), duration);
-}
-```
-
-### 3.3 Optimizations
-
-**Incremental Mark:**
-```java
-// Process in chunks to avoid OOM
-public Set<byte[]> markReachableIncremental(List<byte[]> rootHashes, int chunkSize) {
-    Set<byte[]> reachable = new HashSet<>();
-    Queue<byte[]> queue = new LinkedList<>(rootHashes);
-
-    int processed = 0;
-    while (!queue.isEmpty()) {
-        byte[] nodeHash = queue.poll();
-
-        if (reachable.contains(nodeHash)) continue;
-
-        reachable.add(nodeHash);
-        // ... mark children ...
-
-        processed++;
-        if (processed % chunkSize == 0) {
-            // Yield CPU, allow other operations
-            Thread.yield();
-        }
-    }
-
-    return reachable;
-}
-```
-
-**Bloom Filter (Space Optimization):**
-```java
-// Use bloom filter for marked set (reduce memory)
-BloomFilter<byte[]> marked = BloomFilter.create(
-    Funnels.byteArrayFunnel(),
-    estimatedNodes,
-    0.01  // 1% false positive rate
-);
-
-// In mark phase:
-marked.put(nodeHash);
-
-// In sweep phase:
-if (!marked.mightContain(nodeHash)) {
-    // Definitely not reachable
-    delete(nodeHash);
-}
-```
-
-**Memory Savings:**
-- Full HashSet: 32 bytes per node × 1M = 32 MB
-- Bloom filter (1% FP): ~1.2 MB
-- **96% memory reduction**
-
-### 3.4 Complexity
-
-- **Mark Phase:** O(R) where R = reachable nodes
-- **Sweep Phase:** O(N) where N = total nodes
-- **Total:** O(N + R) = O(N)
-- **Space:** O(R) for marked set (or O(1) with bloom filter)
-
-**For 1M total nodes, 800K reachable:**
-- Mark: ~5-10 seconds
-- Sweep: ~2-5 seconds
-- **Total: ~10-15 seconds**
-
----
-
-## 4. RDBMS Mark-and-Sweep GC
-
-**Module:** `merkle-patricia-forestry-rdbms`
-
-### 4.1 Overview
-
-The RDBMS backend uses a mark-and-sweep GC strategy implemented in `RdbmsMarkSweepGc`. Unlike the RocksDB backend which stores marks in a temporary on-disk column family, the RDBMS implementation holds all reachable node hashes **in JVM heap memory** during the mark phase.
-
-**Access:** Users interact with RDBMS GC only through `RdbmsStateTrees.cleanupOrphanedNodes()`. The `RdbmsMarkSweepGc` class is package-private.
-
-### 4.2 Algorithm
-
-**Mark Phase:**
-- BFS traversal from retained root hashes
-- Uses `NodeRefParser.childRefs()` to extract child hashes from CBOR-encoded nodes
-- Collects all reachable hashes in a `Set<ByteBuffer>` (in-memory)
-- Each node is fetched individually via `nodeStore.get(hash)`
-
-**Sweep Phase:**
-- Scans the entire `mpt_nodes` table for the namespace
-- Collects orphan hashes (not in the reachable set) into a `List<byte[]>`
-- Deletes orphans in JDBC batches (configurable batch size)
-- Commits after each batch for progress visibility
-
-### 4.3 Configuration
-
-```java
-RdbmsGcOptions options = new RdbmsGcOptions();
-options.dryRun = true;              // Report orphans without deleting
-options.deleteBatchSize = 10_000;   // Delete batch size (default 10K)
-options.progress = deleted -> log.info("Deleted: {}", deleted);
-```
-
-### 4.4 Memory Cost Analysis
-
-The mark phase holds all reachable node hashes in a `Set<ByteBuffer>`, backed by `HashMap`. Per-entry cost on a 64-bit JVM with compressed oops:
-
-| Component | Size |
-|-----------|------|
-| `byte[32]` (the hash) | 16 (header) + 32 (data) = **48 bytes** |
-| `ByteBuffer` wrapping it | **~48 bytes** |
-| `HashMap.Node` (backing HashSet) | **~32 bytes** |
-| HashMap backing array slot (amortized at 0.75 load) | **~5 bytes** |
-| **Total per reachable node** | **~133 bytes** |
-
-The sweep phase also collects orphan hashes in a `List<byte[]>` at ~52 bytes per orphan.
-
-### 4.5 Scale Projections
-
-| Reachable Nodes | Mark Set (heap) | 20% orphans (toDelete) | Peak Combined |
-|----------------|----------------|----------------------|---------------|
-| 100K | ~13 MB | ~1 MB | ~14 MB |
-| 1M | ~127 MB | ~10 MB | ~137 MB |
-| 5M | ~635 MB | ~50 MB | ~685 MB |
-| 10M | ~1.27 GB | ~100 MB | ~1.37 GB |
-| 50M | ~6.3 GB | ~500 MB | ~6.8 GB |
-
-### 4.6 Known Limitations
-
-1. **Memory**: The in-memory `Set<ByteBuffer>` approach works well for up to ~1M reachable nodes (~127 MB heap). Beyond 5M nodes, the mark set alone can exceed typical service heap budgets.
-
-2. **GC pressure**: Millions of short-lived `ByteBuffer` + `byte[]` pairs create significant JVM garbage collector work (2 objects × N million).
-
-3. **Mark-phase I/O**: Each node in the BFS issues an individual `nodeStore.get(hash)` → individual SQL `SELECT`. For 10M reachable nodes, that's 10M SQL round-trips, making latency the primary bottleneck at scale.
-
-4. **Single-version only**: `cleanupOrphanedNodes()` is only supported in `SINGLE_VERSION` mode. MULTI_VERSION mode stores roots with auto-versioned numbers but does not support automated GC.
-
-### 4.7 Comparison: RocksDB vs RDBMS GC
-
-| Aspect | RocksDB (`OnDiskMarkSweepStrategy`) | RDBMS (`RdbmsMarkSweepGc`) |
-|--------|-------------------------------------|----------------------------|
-| Mark storage | Temp column family (on disk) | `Set<ByteBuffer>` (in JVM heap) |
-| App memory | O(1) (RocksDB manages cache) | O(R) where R = reachable nodes |
-| Sweep | RocksDB iterator (streaming) | SQL `SELECT` + batch `DELETE` |
-| Cleanup | `dropColumnFamily()` (instant) | N/A (no temp structures) |
-| Scale limit | Disk space | JVM heap (~1M nodes practical) |
-
-### 4.8 Future Improvements
-
-The following strategies may be explored to support larger datasets:
-
-- **Temp-table approach**: Store marks in a database temporary table instead of JVM heap. The RDBMS equivalent of RocksDB's temporary column family. Trades application memory for database I/O.
-- **Bloom filter**: Use a probabilistic data structure for the reachable set (~1.2 MB for 1M nodes at 1% false positive rate vs 127 MB for HashSet). Requires a second pass to handle false positives.
-- **Batch-prefetch mark phase**: Process the BFS queue in chunks (e.g., 500 hashes per round-trip) to reduce SQL round-trips during the mark phase.
-
-These alternatives involve their own trade-offs (additional database I/O for temp tables, false positive handling for bloom filters) and will be evaluated based on real-world usage patterns.
-
----
-
-## 5. Retention Policies
-
-### 4.1 Time-Based Retention
-
-**Concept:** Delete versions older than N days
-
-**Schema:**
-```sql
-CREATE TABLE version_metadata (
-    version BIGINT PRIMARY KEY,
-    root_hash BYTEA NOT NULL,
-    timestamp TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_version_timestamp ON version_metadata (timestamp);
-```
-
-**Retention Policy:**
-```java
-public void enforceRetentionPolicy(Duration retentionPeriod) {
-    Instant cutoff = Instant.now().minus(retentionPeriod);
-
-    // Find versions older than cutoff
-    List<Long> oldVersions = query(
-        "SELECT version FROM version_metadata WHERE timestamp < ?",
-        Timestamp.from(cutoff)
-    );
-
-    // Delete each old version
-    for (long version : oldVersions) {
-        deleteVersion(version);
-    }
-}
-
-private void deleteVersion(long version) {
-    // 1. Get root for this version
-    byte[] rootHash = getRootHash(version);
-
-    // 2. Mark stale (for other GC strategies)
-    markVersionAsStale(version);
-
-    // 3. Optionally run GC immediately
-    runGarbageCollection();
-}
-```
-
-**Example Policies:**
-```java
-// Keep last 30 days
-enforceRetentionPolicy(Duration.ofDays(30));
-
-// Keep last 1000 versions
-enforceVersionCountLimit(1000);
-
-// Keep last 100 GB
-enforceSizeLimit(100L * 1024 * 1024 * 1024);
-```
-
-### 4.2 Version Count Retention
-
-**Concept:** Keep only last N versions
-
-```java
-public void enforceVersionCountLimit(int maxVersions) {
-    List<Long> allVersions = query(
-        "SELECT version FROM version_metadata ORDER BY version DESC"
-    );
-
-    if (allVersions.size() <= maxVersions) {
-        return; // Under limit
-    }
-
-    // Delete excess old versions
-    List<Long> toDelete = allVersions.subList(maxVersions, allVersions.size());
-    for (long version : toDelete) {
-        deleteVersion(version);
-    }
-}
-```
-
-### 4.3 Size-Based Retention
-
-**Concept:** Delete old versions when total size exceeds limit
-
-```java
-public void enforceSizeLimit(long maxSizeBytes) {
-    long currentSize = getCurrentStorageSize();
-
-    if (currentSize <= maxSizeBytes) {
-        return; // Under limit
-    }
-
-    // Delete oldest versions until under limit
-    List<Long> versions = query(
-        "SELECT version FROM version_metadata ORDER BY version ASC"
-    );
-
-    for (long version : versions) {
-        if (getCurrentStorageSize() <= maxSizeBytes) {
-            break;
-        }
-        deleteVersion(version);
-    }
-}
-```
-
----
-
-## 6. Performance Analysis
-
-### 6.1 Benchmark Results
-
-**Setup:** 1M keys, 100 updates/sec, 10 GB data
-
-| Strategy | GC Overhead | Storage Reclaimed | GC Frequency |
-|----------|-------------|-------------------|--------------|
-| Refcount | 2-5% (continuous) | 95-99% | Incremental |
-| Mark-Sweep | 0% (idle) + 100% (GC) | 100% | Every 1-7 days |
-| Retention (30 days) | 0% | 90-95% | Daily |
-
-### 6.2 Space Overhead
-
-| Strategy | Per-Node Overhead | Total (1M nodes) |
-|----------|------------------|------------------|
-| Refcount | 4 bytes | 4 MB |
-| Mark-Sweep | 0 bytes | 0 MB |
-| Retention | 0 bytes | 0 MB |
-
-### 6.3 GC Latency
-
-**Refcount (Incremental):**
-- Per-operation: +50-100 µs (refcount update)
-- Amortized: No visible GC pauses
-
-**Mark-Sweep (Stop-the-World):**
-- GC pause: 10-30 seconds (1M nodes)
-- Can run during maintenance window
-- Requires careful scheduling
-
-**Retention Policy:**
-- GC pause: Depends on version count
-- 100 versions: ~5-10 seconds
-- Can combine with mark-sweep
-
----
-
-## 7. Design Trade-offs
-
-### 7.1 When to Use Refcount GC
-
-**Advantages:**
-- Incremental (no GC pauses)
-- Immediate space reclamation
-- Good for multi-version workloads
-
-**Disadvantages:**
-- Overhead on every operation (2-5%)
-- Complex bookkeeping
-- Risk of refcount bugs (leaks or premature deletion)
-
-**Best For:**
-- Production systems with uptime requirements
-- Multi-version databases
-- Frequent updates
-
-### 7.2 When to Use Mark-and-Sweep GC
-
-**Advantages:**
-- No overhead during normal operations
-- Simple implementation
-- Guaranteed to find all garbage
-
-**Disadvantages:**
-- Stop-the-world pause (10-30 seconds)
-- Requires maintenance window
-- Higher memory usage during GC
-
-**Best For:**
-- Single-version trees
-- Batch processing systems
-- Maintenance-window deployments
-
-### 7.3 When to Use Retention Policies
-
-**Advantages:**
-- Predictable storage usage
-- Simple to implement
-- No complex tracking
-
-**Disadvantages:**
-- Deletes useful data (old versions)
-- Not suitable if all history needed
-- Requires tuning (retention period)
-
-**Best For:**
-- Time-series data (recent is important)
-- Regulatory compliance (e.g., 7-year retention)
-- Combined with other GC strategies
-
----
-
-## 8. GcTool CLI
-
-### 8.1 Command-Line Interface
-
-**Run Refcount GC:**
 ```bash
-java -jar gc-tool.jar --mode=refcount --db-path=/data/rocksdb --dry-run=false
+./gradlew :verified-structures:load-tools:run --args="gc generate /tmp/mpt 10000 5"
+./gradlew :verified-structures:load-tools:run --args="gc stats /tmp/mpt"
+./gradlew :verified-structures:load-tools:run --args="gc gc-refcount /tmp/mpt keep-latest 1"
+./gradlew :verified-structures:load-tools:run --args="gc gc-marksweep /tmp/mpt keep-latest 1"
 ```
 
-**Run Mark-and-Sweep GC:**
-```bash
-java -jar gc-tool.jar --mode=mark-sweep --db-path=/data/rocksdb --roots-cf=roots
-```
-
-**Enforce Retention Policy:**
-```bash
-java -jar gc-tool.jar --mode=retention --db-path=/data/rocksdb \
-  --retention-days=30 --dry-run=false
-```
-
-**Dry Run (Estimate Savings):**
-```bash
-java -jar gc-tool.jar --mode=mark-sweep --db-path=/data/rocksdb --dry-run=true
-# Output:
-# Reachable nodes: 800,000
-# Unreachable nodes: 200,000
-# Estimated space to reclaim: 15.2 GB
-```
+`generate` writes `numVersions` versions, each in one `RocksDbMptSession` batch that also calls
+`putRootWithRefcount`, so both strategies can be tried on the result. `stats` prints node count, version count and
+the latest root.

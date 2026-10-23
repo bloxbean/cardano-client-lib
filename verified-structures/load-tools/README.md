@@ -180,74 +180,83 @@ Tests JMT with H2, SQLite, or PostgreSQL backends.
 - `--prune-every=N` - Run pruning every N batches (RDBMS-specific)
 - `--memory` - Use in-memory JMT store (no RDBMS)
 
-### MPT (Merkle Patricia Trie)
+### MPF (Merkle Patricia Forestry)
 
 #### 4. MptLoadTester - RocksDB Performance Testing
 
-Tests MPT with RocksDB backend, supports both plain MPT and SecureTrie (MPF) modes.
+Loads random key/values into an `MpfTrie` on RocksDB (or in memory) and reports throughput.
 
 ```bash
-# SecureTrie/MPF mode (default)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.MptLoadTester --records=1000000 --batch=1000 --secure --rocksdb=/tmp/mpt-load"
+# 1M records in batches of 1000
+./gradlew :verified-structures:load-tools:run --args="mpt --records=1000000 --batch=1000 --rocksdb=/tmp/mpt-load"
 
-# Plain MPT mode
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.MptLoadTester --records=1000000 --batch=1000 --plain --rocksdb=/tmp/mpt-load"
+# With deletes (10% delete ratio) and a proof every 100 batches
+./gradlew :verified-structures:load-tools:run --args="mpt --records=1000000 --batch=1000 --delete-ratio=0.1 --proof-every=100 --rocksdb=/tmp/mpt-load"
 
-# With deletes (10% delete ratio)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.MptLoadTester --records=1000000 --batch=1000 --delete-ratio=0.1 --rocksdb=/tmp/mpt-load"
+# Refcount GC: record every batch with putRootWithRefcount, keep the latest 10 versions
+./gradlew :verified-structures:load-tools:run --args="mpt --records=1000000 --batch=1000 --gc=refcount --keep-latest=10 --rocksdb=/tmp/mpt-load"
 
-# With garbage collection enabled (refcount mode)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.MptLoadTester --records=1000000 --batch=1000 --gc=refcount --rocksdb=/tmp/mpt-load"
+# Mark-sweep GC every 100 batches
+./gradlew :verified-structures:load-tools:run --args="mpt --records=1000000 --batch=1000 --gc=marksweep --gc-interval=100 --keep-latest=10 --rocksdb=/tmp/mpt-load"
 ```
 
 **Key Options:**
-- `--secure` - Use SecureTrie/MPF mode (default)
-- `--plain` - Use plain MerklePatriciaTrie mode
+- `--records=N`, `--batch=N`, `--value-size=N`
+- `--rocksdb=PATH` or `--memory`
 - `--delete-ratio=F` - Fraction of deletes per batch (default: 0.0)
-- `--gc=MODE` - Garbage collection mode: none, refcount, mark-sweep (default: none)
-- `--proof-every=N` - Generate proof every N batches
+- `--proof-every=N` - Generate a proof every N batches
+- `--no-roots` - Do not record a version per batch
+- `--gc=MODE` - `none` (default), `refcount` or `marksweep`
+- `--keep-latest=N` - Versions kept by GC (default: 1)
+- `--gc-interval=N` - Batches between mark-sweep runs
+- `--refcount-every=N` - With `--gc=refcount`, record a version every N batches (default: 1)
+- `--storage-mode=MULTI_VERSION|SINGLE_VERSION`, `--no-wal`, `--progress=N`
+
+With `--gc=refcount` each batch commits the trie nodes and `putRootWithRefcount` together, and versions outside the
+window are dropped with `RefcountGcStrategy.run(keepLatestN(keep-latest))`.
 
 #### 5. RdbmsMptLoadTester - RDBMS Backend Testing
 
-Tests MPT with H2, SQLite, or PostgreSQL backends.
+Tests MPF with H2, SQLite, or PostgreSQL backends.
 
 ```bash
-# H2 database with SecureTrie/MPF mode
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.RdbmsMptLoadTester --records=100000 --batch=1000 --db=h2 --path=/tmp/mpt-h2 --secure"
+# H2 database
+./gradlew :verified-structures:load-tools:run --args="mpt-rdbms --records=100000 --batch=1000 --db=h2 --path=/tmp/mpt-h2"
 
 # SQLite with deletes
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.RdbmsMptLoadTester --records=100000 --batch=1000 --db=sqlite --path=/tmp/mpt.db --delete-ratio=0.1"
+./gradlew :verified-structures:load-tools:run --args="mpt-rdbms --records=100000 --batch=1000 --db=sqlite --path=/tmp/mpt.db --delete-ratio=0.1"
 
 # PostgreSQL
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.RdbmsMptLoadTester --records=100000 --batch=1000 --db=postgresql --db-host=localhost --db-name=testdb --db-user=postgres --db-password=secret"
+./gradlew :verified-structures:load-tools:run --args="mpt-rdbms --records=100000 --batch=1000 --db=postgresql --db-host=localhost --db-name=testdb --db-user=postgres --db-password=secret"
 ```
 
 **Key Options:**
-- `--secure` - Use SecureTrie/MPF mode (default)
-- `--plain` - Use plain MerklePatriciaTrie mode
-- `--delete-ratio=F` - Fraction of deletes per batch (default: 0.0)
 - `--db=TYPE` - Database type: h2, sqlite, postgresql (default: h2)
+- `--path=PATH`, `--jdbc-url=URL`, `--db-host`, `--db-port`, `--db-name`, `--db-user`, `--db-password`
+- `--delete-ratio=F`, `--proof-every=N`, `--memory`
 
 #### 6. GcTool - Garbage Collection Utility
 
-Runs garbage collection on RocksDB-based MPT storage to reclaim space from stale nodes.
+Experiments with the GC strategies on a RocksDB MPF store (default namespace). Arguments are positional.
 
 ```bash
-# Refcount GC up to version 10000
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.GcTool --db=/tmp/mpt-rocksdb --gc-type=refcount --version=10000"
+# Generate a store: 10,000 keys, 5 versions (each version updates ~10% of the keys)
+./gradlew :verified-structures:load-tools:run --args="gc generate /tmp/mpt 10000 5"
 
-# Mark-sweep GC (full scan)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.GcTool --db=/tmp/mpt-rocksdb --gc-type=mark-sweep --version=10000"
+# Node count, version count and latest root
+./gradlew :verified-structures:load-tools:run --args="gc stats /tmp/mpt"
 
-# Dry-run mode (estimate space savings without deleting)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.GcTool --db=/tmp/mpt-rocksdb --gc-type=refcount --version=10000 --dry-run"
+# Refcount GC keeping the latest version
+./gradlew :verified-structures:load-tools:run --args="gc gc-refcount /tmp/mpt keep-latest 1"
+
+# Mark-sweep GC keeping the latest version
+./gradlew :verified-structures:load-tools:run --args="gc gc-marksweep /tmp/mpt keep-latest 1"
 ```
 
-**Key Options:**
-- `--db=PATH` - RocksDB directory
-- `--gc-type=MODE` - Garbage collection mode: refcount, mark-sweep
-- `--version=N` - Target version for GC (prune versions older than this)
-- `--dry-run` - Estimate space savings without actually deleting
+`generate` writes each version in one `RocksDbMptSession` batch that also calls `putRootWithRefcount`, so both
+strategies apply to the result. See
+[merkle-patricia-forestry-rocksdb/docs/gc.md](../merkle-patricia-forestry-rocksdb/docs/gc.md) for how the strategies
+work and the rules for using them.
 
 ## Backend Comparison Guide
 
