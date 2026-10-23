@@ -1692,29 +1692,114 @@ test absent_92() {
   }
 }
 
-// sequential-1000: present key "key-99"
+// fruits (mid-proof Fork): absent key "missing-12"
 const proof_93 =
+  [
+    Branch { skip: 0, neighbors: #"c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d08434fd717aea47d156185d589f44a59fc2e0158eab7ff035083a2a66cd3e15b" },
+    Fork { skip: 0, neighbor: Neighbor { nibble: 0, prefix: #"07", root: #"a1ffbc0e72342b41129e2d01d289809079b002e54b123860077d2d66added281" } },
+    Leaf { skip: 0, key: #"4a522f84bcda4bebb725d5f2b92af615b57cc1777bb0d8b2c6c18c3e3e6520cd", value: #"7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911" },
+  ]
+
+test absent_93() {
+  let key = #"6d697373696e672d3132"
+  let trie = mpf.from_root(#"4acd78f345a686361df77541b2e0b533f53362e36620a1fdd3a13e0b61a3b078")
+  and {
+    mpf.miss(trie, key, proof_93),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_93)) == #"1cda478d5af23822328c6a3ab805f7efc9fafc78a883202a765a12a6f88cc71f",
+  }
+}
+
+// fruits (mid-proof Fork): absent key "missing-64"
+const proof_94 =
+  [
+    Branch { skip: 0, neighbors: #"c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d08434fd717aea47d156185d589f44a59fc2e0158eab7ff035083a2a66cd3e15b" },
+    Fork { skip: 0, neighbor: Neighbor { nibble: 0, prefix: #"07", root: #"a1ffbc0e72342b41129e2d01d289809079b002e54b123860077d2d66added281" } },
+    Leaf { skip: 0, key: #"4a522f84bcda4bebb725d5f2b92af615b57cc1777bb0d8b2c6c18c3e3e6520cd", value: #"7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911" },
+  ]
+
+test absent_94() {
+  let key = #"6d697373696e672d3634"
+  let trie = mpf.from_root(#"4acd78f345a686361df77541b2e0b533f53362e36620a1fdd3a13e0b61a3b078")
+  and {
+    mpf.miss(trie, key, proof_94),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_94)) == #"a2fe4f74812df549ec6f2b89f114e5f45e33d340373c27b9a9a987f745323f2d",
+  }
+}
+
+// fruits (mid-proof Fork): absent key "missing-75"
+const proof_95 =
+  [
+    Branch { skip: 0, neighbors: #"c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d08434fd717aea47d156185d589f44a59fc2e0158eab7ff035083a2a66cd3e15b" },
+    Fork { skip: 0, neighbor: Neighbor { nibble: 0, prefix: #"07", root: #"a1ffbc0e72342b41129e2d01d289809079b002e54b123860077d2d66added281" } },
+    Leaf { skip: 0, key: #"4a522f84bcda4bebb725d5f2b92af615b57cc1777bb0d8b2c6c18c3e3e6520cd", value: #"7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911" },
+  ]
+
+test absent_95() {
+  let key = #"6d697373696e672d3735"
+  let trie = mpf.from_root(#"4acd78f345a686361df77541b2e0b533f53362e36620a1fdd3a13e0b61a3b078")
+  and {
+    mpf.miss(trie, key, proof_95),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_95)) == #"efdbda7545c2524364cbe833be0464cfa0e82089b72f6800f3a54f6b3fb1ff80",
+  }
+}
+
+// fruits (last Fork, skip > 0): absent key "missing-165"
+const proof_96 =
+  [
+    Branch { skip: 0, neighbors: #"4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbefa63eb4576001d8658219f928172eccb5448b4d7d62cd6d95228e13ebcbd5350be527bcfc7febe3c560057d97f4190bd24b537a322315f84daafab3ada562b50da0bdb30bf45c76153418a634f1bcecba8c601ca985fbca14b57582920d82acb" },
+    Leaf { skip: 0, key: #"a4b927e3735c7dbf9f1846844aad53e82362e47e32223d559333f4d154483c69", value: #"5ee6f548bba6d9da3313a23b395efb48b440063a592d8592e73d87b79d1d887a" },
+    Fork { skip: 1, neighbor: Neighbor { nibble: 2, prefix: #"", root: #"2f6b320212dd98c38a7cd074886d942d9577cdad5ef1c72d32a01df1a63ed88f" } },
+  ]
+
+test absent_96() {
+  let key = #"6d697373696e672d313635"
+  let trie = mpf.from_root(#"4acd78f345a686361df77541b2e0b533f53362e36620a1fdd3a13e0b61a3b078")
+  and {
+    mpf.miss(trie, key, proof_96),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_96)) == #"61cf76635e0815e0c0e9487ab0cff9840714bcfd7b63c58bd817b3c885e24032",
+  }
+}
+
+// random-33 (mid-proof Fork): absent key c0
+const proof_97 =
+  [
+    Branch { skip: 0, neighbors: #"bcbd8fdd5cfc18daa68276b073b018645d8d9d42b466687124255bfed8cdce44c8c03d75942a0afaa5a95c5101d780d9b922f1ad665849c94722ec3e774c8178095b1e09250b2ac44747101b9dcba7646d53ea8fcf4453e57425f177401d258819f3eeea38bbbbc9a4b47576877d4a5f1b0dae4dfe694db342b13a6e119b7d3f" },
+    Fork { skip: 0, neighbor: Neighbor { nibble: 7, prefix: #"", root: #"e26ae2f99a9c535c86e03de5c6145dba485245aa9ce0cdd0bca45d9706f7cb35" } },
+    Leaf { skip: 0, key: #"da11f27c5442ff1d267e1652d5d0e7c7521328706a8310c6352f5f98b943cb15", value: #"0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8" },
+  ]
+
+test absent_97() {
+  let key = #"c0"
+  let trie = mpf.from_root(#"68f3e7d9327fddfdc628a6c17a2c4a717e35e3d26cf58e9da04b49758556eca4")
+  and {
+    mpf.miss(trie, key, proof_97),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_97)) == #"f2c76dbc44a7aee2c467dd6bfaee1ccfb11697be67cd96d5165462dbfb5f5982",
+  }
+}
+
+// sequential-1000: present key "key-99"
+const proof_98 =
   [
     Branch { skip: 0, neighbors: #"92af676b32bce97698f0b92416070d8a86327e1a8d49c75853a2a7ae51fffd1d03eef485aa04deefe74fb771f1e9dc0e187aeed8b21179e95f3588fbc1d772cab5e589192af54cbefb55ec24f005352b1fd92fad6649d58f025494e125772556bc09a266f2c99e0b5ddc4f5628dc7a94e68874bdd2967b5b6b26b887c889dffe" },
     Branch { skip: 0, neighbors: #"17d01819efd6471f664c84bee7dfd183e6542fe869e019ea1663aae65787b3acc045f2f095f8b3539b070d81a510c0b3839a7ac3d3a0f972145bcd18dc938ab5508537ec49f1927a3ac0fe2f2ed1d96319eaa161af0ebf00720c9886fa551699c973ebc007986d6082c475bdd81460b048f9629c29d139fa99077120d34e2d72" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 14, prefix: #"", root: #"708620d005c48cac38598cfe14effc41066eeeb02f4c81d2339ac9326d31c7da" } },
   ]
 
-test present_93() {
+test present_98() {
   let key = #"6b65792d3939"
   let value = #"76616c75652d3939"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   let without = #"190aff33bc2f423eb4b729432fb6ae783d4c4181d6cc875175b5ce84599878ee"
   and {
-    mpf.has(trie, key, value, proof_93),
-    mpf.root(mpf.delete(trie, key, value, proof_93)) == without,
-    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_93)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
-    mpf.root(mpf.update(trie, key, proof_93, value, #"63636c2d75706461746564")) == #"98f1c9ab4b61558cc7e58fad04b59dcd3c243e323513a7c25b0396a894696d90",
+    mpf.has(trie, key, value, proof_98),
+    mpf.root(mpf.delete(trie, key, value, proof_98)) == without,
+    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_98)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
+    mpf.root(mpf.update(trie, key, proof_98, value, #"63636c2d75706461746564")) == #"98f1c9ab4b61558cc7e58fad04b59dcd3c243e323513a7c25b0396a894696d90",
   }
 }
 
 // sequential-1000: present key "key-133"
-const proof_94 =
+const proof_99 =
   [
     Branch { skip: 0, neighbors: #"5ec63138e3a54e0dcb34c01bc2ddf0c84e3a5970ee9990ab057c1a9ede787665ca2d19f88b5abec86a641a24e629e29d0f91ac8472aaf1256b19b4b1b46e70ed6c520aad16710c45ddbfb025fdc5087f52c0ca993f584c6ac52ad764c0bdacc6aaaf2932557d43c7604af358365fb61fe6a6efcb47fc25b9de11ef41f11ecfa4" },
     Branch { skip: 0, neighbors: #"e8ade1f6fa314b1235f9c696df0883afe1aec6500eb05c0a4453b2c05c749fec35473377a058786a26485c3781e2df4d18aa9c949d9a77941cd4d2105aae0fd8523ca6cbcfda6a5fc6b58b813040b3ae264128b0dc12f7056e285ab76d51fd05932dd886b18c8f95412999b198dcc975edc170681d0a556e64336d796046f0b6" },
@@ -1722,138 +1807,138 @@ const proof_94 =
     Fork { skip: 0, neighbor: Neighbor { nibble: 4, prefix: #"", root: #"6097f657173b7b0a9fb76cfd1b3e3fdb48f0e44bbc9d1b071c4ccdc6efd7c6fa" } },
   ]
 
-test present_94() {
+test present_99() {
   let key = #"6b65792d313333"
   let value = #"76616c75652d313333"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   let without = #"6798078753f4e177623188d396806d1177bb598fc31423e6f804107cb95dcfb6"
   and {
-    mpf.has(trie, key, value, proof_94),
-    mpf.root(mpf.delete(trie, key, value, proof_94)) == without,
-    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_94)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
-    mpf.root(mpf.update(trie, key, proof_94, value, #"63636c2d75706461746564")) == #"56d3ac3886eca75df1b4791afc31856f13bbc5e62bd9a49ae8e431ca7662a95f",
+    mpf.has(trie, key, value, proof_99),
+    mpf.root(mpf.delete(trie, key, value, proof_99)) == without,
+    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_99)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
+    mpf.root(mpf.update(trie, key, proof_99, value, #"63636c2d75706461746564")) == #"56d3ac3886eca75df1b4791afc31856f13bbc5e62bd9a49ae8e431ca7662a95f",
   }
 }
 
 // sequential-1000: present key "key-250"
-const proof_95 =
+const proof_100 =
   [
     Branch { skip: 0, neighbors: #"92af676b32bce97698f0b92416070d8a86327e1a8d49c75853a2a7ae51fffd1d1f42f0e81dac99d33c3921afacfcdfc7f38dc3331d75fd7a6daa5bed55c1da5969f3f135a854fec35fc9ff81223ee7c4ea34861cc2f95cc958130f33f7bbc0f80e786952dbe60eb5f44755b0d459de2e808a0dbd3c5ab77c96ce5bdac0bfda71" },
     Branch { skip: 0, neighbors: #"358576e9fac33c7a62d6cecab993923a955c421a9964bdcd8b3c97e1b1cb8ab05ca2be438fb69ebbf55f8286b8db212b454db31d5716b4c41051c9ca41acc759ac9a0f788032103d25f3f6102c9c21a73b514f343081bd640720e7a58f6e0d5a3e2f958dd5ffd00c01fae3fc424ed15a802861486b0313ac9d6ac1d915b0abb7" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 3, prefix: #"06", root: #"77e754d64f38229f4b2b16d528379ef804246ccf4835d4f40c64d1817de1fe40" } },
   ]
 
-test present_95() {
+test present_100() {
   let key = #"6b65792d323530"
   let value = #"76616c75652d323530"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   let without = #"dcce7f3e7b799ff311721e974f961c7d64c16632f5b666256569badfce03352a"
   and {
-    mpf.has(trie, key, value, proof_95),
-    mpf.root(mpf.delete(trie, key, value, proof_95)) == without,
-    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_95)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
-    mpf.root(mpf.update(trie, key, proof_95, value, #"63636c2d75706461746564")) == #"b6d47711e5d2194e7e489c58d0c2b9c308890e0dc50137b3dd172ae2bfd143f9",
+    mpf.has(trie, key, value, proof_100),
+    mpf.root(mpf.delete(trie, key, value, proof_100)) == without,
+    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_100)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
+    mpf.root(mpf.update(trie, key, proof_100, value, #"63636c2d75706461746564")) == #"b6d47711e5d2194e7e489c58d0c2b9c308890e0dc50137b3dd172ae2bfd143f9",
   }
 }
 
 // sequential-1000: present key "key-350"
-const proof_96 =
+const proof_101 =
   [
     Branch { skip: 0, neighbors: #"92af676b32bce97698f0b92416070d8a86327e1a8d49c75853a2a7ae51fffd1d03eef485aa04deefe74fb771f1e9dc0e187aeed8b21179e95f3588fbc1d772cab5e589192af54cbefb55ec24f005352b1fd92fad6649d58f025494e125772556bc09a266f2c99e0b5ddc4f5628dc7a94e68874bdd2967b5b6b26b887c889dffe" },
     Branch { skip: 0, neighbors: #"17d01819efd6471f664c84bee7dfd183e6542fe869e019ea1663aae65787b3ac02015bfb0b25f4e932f73e4b2aa9401da6e204ebfbffcba5924d663f21516d86d0abccf57750cc2e0928e8daa6d5c8b5d5846cb0110cb46f869534a571aba8ab791e020dea1e82fb22f285081da99df8825293a8e10b2e360b5ebd92a536d604" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 8, prefix: #"", root: #"91a7d21820e321a3c4f98c3d6b294254bc64a7b2a5bda7e609d300bf09b42da1" } },
   ]
 
-test present_96() {
+test present_101() {
   let key = #"6b65792d333530"
   let value = #"76616c75652d333530"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   let without = #"97b94b15db550e2e03ccb6bf24e28f749aca14d73c666829d78ad166423ceb88"
   and {
-    mpf.has(trie, key, value, proof_96),
-    mpf.root(mpf.delete(trie, key, value, proof_96)) == without,
-    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_96)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
-    mpf.root(mpf.update(trie, key, proof_96, value, #"63636c2d75706461746564")) == #"34feba1e00ba9bccba5162e3474974a996772acffc11d8ef6c82cff410d34abe",
+    mpf.has(trie, key, value, proof_101),
+    mpf.root(mpf.delete(trie, key, value, proof_101)) == without,
+    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_101)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
+    mpf.root(mpf.update(trie, key, proof_101, value, #"63636c2d75706461746564")) == #"34feba1e00ba9bccba5162e3474974a996772acffc11d8ef6c82cff410d34abe",
   }
 }
 
 // sequential-1000: present key "key-463"
-const proof_97 =
+const proof_102 =
   [
     Branch { skip: 0, neighbors: #"92af676b32bce97698f0b92416070d8a86327e1a8d49c75853a2a7ae51fffd1d1f42f0e81dac99d33c3921afacfcdfc7f38dc3331d75fd7a6daa5bed55c1da5969f3f135a854fec35fc9ff81223ee7c4ea34861cc2f95cc958130f33f7bbc0f80e786952dbe60eb5f44755b0d459de2e808a0dbd3c5ab77c96ce5bdac0bfda71" },
     Branch { skip: 0, neighbors: #"dce68e4987a018dcf5942acd2afae337d4d919b3095cc1ad1168e9f08954ff828ec21679dd1df481a6709c39e6351500529b19f6a079b7168ae9f88e1b0a5ed87dcadfff54e0c4f82f8399327f3023c4a2f7bf19e98865f933960e8b7bca6166129242896381d353cc31527532a3fb48075cb0aa338e2f08f9cca6d6c957e70e" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 14, prefix: #"", root: #"3c351610a13c9a796991321de97f8f236f1c00ded6d523dac4fca8d4f3284e4f" } },
   ]
 
-test present_97() {
+test present_102() {
   let key = #"6b65792d343633"
   let value = #"76616c75652d343633"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   let without = #"3ae61809ab7413a867d16aa771c9bc58971d4406d9773284c5bd79ecb8c77f68"
   and {
-    mpf.has(trie, key, value, proof_97),
-    mpf.root(mpf.delete(trie, key, value, proof_97)) == without,
-    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_97)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
-    mpf.root(mpf.update(trie, key, proof_97, value, #"63636c2d75706461746564")) == #"c970e3ce31993d9c4333e1e3a14982feb6bfb2d076c5302be6befa319c328c55",
+    mpf.has(trie, key, value, proof_102),
+    mpf.root(mpf.delete(trie, key, value, proof_102)) == without,
+    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_102)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
+    mpf.root(mpf.update(trie, key, proof_102, value, #"63636c2d75706461746564")) == #"c970e3ce31993d9c4333e1e3a14982feb6bfb2d076c5302be6befa319c328c55",
   }
 }
 
 // sequential-1000: present key "key-468"
-const proof_98 =
+const proof_103 =
   [
     Branch { skip: 0, neighbors: #"5ec63138e3a54e0dcb34c01bc2ddf0c84e3a5970ee9990ab057c1a9ede787665cc78e08d4181e113ecaefb33fc93852777f42a8ac4895abc647d733a4dc1630ac2eabc485b4dbed99703c0306ecc288d29f47805abc60e2140042cd8a0412623c07da42ecd740d4213b5a1e08b0831e82c4118c7641cc05b25665427e2c75bdf" },
     Branch { skip: 0, neighbors: #"dcae1480666714a17a75ae8f94d3c28177dea935c713f6fce561900ed3ca7e58397079dc47af75d30fb6e23403492862499a092b62ad9f8ecec6a627072953b2d1efcec3d53e9eda16eb9988260f0d0b237816c7fd9b779c8de4aba24fb5f2f60b7c3f9b613cf2a57205ae5fcffd3bb7dde62fd048e7bd5581c13e22412f7e2a" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 13, prefix: #"", root: #"488b8e62bdca549dc535a51ec8ef6d2b358b0dec5b88bac438ceb7de9ff5e1a6" } },
   ]
 
-test present_98() {
+test present_103() {
   let key = #"6b65792d343638"
   let value = #"76616c75652d343638"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   let without = #"a7fd859240d9a3469c468cf693b1ccd908d6ed5e903e1762a5176d04318afbf5"
   and {
-    mpf.has(trie, key, value, proof_98),
-    mpf.root(mpf.delete(trie, key, value, proof_98)) == without,
-    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_98)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
-    mpf.root(mpf.update(trie, key, proof_98, value, #"63636c2d75706461746564")) == #"64432447294b080119bbe9a74cb221ed8ca3c448b7e8144dad4ea5f1f19ae72c",
+    mpf.has(trie, key, value, proof_103),
+    mpf.root(mpf.delete(trie, key, value, proof_103)) == without,
+    mpf.root(mpf.insert(mpf.from_root(without), key, value, proof_103)) == #"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752",
+    mpf.root(mpf.update(trie, key, proof_103, value, #"63636c2d75706461746564")) == #"64432447294b080119bbe9a74cb221ed8ca3c448b7e8144dad4ea5f1f19ae72c",
   }
 }
 
 // sequential-1000: absent key "missing-0"
-const proof_99 =
+const proof_104 =
   [
     Branch { skip: 0, neighbors: #"92af676b32bce97698f0b92416070d8a86327e1a8d49c75853a2a7ae51fffd1d03eef485aa04deefe74fb771f1e9dc0e187aeed8b21179e95f3588fbc1d772ca2e703bacbbb058379ceed010fc58b17470c1f21ab5aea7bea693ecc90bac43fc57fc0fb920e84375348c4898429ec0bbd614021913d0a77c3b6f9abde9a4a92e" },
     Branch { skip: 0, neighbors: #"8e9cbe1124f631a135f5d8814c967a98df02c352a24abd8284c01abfd360cae5eb61bbff84cc0c1861e4dec878320be1be61485c65d6e5e2d13782a4d27b91b60050504388395e6a77d144947ee8c1efeedc2a9ca6682a803931220156e7023717420c53673e2523d76149b416b7a6a04f9b8375e1f126592ba527d9a3e54b2d" },
   ]
 
-test absent_99() {
+test absent_104() {
   let key = #"6d697373696e672d30"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   and {
-    mpf.miss(trie, key, proof_99),
-    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_99)) == #"ef8ea75e2e4e7f252f1a952f3f4bf047de407a9b7c7b9d625800b8f45619fcfd",
+    mpf.miss(trie, key, proof_104),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_104)) == #"ef8ea75e2e4e7f252f1a952f3f4bf047de407a9b7c7b9d625800b8f45619fcfd",
   }
 }
 
 // sequential-1000: absent key "missing-1"
-const proof_100 =
+const proof_105 =
   [
     Branch { skip: 0, neighbors: #"92af676b32bce97698f0b92416070d8a86327e1a8d49c75853a2a7ae51fffd1d03eef485aa04deefe74fb771f1e9dc0e187aeed8b21179e95f3588fbc1d772cab5e589192af54cbefb55ec24f005352b1fd92fad6649d58f025494e125772556bc09a266f2c99e0b5ddc4f5628dc7a94e68874bdd2967b5b6b26b887c889dffe" },
     Branch { skip: 0, neighbors: #"3c6cf1ee06306331dbc41c9b911c32a9616c5bceb1d357f4a01df20e3d3f0ce3e1994fcf29e69721f936c1c609119a15be1ef0f7afccbb7ebf355e9759eef24f11bd6b753cca866e159c942639960a0ad4a11398ebefb6277db5e764ee0d627ebf6f8b1874a0b5a083850ad5750ee25930ca54c2a526755e893daa0720d3f709" },
     Branch { skip: 0, neighbors: #"e6a15ea082f968b38dfa7cefc66d52d392477388eb8bb4a1778ef9b446ca03b5a4f108538208bb34641e84f9d1ff48f8e32f67799e9c47dd5f0791dbe1c27af2a959788544bad1da89ec118f6ae80b7616b2498329f0680c700aff76dbbe27730000000000000000000000000000000000000000000000000000000000000000" },
   ]
 
-test absent_100() {
+test absent_105() {
   let key = #"6d697373696e672d31"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   and {
-    mpf.miss(trie, key, proof_100),
-    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_100)) == #"bcc4e9c700a1571a411712912c91bf92e9ba69d5a1311b19dcd642a47fe45431",
+    mpf.miss(trie, key, proof_105),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_105)) == #"bcc4e9c700a1571a411712912c91bf92e9ba69d5a1311b19dcd642a47fe45431",
   }
 }
 
 // sequential-1000: absent key "missing-120"
-const proof_101 =
+const proof_106 =
   [
     Branch { skip: 0, neighbors: #"5ec63138e3a54e0dcb34c01bc2ddf0c84e3a5970ee9990ab057c1a9ede787665cc78e08d4181e113ecaefb33fc93852777f42a8ac4895abc647d733a4dc1630ac2eabc485b4dbed99703c0306ecc288d29f47805abc60e2140042cd8a0412623fc09c96862fa96a3527a45750264b8b85efa9a6654de6f3574c57b78892d5827" },
     Branch { skip: 0, neighbors: #"0f41535fb4a9e28db09889b892c510b0ce822b30b3962ba1b00b613fe8ec87c2e864d03ea2b64076255e68ae2a6e919058da83673151bafc20bee1a0fe1cce9c74f39e16977e613e35dac5f979aaa7e30a893ddde407a83981f8810174f101e266d3677e2339dc728ef35fa680e7450db19fbcf10ed6e1f453894e65c8e247e2" },
@@ -1861,101 +1946,101 @@ const proof_101 =
     Fork { skip: 0, neighbor: Neighbor { nibble: 3, prefix: #"", root: #"bc3ae303fb54e2972e3ba8f384ba73b0469cc97df561f39cab6eac821412148c" } },
   ]
 
-test absent_101() {
+test absent_106() {
   let key = #"6d697373696e672d313230"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   and {
-    mpf.miss(trie, key, proof_101),
-    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_101)) == #"3d79cb63501465ef93d56538ab8a8a3f5fba88f522188b0d15507789e109b59f",
+    mpf.miss(trie, key, proof_106),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_106)) == #"3d79cb63501465ef93d56538ab8a8a3f5fba88f522188b0d15507789e109b59f",
   }
 }
 
 // sequential-1000: absent key "missing-161"
-const proof_102 =
+const proof_107 =
   [
     Branch { skip: 0, neighbors: #"5ec63138e3a54e0dcb34c01bc2ddf0c84e3a5970ee9990ab057c1a9ede787665ca2d19f88b5abec86a641a24e629e29d0f91ac8472aaf1256b19b4b1b46e70ede813930f11f725dafc6820b4cc12585047c3f2baf47506d16ebdaae9bc4995ec53aef822979239fec30cc48b047944868ce16a8cec52f026a05c6174107d6bf2" },
     Branch { skip: 0, neighbors: #"22c105eb875dbc7dc7f60150e377ad50a46aaa3edd520703a4011f61044678baffb3576a7f419e67d1d3c0bc1c2e9bf3c43cbd212e19a505bd56673801b01e2f35e758776db42cb9ecd0abd869c140bf39f1b74384f0e8c4fbe7b81b6313c1a4190603d5d0f9768b1582e3f51aa6dc7163e9b0bec7ad9487f3b3d32908ab3973" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 4, prefix: #"", root: #"e3bcefa897dc3252d2770bb0c3b2642f99d150273d86b7db094b486e8f0d423b" } },
   ]
 
-test absent_102() {
+test absent_107() {
   let key = #"6d697373696e672d313631"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   and {
-    mpf.miss(trie, key, proof_102),
-    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_102)) == #"0d4ea0b05889e08e22332131d0002f06496396a4d4bee03930e6a0681e1b90be",
+    mpf.miss(trie, key, proof_107),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_107)) == #"0d4ea0b05889e08e22332131d0002f06496396a4d4bee03930e6a0681e1b90be",
   }
 }
 
 // sequential-1000: absent key "missing-199"
-const proof_103 =
+const proof_108 =
   [
     Branch { skip: 0, neighbors: #"5ec63138e3a54e0dcb34c01bc2ddf0c84e3a5970ee9990ab057c1a9ede787665ca2d19f88b5abec86a641a24e629e29d0f91ac8472aaf1256b19b4b1b46e70ede813930f11f725dafc6820b4cc12585047c3f2baf47506d16ebdaae9bc4995ec53aef822979239fec30cc48b047944868ce16a8cec52f026a05c6174107d6bf2" },
     Branch { skip: 0, neighbors: #"22c105eb875dbc7dc7f60150e377ad50a46aaa3edd520703a4011f61044678baffb3576a7f419e67d1d3c0bc1c2e9bf3c43cbd212e19a505bd56673801b01e2f35e758776db42cb9ecd0abd869c140bf39f1b74384f0e8c4fbe7b81b6313c1a4190603d5d0f9768b1582e3f51aa6dc7163e9b0bec7ad9487f3b3d32908ab3973" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 4, prefix: #"", root: #"e3bcefa897dc3252d2770bb0c3b2642f99d150273d86b7db094b486e8f0d423b" } },
   ]
 
-test absent_103() {
+test absent_108() {
   let key = #"6d697373696e672d313939"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   and {
-    mpf.miss(trie, key, proof_103),
-    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_103)) == #"b0e63c4519b181d7f0f31fe89f9e6c2b75af8d299d9e1c3ce77371ab52d51d57",
+    mpf.miss(trie, key, proof_108),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_108)) == #"b0e63c4519b181d7f0f31fe89f9e6c2b75af8d299d9e1c3ce77371ab52d51d57",
   }
 }
 
 // sequential-1000: absent key "missing-228"
-const proof_104 =
+const proof_109 =
   [
     Branch { skip: 0, neighbors: #"5ec63138e3a54e0dcb34c01bc2ddf0c84e3a5970ee9990ab057c1a9ede787665ca2d19f88b5abec86a641a24e629e29d0f91ac8472aaf1256b19b4b1b46e70ed6c520aad16710c45ddbfb025fdc5087f52c0ca993f584c6ac52ad764c0bdacc6aaaf2932557d43c7604af358365fb61fe6a6efcb47fc25b9de11ef41f11ecfa4" },
     Branch { skip: 0, neighbors: #"a69d3814e04706a51059f037b5ae1eb2988c13be8eb355741861bc6b524a1cd125896377f30c4a934242bf1cae48b5b22a0ddbc1b666dd77206e0b79044de2c536226732ffde963935b9c9acca1057870f20ac72e7ff1ec5746f5030fabe02035bfa5f66aec4171f477fceb4f4cca1eb6aac6b182d1f22cde95a81bd5ced56d0" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 15, prefix: #"", root: #"40ab2f2e3fb4d568baedaf50381afa088e2fcda3fe57b1c977c19b7bae3fbd23" } },
   ]
 
-test absent_104() {
+test absent_109() {
   let key = #"6d697373696e672d323238"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   and {
-    mpf.miss(trie, key, proof_104),
-    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_104)) == #"d47752deedcdeb585c5ece315139e83c5bedddb7d278dc10b58544442733aed4",
+    mpf.miss(trie, key, proof_109),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_109)) == #"d47752deedcdeb585c5ece315139e83c5bedddb7d278dc10b58544442733aed4",
   }
 }
 
 // sequential-1000: absent key "missing-306"
-const proof_105 =
+const proof_110 =
   [
     Branch { skip: 0, neighbors: #"5ec63138e3a54e0dcb34c01bc2ddf0c84e3a5970ee9990ab057c1a9ede787665ca2d19f88b5abec86a641a24e629e29d0f91ac8472aaf1256b19b4b1b46e70ede813930f11f725dafc6820b4cc12585047c3f2baf47506d16ebdaae9bc4995ec53aef822979239fec30cc48b047944868ce16a8cec52f026a05c6174107d6bf2" },
     Branch { skip: 0, neighbors: #"22c105eb875dbc7dc7f60150e377ad50a46aaa3edd520703a4011f61044678baffb3576a7f419e67d1d3c0bc1c2e9bf3c43cbd212e19a505bd56673801b01e2f35e758776db42cb9ecd0abd869c140bf39f1b74384f0e8c4fbe7b81b6313c1a4190603d5d0f9768b1582e3f51aa6dc7163e9b0bec7ad9487f3b3d32908ab3973" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 4, prefix: #"", root: #"e3bcefa897dc3252d2770bb0c3b2642f99d150273d86b7db094b486e8f0d423b" } },
   ]
 
-test absent_105() {
+test absent_110() {
   let key = #"6d697373696e672d333036"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   and {
-    mpf.miss(trie, key, proof_105),
-    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_105)) == #"6efbec45d4f97030719d09f5d0258e54496b2280e9ad4270b2cf59bb37898e2b",
+    mpf.miss(trie, key, proof_110),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_110)) == #"6efbec45d4f97030719d09f5d0258e54496b2280e9ad4270b2cf59bb37898e2b",
   }
 }
 
 // sequential-1000: absent key "missing-428"
-const proof_106 =
+const proof_111 =
   [
     Branch { skip: 0, neighbors: #"92af676b32bce97698f0b92416070d8a86327e1a8d49c75853a2a7ae51fffd1d1f42f0e81dac99d33c3921afacfcdfc7f38dc3331d75fd7a6daa5bed55c1da596d5b162297672d98ed611eb57bd42b44fcad6ded71c77860702593f746e9ca618fad835886bb11c10ae104a74af754a96b4eb2b231c99eb533e6c465bfe5334f" },
     Branch { skip: 0, neighbors: #"bc2e783a1619c71544c4730ce0aaa10416e51521b12390822e84a5389c454ff13d73a5967691966e47a348fd7a3965e97f161e392314f69e5a599a4a433e4eaf6d46b476803f94d2543aba09a9b43b7117c3001ba4ab520c1e08f49f0494a01a45609ca5d4e2f5741d160d33ae0845e94890f785a32a6630b877d126258b5aa0" },
     Fork { skip: 0, neighbor: Neighbor { nibble: 5, prefix: #"", root: #"4cad8b0182a484ca6af950ca884432042898cb03f6c147b0bf7b951ff0b601de" } },
   ]
 
-test absent_106() {
+test absent_111() {
   let key = #"6d697373696e672d343238"
   let trie = mpf.from_root(#"92ec24f688a2e98e4e195ac743101653de0f484a4daeb5fdea0f5f304b647752")
   and {
-    mpf.miss(trie, key, proof_106),
-    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_106)) == #"7b6f10b66150fb8c78bc9ff90a22fe2b0ba71ed09def0e70afef986455c91e9c",
+    mpf.miss(trie, key, proof_111),
+    mpf.root(mpf.insert(trie, key, #"63636c2d6e65772d76616c7565", proof_111)) == #"7b6f10b66150fb8c78bc9ff90a22fe2b0ba71ed09def0e70afef986455c91e9c",
   }
 }
 
-const proof_107 =
+const proof_112 =
   [
     Branch { skip: 0, neighbors: #"c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d79519b8cdfbd053e5a86cf28a781debae71638cd77f85aad4b88869373d9dcfd" },
     Leaf { skip: 0, key: #"5cddcd30a0a388cf6feb3fd6e112c96e9daf23e3a9c8a334e7044650471aaa9e", value: #"f429821ddf89c9df3c7fbb5aa6fadb6c246d75ceede53173ce59d70dde375d14" },
@@ -1963,9 +2048,9 @@ const proof_107 =
   ]
 
 test negative_wrong_value() {
-  !mpf.has(mpf.from_root(#"4acd78f345a686361df77541b2e0b533f53362e36620a1fdd3a13e0b61a3b078"), #"6170706c655b7569643a2035385d", #"00", proof_107)
+  !mpf.has(mpf.from_root(#"4acd78f345a686361df77541b2e0b533f53362e36620a1fdd3a13e0b61a3b078"), #"6170706c655b7569643a2035385d", #"00", proof_112)
 }
 
 test negative_present_key_is_not_missing() {
-  !mpf.miss(mpf.from_root(#"4acd78f345a686361df77541b2e0b533f53362e36620a1fdd3a13e0b61a3b078"), #"6170706c655b7569643a2035385d", proof_107)
+  !mpf.miss(mpf.from_root(#"4acd78f345a686361df77541b2e0b533f53362e36620a1fdd3a13e0b61a3b078"), #"6170706c655b7569643a2035385d", proof_112)
 }

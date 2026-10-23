@@ -244,6 +244,12 @@ jobs:
           ./gradlew :verified-structures:merkle-patricia-forestry:test
           --tests "com.bloxbean.cardano.vds.mpf.MpfFuzzTest.mutatedProofsNeverProveSomethingElse"
           -PskipSigning=true
+      - name: Upload fuzz findings
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpf-fuzz-findings
+          path: verified-structures/merkle-patricia-forestry/src/test/resources/com/bloxbean/cardano/vds/mpf/MpfFuzzTestInputs/
 
   mpf-aiken:
     name: MPF proofs checked by Aiken and the official JS library

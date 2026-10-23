@@ -88,8 +88,9 @@ starts a new trie (`getProofWire` throws `IllegalStateException` for a root or n
 
 > Proofs produced by CCL 0.8.0-pre6 and earlier differ: exclusion proofs ending in a `Fork` step were rejected
 > by Aiken, and inclusion proofs only used `Branch` steps, which Aiken accepts for `has`/`update` but not for
-> `delete`. Regenerate proofs with the current version. Old `Branch`-only inclusion proofs still verify with
-> `verifyProofWire`.
+> `delete`. Regenerate proofs with the current version. Old inclusion proofs still verify with `verifyProofWire`;
+> old exclusion proofs ending in a `Fork` step (the ones Aiken rejected) now fail it, and older CCL versions reject the
+> new Fork-ending exclusion proofs.
 
 ## API Reference
 
@@ -136,7 +137,8 @@ original keys.
   the vectors with the pinned library), and the 30 fruit proofs in Aiken's own test suite.
 - `onchain/lib/ccl_vectors.ak`: CCL proofs run through `has`/`miss`/`insert`/`delete`/`update` by `aiken check`.
 - `MpfAikenPropertyTest` (jqwik) and `MpfFuzzTest` (Jazzer): random histories against an independent reference
-  model, and untrusted or mutated proof bytes.
+  model, and untrusted or mutated proof bytes. These use CCL's verifier (the Aiken algorithm plus the stricter
+  shape checks above), not the on-chain code; the on-chain code is exercised by `aiken check`.
 - `LegacyStoreCompatibilityTest`: tries written by 0.8.0-pre6 still open with identical roots and values.
 
 ## Thread Safety
