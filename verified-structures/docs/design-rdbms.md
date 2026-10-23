@@ -440,6 +440,10 @@ private <T> T retryWithBackoff(Supplier<T> operation, int maxRetries) {
 
 ## 5. Schema Design
 
+> **Note:** the stores never create tables. The tables below are illustrative; the authoritative DDL is bundled
+> per dialect in `/ddl/mpf/{postgres,h2,sqlite}/schema.sql` and `/ddl/jmt/{postgres,h2,sqlite}/schema.sql`.
+> For MPF, `RdbmsMpfSchema.createIfNotExists(DbConfig)` applies it (with table prefixes).
+
 ### 5.1 Core Tables
 
 **Nodes Table:**

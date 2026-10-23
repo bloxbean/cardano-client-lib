@@ -1,441 +1,160 @@
 # Merkle Patricia Forestry - RDBMS Backend
 
-SQL database persistence for Merkle Patricia Forestry (MPF) with PostgreSQL, H2, and SQLite support.
+SQL storage for [Merkle Patricia Forestry](../merkle-patricia-forestry/) tries, on PostgreSQL, H2 or SQLite.
+The trie logic, hashing, roots and proofs are exactly the same as with the RocksDB backend; only where the
+nodes are stored changes.
 
-## Overview
+> **RocksDB is the recommended backend for now.** Use the RDBMS backend when you need SQL access to the data or
+> already run PostgreSQL. The RDBMS backend has no refcount GC (see [Garbage collection](#garbage-collection)).
 
-Production-ready SQL backend for MPF, enabling distributed deployments, SQL queries, and easy integration with existing database infrastructure.
-
-## Key Features
-
-- **Multi-Database Support** - PostgreSQL, H2, SQLite
-- **SQL Queries** - Direct database access for analytics
-- **Distributed Deployment** - PostgreSQL replication and clustering
-- **Transaction Support** - ACID guarantees
-- **Easy Migration** - Standard SQL schema
-
-## Quick Start
-
-### PostgreSQL
-
-```java
-import com.bloxbean.cardano.vds.mpf.rdbms.RdbmsNodeStore;
-import com.bloxbean.cardano.vds.mpf.MpfTrie;
-import com.bloxbean.cardano.vds.rdbms.common.*;
-
-// Configure PostgreSQL
-DbConfig config = DbConfig.builder()
-        .jdbcUrl("jdbc:postgresql://localhost:5432/mpf_db")
-        .username("postgres")
-        .password("password")
-        .maximumPoolSize(10)
-        .build();
-
-        DataSource ds = SimpleDataSource.create(config);
-
-        // Create RDBMS node store
-        RdbmsNodeStore nodeStore = new RdbmsNodeStore(ds);
-
-// Initialize schema
-nodeStore.
-
-        initializeSchema();
-
-        // Create trie (Blake2b-256 hashing, MPF mode - Cardano/Aiken compatible)
-        MpfTrie trie = new MpfTrie(nodeStore);
-
-// Store data (keys are automatically hashed)
-trie.
-
-        put("key".getBytes(), "value".
-
-        getBytes());
-        byte[] rootHash = trie.getRootHash();
-```
-
-### H2 (In-Memory)
-
-Perfect for testing:
-
-```java
-DbConfig config = DbConfig.builder()
-    .jdbcUrl("jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1")
-    .username("sa")
-    .password("")
-    .build();
-
-DataSource ds = SimpleDataSource.create(config);
-RdbmsNodeStore nodeStore = new RdbmsNodeStore(ds);
-nodeStore.initializeSchema();
-
-MpfTrie trie = new MpfTrie(nodeStore);
-```
-
-### SQLite (File-Based)
-
-```java
-DbConfig config = DbConfig.builder()
-    .jdbcUrl("jdbc:sqlite:data/mpt.db")
-    .build();
-
-DataSource ds = SimpleDataSource.create(config);
-RdbmsNodeStore nodeStore = new RdbmsNodeStore(ds);
-nodeStore.initializeSchema();
-```
-
-## Schema
-
-### Tables
-
-**nodes table:**
-```sql
-CREATE TABLE nodes (
-    hash BYTEA PRIMARY KEY,      -- Node hash (32 bytes)
-    data BYTEA NOT NULL          -- CBOR-encoded node
-);
-
-CREATE INDEX idx_nodes_hash ON nodes USING HASH (hash);
-```
-
-**roots table:**
-```sql
-CREATE TABLE roots (
-    tree_name VARCHAR(255),
-    version BIGINT,
-    root_hash BYTEA,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (tree_name, version)
-);
-
-CREATE INDEX idx_roots_latest ON roots (tree_name, version DESC);
-```
-
-## API Overview
-
-### MpfTrie (Recommended)
-
-The primary API for Cardano developers with automatic key hashing and Aiken compatibility.
-
-```java
-// Constructors
-MpfTrie(NodeStore store)                           // Blake2b-256, MPF mode
-MpfTrie(NodeStore store, byte[] rootHash)          // Load existing trie
-
-// Core operations
-void put(byte[] key, byte[] value)                 // Keys automatically hashed
-byte[] get(byte[] key)
-void delete(byte[] key)
-byte[] getRootHash()
-
-// Proof generation (Aiken-compatible)
-Optional<ListPlutusData> getProofPlutusData(byte[] key)
-Optional<byte[]> getProofWire(byte[] key)
-```
-
-### RdbmsNodeStore
-
-```java
-// Constructors
-RdbmsNodeStore(DataSource dataSource)
-RdbmsNodeStore(DataSource dataSource, TableNameResolver tables)
-
-// NodeStore interface
-byte[] get(byte[] hash)
-void put(byte[] hash, byte[] nodeBytes)
-void delete(byte[] hash)
-
-// Schema management
-void initializeSchema()
-void dropSchema()
-
-// Batch operations
-void withTransaction(Connection conn, Runnable operation)
-
-// Statistics
-long countNodes()
-long sizeBytes()
-```
-
-### RdbmsStateTrees
-
-Multi-tree management with SQL backend and versioning support.
-
-```java
-// Constructor
-RdbmsStateTrees(DataSource dataSource)
-RdbmsStateTrees(DataSource dataSource, StorageMode mode)
-
-// Version management
-void commit(String name)
-byte[] getRootHash(String name)
-List<Long> listVersions(String name)
-
-// Cleanup
-void close()
-```
-
-## Usage Examples
-
-### Multi-Tree Management
-
-```java
-DataSource ds = SimpleDataSource.create(config);
-RdbmsNodeStore nodeStore = new RdbmsNodeStore(ds);
-nodeStore.initializeSchema();
-
-// Create separate tries for different domains
-MpfTrie accounts = new MpfTrie(nodeStore);
-MpfTrie contracts = new MpfTrie(nodeStore);
-
-// Store data (keys automatically hashed)
-accounts.put("alice".getBytes(), "100".getBytes());
-contracts.put("0x123".getBytes(), contractData);
-
-// Get root hashes for each tree
-byte[] accountsRoot = accounts.getRootHash();
-byte[] contractsRoot = contracts.getRootHash();
-```
-
-### Transaction Management
-
-```java
-RdbmsNodeStore nodeStore = new RdbmsNodeStore(ds);
-MpfTrie trie = new MpfTrie(nodeStore);
-
-try (Connection conn = ds.getConnection()) {
-    conn.setAutoCommit(false);
-
-    try {
-        // Atomic operations
-        trie.put("key1".getBytes(), "value1".getBytes());
-        trie.put("key2".getBytes(), "value2".getBytes());
-        trie.put("key3".getBytes(), "value3".getBytes());
-
-        conn.commit();
-    } catch (Exception e) {
-        conn.rollback();
-        throw e;
-    }
-}
-```
-
-### SQL Analytics
-
-Direct SQL queries for analytics:
-
-```sql
--- Count nodes
-SELECT COUNT(*) FROM nodes;
-
--- Find largest nodes
-SELECT hash, LENGTH(data) as size
-FROM nodes
-ORDER BY size DESC
-LIMIT 10;
-
--- Version history
-SELECT tree_name, version, created_at, root_hash
-FROM roots
-WHERE tree_name = 'accounts'
-ORDER BY version DESC;
-
--- Latest root per tree
-SELECT DISTINCT ON (tree_name)
-    tree_name, version, root_hash
-FROM roots
-ORDER BY tree_name, version DESC;
-```
-
-### Backup and Restore
-
-```sql
--- PostgreSQL backup
-pg_dump -t nodes -t roots mpt_db > backup.sql
-
--- Restore
-psql mpt_db < backup.sql
-```
-
-```bash
-# SQLite backup
-sqlite3 mpt.db ".backup backup.db"
-
-# Restore
-cp backup.db mpt.db
-```
-
-## Performance
-
-### Benchmarks
-
-PostgreSQL on commodity hardware (Intel i7, local PostgreSQL):
-
-| Operation | Throughput | Latency (p50) |
-|-----------|-----------|---------------|
-| Insert (single) | 5K ops/sec | 200μs |
-| Insert (batch 100) | 50K ops/sec | 2ms/batch |
-| Lookup | 20K ops/sec | 50μs |
-| Prefix scan (100) | 10K scans/sec | 100μs |
-
-**Note**: RocksDB is ~10x faster for writes. Use RDBMS for distributed systems or SQL query requirements.
-
-### Optimization Tips
-
-**PostgreSQL:**
-```sql
--- Batch inserts
-COPY nodes (hash, data) FROM STDIN BINARY;
-
--- Prepared statements
-PREPARE insert_node AS
-INSERT INTO nodes (hash, data) VALUES ($1, $2)
-ON CONFLICT (hash) DO UPDATE SET data = EXCLUDED.data;
-
-EXECUTE insert_node('\x01020304', '\xdeadbeef');
-```
-
-**HikariCP tuning:**
-```java
-DbConfig config = DbConfig.builder()
-    .jdbcUrl(url)
-    .maximumPoolSize(20)           // Match concurrent threads
-    .minimumIdle(5)
-    .connectionTimeout(5000)
-    .prepStmtCacheSize(250)        // Statement cache
-    .prepStmtCacheSqlLimit(2048)
-    .build();
-```
-
-## Distributed Deployment
-
-### PostgreSQL Replication
-
-```yaml
-# Primary server
-wal_level = replica
-max_wal_senders = 5
-wal_keep_size = 1GB
-
-# Standby servers
-primary_conninfo = 'host=primary port=5432'
-```
-
-### High Availability
-
-```java
-// Connection string with failover
-String jdbcUrl = "jdbc:postgresql://primary:5432,standby:5432/mpt_db" +
-    "?targetServerType=primary";
-
-DbConfig config = DbConfig.builder()
-    .jdbcUrl(jdbcUrl)
-    .username("user")
-    .password("pass")
-    .build();
-```
-
-### Read Replicas
-
-```java
-// Write to primary
-DataSource primaryDs = SimpleDataSource.create(primaryConfig);
-RdbmsNodeStore writeStore = new RdbmsNodeStore(primaryDs);
-
-// Read from replica
-DataSource replicaDs = SimpleDataSource.create(replicaConfig);
-RdbmsNodeStore readStore = new RdbmsNodeStore(replicaDs);
-
-// Write operations
-MpfTrie trie = new MpfTrie(writeStore);
-trie.put(key, value);
-byte[] rootHash = trie.getRootHash();
-
-// Read operations (from replica)
-MpfTrie readTrie = new MpfTrie(readStore, rootHash);
-byte[] value = readTrie.get(key);
-```
-
-## Migration from RocksDB
-
-### Export from RocksDB
-
-```java
-RocksDbResources rocksResources = RocksDbResources.create(Paths.get("rocksdb"));
-RocksDbNodeStore rocksStore = new RocksDbNodeStore(rocksResources.getDb());
-
-DataSource pgDs = SimpleDataSource.create(pgConfig);
-RdbmsNodeStore rdbmsStore = new RdbmsNodeStore(pgDs);
-rdbmsStore.initializeSchema();
-
-// Iterate and copy
-try (RocksIterator iter = rocksResources.getDb().newIterator()) {
-    iter.seekToFirst();
-    while (iter.isValid()) {
-        byte[] hash = iter.key();
-        byte[] data = iter.value();
-        rdbmsStore.put(hash, data);
-        iter.next();
-    }
-}
-```
-
-## Gradle Dependency
+## Gradle dependency
 
 ```gradle
 dependencies {
-    implementation 'com.bloxbean.cardano:merkle-patricia-forestry-rdbms:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rdbms:0.8.0'
 
-    // Database driver
-    implementation 'org.postgresql:postgresql:42.6.0'
-    // or
-    implementation 'com.h2database:h2:2.2.224'
-    // or
+    // Plus the JDBC driver for your database (the PostgreSQL driver is already included)
+    implementation 'com.h2database:h2:2.2.224'        // or
     implementation 'org.xerial:sqlite-jdbc:3.45.0.0'
 }
 ```
 
-## Comparison: RDBMS vs RocksDB
+## Quick start
 
-| Feature | RDBMS | RocksDB |
-|---------|-------|---------|
-| **Write Performance** | Medium (5K-50K ops/sec) | Very High (50K-500K ops/sec) |
-| **Read Performance** | Medium (20K ops/sec) | High (100K ops/sec) |
-| **SQL Queries** | Yes | No |
-| **Distributed** | Yes (PostgreSQL) | No (embedded) |
-| **Transactions** | ACID | Limited |
-| **Operational Complexity** | Higher | Lower |
-| **Storage Efficiency** | Medium | High |
+The stores never create tables on their own. Create them once with `RdbmsMpfSchema.createIfNotExists`
+(idempotent), or apply the bundled DDL with your own migration tool (see [Schema](#schema)).
 
-**Use RDBMS when:**
-- Need SQL analytics
-- Distributed deployment required
-- Existing PostgreSQL infrastructure
-- ACID transactions critical
+```java
+import com.bloxbean.cardano.vds.core.api.StorageMode;
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.rdbms.RdbmsMpfSchema;
+import com.bloxbean.cardano.vds.mpf.rdbms.RdbmsStateTrees;
+import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 
-**Use RocksDB when:**
-- Maximum performance needed
-- Single-node deployment
-- Embedded database preferred
+// Pooled (HikariCP) data source; the dialect is detected from the JDBC URL
+try (DbConfig config = DbConfig.builder()
+        .jdbcUrl("jdbc:postgresql://localhost:5432/mpf", "user", "password")
+        .build()) {
 
-## Thread Safety
+    RdbmsMpfSchema.createIfNotExists(config);
 
-- **RdbmsNodeStore**: Thread-safe (connection pooling)
-- **RdbmsStateTrees**: Thread-safe
-- **MpfTrie**: NOT thread-safe, use separate instances per thread
+    try (RdbmsStateTrees trees = new RdbmsStateTrees(config, StorageMode.MULTI_VERSION)) {
+        MpfTrie trie = new MpfTrie(trees.nodeStore());
+        trie.put("alice".getBytes(), "100".getBytes());
 
-## Design Documentation
+        long version = trees.putRootWithRefcount(trie.getRootHash()); // records the root, no refcounting
 
-- [Core MPF Design](../merkle-patricia-forestry/docs/design.md) - MPF algorithm
+        // Later: reopen that version
+        MpfTrie atVersion = new MpfTrie(trees.nodeStore(), trees.rootsIndex().get(version));
+        byte[] value = atVersion.get("alice".getBytes());
+    }
+}
+```
 
-## Related Modules
+Other ways to build a `DbConfig`:
 
-- [merkle-patricia-forestry](../merkle-patricia-forestry/) - MPT core
-- [rdbms-core](../rdbms-core/) - RDBMS utilities
-- [merkle-patricia-forestry-rocksdb](../merkle-patricia-forestry-rocksdb/) - Alternative: RocksDB backend
+```java
+// H2 in memory, non-pooled data source (tests)
+DbConfig h2 = DbConfig.builder().simpleJdbcUrl("jdbc:h2:mem:mpf;DB_CLOSE_DELAY=-1").build();
 
-## References
+// SQLite file
+DbConfig sqlite = DbConfig.builder().simpleJdbcUrl("jdbc:sqlite:data/mpf.db").build();
 
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [HikariCP](https://github.com/brettwooldridge/HikariCP)
-- [H2 Database](https://www.h2database.com/)
-- [Aiken Merkle Patricia Forestry](https://github.com/aiken-lang/merkle-patricia-forestry) - Cardano MPF reference implementation
+// Your own DataSource, explicit dialect, and a table prefix
+DbConfig custom = DbConfig.builder()
+        .dataSource(myDataSource)
+        .dialect(new PostgresDialect())
+        .tablePrefix("accounts")          // tables accounts_mpt_nodes, accounts_mpt_roots, accounts_mpt_latest
+        .build();
+```
+
+`DbConfig` owns (and closes) data sources it created through `jdbcUrl` or `simpleJdbcUrl`. A data source you pass
+with `dataSource(...)` stays yours to close.
+
+## API
+
+| Class | Purpose |
+|---|---|
+| `RdbmsNodeStore(DbConfig)` / `RdbmsNodeStore(DbConfig, byte keyPrefix)` | `NodeStore` for `MpfTrie`. `withTransaction(callback)` runs several writes in one JDBC transaction; `putBatch(map)` uses JDBC batching. |
+| `RdbmsRootsIndex(DbConfig)` / `RdbmsRootsIndex(DbConfig, byte keyPrefix)` | Version → root index: `put`, `get`, `latest`, `lastVersion`, `nextVersion`, `listAll`, `listRange`. |
+| `RdbmsStateTrees(DbConfig)` / `(DbConfig, StorageMode)` / `(DbConfig, StorageMode, byte keyPrefix)` | Node store + roots index for one namespace. |
+| `RdbmsMpfSchema.createIfNotExists(DbConfig)` | Creates the tables and indexes for the configured dialect and table prefix. |
+
+Namespaces: the `keyPrefix` byte is stored in the `namespace` column, so several tries can share the same tables.
+A table prefix (`DbConfig.tablePrefix`) gives a trie its own tables instead.
+
+### Storage modes
+
+| | RDBMS | RocksDB |
+|---|---|---|
+| Default mode | `SINGLE_VERSION` | `MULTI_VERSION` |
+| Mode persisted and checked on open | No | Yes |
+
+Pass the mode explicitly if you switch backends. Opening the same namespace with a different mode is not detected.
+
+- `SINGLE_VERSION`: `putRootSnapshot(root)` overwrites the root at version 0, `getCurrentRoot()` reads it, and
+  `cleanupOrphanedNodes(new RdbmsGcOptions())` mark-sweeps everything not reachable from it.
+- `MULTI_VERSION`: `putRootWithRefcount(root)` stores the root under the next version. Despite the name, no
+  refcounts are kept in the RDBMS backend.
+
+### Garbage collection
+
+The RDBMS backend only has mark-sweep in `SINGLE_VERSION` mode (`cleanupOrphanedNodes`). In `MULTI_VERSION` mode
+nothing is ever deleted. Do not run GC while another writer updates the same namespace.
+
+## Schema
+
+Bundled DDL (only `CREATE ... IF NOT EXISTS`):
+
+- `/ddl/mpf/postgres/schema.sql`
+- `/ddl/mpf/h2/schema.sql`
+- `/ddl/mpf/sqlite/schema.sql`
+
+```sql
+-- PostgreSQL version; types differ per dialect
+CREATE TABLE IF NOT EXISTS mpt_nodes (
+    namespace  SMALLINT NOT NULL,
+    node_hash  BYTEA    NOT NULL,
+    node_data  BYTEA    NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (namespace, node_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_mpt_nodes_ns ON mpt_nodes(namespace);
+
+CREATE TABLE IF NOT EXISTS mpt_roots (
+    namespace  SMALLINT NOT NULL,
+    version    BIGINT   NOT NULL,
+    root_hash  BYTEA    NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (namespace, version)
+);
+CREATE INDEX IF NOT EXISTS idx_mpt_roots_ns ON mpt_roots(namespace);
+
+CREATE TABLE IF NOT EXISTS mpt_latest (
+    namespace      SMALLINT NOT NULL PRIMARY KEY,
+    latest_version BIGINT   NOT NULL,
+    latest_root    BYTEA    NOT NULL,
+    updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+With a table prefix `p`, `RdbmsMpfSchema` creates `p_mpt_nodes`, `p_mpt_roots`, `p_mpt_latest`, `p_idx_mpt_nodes_ns`
+and `p_idx_mpt_roots_ns`. If you apply the DDL yourself with a prefix, rename the tables and indexes the same way.
+`RdbmsMpfSchema.statements(dialect, prefix)` returns the exact statements.
+
+Node keys are commitments (32-byte hashes) and `node_data` is the CBOR-encoded node, byte-identical to what the
+RocksDB backend stores.
+
+## Thread safety
+
+- `RdbmsNodeStore` and `RdbmsRootsIndex` can be called from several threads (one connection per call, or one per
+  thread inside `withTransaction`).
+- `MpfTrie` is **not** thread-safe, and the backend has no locking across a trie update. Use one writer per
+  namespace, or synchronise externally.
+
+## Related modules
+
+- [merkle-patricia-forestry](../merkle-patricia-forestry/): trie, proofs and Aiken usage
+- [merkle-patricia-forestry-rocksdb](../merkle-patricia-forestry-rocksdb/): RocksDB backend (recommended)
+- [rdbms-core](../rdbms-core/): `DbConfig`, dialects, table-name resolution
+- [RDBMS design notes](../docs/design-rdbms.md)

@@ -21,7 +21,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Merkle Tree Implementations              │
-│   (merkle-patricia-trie, jellyfish-merkle)                 │
+│   (merkle-patricia-forestry, jellyfish-merkle)             │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
@@ -645,7 +645,7 @@ public interface NodeStore {
 
 - [design-rocksdb.md](design-rocksdb.md) - RocksDB backend integration
 - [design-rdbms.md](design-rdbms.md) - RDBMS backend integration
-- [merkle-patricia-trie/docs/design-mpt.md](../merkle-patricia-trie/docs/design-mpt.md) - MPT algorithm details
+- [merkle-patricia-forestry/docs/design-mpt.md](../merkle-patricia-forestry/docs/design-mpt.md) - MPF algorithm details
 - [jellyfish-merkle/docs/design-jmt.md](../jellyfish-merkle/docs/design-jmt.md) - JMT architecture
 
 ---

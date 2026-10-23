@@ -100,6 +100,6 @@ throughput guarantee.
 ## Gradle
 
 ```gradle
-implementation "com.bloxbean.cardano:jellyfish-merkle-rdbms:0.8.0"
+implementation "com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:0.8.0"
 runtimeOnly "org.postgresql:postgresql:<approved-version>"
 ```
