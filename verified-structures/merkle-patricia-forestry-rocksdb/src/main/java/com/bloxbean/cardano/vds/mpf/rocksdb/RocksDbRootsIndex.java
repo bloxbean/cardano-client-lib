@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.vds.mpf.rocksdb;
 
 import com.bloxbean.cardano.vds.core.api.RootsIndex;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.*;
@@ -120,6 +121,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
             this.options = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
             this.db = RocksDB.open(this.options, dbPath, cfDescriptors, cfHandles);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
+            DiskMarkSet.dropStale(db, cfHandles); // temporary GC column families left by a crashed run
             this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.closeables = new java.util.ArrayList<>();
             this.closeables.add(columnFamilyOptions);

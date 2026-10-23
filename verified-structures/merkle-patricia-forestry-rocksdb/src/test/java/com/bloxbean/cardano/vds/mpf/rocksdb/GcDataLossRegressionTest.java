@@ -10,12 +10,23 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.gc.RetentionPolicy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RocksDbGc;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.RefcountGcStrategy;
+import com.bloxbean.cardano.vds.mpf.internal.NodeRefParser;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RefcountLedger;
+import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.rocksdb.ColumnFamilyDescriptor;
+import org.rocksdb.ColumnFamilyHandle;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+import org.rocksdb.WriteBatch;
+import org.rocksdb.WriteOptions;
 
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -341,6 +352,322 @@ class GcDataLossRegressionTest {
             new GcManager(st.nodeStore(), st.rootsIndex())
                     .runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
             assertIntact(st.nodeStore(), st.rootsIndex().latest(), versions.get(1), "latest");
+        }
+    }
+    // ---------------------------------------------------------------- stores with legacy (pre-0.8.0) refcounts
+
+    /** Pre-0.8.0 RefcountGcStrategy.incrementAll: counts read from the DB, children found through the DB only. */
+    private static void legacyIncrementAll(RocksDB db, ColumnFamilyHandle cfNodes, byte[] root, WriteBatch wb, KeyPrefixer kp)
+            throws RocksDBException {
+        Deque<byte[]> q = new ArrayDeque<>(List.of(root));
+        Set<String> seen = new HashSet<>();
+        while (!q.isEmpty()) {
+            byte[] h = q.removeFirst();
+            if (!seen.add(Arrays.toString(h))) continue;
+            byte[] v = db.get(cfNodes, kp.prefix(RefcountLedger.refKey(h)));
+            long cnt = v == null || v.length != 8 ? 0 : ByteBuffer.wrap(v).getLong();
+            wb.put(cfNodes, kp.prefix(RefcountLedger.refKey(h)), ByteBuffer.allocate(8).putLong(cnt + 1).array());
+            byte[] enc = db.get(cfNodes, kp.prefix(h));
+            if (enc == null) continue;
+            for (byte[] ch : NodeRefParser.childRefs(enc)) q.addLast(ch);
+        }
+    }
+
+    /** Pre-0.8.0 GcTool / test pattern: nodes, version and legacy increment in one batch (counts only the root). */
+    private static void legacySameBatchVersion(RocksDbStateTrees st, MpfTrie trie, Map<String, byte[]> model, String tag) {
+        try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            st.nodeStore().withBatch(wb, () -> {
+                for (int i = 0; i < 6; i++) {
+                    String k = "k" + Math.floorMod(tag.hashCode() + i, 30);
+                    trie.put(b(k), b(tag + i));
+                    model.put(hex(k), b(tag + i));
+                }
+                st.rootsIndex().withBatch(wb, () -> {
+                    st.rootsIndex().put(st.rootsIndex().nextVersion(), trie.getRootHash());
+                    return null;
+                });
+                legacyIncrementAll(st.db(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
+                return null;
+            });
+            st.db().write(wo, wb);
+        } catch (RocksDBException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Pre-0.8.0 RocksDbStateTrees.putRootWithRefcount: its own batch, legacy increment reading the DB. */
+    private static void legacyPutRootWithRefcount(RocksDbStateTrees st, byte[] root) {
+        try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            st.rootsIndex().withBatch(wb, () -> {
+                st.rootsIndex().put(st.rootsIndex().nextVersion(), root);
+                return null;
+            });
+            legacyIncrementAll(st.db(), st.nodeStore().nodesHandle(), root, wb, st.nodeStore().keyPrefixer());
+            st.db().write(wo, wb);
+        } catch (RocksDBException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void upgradedStoreWithRootOnlyCountsKeepsLatestIntact() throws Exception {
+        // Review E1d: the same user code `session.write(() -> { trie.put..; st.putRootWithRefcount(root); })`
+        // ran on the old library for v0..v2 (counting only the roots) and on the new one for v3.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("e1d").toString())) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            Map<String, byte[]> model = new LinkedHashMap<>();
+            RocksDbMptSession session = RocksDbMptSession.of(st);
+            for (int v = 0; v < 3; v++) {
+                final int ver = v;
+                session.write(() -> {
+                    for (int i = 0; i < 8; i++) {
+                        trie.put(b("k" + ((ver * 3 + i) % 25)), b("v" + ver + i));
+                        model.put(hex("k" + ((ver * 3 + i) % 25)), b("v" + ver + i));
+                    }
+                    legacyPutRootWithRefcount(st, trie.getRootHash());
+                });
+            }
+            session.write(() -> {
+                trie.put(b("k1"), b("upgraded"));
+                model.put(hex("k1"), b("upgraded"));
+                st.putRootWithRefcount(trie.getRootHash());
+            });
+            byte[] latest = trie.getRootHash();
+            GcReport report = new GcManager(st.nodeStore(), st.rootsIndex())
+                    .runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+            assertIntact(st.nodeStore(), latest, model, "latest");
+            assertTrue(report.protectedNodes > 0, "legacy counts must be detected as protected nodes");
+            assertTrue(report.marked > 0);
+            // Mark-sweep reclaims what refcount GC had to leave.
+            new GcManager(st.nodeStore(), st.rootsIndex())
+                    .runSync(new OnDiskMarkSweepStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+            assertEquals(reach(st.nodeStore(), latest)[0], countNodeKeys(st.nodeStore()));
+            assertIntact(st.nodeStore(), latest, model, "latest after mark-sweep");
+        }
+    }
+
+    @Test
+    void legacySameBatchVersionsThenNewVersionKeepLatestIntact() throws Exception {
+        // Review E1: legacy same-batch versions, then the upgraded putRootWithRefcount, then refcount GC.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("e1").toString())) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            Map<String, byte[]> model = new LinkedHashMap<>();
+            for (int i = 0; i < 30; i++) {
+                trie.put(b("k" + i), b("base" + i));
+                model.put(hex("k" + i), b("base" + i));
+            }
+            legacySameBatchVersion(st, trie, model, "a");
+            legacySameBatchVersion(st, trie, model, "b");
+            RocksDbMptSession.of(st).write(() -> {
+                trie.put(b("k1"), b("new"));
+                model.put(hex("k1"), b("new"));
+                st.putRootWithRefcount(trie.getRootHash());
+            });
+            byte[] latest = trie.getRootHash();
+            new GcManager(st.nodeStore(), st.rootsIndex())
+                    .runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+            assertIntact(st.nodeStore(), latest, model, "latest");
+        }
+    }
+
+    @Test
+    void retainedLegacyVersionStaysIntact() throws Exception {
+        // Review E1b: the legacy version is retained too (keepLatestN(2)); its root has a count, so the
+        // untracked-root guard passes and only marking protects its children.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("e1b").toString())) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            Map<String, byte[]> model = new LinkedHashMap<>();
+            legacySameBatchVersion(st, trie, model, "a");
+            legacySameBatchVersion(st, trie, model, "b");
+            Map<String, byte[]> modelB = new LinkedHashMap<>(model);
+            byte[] rootB = trie.getRootHash();
+            RocksDbMptSession.of(st).write(() -> {
+                trie.put(b("zz"), b("new"));
+                model.put(hex("zz"), b("new"));
+                st.putRootWithRefcount(trie.getRootHash());
+            });
+            byte[] latest = trie.getRootHash();
+            new GcManager(st.nodeStore(), st.rootsIndex())
+                    .runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(2), new GcOptions());
+            assertIntact(st.nodeStore(), rootB, modelB, "retained legacy version");
+            assertIntact(st.nodeStore(), latest, model, "latest");
+        }
+    }
+
+    @Test
+    void pureLegacyRootOnlyStoreKeepsLatestIntact() throws Exception {
+        // Review E1c: every version written with the legacy same-batch pattern, collected by the new refcount GC.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("e1c").toString())) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            Map<String, byte[]> model = new LinkedHashMap<>();
+            for (String t : List.of("a", "b", "c", "d")) legacySameBatchVersion(st, trie, model, t);
+            byte[] latest = trie.getRootHash();
+            new GcManager(st.nodeStore(), st.rootsIndex())
+                    .runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+            assertIntact(st.nodeStore(), latest, model, "latest");
+        }
+    }
+
+    // ---------------------------------------------------------------- static helpers sharing one batch
+
+    /** R0 = {a:1, b:2} counted and committed; R1 = {a:3, b:2} committed but not counted. The b leaf is shared. */
+    private static byte[][] twoRootsSharingLeafB(RocksDbStateTrees st, Map<String, byte[]> modelR1) {
+        MpfTrie trie = new MpfTrie(st.nodeStore());
+        trie.put(b("a"), b("1"));
+        trie.put(b("b"), b("2"));
+        byte[] r0 = trie.getRootHash();
+        st.putRootWithRefcount(r0);
+        trie.put(b("a"), b("3"));
+        byte[] r1 = trie.getRootHash();
+        modelR1.put(hex("a"), b("3"));
+        modelR1.put(hex("b"), b("2"));
+        return new byte[][]{r0, r1};
+    }
+
+    @Test
+    void staticIncrementThenDecrementInOneBatchKeepsSharedNode() throws Exception {
+        // Codex review: incrementAll(R1, wb) then decrementAll(R0, wb) used fresh counts per call, so the decrement
+        // read b's committed count 1 and deleted b although R1 still uses it.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("static-id").toString())) {
+            Map<String, byte[]> modelR1 = new LinkedHashMap<>();
+            byte[][] roots = twoRootsSharingLeafB(st, modelR1);
+            RocksDbNodeStore ns = st.nodeStore();
+            try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+                RefcountGcStrategy.incrementAll(st.db(), ns.nodesHandle(), ns.nodesHandle(), roots[1], wb, ns.keyPrefixer());
+                RefcountGcStrategy.decrementAll(st.db(), ns.nodesHandle(), ns.nodesHandle(), roots[0], wb, ns.keyPrefixer());
+                st.db().write(wo, wb);
+            }
+            assertIntact(ns, roots[1], modelR1, "R1");
+            assertEquals(reach(ns, roots[1])[0], countRefcountKeys(ns));
+        }
+    }
+
+    @Test
+    void staticDecrementThenIncrementInOneBatchRestoresDeletedNode() throws Exception {
+        // Reverse order: the decrement stages b's deletion, the increment must write b back.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("static-di").toString())) {
+            Map<String, byte[]> modelR1 = new LinkedHashMap<>();
+            byte[][] roots = twoRootsSharingLeafB(st, modelR1);
+            RocksDbNodeStore ns = st.nodeStore();
+            try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+                RefcountGcStrategy.decrementAll(st.db(), ns.nodesHandle(), ns.nodesHandle(), roots[0], wb, ns.keyPrefixer());
+                RefcountGcStrategy.incrementAll(st.db(), ns.nodesHandle(), ns.nodesHandle(), roots[1], wb, ns.keyPrefixer());
+                st.db().write(wo, wb);
+            }
+            assertIntact(ns, roots[1], modelR1, "R1");
+            assertEquals(reach(ns, roots[1])[0], countRefcountKeys(ns));
+        }
+    }
+
+    // ---------------------------------------------------------------- batches of other store instances
+
+    @Test
+    void putRootWithRefcountJoinsBatchOfAnotherStoreInstanceOfTheSameNamespace() throws Exception {
+        // Review E6: the session ran on a second RocksDbNodeStore over the same DB/CF/namespace. The root used to be
+        // committed on its own, so a failure later in the session left LATEST pointing at nodes never written.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("e6").toString())) {
+            RocksDbNodeStore other = new RocksDbNodeStore(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().keyPrefixer());
+            MpfTrie trie = new MpfTrie(other);
+            trie.put(b("a"), b("1"));
+            st.putRootWithRefcount(trie.getRootHash());
+            byte[] committed = trie.getRootHash();
+            assertThrows(RuntimeException.class, () -> RocksDbMptSession.of(other).write(() -> {
+                trie.put(b("b"), b("2"));
+                st.putRootWithRefcount(trie.getRootHash());
+                throw new IllegalStateException("app failure after recording the root");
+            }));
+            assertArrayEquals(committed, st.rootsIndex().latest(), "the failed batch must not move LATEST");
+            assertEquals(0L, st.rootsIndex().lastVersion());
+            assertNotNull(st.nodeStore().get(st.rootsIndex().latest()));
+
+            // A successful session through the other instance commits root and nodes together.
+            trie.setRootHash(committed); // the in-memory root still points at the discarded batch
+            long v = RocksDbMptSession.of(other).write(() -> {
+                trie.put(b("b"), b("2"));
+                return st.putRootWithRefcount(trie.getRootHash());
+            });
+            assertEquals(1L, v);
+            Map<String, byte[]> model = new LinkedHashMap<>();
+            model.put(hex("a"), b("1"));
+            model.put(hex("b"), b("2"));
+            assertIntact(st.nodeStore(), st.rootsIndex().latest(), model, "latest");
+            new GcManager(st.nodeStore(), st.rootsIndex())
+                    .runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+            assertEquals(reach(st.nodeStore(), st.rootsIndex().latest())[0], countRefcountKeys(st.nodeStore()));
+            assertIntact(st.nodeStore(), st.rootsIndex().latest(), model, "latest after GC");
+        }
+    }
+
+    @Test
+    void putRootWithRefcountRefusesABatchOfAnotherNamespace() {
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("xns").toString())) {
+            RocksDbNodeStore otherNs = new RocksDbNodeStore(st.db(), st.nodeStore().nodesHandle(), new KeyPrefixer((byte) 0x07));
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            RuntimeException ex = assertThrows(RuntimeException.class, () -> RocksDbMptSession.of(otherNs).write(() -> {
+                trie.put(b("a"), b("1"));
+                st.putRootWithRefcount(trie.getRootHash());
+            }));
+            Throwable cause = ex instanceof IllegalStateException ? ex : ex.getCause();
+            assertInstanceOf(IllegalStateException.class, cause);
+            assertNull(st.rootsIndex().latest());
+        }
+    }
+
+    // ---------------------------------------------------------------- mark-sweep snapshot limits, leftovers
+
+    @Test
+    void markSweepSnapshotDoesNotProtectRePutsOfExistingKeys() throws Exception {
+        // Review E4, documented limitation: nodes are content-addressed, so re-putting an existing node key during
+        // GC is invisible to the snapshot and the node can still be swept. Writers must be paused during GC.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("e4").toString())) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            trie.put(b("a"), b("1"));
+            byte[] oldRoot = trie.getRootHash();
+            byte[] oldNode = st.nodeStore().get(oldRoot);
+            st.rootsIndex().put(0, oldRoot);
+            trie.put(b("a"), b("2"));
+            st.rootsIndex().put(1, trie.getRootHash());
+            RetentionPolicy rePutsDuringGc = index -> {
+                st.nodeStore().put(oldRoot, oldNode);
+                return RetentionPolicy.keepLatestN(1).resolveRoots(index);
+            };
+            new GcManager(st.nodeStore(), st.rootsIndex()).runSync(new OnDiskMarkSweepStrategy(), rePutsDuringGc, new GcOptions());
+            assertNull(st.nodeStore().get(oldRoot));
+        }
+    }
+
+    @Test
+    void leftoverMarkColumnFamiliesAreDroppedOnOpen() throws Exception {
+        String path = tmp.resolve("stale").toString();
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            ColumnFamilyHandle stale = st.db().createColumnFamily(new ColumnFamilyDescriptor(
+                    (DiskMarkSet.CF_PREFIX + "12345").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            st.db().put(stale, b("x"), b("y"));
+            stale.close(); // simulates a crash before the GC run dropped it
+        }
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            assertNotNull(st.nodeStore());
+        }
+        try (org.rocksdb.Options o = new org.rocksdb.Options()) {
+            for (byte[] cf : RocksDB.listColumnFamilies(o, path)) {
+                assertFalse(DiskMarkSet.isMarkSetColumnFamily(cf), "stale " + new String(cf));
+            }
+        }
+    }
+
+    @Test
+    void gcRunsLeaveNoMarkColumnFamilies() throws Exception {
+        String path = tmp.resolve("no-leftover").toString();
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            writeVersions(st, "k", 3, true);
+            GcManager gc = new GcManager(st.nodeStore(), st.rootsIndex());
+            gc.runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+            gc.runSync(new OnDiskMarkSweepStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+        }
+        try (org.rocksdb.Options o = new org.rocksdb.Options()) {
+            for (byte[] cf : RocksDB.listColumnFamilies(o, path)) {
+                assertFalse(DiskMarkSet.isMarkSetColumnFamily(cf), "leftover " + new String(cf));
+            }
         }
     }
 }

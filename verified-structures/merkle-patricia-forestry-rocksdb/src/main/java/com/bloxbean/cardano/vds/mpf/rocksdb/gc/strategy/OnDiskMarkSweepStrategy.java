@@ -6,7 +6,7 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcReport;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcStrategy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.RetentionPolicy;
-import com.bloxbean.cardano.vds.mpf.internal.NodeRefParser;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.GcRoots;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RefcountLedger;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
@@ -25,11 +25,15 @@ import java.util.*;
  *   <li>Sweep: the node keys of <em>this namespace only</em> are scanned (through the snapshot when there is
  *       one), and every unmarked node is deleted together with its refcount entry, if any. Refcount entries of
  *       kept nodes and any other keys are left alone.</li>
+ *   <li>The temporary column family is dropped. Leftovers of crashed runs ({@code marks_*}) are dropped the next
+ *       time the database is opened by {@code RocksDbStateTrees}, {@code RocksDbNodeStore(String..)} or
+ *       {@code RocksDbRootsIndex(String..)}.</li>
  * </ol>
  *
- * <p>Nodes written after the snapshot are never swept. GC is still not safe while another writer commits to the
- * same namespace (a new root may reuse an old, unmarked node), so pause writers during GC. The roots index is not
- * modified: entries of versions that are not retained stay listed, but their tries may no longer be readable.</p>
+ * <p>The snapshot only protects node keys that did not exist when it was taken. Nodes are content-addressed, so a
+ * writer that re-puts an existing key (or commits a root reusing an old, unmarked node) during GC can still lose
+ * that node. <b>Pause every writer of the namespace while GC runs.</b> The roots index is not modified: entries of
+ * versions that are not retained stay listed, but their tries may no longer be readable.</p>
  */
 public class OnDiskMarkSweepStrategy implements GcStrategy {
     public static final String CF_MARKS = "marks"; // base name; actual CF uses a unique suffix per run
@@ -42,66 +46,32 @@ public class OnDiskMarkSweepStrategy implements GcStrategy {
         long start = System.currentTimeMillis();
         RocksDB db = store.db();
 
-        // (1) Snapshot first, so nothing committed after this point can be swept.
+        // (1) Snapshot first: keys that did not exist yet are invisible to the sweep.
         Snapshot snapshot = options.useSnapshot ? db.getSnapshot() : null;
-        ColumnFamilyHandle cfMarks = null;
         try {
             // (2) Roots to keep, and the digest length of this namespace's node keys
             List<byte[]> roots = GcRoots.retainedRoots(index, policy);
             int digestLength = GcRoots.digestLength(roots, DEFAULT_DIGEST_LENGTH);
 
-            // (3) Fresh, uniquely-named marks CF for this run
-            cfMarks = createUniqueMarksCf(db);
-
+            // (3) Mark into a fresh, uniquely-named column family; (4) sweep this namespace
             KeyPrefixer keyPrefixer = store.keyPrefixer();
-            long marked = mark(db, store.nodesHandle(), cfMarks, roots, keyPrefixer);
-            long[] totals = sweep(db, store.nodesHandle(), cfMarks, options, keyPrefixer, snapshot, digestLength);
+            try (DiskMarkSet marks = DiskMarkSet.create(db)) {
+                long marked = marks.markReachable(store.nodesHandle(), keyPrefixer, roots);
+                long[] totals = sweep(db, store.nodesHandle(), marks, options, keyPrefixer, snapshot, digestLength);
 
-            GcReport report = new GcReport();
-            report.marked = marked;
-            report.total = totals[0];
-            report.deleted = totals[1];
-            report.durationMillis = System.currentTimeMillis() - start;
-            return report;
+                GcReport report = new GcReport();
+                report.marked = marked;
+                report.total = totals[0];
+                report.deleted = totals[1];
+                report.durationMillis = System.currentTimeMillis() - start;
+                return report;
+            }
         } finally {
             if (snapshot != null) db.releaseSnapshot(snapshot);
-            if (cfMarks != null) {
-                // Drop marks CF to reclaim space
-                try {
-                    db.dropColumnFamily(cfMarks);
-                } catch (Exception ignored) {
-                }
-                try {
-                    cfMarks.close();
-                } catch (Exception ignored) {
-                }
-            }
         }
     }
 
-    private ColumnFamilyHandle createUniqueMarksCf(RocksDB db) throws RocksDBException {
-        String name = CF_MARKS + "_" + Long.toUnsignedString(System.nanoTime());
-        return db.createColumnFamily(new ColumnFamilyDescriptor(name.getBytes(), new ColumnFamilyOptions()));
-    }
-
-    private long mark(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfMarks, Collection<byte[]> roots,
-                      KeyPrefixer keyPrefixer) throws RocksDBException {
-        Deque<byte[]> q = new ArrayDeque<>(roots);
-        long marked = 0;
-        while (!q.isEmpty()) {
-            byte[] h = q.removeFirst();
-            if (db.get(cfMarks, h) != null) continue; // already seen on disk
-            db.put(cfMarks, h, ONE);
-            marked++;
-            // Read the live store: marking a superset of what the snapshot holds is always safe.
-            byte[] enc = db.get(cfNodes, keyPrefixer.prefix(h));
-            if (enc == null) continue;
-            for (byte[] ch : NodeRefParser.childRefs(enc)) q.addLast(ch);
-        }
-        return marked;
-    }
-
-    private long[] sweep(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfMarks, GcOptions options,
+    private long[] sweep(RocksDB db, ColumnFamilyHandle cfNodes, DiskMarkSet marks, GcOptions options,
                          KeyPrefixer keyPrefixer, Snapshot snapshot, int digestLength) throws RocksDBException {
         long total = 0, deleted = 0;
         int nodeKeyLength = 1 + digestLength;
@@ -116,7 +86,7 @@ public class OnDiskMarkSweepStrategy implements GcStrategy {
                     if (prefixedKey.length != nodeKeyLength) continue;      // refcount or other entry
                     total++;
                     byte[] nodeHash = keyPrefixer.unprefix(prefixedKey);
-                    if (db.get(cfMarks, nodeHash) == null) {
+                    if (!marks.contains(nodeHash)) {
                         if (!options.dryRun) {
                             wb.delete(cfNodes, prefixedKey);
                             wb.delete(cfNodes, keyPrefixer.prefix(RefcountLedger.refKey(nodeHash)));
@@ -137,5 +107,4 @@ public class OnDiskMarkSweepStrategy implements GcStrategy {
         return new long[]{total, deleted};
     }
 
-    private static final byte[] ONE = new byte[]{1};
 }

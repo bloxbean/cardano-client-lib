@@ -6,6 +6,7 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcReport;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.RetentionPolicy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RefcountLedger;
 import com.bloxbean.cardano.vds.rocksdb.RocksDbConfig;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
@@ -241,6 +242,7 @@ public final class RocksDbStateTrees implements StateTrees {
             this.db = localDb;
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
+            DiskMarkSet.dropStale(localDb, cfHandles); // temporary GC column families left by a crashed run
 
             this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.nodeStore = new RocksDbNodeStore(db, cfNodes, keyPrefixer);
@@ -370,9 +372,11 @@ public final class RocksDbStateTrees implements StateTrees {
      * WriteBatch for atomicity.</p>
      *
      * <p>The trie nodes must be visible: either already committed, or staged in a batch that is open on this
-     * thread through {@code nodeStore().withBatch(...)} / {@link RocksDbMptSession#write}. In the second case the
-     * root, the version entry and the refcounts are written into that open batch, so they commit together with
-     * the nodes, and several calls in one batch see each other's counts and versions.</p>
+     * thread through {@code nodeStore().withBatch(...)} / {@link RocksDbMptSession#write} (also when that batch was
+     * opened on another {@link RocksDbNodeStore} instance of the same database, column family and namespace). In
+     * the second case the root, the version entry and the refcounts are written into that open batch, so they
+     * commit together with the nodes, and several calls in one batch see each other's counts and versions. If a
+     * batch of a store on another namespace is open on this thread, this throws {@link IllegalStateException}.</p>
      *
      * <p>Use this for every version of a namespace that is collected with {@code RefcountGcStrategy}.</p>
      *
@@ -401,7 +405,7 @@ public final class RocksDbStateTrees implements StateTrees {
             long ver = last + 1;
             try {
                 new RefcountLedger(db, nodeStore.nodesHandle(), nodeStore.keyPrefixer(), activeBatch, null,
-                        nodeStore::get, nodeStore.activeBatchRefcounts()).increment(root);
+                        nodeStore::get).increment(root);
             } catch (RocksDBException e) {
                 throw new RuntimeException("Failed to stage refcounts", e);
             }
@@ -414,7 +418,7 @@ public final class RocksDbStateTrees implements StateTrees {
         }
         try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
             new RefcountLedger(db, nodeStore.nodesHandle(), nodeStore.keyPrefixer(), wb, null,
-                    nodeStore::get, null).increment(root);
+                    nodeStore::get).increment(root);
             final long[] verHolder = new long[1];
             rootsIndex.withBatch(wb, () -> {
                 long ver = rootsIndex.nextVersion();

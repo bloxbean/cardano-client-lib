@@ -2,6 +2,7 @@ package com.bloxbean.cardano.vds.mpf.rocksdb;
 
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.*;
@@ -63,10 +64,8 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
     private static final ThreadLocal<WriteBatch> TL_BATCH = new ThreadLocal<>();
     private static final ThreadLocal<java.util.Map<String, byte[]>> TL_STAGED = new ThreadLocal<>();
     // Per-batch state used by RocksDbStateTrees.putRootWithRefcount when it runs inside withBatch():
-    // the store that opened the batch, refcounts staged in it (prefixed key hex -> count) and the last
-    // version number staged in it.
+    // the store that opened the batch and the last version number staged in it.
     private static final ThreadLocal<RocksDbNodeStore> TL_OWNER = new ThreadLocal<>();
-    private static final ThreadLocal<java.util.Map<String, Long>> TL_REFCOUNTS = new ThreadLocal<>();
     private static final ThreadLocal<long[]> TL_LAST_VERSION = new ThreadLocal<>();
 
     public static final String CF_NODES = "nodes";
@@ -128,6 +127,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             this.options = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
             this.db = RocksDB.open(this.options, dbPath, cfDescriptors, cfHandles);
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
+            DiskMarkSet.dropStale(db, cfHandles); // temporary GC column families left by a crashed run
             this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.closeables = new java.util.ArrayList<>();
             this.closeables.add(columnFamilyOptions);
@@ -294,7 +294,6 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         TL_BATCH.set(batch);
         TL_STAGED.set(new java.util.HashMap<>());
         TL_OWNER.set(this);
-        TL_REFCOUNTS.set(new java.util.HashMap<>());
         TL_LAST_VERSION.set(new long[]{Long.MIN_VALUE});
         try {
             return work.call();
@@ -304,24 +303,35 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             TL_BATCH.remove();
             TL_STAGED.remove();
             TL_OWNER.remove();
-            TL_REFCOUNTS.remove();
             TL_LAST_VERSION.remove();
         }
     }
 
-    /** The batch opened by {@link #withBatch} on this store in the current thread, or {@code null}. */
+    /**
+     * The batch opened by {@link #withBatch} in the current thread, or {@code null} when none is open.
+     *
+     * <p>A batch opened by another instance over the same database, column family and namespace is joined (its
+     * staged nodes are visible to {@link #get}). A batch of an unrelated store cannot be joined safely, so this
+     * throws instead of letting the caller commit on its own outside that batch.</p>
+     */
     WriteBatch activeBatch() {
-        return TL_OWNER.get() == this ? TL_BATCH.get() : null;
-    }
-
-    /** Refcounts staged in the active batch of this store (prefixed refcount key hex to count). */
-    java.util.Map<String, Long> activeBatchRefcounts() {
-        return TL_OWNER.get() == this ? TL_REFCOUNTS.get() : null;
+        RocksDbNodeStore owner = TL_OWNER.get();
+        if (owner == null) return null;
+        if (owner == this || sameNamespace(owner)) return TL_BATCH.get();
+        throw new IllegalStateException("A batch of a node store on another database, column family or namespace "
+                + "is open on this thread; record roots of this namespace outside that batch, or open the batch on a "
+                + "store of this namespace.");
     }
 
     /** Holder for the last version staged in the active batch; {@code Long.MIN_VALUE} when none. */
     long[] activeBatchLastVersion() {
-        return TL_OWNER.get() == this ? TL_LAST_VERSION.get() : null;
+        return activeBatch() != null ? TL_LAST_VERSION.get() : null;
+    }
+
+    private boolean sameNamespace(RocksDbNodeStore other) {
+        return other.db == db
+                && other.cfNodes.getID() == cfNodes.getID()
+                && other.keyPrefixer.getNamespaceId() == keyPrefixer.getNamespaceId();
     }
 
     /**
