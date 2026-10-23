@@ -69,7 +69,10 @@ A node's count is the number of recorded versions whose trie contains it.
 **Recording.** `RocksDbStateTrees.putRootWithRefcount(root)` assigns the next version, stores the root and adds one
 to the count of every node reachable from it, in one batch. Called inside `nodeStore().withBatch(..)` or
 `RocksDbMptSession.write(..)`, it stages everything in that open batch and reads the staged nodes, so nodes, root and
-counts commit together; several calls in one batch see each other's counts and versions. The all-zero root (the empty trie,
+counts commit together; several calls in one batch see each other's counts and versions. The version is the next
+one after the highest of the committed last version and the last version staged in the batch, so sessions that
+share one uncommitted batch, roots recorded with `rootsIndex().put(..)` in the same batch, and versions undone by
+`rollbackToSavePoint()` are all taken into account. The all-zero root (the empty trie,
 as returned by `MpfTrie.getRootHashOrEmpty()`) is recorded without counts; `putRootWithRefcount(null)` throws, so
 record an empty trie with `getRootHashOrEmpty()` rather than `getRootHash()`.
 

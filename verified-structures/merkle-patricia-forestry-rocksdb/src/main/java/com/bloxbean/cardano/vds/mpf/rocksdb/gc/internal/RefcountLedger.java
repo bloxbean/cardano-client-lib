@@ -77,6 +77,10 @@ public final class RefcountLedger {
         private final Map<String, byte[]> lastPut = new HashMap<>();
         private int seenCount = -1;
         private long seenDataSize = -1;
+        // Optionally also the latest value the batch holds for one more key: the roots index's last-version key.
+        private int versionCfId = -1;
+        private byte[] versionKey;
+        private final byte[][] stagedVersion = new byte[1][]; // null: not in the batch, TOMBSTONE: deleted
 
         /**
          * @param cfId      the nodes column family id
@@ -133,11 +137,48 @@ public final class RefcountLedger {
             pending.put(HexUtil.encodeHexString(prefixedKey), TOMBSTONE);
         }
 
+        /**
+         * Returns the last version the batch stages for the roots index, i.e. the latest put of
+         * {@code prefixedVersionKey} in column family {@code rootsCfId}, or {@code null} when the batch holds none.
+         * The first call (or a call for another key) replays the batch; later calls reuse the view while it is
+         * current, so versions staged by earlier sessions on the same batch, by the roots index directly, or undone
+         * by {@code rollbackToSavePoint()} / {@code clear()} are all seen.
+         *
+         * @param batch              the batch
+         * @param keyPrefixer        the nodes namespace prefixer (used if the batch has to be replayed)
+         * @param rootsCfId          the roots column family id
+         * @param prefixedVersionKey the roots index's last-version key, with its namespace byte
+         * @return the staged last version, or {@code null}
+         * @throws RocksDBException if the batch cannot be replayed
+         */
+        public Long stagedLastVersion(WriteBatch batch, KeyPrefixer keyPrefixer, int rootsCfId,
+                                      byte[] prefixedVersionKey) throws RocksDBException {
+            if (versionCfId != rootsCfId || !Arrays.equals(versionKey, prefixedVersionKey)) {
+                versionCfId = rootsCfId;
+                versionKey = prefixedVersionKey.clone();
+                seenCount = -1; // not tracked so far: replay
+            }
+            if (!isCurrent(batch)) rebuild(batch, keyPrefixer);
+            byte[] v = stagedVersion[0];
+            return v == null || v == TOMBSTONE || v.length != 8 ? null : ByteBuffer.wrap(v).getLong();
+        }
+
+        /**
+         * Reflects a put of the tracked last-version key with {@code version}. Call {@link #sync} afterwards, under
+         * the same conditions as for {@link #recordPut}.
+         *
+         * @param version the version written
+         */
+        public void recordLastVersion(long version) {
+            if (versionKey != null) stagedVersion[0] = ByteBuffer.allocate(8).putLong(version).array();
+        }
+
         private void rebuild(WriteBatch batch, KeyPrefixer keyPrefixer) throws RocksDBException {
             pending.clear();
             lastPut.clear();
+            stagedVersion[0] = null;
             FULL_REPLAYS.incrementAndGet();
-            replay(batch, cfId, keyPrefixer, pending, lastPut);
+            replay(batch, cfId, keyPrefixer, pending, lastPut, versionCfId, versionKey, stagedVersion);
             sync(batch);
         }
     }
@@ -218,7 +259,8 @@ public final class RefcountLedger {
      * namespace cannot be interpreted, so they are rejected before anything is staged.
      */
     private static void replay(WriteBatch batch, int cfId, KeyPrefixer keyPrefixer, Map<String, byte[]> pending,
-                               Map<String, byte[]> lastPut) throws RocksDBException {
+                               Map<String, byte[]> lastPut, int versionCfId, byte[] versionKey,
+                               byte[][] stagedVersion) throws RocksDBException {
         if (batch.count() == 0) return;
         byte[] nsStart = keyPrefixer.namespaceStart();
         byte[] nsEnd = (keyPrefixer.getNamespaceId() & 0xFF) == 0xFF ? null
@@ -226,6 +268,7 @@ public final class RefcountLedger {
         String[] unsupported = {null};
         try (WriteBatch.Handler handler = new WriteBatch.Handler() {
             private void record(int cf, byte[] key, byte[] value) {
+                if (versionKey != null && cf == versionCfId && Arrays.equals(key, versionKey)) stagedVersion[0] = value;
                 if (cf != cfId || !keyPrefixer.hasCorrectPrefix(key)) return;
                 String hex = HexUtil.encodeHexString(key);
                 pending.put(hex, value);

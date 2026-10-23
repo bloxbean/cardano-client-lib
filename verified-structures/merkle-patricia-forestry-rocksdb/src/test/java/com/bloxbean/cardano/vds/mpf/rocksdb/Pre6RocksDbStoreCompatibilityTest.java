@@ -127,11 +127,11 @@ class Pre6RocksDbStoreCompatibilityTest {
             assertArrayEquals(e.getValue(), trie.get(Bytes.fromHex(e.getKey())), what + " key " + e.getKey());
         }
         assertEquals(expected.size(), trie.getAllEntries().size(), what);
-        for (String k : expected.keySet()) {
-            byte[] key = Bytes.fromHex(k);
-            assertTrue(trie.verifyProofWire(trie.getRootHash(), key, expected.get(k), true, trie.getProofWire(key).orElseThrow()), what);
-            break;
-        }
+        // One proof per trie is enough to show the old nodes prove under the current verifier.
+        expected.entrySet().stream().findFirst().ifPresent(e -> {
+            byte[] key = Bytes.fromHex(e.getKey());
+            assertTrue(trie.verifyProofWire(trie.getRootHash(), key, e.getValue(), true, trie.getProofWire(key).orElseThrow()), what);
+        });
     }
 
     private Path unzip(String resource) throws Exception {

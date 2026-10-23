@@ -294,6 +294,11 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         }
     }
 
+    /** The last-version key of this namespace, with its namespace byte (read by batch-aware callers). */
+    byte[] prefixedLastVersionKey() {
+        return keyPrefixer.prefix(LAST_VERSION_KEY);
+    }
+
     /**
      * Atomically increments and returns the next available version number.
      *

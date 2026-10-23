@@ -840,6 +840,87 @@ class GcDataLossRegressionTest {
         }
     }
 
+    // ---------------------------------------------------------------- PR #716 review: versions staged in the batch
+
+    @Test
+    void sessionsSharingOneUncommittedBatchGetDistinctVersions() throws Exception {
+        // Aster review of 183f75ec: the staged-version counter was per withBatch session, so a second session on
+        // the same uncommitted batch read the committed lastVersion() again and overwrote the first entry.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("two-sessions").toString());
+             WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            for (int i = 0; i < 6; i++) trie.put(b("a" + i), b("x" + i));
+            byte[] rootA = trie.getRootHash();
+            for (int i = 0; i < 6; i++) trie.put(b("b" + i), b("y" + i));
+            byte[] rootB = trie.getRootHash();     // both roots committed, nothing recorded yet
+
+            long va = st.nodeStore().withBatch(wb, () -> st.putRootWithRefcount(rootA));
+            long vb = st.nodeStore().withBatch(wb, () -> st.putRootWithRefcount(rootB));
+            st.db().write(wo, wb);
+
+            assertEquals(0L, va);
+            assertEquals(1L, vb);
+            assertArrayEquals(rootA, st.rootsIndex().get(0));
+            assertArrayEquals(rootB, st.rootsIndex().get(1));
+            assertEquals(1L, st.rootsIndex().lastVersion());
+            assertEquals(1L, refcount(st.nodeStore(), rootA));
+            assertEquals(1L, refcount(st.nodeStore(), rootB));
+        }
+    }
+
+    @Test
+    void versionsStagedThroughTheRootsIndexInTheSessionAreSeen() throws Exception {
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("raw-index").toString());
+             WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            trie.put(b("k"), b("v"));
+            byte[] first = trie.getRootHash();
+            st.putRootWithRefcount(first);          // committed version 0
+            long[] versions = new long[2];
+            st.nodeStore().withBatch(wb, () -> {
+                trie.put(b("k2"), b("v2"));
+                byte[] r = trie.getRootHash();
+                versions[0] = st.rootsIndex().withBatch(wb, () -> {
+                    long v = st.rootsIndex().nextVersion();
+                    st.rootsIndex().put(v, r);
+                    return v;
+                });
+                trie.put(b("k3"), b("v3"));
+                versions[1] = st.putRootWithRefcount(trie.getRootHash());
+                return null;
+            });
+            st.db().write(wo, wb);
+            assertArrayEquals(new long[]{1, 2}, versions);
+            assertNotNull(st.rootsIndex().get(1));
+            assertArrayEquals(trie.getRootHash(), st.rootsIndex().get(2));
+            assertEquals(2L, st.rootsIndex().lastVersion());
+        }
+    }
+
+    @Test
+    void rolledBackVersionNumberIsReused() throws Exception {
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("rollback-version").toString());
+             WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            long[] versions = new long[3];
+            st.nodeStore().withBatch(wb, () -> {
+                trie.put(b("k"), b("v"));
+                versions[0] = st.putRootWithRefcount(trie.getRootHash());
+                wb.setSavePoint();
+                trie.put(b("k2"), b("v2"));
+                versions[1] = st.putRootWithRefcount(trie.getRootHash());
+                wb.rollbackToSavePoint();
+                trie.put(b("k3"), b("v3"));
+                versions[2] = st.putRootWithRefcount(trie.getRootHash());
+                return null;
+            });
+            st.db().write(wo, wb);
+            assertArrayEquals(new long[]{0, 1, 1}, versions);
+            assertArrayEquals(trie.getRootHash(), st.rootsIndex().get(1));
+            assertEquals(1L, st.rootsIndex().lastVersion());
+        }
+    }
+
     private static long refcount(RocksDbNodeStore ns, byte[] hash) throws RocksDBException {
         byte[] v = ns.db().get(ns.nodesHandle(), ns.keyPrefixer().prefix(RefcountLedger.refKey(hash)));
         return v == null ? 0 : ByteBuffer.wrap(v).getLong();

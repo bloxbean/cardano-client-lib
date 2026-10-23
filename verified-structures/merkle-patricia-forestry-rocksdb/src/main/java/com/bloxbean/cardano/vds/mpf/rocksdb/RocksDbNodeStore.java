@@ -64,12 +64,12 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
     private final List<AutoCloseable> closeables;
     private static final ThreadLocal<WriteBatch> TL_BATCH = new ThreadLocal<>();
     private static final ThreadLocal<java.util.Map<String, byte[]>> TL_STAGED = new ThreadLocal<>();
-    // Per-batch state used by RocksDbStateTrees.putRootWithRefcount when it runs inside withBatch():
-    // the store that opened the batch and the last version number staged in it.
+    // Per-batch state used by RocksDbStateTrees.putRootWithRefcount when it runs inside withBatch(): the store that
+    // opened the batch, and the replayed view of the open batch for the owner's CF + namespace (refcounts and the
+    // staged last version), kept up to date by put/delete so putRootWithRefcount does not replay the whole batch on
+    // every call. The view is rebuilt from the batch itself whenever it is stale, so a batch shared by several
+    // sessions is described correctly.
     private static final ThreadLocal<RocksDbNodeStore> TL_OWNER = new ThreadLocal<>();
-    private static final ThreadLocal<long[]> TL_LAST_VERSION = new ThreadLocal<>();
-    // Replayed refcount view of the open batch for the owner's CF + namespace, kept up to date by put/delete so
-    // putRootWithRefcount does not replay the whole batch on every call.
     private static final ThreadLocal<RefcountLedger.BatchView> TL_VIEW = new ThreadLocal<>();
 
     public static final String CF_NODES = "nodes";
@@ -312,7 +312,6 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         TL_BATCH.set(batch);
         TL_STAGED.set(new java.util.HashMap<>());
         TL_OWNER.set(this);
-        TL_LAST_VERSION.set(new long[]{Long.MIN_VALUE});
         TL_VIEW.set(new RefcountLedger.BatchView(cfNodes.getID(), keyPrefixer.getNamespaceId()));
         try {
             return work.call();
@@ -322,7 +321,6 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             TL_BATCH.remove();
             TL_STAGED.remove();
             TL_OWNER.remove();
-            TL_LAST_VERSION.remove();
             TL_VIEW.remove();
         }
     }
@@ -341,11 +339,6 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         throw new IllegalStateException("A batch of a node store on another database, column family or namespace "
                 + "is open on this thread; record roots of this namespace outside that batch, or open the batch on a "
                 + "store of this namespace.");
-    }
-
-    /** Holder for the last version staged in the active batch; {@code Long.MIN_VALUE} when none. */
-    long[] activeBatchLastVersion() {
-        return activeBatch() != null ? TL_LAST_VERSION.get() : null;
     }
 
     /** Replay cache of the active batch for this store's CF + namespace, or {@code null} when none is open. */

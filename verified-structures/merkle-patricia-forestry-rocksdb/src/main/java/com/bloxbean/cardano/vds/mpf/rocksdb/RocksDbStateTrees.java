@@ -400,11 +400,15 @@ public final class RocksDbStateTrees implements StateTrees {
         WriteBatch activeBatch = nodeStore.activeBatch();
         if (activeBatch != null) {
             // Inside nodeStore.withBatch(...): stage everything in the open batch, reading staged nodes.
-            long[] stagedLast = nodeStore.activeBatchLastVersion();
-            long last = stagedLast[0] != Long.MIN_VALUE ? stagedLast[0] : rootsIndex.lastVersion();
-            long ver = last + 1;
             RefcountLedger.BatchView view = nodeStore.activeBatchView();
+            long ver;
             try {
+                // The batch may already stage versions (earlier sessions on the same batch, direct roots index
+                // writes); take the highest of those and the committed one.
+                Long staged = view.stagedLastVersion(activeBatch, nodeStore.keyPrefixer(), cfRoots.getID(),
+                        rootsIndex.prefixedLastVersionKey());
+                long committed = rootsIndex.lastVersion();
+                ver = (staged != null ? Math.max(staged, committed) : committed) + 1;
                 new RefcountLedger(db, nodeStore.nodesHandle(), nodeStore.keyPrefixer(), activeBatch, null,
                         nodeStore::get, view).increment(root);
             } catch (RocksDBException e) {
@@ -417,8 +421,10 @@ public final class RocksDbStateTrees implements StateTrees {
                 rootsIndex.put(ver, root);
                 return null;
             });
-            if (keepView) view.sync(activeBatch);
-            stagedLast[0] = ver;
+            if (keepView) {
+                view.recordLastVersion(ver);
+                view.sync(activeBatch);
+            }
             return ver;
         }
         try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
