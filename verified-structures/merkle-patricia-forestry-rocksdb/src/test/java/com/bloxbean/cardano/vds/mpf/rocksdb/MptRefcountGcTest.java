@@ -89,19 +89,34 @@ class MptRefcountGcTest {
     }
 
     @Test
-    void legacyIncrementAllInSameBatchFailsFast() {
+    void incrementAllInTheSameBatchAsTheNodesCountsTheWholeTrie() throws Exception {
         MpfTrie trie = new MpfTrie(st.nodeStore());
-        // The pre-fix pattern: nodes staged in the batch, incrementAll reading the database. It used to count only
-        // the root and later free live nodes; it now fails instead.
-        try (WriteBatch wb = new WriteBatch()) {
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> st.nodeStore().withBatch(wb, () -> {
-                trie.put(b("k1"), b("v1"));
+        // The pre-0.8.0 GcTool pattern: nodes staged in the batch and incrementAll into the same batch. It used to
+        // count only the root (and later free live nodes); the helper now replays the batch and counts every node.
+        try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            st.nodeStore().withBatch(wb, () -> {
+                for (int i = 0; i < 10; i++) trie.put(b("k" + i), b("v" + i));
+                st.rootsIndex().withBatch(wb, () -> {
+                    st.rootsIndex().put(st.rootsIndex().nextVersion(), trie.getRootHash());
+                    return null;
+                });
                 RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(),
                         trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
                 return null;
-            }));
-            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-            assertInstanceOf(IllegalStateException.class, cause);
+            });
+            st.db().write(wo, wb);
+        }
+        assertEquals(GcTestSupport.reach(st.nodeStore(), trie.getRootHash())[0], GcTestSupport.countRefcountKeys(st.nodeStore()));
+    }
+
+    @Test
+    void incrementAllFailsFastWhenTheRootIsNeitherCommittedNorStaged() {
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
+        trie.put(b("k1"), b("v1")); // nodes live in another store
+        try (WriteBatch wb = new WriteBatch()) {
+            assertThrows(IllegalStateException.class, () -> RefcountGcStrategy.incrementAll(st.db(),
+                    st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb,
+                    st.nodeStore().keyPrefixer()));
         }
     }
 

@@ -20,11 +20,13 @@ import java.util.*;
  * <p>A node's count is the number of recorded versions whose trie contains it. Counts live in the nodes column
  * family under {@code [namespace][0xF0][node hash]} as an 8-byte big-endian long.</p>
  *
- * <p>Every ledger that writes to the same {@link WriteBatch} instance for the same database, column family and
- * namespace shares one {@link State}: the counts staged so far and the nodes whose deletion is staged. So any mix
- * of increments and decrements staged in one batch sees each other (read-your-writes), and a node whose deletion
- * was staged by a decrement is written back when a later increment in the same batch counts it again. The state is
- * kept as long as the batch object is reachable; do not reuse a batch after writing it.</p>
+ * <p>When a ledger is created it replays the records currently in the batch ({@link WriteBatch#iterate}) for its
+ * column family and namespace, last write wins, and layers database reads under them. So it sees counts and node
+ * deletions staged by earlier calls into the same batch, and stays correct when the batch was cleared, rolled back
+ * to a save point, or written and reused. A node whose deletion is staged in the batch is written back when an
+ * increment counts it again. Nodes staged in the batch are read from it, so the
+ * trie nodes of a root may be staged in the same batch. Afterwards the ledger tracks its own writes in memory, so
+ * use one ledger for one operation (or one GC run) on a batch nobody else writes to meanwhile.</p>
  *
  * <p>Rules:</p>
  * <ul>
@@ -58,38 +60,7 @@ public final class RefcountLedger {
         boolean isProtected(byte[] hash) throws RocksDBException;
     }
 
-    /** Counts and node deletions staged in one batch for one database / column family / namespace. */
-    static final class State {
-        final Map<String, Long> counts = new HashMap<>();
-        final Set<String> pendingNodeDeletes = new HashSet<>();
-    }
-
-    private static final class Scope {
-        final RocksDB db;
-        final int cfId;
-        final byte namespace;
-
-        Scope(RocksDB db, int cfId, byte namespace) {
-            this.db = db;
-            this.cfId = cfId;
-            this.namespace = namespace;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!(o instanceof Scope)) return false;
-            Scope s = (Scope) o;
-            return s.db == db && s.cfId == cfId && s.namespace == namespace;
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * (31 * System.identityHashCode(db) + cfId) + namespace;
-        }
-    }
-
-    // WriteBatch does not override equals/hashCode, so this is keyed by batch identity; entries go away with the batch.
-    private static final Map<WriteBatch, Map<Scope, State>> STATES = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final byte[] TOMBSTONE = new byte[0]; // compared by identity
 
     private final RocksDB db;
     private final ColumnFamilyHandle cfNodes;
@@ -97,7 +68,8 @@ public final class RefcountLedger {
     private final WriteBatch batch;
     private final ReadOptions readOptions;
     private final NodeReader nodeReader;
-    private final State state;
+    /** Pending writes of this column family and namespace: prefixed key hex to value, or {@link #TOMBSTONE}. */
+    private final Map<String, byte[]> pending;
     private Protection protection;
     private long untracked;
     private long protectedNodes;
@@ -106,22 +78,53 @@ public final class RefcountLedger {
      * @param db          the database
      * @param cfNodes     the nodes column family (refcounts live there too)
      * @param keyPrefixer the namespace prefixer
-     * @param batch       the batch that receives refcount writes and node deletes
+     * @param batch       the batch that receives refcount writes and node deletes; its current records are replayed
      * @param readOptions options for reading counts (e.g. a snapshot), or {@code null}
      * @param nodeReader  how to read nodes while walking a trie
+     * @throws RocksDBException if the batch cannot be replayed
      */
     public RefcountLedger(RocksDB db, ColumnFamilyHandle cfNodes, KeyPrefixer keyPrefixer, WriteBatch batch,
-                          ReadOptions readOptions, NodeReader nodeReader) {
+                          ReadOptions readOptions, NodeReader nodeReader) throws RocksDBException {
         this.db = db;
         this.cfNodes = cfNodes;
         this.keyPrefixer = keyPrefixer;
         this.batch = batch;
         this.readOptions = readOptions;
         this.nodeReader = nodeReader;
-        Scope scope = new Scope(db, cfNodes.getID(), keyPrefixer.getNamespaceId());
-        synchronized (STATES) {
-            this.state = STATES.computeIfAbsent(batch, b -> new HashMap<>()).computeIfAbsent(scope, s -> new State());
+        this.pending = replay(batch, cfNodes.getID(), keyPrefixer);
+    }
+
+    /** Collects the puts and deletes the batch holds for one column family and namespace, last write wins. */
+    private static Map<String, byte[]> replay(WriteBatch batch, int cfId, KeyPrefixer keyPrefixer) throws RocksDBException {
+        Map<String, byte[]> out = new HashMap<>();
+        if (batch.count() == 0) return out;
+        try (WriteBatch.Handler handler = new WriteBatch.Handler() {
+            private void record(int cf, byte[] key, byte[] value) {
+                if (cf == cfId && keyPrefixer.hasCorrectPrefix(key)) out.put(HexUtil.encodeHexString(key), value);
+            }
+
+            @Override public void put(int cf, byte[] key, byte[] value) { record(cf, key, value); }
+            @Override public void put(byte[] key, byte[] value) { record(0, key, value); }
+            @Override public void delete(int cf, byte[] key) { record(cf, key, TOMBSTONE); }
+            @Override public void delete(byte[] key) { record(0, key, TOMBSTONE); }
+            @Override public void singleDelete(int cf, byte[] key) { record(cf, key, TOMBSTONE); }
+            @Override public void singleDelete(byte[] key) { record(0, key, TOMBSTONE); }
+            @Override public void merge(int cf, byte[] key, byte[] value) { }
+            @Override public void merge(byte[] key, byte[] value) { }
+            @Override public void deleteRange(int cf, byte[] begin, byte[] end) { }
+            @Override public void deleteRange(byte[] begin, byte[] end) { }
+            @Override public void logData(byte[] blob) { }
+            @Override public void putBlobIndex(int cf, byte[] key, byte[] value) { }
+            @Override public void markBeginPrepare() { }
+            @Override public void markEndPrepare(byte[] xid) { }
+            @Override public void markNoop(boolean emptyBatch) { }
+            @Override public void markRollback(byte[] xid) { }
+            @Override public void markCommit(byte[] xid) { }
+            @Override public void markCommitWithTimestamp(byte[] xid, byte[] ts) { }
+        }) {
+            batch.iterate(handler);
         }
+        return out;
     }
 
     /**
@@ -149,29 +152,53 @@ public final class RefcountLedger {
     }
 
     /**
-     * Returns the current count of a node, including counts staged in the same batch.
+     * Returns the current count of a node, including counts staged in the batch.
      *
      * @param hash the node hash
      * @return the count, 0 when untracked
      * @throws RocksDBException if the read fails
      */
     public long count(byte[] hash) throws RocksDBException {
-        Long staged = state.counts.get(HexUtil.encodeHexString(hash));
-        if (staged != null) return staged;
         byte[] key = keyPrefixer.prefix(refKey(hash));
-        byte[] v = readOptions != null ? db.get(cfNodes, readOptions, key) : db.get(cfNodes, key);
+        byte[] v = pending.get(HexUtil.encodeHexString(key));
+        if (v == null) v = readOptions != null ? db.get(cfNodes, readOptions, key) : db.get(cfNodes, key);
         if (v == null || v.length != 8) return 0L;
         return ByteBuffer.wrap(v).getLong();
     }
 
     private void setCount(byte[] hash, long value) throws RocksDBException {
-        state.counts.put(HexUtil.encodeHexString(hash), value);
         byte[] key = keyPrefixer.prefix(refKey(hash));
         if (value <= 0) {
             batch.delete(cfNodes, key);
+            pending.put(HexUtil.encodeHexString(key), TOMBSTONE);
         } else {
-            batch.put(cfNodes, key, ByteBuffer.allocate(8).putLong(value).array());
+            byte[] v = ByteBuffer.allocate(8).putLong(value).array();
+            batch.put(cfNodes, key, v);
+            pending.put(HexUtil.encodeHexString(key), v);
         }
+    }
+
+    /** Reads a node, preferring a put staged in the batch over the node reader. */
+    private byte[] readNode(byte[] hash) throws RocksDBException {
+        byte[] staged = pending.get(HexUtil.encodeHexString(keyPrefixer.prefix(hash)));
+        if (staged != null && staged != TOMBSTONE) return staged;
+        return nodeReader.read(hash); // also for staged deletions: the committed bytes are needed to restore it
+    }
+
+    private boolean nodeDeletionPending(byte[] hash) {
+        return pending.get(HexUtil.encodeHexString(keyPrefixer.prefix(hash))) == TOMBSTONE;
+    }
+
+    private void deleteNode(byte[] hash) throws RocksDBException {
+        byte[] key = keyPrefixer.prefix(hash);
+        batch.delete(cfNodes, key);
+        pending.put(HexUtil.encodeHexString(key), TOMBSTONE);
+    }
+
+    private void restoreNode(byte[] hash, byte[] enc) throws RocksDBException {
+        byte[] key = keyPrefixer.prefix(hash);
+        batch.put(cfNodes, key, enc);
+        pending.put(HexUtil.encodeHexString(key), enc);
     }
 
     /**
@@ -184,7 +211,7 @@ public final class RefcountLedger {
      */
     public long increment(byte[] root) throws RocksDBException {
         if (root == null || root.length == 0 || GcRoots.isZeroRoot(root)) return 0;
-        if (nodeReader.read(root) == null) {
+        if (readNode(root) == null) {
             throw new IllegalStateException("Root node " + HexUtil.encodeHexString(root) + " is not in the store. "
                     + "Commit the trie nodes (or call this inside the same nodeStore.withBatch / RocksDbMptSession.write "
                     + "that stages them, through RocksDbStateTrees.putRootWithRefcount) before recording refcounts.");
@@ -196,16 +223,14 @@ public final class RefcountLedger {
         queue.add(root);
         while (!queue.isEmpty()) {
             byte[] h = queue.removeFirst();
-            String hex = HexUtil.encodeHexString(h);
-            if (!seen.add(hex)) continue;
-            byte[] enc = nodeReader.read(h);
+            if (!seen.add(HexUtil.encodeHexString(h))) continue;
+            byte[] enc = readNode(h);
             if (enc == null) {
                 missing++;
                 continue;
             }
-            if (state.pendingNodeDeletes.remove(hex)) {
-                // A decrement earlier in this batch staged its deletion; it is live again.
-                batch.put(cfNodes, keyPrefixer.prefix(h), enc);
+            if (nodeDeletionPending(h)) {
+                restoreNode(h, enc); // a decrement staged its deletion in this batch; it is live again
             }
             setCount(h, count(h) + 1);
             touched++;
@@ -234,21 +259,19 @@ public final class RefcountLedger {
         queue.add(root);
         while (!queue.isEmpty()) {
             byte[] h = queue.removeFirst();
-            String hex = HexUtil.encodeHexString(h);
-            if (!seen.add(hex)) continue;
+            if (!seen.add(HexUtil.encodeHexString(h))) continue;
             long cnt = count(h);
             if (cnt <= 0) {
                 untracked++;
                 continue; // never counted: leave it and its subtree alone
             }
-            byte[] enc = nodeReader.read(h);
+            byte[] enc = readNode(h);
             if (cnt == 1) {
                 if (protection != null && protection.isProtected(h)) {
                     protectedNodes++; // still reachable from a kept root: keep it and its count (a leak at worst)
                 } else {
                     setCount(h, 0);
-                    batch.delete(cfNodes, keyPrefixer.prefix(h));
-                    state.pendingNodeDeletes.add(hex);
+                    deleteNode(h);
                     deleted++;
                 }
             } else {

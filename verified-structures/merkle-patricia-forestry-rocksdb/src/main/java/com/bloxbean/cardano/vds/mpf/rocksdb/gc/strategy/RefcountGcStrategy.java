@@ -121,12 +121,13 @@ public class RefcountGcStrategy implements GcStrategy {
     /**
      * Adds one to the refcount of every node reachable from {@code root}, staged into {@code wb}.
      *
-     * <p>Counts already staged into the same {@code wb} by other helper calls (or by
-     * {@code RocksDbStateTrees.putRootWithRefcount} inside a batch) are taken into account, and a node whose
-     * deletion an earlier {@code decrementAll} staged in {@code wb} is written back. Nodes are read from the
-     * database, so the trie nodes must already be committed. Prefer
-     * {@code RocksDbStateTrees.putRootWithRefcount(root)}, which also works inside
-     * {@code nodeStore.withBatch(...)} / {@code RocksDbMptSession.write(...)} where the nodes are only staged.</p>
+     * <p>The records currently in {@code wb} are replayed first: counts and nodes staged there (by earlier helper
+     * calls, by {@code RocksDbStateTrees.putRootWithRefcount} inside a batch, or by trie writes inside
+     * {@code nodeStore.withBatch(...)}) are taken into account, and a node whose deletion an earlier
+     * {@code decrementAll} staged in {@code wb} is written back. Pass a fresh batch, or a batch whose current
+     * contents are what will be written; clearing it, rolling it back to a save point or reusing it after
+     * {@code db.write} is fine. Do not let another thread write to {@code wb} during the call. The root node must be
+     * committed or staged in {@code wb}. Prefer {@code RocksDbStateTrees.putRootWithRefcount(root)}.</p>
      *
      * @param db          the RocksDB instance
      * @param cfNodes     the column family handle for nodes
@@ -135,7 +136,7 @@ public class RefcountGcStrategy implements GcStrategy {
      * @param wb          the write batch for atomic operations
      * @param keyPrefixer the key prefixer for namespace support
      * @return the number of nodes processed
-     * @throws IllegalStateException if the root node is not committed
+     * @throws IllegalStateException if the root node is neither committed nor staged in {@code wb}
      * @throws RocksDBException      if a database operation fails
      */
     public static long incrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, KeyPrefixer keyPrefixer) throws RocksDBException {
@@ -145,9 +146,9 @@ public class RefcountGcStrategy implements GcStrategy {
 
     /**
      * Subtracts one from the refcount of every tracked node reachable from {@code root} and deletes the nodes
-     * whose count goes from 1 to 0. Untracked nodes are skipped together with their subtrees. Counts staged into
-     * the same {@code wb} by other helper calls are taken into account. Unlike {@link #run}, this does not know
-     * the retained roots and cannot protect their nodes: it trusts the counts.
+     * whose count goes from 1 to 0. Untracked nodes are skipped together with their subtrees. The records
+     * currently in {@code wb} are replayed first (see {@link #incrementAll}), so the same batch rules apply. Unlike
+     * {@link #run}, this does not know the retained roots and cannot protect their nodes: it trusts the counts.
      *
      * @param db          the RocksDB instance
      * @param cfNodes     the column family handle for nodes

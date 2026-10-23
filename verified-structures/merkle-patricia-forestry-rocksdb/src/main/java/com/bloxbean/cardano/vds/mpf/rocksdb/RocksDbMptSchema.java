@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.vds.mpf.rocksdb;
 
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 
 /**
@@ -30,11 +31,15 @@ final class RocksDbMptSchema {
             ? ""
             : opts.columnFamilyPrefix() + "_";
 
-        return new ColumnFamilies(
-                cfPrefix + CF_NODES,
-                cfPrefix + CF_ROOTS,
-                opts.keyPrefix()  // Always present!
-        );
+        String nodes = cfPrefix + CF_NODES;
+        String roots = cfPrefix + CF_ROOTS;
+        // GC drops leftover mark-set column families by name on open; a namespace must never look like one.
+        if (opts.columnFamilyPrefix().startsWith("__vds_gc_")
+                || DiskMarkSet.isMarkSetColumnFamily(nodes) || DiskMarkSet.isMarkSetColumnFamily(roots)) {
+            throw new IllegalArgumentException("Column family prefix '" + opts.columnFamilyPrefix()
+                    + "' is reserved for GC temporary column families");
+        }
+        return new ColumnFamilies(nodes, roots, opts.keyPrefix());
     }
 
 

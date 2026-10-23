@@ -2,6 +2,11 @@ package com.bloxbean.cardano.vds.mpf.rocksdb.gc;
 
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbRootsIndex;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
+import org.rocksdb.ColumnFamilyHandle;
+import org.rocksdb.RocksDB;
+
+import java.util.List;
 
 /**
  * Manager for garbage collection operations on RocksDB-backed Merkle Patricia Tries.
@@ -53,6 +58,23 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbRootsIndex;
 public final class GcManager {
     private final RocksDbNodeStore nodeStore;
     private final RocksDbRootsIndex rootsIndex;
+
+    /**
+     * Drops temporary GC column families left behind by a GC run that crashed (names
+     * {@code __vds_gc_marks_<digits>}, or {@code marks_<digits>} from 0.8.0-pre6).
+     *
+     * <p>{@code RocksDbStateTrees}, {@code RocksDbNodeStore(String..)} and {@code RocksDbRootsIndex(String..)} do this
+     * themselves. A caller that opens the {@code RocksDB} itself must open every existing column family (list them
+     * with {@code RocksDB.listColumnFamilies}; RocksDB refuses to open a database without all of them) and should
+     * then call this before running GC.</p>
+     *
+     * @param db      the freshly opened database, with no GC running on it
+     * @param handles the handles returned by {@code RocksDB.open}; dropped handles are closed and removed
+     * @return the number of column families dropped
+     */
+    public static int dropLeftoverGcColumnFamilies(RocksDB db, List<ColumnFamilyHandle> handles) {
+        return DiskMarkSet.dropStale(db, handles, List.of());
+    }
 
     /**
      * Creates a new GcManager for the specified storage components.

@@ -121,7 +121,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
             this.options = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
             this.db = RocksDB.open(this.options, dbPath, cfDescriptors, cfHandles);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
-            DiskMarkSet.dropStale(db, cfHandles); // temporary GC column families left by a crashed run
+            DiskMarkSet.dropStale(db, cfHandles, java.util.List.of(cfRoots)); // GC leftovers of a crashed run
             this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.closeables = new java.util.ArrayList<>();
             this.closeables.add(columnFamilyOptions);

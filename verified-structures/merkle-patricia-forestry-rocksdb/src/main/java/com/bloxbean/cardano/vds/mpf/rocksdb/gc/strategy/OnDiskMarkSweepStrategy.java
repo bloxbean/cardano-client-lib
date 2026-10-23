@@ -15,7 +15,8 @@ import org.rocksdb.*;
 import java.util.*;
 
 /**
- * Low-memory mark-and-sweep GC: persists the mark set in a temporary column family ("marks").
+ * Low-memory mark-and-sweep GC: persists the mark set in a temporary column family
+ * ({@code __vds_gc_marks_<nanoTime>}, see {@code gc.internal.DiskMarkSet}).
  *
  * <ol>
  *   <li>With {@link GcOptions#useSnapshot} (the default) a snapshot is taken first.</li>
@@ -25,7 +26,7 @@ import java.util.*;
  *   <li>Sweep: the node keys of <em>this namespace only</em> are scanned (through the snapshot when there is
  *       one), and every unmarked node is deleted together with its refcount entry, if any. Refcount entries of
  *       kept nodes and any other keys are left alone.</li>
- *   <li>The temporary column family is dropped. Leftovers of crashed runs ({@code marks_*}) are dropped the next
+ *   <li>The temporary column family is dropped. Leftovers of crashed runs ({@code __vds_gc_marks_<digits>}) are dropped the next
  *       time the database is opened by {@code RocksDbStateTrees}, {@code RocksDbNodeStore(String..)} or
  *       {@code RocksDbRootsIndex(String..)}.</li>
  * </ol>
@@ -36,7 +37,7 @@ import java.util.*;
  * versions that are not retained stay listed, but their tries may no longer be readable.</p>
  */
 public class OnDiskMarkSweepStrategy implements GcStrategy {
-    public static final String CF_MARKS = "marks"; // base name; actual CF uses a unique suffix per run
+    public static final String CF_MARKS = "marks"; // legacy constant; the mark set CF is named by DiskMarkSet.CF_PREFIX
 
     /** Digest length assumed when there is no retained root to infer it from. */
     private static final int DEFAULT_DIGEST_LENGTH = 32;

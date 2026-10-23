@@ -18,14 +18,19 @@ import java.util.List;
  * Set of node hashes kept in a temporary column family, so marking large tries does not need memory.
  *
  * <p>The column family is named {@value #CF_PREFIX}{@code <nanoTime>} and dropped by {@link #close()}. A run that
- * crashes leaves it behind; {@link #dropStale(RocksDB, List)} removes such leftovers when a database is opened.</p>
+ * crashes leaves it behind; {@link #dropStale(RocksDB, List, Collection)} removes such leftovers when a database is
+ * opened. Only names matching exactly {@code __vds_gc_marks_<digits>}, or the 0.8.0-pre6 name {@code marks_<digits>},
+ * are treated as leftovers, so application column families are never touched.</p>
  *
  * <p>Internal API: it may change without notice.</p>
  */
 public final class DiskMarkSet implements AutoCloseable {
 
     /** Name prefix of the temporary column families. */
-    public static final String CF_PREFIX = "marks_";
+    public static final String CF_PREFIX = "__vds_gc_marks_";
+
+    private static final java.util.regex.Pattern CURRENT_NAME = java.util.regex.Pattern.compile("__vds_gc_marks_[0-9]+");
+    private static final java.util.regex.Pattern LEGACY_NAME = java.util.regex.Pattern.compile("marks_[0-9]+");
 
     private static final byte[] ONE = new byte[]{1};
 
@@ -111,32 +116,50 @@ public final class DiskMarkSet implements AutoCloseable {
     }
 
     /**
-     * Returns whether a column family name is a mark-set column family.
+     * Returns whether a column family name is a mark-set column family: exactly {@code __vds_gc_marks_<digits>}, or
+     * {@code marks_<digits>} as created by 0.8.0-pre6.
      *
      * @param cfName the column family name
-     * @return {@code true} for names starting with {@value #CF_PREFIX}
+     * @return {@code true} for a mark-set name
      */
     public static boolean isMarkSetColumnFamily(byte[] cfName) {
-        return new String(cfName, StandardCharsets.UTF_8).startsWith(CF_PREFIX);
+        return isMarkSetColumnFamily(new String(cfName, StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Same as {@link #isMarkSetColumnFamily(byte[])} for a name given as a string.
+     *
+     * @param cfName the column family name
+     * @return {@code true} for a mark-set name
+     */
+    public static boolean isMarkSetColumnFamily(String cfName) {
+        return CURRENT_NAME.matcher(cfName).matches() || LEGACY_NAME.matcher(cfName).matches();
     }
 
     /**
      * Drops mark-set column families left behind by crashed GC runs. Call only right after opening the database,
-     * before any GC can run on it. Handles of dropped column families are closed and removed from {@code handles}.
+     * before any GC can run on it. Handles of dropped column families are closed and removed from {@code handles};
+     * handles in {@code keep} (e.g. the column families a store resolved for itself) are never dropped.
      *
      * @param db      the freshly opened database
      * @param handles the handles returned by {@code RocksDB.open}
+     * @param keep    handles that must not be dropped, compared by identity; may be empty
+     * @return the number of column families dropped
      */
-    public static void dropStale(RocksDB db, List<ColumnFamilyHandle> handles) {
+    public static int dropStale(RocksDB db, List<ColumnFamilyHandle> handles, Collection<ColumnFamilyHandle> keep) {
+        int[] dropped = {0};
         handles.removeIf(h -> {
+            for (ColumnFamilyHandle k : keep) if (k == h) return false;
             try {
                 if (!isMarkSetColumnFamily(h.getName())) return false;
                 db.dropColumnFamily(h);
                 h.close();
+                dropped[0]++;
                 return true;
             } catch (RocksDBException e) {
                 return false; // leave it; it is only wasted space
             }
         });
+        return dropped[0];
     }
 }

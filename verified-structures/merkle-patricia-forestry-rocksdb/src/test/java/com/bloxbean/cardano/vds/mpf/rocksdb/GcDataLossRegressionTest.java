@@ -670,4 +670,232 @@ class GcDataLossRegressionTest {
             }
         }
     }
+    // ---------------------------------------------------------------- round 2: column family names
+
+    private static List<String> columnFamilies(String path) throws RocksDBException {
+        List<String> names = new ArrayList<>();
+        try (org.rocksdb.Options o = new org.rocksdb.Options()) {
+            for (byte[] n : RocksDB.listColumnFamilies(o, path)) names.add(new String(n, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        return names;
+    }
+
+    @Test
+    void applicationColumnFamilyStartingWithMarksIsKeptOnOpen() throws Exception {
+        // Review R1: a user CF "marks_audit" used to be dropped (with its data) by the leftover cleanup.
+        RocksDB.loadLibrary();
+        String path = tmp.resolve("r1").toString();
+        List<ColumnFamilyDescriptor> d = new ArrayList<>(List.of(new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY),
+                new ColumnFamilyDescriptor("marks_audit".getBytes())));
+        List<ColumnFamilyHandle> hs = new ArrayList<>();
+        try (org.rocksdb.DBOptions o = new org.rocksdb.DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
+             RocksDB db = RocksDB.open(o, path, d, hs)) {
+            db.put(hs.get(1), b("x"), b("app data"));
+            for (ColumnFamilyHandle h : hs) h.close();
+        }
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            assertNotNull(st.nodeStore());
+        }
+        assertTrue(columnFamilies(path).contains("marks_audit"));
+        List<ColumnFamilyDescriptor> all = new ArrayList<>();
+        for (String n : columnFamilies(path)) all.add(new ColumnFamilyDescriptor(n.getBytes()));
+        hs.clear();
+        try (org.rocksdb.DBOptions o = new org.rocksdb.DBOptions(); RocksDB db = RocksDB.open(o, path, all, hs)) {
+            int idx = columnFamilies(path).indexOf("marks_audit");
+            assertArrayEquals(b("app data"), db.get(hs.get(idx), b("x")));
+            for (ColumnFamilyHandle h : hs) h.close();
+        }
+    }
+
+    @Test
+    void namespaceWithColumnFamilyPrefixMarksSurvivesReopen() throws Exception {
+        // Review R1b: NamespaceOptions.columnFamily("marks") gives marks_nodes / marks_roots, which used to be dropped
+        // right after open (crash in validateAndPersistStorageMode, data loss on reopen).
+        String path = tmp.resolve("r1b").toString();
+        NamespaceOptions ns = NamespaceOptions.columnFamily("marks");
+        byte[] root;
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path, ns, StorageMode.MULTI_VERSION)) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            RocksDbMptSession.of(st).write(() -> {
+                trie.put(b("a"), b("1"));
+                st.putRootWithRefcount(trie.getRootHash());
+            });
+            root = trie.getRootHash();
+        }
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path, ns, StorageMode.MULTI_VERSION)) {
+            assertArrayEquals(root, st.rootsIndex().latest());
+            Map<String, byte[]> model = new LinkedHashMap<>();
+            model.put(hex("a"), b("1"));
+            assertIntact(st.nodeStore(), root, model, "marks_ namespace after reopen");
+        }
+        assertTrue(columnFamilies(path).containsAll(List.of("marks_nodes", "marks_roots")));
+    }
+
+    @Test
+    void legacyMarkColumnFamiliesFromPre6AreStillDropped() throws Exception {
+        String path = tmp.resolve("legacy-marks").toString();
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            st.db().createColumnFamily(new ColumnFamilyDescriptor("marks_98765".getBytes())).close();
+        }
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            assertNotNull(st.nodeStore());
+        }
+        assertFalse(columnFamilies(path).contains("marks_98765"));
+    }
+
+    @Test
+    void reservedColumnFamilyPrefixIsRejected() {
+        String path = tmp.resolve("reserved").toString();
+        assertThrows(IllegalArgumentException.class,
+                () -> new RocksDbStateTrees(path, NamespaceOptions.columnFamily("__vds_gc_marks_1")));
+    }
+
+    @Test
+    void callerManagedDatabaseCanCleanUpLeftovers() throws Exception {
+        // Review R4: a crashed refcount GC leaves a temporary CF; a caller that opens RocksDB itself must open all
+        // column families (listColumnFamilies) and can then drop the leftovers.
+        RocksDB.loadLibrary();
+        String path = tmp.resolve("caller").toString();
+        List<ColumnFamilyHandle> hs = new ArrayList<>();
+        try (org.rocksdb.DBOptions o = new org.rocksdb.DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
+             RocksDB db = RocksDB.open(o, path, List.of(new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY),
+                     new ColumnFamilyDescriptor("n".getBytes())), hs)) {
+            db.createColumnFamily(new ColumnFamilyDescriptor((DiskMarkSet.CF_PREFIX + "42").getBytes())).close();
+            for (ColumnFamilyHandle h : hs) h.close();
+        }
+        List<ColumnFamilyDescriptor> all = new ArrayList<>();
+        for (String n : columnFamilies(path)) all.add(new ColumnFamilyDescriptor(n.getBytes()));
+        hs.clear();
+        try (org.rocksdb.DBOptions o = new org.rocksdb.DBOptions(); RocksDB db = RocksDB.open(o, path, all, hs)) {
+            assertEquals(1, GcManager.dropLeftoverGcColumnFamilies(db, hs));
+            assertEquals(2, hs.size());
+            for (ColumnFamilyHandle h : hs) h.close();
+        }
+        assertEquals(List.of("default", "n"), columnFamilies(path));
+    }
+
+    // ---------------------------------------------------------------- round 2: static helpers and batch reuse
+
+    @Test
+    void staticHelpersWithABatchReusedAfterWriteAndClear() throws Exception {
+        // Review R6: incrementAll(r1, wb); write; clear; r2 counted elsewhere; decrementAll(r1, wb) used stale counts.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("r6").toString())) {
+            RocksDB db = st.db();
+            ColumnFamilyHandle cf = st.nodeStore().nodesHandle();
+            KeyPrefixer kp = st.nodeStore().keyPrefixer();
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            for (int i = 0; i < 20; i++) trie.put(b("k" + i), b("v" + i));
+            byte[] r1 = trie.getRootHash();
+            Map<String, byte[]> m2 = new LinkedHashMap<>();
+            for (int i = 0; i < 20; i++) m2.put(hex("k" + i), b("v" + i));
+            trie.put(b("k1"), b("changed"));
+            m2.put(hex("k1"), b("changed"));
+            byte[] r2 = trie.getRootHash();
+            try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+                RefcountGcStrategy.incrementAll(db, cf, cf, r1, wb, kp);
+                db.write(wo, wb);
+                wb.clear();
+                try (WriteBatch other = new WriteBatch()) {
+                    RefcountGcStrategy.incrementAll(db, cf, cf, r2, other, kp);
+                    db.write(wo, other);
+                }
+                RefcountGcStrategy.decrementAll(db, cf, cf, r1, wb, kp);
+                db.write(wo, wb);
+            }
+            assertIntact(st.nodeStore(), r2, m2, "r2");
+            assertEquals(reach(st.nodeStore(), r2)[0], countRefcountKeys(st.nodeStore()));
+        }
+    }
+
+    /** Root R recorded twice (count 2 on every node); returns R and fills its model. */
+    private static byte[] rootCountedTwice(RocksDbStateTrees st, Map<String, byte[]> model) {
+        MpfTrie trie = new MpfTrie(st.nodeStore());
+        for (int i = 0; i < 12; i++) {
+            trie.put(b("k" + i), b("v" + i));
+            model.put(hex("k" + i), b("v" + i));
+        }
+        st.putRootWithRefcount(trie.getRootHash());
+        st.putRootWithRefcount(trie.getRootHash());
+        return trie.getRootHash();
+    }
+
+    @Test
+    void staticDecrementAfterClearingTheBatchBeforeItsFirstCommit() throws Exception {
+        // Codex round 2: decrementAll(R, wb); wb.clear(); decrementAll(R, wb) once; commit -> R must keep count 1.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("clear").toString())) {
+            Map<String, byte[]> model = new LinkedHashMap<>();
+            byte[] r = rootCountedTwice(st, model);
+            RocksDbNodeStore ns = st.nodeStore();
+            try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+                RefcountGcStrategy.decrementAll(st.db(), ns.nodesHandle(), ns.nodesHandle(), r, wb, ns.keyPrefixer());
+                wb.clear();
+                RefcountGcStrategy.decrementAll(st.db(), ns.nodesHandle(), ns.nodesHandle(), r, wb, ns.keyPrefixer());
+                st.db().write(wo, wb);
+            }
+            assertIntact(ns, r, model, "R after one effective decrement");
+            assertEquals(reach(ns, r)[0], countRefcountKeys(ns));
+        }
+    }
+
+    @Test
+    void staticDecrementAfterRollingBackToASavePoint() throws Exception {
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("savepoint").toString())) {
+            Map<String, byte[]> model = new LinkedHashMap<>();
+            byte[] r = rootCountedTwice(st, model);
+            RocksDbNodeStore ns = st.nodeStore();
+            try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+                wb.setSavePoint();
+                RefcountGcStrategy.decrementAll(st.db(), ns.nodesHandle(), ns.nodesHandle(), r, wb, ns.keyPrefixer());
+                wb.rollbackToSavePoint();
+                RefcountGcStrategy.decrementAll(st.db(), ns.nodesHandle(), ns.nodesHandle(), r, wb, ns.keyPrefixer());
+                st.db().write(wo, wb);
+            }
+            assertIntact(ns, r, model, "R after one effective decrement");
+            assertEquals(reach(ns, r)[0], countRefcountKeys(ns));
+        }
+    }
+
+    // ---------------------------------------------------------------- round 2: larger store, repeated GC
+
+    @Test
+    void largerStoreRepeatedRefcountGcThenMarkSweepKeepsRetainedVersions() throws Exception {
+        // Review R3 (scaled down): 20k keys over 20 versions, then updates with refcount GC each version, then
+        // mark-sweep. The last 5 versions must stay intact and consistent counts never need protection.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("r3").toString())) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            Random rnd = new Random(1);
+            Map<String, byte[]> model = new HashMap<>();
+            Deque<Map<String, byte[]>> recent = new ArrayDeque<>();
+            Deque<Long> recentVersions = new ArrayDeque<>();
+            GcManager gm = new GcManager(st.nodeStore(), st.rootsIndex());
+            for (int v = 0; v < 40; v++) {
+                final int vv = v;
+                long ver = RocksDbMptSession.of(st).write(() -> {
+                    for (int i = 0; i < (vv < 20 ? 1000 : 100); i++) {
+                        String k = vv < 20 ? "key-" + (vv * 1000 + i) : "key-" + rnd.nextInt(20_000);
+                        byte[] val = b("val-" + vv + "-" + i);
+                        trie.put(b(k), val);
+                        model.put(hex(k), val);
+                    }
+                    return st.putRootWithRefcount(trie.getRootHash());
+                });
+                recent.addLast(new HashMap<>(model));
+                recentVersions.addLast(ver);
+                if (recent.size() > 5) {
+                    recent.removeFirst();
+                    recentVersions.removeFirst();
+                }
+                if (v >= 20) {
+                    GcReport r = gm.runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(5), new GcOptions());
+                    assertEquals(0, r.protectedNodes, "consistent counts must never need protection");
+                }
+            }
+            gm.runSync(new OnDiskMarkSweepStrategy(), RetentionPolicy.keepLatestN(5), new GcOptions());
+            Iterator<Long> vs = recentVersions.iterator();
+            for (Map<String, byte[]> m : recent) {
+                long v = vs.next();
+                assertIntact(st.nodeStore(), st.rootsIndex().get(v), m, "v" + v);
+            }
+        }
+    }
 }

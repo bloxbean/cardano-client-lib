@@ -127,7 +127,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             this.options = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
             this.db = RocksDB.open(this.options, dbPath, cfDescriptors, cfHandles);
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
-            DiskMarkSet.dropStale(db, cfHandles); // temporary GC column families left by a crashed run
+            DiskMarkSet.dropStale(db, cfHandles, java.util.List.of(cfNodes)); // GC leftovers of a crashed run
             this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.closeables = new java.util.ArrayList<>();
             this.closeables.add(columnFamilyOptions);

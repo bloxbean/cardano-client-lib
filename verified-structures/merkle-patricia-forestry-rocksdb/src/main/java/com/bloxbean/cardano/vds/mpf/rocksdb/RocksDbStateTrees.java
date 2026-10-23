@@ -242,7 +242,7 @@ public final class RocksDbStateTrees implements StateTrees {
             this.db = localDb;
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
-            DiskMarkSet.dropStale(localDb, cfHandles); // temporary GC column families left by a crashed run
+            DiskMarkSet.dropStale(localDb, cfHandles, java.util.List.of(cfNodes, cfRoots)); // GC leftovers of a crashed run
 
             this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.nodeStore = new RocksDbNodeStore(db, cfNodes, keyPrefixer);
