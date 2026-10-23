@@ -65,40 +65,115 @@ public final class RefcountLedger {
     private static final java.util.concurrent.atomic.AtomicLong FULL_REPLAYS = new java.util.concurrent.atomic.AtomicLong();
 
     /**
-     * Replayed view of one batch for one column family and namespace: the pending state per key and the latest bytes
-     * put per key. A view can be kept for a whole batch session (see {@code RocksDbNodeStore.withBatch}) and updated
-     * by every writer that knows it; it remembers the batch's record count and data size it last saw and is rebuilt
-     * by a full replay whenever they no longer match (raw writes, {@code clear()}, {@code rollbackToSavePoint()}).
+     * Replayed view of one batch for one column family and namespace: the pending state per key, the latest bytes
+     * put per key, and the latest value put for the roots index's last-version key of the namespace in each column
+     * family.
+     *
+     * <p>A view kept for a whole batch session (see {@code RocksDbNodeStore.withBatch}) is updated by the writers
+     * that know it ({@link #recordPut}, {@link #recordDelete}, the ledger) and remembers the batch's record count and
+     * data size after the last write it reflects. Staleness is sticky: as soon as a check finds another count or size
+     * (a raw write, {@code clear()}, {@code rollbackToSavePoint()}), or another writer of the batch calls
+     * {@link #markSessionStale}, the view stays stale until it is replayed again, even if the batch later returns to
+     * the same count and size. Every writer of this library that writes into a session batch without updating the
+     * view marks it stale (the roots index, the static refcount helpers), so only raw writes that refill a cleared or
+     * rolled-back batch to exactly the last count and size, with no store call in between, go unnoticed.</p>
      */
     public static final class BatchView {
+        private static final ThreadLocal<WriteBatch> SESSION_BATCH = new ThreadLocal<>();
+        private static final ThreadLocal<BatchView> SESSION_VIEW = new ThreadLocal<>();
+
         private final int cfId;
         private final byte namespace;
+        private final byte[] versionKey; // [namespace] + last-version key suffix, or null
         private final Map<String, byte[]> pending = new HashMap<>();
         private final Map<String, byte[]> lastPut = new HashMap<>();
+        private final Map<Integer, byte[]> stagedVersions = new HashMap<>(); // cf id -> value, or TOMBSTONE
         private int seenCount = -1;
         private long seenDataSize = -1;
-        // Optionally also the latest value the batch holds for one more key: the roots index's last-version key.
-        private int versionCfId = -1;
-        private byte[] versionKey;
-        private final byte[][] stagedVersion = new byte[1][]; // null: not in the batch, TOMBSTONE: deleted
+        private boolean stale = true;
 
         /**
          * @param cfId      the nodes column family id
          * @param namespace the namespace byte
          */
         public BatchView(int cfId, byte namespace) {
-            this.cfId = cfId;
-            this.namespace = namespace;
+            this(cfId, namespace, null);
         }
 
         /**
-         * Returns whether the view still describes {@code batch} (same record count and data size as last seen).
+         * @param cfId                  the nodes column family id
+         * @param namespace             the namespace byte
+         * @param lastVersionKeySuffix  the roots index's last-version key without the namespace byte, or
+         *                              {@code null} to not track staged versions
+         */
+        public BatchView(int cfId, byte namespace, byte[] lastVersionKeySuffix) {
+            this.cfId = cfId;
+            this.namespace = namespace;
+            if (lastVersionKeySuffix == null) {
+                this.versionKey = null;
+            } else {
+                this.versionKey = new byte[lastVersionKeySuffix.length + 1];
+                this.versionKey[0] = namespace;
+                System.arraycopy(lastVersionKeySuffix, 0, this.versionKey, 1, lastVersionKeySuffix.length);
+            }
+        }
+
+        /**
+         * Registers {@code view} as the view of the batch session open on this thread.
+         *
+         * @param batch the session batch
+         * @param view  its view
+         */
+        public static void openSession(WriteBatch batch, BatchView view) {
+            SESSION_BATCH.set(batch);
+            SESSION_VIEW.set(view);
+        }
+
+        /** Ends the batch session open on this thread. */
+        public static void closeSession() {
+            SESSION_BATCH.remove();
+            SESSION_VIEW.remove();
+        }
+
+        /**
+         * Marks the view of the session open on this thread stale if {@code batch} is its batch. Writers that write
+         * into a batch without updating the session view call this before writing.
+         *
+         * @param batch the batch about to be written
+         */
+        public static void markSessionStale(WriteBatch batch) {
+            if (batch != null && SESSION_BATCH.get() == batch) {
+                BatchView view = SESSION_VIEW.get();
+                if (view != null) view.stale = true;
+            }
+        }
+
+        /**
+         * Returns whether the view describes {@code batch}: it is not stale and the batch still has the record count
+         * and data size of the last {@link #sync}. A mismatch makes the view stale until the next replay.
          *
          * @param batch the batch
-         * @return {@code true} if no unknown write happened since the last sync
+         * @return {@code true} if the view is current
          */
         public boolean isCurrent(WriteBatch batch) {
-            return seenCount == batch.count() && seenDataSize == batch.getDataSize();
+            if (!stale && (seenCount != batch.count() || seenDataSize != batch.getDataSize())) stale = true;
+            return !stale;
+        }
+
+        /**
+         * Replays the batch if the view is not current.
+         *
+         * @param batch       the batch
+         * @param keyPrefixer the namespace prefixer of the view
+         * @throws RocksDBException if the batch cannot be replayed
+         */
+        public void ensureCurrent(WriteBatch batch, KeyPrefixer keyPrefixer) throws RocksDBException {
+            if (!isCurrent(batch)) rebuild(batch, keyPrefixer);
+        }
+
+        /** Makes the view stale: the next use replays the batch. */
+        public void markStale() {
+            stale = true;
         }
 
         /**
@@ -110,6 +185,17 @@ public final class RefcountLedger {
         public void sync(WriteBatch batch) {
             seenCount = batch.count();
             seenDataSize = batch.getDataSize();
+        }
+
+        /**
+         * Like {@link #sync}, also clearing staleness. Call only after writes this view reflects (or that cannot
+         * matter to it), made right after the view was current, with no other write in between.
+         *
+         * @param batch the batch
+         */
+        public void resume(WriteBatch batch) {
+            sync(batch);
+            stale = false;
         }
 
         /**
@@ -138,48 +224,48 @@ public final class RefcountLedger {
         }
 
         /**
-         * Returns the last version the batch stages for the roots index, i.e. the latest put of
-         * {@code prefixedVersionKey} in column family {@code rootsCfId}, or {@code null} when the batch holds none.
-         * The first call (or a call for another key) replays the batch; later calls reuse the view while it is
-         * current, so versions staged by earlier sessions on the same batch, by the roots index directly, or undone
-         * by {@code rollbackToSavePoint()} / {@code clear()} are all seen.
+         * Returns the bytes the batch puts for {@code prefixedKeyHex}, or {@code null} if it holds no put, or a
+         * delete, for that key. Call only while the view is current.
          *
-         * @param batch              the batch
-         * @param keyPrefixer        the nodes namespace prefixer (used if the batch has to be replayed)
-         * @param rootsCfId          the roots column family id
-         * @param prefixedVersionKey the roots index's last-version key, with its namespace byte
-         * @return the staged last version, or {@code null}
-         * @throws RocksDBException if the batch cannot be replayed
+         * @param prefixedKeyHex the key with its namespace byte, hex-encoded
+         * @return the staged bytes, or {@code null}
          */
-        public Long stagedLastVersion(WriteBatch batch, KeyPrefixer keyPrefixer, int rootsCfId,
-                                      byte[] prefixedVersionKey) throws RocksDBException {
-            if (versionCfId != rootsCfId || !Arrays.equals(versionKey, prefixedVersionKey)) {
-                versionCfId = rootsCfId;
-                versionKey = prefixedVersionKey.clone();
-                seenCount = -1; // not tracked so far: replay
-            }
-            if (!isCurrent(batch)) rebuild(batch, keyPrefixer);
-            byte[] v = stagedVersion[0];
+        public byte[] stagedPut(String prefixedKeyHex) {
+            byte[] v = pending.get(prefixedKeyHex);
+            return v == TOMBSTONE ? null : v;
+        }
+
+        /**
+         * Returns the last version the batch stages for the roots index of this namespace in column family
+         * {@code rootsCfId}, or {@code null} when it holds none. Call only while the view is current.
+         *
+         * @param rootsCfId the roots column family id
+         * @return the staged last version, or {@code null}
+         */
+        public Long stagedLastVersion(int rootsCfId) {
+            byte[] v = stagedVersions.get(rootsCfId);
             return v == null || v == TOMBSTONE || v.length != 8 ? null : ByteBuffer.wrap(v).getLong();
         }
 
         /**
-         * Reflects a put of the tracked last-version key with {@code version}. Call {@link #sync} afterwards, under
-         * the same conditions as for {@link #recordPut}.
+         * Reflects a put of the last-version key with {@code version} in column family {@code rootsCfId}.
          *
-         * @param version the version written
+         * @param rootsCfId the roots column family id
+         * @param version   the version written
          */
-        public void recordLastVersion(long version) {
-            if (versionKey != null) stagedVersion[0] = ByteBuffer.allocate(8).putLong(version).array();
+        public void recordLastVersion(int rootsCfId, long version) {
+            if (versionKey != null) stagedVersions.put(rootsCfId, ByteBuffer.allocate(8).putLong(version).array());
         }
 
         private void rebuild(WriteBatch batch, KeyPrefixer keyPrefixer) throws RocksDBException {
             pending.clear();
             lastPut.clear();
-            stagedVersion[0] = null;
+            stagedVersions.clear();
             FULL_REPLAYS.incrementAndGet();
-            replay(batch, cfId, keyPrefixer, pending, lastPut, versionCfId, versionKey, stagedVersion);
+            stale = true;
+            replay(batch, cfId, keyPrefixer, pending, lastPut, versionKey, stagedVersions);
             sync(batch);
+            stale = false;
         }
     }
 
@@ -243,6 +329,8 @@ public final class RefcountLedger {
         this.readOptions = readOptions;
         this.nodeReader = nodeReader;
         if (view == null) {
+            // A one-off ledger writes into the batch without updating a session view of it.
+            BatchView.markSessionStale(batch);
             view = new BatchView(cfNodes.getID(), keyPrefixer.getNamespaceId());
         } else if (view.cfId != cfNodes.getID() || view.namespace != keyPrefixer.getNamespaceId()) {
             throw new IllegalArgumentException("BatchView belongs to another column family or namespace");
@@ -259,8 +347,8 @@ public final class RefcountLedger {
      * namespace cannot be interpreted, so they are rejected before anything is staged.
      */
     private static void replay(WriteBatch batch, int cfId, KeyPrefixer keyPrefixer, Map<String, byte[]> pending,
-                               Map<String, byte[]> lastPut, int versionCfId, byte[] versionKey,
-                               byte[][] stagedVersion) throws RocksDBException {
+                               Map<String, byte[]> lastPut, byte[] versionKey,
+                               Map<Integer, byte[]> stagedVersions) throws RocksDBException {
         if (batch.count() == 0) return;
         byte[] nsStart = keyPrefixer.namespaceStart();
         byte[] nsEnd = (keyPrefixer.getNamespaceId() & 0xFF) == 0xFF ? null
@@ -268,7 +356,7 @@ public final class RefcountLedger {
         String[] unsupported = {null};
         try (WriteBatch.Handler handler = new WriteBatch.Handler() {
             private void record(int cf, byte[] key, byte[] value) {
-                if (versionKey != null && cf == versionCfId && Arrays.equals(key, versionKey)) stagedVersion[0] = value;
+                if (versionKey != null && Arrays.equals(key, versionKey)) stagedVersions.put(cf, value);
                 if (cf != cfId || !keyPrefixer.hasCorrectPrefix(key)) return;
                 String hex = HexUtil.encodeHexString(key);
                 pending.put(hex, value);
@@ -403,7 +491,8 @@ public final class RefcountLedger {
     }
 
     /**
-     * Adds one to the count of every node reachable from {@code root}.
+     * Adds one to the count of every node reachable from {@code root}. Nodes missing from the store are skipped
+     * with a warning.
      *
      * @param root the root hash
      * @return the number of nodes counted
@@ -411,6 +500,21 @@ public final class RefcountLedger {
      * @throws RocksDBException      if a read or write fails
      */
     public long increment(byte[] root) throws RocksDBException {
+        return increment(root, false);
+    }
+
+    /**
+     * Adds one to the count of every node reachable from {@code root}.
+     *
+     * @param root            the root hash
+     * @param requireComplete {@code true} to throw when a reachable node is missing (some counts may already be
+     *                        staged then; the caller discards them, e.g. by rolling back to a save point)
+     * @return the number of nodes counted
+     * @throws IllegalStateException if the root node is not readable, or a node is missing and
+     *                               {@code requireComplete} is set
+     * @throws RocksDBException      if a read or write fails
+     */
+    public long increment(byte[] root, boolean requireComplete) throws RocksDBException {
         if (root == null || root.length == 0 || GcRoots.isZeroRoot(root)) return 0;
         if (readNode(root) == null) {
             throw new IllegalStateException("Root node " + HexUtil.encodeHexString(root) + " is not in the store. "
@@ -431,6 +535,10 @@ public final class RefcountLedger {
                     throw new IllegalStateException("Node " + HexUtil.encodeHexString(h) + " of root "
                             + HexUtil.encodeHexString(root) + " is deleted in this batch and its bytes are neither "
                             + "committed nor staged, so it cannot be restored");
+                }
+                if (requireComplete) {
+                    throw new IllegalStateException("Node " + HexUtil.encodeHexString(h) + " of root "
+                            + HexUtil.encodeHexString(root) + " is neither committed nor staged in the batch");
                 }
                 missing++;
                 continue;

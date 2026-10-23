@@ -63,6 +63,8 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
     private final DBOptions options;
     private final List<AutoCloseable> closeables;
     private static final ThreadLocal<WriteBatch> TL_BATCH = new ThreadLocal<>();
+    // Nodes staged by stores of another database, column family or namespace than the session owner's (whose
+    // nodes are read from the session view instead).
     private static final ThreadLocal<java.util.Map<String, byte[]>> TL_STAGED = new ThreadLocal<>();
     // Per-batch state used by RocksDbStateTrees.putRootWithRefcount when it runs inside withBatch(): the store that
     // opened the batch, and the replayed view of the open batch for the owner's CF + namespace (refcounts and the
@@ -168,12 +170,22 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
     /**
      * {@inheritDoc}
      *
-     * <p>This implementation checks the ThreadLocal staged cache first for read-your-writes
-     * consistency during batch operations, then falls back to the persistent store.</p>
+     * <p>Inside {@link #withBatch} a node put in the open batch is visible before the batch is written (a staged
+     * delete is not: the committed node stays readable until the batch is written). For the session's own database,
+     * column family and namespace, visibility follows the batch's contents: after {@code clear()},
+     * {@code rollbackToSavePoint()} or raw writes the batch is replayed, so discarded nodes are no longer visible.</p>
      */
     @Override
     public byte[] get(byte[] hash) {
         try {
+            WriteBatch batch = TL_BATCH.get();
+            RefcountLedger.BatchView view = batch != null ? sessionView() : null;
+            if (view != null) {
+                view.ensureCurrent(batch, keyPrefixer);
+                byte[] prefixed = keyPrefixer.prefix(hash);
+                byte[] staged = view.stagedPut(HexUtil.encodeHexString(prefixed));
+                return staged != null ? staged : db.get(cfNodes, prefixed);
+            }
             java.util.Map<String, byte[]> stagedWrites = TL_STAGED.get();
             if (stagedWrites != null) {
                 byte[] cachedValue = stagedWrites.get(HexUtil.encodeHexString(hash));
@@ -198,13 +210,15 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             WriteBatch currentBatch = TL_BATCH.get();
             if (currentBatch != null) {
                 byte[] prefixed = keyPrefixer.prefix(hash);
-                RefcountLedger.BatchView view = TL_VIEW.get();
+                RefcountLedger.BatchView view = sessionView();
+                if (view == null) RefcountLedger.BatchView.markSessionStale(currentBatch); // another namespace's write
                 boolean current = view != null && view.isCurrent(currentBatch);
                 currentBatch.put(cfNodes, prefixed, nodeBytes);
                 if (current) {
                     view.recordPut(cfNodes.getID(), prefixed, nodeBytes);
                     view.sync(currentBatch);
                 }
+                if (view != null) return;
                 java.util.Map<String, byte[]> stagedWrites = TL_STAGED.get();
                 if (stagedWrites == null) {
                     stagedWrites = new java.util.HashMap<>();
@@ -231,7 +245,8 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             WriteBatch currentBatch = TL_BATCH.get();
             if (currentBatch != null) {
                 byte[] prefixed = keyPrefixer.prefix(hash);
-                RefcountLedger.BatchView view = TL_VIEW.get();
+                RefcountLedger.BatchView view = sessionView();
+                if (view == null) RefcountLedger.BatchView.markSessionStale(currentBatch);
                 boolean current = view != null && view.isCurrent(currentBatch);
                 currentBatch.delete(cfNodes, prefixed);
                 if (current) {
@@ -312,8 +327,13 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         TL_BATCH.set(batch);
         TL_STAGED.set(new java.util.HashMap<>());
         TL_OWNER.set(this);
-        TL_VIEW.set(new RefcountLedger.BatchView(cfNodes.getID(), keyPrefixer.getNamespaceId()));
+        RefcountLedger.BatchView view = new RefcountLedger.BatchView(cfNodes.getID(), keyPrefixer.getNamespaceId(),
+                RocksDbRootsIndex.lastVersionKeySuffix());
+        TL_VIEW.set(view);
+        RefcountLedger.BatchView.openSession(batch, view);
         try {
+            // An empty batch is described right away; a batch that already holds records is replayed on first use.
+            if (batch.count() == 0) view.ensureCurrent(batch, keyPrefixer);
             return work.call();
         } catch (Exception e) {
             throw new RuntimeException("Batch operation failed", e);
@@ -322,6 +342,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             TL_STAGED.remove();
             TL_OWNER.remove();
             TL_VIEW.remove();
+            RefcountLedger.BatchView.closeSession();
         }
     }
 
@@ -344,6 +365,12 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
     /** Replay cache of the active batch for this store's CF + namespace, or {@code null} when none is open. */
     RefcountLedger.BatchView activeBatchView() {
         return activeBatch() != null ? TL_VIEW.get() : null;
+    }
+
+    /** The open session's view when this store may use it (same database, column family and namespace). */
+    private RefcountLedger.BatchView sessionView() {
+        RocksDbNodeStore owner = TL_OWNER.get();
+        return owner != null && (owner == this || sameNamespace(owner)) ? TL_VIEW.get() : null;
     }
 
     private boolean sameNamespace(RocksDbNodeStore other) {

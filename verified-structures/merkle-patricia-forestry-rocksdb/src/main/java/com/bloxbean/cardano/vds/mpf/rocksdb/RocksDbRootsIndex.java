@@ -2,6 +2,7 @@ package com.bloxbean.cardano.vds.mpf.rocksdb;
 
 import com.bloxbean.cardano.vds.core.api.RootsIndex;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RefcountLedger;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.*;
@@ -168,6 +169,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         byte[] prefixedLastVersionKey = keyPrefixer.prefix(LAST_VERSION_KEY);
         try {
             WriteBatch currentBatch = TL_BATCH.get();
+            RefcountLedger.BatchView.markSessionStale(currentBatch); // this write does not update a session view
             if (currentBatch != null) {
                 currentBatch.put(cfRoots, versionKey, rootHash);
                 currentBatch.put(cfRoots, prefixedLatestKey, rootHash);
@@ -294,9 +296,9 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         }
     }
 
-    /** The last-version key of this namespace, with its namespace byte (read by batch-aware callers). */
-    byte[] prefixedLastVersionKey() {
-        return keyPrefixer.prefix(LAST_VERSION_KEY);
+    /** The last-version key without the namespace byte (tracked by batch session views). */
+    static byte[] lastVersionKeySuffix() {
+        return LAST_VERSION_KEY.clone();
     }
 
     /**
@@ -311,6 +313,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         long nextVersionNumber = lastVersion() + 1;
         try {
             WriteBatch currentBatch = TL_BATCH.get();
+            RefcountLedger.BatchView.markSessionStale(currentBatch); // this write does not update a session view
             byte[] prefixedKey = keyPrefixer.prefix(LAST_VERSION_KEY);
             if (currentBatch != null) currentBatch.put(cfRoots, prefixedKey, toBytes(nextVersionNumber));
             else db.put(cfRoots, prefixedKey, toBytes(nextVersionNumber));
@@ -355,6 +358,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         byte[] versionKey = keyPrefixer.prefix(toBytes(versionOrSlot));
         try {
             WriteBatch currentBatch = TL_BATCH.get();
+            RefcountLedger.BatchView.markSessionStale(currentBatch); // this write does not update a session view
             if (currentBatch != null) currentBatch.delete(cfRoots, versionKey);
             else db.delete(cfRoots, versionKey);
         } catch (RocksDBException e) {
