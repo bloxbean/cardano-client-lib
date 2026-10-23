@@ -42,8 +42,10 @@ caller remains responsible for the database and for any supplied column-family h
   currently uses only its column-family prefix; custom key-prefix support is not implemented.
 - `enableRollbackIndex(boolean)`: creates and maintains node/value indexes by version. Default is
   `false`; `truncateAfter` throws when disabled.
-- `prunePolicy(SAFE|AGGRESSIVE)`: safe mode keeps the latest value sentinel at/below the prune
-  boundary; aggressive mode removes all such value history.
+- `prunePolicy(SAFE|AGGRESSIVE)`: safe mode keeps the latest value at/below the prune boundary for
+  every key; aggressive mode also drops it when a newer value exists (never a key's live value). Then
+  only the latest state is complete, so an aggressive prune moves the prune watermark to the latest
+  version: older reads, proofs and rollbacks are rejected.
 - `syncOnCommit`, `syncOnPrune`, `syncOnTruncate`: default to `true` for durability.
 - `disableWalForBatches(true)`: unsafe benchmarking option that permits torn state after a crash;
   it cannot be combined with sync commits and must not be used for durable chain state.
@@ -67,9 +69,9 @@ wrapper around an externally owned RocksDB handle must be given the same explici
 the safe `attach(...)` API requires it.
 
 Pruning removes roots below the retained horizon and persists a prune watermark
-(`store.pruneWatermark()`). Rollback below that watermark, or to a version at which no root survives
-pruning, is rejected rather than exposing an incomplete historical tree, and `tree.get(key, version)`
-rejects versions below it.
+(`store.pruneWatermark()`): the greatest committed version at or below the horizon, whose root is kept.
+Rollback below that watermark is rejected rather than exposing an incomplete historical tree, and
+`tree.get(key, version)` and `tree.getProof(key, version)` reject or return empty below it.
 
 `store.recordStats(metrics)` publishes the `jmt.rocksdb.*` gauges (pending compaction bytes, running
 compactions, memtable size, immutable memtables); call it periodically, the tree does not.

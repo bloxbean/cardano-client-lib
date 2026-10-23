@@ -263,11 +263,18 @@ needs a root committed at exactly `version` and returns empty otherwise.
 
 ```java
 int removed = tree.pruneUpTo(10L);         // records jmt.prune.* metrics; store.pruneUpTo(10L) does the same without them
-OptionalLong watermark = store.pruneWatermark(); // 10 once something was removed
+OptionalLong watermark = store.pruneWatermark(); // the greatest commit <= 10, once something was removed
 ```
 
-State at the horizon and later stays fully readable and provable. Reads below the watermark are rejected, and
-`truncateAfter` below it, or to a version where no root survives pruning, throws `IllegalStateException`.
+The watermark is the commit the horizon's state is read from (the greatest committed version at or below the
+horizon), so that root is kept and state from the watermark on stays fully readable, provable and reachable by
+rollback. Reads and proofs below the watermark are rejected, and `truncateAfter` below it throws
+`IllegalStateException`. With the RocksDB `AGGRESSIVE` value-prune policy the watermark moves to the latest
+version at prune time, because that policy drops the older values of rewritten keys.
+
+A caller whose position may be ahead of the latest commit (a chain tip that skipped empty blocks, or a rollback
+target between two commits) reads at `min(position, store.latestRoot().get().version())`: `get` rejects
+versions newer than the latest commit.
 
 ### Version Constraints
 
@@ -370,8 +377,7 @@ dependencies {
     implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:<version>'
 
     // Or PostgreSQL backend
-    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:<version>'
-    implementation 'org.postgresql:postgresql:42.6.0'
+    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:<version>' // includes the PostgreSQL driver
 
     // Optional: Metrics
     compileOnly 'io.micrometer:micrometer-core:1.11.0'
@@ -443,7 +449,7 @@ When using `MicrometerJmtMetrics` with prefix `jmt` (the names below use the pre
 **Read and Proof Metrics:**
 - `jmt.read.duration` - Timer for `get` latency
 - `jmt.proof.duration` - Timer for proof generation
-- `jmt.proof.size` - Distribution of proof sizes (sibling nodes)
+- `jmt.proof.size` - Distribution of proof sizes (branch steps)
 - `jmt.cache.hits` / `jmt.cache.misses` - Counters; the tree does not track cache hits yet, so every read
   counts as a miss
 - `jmt.cache.size` - Gauge for nodes staged by the last commit

@@ -30,6 +30,9 @@ class RdbmsJmtSchemaInstallerTest {
 
     private static final Set<String> TABLES = Set.of(
             "jmt_nodes", "jmt_values", "jmt_roots", "jmt_latest", "jmt_stale", "jmt_metadata");
+    private static final Set<String> INDEXES = Set.of(
+            "idx_jmt_nodes_ns_path", "idx_jmt_nodes_ns_ver", "idx_jmt_values_ns_key", "idx_jmt_values_ns_ver",
+            "idx_jmt_roots_ns", "idx_jmt_stale_ns_since");
 
     @TempDir
     Path tempDir;
@@ -42,6 +45,7 @@ class RdbmsJmtSchemaInstallerTest {
             RdbmsJmtSchemaInstaller.createIfNotExists(config);
             assertTrue(tables(config).containsAll(TABLES), tables(config).toString());
             roundTrip(config);
+            shutdownH2(config);
         }
     }
 
@@ -58,8 +62,15 @@ class RdbmsJmtSchemaInstallerTest {
                 assertTrue(tables.contains("acct_" + t) && tables.contains("utxo_" + t), tables.toString());
                 assertFalse(tables.contains(t), tables.toString());
             }
+            // Index names are schema-wide: without prefixing, the second schema's CREATE INDEX IF NOT EXISTS
+            // would be skipped and leave it without indexes.
+            Set<String> indexes = indexNames(a);
+            for (String i : INDEXES) {
+                assertTrue(indexes.contains("acct_" + i) && indexes.contains("utxo_" + i), indexes.toString());
+            }
             roundTrip(a);
             roundTrip(b);
+            shutdownH2(a);
         }
     }
 
@@ -76,7 +87,10 @@ class RdbmsJmtSchemaInstallerTest {
             for (String t : TABLES) {
                 assertTrue(tables.contains(t) && tables.contains("shard1_" + t), tables.toString());
             }
-            assertEquals(2, indexes(plain, "idx_jmt_stale_ns_since"), "unprefixed + prefixed stale index");
+            Set<String> indexes = indexNames(plain);
+            for (String i : INDEXES) {
+                assertTrue(indexes.contains(i) && indexes.contains("shard1_" + i), indexes.toString());
+            }
             roundTrip(plain);
             roundTrip(prefixed);
         }
@@ -98,6 +112,10 @@ class RdbmsJmtSchemaInstallerTest {
                 }
                 RdbmsJmtSchemaInstaller.createIfNotExists(helper);
                 assertEquals(columns(raw), columns(helper), dialect);
+                assertEquals(indexNames(raw), indexNames(helper), dialect);
+                assertTrue(indexNames(helper).containsAll(INDEXES), dialect);
+                shutdownH2(raw);
+                shutdownH2(helper);
             }
         }
     }
@@ -173,19 +191,30 @@ class RdbmsJmtSchemaInstallerTest {
         return md.storesUpperCaseIdentifiers() ? table.toUpperCase(Locale.ROOT) : table;
     }
 
-    private static long indexes(DbConfig config, String suffix) throws Exception {
-        Set<String> names = new HashSet<>(); // getIndexInfo returns one row per indexed column
+    /** Lower-case names of the JMT indexes (getIndexInfo returns one row per indexed column). */
+    private static Set<String> indexNames(DbConfig config) throws Exception {
+        Set<String> names = new java.util.TreeSet<>();
         try (Connection c = config.dataSource().getConnection()) {
             DatabaseMetaData md = c.getMetaData();
             for (String t : tables(config)) {
-                try (ResultSet rs = md.getIndexInfo(null, null, t, false, false)) {
+                try (ResultSet rs = md.getIndexInfo(null, null, matchCase(md, t), false, false)) {
                     while (rs.next()) {
                         String name = rs.getString("INDEX_NAME");
-                        if (name != null && name.toLowerCase(Locale.ROOT).endsWith(suffix)) names.add(name);
+                        if (name != null && name.toLowerCase(Locale.ROOT).contains("idx_jmt_")) {
+                            names.add(name.toLowerCase(Locale.ROOT));
+                        }
                     }
                 }
             }
         }
-        return names.size();
+        return names;
+    }
+
+    /** In-memory H2 databases with DB_CLOSE_DELAY=-1 outlive their pool; drop them explicitly. */
+    static void shutdownH2(DbConfig config) throws Exception {
+        if (!config.dialect().name().toLowerCase(Locale.ROOT).contains("h2")) return;
+        try (Connection c = config.dataSource().getConnection(); Statement st = c.createStatement()) {
+            st.execute("SHUTDOWN");
+        }
     }
 }

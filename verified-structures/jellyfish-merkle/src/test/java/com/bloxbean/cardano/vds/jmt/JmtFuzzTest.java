@@ -57,10 +57,21 @@ class JmtFuzzTest {
                         replayLatest(tree, h, data, pool);
                         break;
                     case 1:
-                        if (h.latest() >= 0) {
+                        if (h.latest() >= 0 && data.consumeInt(0, 7) == 0) {
+                            long above = h.latest() + data.consumeLong(1, 3);
+                            assertThrows(IllegalArgumentException.class, () -> tree.pruneUpTo(above), "horizon above latest");
+                        } else if (h.latest() >= 0) {
                             long horizon = data.consumeLong(0, h.latest());
+                            // The root the horizon's state is read from is kept: it is the effective horizon.
+                            Long floorRoot = h.roots.floor(horizon);
+                            long effective = floorRoot != null ? floorRoot : horizon;
+                            boolean expected = h.pruneRemovesSomething(horizon, effective);
                             int removed = tree.pruneUpTo(horizon);
-                            if (removed > 0) h.watermark = Math.max(h.watermark, horizon);
+                            assertEquals(expected, removed > 0, "prune(" + horizon + ") removed " + removed);
+                            if (expected) h.watermark = Math.max(h.watermark, effective);
+                            h.prune(horizon, effective);
+                        } else {
+                            assertEquals(0, tree.pruneUpTo(data.consumeLong(0, 3)), "prune of an empty store");
                         }
                         break;
                     case 2:
@@ -72,7 +83,7 @@ class JmtFuzzTest {
                                         "truncation would leave no retained root");
                             } else {
                                 store.truncateAfter(target);
-                                h.committed.tailMap(target, false).clear();
+                                h.truncate(target);
                             }
                         }
                         break;
@@ -110,13 +121,17 @@ class JmtFuzzTest {
                 mutated = Arrays.copyOf(mutated, data.consumeInt(1, mutated.length - 1));
             }
 
+            // Every claim below reaches the decoder and verifier (a value with including=false is rejected up front).
+            byte[] otherPresent = bytes("v" + data.consumeInt(0, size - 1));
             if (present) {
                 assertFalse(tree.verifyProofWire(root, key, CLAIM, true, mutated));
                 assertFalse(tree.verifyProofWire(root, key, null, false, mutated));
-                assertFalse(tree.verifyProofWire(root, key, value, false, mutated));
+                if (!Arrays.equals(otherPresent, value)) {
+                    assertFalse(tree.verifyProofWire(root, key, otherPresent, true, mutated));
+                }
             } else {
                 assertFalse(tree.verifyProofWire(root, key, CLAIM, true, mutated));
-                assertFalse(tree.verifyProofWire(root, key, CLAIM, false, mutated));
+                assertFalse(tree.verifyProofWire(root, key, otherPresent, true, mutated));
             }
         }
     }
@@ -216,10 +231,46 @@ class JmtFuzzTest {
 
     // ---------------------------------------------------------------- trace driver
 
-    /** Committed versions and their full key -> value state. */
+    /** Committed versions and their full key -> value state, plus what a prune could still remove. */
     private static final class History {
         final NavigableMap<Long, Map<String, byte[]>> committed = new TreeMap<>();
         long watermark = -1;
+        /** Per key, the versions that wrote it whose history entry is still stored. */
+        final Map<String, java.util.TreeSet<Long>> writes = new HashMap<>();
+        /** Versions whose commit replaced nodes (a non-empty batch on a non-empty tree) not pruned yet. */
+        final java.util.TreeSet<Long> staleSince = new java.util.TreeSet<>();
+        /** Versions whose root record is still stored. */
+        final java.util.TreeSet<Long> roots = new java.util.TreeSet<>();
+
+        /** Whether pruning up to {@code horizon} removes any node, value or root record. */
+        boolean pruneRemovesSomething(long horizon, long effectiveHorizon) {
+            if (!roots.headSet(effectiveHorizon, false).isEmpty()) return true;
+            if (!staleSince.headSet(horizon, true).isEmpty()) return true;
+            for (java.util.TreeSet<Long> w : writes.values()) {
+                if (w.headSet(horizon, true).size() > 1) return true;
+            }
+            return false;
+        }
+
+        void prune(long horizon, long effectiveHorizon) {
+            roots.headSet(effectiveHorizon, false).clear();
+            staleSince.headSet(horizon, true).clear();
+            for (java.util.TreeSet<Long> w : writes.values()) {
+                java.util.SortedSet<Long> old = w.headSet(horizon, true);
+                if (old.size() > 1) {
+                    long keep = old.last();
+                    old.clear();
+                    w.add(keep);
+                }
+            }
+        }
+
+        void truncate(long target) {
+            committed.tailMap(target, false).clear();
+            roots.tailSet(target, false).clear();
+            staleSince.tailSet(target, false).clear();
+            for (java.util.TreeSet<Long> w : writes.values()) w.tailSet(target, false).clear();
+        }
 
         long latest() {
             return committed.isEmpty() ? -1 : committed.lastKey();
@@ -253,11 +304,16 @@ class JmtFuzzTest {
     private static void commit(JellyfishMerkleTree tree, History h, FuzzedDataProvider data, List<byte[]> pool) {
         long version = h.latest() < 0 ? data.consumeLong(0, 2) : h.latest() + data.consumeLong(1, 3);
         Map<byte[], byte[]> updates = batch(data, pool);
-        Map<String, byte[]> next = new HashMap<>(h.stateAsOf(version));
+        Map<String, byte[]> previous = h.stateAsOf(version);
+        Map<String, byte[]> next = new HashMap<>(previous);
         updates.forEach((k, v) -> next.put(new String(k, StandardCharsets.UTF_8), v));
         JellyfishMerkleTree.CommitResult result = tree.put(version, updates);
         assertArrayEquals(referenceRoot(next), result.rootHash(), "root of version " + version);
         h.committed.put(version, next);
+        h.roots.add(version);
+        if (!updates.isEmpty() && !previous.isEmpty()) h.staleSince.add(version);
+        updates.keySet().forEach(k -> h.writes.computeIfAbsent(new String(k, StandardCharsets.UTF_8),
+                x -> new java.util.TreeSet<>()).add(version));
     }
 
     private static void replayLatest(JellyfishMerkleTree tree, History h, FuzzedDataProvider data, List<byte[]> pool) {
@@ -265,14 +321,27 @@ class JmtFuzzTest {
         if (latest < 0) return;
         Map<String, byte[]> state = h.committed.get(latest);
         Map<byte[], byte[]> updates = batch(data, pool);
-        if (h.watermark >= latest) {
-            IllegalStateException e = assertThrows(IllegalStateException.class, () -> tree.put(latest, updates));
-            assertTrue(e.getMessage().contains("cannot be replayed"), "replay after pruning it: " + e);
-            return;
-        }
         // Replaying onto the previous state: the replayed batch only matches if it reproduces the committed root.
         Map<String, byte[]> base = new HashMap<>(h.stateAsOf(latest - 1));
         updates.forEach((k, v) -> base.put(new String(k, StandardCharsets.UTF_8), v));
+        if (h.watermark >= latest) {
+            // Pruning up to the latest version removed the nodes a non-empty replay rebuilds: it is rejected with an
+            // explanation. An empty replay either reproduces the committed root (a no-op) or conflicts.
+            if (!updates.isEmpty()) {
+                JmtWriteConflictException e = assertThrows(JmtWriteConflictException.class, () -> tree.put(latest, updates));
+                assertTrue(e.getMessage().contains("cannot be replayed"), e.getMessage());
+                return;
+            }
+            try {
+                JellyfishMerkleTree.CommitResult r = tree.put(latest, updates);
+                assertArrayEquals(referenceRoot(state), r.rootHash());
+                assertTrue(r.nodes().isEmpty() && r.staleNodes().isEmpty() && r.valueOperations().isEmpty());
+            } catch (JmtWriteConflictException e) {
+                boolean identical = Arrays.equals(referenceRoot(base), referenceRoot(state));
+                assertTrue(!identical || e.getMessage().contains("cannot be replayed"), "pruned replay: " + e);
+            }
+            return;
+        }
         if (Arrays.equals(referenceRoot(base), referenceRoot(state))) {
             JellyfishMerkleTree.CommitResult r = tree.put(latest, updates);
             assertArrayEquals(referenceRoot(state), r.rootHash());
@@ -301,6 +370,10 @@ class JmtFuzzTest {
         List<byte[]> probes = new ArrayList<>();
         for (int i = 0; i < 3; i++) probes.add(pool.get(data.consumeInt(0, pool.size() - 1)));
         probes.add(bytes("never-written"));
+        for (byte[] key : probes) {
+            byte[] expected = latest < 0 ? null : h.committed.get(latest).get(new String(key, StandardCharsets.UTF_8));
+            assertArrayEquals(expected, tree.get(key).orElse(null), "get at latest");
+        }
         long top = Math.max(latest, 0) + 2;
         for (int i = 0; i < 3; i++) {
             long v = data.consumeLong(0, top);

@@ -2,6 +2,7 @@ package com.bloxbean.cardano.vds.jmt.rdbms;
 
 import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.vds.jmt.JmtProof;
+import com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbConfig;
 import com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtStore;
 import com.bloxbean.cardano.vds.jmt.store.InMemoryJmtStore;
 import com.bloxbean.cardano.vds.jmt.store.JmtAccessCoordinator;
@@ -37,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class JmtBackendDifferentialFuzzTest {
 
     /** Inputs per shared database before it is replaced; each input gets a fresh namespace in it. */
-    private static final int INPUTS_PER_DATABASE = 64;
+    private static final int INPUTS_PER_DATABASE = 16;
 
     private static Path rocksDir;
     private static RocksDB rocksDb;
@@ -47,13 +48,16 @@ class JmtBackendDifferentialFuzzTest {
 
     @FuzzTest(maxDuration = "60s")
     void historiesBehaveIdenticallyOnEveryBackend(FuzzedDataProvider data) throws Exception {
-        // Opening RocksDB and H2 per input costs ~150 ms; a fresh namespace in shared databases costs ~1 ms.
+        // Opening RocksDB and H2 per input costs ~150 ms. A fresh namespace in shared databases costs ~20-40 ms
+        // (7 RocksDB column families, growing with the column families already in the database), hence the
+        // in-memory RocksDB environment and the rotation every INPUTS_PER_DATABASE inputs.
         rotateDatabasesIfNeeded();
         int ns = ++used;
         try (InMemoryJmtStore memory = new InMemoryJmtStore();
              RocksDbJmtStore rocks = RocksDbJmtStore.attach(rocksDb, RocksDbJmtStore.Options.builder()
                      .namespace("fuzz" + ns).enableRollbackIndex(true)
-                     .syncOnCommit(false).syncOnPrune(false).syncOnTruncate(false).build(), new JmtAccessCoordinator());
+                     .syncOnCommit(false).syncOnPrune(false).syncOnTruncate(false)
+                     .rocksDbConfig(RocksDbConfig.lowMemory()).build(), new JmtAccessCoordinator());
              RdbmsJmtStore rdbms = new RdbmsJmtStore(h2, (byte) ns)) {
             List<JmtStore> stores = List.of(memory, rocks, rdbms);
             List<JellyfishMerkleTree> trees = new ArrayList<>();
@@ -84,7 +88,15 @@ class JmtBackendDifferentialFuzzTest {
     private static boolean hookInstalled;
 
     private static synchronized void closeDatabases() throws IOException {
-        if (h2 != null) h2.close();
+        if (h2 != null) {
+            // DB_CLOSE_DELAY=-1 keeps an in-memory H2 database alive after its pool closes; drop it.
+            try {
+                RdbmsJmtSchemaInstallerTest.shutdownH2(h2);
+            } catch (Exception ignored) {
+                // Best effort: the database is discarded either way.
+            }
+            h2.close();
+        }
         if (rocksDb != null) rocksDb.close();
         if (rocksEnv != null) rocksEnv.close();
         rocksEnv = null;

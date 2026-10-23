@@ -152,6 +152,9 @@ class JmtPropertyBasedTest {
                 assertEquals(object, wired, "object and wire verifiers disagree");
                 boolean truth = actual == null ? value == null : value != null && java.util.Arrays.equals(actual, value);
                 assertEquals(truth, object, "verifier result must match the tree's contents");
+                // The wire verifier's membership flag must agree with the value: (value, false) and (null, true)
+                // never verify.
+                assertFalse(f.tree.verifyProofWire(f.root, key, value, value == null, wire), "mismatched including flag");
                 if (proof.type() != JmtProof.ProofType.INCLUSION && value != null) {
                     assertFalse(object, "an absence proof must not prove a value");
                 }

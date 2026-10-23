@@ -49,9 +49,10 @@ public final class RdbmsMpfSchema {
      * Creates the MPF tables and indexes if they do not exist yet.
      *
      * <p>If the data source hands out connections with auto-commit off, all statements run in one transaction,
-     * which is committed at the end or rolled back on failure. With auto-commit on (the JDBC default) each
-     * statement commits on its own; after a failure, fix the cause and call this method again, since every
-     * statement is idempotent.</p>
+     * which is committed at the end or rolled back on failure where the database supports transactional DDL
+     * (PostgreSQL, SQLite). H2 commits each DDL statement implicitly, so a failure there can leave part of the
+     * schema in place. With auto-commit on (the JDBC default) each statement commits on its own. In every case
+     * fix the cause and run it again: every statement is idempotent.</p>
      *
      * @param config the database configuration (data source, dialect and optional table prefix)
      * @throws IllegalArgumentException if the dialect has no bundled DDL, or the prefix is invalid or makes a

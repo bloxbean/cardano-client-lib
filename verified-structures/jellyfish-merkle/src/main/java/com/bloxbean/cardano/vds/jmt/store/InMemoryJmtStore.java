@@ -246,11 +246,14 @@ public final class InMemoryJmtStore implements JmtStore {
                     pruned += deletions.size();
                 }
             }
-            List<Long> oldRoots = new ArrayList<>(roots.headMap(versionInclusive, false).keySet());
+            // Keep the root the horizon's state is read from (see RocksDbJmtStore#pruneUpTo).
+            Long floorRoot = roots.floorKey(versionInclusive);
+            long effectiveHorizon = floorRoot != null ? floorRoot : versionInclusive;
+            List<Long> oldRoots = new ArrayList<>(roots.headMap(effectiveHorizon, false).keySet());
             oldRoots.forEach(roots::remove);
             pruned += oldRoots.size();
             if (pruned > 0) {
-                pruneWatermark = Math.max(pruneWatermark, versionInclusive);
+                pruneWatermark = Math.max(pruneWatermark, effectiveHorizon);
             }
             return pruned;
         }

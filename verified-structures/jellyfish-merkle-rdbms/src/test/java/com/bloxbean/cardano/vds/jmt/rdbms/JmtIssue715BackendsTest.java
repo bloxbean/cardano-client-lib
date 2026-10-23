@@ -83,6 +83,7 @@ class JmtIssue715BackendsTest {
     @EnumSource(Backend.class)
     void getAnswersAsOfCommittedVersionsAndRejectsFutureVersions(Backend backend) throws Exception {
         try (Harness h = open(backend)) {
+            assertEquals(OptionalLong.empty(), h.store.pruneWatermark(), "a fresh namespace has no watermark");
             JellyfishMerkleTree tree = new JellyfishMerkleTree(h.store);
             assertTrue(tree.get(bytes("alice"), 5).isEmpty(), "no commit yet: every key is absent");
 
@@ -133,23 +134,66 @@ class JmtIssue715BackendsTest {
 
     @ParameterizedTest
     @EnumSource(Backend.class)
-    void truncationThatWouldLeaveNoRetainedRootIsRejected(Backend backend) throws Exception {
-        // Found by JmtFuzzTest: prune past the only older root, then truncate the newer one away.
+    void pruningBetweenCommitsKeepsTheRootTheHorizonIsReadFrom(Backend backend) throws Exception {
+        // Found by JmtFuzzTest and review: pruning at a horizon between two commits deleted the root the horizon's
+        // state is read from, so that state was unprovable and rollback to it impossible (or, before the truncate
+        // guard, left the store without any root).
         try (Harness h = open(backend)) {
             JellyfishMerkleTree tree = new JellyfishMerkleTree(h.store);
-            tree.put(0, updates("alice", "100"));
-            byte[] root3 = tree.put(3, updates("bob", "200")).rootHash();
+            tree.put(100, updates("alice", "a1", "bob", "b1"));
+            byte[] root120 = tree.put(120, updates("alice", "a2")).rootHash();
+            tree.put(140, updates("bob", "b2"));
+
+            assertTrue(tree.pruneUpTo(130) > 0);
+            assertEquals(OptionalLong.of(120), h.store.pruneWatermark(), "the floor root is the effective horizon");
+            assertTrue(h.store.rootHash(100).isEmpty());
+            assertArrayEquals(root120, h.store.rootHash(120).orElseThrow());
+            assertArrayEquals(bytes("a2"), tree.get(bytes("alice"), 130).orElseThrow());
+            JmtProof proof = tree.getProof(bytes("bob"), 120).orElseThrow();
+            assertTrue(verify(root120, "bob", bytes("b1"), proof));
+            assertThrows(IllegalArgumentException.class, () -> tree.get(bytes("alice"), 119));
+
+            h.store.truncateAfter(130); // back to the state as of 130 = commit 120
+            assertEquals(120L, h.store.latestRoot().orElseThrow().version());
+            assertArrayEquals(bytes("b1"), tree.get(bytes("bob"), 120).orElseThrow());
+            IllegalStateException below = assertThrows(IllegalStateException.class, () -> h.store.truncateAfter(110));
+            assertTrue(below.getMessage().contains("watermark"), below.getMessage());
+        }
+    }
+
+    @Test
+    void aggressivePrunePolicyOnlyAnswersFromTheLatestVersion() throws Exception {
+        // AGGRESSIVE drops a key's horizon value once a newer value exists, so older states are incomplete.
+        try (RocksDbJmtStore store = RocksDbJmtStore.open(temp.resolve("aggressive").toString(),
+                RocksDbJmtStore.Options.builder().enableRollbackIndex(true)
+                        .prunePolicy(RocksDbJmtStore.ValuePrunePolicy.AGGRESSIVE).build())) {
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
+            tree.put(1, updates("k", "a"));
+            tree.put(2, updates("x", "1"));
+            tree.put(3, updates("y", "1"));
+            tree.put(4, updates("k", "b"));
             assertTrue(tree.pruneUpTo(2) > 0);
-            List<String> before = fingerprint(h.store);
+            assertEquals(OptionalLong.of(4), store.pruneWatermark());
+            assertThrows(IllegalArgumentException.class, () -> tree.get(bytes("k"), 3), "k's value as of 3 was dropped");
+            assertTrue(store.rootHash(3).isPresent(), "AGGRESSIVE keeps the roots between horizon and latest");
+            assertTrue(tree.getProof(bytes("k"), 3).isEmpty(), "no proof claiming a value that is gone");
+            assertArrayEquals(bytes("b"), tree.get(bytes("k"), 4).orElseThrow());
+            assertThrows(IllegalStateException.class, () -> store.truncateAfter(3));
+        }
+    }
 
-            IllegalStateException e = assertThrows(IllegalStateException.class, () -> h.store.truncateAfter(2));
-            assertTrue(e.getMessage().contains("no root"), e.getMessage());
-            assertEquals(before, fingerprint(h.store), "nothing changed");
-            assertArrayEquals(root3, h.store.latestRoot().orElseThrow().rootHash());
-            assertArrayEquals(bytes("200"), tree.get(bytes("bob"), 3).orElseThrow());
-
-            h.store.truncateAfter(3); // a retained root: allowed
-            assertEquals(3L, h.store.latestRoot().orElseThrow().version());
+    @ParameterizedTest
+    @EnumSource(Backend.class)
+    void replayOfAnEmptyCommitAfterPruningToItStillWorks(Backend backend) throws Exception {
+        try (Harness h = open(backend)) {
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(h.store);
+            tree.put(0, updates("k", "a"));
+            tree.put(1, updates("k", "b"));
+            byte[] root2 = tree.put(2, Map.of()).rootHash();
+            assertTrue(tree.pruneUpTo(2) > 0);
+            JellyfishMerkleTree.CommitResult replay = tree.put(2, Map.of());
+            assertArrayEquals(root2, replay.rootHash());
+            assertTrue(replay.nodes().isEmpty());
         }
     }
 
@@ -232,7 +276,7 @@ class JmtIssue715BackendsTest {
             tree.put(1, change);
             assertTrue(tree.pruneUpTo(1) > 0);
             List<String> before = fingerprint(h.store);
-            IllegalStateException e = assertThrows(IllegalStateException.class, () -> tree.put(1, change));
+            JmtWriteConflictException e = assertThrows(JmtWriteConflictException.class, () -> tree.put(1, change));
             assertTrue(e.getMessage().contains("cannot be replayed") && e.getMessage().contains("pruned"), e.getMessage());
             assertEquals(before, fingerprint(h.store));
             assertFalse(tree.put(2, updates("carol", "300")).nodes().isEmpty(), "the next version still commits");
@@ -336,6 +380,7 @@ class JmtIssue715BackendsTest {
         public void close() throws Exception {
             try {
                 store.close();
+                if (config != null) RdbmsJmtSchemaInstallerTest.shutdownH2(config);
             } finally {
                 if (config != null) config.close();
             }

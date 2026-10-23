@@ -1160,30 +1160,16 @@ public final class RocksDbJmtStore implements JmtStore {
     /**
      * Publishes RocksDB health statistics through {@link JmtMetrics#recordRocksDbStats}. The tree does not
      * call this; call it periodically (for example from a scheduler) to keep the {@code jmt.rocksdb.*} gauges
-     * current. Pending compaction bytes, active memtable size and immutable memtables are summed over this
-     * store's column families; running compactions is database-wide.
+     * current. The values are those of {@link #sampleDbProperties()} (the nodes column family; 0 when a
+     * property is unavailable).
      *
      * @param metrics the metrics sink
      */
     public void recordStats(JmtMetrics metrics) {
         Objects.requireNonNull(metrics, "metrics");
-        try {
-            long pendingCompactionBytes = 0;
-            long memTableSize = 0;
-            long immutableMemTables = 0;
-            for (ColumnFamilyHandle cf : new ColumnFamilyHandle[]{cfNodes, cfValues, cfRoots, cfStale, cfMetadata,
-                    cfNodesByVersion, cfValuesByVersion}) {
-                if (cf == null) continue;
-                pendingCompactionBytes += db.getLongProperty(cf, "rocksdb.estimate-pending-compaction-bytes");
-                memTableSize += db.getLongProperty(cf, "rocksdb.cur-size-active-mem-table");
-                immutableMemTables += db.getLongProperty(cf, "rocksdb.num-immutable-mem-table");
-            }
-            long runningCompactions = db.getLongProperty("rocksdb.num-running-compactions");
-            metrics.recordRocksDbStats(pendingCompactionBytes, (int) Math.min(Integer.MAX_VALUE, runningCompactions),
-                    memTableSize, (int) Math.min(Integer.MAX_VALUE, immutableMemTables));
-        } catch (RocksDBException e) {
-            throw new RuntimeException("Failed to read RocksDB JMT statistics", e);
-        }
+        DbProperties p = sampleDbProperties();
+        metrics.recordRocksDbStats(p.pendingCompactionBytes(), p.runningCompactions(), p.curSizeActiveMemTable(),
+                (int) Math.min(Integer.MAX_VALUE, p.numImmutableMemTables()));
     }
 
     @Override
@@ -1231,11 +1217,21 @@ public final class RocksDbJmtStore implements JmtStore {
                 nodesPruned++;
             }
             int valuesPruned = stageValuePrunes(versionInclusive, batch);
-            int rootsPruned = stageRootPrunes(versionInclusive, batch);
+            // Keep the root the horizon's state is read from: with no commit in (floorRoot, horizon], pruning up to
+            // the horizon removes exactly what pruning up to floorRoot removes, so floorRoot is the effective horizon.
+            long floorRoot = floorRootVersion(versionInclusive);
+            long effectiveHorizon = floorRoot >= 0 ? floorRoot : versionInclusive;
+            int rootsPruned = stageRootPrunes(effectiveHorizon, batch);
             int recordsPruned = nodesPruned + valuesPruned + rootsPruned;
             if (recordsPruned > 0) {
                 long currentWatermark = readPruneWatermark();
-                long newWatermark = Math.max(currentWatermark, versionInclusive);
+                long newWatermark = Math.max(currentWatermark, effectiveHorizon);
+                if (storeOptions != null && storeOptions.prunePolicy() == ValuePrunePolicy.AGGRESSIVE) {
+                    // AGGRESSIVE drops a key's horizon value once a newer value exists, so only state as of the
+                    // latest version is complete.
+                    long latestVersion = latestRoot().map(VersionedRoot::version).orElse(newWatermark);
+                    newWatermark = Math.max(newWatermark, latestVersion);
+                }
                 batch.put(cfMetadata, keyPrefixer.prefix(PRUNE_WATERMARK_KEY),
                         versionKey(newWatermark));
                 db.write(writeOptions, batch);
@@ -1244,6 +1240,34 @@ public final class RocksDbJmtStore implements JmtStore {
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to atomically prune JMT nodes and values", e);
         }
+    }
+
+    /** Greatest per-version root at or below {@code versionInclusive}, or -1. */
+    private long floorRootVersion(long versionInclusive) {
+        long floor = -1;
+        byte[] latestRootKey = keyPrefixer.prefix(LATEST_ROOT_KEY);
+        byte[] latestVersionKey = keyPrefixer.prefix(LATEST_VERSION_KEY);
+        try (ReadOptions options = totalOrderReadOptions();
+             RocksIterator iterator = db.newIterator(cfRoots, options)) {
+            for (iterator.seek(keyPrefixer.prefix(new byte[0])); iterator.isValid(); iterator.next()) {
+                byte[] key = iterator.key();
+                if (!keyPrefixer.hasCorrectPrefix(key)) {
+                    break;
+                }
+                if (Arrays.equals(key, latestRootKey) || Arrays.equals(key, latestVersionKey)) {
+                    continue;
+                }
+                byte[] unprefixed = keyPrefixer.unprefix(key);
+                if (unprefixed.length != Long.BYTES) {
+                    continue;
+                }
+                long version = ByteBuffer.wrap(unprefixed).getLong();
+                if (version <= versionInclusive && version > floor) {
+                    floor = version;
+                }
+            }
+        }
+        return floor;
     }
 
     private int stageRootPrunes(long versionExclusive, WriteBatch batch) throws RocksDBException {

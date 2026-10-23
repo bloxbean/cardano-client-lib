@@ -240,7 +240,9 @@ jobs:
         with:
           name: jmt-fuzz-findings
           path: |
+            verified-structures/jellyfish-merkle/src/test/resources/com/bloxbean/cardano/vds/jmt/JmtParserFuzzTestInputs/
             verified-structures/jellyfish-merkle/src/test/resources/com/bloxbean/cardano/vds/jmt/JmtFuzzTestInputs/
+            verified-structures/jellyfish-merkle-rocksdb/src/test/resources/com/bloxbean/cardano/vds/jmt/rocksdb/RocksDbJmtDifferentialFuzzTestInputs/
             verified-structures/jellyfish-merkle-rdbms/src/test/resources/com/bloxbean/cardano/vds/jmt/rdbms/JmtBackendDifferentialFuzzTestInputs/
 
   mpf-fuzz:

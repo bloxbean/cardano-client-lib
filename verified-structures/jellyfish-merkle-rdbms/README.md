@@ -95,8 +95,9 @@ if separate store instances calculated from the same base, only one transaction 
 loser's nodes, values, stale markers, and root are rolled back.
 
 Pruning removes roots below the retained horizon and persists a prune watermark
-(`store.pruneWatermark()`). Rollback below that watermark, or to a version at which no root survives
-pruning, is rejected, and `tree.get(key, version)` rejects versions below it. `tree.pruneUpTo(..)` prunes
+(`store.pruneWatermark()`): the greatest committed version at or below the horizon, whose root is kept.
+Rollback below that watermark is rejected, and `tree.get(key, version)` and `tree.getProof(key, version)`
+reject or return empty below it. `tree.pruneUpTo(..)` prunes
 the same way as `store.pruneUpTo(..)` and records the `jmt.prune.*` metrics. H2 and SQLite fail-fast maintenance coordination is process-local and
 is not qualified for multi-process production use.
 

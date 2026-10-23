@@ -115,16 +115,20 @@ public interface JmtStore extends AutoCloseable {
 
     /**
      * Deletes stale nodes with {@code staleSince <= versionInclusive} and prunes superseded value
-     * history while retaining the value visible at the horizon. Root records below the horizon are
-     * removed so callers cannot request proofs for structurally pruned versions. Returns the total
+     * history while retaining the value visible at the horizon. Root records below the horizon's own root (the
+     * greatest root at or below the horizon, from which the horizon's state is read) are removed so callers
+     * cannot request proofs for structurally pruned versions. Returns the total
      * number of node, value, and root records removed. Negative or future horizons are rejected.
      */
     int pruneUpTo(long versionInclusive);
 
     /**
-     * Returns the prune watermark: the highest horizon passed to a {@link #pruneUpTo(long)} call that removed
-     * records, or empty if nothing was ever pruned. State at versions below the watermark is no longer fully
-     * retained, so reads there are rejected by the tree. The default is empty, for stores that never prune.
+     * Returns the prune watermark, or empty if nothing was ever pruned. After a {@link #pruneUpTo(long)} call that
+     * removed records, the watermark is at least the greatest root version at or below that horizon (bundled stores
+     * written by older code may hold the horizon itself). State at the watermark and later is fully retained; state
+     * below it is not, so the tree rejects reads and proofs there. The RocksDB {@code AGGRESSIVE} value-prune policy
+     * moves it to the latest version at prune time, since that policy drops older values of rewritten keys. The
+     * default is empty, for stores that never prune.
      */
     default OptionalLong pruneWatermark() {
         return OptionalLong.empty();

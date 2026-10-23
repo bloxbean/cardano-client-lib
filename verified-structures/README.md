@@ -123,9 +123,8 @@ dependencies {
     // MPF with PostgreSQL (the PostgreSQL driver is included)
     implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rdbms:<version>'
 
-    // JMT with PostgreSQL
+    // JMT with PostgreSQL (the PostgreSQL driver is included)
     implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:<version>'
-    implementation 'org.postgresql:postgresql:42.7.10'
 }
 ```
 
@@ -176,7 +175,7 @@ verified-structures-core (interfaces & utilities)
 - **MPF Core**: NOT thread-safe, requires external synchronization
 - **JMT Core**: one writer per namespace, enforced by the store's access coordinator (competing writes fail
   fast with `JmtConcurrentMutationException`); see the JMT README
-- **RocksDB Stores**: Thread-safe for reads, writes need coordination
+- **MPF RocksDB Stores**: Thread-safe for reads, writes need coordination
 - **RDBMS Stores**: Thread-safe via connection pooling
 
 ## Related Projects
