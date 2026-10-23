@@ -42,9 +42,8 @@ import com.bloxbean.cardano.vds.tools.mpf.RdbmsMptLoadTester;
  * java -jar cardano-client-vds-load-tools.jar mpt --records=100000 --batch=1000 \
  *     --rocksdb=/tmp/mpt --delete-ratio=0.1
  *
- * # MPT garbage collection
- * java -jar cardano-client-vds-load-tools.jar gc --db=/tmp/mpt-rocksdb \
- *     --gc-type=refcount --version=10000
+ * # MPT garbage collection (positional arguments)
+ * java -jar cardano-client-vds-load-tools.jar gc gc-refcount /tmp/mpt-rocksdb keep-latest 1
  * </pre>
  */
 public final class Tools {

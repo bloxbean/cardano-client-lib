@@ -4,9 +4,11 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbMptSession;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbStateTrees;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.*;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.*;
+import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import org.rocksdb.*;
 
 import java.security.SecureRandom;
@@ -72,9 +74,6 @@ public class GcTool {
             MpfTrie trie = new MpfTrie(st.nodeStore());
             Random rnd = new SecureRandom();
 
-            // Use nodes CF for refcounts (stored with a prefix); avoid creating a separate CF
-            ColumnFamilyHandle refsCF = st.nodeStore().nodesHandle();
-
             byte[][] keys = new byte[numKeys][];
             for (int i = 0; i < numKeys; i++) {
                 byte[] k = new byte[16];
@@ -82,28 +81,21 @@ public class GcTool {
                 keys[i] = k;
             }
 
+            RocksDbMptSession session = RocksDbMptSession.of(st);
             for (int v = 0; v < numVersions; v++) {
-                try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
-                    st.nodeStore().withBatch(wb, () -> {
-                        // Update ~10% of keys per version
-                        int updates = Math.max(1, numKeys / 10);
-                        for (int i = 0; i < updates; i++) {
-                            int idx = rnd.nextInt(numKeys);
-                            byte[] value = new byte[16];
-                            rnd.nextBytes(value);
-                            trie.put(keys[idx], value);
-                        }
-                        st.rootsIndex().withBatch(wb, () -> {
-                            long ver = st.rootsIndex().nextVersion();
-                            st.rootsIndex().put(ver, trie.getRootHash());
-                            return null;
-                        });
-                        // Increment refcounts for the new root (refs stored in nodes CF)
-                        RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), refsCF, trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
-                        return null;
-                    });
-                    st.db().write(wo, wb);
-                }
+                // Commit the trie nodes and record the root with its refcounts in one batch. The refcounts
+                // see the staged nodes because putRootWithRefcount runs inside the session batch.
+                session.write(() -> {
+                    // Update ~10% of keys per version
+                    int updates = Math.max(1, numKeys / 10);
+                    for (int i = 0; i < updates; i++) {
+                        int idx = rnd.nextInt(numKeys);
+                        byte[] value = new byte[16];
+                        rnd.nextBytes(value);
+                        trie.put(keys[idx], value);
+                    }
+                    st.putRootWithRefcount(trie.getRootHash());
+                });
             }
 
             System.out.println("Generated versions: " + st.rootsIndex().lastVersion());
@@ -138,8 +130,13 @@ public class GcTool {
 
     static long countNodes(RocksDbStateTrees st) {
         long cnt = 0;
-        try (ReadOptions ro = new ReadOptions(); RocksIterator it = st.db().newIterator(st.nodeStore().nodesHandle(), ro)) {
-            for (it.seekToFirst(); it.isValid(); it.next()) cnt++;
+        // Count node keys of this namespace only (prefix byte + 32-byte hash); refcount entries are skipped.
+        KeyPrefixer prefixer = st.nodeStore().keyPrefixer();
+        try (ReadOptions ro = prefixer.createNamespaceScanReadOptions(); RocksIterator it = st.db().newIterator(st.nodeStore().nodesHandle(), ro)) {
+            for (it.seek(prefixer.namespaceStart()); it.isValid(); it.next()) {
+                if (!prefixer.hasCorrectPrefix(it.key())) break;
+                if (it.key().length == 33) cnt++;
+            }
         }
         return cnt;
     }
