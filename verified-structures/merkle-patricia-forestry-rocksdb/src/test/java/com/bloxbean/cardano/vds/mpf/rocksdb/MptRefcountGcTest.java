@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 
+import static com.bloxbean.cardano.vds.mpf.rocksdb.GcTestSupport.b;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MptRefcountGcTest {
@@ -43,65 +44,67 @@ class MptRefcountGcTest {
     @Test
     void refcountGc_keepsLatest_deletesDropped() throws Exception {
         MpfTrie trie = new MpfTrie(st.nodeStore());
+        RocksDbMptSession session = RocksDbMptSession.of(st);
 
-        // Version 1
-        try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
-            st.nodeStore().withBatch(wb, () -> {
-                trie.put(b("k1"), b("v1"));
-                trie.put(b("k2"), b("v2"));
-                long ver = st.rootsIndex().nextVersion();
-                st.rootsIndex().put(ver, trie.getRootHash());
-                RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
-                return null;
-            });
-            st.db().write(wo, wb);
-        }
-
+        // Version 0: nodes and root+refcounts commit in one session batch
+        session.write(() -> {
+            trie.put(b("k1"), b("v1"));
+            trie.put(b("k2"), b("v2"));
+            st.putRootWithRefcount(trie.getRootHash());
+        });
         byte[] rootV1 = trie.getRootHash();
 
-        // Version 2 (adds k3)
-        try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
-            st.nodeStore().withBatch(wb, () -> {
-                trie.put(b("k3"), b("v3"));
-                long ver = st.rootsIndex().nextVersion();
-                st.rootsIndex().put(ver, trie.getRootHash());
-                RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
-                return null;
-            });
-            st.db().write(wo, wb);
-        }
-
+        // Version 1 (adds k3, updates k1)
+        session.write(() -> {
+            trie.put(b("k3"), b("v3"));
+            trie.put(b("k1"), b("v1b"));
+            st.putRootWithRefcount(trie.getRootHash());
+        });
         byte[] rootV2 = trie.getRootHash();
+        assertEquals(java.util.List.of(0L, 1L), new java.util.ArrayList<>(st.rootsIndex().listAll().keySet()));
 
-        long before = countNodes(st);
+        long before = GcTestSupport.countNodeKeys(st.nodeStore());
+        long reachableV2 = GcTestSupport.reach(st.nodeStore(), rootV2)[0];
 
         // Run refcount GC, keep latest only
         GcManager manager = new GcManager(st.nodeStore(), st.rootsIndex());
-        GcOptions opts = new GcOptions();
-        var report = manager.runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), opts);
-        assertTrue(report.deleted >= 0);
+        var report = manager.runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+        assertTrue(report.deleted > 0, "v0-only nodes must be deleted");
 
-        long after = countNodes(st);
-        assertTrue(after <= before);
-
-        // Root V2 still functional; V1 might be partially unavailable
-        MpfTrie v2 = new MpfTrie(st.nodeStore(), rootV2);
-        assertArrayEquals(b("v3"), v2.get(b("k3")));
-        MpfTrie v1 = new MpfTrie(st.nodeStore(), rootV1);
-        // If shared nodes remain, k1 may still be readable; assert no crash
-        v1.get(b("k1"));
+        // Only the latest version's nodes stay counted (intermediate nodes written inside a batch but never part
+        // of a recorded root are not counted, so refcount GC leaves them), and the latest version is intact.
+        assertEquals(reachableV2, GcTestSupport.countRefcountKeys(st.nodeStore()));
+        assertTrue(GcTestSupport.countNodeKeys(st.nodeStore()) < before);
+        java.util.Map<String, byte[]> model = new java.util.LinkedHashMap<>();
+        model.put(GcTestSupport.hex("k1"), b("v1b"));
+        model.put(GcTestSupport.hex("k2"), b("v2"));
+        model.put(GcTestSupport.hex("k3"), b("v3"));
+        GcTestSupport.assertIntact(st.nodeStore(), rootV2, model, "latest after refcount GC");
+        // The dropped version entry is gone, so a second run is a no-op (no double decrement)
+        assertEquals(java.util.List.of(1L), new java.util.ArrayList<>(st.rootsIndex().listAll().keySet()));
+        var again = manager.runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+        assertEquals(0, again.deleted);
+        GcTestSupport.assertIntact(st.nodeStore(), rootV2, model, "latest after second refcount GC");
+        assertTrue(GcTestSupport.reach(st.nodeStore(), rootV1)[1] > 0, "v0 should no longer be complete");
     }
 
-    private static long countNodes(RocksDbStateTrees st) {
-        long cnt = 0;
-        try (RocksIterator it = st.db().newIterator(st.nodeStore().nodesHandle())) {
-            for (it.seekToFirst(); it.isValid(); it.next()) cnt++;
+    @Test
+    void legacyIncrementAllInSameBatchFailsFast() {
+        MpfTrie trie = new MpfTrie(st.nodeStore());
+        // The pre-fix pattern: nodes staged in the batch, incrementAll reading the database. It used to count only
+        // the root and later free live nodes; it now fails instead.
+        try (WriteBatch wb = new WriteBatch()) {
+            RuntimeException ex = assertThrows(RuntimeException.class, () -> st.nodeStore().withBatch(wb, () -> {
+                trie.put(b("k1"), b("v1"));
+                RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(),
+                        trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
+                return null;
+            }));
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            assertInstanceOf(IllegalStateException.class, cause);
         }
-        return cnt;
     }
 
-    private static byte[] b(String s) {
-        return s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-    }
+
 }
 

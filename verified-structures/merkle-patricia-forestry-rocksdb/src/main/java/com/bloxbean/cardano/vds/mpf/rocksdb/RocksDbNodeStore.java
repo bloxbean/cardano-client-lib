@@ -62,6 +62,12 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
     private final List<AutoCloseable> closeables;
     private static final ThreadLocal<WriteBatch> TL_BATCH = new ThreadLocal<>();
     private static final ThreadLocal<java.util.Map<String, byte[]>> TL_STAGED = new ThreadLocal<>();
+    // Per-batch state used by RocksDbStateTrees.putRootWithRefcount when it runs inside withBatch():
+    // the store that opened the batch, refcounts staged in it (prefixed key hex -> count) and the last
+    // version number staged in it.
+    private static final ThreadLocal<RocksDbNodeStore> TL_OWNER = new ThreadLocal<>();
+    private static final ThreadLocal<java.util.Map<String, Long>> TL_REFCOUNTS = new ThreadLocal<>();
+    private static final ThreadLocal<long[]> TL_LAST_VERSION = new ThreadLocal<>();
 
     public static final String CF_NODES = "nodes";
 
@@ -287,6 +293,9 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         }
         TL_BATCH.set(batch);
         TL_STAGED.set(new java.util.HashMap<>());
+        TL_OWNER.set(this);
+        TL_REFCOUNTS.set(new java.util.HashMap<>());
+        TL_LAST_VERSION.set(new long[]{Long.MIN_VALUE});
         try {
             return work.call();
         } catch (Exception e) {
@@ -294,7 +303,25 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         } finally {
             TL_BATCH.remove();
             TL_STAGED.remove();
+            TL_OWNER.remove();
+            TL_REFCOUNTS.remove();
+            TL_LAST_VERSION.remove();
         }
+    }
+
+    /** The batch opened by {@link #withBatch} on this store in the current thread, or {@code null}. */
+    WriteBatch activeBatch() {
+        return TL_OWNER.get() == this ? TL_BATCH.get() : null;
+    }
+
+    /** Refcounts staged in the active batch of this store (prefixed refcount key hex to count). */
+    java.util.Map<String, Long> activeBatchRefcounts() {
+        return TL_OWNER.get() == this ? TL_REFCOUNTS.get() : null;
+    }
+
+    /** Holder for the last version staged in the active batch; {@code Long.MIN_VALUE} when none. */
+    long[] activeBatchLastVersion() {
+        return TL_OWNER.get() == this ? TL_LAST_VERSION.get() : null;
     }
 
     /**

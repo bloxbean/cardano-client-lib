@@ -1,61 +1,97 @@
 package com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy;
 
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbRootsIndex;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcReport;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcStrategy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.RetentionPolicy;
-import com.bloxbean.cardano.vds.mpf.internal.NodeRefParser;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.GcRoots;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RefcountLedger;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import org.rocksdb.*;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 /**
- * Incremental refcount GC.
- * <p>
- * Usage pattern (recommended):
- * - When a new root is accepted: call incrementAll(newRoot) within your atomic WriteBatch.
- * - When a root/slot is pruned: call decrementAll(oldRoot) within the same batch, and delete nodes whose refcount hits 0.
- * <p>
- * The run() here implements retention by decrementing all roots not kept per policy.
- * It assumes increments for kept roots have been applied at insertion time.
+ * Reference-counting GC for MULTI_VERSION stores.
+ *
+ * <p>Every version must be recorded with {@code RocksDbStateTrees.putRootWithRefcount(root)}, which adds one to
+ * the count of every node of that version's trie. {@link #run} then drops each version whose root the retention
+ * policy does not keep: it subtracts one along the dropped trie, deletes the nodes whose count reaches zero, and
+ * removes the dropped version entries from the roots index, so running GC again never decrements twice.</p>
+ *
+ * <p>Rules:</p>
+ * <ul>
+ *   <li>Do not mix strategies on a namespace, and record every version through {@code putRootWithRefcount}.
+ *       Stores whose counts were written with the pre-0.8.0 same-batch pattern (nodes and {@code incrementAll}
+ *       staged in one WriteBatch) are inconsistent; use {@link OnDiskMarkSweepStrategy} for them.</li>
+ *   <li>The LATEST root and the root at the last version are always kept (see {@link GcRoots}).</li>
+ *   <li>Do not run GC while another thread or process writes to the same namespace.</li>
+ * </ul>
  */
 public class RefcountGcStrategy implements GcStrategy {
-    public static final String CF_REFS = "refs"; // legacy name; now store refcounts as prefixed keys in nodes CF
+    public static final String CF_REFS = "refs"; // legacy name; refcounts are stored as prefixed keys in the nodes CF
 
     @Override
     public GcReport run(RocksDbNodeStore store, RocksDbRootsIndex index, RetentionPolicy policy, GcOptions options) throws Exception {
+        long start = System.currentTimeMillis();
         RocksDB db = store.db();
         ColumnFamilyHandle cfNodes = store.nodesHandle();
-        ColumnFamilyHandle cfRefs = cfNodes; // store refcounts alongside nodes with a special key prefix
         KeyPrefixer keyPrefixer = store.keyPrefixer();
 
-        // Determine versions to keep and to drop
-        NavigableMap<Long, byte[]> all = index.listAll();
-        Set<byte[]> keepRoots = new HashSet<>(policy.resolveRoots(index));
-        List<Map.Entry<Long, byte[]>> drop = new ArrayList<>();
-        for (var e : all.entrySet()) {
-            if (!containsRoot(keepRoots, e.getValue())) drop.add(e);
+        List<byte[]> keep = GcRoots.retainedRoots(index, policy);
+        List<Long> dropVersions = new ArrayList<>();
+        List<byte[]> dropRoots = new ArrayList<>();
+        for (Map.Entry<Long, byte[]> e : index.listAll().entrySet()) {
+            if (!GcRoots.contains(keep, e.getValue())) {
+                dropVersions.add(e.getKey());
+                dropRoots.add(e.getValue());
+            }
         }
 
-        long start = System.currentTimeMillis();
         long total = 0, deleted = 0;
-
+        if (dropRoots.isEmpty()) return report(0, 0, start);
         try (WriteOptions wo = new WriteOptions();
              WriteBatch wb = new WriteBatch();
              ReadOptions ro = new ReadOptions()) {
-            for (var e : drop) {
-                // Decrement refcounts for the entire subtree of this dropped root
-                long[] res = decrementAll(db, cfNodes, cfRefs, e.getValue(), wb, ro, keyPrefixer);
+            RefcountLedger ledger = new RefcountLedger(db, cfNodes, keyPrefixer, wb, ro,
+                    h -> db.get(cfNodes, ro, keyPrefixer.prefix(h)), null);
+            for (byte[] r : keep) {
+                if (!GcRoots.isZeroRoot(r) && ledger.count(r) == 0) {
+                    throw new IllegalStateException("Retained root " + HexUtil.encodeHexString(r)
+                            + " has no refcount: this namespace holds versions that were not recorded with "
+                            + "putRootWithRefcount (or whose counts were lost). Refcount GC cannot run safely; "
+                            + "use OnDiskMarkSweepStrategy instead.");
+                }
+            }
+            for (byte[] r : dropRoots) {
+                long[] res = ledger.decrement(r);
                 total += res[0];
                 deleted += res[1];
             }
-            if (!options.dryRun) db.write(wo, wb);
+            if (!options.dryRun) {
+                boolean sameDb = index.db() == db;
+                if (sameDb) {
+                    // Index entries and refcounts commit atomically.
+                    index.withBatch(wb, () -> {
+                        for (long v : dropVersions) index.deleteVersion(v);
+                        return null;
+                    });
+                } else {
+                    // Separate databases: remove the index entries first. A crash after this only leaks nodes;
+                    // the reverse order could make a re-run decrement the same versions twice.
+                    for (long v : dropVersions) index.deleteVersion(v);
+                }
+                db.write(wo, wb);
+            }
         }
 
+        return report(total, deleted, start);
+    }
+
+    private static GcReport report(long total, long deleted, long start) {
         GcReport r = new GcReport();
         r.total = total;
         r.deleted = deleted;
@@ -65,45 +101,36 @@ public class RefcountGcStrategy implements GcStrategy {
     }
 
     /**
-     * Increment refcount for every node reachable from root. Call during atomic commit of a new root.
+     * Adds one to the refcount of every node reachable from {@code root}, staged into {@code wb}.
      *
-     * @param db      the RocksDB instance
-     * @param cfNodes the column family handle for nodes
-     * @param cfRefs  the column family handle for reference counts
-     * @param root    the root hash to start traversal from
-     * @param wb      the write batch for atomic operations
+     * <p>Counts are read from the database, so the trie nodes must already be committed. Prefer
+     * {@code RocksDbStateTrees.putRootWithRefcount(root)}, which also works inside
+     * {@code nodeStore.withBatch(...)} / {@code RocksDbMptSession.write(...)} where the nodes are only staged.</p>
+     *
+     * @param db          the RocksDB instance
+     * @param cfNodes     the column family handle for nodes
+     * @param cfRefs      the column family handle for reference counts (unused; counts live in {@code cfNodes})
+     * @param root        the root hash to start traversal from
+     * @param wb          the write batch for atomic operations
      * @param keyPrefixer the key prefixer for namespace support
      * @return the number of nodes processed
-     * @throws RocksDBException if a database operation fails
+     * @throws IllegalStateException if the root node is not committed
+     * @throws RocksDBException      if a database operation fails
      */
     public static long incrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, KeyPrefixer keyPrefixer) throws RocksDBException {
-        if (root == null || root.length != 32) return 0;
-        long touched = 0;
-        Deque<byte[]> q = new ArrayDeque<>();
-        q.add(root);
-        Set<String> seen = new HashSet<>();
-        while (!q.isEmpty()) {
-            byte[] h = q.removeFirst();
-            String key = Arrays.toString(h);
-            if (!seen.add(key)) continue;
-            long cnt = getRef(db, cfNodes, h, keyPrefixer);
-            putRef(wb, cfNodes, h, cnt + 1, keyPrefixer);
-            touched++;
-            byte[] enc = db.get(cfNodes, keyPrefixer.prefix(h));
-            if (enc == null) continue;
-            for (byte[] ch : NodeRefParser.childRefs(enc)) q.addLast(ch);
-        }
-        return touched;
+        return new RefcountLedger(db, cfNodes, keyPrefixer, wb, null,
+                h -> db.get(cfNodes, keyPrefixer.prefix(h)), null).increment(root);
     }
 
     /**
-     * Decrement refcount for every node reachable from root. Delete nodes whose refcount reaches zero.
+     * Subtracts one from the refcount of every tracked node reachable from {@code root} and deletes the nodes
+     * whose count goes from 1 to 0. Untracked nodes are skipped together with their subtrees.
      *
-     * @param db      the RocksDB instance
-     * @param cfNodes the column family handle for nodes
-     * @param cfRefs  the column family handle for reference counts
-     * @param root    the root hash to start traversal from
-     * @param wb      the write batch for atomic operations
+     * @param db          the RocksDB instance
+     * @param cfNodes     the column family handle for nodes
+     * @param cfRefs      the column family handle for reference counts (unused; counts live in {@code cfNodes})
+     * @param root        the root hash to start traversal from
+     * @param wb          the write batch for atomic operations
      * @param keyPrefixer the key prefixer for namespace support
      * @return array containing [nodes processed, nodes deleted]
      * @throws RocksDBException if a database operation fails
@@ -115,66 +142,19 @@ public class RefcountGcStrategy implements GcStrategy {
     /**
      * Decrement with optional ReadOptions (for snapshot-consistent reads).
      *
-     * @param db      the RocksDB instance
-     * @param cfNodes the column family handle for nodes
-     * @param cfRefs  the column family handle for reference counts
-     * @param root    the root hash to start traversal from
-     * @param wb      the write batch for atomic operations
-     * @param ro      optional read options for snapshot consistency
+     * @param db          the RocksDB instance
+     * @param cfNodes     the column family handle for nodes
+     * @param cfRefs      the column family handle for reference counts (unused; counts live in {@code cfNodes})
+     * @param root        the root hash to start traversal from
+     * @param wb          the write batch for atomic operations
+     * @param ro          optional read options for snapshot consistency
      * @param keyPrefixer the key prefixer for namespace support
      * @return array containing [nodes processed, nodes deleted]
      * @throws RocksDBException if a database operation fails
      */
     public static long[] decrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, ReadOptions ro, KeyPrefixer keyPrefixer) throws RocksDBException {
-        if (root == null || root.length != 32) return new long[]{0, 0};
-        long touched = 0, deleted = 0;
-        Deque<byte[]> q = new ArrayDeque<>();
-        q.add(root);
-        Set<String> seen = new HashSet<>();
-        while (!q.isEmpty()) {
-            byte[] h = q.removeFirst();
-            String key = Arrays.toString(h);
-            if (!seen.add(key)) continue;
-            long cnt = getRef(db, cfNodes, h, keyPrefixer);
-            long next = Math.max(0, cnt - 1);
-            if (next == 0) {
-                // delete count and node
-                wb.delete(cfNodes, keyPrefixer.prefix(refKey(h)));
-                wb.delete(cfNodes, keyPrefixer.prefix(h));
-                deleted++;
-            } else {
-                putRef(wb, cfNodes, h, next, keyPrefixer);
-            }
-            touched++;
-            byte[] prefixedKey = keyPrefixer.prefix(h);
-            byte[] enc = (ro != null) ? db.get(cfNodes, ro, prefixedKey) : db.get(cfNodes, prefixedKey);
-            if (enc == null) continue;
-            for (byte[] ch : NodeRefParser.childRefs(enc)) q.addLast(ch);
-        }
-        return new long[]{touched, deleted};
-    }
-
-    private static boolean containsRoot(Set<byte[]> roots, byte[] r) {
-        for (byte[] x : roots) if (Arrays.equals(x, r)) return true;
-        return false;
-    }
-
-    private static long getRef(RocksDB db, ColumnFamilyHandle cfNodes, byte[] key, KeyPrefixer keyPrefixer) throws RocksDBException {
-        byte[] v = db.get(cfNodes, keyPrefixer.prefix(refKey(key)));
-        if (v == null || v.length != 8) return 0L;
-        return ByteBuffer.wrap(v).getLong();
-    }
-
-    private static void putRef(WriteBatch wb, ColumnFamilyHandle cfNodes, byte[] key, long val, KeyPrefixer keyPrefixer) throws RocksDBException {
-        ByteBuffer bb = ByteBuffer.allocate(8);
-        bb.putLong(val);
-        wb.put(cfNodes, keyPrefixer.prefix(refKey(key)), bb.array());
-    }
-
-    private static byte[] refKey(byte[] nodeHash) {
-        byte[] out = new byte[1 + nodeHash.length];
-        out[0] = (byte) 0xF0; // prefix for refcount entries
-        System.arraycopy(nodeHash, 0, out, 1, nodeHash.length);
-        return out;
+        return new RefcountLedger(db, cfNodes, keyPrefixer, wb, ro,
+                h -> ro != null ? db.get(cfNodes, ro, keyPrefixer.prefix(h)) : db.get(cfNodes, keyPrefixer.prefix(h)),
+                null).decrement(root);
     }
 }

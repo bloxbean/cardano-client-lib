@@ -6,7 +6,7 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcReport;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.RetentionPolicy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
-import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.RefcountGcStrategy;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RefcountLedger;
 import com.bloxbean.cardano.vds.rocksdb.RocksDbConfig;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
@@ -369,6 +369,13 @@ public final class RocksDbStateTrees implements StateTrees {
      * for every node reachable from the provided root. Both actions occur within a single RocksDB
      * WriteBatch for atomicity.</p>
      *
+     * <p>The trie nodes must be visible: either already committed, or staged in a batch that is open on this
+     * thread through {@code nodeStore().withBatch(...)} / {@link RocksDbMptSession#write}. In the second case the
+     * root, the version entry and the refcounts are written into that open batch, so they commit together with
+     * the nodes, and several calls in one batch see each other's counts and versions.</p>
+     *
+     * <p>Use this for every version of a namespace that is collected with {@code RefcountGcStrategy}.</p>
+     *
      * <p><b>Note:</b> This method is only valid for {@link StorageMode#MULTI_VERSION} mode.</p>
      *
      * <p>Usage:</p>
@@ -386,7 +393,28 @@ public final class RocksDbStateTrees implements StateTrees {
             throw new IllegalStateException("putRootWithRefcount() requires MULTI_VERSION mode. Use putRootSnapshot() for SINGLE_VERSION mode.");
         }
         if (root == null || root.length == 0) throw new IllegalArgumentException("root cannot be null/empty");
+        WriteBatch activeBatch = nodeStore.activeBatch();
+        if (activeBatch != null) {
+            // Inside nodeStore.withBatch(...): stage everything in the open batch, reading staged nodes.
+            long[] stagedLast = nodeStore.activeBatchLastVersion();
+            long last = stagedLast[0] != Long.MIN_VALUE ? stagedLast[0] : rootsIndex.lastVersion();
+            long ver = last + 1;
+            try {
+                new RefcountLedger(db, nodeStore.nodesHandle(), nodeStore.keyPrefixer(), activeBatch, null,
+                        nodeStore::get, nodeStore.activeBatchRefcounts()).increment(root);
+            } catch (RocksDBException e) {
+                throw new RuntimeException("Failed to stage refcounts", e);
+            }
+            rootsIndex.withBatch(activeBatch, () -> {
+                rootsIndex.put(ver, root);
+                return null;
+            });
+            stagedLast[0] = ver;
+            return ver;
+        }
         try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            new RefcountLedger(db, nodeStore.nodesHandle(), nodeStore.keyPrefixer(), wb, null,
+                    nodeStore::get, null).increment(root);
             final long[] verHolder = new long[1];
             rootsIndex.withBatch(wb, () -> {
                 long ver = rootsIndex.nextVersion();
@@ -394,7 +422,6 @@ public final class RocksDbStateTrees implements StateTrees {
                 verHolder[0] = ver;
                 return null;
             });
-            RefcountGcStrategy.incrementAll(db, nodeStore.nodesHandle(), nodeStore.nodesHandle(), root, wb, nodeStore.keyPrefixer());
             db.write(wo, wb);
             return verHolder[0];
         } catch (RocksDBException e) {

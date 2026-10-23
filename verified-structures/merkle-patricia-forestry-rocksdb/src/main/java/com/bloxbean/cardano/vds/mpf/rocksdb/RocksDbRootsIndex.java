@@ -220,10 +220,13 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         java.util.NavigableMap<Long, byte[]> versionRootMap = new java.util.TreeMap<>();
         byte[] prefixedLatestKey = keyPrefixer.prefix(LATEST_KEY);
         byte[] prefixedLastVersionKey = keyPrefixer.prefix(LAST_VERSION_KEY);
-        try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
+        // Total-order scan of this namespace only: a prefix-same-as-start iterator positioned with
+        // seekToFirst() would bind to the lowest namespace in a shared column family.
+        try (ReadOptions readOptions = keyPrefixer.createNamespaceScanReadOptions();
              RocksIterator iterator = db.newIterator(cfRoots, readOptions)) {
-            for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+            for (iterator.seek(keyPrefixer.namespaceStart()); iterator.isValid(); iterator.next()) {
                 byte[] prefixedKey = iterator.key();
+                if (!keyPrefixer.hasCorrectPrefix(prefixedKey)) break;
                 if (java.util.Arrays.equals(prefixedKey, prefixedLatestKey) || java.util.Arrays.equals(prefixedKey, prefixedLastVersionKey))
                     continue;
                 byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
@@ -253,10 +256,11 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         byte[] startKey = keyPrefixer.prefix(toBytes(fromInclusive));
         byte[] prefixedLatestKey = keyPrefixer.prefix(LATEST_KEY);
         byte[] prefixedLastVersionKey = keyPrefixer.prefix(LAST_VERSION_KEY);
-        try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
+        try (ReadOptions readOptions = keyPrefixer.createNamespaceScanReadOptions();
              RocksIterator iterator = db.newIterator(cfRoots, readOptions)) {
             for (iterator.seek(startKey); iterator.isValid(); iterator.next()) {
                 byte[] prefixedKey = iterator.key();
+                if (!keyPrefixer.hasCorrectPrefix(prefixedKey)) break;
                 if (java.util.Arrays.equals(prefixedKey, prefixedLatestKey) || java.util.Arrays.equals(prefixedKey, prefixedLastVersionKey))
                     continue;
                 byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
@@ -322,14 +326,51 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
      * @throws RuntimeException if the work function throws an exception
      */
     public <T> T withBatch(WriteBatch batch, java.util.concurrent.Callable<T> work) {
+        WriteBatch previous = TL_BATCH.get();
         TL_BATCH.set(batch);
         try {
             return work.call();
         } catch (Exception e) {
             throw new RuntimeException("Batch operation failed", e);
         } finally {
-            TL_BATCH.remove();
+            if (previous != null) TL_BATCH.set(previous);
+            else TL_BATCH.remove();
         }
+    }
+
+    /**
+     * Removes the root recorded for {@code versionOrSlot}. {@code LATEST} and the last-version counter are not
+     * changed, so {@link #nextVersion()} stays monotonic. Honours an active {@link #withBatch} batch.
+     *
+     * @param versionOrSlot the version whose entry is removed
+     */
+    public void deleteVersion(long versionOrSlot) {
+        byte[] versionKey = keyPrefixer.prefix(toBytes(versionOrSlot));
+        try {
+            WriteBatch currentBatch = TL_BATCH.get();
+            if (currentBatch != null) currentBatch.delete(cfRoots, versionKey);
+            else db.delete(cfRoots, versionKey);
+        } catch (RocksDBException e) {
+            throw new RuntimeException("Failed to delete root for version " + versionOrSlot, e);
+        }
+    }
+
+    /**
+     * Returns the RocksDB instance holding this index.
+     *
+     * @return the RocksDB instance
+     */
+    public RocksDB db() {
+        return db;
+    }
+
+    /**
+     * Returns the key prefixer of this index's namespace.
+     *
+     * @return the key prefixer
+     */
+    public KeyPrefixer keyPrefixer() {
+        return keyPrefixer;
     }
 
     /**
