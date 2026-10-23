@@ -50,11 +50,15 @@ Works on any store, including stores without refcounts.
    digest length used to recognise node keys (32 bytes when there is no root).
 3. **Mark.** A temporary column family `marks_<nanoTime>` receives every node hash reachable from a retained root
    (breadth-first walk). The mark set lives on disk, so memory stays flat for large tries.
-4. **Sweep.** The node keys of the namespace are scanned — through the snapshot, so nodes committed after step 1 are
-   never deleted. Each unmarked node is deleted together with its refcount entry, if any. Refcount entries of kept
-   nodes and every other key are left alone. Deletes are flushed every `deleteBatchSize` nodes and reported to
-   `progress`.
-5. The marks column family is dropped.
+4. **Sweep.** The node keys of the namespace are scanned through the snapshot, so node keys that did not exist at
+   step 1 are not deleted. Each unmarked node is deleted together with its refcount entry, if any. Refcount entries
+   of kept nodes and every other key are left alone. Deletes are flushed every `deleteBatchSize` nodes and reported
+   to `progress`.
+5. The marks column family is dropped. If a run crashes, its `marks_*` column family is dropped the next time the
+   database is opened by `RocksDbStateTrees`, `RocksDbNodeStore(String..)` or `RocksDbRootsIndex(String..)`.
+
+The snapshot does **not** make GC safe next to writers: nodes are content-addressed, so a writer that re-puts a key
+that already existed, or commits a root reusing an old unmarked node, can still lose that node.
 
 `dryRun` reports what would be deleted without writing. The roots index is not modified: versions that were not
 retained stay listed, but their tries are no longer complete.
@@ -66,37 +70,55 @@ A node's count is the number of recorded versions whose trie contains it.
 **Recording.** `RocksDbStateTrees.putRootWithRefcount(root)` assigns the next version, stores the root and adds one
 to the count of every node reachable from it, in one batch. Called inside `nodeStore().withBatch(..)` or
 `RocksDbMptSession.write(..)`, it stages everything in that open batch and reads the staged nodes, so nodes, root and
-counts commit together; several calls in one batch see each other's counts and versions. The all-zero root (empty
-trie) is recorded without counts.
+counts commit together; several calls in one batch see each other's counts and versions. The all-zero root (the empty trie,
+as returned by `MpfTrie.getRootHashOrEmpty()`) is recorded without counts; `putRootWithRefcount(null)` throws, so
+record an empty trie with `getRootHashOrEmpty()` rather than `getRootHash()`.
 
 **Collecting.** `run(..)` drops every listed version whose root is not retained:
 
 - If any retained root has no count, it throws `IllegalStateException` and changes nothing: the namespace holds
-  versions that were not recorded with `putRootWithRefcount`, so counts cannot be trusted. Use mark-sweep.
+  versions that were not recorded with `putRootWithRefcount`, so refcount GC could not reclaim their nodes. Use
+  mark-sweep.
+- It marks every node reachable from a retained root in a temporary `marks_*` column family (the same on-disk mark
+  set mark-sweep uses), with `GcReport.marked` set to the number of marked nodes.
 - For each dropped version it subtracts one along that version's trie. A node is deleted only when its count goes
-  from 1 to 0. A node without a count is untracked: it is neither deleted nor descended into.
-- All decrements of one run share an overlay of the counts staged so far, so tries that share nodes are decremented
-  correctly in a single batch.
+  from 1 to 0 **and** it is not marked. A marked node whose count would reach 0 is kept with its count and reported
+  in `GcReport.protectedNodes`. A node without a count is untracked: it is neither deleted nor descended into.
+- All decrements of one run share the counts staged so far, so tries that share nodes are decremented correctly in
+  a single batch.
+- Counts are read through a snapshot when `GcOptions.useSnapshot` is set. Decrements, deletions and index updates are
+  written as one atomic `WriteBatch`, so `deleteBatchSize` and `progress` do not apply; `dryRun` writes nothing.
 - The dropped version entries are deleted from the roots index in the same batch (when the index and the nodes share
   one RocksDB; otherwise the index entries are deleted first). Running GC again cannot decrement a version twice.
   `LATEST` and `VERSION` are not changed.
 
-Nodes that were written but never part of a recorded root (for example intermediate nodes of several `put`s inside
-one batch) are never counted, so refcount GC never deletes them. Run mark-sweep occasionally if that matters.
+**Safety on legacy and mixed stores.** Because of the marking, refcount GC can never delete a node that a retained
+version still reaches, whatever the counts say. This matters for stores whose counts were written by pre-0.8.0 code:
+the old `putRootWithRefcount` inside a session batch, and the old pattern of staging trie nodes and `incrementAll` in
+one `WriteBatch`, counted only the root. On such stores refcount GC is safe but leaks (`protectedNodes > 0`);
+`OnDiskMarkSweepStrategy` reclaims the leak. The price of the marking is a walk of the retained tries on every run.
 
-The static helpers `incrementAll(..)` / `decrementAll(..)` apply the same rules to one root. `incrementAll` reads
-nodes from the database and throws `IllegalStateException` when the root node is not committed — the old pattern of
-staging trie nodes and `incrementAll` in one `WriteBatch` counted only the root and later freed live nodes. Prefer
-`putRootWithRefcount`.
+Nodes that were written but never part of a recorded root (for example intermediate nodes of several `put`s inside
+one batch) are never counted, so refcount GC never deletes them either. Run mark-sweep occasionally if that matters.
+
+**Static helpers.** `incrementAll(..)` / `decrementAll(..)` apply the counting rules to one root. All helper calls
+(and `putRootWithRefcount` inside a batch) that stage into the same `WriteBatch` object for the same database, column
+family and namespace share their staged counts, and a node whose deletion a `decrementAll` staged is written back
+when a later `incrementAll` in that batch counts it again. Do not reuse a batch after writing it. The helpers do not
+know the retained roots, so they cannot protect nodes the way `run(..)` does: they trust the counts.
+`incrementAll` reads nodes from the database and throws `IllegalStateException` when the root node is not committed.
+Prefer `putRootWithRefcount`, which also works inside `nodeStore().withBatch(..)` / `RocksDbMptSession.write(..)`
+(joining a batch opened by another node store instance of the same namespace, and throwing for a batch of another
+namespace).
 
 ## 5. Rules
 
-- **No concurrent writers.** Pause every writer of the namespace while GC runs. The snapshot protects nodes written
-  after it from the sweep, but a root committed during GC can still reuse an old node that was not marked.
-- **One strategy per namespace.** Mark-sweep keeps refcount entries of live nodes, but refcount GC after mark-sweep
-  can leak, and refcount GC requires every version to be recorded with `putRootWithRefcount`.
-- **Pre-0.8.0 refcounts.** Stores whose counts were written with the same-batch pattern above have wrong counts.
-  Collect them with mark-sweep.
+- **No concurrent writers.** Pause every writer of the namespace while GC runs. The snapshot only protects node keys
+  that did not exist when it was taken (see section 3).
+- **Prefer one strategy per namespace.** Mixing is safe but refcount GC after mark-sweep can leak; refcount GC only
+  reclaims nodes of versions recorded with `putRootWithRefcount`.
+- **Pre-0.8.0 refcounts.** Stores whose counts were written by older code are safe to collect with refcount GC but
+  leak; run mark-sweep to reclaim the leak.
 - **Single hash function per namespace.** Mark-sweep fails fast when retained roots have different lengths.
 
 ## 6. Single-version mode

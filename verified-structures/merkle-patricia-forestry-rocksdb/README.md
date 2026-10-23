@@ -66,6 +66,10 @@ try (RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf")) {
 ### Single-version (snapshot) mode
 
 ```java
+import com.bloxbean.cardano.vds.core.api.StorageMode;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions;
+
+// cleanupOrphanedNodes declares `throws Exception`
 try (RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf", StorageMode.SINGLE_VERSION)) {
     MpfTrie trie = new MpfTrie(stateTrees.nodeStore(), stateTrees.getCurrentRoot());
     trie.put("alice".getBytes(), "100".getBytes());
@@ -99,6 +103,8 @@ version reaches. See [docs/gc.md](docs/gc.md) for the algorithms and the on-disk
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.*;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.*;
 
+// GcManager.runSync and GcStrategy.run declare `throws Exception`
+
 GcManager gc = new GcManager(stateTrees.nodeStore(), stateTrees.rootsIndex());
 GcOptions options = new GcOptions();
 options.deleteBatchSize = 10_000;
@@ -111,16 +117,18 @@ System.out.println("deleted " + report.deleted + " of " + report.total + " nodes
 | Strategy | Cost | Requirements |
 |---|---|---|
 | `OnDiskMarkSweepStrategy` | Walks every retained version and scans the namespace's nodes | None; works on any store |
-| `RefcountGcStrategy` | Walks only the dropped versions | Every version recorded with `putRootWithRefcount` |
+| `RefcountGcStrategy` | Walks the retained versions (to protect their nodes) and the dropped versions; no full scan | Versions recorded with `putRootWithRefcount` (only those are reclaimed) |
 
 Rules:
 
 - The `LATEST` root and the root at the last version are always kept, whatever the policy says.
-- Do not run GC while another thread or process writes to the same namespace.
-- Pick one strategy per namespace. Refcount GC refuses to run when a retained root has no refcount, and leaves nodes
-  that were never counted (for example intermediate nodes written inside a batch) to mark-sweep.
-- Stores whose refcounts were written by pre-0.8.0 code that staged trie nodes and `incrementAll` in the same
-  `WriteBatch` have wrong counts; collect them with `OnDiskMarkSweepStrategy`.
+- Do not run GC while another thread or process writes to the same namespace; the snapshot does not protect
+  re-puts of existing (content-addressed) node keys.
+- Refcount GC never deletes a node a retained version still reaches, even when counts are wrong (for example counts
+  written by pre-0.8.0 code, which counted only roots); it leaks instead and reports the kept nodes in
+  `GcReport.protectedNodes`. It refuses to run when a retained root has no refcount, and leaves nodes that were never
+  counted (for example intermediate nodes written inside a batch) to mark-sweep.
+- Prefer one strategy per namespace; run mark-sweep occasionally to reclaim what refcount GC leaks.
 - Refcount GC removes the entries of the versions it drops from the roots index; mark-sweep leaves the index as it is.
 
 Retention policies: `RetentionPolicy.keepLatestN(n)`, `keepVersions(Collection<Long>)`, `keepRange(from, to)`, or any
@@ -191,8 +199,11 @@ void write(Runnable work)
 
 ```java
 GcOptions: boolean dryRun; int deleteBatchSize; boolean useSnapshot (default true); LongConsumer progress
-GcReport:  long marked (-1 for refcount); long total; long deleted; long durationMillis
+GcReport:  long marked; long total; long deleted; long protectedNodes (refcount); long durationMillis
 ```
+
+`dryRun` and `useSnapshot` apply to both strategies. `deleteBatchSize` and `progress` apply to mark-sweep only:
+refcount GC writes its decrements, deletions and index updates as one atomic `WriteBatch`.
 
 ## Storage Layout
 

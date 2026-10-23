@@ -34,9 +34,16 @@ import java.util.Random;
 public class GcTool {
     private static final HashFunction HF = Blake2b256::digest;
 
+    private static final String USAGE = String.join("\n",
+            "Usage: gc <command> <dbPath> [args]",
+            "  generate <dbPath> <keyPoolSize> <versions>   write versions (each updates ~10% of a random key pool)",
+            "  stats <dbPath>                               node count, version count, latest root",
+            "  gc-refcount <dbPath> keep-latest <n>         refcount GC keeping the latest n versions",
+            "  gc-marksweep <dbPath> keep-latest <n>        mark-sweep GC keeping the latest n versions");
+
     public static void main(String[] args) throws Exception {
-        if (args.length < 2) {
-            System.out.println("Usage: GcTool <cmd> <dbPath> [...]");
+        if (args.length < 2 || "--help".equals(args[0]) || "-h".equals(args[0]) || "help".equals(args[0])) {
+            System.out.println(USAGE);
             return;
         }
         String cmd = args[0];
@@ -64,7 +71,8 @@ public class GcTool {
                 break;
             }
             default:
-                System.out.println("Unknown cmd: " + cmd);
+                System.out.println("Unknown command: " + cmd);
+                System.out.println(USAGE);
         }
     }
 
@@ -124,7 +132,9 @@ public class GcTool {
         try (RocksDbStateTrees st = new RocksDbStateTrees(dbPath)) {
             long nodes = countNodes(st);
             long versions = st.rootsIndex().listAll().size();
-            System.out.println("nodes=" + nodes + " versions=" + versions + " latestRoot=" + HexUtil.encodeHexString(st.rootsIndex().latest()));
+            byte[] latest = st.rootsIndex().latest();
+            System.out.println("nodes=" + nodes + " versions=" + versions + " latestRoot="
+                    + (latest == null ? "none" : HexUtil.encodeHexString(latest)));
         }
     }
 
