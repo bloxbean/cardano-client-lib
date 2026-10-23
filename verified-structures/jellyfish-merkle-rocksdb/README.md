@@ -9,8 +9,6 @@ RocksDB persistence for the repository's custom, versioned radix-16 JMT implemen
 ## Usage
 
 ```java
-import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtStore;
 
@@ -20,8 +18,9 @@ import java.util.Map;
 RocksDbJmtStore.Options options = RocksDbJmtStore.Options.production();
 
 try (RocksDbJmtStore store = RocksDbJmtStore.open("data/jmt", options)) {
-    HashFunction hashFn = Blake2b256::digest;
-    JellyfishMerkleTree tree = new JellyfishMerkleTree(store, hashFn);
+    // Classic Blake2b-256 v1 profile. The deprecated (store, hashFn) constructors are in-memory only:
+    // this store rejects their "unversioned" format with JmtFormatMismatchException.
+    JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
     Map<byte[], byte[]> updates = new LinkedHashMap<>();
     updates.put("alice".getBytes(), "balance:100".getBytes());
@@ -54,6 +53,7 @@ caller remains responsible for the database and for any supplied column-family h
 
 ```java
 // Remove stale nodes and old value history through version 1_000.
+// tree.pruneUpTo(1_000L) does the same and records the jmt.prune.* metrics.
 int removed = store.pruneUpTo(1_000L);
 
 // Remove roots, nodes, values, and stale markers after version 900.
@@ -66,8 +66,13 @@ writer does not block: it throws `JmtConcurrentMutationException` before touchin
 wrapper around an externally owned RocksDB handle must be given the same explicit coordinator;
 the safe `attach(...)` API requires it.
 
-Pruning removes roots below the retained horizon and persists a prune watermark. Rollback below
-that watermark is rejected rather than exposing an incomplete historical tree.
+Pruning removes roots below the retained horizon and persists a prune watermark
+(`store.pruneWatermark()`). Rollback below that watermark, or to a version at which no root survives
+pruning, is rejected rather than exposing an incomplete historical tree, and `tree.get(key, version)`
+rejects versions below it.
+
+`store.recordStats(metrics)` publishes the `jmt.rocksdb.*` gauges (pending compaction bytes, running
+compactions, memtable size, immutable memtables); call it periodically, the tree does not.
 
 ## Storage layout
 
@@ -75,6 +80,7 @@ that watermark is rejected rather than exposing an incomplete historical tree.
 - `values_jmt`: `namespace || keyHash || version -> value/tombstone`
 - `roots_jmt`: per-version roots plus latest-root metadata
 - `stale_jmt`: `staleSince || NodeKey`
+- `metadata_jmt`: format descriptor and prune watermark
 - `nodes_by_ver_jmt`, `values_by_ver_jmt`: optional rollback indexes
 
 Values use 32-byte key hashes. Commits use one RocksDB `WriteBatch` for nodes, values, stale
@@ -83,5 +89,5 @@ markers, roots, latest metadata, and enabled rollback indexes.
 ## Gradle
 
 ```gradle
-implementation "com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:0.8.0"
+implementation "com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:<version>"
 ```

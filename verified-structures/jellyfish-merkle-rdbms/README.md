@@ -10,7 +10,14 @@ production backend; H2 and SQLite remain development/test backends.
 
 ## Schema setup
 
-The store does not create or migrate tables. Apply the matching resource before opening it:
+The store does not create or migrate tables on its own. Either call the opt-in installer once before
+opening it:
+
+```java
+RdbmsJmtSchemaInstaller.createIfNotExists(config); // idempotent (CREATE ... IF NOT EXISTS)
+```
+
+or apply the bundled resource for your database with your migration tool (recommended for production):
 
 ```text
 /ddl/jmt/postgres/schema.sql
@@ -18,15 +25,16 @@ The store does not create or migrate tables. Apply the matching resource before 
 /ddl/jmt/sqlite/schema.sql
 ```
 
-Use a migration tool for production. If `DbConfig.tablePrefix(...)` is configured, provision tables
-with that same validated prefix.
+The installer honours `DbConfig.tablePrefix(...)` for table **and** index names (`account_jmt_nodes`,
+`account_idx_jmt_nodes_ns_path`, ...), so several prefixed schemas can share a database;
+`RdbmsJmtSchemaInstaller.statements(dialect, prefix)` returns the statements it would run. If you apply
+the resources yourself with a table prefix, provision the tables with that same validated prefix.
 
 ## Usage
 
 ```java
-import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
+import com.bloxbean.cardano.vds.jmt.rdbms.RdbmsJmtSchemaInstaller;
 import com.bloxbean.cardano.vds.jmt.rdbms.RdbmsJmtStore;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 
@@ -36,10 +44,11 @@ import java.util.Map;
 try (DbConfig config = DbConfig.builder()
         .jdbcUrl("jdbc:postgresql://localhost:5432/jmt", "jmt_user", "secret")
         .build()) {
-    // Apply /ddl/jmt/postgres/schema.sql before constructing/using the store.
+    RdbmsJmtSchemaInstaller.createIfNotExists(config); // or apply /ddl/jmt/postgres/schema.sql yourself
     try (RdbmsJmtStore store = new RdbmsJmtStore(config)) {
-        HashFunction hashFn = Blake2b256::digest;
-        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, hashFn);
+        // Classic Blake2b-256 v1 profile. The deprecated (store, hashFn) constructors are in-memory only:
+        // this store rejects their "unversioned" format with JmtFormatMismatchException.
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
         Map<byte[], byte[]> updates = new LinkedHashMap<>();
         updates.put("alice".getBytes(), "balance:100".getBytes());
@@ -85,8 +94,10 @@ this requirement. Every commit also publishes its latest root with a transaction
 if separate store instances calculated from the same base, only one transaction can commit and the
 loser's nodes, values, stale markers, and root are rolled back.
 
-Pruning removes roots below the retained horizon and persists a prune watermark. Rollback below
-that watermark is rejected. H2 and SQLite fail-fast maintenance coordination is process-local and
+Pruning removes roots below the retained horizon and persists a prune watermark
+(`store.pruneWatermark()`). Rollback below that watermark, or to a version at which no root survives
+pruning, is rejected, and `tree.get(key, version)` rejects versions below it. `tree.pruneUpTo(..)` prunes
+the same way as `store.pruneUpTo(..)` and records the `jmt.prune.*` metrics. H2 and SQLite fail-fast maintenance coordination is process-local and
 is not qualified for multi-process production use.
 
 ## Indexes and performance
@@ -100,6 +111,6 @@ throughput guarantee.
 ## Gradle
 
 ```gradle
-implementation "com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:0.8.0"
+implementation "com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:<version>"
 runtimeOnly "org.postgresql:postgresql:<approved-version>"
 ```

@@ -1,6 +1,7 @@
 # Jellyfish-Merkle Module Design
 
-**Status:** experimental
+**Status:** qualified for serialized off-chain state with one logical writer per namespace; see
+[ADR-002](../adr/002-production-readiness-gates.md)
 
 **Hash width:** 256 bits
 
@@ -94,8 +95,11 @@ For each node changed at version `v`, the cache:
 4. propagates the new child hash to the root.
 
 Multiple key updates in one call share staged nodes. A later update sees earlier updates in the same
-batch. The final backend commit is atomic, but the complete read/compute/commit protocol is not;
-commit, prune, and rollback must be serialized outside the tree, including across processes.
+batch. The final backend commit is atomic, but the complete read/compute/commit protocol is not.
+The namespace's access coordinator serializes commit, prune, and rollback and fails competing
+operations fast (`JmtConcurrentMutationException`); every tree/store wrapper of a namespace must share
+it. Only PostgreSQL extends this across processes (advisory locks); with RocksDB, H2, and SQLite keep one
+writing process per namespace.
 
 Individual key deletion is not implemented. Store-level tombstone methods are reserved plumbing,
 not a supported tree operation.

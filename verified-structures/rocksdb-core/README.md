@@ -15,7 +15,7 @@ Use it directly only when you build your own RocksDB-backed structure, or when y
 
 ```gradle
 dependencies {
-    implementation 'com.bloxbean.cardano:cardano-client-rocksdb-core:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-rocksdb-core:<version>'
     // org.rocksdb:rocksdbjni is an api dependency and comes transitively
 }
 ```

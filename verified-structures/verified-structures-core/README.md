@@ -258,10 +258,10 @@ MerklePatriciaTrie trie = new MerklePatriciaTrie(store, sha256);
 
 ```gradle
 dependencies {
-    api 'com.bloxbean.cardano:cardano-client-verified-structures-core:0.8.0'
+    api 'com.bloxbean.cardano:cardano-client-verified-structures-core:<version>'
 
     // Required for Blake2b
-    implementation 'com.bloxbean.cardano:cardano-client-crypto:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-crypto:<version>'
 }
 ```
 
