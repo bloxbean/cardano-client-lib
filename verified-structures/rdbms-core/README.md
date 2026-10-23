@@ -40,8 +40,9 @@ DbConfig custom = DbConfig.builder()
         .build();
 ```
 
-- `DbConfig` is `AutoCloseable`. It closes data sources it created (`jdbcUrl`, `simpleJdbcUrl`); a data source passed
-  with `dataSource(...)` stays yours to close.
+- `DbConfig` is `AutoCloseable`. `close()` shuts down the HikariCP pool it created through `jdbcUrl(...)`. The
+  `simpleJdbcUrl(...)` data source is unpooled (a new JDBC connection per call) and holds nothing to close. A data
+  source passed with `dataSource(...)` is never closed by `DbConfig`.
 - A builder can be used once.
 - `jdbcUrl(...)` uses a pool of at most 10 connections. Pass your own `DataSource` for other pool settings.
 

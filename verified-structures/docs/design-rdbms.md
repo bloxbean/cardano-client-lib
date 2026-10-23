@@ -4,15 +4,13 @@
 
 ## Table of Contents
 
-1. [Architecture Overview](#architecture-overview)
-2. [SQL Dialect Abstraction](#sql-dialect-abstraction)
-3. [Connection Pooling](#connection-pooling)
-4. [Transaction Management](#transaction-management)
-5. [Schema Design](#schema-design)
-6. [Performance Tuning](#performance-tuning)
-7. [StateTrees, RootsIndex, and GC](#statetrees-rootsindex-and-gc)
-8. [Design Decisions](#design-decisions)
-9. [References](#references)
+1. [Architecture Overview](#1-architecture-overview)
+2. [SQL Dialect Abstraction](#2-sql-dialect-abstraction)
+3. [Connection Pooling](#3-connection-pooling)
+4. [Transaction Management](#4-transaction-management)
+5. [Schema Design](#5-schema-design)
+6. [Performance Tuning](#6-performance-tuning)
+7. [StateTrees, RootsIndex, and GC](#7-statetrees-rootsindex-and-gc)
 
 ---
 
@@ -69,11 +67,9 @@
 - Automatic failover and retry
 - Metrics and monitoring
 
-**TransactionManager:**
-- ACID transaction coordination
-- Savepoint support for nested transactions
-- Isolation level management
-- Deadlock detection and retry
+**Transactions (`RdbmsNodeStore.withTransaction`):**
+- One JDBC transaction per callback (thread-bound connection), commit or rollback
+- No savepoints, no automatic retry; isolation is the data source's default
 
 ---
 
@@ -81,27 +77,27 @@
 
 ### 2.1 Dialect Interface
 
+The real interface (`com.bloxbean.cardano.vds.rdbms.dialect.SqlDialect`, implemented by `H2Dialect`,
+`PostgresDialect` and `SqliteDialect`). It does not generate DDL; the schema is bundled per dialect (see
+[Schema Design](#5-schema-design)).
+
 ```java
 public interface SqlDialect {
-    // DDL
-    String createNodeTable(String tableName);
-    String createValueTable(String tableName);
-    String createRootTable(String tableName);
+    String name();                                   // "H2", "PostgreSQL", "SQLite"
 
     // DML
-    String upsertNode(String tableName);
-    String selectNode(String tableName);
-    String deleteNode(String tableName);
+    String upsertLatestSql(String tableName);        // 3 params: namespace, latest_version, latest_root
+    String insertOrIgnoreSql(String tableName, String columns, String placeholders, String keyColumns);
 
     // Type mapping
-    String binaryType(int maxLength);
+    String binaryType();
     String bigintType();
-    String timestampType();
+    String smallintType();
+    String currentTimestamp();
 
-    // Features
+    // Binding and features
+    KeyCodec keyCodec();                             // how binary keys are bound and read
     boolean supportsReturning();
-    boolean supportsUpsert();
-    boolean supportsArrays();
 }
 ```
 
@@ -364,7 +360,7 @@ try {
             // Log rollback failure
         }
     }
-    throw new RdbmsStorageException("Failed to commit transaction", e);
+    throw new RuntimeException("Failed to commit transaction", e); // what RdbmsNodeStore.withTransaction does
 } finally {
     if (conn != null) {
         try {
@@ -405,28 +401,24 @@ try {
 
 ### 4.3 Deadlock Handling
 
-**Detection:**
-```java
-catch (SQLException e) {
-    if (e.getSQLState().equals("40P01")) { // PostgreSQL deadlock code
-        // Retry with exponential backoff
-        return retryWithBackoff(() -> performTransaction(), 3);
-    }
-    throw e;
-}
+The stores do not retry. `RdbmsNodeStore.withTransaction` rolls back and rethrows as a `RuntimeException`
+whose cause is the `SQLException`. A caller that wants to retry checks the SQL state (PostgreSQL deadlock
+`40P01`, serialization failure `40001`):
 
-private <T> T retryWithBackoff(Supplier<T> operation, int maxRetries) {
-    int retries = 0;
-    while (retries < maxRetries) {
+```java
+<T> T withRetry(RdbmsNodeStore store, RdbmsNodeStore.TransactionCallback<T> work, int maxRetries)
+        throws InterruptedException {
+    for (int attempt = 1; ; attempt++) {
         try {
-            return operation.get();
-        } catch (DeadlockException e) {
-            retries++;
-            long backoff = (long) (100 * Math.pow(2, retries)); // Exponential
-            Thread.sleep(backoff);
+            return store.withTransaction(work);
+        } catch (RuntimeException e) {
+            boolean retryable = e.getCause() instanceof SQLException
+                    && ("40P01".equals(((SQLException) e.getCause()).getSQLState())
+                        || "40001".equals(((SQLException) e.getCause()).getSQLState()));
+            if (!retryable || attempt >= maxRetries) throw e;
+            Thread.sleep(100L << attempt); // exponential backoff
         }
     }
-    throw new RuntimeException("Max retries exceeded");
 }
 ```
 
@@ -702,4 +694,5 @@ The current in-memory mark-set approach has known memory constraints:
 - JVM GC pressure from millions of `ByteBuffer` + `byte[]` pairs
 - The sweep `List<byte[]>` adds ~52 bytes per orphan
 
-See the [GC strategies documentation](../merkle-patricia-forestry-rocksdb/docs/gc.md#rdbms-mark-and-sweep-gc) for detailed analysis, comparison with RocksDB GC, and future improvement strategies.
+For comparison, the RocksDB backend's mark-sweep and refcount strategies are described in
+[merkle-patricia-forestry-rocksdb/docs/gc.md](../merkle-patricia-forestry-rocksdb/docs/gc.md).

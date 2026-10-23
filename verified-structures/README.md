@@ -126,7 +126,7 @@ dependencies {
 
     // JMT with PostgreSQL
     implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:0.8.0'
-    implementation 'org.postgresql:postgresql:42.6.0'
+    implementation 'org.postgresql:postgresql:42.7.10'
 }
 ```
 

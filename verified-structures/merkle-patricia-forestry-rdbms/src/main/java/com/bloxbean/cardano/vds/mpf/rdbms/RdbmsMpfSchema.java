@@ -47,26 +47,49 @@ public final class RdbmsMpfSchema {
     private static final String[] NAMES = {
             "mpt_nodes", "mpt_roots", "mpt_latest", "idx_mpt_nodes_ns", "idx_mpt_roots_ns"};
 
+    /**
+     * Longest identifier PostgreSQL keeps (NAMEDATALEN - 1). PostgreSQL silently truncates longer names, so two
+     * long prefixes could map to the same table; the limit is enforced for every dialect to keep schemas portable.
+     */
+    public static final int MAX_IDENTIFIER_LENGTH = 63;
+
     private RdbmsMpfSchema() {
     }
 
     /**
      * Creates the MPF tables and indexes if they do not exist yet.
      *
+     * <p>If the data source hands out connections with auto-commit off, all statements run in one transaction,
+     * which is committed at the end or rolled back on failure. With auto-commit on (the JDBC default) each
+     * statement commits on its own; after a failure, fix the cause and call this method again, since every
+     * statement is idempotent.</p>
+     *
      * @param config the database configuration (data source, dialect and optional table prefix)
-     * @throws IllegalArgumentException if the dialect has no bundled DDL
+     * @throws IllegalArgumentException if the dialect has no bundled DDL, or the prefix is invalid or makes a
+     *                                  generated name longer than {@link #MAX_IDENTIFIER_LENGTH}
      * @throws IllegalStateException    if the DDL cannot be read or executed
      */
     public static void createIfNotExists(DbConfig config) {
         Objects.requireNonNull(config, "config");
         List<String> statements = statements(config.dialect(), config.tablePrefix());
-        try (Connection conn = config.dataSource().getConnection();
-             Statement stmt = conn.createStatement()) {
-            for (String sql : statements) {
-                stmt.execute(sql);
-            }
-            if (!conn.getAutoCommit()) {
-                conn.commit();
+        try (Connection conn = config.dataSource().getConnection()) {
+            boolean autoCommit = conn.getAutoCommit();
+            try (Statement stmt = conn.createStatement()) {
+                for (String sql : statements) {
+                    stmt.execute(sql);
+                }
+                if (!autoCommit) {
+                    conn.commit();
+                }
+            } catch (SQLException | RuntimeException e) {
+                if (!autoCommit) {
+                    try {
+                        conn.rollback();
+                    } catch (SQLException rollbackFailure) {
+                        e.addSuppressed(rollbackFailure);
+                    }
+                }
+                throw e;
             }
         } catch (SQLException e) {
             throw new IllegalStateException("Failed to create MPF schema for " + config.dialect().name(), e);
@@ -79,10 +102,19 @@ public final class RdbmsMpfSchema {
      * @param dialect     the SQL dialect
      * @param tablePrefix the table prefix, or empty/null for none
      * @return the statements, in execution order
+     * @throws IllegalArgumentException if the dialect has no bundled DDL, or the prefix is invalid or makes a
+     *                                  generated name longer than {@link #MAX_IDENTIFIER_LENGTH}
      */
     public static List<String> statements(SqlDialect dialect, String tablePrefix) {
         Objects.requireNonNull(dialect, "dialect");
         TableNameResolver resolver = new TableNameResolver(tablePrefix);
+        for (String name : NAMES) {
+            String resolved = resolver.resolve(name);
+            if (resolved.length() > MAX_IDENTIFIER_LENGTH) {
+                throw new IllegalArgumentException("Table prefix '" + resolver.tablePrefix() + "' is too long: generated name '"
+                        + resolved + "' has " + resolved.length() + " characters, the maximum is " + MAX_IDENTIFIER_LENGTH);
+            }
+        }
         String ddl = readResource("/ddl/mpf/" + ddlDirectory(dialect) + "/schema.sql");
 
         StringBuilder withoutComments = new StringBuilder();

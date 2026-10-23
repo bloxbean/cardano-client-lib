@@ -13,9 +13,10 @@ nodes are stored changes.
 dependencies {
     implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rdbms:0.8.0'
 
-    // Plus the JDBC driver for your database (the PostgreSQL driver is already included)
-    implementation 'com.h2database:h2:2.2.224'        // or
-    implementation 'org.xerial:sqlite-jdbc:3.45.0.0'
+    // Plus the JDBC driver for your database (the PostgreSQL driver is already included).
+    // Any recent version works; CCL is tested with these:
+    implementation 'com.h2database:h2:2.4.240'          // or
+    implementation 'org.xerial:sqlite-jdbc:3.51.2.0'
 }
 ```
 
@@ -68,8 +69,9 @@ DbConfig custom = DbConfig.builder()
         .build();
 ```
 
-`DbConfig` owns (and closes) data sources it created through `jdbcUrl` or `simpleJdbcUrl`. A data source you pass
-with `dataSource(...)` stays yours to close.
+`DbConfig.close()` shuts down the HikariCP pool it created through `jdbcUrl(...)`. The `simpleJdbcUrl(...)` data
+source is unpooled (one JDBC connection per call) and holds nothing to close. A data source you pass with
+`dataSource(...)` is never closed by `DbConfig`.
 
 ## API
 
@@ -140,7 +142,11 @@ CREATE TABLE IF NOT EXISTS mpt_latest (
 
 With a table prefix `p`, `RdbmsMpfSchema` creates `p_mpt_nodes`, `p_mpt_roots`, `p_mpt_latest`, `p_idx_mpt_nodes_ns`
 and `p_idx_mpt_roots_ns`. If you apply the DDL yourself with a prefix, rename the tables and indexes the same way.
-`RdbmsMpfSchema.statements(dialect, prefix)` returns the exact statements.
+`RdbmsMpfSchema.statements(dialect, prefix)` returns the exact statements. A prefix may have at most 46 characters,
+so that every generated name fits PostgreSQL's 63-character identifier limit (enforced for all dialects).
+
+With auto-commit off, `createIfNotExists` runs all statements in one transaction and rolls back on failure. With
+auto-commit on (the default) each statement commits on its own; after a failure, call it again.
 
 Node keys are commitments (32-byte hashes) and `node_data` is the CBOR-encoded node, byte-identical to what the
 RocksDB backend stores.

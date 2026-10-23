@@ -9,15 +9,21 @@ import com.bloxbean.cardano.vds.rdbms.dialect.SqlDialect;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.sql.DataSource;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.ResultSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -88,6 +94,87 @@ class RdbmsMpfSchemaTest {
     @Test
     void invalidPrefixRejected() {
         assertThrows(IllegalArgumentException.class, () -> RdbmsMpfSchema.statements(new H2Dialect(), "bad-prefix;"));
+    }
+
+    @Test
+    void prefixLengthIsBoundedByPostgresIdentifierLimit() {
+        // Longest generated name is "<prefix>_idx_mpt_nodes_ns" (prefix + 17 characters)
+        String longest = "p".repeat(RdbmsMpfSchema.MAX_IDENTIFIER_LENGTH - 17);
+        for (SqlDialect dialect : List.of(new H2Dialect(), new PostgresDialect())) {
+            List<String> stmts = RdbmsMpfSchema.statements(dialect, longest);
+            assertTrue(String.join("\n", stmts).contains(longest + "_idx_mpt_nodes_ns"));
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> RdbmsMpfSchema.statements(dialect, longest + "x"));
+            assertTrue(e.getMessage().contains("too long"), e.getMessage());
+        }
+    }
+
+    @Test
+    void tooLongPrefixRejectedBeforeTouchingTheDatabase() {
+        String url = "jdbc:h2:mem:mpf_schema_long_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1";
+        String prefix = "p".repeat(RdbmsMpfSchema.MAX_IDENTIFIER_LENGTH);
+        try (DbConfig config = DbConfig.builder().simpleJdbcUrl(url).tablePrefix(prefix).build()) {
+            assertThrows(IllegalArgumentException.class, () -> RdbmsMpfSchema.createIfNotExists(config));
+            assertTrue(tables(config).stream().noneMatch(n -> n.contains("mpt_")), tables(config).toString());
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    @Test
+    void failureRollsBackWhenAutoCommitIsOff() throws Exception {
+        String url = "jdbc:h2:mem:mpf_schema_rollback_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1";
+        try (DbConfig real = DbConfig.builder().simpleJdbcUrl(url).build()) {
+            AtomicInteger rollbacks = new AtomicInteger();
+            AtomicInteger commits = new AtomicInteger();
+            DataSource failing = failingOnThirdStatement(real.dataSource(), rollbacks, commits);
+            DbConfig config = DbConfig.builder().dataSource(failing).dialect(new H2Dialect()).build();
+            IllegalStateException e = assertThrows(IllegalStateException.class, () -> RdbmsMpfSchema.createIfNotExists(config));
+            assertTrue(e.getCause() instanceof SQLException, String.valueOf(e.getCause()));
+            assertEquals(1, rollbacks.get());
+            assertEquals(0, commits.get());
+
+            // Retrying against a healthy data source completes the schema
+            RdbmsMpfSchema.createIfNotExists(real);
+            roundTrip(real);
+        }
+    }
+
+    /** Data source whose connections have auto-commit off and whose third executed statement fails. */
+    private static DataSource failingOnThirdStatement(DataSource delegate, AtomicInteger rollbacks, AtomicInteger commits) {
+        AtomicInteger executed = new AtomicInteger();
+        return (DataSource) Proxy.newProxyInstance(RdbmsMpfSchemaTest.class.getClassLoader(), new Class<?>[]{DataSource.class},
+                (dsProxy, dsMethod, dsArgs) -> {
+                    if (!dsMethod.getName().equals("getConnection")) return invoke(dsMethod, delegate, dsArgs);
+                    Connection conn = (Connection) invoke(dsMethod, delegate, dsArgs);
+                    conn.setAutoCommit(false);
+                    return Proxy.newProxyInstance(RdbmsMpfSchemaTest.class.getClassLoader(), new Class<?>[]{Connection.class},
+                            (cProxy, cMethod, cArgs) -> {
+                                switch (cMethod.getName()) {
+                                    case "rollback": rollbacks.incrementAndGet(); break;
+                                    case "commit": commits.incrementAndGet(); break;
+                                    case "createStatement":
+                                        Statement st = (Statement) invoke(cMethod, conn, cArgs);
+                                        return Proxy.newProxyInstance(RdbmsMpfSchemaTest.class.getClassLoader(), new Class<?>[]{Statement.class},
+                                                (sProxy, sMethod, sArgs) -> {
+                                                    if (sMethod.getName().equals("execute") && executed.incrementAndGet() == 3) {
+                                                        throw new SQLException("injected failure");
+                                                    }
+                                                    return invoke(sMethod, st, sArgs);
+                                                });
+                                    default:
+                                }
+                                return invoke(cMethod, conn, cArgs);
+                            });
+                });
+    }
+
+    private static Object invoke(java.lang.reflect.Method m, Object target, Object[] args) throws Throwable {
+        try {
+            return m.invoke(target, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        }
     }
 
     private static void roundTrip(DbConfig config) {
