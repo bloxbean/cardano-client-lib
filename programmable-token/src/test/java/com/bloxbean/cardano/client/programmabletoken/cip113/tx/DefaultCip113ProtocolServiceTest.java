@@ -20,11 +20,14 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Exception;
+import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTokenService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Protocol;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.ProgrammableLogicGlobalParams;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.RegistryNode;
+import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -453,6 +456,42 @@ class DefaultCip113ProtocolServiceTest {
 
         verify(service, never()).resolveDeployment();
         verify(service, never()).coordinationUtxo();
+    }
+
+    /**
+     * A custom deployment need not name a bootstrap transaction, so the network alone cannot tell
+     * two deployments on one network apart. A plan the service wrote for one must be refused by a
+     * service configured for the other, or its register and policy_ref mint would target it.
+     */
+    @Test
+    void aServiceGeneratedPlanIsRefusedByAnotherDeploymentOnTheSameNetwork() {
+        Cip113Deployment first = DEPLOYMENT.toBuilder().bootstrapTxHash(null).build();
+        Cip113Deployment second = first.toBuilder().paramsPolicy("12".repeat(28)).build();
+        Cip113ProgrammableTokenService firstTokens = serviceFor(first);
+        Cip113ProgrammableTokenService secondTokens = serviceFor(second);
+
+        ProgrammableTokenTx tx = new ProgrammableTokenTx().transfer(coordinationAddress.toBech32(),
+                Amount.asset(PLB_HASH + "00", 1), PlutusData.unit());
+        String yaml = firstTokens.txPlanCodec().toYaml(firstTokens.extension().configure(TxPlan.from(tx)));
+        ExtensionMetadata replayed = firstTokens.txPlanCodec().fromYaml(yaml).getExtensions().get("pt");
+
+        assertThat(replayed.getDeployment()).containsEntry("params_policy", PARAMS_POLICY);
+        assertThatThrownBy(() -> secondTokens.txPlanCodec().fromYaml(yaml))
+                .as("the other deployment's codec refuses the plan while reading it")
+                .hasStackTraceContaining("params_policy " + PARAMS_POLICY);
+        assertThatThrownBy(() -> secondTokens.extension().validateMetadata(replayed))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("params_policy " + PARAMS_POLICY)
+                .hasMessageContaining("12".repeat(28));
+        assertThatThrownBy(() -> secondTokens.extension().newBuildExtension(replayed))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("params_policy");
+    }
+
+    private static Cip113ProgrammableTokenService serviceFor(Cip113Deployment deployment) {
+        Cip113ProtocolService service = mock(Cip113ProtocolService.class);
+        when(service.deployment()).thenReturn(deployment);
+        return new Cip113ProgrammableTokenService(service);
     }
 
     // ------------------------------------------------------------- fixtures
