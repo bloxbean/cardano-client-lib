@@ -22,7 +22,6 @@ import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenExtension;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenPolicyRef;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
-import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployments;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Exception;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTokenService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
@@ -310,7 +309,7 @@ public class Cip113EndToEndIT {
         // Everything downstream resolves from the bootstrap transaction, exactly as it would for a
         // deployment someone else created — so this also exercises the discovery path.
         programmableTokens = Cip113ProgrammableTokenService.create(backendService,
-                Cip113Deployments.fromBootstrapTx(deployed.bootstrapTxHash(), network));
+                deployed.deployment());
         protocolService = programmableTokens.advanced();
 
         // Hand the service the scripts the bootstrap just applied. Nothing on chain has used them
@@ -335,10 +334,9 @@ public class Cip113EndToEndIT {
         assertThat(resolved.getTransferScriptHash()).isEqualToIgnoringCase(deployed.transferHash());
         assertThat(resolved.getUnfrackingScriptHash()).isEqualToIgnoringCase(deployed.unfrackingHash());
         assertThat(resolved.getRegistryNodeCs()).isEqualToIgnoringCase(deployed.registryNodeCs());
-        assertThat(resolved.getRegistrySpendScriptHash())
-                .as("the registry address must be discovered from the bootstrap transaction, not"
-                        + " supplied — the coordination datum does not carry it")
-                .isEqualToIgnoringCase(deployed.registrySpendHash());
+        assertThat(resolved.getProgrammableLogicGlobalHash())
+                .as("the dispatcher named by the on-chain coordination datum is the one the bootstrap applied")
+                .isEqualToIgnoringCase(deployed.deployment().getProgrammableLogicGlobalHash());
     }
 
     // ---------------------------------------------------------------- step 1
@@ -455,20 +453,19 @@ public class Cip113EndToEndIT {
         var base = scripts.programmableLogicBase();
         var transfer = scripts.transferDelegate();
         var unfracking = scripts.unfrackingDelegate();
-        var registrySpend = scripts.registrySpend();
-        var registryMint = scripts.registryMint();
+        var registry = scripts.registry();
 
         log.info("=== Applied scripts === base {} ({} bytes) transfer {} ({} bytes) unfracking {}"
-                        + " registry_spend {} registry_mint {}",
+                        + " registry {}",
                 base.getPolicyId(), base.getCborHex().length() / 2, transfer.getPolicyId(),
                 transfer.getCborHex().length() / 2, unfracking.getPolicyId(),
-                registrySpend.getPolicyId(), registryMint.getPolicyId());
+                registry.getPolicyId());
 
         // Fetched by hash, so a mismatch would mean the backend served the wrong script.
         assertThat(base.getPolicyId()).isEqualToIgnoringCase(resolved.getProgrammableLogicBaseHash());
         assertThat(transfer.getPolicyId()).isEqualToIgnoringCase(resolved.getTransferScriptHash());
         assertThat(unfracking.getPolicyId()).isEqualToIgnoringCase(resolved.getUnfrackingScriptHash());
-        assertThat(registryMint.getPolicyId()).isEqualToIgnoringCase(resolved.getRegistryNodeCs());
+        assertThat(registry.getPolicyId()).isEqualToIgnoringCase(resolved.getRegistryNodeCs());
     }
 
     // ---------------------------------------------------------------- step 6
@@ -737,7 +734,7 @@ public class Cip113EndToEndIT {
         requireDeployment("Lazy initialisation");
 
         Cip113ProtocolService fresh = Cip113ProgrammableTokenService.create(backendService,
-                Cip113Deployments.fromBootstrapTx(deployed.bootstrapTxHash(), network)).advanced();
+                deployed.deployment()).advanced();
 
         log.info("=== A service that was never resolved ===");
         assertThat(fresh.coordinationUtxo()).as("the coordination UTxO must resolve on demand").isNotNull();
@@ -861,7 +858,9 @@ public class Cip113EndToEndIT {
                 .burn(examplePolicyId, List.of(exampleAsset(toBurn)),
                         BurnAuthorization.of(BigIntPlutusData.of(0), BigIntPlutusData.of(0)));
 
-        Result<String> result = build(tx).completeAndWait(log::info);
+        java.util.concurrent.atomic.AtomicReference<com.bloxbean.cardano.client.transaction.spec.Transaction>
+                submitted = new java.util.concurrent.atomic.AtomicReference<>();
+        Result<String> result = build(tx).withTxInspector(submitted::set).completeAndWait(log::info);
         assertThat(result.isSuccessful())
                 .as("Burn must validate: issuance_mint delegates custody to the transfer validator"
                         + " and no_escape requires the remainder to stay at the base script: %s",
@@ -871,6 +870,31 @@ public class Cip113EndToEndIT {
         assertThat(programmableQuantity(unit))
                 .as("the burned amount must be destroyed and the remainder still held")
                 .isEqualTo(held.subtract(toBurn));
+
+        // Custody: issuance_logic's RefInput must name the reference input the transfer proof
+        // names, so the transfer delegate covers the burn. A mismatch would still validate —
+        // issuance_logic falls back to no_escape — so only the redeemers show which path ran.
+        var txn = submitted.get();
+        assertThat(txn).as("the inspector saw the submitted transaction").isNotNull();
+        var node = protocolService.registryLookup().byPolicy(examplePolicyId).orElseThrow().getUtxo();
+        int nodeIdx = LedgerOrdering.indexOfReferenceInput(txn, node.getTxHash(), node.getOutputIndex());
+        assertThat(rewardRedeemer(txn, resolved.transferCredential())).isEqualTo(
+                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.transfer(List.of(
+                        com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.tokenExists(nodeIdx))));
+        assertThat(rewardRedeemer(txn, resolved.issuanceLogicCredential())).isEqualTo(
+                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.issuanceLogic(
+                        java.util.Map.of(examplePolicyId,
+                                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.mintRefInput(nodeIdx))));
+    }
+
+    /** The Reward redeemer whose index names {@code credential}'s withdrawal in ledger order. */
+    private static PlutusData rewardRedeemer(com.bloxbean.cardano.client.transaction.spec.Transaction txn,
+                                             com.bloxbean.cardano.client.address.Credential credential) {
+        int idx = LedgerOrdering.indexOfWithdrawal(txn, credential);
+        return txn.getWitnessSet().getRedeemers().stream()
+                .filter(r -> r.getTag() == com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Reward
+                        && r.getIndex().intValue() == idx)
+                .findFirst().orElseThrow().getData();
     }
 
     // --------------------------------------------------------------- step 13

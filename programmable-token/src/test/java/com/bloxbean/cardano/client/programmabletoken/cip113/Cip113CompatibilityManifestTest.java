@@ -18,6 +18,7 @@ import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * The compatibility manifest next to the vendored blueprint is build and review provenance: it
@@ -92,7 +93,11 @@ class Cip113CompatibilityManifestTest {
         Set<String> implemented = StreamSupport.stream(
                         manifest.path("capabilities").path("implemented").spliterator(), false)
                 .map(JsonNode::asText).collect(Collectors.toSet());
-        Set<String> advertised = new Cip113Protocol(mock(Cip113ProtocolService.class)).capabilities()
+        // "Implemented" is everything the adapter can do, so ask a deployment that can do it all:
+        // unfracking is advertised only where the deployment's dispatcher accepts it.
+        Cip113ProtocolService service = mock(Cip113ProtocolService.class);
+        when(service.deployment()).thenReturn(Cip113Deployment.builder().unfrackingEnabled(true).build());
+        Set<String> advertised = new Cip113Protocol(service).capabilities()
                 .stream().map(ProgrammableTokenCapability::name).map(String::toLowerCase)
                 .collect(Collectors.toSet());
         assertThat(implemented).isEqualTo(advertised);

@@ -119,8 +119,10 @@ public interface Cip113ProtocolService {
     Utxo issuanceTemplateUtxo();
 
     /**
-     * Complete a deployment by walking its bootstrap transaction and reading the coordination
-     * datum. Returns a deployment with every credential resolved from chain.
+     * Resolve the configured deployment against chain: locate the live coordination UTxO by its
+     * NFT and adopt the credentials its datum names, locate the issuance template, and verify the
+     * configured reference scripts. Values the chain does not hold — the base script, registry,
+     * unfracking script and inline-datum bound — are taken from the configuration.
      */
     Result<Cip113Deployment> resolveDeployment();
 

@@ -32,6 +32,8 @@ public final class Cip113ProgrammableTokenService implements ProgrammableTokenSe
             deploymentMetadata.put("network", deployment.getNetwork().getNetworkId());
         if (deployment.getBootstrapTxHash() != null)
             deploymentMetadata.put("bootstrap_tx", deployment.getBootstrapTxHash());
+        if (deployment.getParamsPolicy() != null)
+            deploymentMetadata.put("params_policy", deployment.getParamsPolicy());
         this.extension = ProgrammableTokenExtension.builder()
                 .protocol(protocol)
                 .deployment(deploymentMetadata)
