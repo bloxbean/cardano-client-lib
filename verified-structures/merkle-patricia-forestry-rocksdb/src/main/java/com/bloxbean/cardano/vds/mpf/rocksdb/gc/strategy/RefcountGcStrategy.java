@@ -136,7 +136,9 @@ public class RefcountGcStrategy implements GcStrategy {
      * @param wb          the write batch for atomic operations
      * @param keyPrefixer the key prefixer for namespace support
      * @return the number of nodes processed
-     * @throws IllegalStateException if the root node is neither committed nor staged in {@code wb}
+     * @throws IllegalStateException if the root node is neither committed nor staged in {@code wb}, or {@code wb}
+     *                               holds merge / deleteRange / blob-index records for this namespace's nodes
+     *                               column family
      * @throws RocksDBException      if a database operation fails
      */
     public static long incrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, KeyPrefixer keyPrefixer) throws RocksDBException {
@@ -157,7 +159,9 @@ public class RefcountGcStrategy implements GcStrategy {
      * @param wb          the write batch for atomic operations
      * @param keyPrefixer the key prefixer for namespace support
      * @return array containing [nodes processed, nodes deleted]
-     * @throws RocksDBException if a database operation fails
+     * @throws IllegalStateException if {@code wb} holds merge / deleteRange / blob-index records for this
+     *                               namespace's nodes column family
+     * @throws RocksDBException      if a database operation fails
      */
     public static long[] decrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, KeyPrefixer keyPrefixer) throws RocksDBException {
         return decrementAll(db, cfNodes, cfRefs, root, wb, null, keyPrefixer);

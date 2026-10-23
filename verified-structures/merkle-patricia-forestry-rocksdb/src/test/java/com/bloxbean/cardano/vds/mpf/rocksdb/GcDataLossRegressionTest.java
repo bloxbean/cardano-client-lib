@@ -744,10 +744,28 @@ class GcDataLossRegressionTest {
     }
 
     @Test
-    void reservedColumnFamilyPrefixIsRejected() {
-        String path = tmp.resolve("reserved").toString();
-        assertThrows(IllegalArgumentException.class,
-                () -> new RocksDbStateTrees(path, NamespaceOptions.columnFamily("__vds_gc_marks_1")));
+    void namespacesWhosePrefixLooksLikeTheGcPrefixOpenAndSurviveReopen() throws Exception {
+        // Codex round 3: an existing pre6 namespace "__vds_gc_accounts" (CFs __vds_gc_accounts_nodes / _roots) must
+        // still open; its CF names can never match the cleanup patterns, which end in digits.
+        for (String prefix : List.of("__vds_gc_accounts", "__vds_gc_marks_1")) {
+            String path = tmp.resolve("prefix-" + prefix).toString();
+            NamespaceOptions ns = NamespaceOptions.columnFamily(prefix);
+            byte[] root;
+            try (RocksDbStateTrees st = new RocksDbStateTrees(path, ns)) {
+                MpfTrie trie = new MpfTrie(st.nodeStore());
+                RocksDbMptSession.of(st).write(() -> {
+                    trie.put(b("a"), b("1"));
+                    st.putRootWithRefcount(trie.getRootHash());
+                });
+                root = trie.getRootHash();
+            }
+            try (RocksDbStateTrees st = new RocksDbStateTrees(path, ns)) {
+                Map<String, byte[]> model = new LinkedHashMap<>();
+                model.put(hex("a"), b("1"));
+                assertIntact(st.nodeStore(), root, model, prefix + " after reopen");
+            }
+            assertTrue(columnFamilies(path).containsAll(List.of(prefix + "_nodes", prefix + "_roots")), prefix);
+        }
     }
 
     @Test

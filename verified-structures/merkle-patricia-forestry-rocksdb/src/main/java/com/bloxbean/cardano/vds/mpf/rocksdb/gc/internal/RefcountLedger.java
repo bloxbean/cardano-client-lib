@@ -70,6 +70,8 @@ public final class RefcountLedger {
     private final NodeReader nodeReader;
     /** Pending writes of this column family and namespace: prefixed key hex to value, or {@link #TOMBSTONE}. */
     private final Map<String, byte[]> pending;
+    /** Latest bytes put for each key in the batch, kept even when a later record deletes the key. */
+    private final Map<String, byte[]> lastPut;
     private Protection protection;
     private long untracked;
     private long protectedNodes;
@@ -91,16 +93,41 @@ public final class RefcountLedger {
         this.batch = batch;
         this.readOptions = readOptions;
         this.nodeReader = nodeReader;
-        this.pending = replay(batch, cfNodes.getID(), keyPrefixer);
+        this.pending = new HashMap<>();
+        this.lastPut = new HashMap<>();
+        replay(batch, cfNodes.getID(), keyPrefixer, pending, lastPut);
     }
 
-    /** Collects the puts and deletes the batch holds for one column family and namespace, last write wins. */
-    private static Map<String, byte[]> replay(WriteBatch batch, int cfId, KeyPrefixer keyPrefixer) throws RocksDBException {
-        Map<String, byte[]> out = new HashMap<>();
-        if (batch.count() == 0) return out;
+    /**
+     * Collects the puts and deletes the batch holds for one column family and namespace (last write wins), and the
+     * latest bytes put per key. Merge, range-delete and blob-index records on this column family that may touch the
+     * namespace cannot be interpreted, so they are rejected before anything is staged.
+     */
+    private static void replay(WriteBatch batch, int cfId, KeyPrefixer keyPrefixer, Map<String, byte[]> pending,
+                               Map<String, byte[]> lastPut) throws RocksDBException {
+        if (batch.count() == 0) return;
+        byte[] nsStart = keyPrefixer.namespaceStart();
+        byte[] nsEnd = (keyPrefixer.getNamespaceId() & 0xFF) == 0xFF ? null
+                : new byte[]{(byte) ((keyPrefixer.getNamespaceId() & 0xFF) + 1)};
+        String[] unsupported = {null};
         try (WriteBatch.Handler handler = new WriteBatch.Handler() {
             private void record(int cf, byte[] key, byte[] value) {
-                if (cf == cfId && keyPrefixer.hasCorrectPrefix(key)) out.put(HexUtil.encodeHexString(key), value);
+                if (cf != cfId || !keyPrefixer.hasCorrectPrefix(key)) return;
+                String hex = HexUtil.encodeHexString(key);
+                pending.put(hex, value);
+                if (value != TOMBSTONE) lastPut.put(hex, value);
+            }
+
+            private void unsupportedKey(String kind, int cf, byte[] key) {
+                if (cf == cfId && keyPrefixer.hasCorrectPrefix(key) && unsupported[0] == null) unsupported[0] = kind;
+            }
+
+            private void unsupportedRange(int cf, byte[] begin, byte[] end) {
+                if (cf != cfId || unsupported[0] != null) return;
+                // [begin, end) overlaps [nsStart, nsEnd) unless it ends at or before nsStart or starts at or after nsEnd
+                boolean before = Arrays.compareUnsigned(end, nsStart) <= 0;
+                boolean after = nsEnd != null && Arrays.compareUnsigned(begin, nsEnd) >= 0;
+                if (!before && !after) unsupported[0] = "deleteRange";
             }
 
             @Override public void put(int cf, byte[] key, byte[] value) { record(cf, key, value); }
@@ -109,12 +136,12 @@ public final class RefcountLedger {
             @Override public void delete(byte[] key) { record(0, key, TOMBSTONE); }
             @Override public void singleDelete(int cf, byte[] key) { record(cf, key, TOMBSTONE); }
             @Override public void singleDelete(byte[] key) { record(0, key, TOMBSTONE); }
-            @Override public void merge(int cf, byte[] key, byte[] value) { }
-            @Override public void merge(byte[] key, byte[] value) { }
-            @Override public void deleteRange(int cf, byte[] begin, byte[] end) { }
-            @Override public void deleteRange(byte[] begin, byte[] end) { }
+            @Override public void merge(int cf, byte[] key, byte[] value) { unsupportedKey("merge", cf, key); }
+            @Override public void merge(byte[] key, byte[] value) { unsupportedKey("merge", 0, key); }
+            @Override public void deleteRange(int cf, byte[] begin, byte[] end) { unsupportedRange(cf, begin, end); }
+            @Override public void deleteRange(byte[] begin, byte[] end) { unsupportedRange(0, begin, end); }
             @Override public void logData(byte[] blob) { }
-            @Override public void putBlobIndex(int cf, byte[] key, byte[] value) { }
+            @Override public void putBlobIndex(int cf, byte[] key, byte[] value) { unsupportedKey("putBlobIndex", cf, key); }
             @Override public void markBeginPrepare() { }
             @Override public void markEndPrepare(byte[] xid) { }
             @Override public void markNoop(boolean emptyBatch) { }
@@ -124,7 +151,11 @@ public final class RefcountLedger {
         }) {
             batch.iterate(handler);
         }
-        return out;
+        if (unsupported[0] != null) {
+            throw new IllegalStateException("The WriteBatch holds a " + unsupported[0] + " record on the nodes column "
+                    + "family of namespace " + keyPrefixer + ", which refcount bookkeeping cannot interpret. Stage "
+                    + "refcount updates in a batch without merge / deleteRange / blob-index records for this namespace.");
+        }
     }
 
     /**
@@ -178,27 +209,36 @@ public final class RefcountLedger {
         }
     }
 
-    /** Reads a node, preferring a put staged in the batch over the node reader. */
+    /**
+     * Reads a node: a put staged in the batch first, then the node reader, then (for a node whose deletion is
+     * staged) the last bytes the batch put for it, so a staged-only node deleted earlier in the batch can be restored.
+     */
     private byte[] readNode(byte[] hash) throws RocksDBException {
-        byte[] staged = pending.get(HexUtil.encodeHexString(keyPrefixer.prefix(hash)));
+        String hex = HexUtil.encodeHexString(keyPrefixer.prefix(hash));
+        byte[] staged = pending.get(hex);
         if (staged != null && staged != TOMBSTONE) return staged;
-        return nodeReader.read(hash); // also for staged deletions: the committed bytes are needed to restore it
+        byte[] enc = nodeReader.read(hash);
+        return enc != null ? enc : lastPut.get(hex);
     }
 
     private boolean nodeDeletionPending(byte[] hash) {
         return pending.get(HexUtil.encodeHexString(keyPrefixer.prefix(hash))) == TOMBSTONE;
     }
 
-    private void deleteNode(byte[] hash) throws RocksDBException {
+    private void deleteNode(byte[] hash, byte[] enc) throws RocksDBException {
         byte[] key = keyPrefixer.prefix(hash);
+        String hex = HexUtil.encodeHexString(key);
         batch.delete(cfNodes, key);
-        pending.put(HexUtil.encodeHexString(key), TOMBSTONE);
+        pending.put(hex, TOMBSTONE);
+        if (enc != null) lastPut.put(hex, enc);
     }
 
     private void restoreNode(byte[] hash, byte[] enc) throws RocksDBException {
         byte[] key = keyPrefixer.prefix(hash);
+        String hex = HexUtil.encodeHexString(key);
         batch.put(cfNodes, key, enc);
-        pending.put(HexUtil.encodeHexString(key), enc);
+        pending.put(hex, enc);
+        lastPut.put(hex, enc);
     }
 
     /**
@@ -226,6 +266,11 @@ public final class RefcountLedger {
             if (!seen.add(HexUtil.encodeHexString(h))) continue;
             byte[] enc = readNode(h);
             if (enc == null) {
+                if (nodeDeletionPending(h)) {
+                    throw new IllegalStateException("Node " + HexUtil.encodeHexString(h) + " of root "
+                            + HexUtil.encodeHexString(root) + " is deleted in this batch and its bytes are neither "
+                            + "committed nor staged, so it cannot be restored");
+                }
                 missing++;
                 continue;
             }
@@ -271,7 +316,7 @@ public final class RefcountLedger {
                     protectedNodes++; // still reachable from a kept root: keep it and its count (a leak at worst)
                 } else {
                     setCount(h, 0);
-                    deleteNode(h);
+                    deleteNode(h, enc);
                     deleted++;
                 }
             } else {

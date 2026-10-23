@@ -110,7 +110,9 @@ staged is written back when a later `incrementAll` counts it again, and clearing
 save point, or reusing it after `db.write` is safe. The cost is one pass over the batch per call. Pass a fresh batch
 or the batch you are about to write, and do not let another thread write to it during the call. The helpers do not
 know the retained roots, so they cannot protect nodes the way `run(..)` does: they trust the counts. `incrementAll`
-throws `IllegalStateException` when the root node is neither committed nor staged in the batch. Prefer `putRootWithRefcount`, which also works inside `nodeStore().withBatch(..)` / `RocksDbMptSession.write(..)`
+throws `IllegalStateException` when the root node is neither committed nor staged in the batch. A batch that
+holds `merge`, `deleteRange` or blob-index records on the nodes column family overlapping the namespace is rejected
+with `IllegalStateException` before anything is staged, since those records cannot be interpreted. Prefer `putRootWithRefcount`, which also works inside `nodeStore().withBatch(..)` / `RocksDbMptSession.write(..)`
 (joining a batch opened by another node store instance of the same namespace, and throwing for a batch of another
 namespace).
 
@@ -136,8 +138,8 @@ of the run. A run that crashes leaves it behind:
 
 - `RocksDbStateTrees`, `RocksDbNodeStore(String..)` and `RocksDbRootsIndex(String..)` open every existing column
   family and drop leftovers right after opening. Only names that match exactly `__vds_gc_marks_<digits>`, or
-  `marks_<digits>` as created by 0.8.0-pre6, are dropped, and never a column family the store itself uses. The
-  column-family prefix `__vds_gc_` is reserved and rejected by `NamespaceOptions`-based constructors.
+  `marks_<digits>` as created by 0.8.0-pre6, are dropped, and never a column family the store itself uses. Namespace
+  column families are always named `<prefix>_nodes` / `<prefix>_roots`, so they never match these patterns.
 - A caller that opens the `RocksDB` itself with a fixed column-family list will fail to open after such a crash
   ("column families not opened"). Open with every column family listed by `RocksDB.listColumnFamilies(..)` instead,
   then call `GcManager.dropLeftoverGcColumnFamilies(db, handles)` before running GC.

@@ -33,11 +33,11 @@ final class RocksDbMptSchema {
 
         String nodes = cfPrefix + CF_NODES;
         String roots = cfPrefix + CF_ROOTS;
-        // GC drops leftover mark-set column families by name on open; a namespace must never look like one.
-        if (opts.columnFamilyPrefix().startsWith("__vds_gc_")
-                || DiskMarkSet.isMarkSetColumnFamily(nodes) || DiskMarkSet.isMarkSetColumnFamily(roots)) {
-            throw new IllegalArgumentException("Column family prefix '" + opts.columnFamilyPrefix()
-                    + "' is reserved for GC temporary column families");
+        // GC drops leftover mark-set column families by exact name on open (never the opening store's own CFs).
+        // The resolved names end in _nodes / _roots, so they cannot match; keep the invariant explicit.
+        if (DiskMarkSet.isMarkSetColumnFamily(nodes) || DiskMarkSet.isMarkSetColumnFamily(roots)) {
+            throw new IllegalArgumentException("Column family names '" + nodes + "' / '" + roots
+                    + "' collide with GC temporary column family names");
         }
         return new ColumnFamilies(nodes, roots, opts.keyPrefix());
     }
