@@ -4,6 +4,7 @@ import com.bloxbean.cardano.vds.core.NibblePath;
 import com.bloxbean.cardano.vds.jmt.JmtEncoding;
 import com.bloxbean.cardano.vds.jmt.JmtNode;
 import com.bloxbean.cardano.vds.jmt.NodeKey;
+import com.bloxbean.cardano.vds.jmt.metrics.JmtMetrics;
 import com.bloxbean.cardano.vds.jmt.store.JmtAccessCoordinator;
 import com.bloxbean.cardano.vds.jmt.store.JmtAccessLease;
 import com.bloxbean.cardano.vds.jmt.store.JmtFormatDescriptor;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 
 import static com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtSchema.*;
@@ -1155,6 +1157,35 @@ public final class RocksDbJmtStore implements JmtStore {
         return Collections.unmodifiableList(results);
     }
 
+    /**
+     * Publishes RocksDB health statistics through {@link JmtMetrics#recordRocksDbStats}. The tree does not
+     * call this; call it periodically (for example from a scheduler) to keep the {@code jmt.rocksdb.*} gauges
+     * current. Pending compaction bytes, active memtable size and immutable memtables are summed over this
+     * store's column families; running compactions is database-wide.
+     *
+     * @param metrics the metrics sink
+     */
+    public void recordStats(JmtMetrics metrics) {
+        Objects.requireNonNull(metrics, "metrics");
+        try {
+            long pendingCompactionBytes = 0;
+            long memTableSize = 0;
+            long immutableMemTables = 0;
+            for (ColumnFamilyHandle cf : new ColumnFamilyHandle[]{cfNodes, cfValues, cfRoots, cfStale, cfMetadata,
+                    cfNodesByVersion, cfValuesByVersion}) {
+                if (cf == null) continue;
+                pendingCompactionBytes += db.getLongProperty(cf, "rocksdb.estimate-pending-compaction-bytes");
+                memTableSize += db.getLongProperty(cf, "rocksdb.cur-size-active-mem-table");
+                immutableMemTables += db.getLongProperty(cf, "rocksdb.num-immutable-mem-table");
+            }
+            long runningCompactions = db.getLongProperty("rocksdb.num-running-compactions");
+            metrics.recordRocksDbStats(pendingCompactionBytes, (int) Math.min(Integer.MAX_VALUE, runningCompactions),
+                    memTableSize, (int) Math.min(Integer.MAX_VALUE, immutableMemTables));
+        } catch (RocksDBException e) {
+            throw new RuntimeException("Failed to read RocksDB JMT statistics", e);
+        }
+    }
+
     @Override
     public int pruneUpTo(long versionInclusive) {
         requireFormatInitialized();
@@ -1304,6 +1335,11 @@ public final class RocksDbJmtStore implements JmtStore {
                 }
             }
 
+            if (retainedVersion < 0 && pruneWatermark >= 0) {
+                // Nothing is written: the batch is discarded. The state as of this version is retained only as
+                // pruned history, so there would be no latest root.
+                throw new IllegalStateException("Cannot truncate to version " + versionExclusive + ": no root at or below it survives pruning up to watermark " + pruneWatermark);
+            }
             if (retainedVersion >= 0 && retainedRoot != null) {
                 batch.put(cfRoots, prefixedLatestRootKey, retainedRoot);
                 batch.put(cfRoots, prefixedLatestVersionKey, versionKey(retainedVersion));
@@ -1456,6 +1492,12 @@ public final class RocksDbJmtStore implements JmtStore {
 
     private static byte[] versionKey(long version) {
         return ByteBuffer.allocate(Long.BYTES).putLong(version).array();
+    }
+
+    @Override
+    public OptionalLong pruneWatermark() {
+        long watermark = readPruneWatermark();
+        return watermark < 0 ? OptionalLong.empty() : OptionalLong.of(watermark);
     }
 
     private long readPruneWatermark() {

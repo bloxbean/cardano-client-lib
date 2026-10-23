@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.TreeMap;
 
 /**
@@ -256,6 +257,11 @@ public final class InMemoryJmtStore implements JmtStore {
     }
 
     @Override
+    public synchronized OptionalLong pruneWatermark() {
+        return pruneWatermark < 0 ? OptionalLong.empty() : OptionalLong.of(pruneWatermark);
+    }
+
+    @Override
     public synchronized void truncateAfter(long version) {
         if (version < 0) {
             throw new IllegalArgumentException("version must be >= 0");
@@ -265,6 +271,10 @@ public final class InMemoryJmtStore implements JmtStore {
             if (version < pruneWatermark) {
                 throw new IllegalStateException("Cannot truncate to version " + version
                         + " below prune watermark " + pruneWatermark);
+            }
+            if (pruneWatermark >= 0 && roots.floorKey(version) == null) {
+                // The state as of this version is retained only as pruned history: there would be no latest root.
+                throw new IllegalStateException("Cannot truncate to version " + version + ": no root at or below it survives pruning up to watermark " + pruneWatermark);
             }
             // Remove nodes with version > target
             java.util.Iterator<NodeKey> nodeIterator = nodes.keySet().iterator();

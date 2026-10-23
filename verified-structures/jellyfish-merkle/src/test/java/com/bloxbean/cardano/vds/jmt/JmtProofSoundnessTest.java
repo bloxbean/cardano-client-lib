@@ -106,6 +106,33 @@ class JmtProofSoundnessTest {
                 "honest non-inclusion must verify");
     }
 
+    @Test
+    void absenceProofDoesNotProveAnyValue() {
+        // Issue #715 item 3: an absence proof used to verify for whatever value the caller passed.
+        Map<byte[], byte[]> updates = new LinkedHashMap<>();
+        for (int i = 0; i < 8; i++) updates.put(("k" + i).getBytes(), ("v" + i).getBytes());
+        byte[] root = tree.put(1L, updates).rootHash();
+
+        boolean sawEmpty = false;
+        boolean sawDifferentLeaf = false;
+        for (int i = 0; i < 200 && !(sawEmpty && sawDifferentLeaf); i++) {
+            byte[] absent = ("absent-" + i).getBytes();
+            JmtProof proof = tree.getProof(absent, 1L).orElseThrow();
+            sawEmpty |= proof.type() == JmtProof.ProofType.NON_INCLUSION_EMPTY;
+            sawDifferentLeaf |= proof.type() == JmtProof.ProofType.NON_INCLUSION_DIFFERENT_LEAF;
+            byte[] wire = tree.getProofWire(absent, 1L).orElseThrow();
+
+            assertTrue(JmtProofVerifier.verify(root, absent, null, proof, hashFn, commitments), proof.type().name());
+            for (byte[] claimed : new byte[][]{"999999".getBytes(), new byte[0], "v0".getBytes()}) {
+                assertFalse(JmtProofVerifier.verify(root, absent, claimed, proof, hashFn, commitments),
+                        proof.type() + " must not prove a value");
+                assertFalse(tree.verifyProofWire(root, absent, claimed, true, wire), proof.type() + " wire");
+            }
+        }
+        assertTrue(sawEmpty, "covered NON_INCLUSION_EMPTY");
+        assertTrue(sawDifferentLeaf, "covered NON_INCLUSION_DIFFERENT_LEAF");
+    }
+
     // ---- forgeries that MUST be rejected ----
 
     @Test

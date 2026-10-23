@@ -9,14 +9,16 @@ package com.bloxbean.cardano.vds.jmt.metrics;
  * <p><b>Usage:</b>
  * <pre>
  * // With Micrometer
- * JmtMetrics metrics = new MicrometerJmtMetrics(meterRegistry);
- * JellyfishMerkleTree.Options options = JellyfishMerkleTree.Options.builder()
- *     .metrics(metrics)
- *     .build();
+ * JmtMetrics metrics = new MicrometerJmtMetrics(meterRegistry, "jmt");
+ * JellyfishMerkleTree tree = new JellyfishMerkleTree(store, JmtProfile.classicBlake2b256V1(), metrics);
  *
- * // Without metrics (default)
- * JellyfishMerkleTree.Options options = JellyfishMerkleTree.Options.defaults(); // metrics = NOOP
+ * // Without metrics (default: JmtMetrics.NOOP)
+ * JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
  * </pre>
+ *
+ * <p>The tree records commits, proofs, reads and (through {@code JellyfishMerkleTree.pruneUpTo}) prunes.
+ * {@link #recordRocksDbStats} is caller-driven, for example from a scheduler through
+ * {@code RocksDbJmtStore.recordStats(metrics)}.</p>
  *
  * <p><b>Thread Safety:</b> Implementations must be thread-safe for concurrent metric recording.
  */
@@ -58,13 +60,14 @@ public interface JmtMetrics {
     /**
      * Records a prune operation.
      *
-     * <p><b>Note:</b> Currently not implemented in JellyfishMerkleTree.
-     * Pruning will be added in a future version (see ADR-0013 production readiness).
+     * <p>Called by {@code JellyfishMerkleTree.pruneUpTo}. The store reports a single total, which the tree
+     * passes as {@code nodesPruned} (node, superseded value and root records) with {@code valuesPruned = 0}.
+     * A direct {@code JmtStore.pruneUpTo} call records nothing.</p>
      *
      * @param durationMillis   duration of pruning in milliseconds
      * @param versionPruned    version number pruned up to
-     * @param nodesPruned      number of nodes removed
-     * @param valuesPruned     number of values removed
+     * @param nodesPruned      number of records removed
+     * @param valuesPruned     number of values removed, when reported separately
      */
     void recordPrune(long durationMillis, long versionPruned, int nodesPruned, int valuesPruned);
 
@@ -98,7 +101,8 @@ public interface JmtMetrics {
     void recordCacheStats(long cacheHits, long cacheMisses, int cacheSize);
 
     /**
-     * Records RocksDB-specific statistics (if using RocksDbJmtStore).
+     * Records RocksDB-specific statistics (if using RocksDbJmtStore). Not called by the tree: call
+     * {@code RocksDbJmtStore.recordStats(metrics)} periodically to publish them.
      *
      * @param pendingCompactionBytes estimated pending compaction bytes
      * @param runningCompactions     number of running compactions

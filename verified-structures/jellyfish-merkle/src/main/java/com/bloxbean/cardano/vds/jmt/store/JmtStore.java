@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * Storage abstraction for Jellyfish Merkle Tree nodes, values, and roots.
@@ -121,9 +122,22 @@ public interface JmtStore extends AutoCloseable {
     int pruneUpTo(long versionInclusive);
 
     /**
+     * Returns the prune watermark: the highest horizon passed to a {@link #pruneUpTo(long)} call that removed
+     * records, or empty if nothing was ever pruned. State at versions below the watermark is no longer fully
+     * retained, so reads there are rejected by the tree. The default is empty, for stores that never prune.
+     */
+    default OptionalLong pruneWatermark() {
+        return OptionalLong.empty();
+    }
+
+    /**
      * Truncates the persisted state by removing nodes/values/roots whose version is greater than
      * {@code version}. Versions are non-negative. Implementations that support rollback must override this method; default
      * behaviour is to throw {@link UnsupportedOperationException}.
+     *
+     * <p>The bundled stores reject (with {@link IllegalStateException}, changing nothing) a target below the
+     * {@link #pruneWatermark() prune watermark}, and a target at or above it at which no root survives pruning:
+     * the state as of such a version is only pruned history, so no latest root could be restored.</p>
      */
     default void truncateAfter(long versionExclusive) {
         throw new UnsupportedOperationException("truncateAfter not supported");

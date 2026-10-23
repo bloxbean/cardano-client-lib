@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * RDBMS implementation of {@link JmtStore}.
@@ -656,6 +657,16 @@ public class RdbmsJmtStore implements JmtStore {
         }
     }
 
+    @Override
+    public OptionalLong pruneWatermark() {
+        try (Connection conn = dataSource.getConnection()) {
+            long watermark = readPruneWatermark(conn);
+            return watermark < 0 ? OptionalLong.empty() : OptionalLong.of(watermark);
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read JMT prune watermark", e);
+        }
+    }
+
     private long readPruneWatermark(Connection conn) throws SQLException {
         String sql = "SELECT prune_watermark FROM " + schema.metadataTable()
                 + " WHERE namespace = ?";
@@ -731,6 +742,11 @@ public class RdbmsJmtStore implements JmtStore {
                     }
                 }
 
+                if (survivingVersion == null && pruneWatermark >= 0) {
+                    // Rolled back below: the state as of this version is retained only as pruned history, so
+                    // there would be no latest root.
+                    throw new IllegalStateException("Cannot truncate to version " + versionExclusive + ": no root at or below it survives pruning up to watermark " + pruneWatermark);
+                }
                 if (survivingVersion != null) {
                     String upsertSql = dialect.upsertLatestSql(schema.latestTable());
                     try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
