@@ -10,6 +10,7 @@ dependencies {
 
     testImplementation project(':test-support')
     testImplementation(libs.slf4j.reload4j)
+    testImplementation(libs.jackson.databind)
 }
 
 publishing {

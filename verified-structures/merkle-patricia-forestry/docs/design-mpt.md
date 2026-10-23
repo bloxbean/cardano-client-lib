@@ -360,76 +360,35 @@ DELETE(key):
 
 ## 4. Proof Generation
 
-### 4.1 Classic MPT Proof
+Proofs use the format of Aiken's `aiken-lang/merkle-patricia-forestry`: a list of steps, one per branch on the
+key's path, from the root down. The leaf itself contributes no step.
 
-**Purpose:** Prove key-value inclusion or exclusion
-
-**Proof Structure:**
 ```
-Proof = [
-    node_1,  // Root node
-    node_2,  // Child on path
-    ...
-    node_n   // Terminal (leaf or branch)
-]
+Branch { skip, neighbors }                       // CBOR tag 121
+Fork   { skip, neighbor: { nibble, prefix, root } } // tag 122 (neighbor: tag 121)
+Leaf   { skip, key, value }                      // tag 123
 ```
 
-**Verification Algorithm:**
-```python
-def verify(root_hash, key, value, proof):
-    nibbles = to_nibbles(key)
-    depth = 0
-    computed_hash = root_hash
+- `skip` is the length (in nibbles) of the branch's prefix, i.e. the extension nibbles before it.
+- **Branch** carries `neighbors`: the four sibling subtree roots (widths 8, 4, 2, 1) of the 16-way merkle tree
+  over the branch's children, 4 x 32 bytes.
+- **Leaf** is used when the branch has exactly one other child and that child is a leaf: `key` is that leaf's full
+  path (the hash of its key) and `value` the hash of its value.
+- **Fork** is used when the branch has exactly one other child and that child is a branch: `nibble` is its slot,
+  `prefix` its own prefix nibbles (one byte per nibble) and `root` the raw 16-way merkle root of *its* children,
+  without the prefix. The verifier recombines `H(prefix || root)`.
 
-    for node in proof:
-        if hash(node) != computed_hash:
-            return False  # Hash mismatch
+These are exactly the steps of the official off-chain library (`Proof.rewind` in its `trie.js`). For a key that is
+not in the trie, `MpfTrie` builds the steps the library would produce for the trie with that key inserted: the path
+either reaches an empty slot (last step `Branch`), diverges inside an extension (last step `Fork`), or ends at a
+different leaf (last step `Leaf`). The same proof therefore proves `miss` in the trie without the key and `has` in the
+trie with it, which is what Aiken's `insert` and `delete` require.
 
-        if node is LeafNode:
-            # Terminal: check key and value
-            leaf_nibbles = unpack_hp(node.hp).nibbles
-            return (leaf_nibbles == nibbles[depth:] and node.value == value)
-
-        elif node is ExtensionNode:
-            ext_nibbles = unpack_hp(node.hp).nibbles
-            if nibbles[depth:depth+len(ext_nibbles)] != ext_nibbles:
-                return False  # Prefix mismatch
-            depth += len(ext_nibbles)
-            computed_hash = node.child
-
-        elif node is BranchNode:
-            nibble = nibbles[depth]
-            computed_hash = node.children[nibble]
-            if computed_hash is NULL:
-                return False  # Path doesn't exist
-            depth += 1
-
-    return False  # Proof incomplete
-```
-
-**Proof Size:**
-- Average: 2-3 KB for 32-byte keys
-- Worst case: 6-8 KB (deep tree)
-- Components: ~30-40 nodes × 70 bytes/node (avg)
-
-### 4.2 Non-Inclusion Proof
-
-**Two Cases:**
-
-1. **Path Doesn't Exist:**
-   - Proof ends at branch with null child
-   - Verification: Check that child at nibble is null
-
-2. **Different Leaf:**
-   - Proof ends at leaf with different key
-   - Verification: Check that leaf key ≠ target key
-
-**Example (Different Leaf):**
-```
-Query: key "abc"
-Proof: [Root Branch, Extension, Leaf("abd", val)]
-Verification: "abc" ≠ "abd" → non-inclusion proven
-```
+Verification (`WireProof.computeRoot`, `ProofVerifier`) is a port of the Aiken verifier: `including` rebuilds the root
+from the leaf `combine(suffix(path, cursor), H(value))` upwards, `excluding` rebuilds it without the element (the
+last step then stands for the neighbor alone). A proof is valid when the rebuilt root equals the expected root. The
+decoder is a bounded reader for this grammar only (untrusted input), and the verifier additionally rejects
+neighbors that sit under the queried path's own nibble.
 
 ---
 
