@@ -77,6 +77,35 @@ class MpfForgedProofTest {
         assertFalse(trie.verifyProofWire(trie.getRootHash(), b, null, false, forkProof));
     }
 
+    @Test
+    void branchWithAValueHashFieldIsRejectedUnderTheMpfScheme() throws Exception {
+        // Aiken's Branch has two fields; a third (branch value hash) is only meaningful for other commitment schemes.
+        Array branch = new Array();
+        branch.add(new UnsignedInteger(0));
+        branch.add(new ByteString(new byte[128]));
+        branch.add(new ByteString(new byte[32]));
+        branch.setTag(new Tag(121));
+        Array proof = new Array();
+        proof.add(branch);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        new CborEncoder(bytes).encode(proof);
+
+        byte[] rootWithThirdField = com.bloxbean.cardano.vds.core.util.Bytes.fromHex(
+                "2ff33d3631191a59485eac326144668c7b912139846a113f39274353b8059c61");
+        assertFalse(com.bloxbean.cardano.vds.mpf.proof.ProofVerifier.verify(rootWithThirdField, utf8("k"), utf8("v"),
+                true, bytes.toByteArray()));
+    }
+
+    @Test
+    void deeplyNestedTagsAreRejectedWithoutStackOverflow() {
+        byte[] payload = new byte[30_002];
+        payload[0] = (byte) 0x81;
+        java.util.Arrays.fill(payload, 1, 30_001, (byte) 0xC0);
+        payload[30_001] = (byte) 0x80;
+        assertFalse(com.bloxbean.cardano.vds.mpf.proof.ProofVerifier.verify(new byte[32], utf8("k"), utf8("v"), true, payload));
+        assertFalse(com.bloxbean.cardano.vds.mpf.proof.ProofVerifier.verify(new byte[32], utf8("k"), null, false, payload));
+    }
+
     private static byte[] utf8(String s) {
         return s.getBytes(StandardCharsets.UTF_8);
     }

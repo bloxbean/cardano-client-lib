@@ -165,7 +165,11 @@ public final class WireProof {
         byte[][] n = br.neighbors();
         byte[] merkle = merkle16(ctx, ctx.path[nextCursor], root, n[0], n[1], n[2], n[3]);
         if (br.branchValueHash() != null) {
-            // Only for commitment schemes that commit branch values (never MPF/Aiken).
+            // Only for commitment schemes that commit branch values. Aiken's Branch has no such field, so it is
+            // rejected under the MPF scheme.
+            if (!ctx.commitments.encodesBranchValueInBranchCommitment()) {
+                throw new IllegalArgumentException("Branch step with a value hash is not valid for this commitment scheme");
+            }
             byte[] valueCommit = ctx.commitments.commitLeaf(NibblePath.EMPTY, br.branchValueHash());
             merkle = ctx.hashFn.digest(Bytes.concat(merkle, valueCommit));
         }

@@ -20,7 +20,7 @@ final class ProofDecoder {
     private static final int TAG_FORK = 122;
     private static final int TAG_LEAF = 123;
     private static final int MAX_STEPS = 1024;
-    private static final int MAX_DEPTH = 4;
+    private static final int MAX_DEPTH = 8;
     private static final long MAX_SKIP = 4096;
 
     private ProofDecoder() {
@@ -237,8 +237,9 @@ final class ProofDecoder {
                     return new Item(Kind.ARRAY, 0, null, arg < 0 ? indefiniteArray(depth) : definiteArray(arg, depth));
                 case 6: {
                     if (arg < 0) throw new IllegalArgumentException("Invalid CBOR tag");
-                    Item tagged = readItem(depth);
-                    if (tagged.tag >= 0) throw new IllegalArgumentException("Nested CBOR tags are not allowed");
+                    // Reject a nested tag before descending, so tag chains cannot recurse without bound.
+                    if (peek() >> 5 == 6) throw new IllegalArgumentException("Nested CBOR tags are not allowed");
+                    Item tagged = readItem(depth + 1);
                     tagged.tag = arg;
                     return tagged;
                 }
