@@ -1,65 +1,26 @@
-# onchain
+# onchain: CCL MPF proofs checked by Aiken
 
-Write validators in the `validators` folder, and supporting functions in the `lib` folder using `.ak` as a file extension.
+This Aiken project runs proofs produced by CCL's `MpfTrie` through the on-chain library
+[`aiken-lang/merkle-patricia-forestry`](https://github.com/aiken-lang/merkle-patricia-forestry) 2.1.0
+(see `aiken.toml` / `aiken.lock`).
 
-```aiken
-validator my_first_validator {
-  spend(_datum: Option<Data>, _redeemer: Data, _output_reference: Data, _context: Data) {
-    True
-  }
-}
-```
+- `lib/ccl_vectors.ak` is **generated** by `AikenVectorsTest` (MPF module tests). For each present key it checks
+  `has`, `delete`, `update` and `insert` with the same proof (the insert recipe of the Aiken README); for each
+  absent key it checks `miss` and `insert`. Vectors cover the fruits trie, the empty and single-leaf tries, seeded
+  random tries and proofs that end in a `Fork` step.
+- `validators/mpf_validator.ak` is a small hand-written `has` example.
 
-## Building
-
-```sh
-aiken build
-```
-
-## Configuring
-
-**aiken.toml**
-```toml
-[config.default]
-network_id = 41
-```
-
-Or, alternatively, write conditional environment modules under `env`.
-
-## Testing
-
-You can write tests in any module using the `test` keyword. For example:
-
-```aiken
-use config
-
-test foo() {
-  config.network_id + 1 == 42
-}
-```
-
-To run all tests, simply do:
+## Running
 
 ```sh
-aiken check
+# from the repository root: fail if the generated file is stale
+./gradlew :verified-structures:merkle-patricia-forestry:test --tests '*AikenVectorsTest*'
+
+# regenerate after an intended change in proof generation
+AIKEN_VECTORS_REGENERATE=1 ./gradlew :verified-structures:merkle-patricia-forestry:test --tests '*AikenVectorsTest*'
+
+# run every vector through Aiken (aiken v1.1.23)
+cd verified-structures/merkle-patricia-forestry/onchain && aiken check
 ```
 
-To run only tests matching the string `foo`, do:
-
-```sh
-aiken check -m foo
-```
-
-## Documentation
-
-If you're writing a library, you might want to generate an HTML documentation for it.
-
-Use:
-
-```sh
-aiken docs
-```
-
-## Resources
-
-Find more on the [Aiken's user manual](https://aiken-lang.org).
+CI runs both steps in the `mpf-aiken` job of `.github/workflows/build.yml`.
