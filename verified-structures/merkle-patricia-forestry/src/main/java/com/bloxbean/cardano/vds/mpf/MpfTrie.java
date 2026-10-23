@@ -68,7 +68,8 @@ import java.util.Optional;
  * </ul>
  *
  * <p><b>Thread Safety:</b> This class is NOT thread-safe. External synchronization
- * is required for concurrent access.</p>
+ * is required for concurrent access. The node store backends (RocksDB, RDBMS) do not coordinate
+ * concurrent writers either, so use a single writer per trie (or namespace).</p>
  *
  * @see <a href="https://github.com/aiken-lang/merkle-patricia-forestry">Aiken Merkle Patricia Forestry</a>
  * @since 0.8.0
@@ -189,13 +190,53 @@ public final class MpfTrie {
     }
 
     /**
+     * Opens a trie at {@code root} and fails fast if that root is not in {@code store}.
+     *
+     * <p>The constructors are lenient: given a root that is not in the store, reads return {@code null} and the next
+     * {@code put} silently starts a new trie. Use this factory when the root comes from elsewhere (for example an
+     * on-chain datum) and must match the off-chain store.</p>
+     *
+     * @param store the node store
+     * @param root  the root to open; {@code null} or the all-zero root ({@link #getRootHashOrEmpty()}) open an
+     *              empty trie
+     * @return the trie
+     * @throws IllegalStateException if a non-empty root is not present in the store
+     */
+    public static MpfTrie open(NodeStore store, byte[] root) {
+        return open(store, Blake2b256::digest, root);
+    }
+
+    /**
+     * Opens a trie with a custom hash function and fails fast if {@code root} is not in {@code store}.
+     *
+     * @see #open(NodeStore, byte[])
+     */
+    public static MpfTrie open(NodeStore store, HashFunction hashFn, byte[] root) {
+        return open(store, hashFn, root, new MpfCommitmentScheme(Objects.requireNonNull(hashFn, "hashFn")));
+    }
+
+    /**
+     * Opens a trie with a custom hash function and commitment scheme and fails fast if {@code root} is not in
+     * {@code store}.
+     *
+     * @see #open(NodeStore, byte[])
+     */
+    public static MpfTrie open(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitmentScheme) {
+        Objects.requireNonNull(store, "store");
+        if (!Impl.isEmptyRoot(root) && store.get(root) == null) {
+            throw new IllegalStateException("MPF root " + HexUtil.encodeHexString(root) + " is not in the node store");
+        }
+        return new MpfTrie(store, hashFn, root, commitmentScheme);
+    }
+
+    /**
      * Sets the root hash of this trie.
      *
      * <p>This method allows switching to a different trie state by changing the root.
      * Useful for reverting to previous states or switching between different tries
-     * that share the same storage backend.</p>
+     * that share the same storage backend. The array is copied.</p>
      *
-     * @param root the new root hash, or null to reset to empty trie
+     * @param root the new root hash, or {@code null} (or the all-zero root) to reset to the empty trie
      */
     public void setRootHash(byte[] root) {
         impl.setRootHash(root);
@@ -207,10 +248,26 @@ public final class MpfTrie {
      * <p>The root hash uniquely identifies the entire state of the trie. This is
      * the value you would commit on-chain for verification against proofs.</p>
      *
+     * <p>The result is a copy. For an empty trie this returns {@code null} (or the all-zero root, if that is what
+     * the trie was opened with); use {@link #getRootHashOrEmpty()} when you need Aiken's empty root.</p>
+     *
      * @return the root hash as a byte array, or null if the trie is empty
      */
     public byte[] getRootHash() {
         return impl.getRootHash();
+    }
+
+    /**
+     * Returns the current root hash, or the all-zero hash for an empty trie.
+     *
+     * <p>This is the value to put in an on-chain datum: Aiken's {@code mpf.empty} root is 32 zero bytes (for
+     * Blake2b-256), while {@link #getRootHash()} returns {@code null} for an empty trie.</p>
+     *
+     * @return a copy of the root hash, never {@code null}
+     */
+    public byte[] getRootHashOrEmpty() {
+        byte[] root = impl.getRootHash();
+        return root == null || Impl.isEmptyRoot(root) ? impl.emptyRoot() : root;
     }
 
     /**
@@ -663,6 +720,7 @@ public final class MpfTrie {
         private final CommitmentScheme commitments;
 
         private byte[] root; // nullable => empty trie
+        private byte[] emptyRootAlias; // the all-zero root the trie was opened with, returned until the first change
 
         /**
          * Creates a new Merkle Patricia Trie implementation with custom commitment scheme.
@@ -678,21 +736,34 @@ public final class MpfTrie {
             this.hashFn = Objects.requireNonNull(hashFn, "HashFunction");
             this.commitments = Objects.requireNonNull(commitments, "CommitmentScheme");
             this.persistence = new NodePersistence(store, commitments, hashFn);
-            this.root = root == null || root.length == 0 ? null : root;
+            setRootHash(root);
         }
 
         /**
-         * Sets the root hash of the trie.
+         * Sets the root hash of the trie (copied). {@code null}, empty and all-zero roots denote the empty trie.
          */
         void setRootHash(byte[] root) {
-            this.root = root == null || root.length == 0 ? null : root;
+            if (isEmptyRoot(root)) {
+                this.root = null;
+                this.emptyRootAlias = root == null || root.length == 0 ? null : root.clone();
+            } else {
+                this.root = root.clone();
+                this.emptyRootAlias = null;
+            }
         }
 
         /**
-         * Gets the current root hash of the trie.
+         * Gets a copy of the current root hash: {@code null} for the empty trie, unless the trie was opened with the
+         * all-zero root and has not changed since.
          */
         byte[] getRootHash() {
-            return root;
+            if (root != null) return root.clone();
+            return emptyRootAlias == null ? null : emptyRootAlias.clone();
+        }
+
+        /** The all-zero root of the empty trie (Aiken {@code mpf.empty}). */
+        byte[] emptyRoot() {
+            return commitments.nullHash();
         }
 
         /**
@@ -709,6 +780,7 @@ public final class MpfTrie {
             int[] nibblePath = Nibbles.toNibbles(path);
             NodeHash result = putAtNew(this.root, nibblePath, 0, value, key);
             this.root = result != null ? result.toBytes() : null;
+            this.emptyRootAlias = null;
         }
 
         /**
@@ -725,6 +797,9 @@ public final class MpfTrie {
         void delete(byte[] key) {
             int[] nibblePath = Nibbles.toNibbles(key);
             NodeHash result = deleteAtNew(this.root, nibblePath, 0);
+            if (result != null || this.root != null) {
+                this.emptyRootAlias = null;
+            }
             this.root = result != null ? result.toBytes() : null;
         }
 
