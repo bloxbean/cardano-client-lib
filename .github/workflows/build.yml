@@ -207,6 +207,44 @@ jobs:
           --tests "com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtDifferentialFuzzTest.operationTraceProducesIdenticalRootsAndProofs"
           -PskipSigning=true
 
+  mpf-fuzz:
+    name: MPF bounded fuzz qualification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: 'true'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Fuzz proof decoding and verification
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:merkle-patricia-forestry:test
+          --tests "com.bloxbean.cardano.vds.mpf.MpfFuzzTest.verifierIsTotalForUntrustedProofBytes"
+          -PskipSigning=true
+      - name: Fuzz operation traces against the reference model
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:merkle-patricia-forestry:test
+          --tests "com.bloxbean.cardano.vds.mpf.MpfFuzzTest.operationTracesMatchReferenceAndAikenSemantics"
+          -PskipSigning=true
+      - name: Fuzz mutated proofs
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:merkle-patricia-forestry:test
+          --tests "com.bloxbean.cardano.vds.mpf.MpfFuzzTest.mutatedProofsNeverProveSomethingElse"
+          -PskipSigning=true
+
   mpf-aiken:
     name: MPF proofs checked by Aiken and the official JS library
     runs-on: ubuntu-latest
