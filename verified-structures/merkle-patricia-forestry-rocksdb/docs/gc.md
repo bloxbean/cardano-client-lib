@@ -48,14 +48,13 @@ Works on any store, including stores without refcounts.
 1. **Snapshot.** With `GcOptions.useSnapshot` (default `true`) a RocksDB snapshot is taken first.
 2. **Roots.** The retained roots are resolved (section 2). They must all have the same length; that length is the
    digest length used to recognise node keys (32 bytes when there is no root).
-3. **Mark.** A temporary column family `marks_<nanoTime>` receives every node hash reachable from a retained root
-   (breadth-first walk). The mark set lives on disk, so memory stays flat for large tries.
+3. **Mark.** A temporary column family `__vds_gc_marks_<nanoTime>` receives every node hash reachable from a
+   retained root (breadth-first walk). The mark set lives on disk, so memory stays flat for large tries.
 4. **Sweep.** The node keys of the namespace are scanned through the snapshot, so node keys that did not exist at
    step 1 are not deleted. Each unmarked node is deleted together with its refcount entry, if any. Refcount entries
    of kept nodes and every other key are left alone. Deletes are flushed every `deleteBatchSize` nodes and reported
    to `progress`.
-5. The marks column family is dropped. If a run crashes, its `marks_*` column family is dropped the next time the
-   database is opened by `RocksDbStateTrees`, `RocksDbNodeStore(String..)` or `RocksDbRootsIndex(String..)`.
+5. The marks column family is dropped. If a run crashes, it is left behind (see section 7).
 
 The snapshot does **not** make GC safe next to writers: nodes are content-addressed, so a writer that re-puts a key
 that already existed, or commits a root reusing an old unmarked node, can still lose that node.
@@ -79,8 +78,8 @@ record an empty trie with `getRootHashOrEmpty()` rather than `getRootHash()`.
 - If any retained root has no count, it throws `IllegalStateException` and changes nothing: the namespace holds
   versions that were not recorded with `putRootWithRefcount`, so refcount GC could not reclaim their nodes. Use
   mark-sweep.
-- It marks every node reachable from a retained root in a temporary `marks_*` column family (the same on-disk mark
-  set mark-sweep uses), with `GcReport.marked` set to the number of marked nodes.
+- It marks every node reachable from a retained root in a temporary `__vds_gc_marks_*` column family (the same
+  on-disk mark set mark-sweep uses), with `GcReport.marked` set to the number of marked nodes.
 - For each dropped version it subtracts one along that version's trie. A node is deleted only when its count goes
   from 1 to 0 **and** it is not marked. A marked node whose count would reach 0 is kept with its count and reported
   in `GcReport.protectedNodes`. A node without a count is untracked: it is neither deleted nor descended into.
@@ -96,18 +95,22 @@ record an empty trie with `getRootHashOrEmpty()` rather than `getRootHash()`.
 version still reaches, whatever the counts say. This matters for stores whose counts were written by pre-0.8.0 code:
 the old `putRootWithRefcount` inside a session batch, and the old pattern of staging trie nodes and `incrementAll` in
 one `WriteBatch`, counted only the root. On such stores refcount GC is safe but leaks (`protectedNodes > 0`);
-`OnDiskMarkSweepStrategy` reclaims the leak. The price of the marking is a walk of the retained tries on every run.
+`OnDiskMarkSweepStrategy` reclaims the leak. The price of the marking is a walk of the retained tries on every run:
+in a 50k-key benchmark a steady-state run that drops one version took about 2.1x as long as without marking (still
+well below a mark-sweep, which also scans every node key).
 
 Nodes that were written but never part of a recorded root (for example intermediate nodes of several `put`s inside
 one batch) are never counted, so refcount GC never deletes them either. Run mark-sweep occasionally if that matters.
 
-**Static helpers.** `incrementAll(..)` / `decrementAll(..)` apply the counting rules to one root. All helper calls
-(and `putRootWithRefcount` inside a batch) that stage into the same `WriteBatch` object for the same database, column
-family and namespace share their staged counts, and a node whose deletion a `decrementAll` staged is written back
-when a later `incrementAll` in that batch counts it again. Do not reuse a batch after writing it. The helpers do not
-know the retained roots, so they cannot protect nodes the way `run(..)` does: they trust the counts.
-`incrementAll` reads nodes from the database and throws `IllegalStateException` when the root node is not committed.
-Prefer `putRootWithRefcount`, which also works inside `nodeStore().withBatch(..)` / `RocksDbMptSession.write(..)`
+**Static helpers.** `incrementAll(..)` / `decrementAll(..)` apply the counting rules to one root. Each call (and
+`putRootWithRefcount` inside a batch) first replays the records currently in the `WriteBatch` for its column family
+and namespace (`WriteBatch.iterate`, last write wins) and reads the database under them. So counts and nodes staged
+by earlier calls or by trie writes into the same batch are seen, a node whose deletion an earlier `decrementAll`
+staged is written back when a later `incrementAll` counts it again, and clearing the batch, rolling it back to a
+save point, or reusing it after `db.write` is safe. The cost is one pass over the batch per call. Pass a fresh batch
+or the batch you are about to write, and do not let another thread write to it during the call. The helpers do not
+know the retained roots, so they cannot protect nodes the way `run(..)` does: they trust the counts. `incrementAll`
+throws `IllegalStateException` when the root node is neither committed nor staged in the batch. Prefer `putRootWithRefcount`, which also works inside `nodeStore().withBatch(..)` / `RocksDbMptSession.write(..)`
 (joining a batch opened by another node store instance of the same namespace, and throwing for a batch of another
 namespace).
 
@@ -126,13 +129,26 @@ namespace).
 In `SINGLE_VERSION` mode `putRootSnapshot(root)` overwrites version 0 and `cleanupOrphanedNodes(options)` runs
 mark-sweep keeping that root.
 
-## 7. Internal helpers
+## 7. Temporary column families and caller-managed databases
+
+Both strategies keep their mark set in a temporary column family named `__vds_gc_marks_<digits>`, dropped at the end
+of the run. A run that crashes leaves it behind:
+
+- `RocksDbStateTrees`, `RocksDbNodeStore(String..)` and `RocksDbRootsIndex(String..)` open every existing column
+  family and drop leftovers right after opening. Only names that match exactly `__vds_gc_marks_<digits>`, or
+  `marks_<digits>` as created by 0.8.0-pre6, are dropped, and never a column family the store itself uses. The
+  column-family prefix `__vds_gc_` is reserved and rejected by `NamespaceOptions`-based constructors.
+- A caller that opens the `RocksDB` itself with a fixed column-family list will fail to open after such a crash
+  ("column families not opened"). Open with every column family listed by `RocksDB.listColumnFamilies(..)` instead,
+  then call `GcManager.dropLeftoverGcColumnFamilies(db, handles)` before running GC.
+
+## 8. Internal helpers
 
 `gc.internal.RocksDbGc` (`gcKeepLatest`, `gcKeepVersions`, `markReachable`, `sweepUnreachable`) is an in-memory
 mark-and-sweep with the same namespace scoping, key handling and latest-root retention. It holds the mark set in a
 `Set<String>`, so prefer `OnDiskMarkSweepStrategy` for large tries.
 
-## 8. GcTool
+## 9. GcTool
 
 ```bash
 ./gradlew :verified-structures:load-tools:run --args="gc generate /tmp/mpt 10000 5"
