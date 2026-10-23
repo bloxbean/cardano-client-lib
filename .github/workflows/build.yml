@@ -206,6 +206,42 @@ jobs:
           ./gradlew :verified-structures:jellyfish-merkle-rocksdb:test
           --tests "com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtDifferentialFuzzTest.operationTraceProducesIdenticalRootsAndProofs"
           -PskipSigning=true
+      - name: Fuzz version histories against the reference model
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:jellyfish-merkle:test
+          --tests "com.bloxbean.cardano.vds.jmt.JmtFuzzTest.operationTracesMatchModelAndReference"
+          -PskipSigning=true
+      - name: Fuzz mutated wire proofs
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:jellyfish-merkle:test
+          --tests "com.bloxbean.cardano.vds.jmt.JmtFuzzTest.mutatedWireProofsNeverProveSomethingElse"
+          -PskipSigning=true
+      - name: Fuzz the object proof verifier
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:jellyfish-merkle:test
+          --tests "com.bloxbean.cardano.vds.jmt.JmtFuzzTest.objectVerifierAcceptsOnlyTrueClaims"
+          -PskipSigning=true
+      - name: Fuzz in-memory, RocksDB and H2 differential histories
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:jellyfish-merkle-rdbms:test
+          --tests "com.bloxbean.cardano.vds.jmt.rdbms.JmtBackendDifferentialFuzzTest.historiesBehaveIdenticallyOnEveryBackend"
+          -PskipSigning=true
+      - name: Upload fuzz findings
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmt-fuzz-findings
+          path: |
+            verified-structures/jellyfish-merkle/src/test/resources/com/bloxbean/cardano/vds/jmt/JmtFuzzTestInputs/
+            verified-structures/jellyfish-merkle-rdbms/src/test/resources/com/bloxbean/cardano/vds/jmt/rdbms/JmtBackendDifferentialFuzzTestInputs/
 
   mpf-fuzz:
     name: MPF bounded fuzz qualification
