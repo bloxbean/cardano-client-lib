@@ -380,6 +380,12 @@ public final class RocksDbStateTrees implements StateTrees {
      * staged any more. If a batch of a store on another namespace is open on this thread, this throws
      * {@link IllegalStateException}.</p>
      *
+     * <p>Inside such a session, write to the batch only through the store APIs ({@code clear()} and
+     * {@code rollbackToSavePoint()} are allowed). Raw writes on the {@code WriteBatch} that refill a cleared or
+     * rolled-back batch to exactly the record count and data size the session last saw are not noticed, and the
+     * versions and counts staged here would then be based on contents the batch no longer holds (see
+     * {@code docs/gc.md} §4).</p>
+     *
      * <p>Every node reachable from {@code root} must be readable. Otherwise this throws
      * {@link IllegalStateException} and records nothing: inside an open batch, everything it staged is rolled
      * back.</p>

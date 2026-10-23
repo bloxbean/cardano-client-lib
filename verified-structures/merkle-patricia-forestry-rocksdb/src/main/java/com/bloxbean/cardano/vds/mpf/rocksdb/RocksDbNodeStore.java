@@ -173,7 +173,11 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
      * <p>Inside {@link #withBatch} a node put in the open batch is visible before the batch is written (a staged
      * delete is not: the committed node stays readable until the batch is written). For the session's own database,
      * column family and namespace, visibility follows the batch's contents: after {@code clear()},
-     * {@code rollbackToSavePoint()} or raw writes the batch is replayed, so discarded nodes are no longer visible.</p>
+     * {@code rollbackToSavePoint()} or raw writes the batch is replayed, so discarded nodes are no longer visible.
+     * A change is noticed when the batch's record count or data size differs from what the session last saw, or
+     * when another store API writes into the batch. Raw writes ({@code batch.put(..)} on the {@code WriteBatch}
+     * itself) that refill a cleared or rolled-back batch to exactly that count and size go unnoticed: inside a
+     * session, write to the batch only through the store APIs (see {@code docs/gc.md} §4).</p>
      */
     @Override
     public byte[] get(byte[] hash) {
@@ -312,6 +316,13 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
      *
      * <p><b>Important:</b> The caller is responsible for actually writing the batch
      * to the database using {@code db.write(writeOptions, batch)}.</p>
+     *
+     * <p>While the session is open, write to the batch only through the store APIs (this store, the roots index,
+     * {@code RocksDbStateTrees.putRootWithRefcount} and the static refcount helpers). {@code clear()} and
+     * {@code rollbackToSavePoint()} are allowed. Raw {@code batch.put(..)}/{@code batch.delete(..)} calls are
+     * noticed only through the batch's record count and data size; raw writes that refill a cleared or rolled-back
+     * batch to exactly the count and size the session last saw make reads and recordings in the session use
+     * contents the batch no longer holds (see {@code docs/gc.md} §4).</p>
      *
      * @param <T>   the return type of the work function
      * @param batch the WriteBatch to stage operations in
