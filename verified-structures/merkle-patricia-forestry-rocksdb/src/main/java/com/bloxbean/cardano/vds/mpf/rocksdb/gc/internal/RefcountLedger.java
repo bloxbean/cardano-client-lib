@@ -62,6 +62,95 @@ public final class RefcountLedger {
 
     private static final byte[] TOMBSTONE = new byte[0]; // compared by identity
 
+    private static final java.util.concurrent.atomic.AtomicLong FULL_REPLAYS = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * Replayed view of one batch for one column family and namespace: the pending state per key and the latest bytes
+     * put per key. A view can be kept for a whole batch session (see {@code RocksDbNodeStore.withBatch}) and updated
+     * by every writer that knows it; it remembers the batch's record count and data size it last saw and is rebuilt
+     * by a full replay whenever they no longer match (raw writes, {@code clear()}, {@code rollbackToSavePoint()}).
+     */
+    public static final class BatchView {
+        private final int cfId;
+        private final byte namespace;
+        private final Map<String, byte[]> pending = new HashMap<>();
+        private final Map<String, byte[]> lastPut = new HashMap<>();
+        private int seenCount = -1;
+        private long seenDataSize = -1;
+
+        /**
+         * @param cfId      the nodes column family id
+         * @param namespace the namespace byte
+         */
+        public BatchView(int cfId, byte namespace) {
+            this.cfId = cfId;
+            this.namespace = namespace;
+        }
+
+        /**
+         * Returns whether the view still describes {@code batch} (same record count and data size as last seen).
+         *
+         * @param batch the batch
+         * @return {@code true} if no unknown write happened since the last sync
+         */
+        public boolean isCurrent(WriteBatch batch) {
+            return seenCount == batch.count() && seenDataSize == batch.getDataSize();
+        }
+
+        /**
+         * Records that {@code batch} is in the state this view describes. Call only right after a write this view
+         * already reflects, and only if the view was current before that write.
+         *
+         * @param batch the batch
+         */
+        public void sync(WriteBatch batch) {
+            seenCount = batch.count();
+            seenDataSize = batch.getDataSize();
+        }
+
+        /**
+         * Reflects a put of {@code prefixedKey} into the batch (ignored for other namespaces).
+         *
+         * @param cf          the column family id written to
+         * @param prefixedKey the key with its namespace byte
+         * @param value       the value
+         */
+        public void recordPut(int cf, byte[] prefixedKey, byte[] value) {
+            if (cf != cfId || prefixedKey.length == 0 || prefixedKey[0] != namespace) return;
+            String hex = HexUtil.encodeHexString(prefixedKey);
+            pending.put(hex, value);
+            lastPut.put(hex, value);
+        }
+
+        /**
+         * Reflects a delete of {@code prefixedKey} in the batch (ignored for other namespaces).
+         *
+         * @param cf          the column family id written to
+         * @param prefixedKey the key with its namespace byte
+         */
+        public void recordDelete(int cf, byte[] prefixedKey) {
+            if (cf != cfId || prefixedKey.length == 0 || prefixedKey[0] != namespace) return;
+            pending.put(HexUtil.encodeHexString(prefixedKey), TOMBSTONE);
+        }
+
+        private void rebuild(WriteBatch batch, KeyPrefixer keyPrefixer) throws RocksDBException {
+            pending.clear();
+            lastPut.clear();
+            FULL_REPLAYS.incrementAndGet();
+            replay(batch, cfId, keyPrefixer, pending, lastPut);
+            sync(batch);
+        }
+    }
+
+    /**
+     * Number of full batch replays since the JVM started (diagnostics and tests).
+     *
+     * @return the count
+     */
+    public static long fullReplayCount() {
+        return FULL_REPLAYS.get();
+    }
+
     private final RocksDB db;
     private final ColumnFamilyHandle cfNodes;
     private final KeyPrefixer keyPrefixer;
@@ -72,6 +161,7 @@ public final class RefcountLedger {
     private final Map<String, byte[]> pending;
     /** Latest bytes put for each key in the batch, kept even when a later record deletes the key. */
     private final Map<String, byte[]> lastPut;
+    private final BatchView view;
     private Protection protection;
     private long untracked;
     private long protectedNodes;
@@ -87,15 +177,39 @@ public final class RefcountLedger {
      */
     public RefcountLedger(RocksDB db, ColumnFamilyHandle cfNodes, KeyPrefixer keyPrefixer, WriteBatch batch,
                           ReadOptions readOptions, NodeReader nodeReader) throws RocksDBException {
+        this(db, cfNodes, keyPrefixer, batch, readOptions, nodeReader, null);
+    }
+
+    /**
+     * Same as the other constructor, reusing {@code view} when it is still current for {@code batch} instead of
+     * replaying the whole batch again.
+     *
+     * @param db          the database
+     * @param cfNodes     the nodes column family
+     * @param keyPrefixer the namespace prefixer
+     * @param batch       the batch
+     * @param readOptions options for reading counts, or {@code null}
+     * @param nodeReader  how to read nodes
+     * @param view        a view kept for this batch and scope, or {@code null} for a one-off replay
+     * @throws RocksDBException if the batch cannot be replayed
+     */
+    public RefcountLedger(RocksDB db, ColumnFamilyHandle cfNodes, KeyPrefixer keyPrefixer, WriteBatch batch,
+                          ReadOptions readOptions, NodeReader nodeReader, BatchView view) throws RocksDBException {
         this.db = db;
         this.cfNodes = cfNodes;
         this.keyPrefixer = keyPrefixer;
         this.batch = batch;
         this.readOptions = readOptions;
         this.nodeReader = nodeReader;
-        this.pending = new HashMap<>();
-        this.lastPut = new HashMap<>();
-        replay(batch, cfNodes.getID(), keyPrefixer, pending, lastPut);
+        if (view == null) {
+            view = new BatchView(cfNodes.getID(), keyPrefixer.getNamespaceId());
+        } else if (view.cfId != cfNodes.getID() || view.namespace != keyPrefixer.getNamespaceId()) {
+            throw new IllegalArgumentException("BatchView belongs to another column family or namespace");
+        }
+        if (!view.isCurrent(batch)) view.rebuild(batch, keyPrefixer);
+        this.view = view;
+        this.pending = view.pending;
+        this.lastPut = view.lastPut;
     }
 
     /**
@@ -206,7 +320,9 @@ public final class RefcountLedger {
             byte[] v = ByteBuffer.allocate(8).putLong(value).array();
             batch.put(cfNodes, key, v);
             pending.put(HexUtil.encodeHexString(key), v);
+            lastPut.put(HexUtil.encodeHexString(key), v);
         }
+        view.sync(batch);
     }
 
     /**
@@ -231,6 +347,7 @@ public final class RefcountLedger {
         batch.delete(cfNodes, key);
         pending.put(hex, TOMBSTONE);
         if (enc != null) lastPut.put(hex, enc);
+        view.sync(batch);
     }
 
     private void restoreNode(byte[] hash, byte[] enc) throws RocksDBException {
@@ -239,6 +356,7 @@ public final class RefcountLedger {
         batch.put(cfNodes, key, enc);
         pending.put(hex, enc);
         lastPut.put(hex, enc);
+        view.sync(batch);
     }
 
     /**

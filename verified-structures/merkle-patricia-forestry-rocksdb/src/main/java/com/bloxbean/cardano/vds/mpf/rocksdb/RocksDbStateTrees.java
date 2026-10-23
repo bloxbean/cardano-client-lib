@@ -403,16 +403,21 @@ public final class RocksDbStateTrees implements StateTrees {
             long[] stagedLast = nodeStore.activeBatchLastVersion();
             long last = stagedLast[0] != Long.MIN_VALUE ? stagedLast[0] : rootsIndex.lastVersion();
             long ver = last + 1;
+            RefcountLedger.BatchView view = nodeStore.activeBatchView();
             try {
                 new RefcountLedger(db, nodeStore.nodesHandle(), nodeStore.keyPrefixer(), activeBatch, null,
-                        nodeStore::get).increment(root);
+                        nodeStore::get, view).increment(root);
             } catch (RocksDBException e) {
                 throw new RuntimeException("Failed to stage refcounts", e);
             }
+            // The roots index writes go to the roots CF; they do not change the view unless both CFs are the same.
+            boolean keepView = view != null && view.isCurrent(activeBatch)
+                    && cfRoots.getID() != nodeStore.nodesHandle().getID();
             rootsIndex.withBatch(activeBatch, () -> {
                 rootsIndex.put(ver, root);
                 return null;
             });
+            if (keepView) view.sync(activeBatch);
             stagedLast[0] = ver;
             return ver;
         }

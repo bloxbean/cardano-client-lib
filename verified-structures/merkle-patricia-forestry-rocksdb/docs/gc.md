@@ -102,12 +102,16 @@ well below a mark-sweep, which also scans every node key).
 Nodes that were written but never part of a recorded root (for example intermediate nodes of several `put`s inside
 one batch) are never counted, so refcount GC never deletes them either. Run mark-sweep occasionally if that matters.
 
-**Static helpers.** `incrementAll(..)` / `decrementAll(..)` apply the counting rules to one root. Each call (and
-`putRootWithRefcount` inside a batch) first replays the records currently in the `WriteBatch` for its column family
+**Static helpers.** `incrementAll(..)` / `decrementAll(..)` apply the counting rules to one root. Each call first
+replays the records currently in the `WriteBatch` for its column family
 and namespace (`WriteBatch.iterate`, last write wins) and reads the database under them. So counts and nodes staged
 by earlier calls or by trie writes into the same batch are seen, a node whose deletion an earlier `decrementAll`
 staged is written back when a later `incrementAll` counts it again, and clearing the batch, rolling it back to a
-save point, or reusing it after `db.write` is safe. The cost is one pass over the batch per call. Pass a fresh batch
+save point, or reusing it after `db.write` is safe. The cost is one pass over the batch per call. Inside
+`nodeStore().withBatch(..)` / `RocksDbMptSession.write(..)`, `putRootWithRefcount` instead keeps the replayed view
+for the whole batch session, updated by the node store's own puts and deletes and checked against the batch's record
+count and data size before each use; it replays again only after writes it did not see (raw writes, `clear()`,
+`rollbackToSavePoint()`), so recording many versions in one batch stays linear. Pass a fresh batch
 or the batch you are about to write, and do not let another thread write to it during the call. The helpers do not
 know the retained roots, so they cannot protect nodes the way `run(..)` does: they trust the counts. `incrementAll`
 throws `IllegalStateException` when the root node is neither committed nor staged in the batch. A batch that
@@ -137,8 +141,12 @@ Both strategies keep their mark set in a temporary column family named `__vds_gc
 of the run. A run that crashes leaves it behind:
 
 - `RocksDbStateTrees`, `RocksDbNodeStore(String..)` and `RocksDbRootsIndex(String..)` open every existing column
-  family and drop leftovers right after opening. Only names that match exactly `__vds_gc_marks_<digits>`, or
-  `marks_<digits>` as created by 0.8.0-pre6, are dropped, and never a column family the store itself uses. Namespace
+  family and drop leftovers right after opening, logging each drop. Names that match exactly
+  `__vds_gc_marks_<digits>` are dropped. `marks_<digits>` is treated as a legacy GC artefact of 0.8.0-pre6 (which
+  named it `marks_` + `System.nanoTime()`) only when it has at least 10 digits and its contents look like a mark set
+  (empty, or the first 1000 entries have equal-length digest keys and the value `0x01`); anything else, such as an
+  application column family `marks_2024`, is left alone with a warning. A column family the store itself uses is
+  never dropped. Namespace
   column families are always named `<prefix>_nodes` / `<prefix>_roots`, so they never match these patterns.
 - A caller that opens the `RocksDB` itself with a fixed column-family list will fail to open after such a crash
   ("column families not opened"). Open with every column family listed by `RocksDB.listColumnFamilies(..)` instead,

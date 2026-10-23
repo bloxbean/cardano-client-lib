@@ -30,7 +30,10 @@ public final class DiskMarkSet implements AutoCloseable {
     public static final String CF_PREFIX = "__vds_gc_marks_";
 
     private static final java.util.regex.Pattern CURRENT_NAME = java.util.regex.Pattern.compile("__vds_gc_marks_[0-9]+");
-    private static final java.util.regex.Pattern LEGACY_NAME = java.util.regex.Pattern.compile("marks_[0-9]+");
+    // 0.8.0-pre6 named the CF "marks_" + System.nanoTime(): ten or more digits in practice.
+    private static final java.util.regex.Pattern LEGACY_NAME = java.util.regex.Pattern.compile("marks_[0-9]{10,}");
+    private static final int LEGACY_CONTENT_SAMPLE = 1000;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DiskMarkSet.class);
 
     private static final byte[] ONE = new byte[]{1};
 
@@ -116,8 +119,9 @@ public final class DiskMarkSet implements AutoCloseable {
     }
 
     /**
-     * Returns whether a column family name is a mark-set column family: exactly {@code __vds_gc_marks_<digits>}, or
-     * {@code marks_<digits>} as created by 0.8.0-pre6.
+     * Returns whether a column family name is a mark-set column family name: exactly {@code __vds_gc_marks_<digits>},
+     * or {@code marks_<at least 10 digits>} as created by 0.8.0-pre6. A legacy name alone is not enough to drop a
+     * column family; {@link #dropStale} also checks that its contents look like a mark set.
      *
      * @param cfName the column family name
      * @return {@code true} for a mark-set name
@@ -151,9 +155,17 @@ public final class DiskMarkSet implements AutoCloseable {
         handles.removeIf(h -> {
             for (ColumnFamilyHandle k : keep) if (k == h) return false;
             try {
-                if (!isMarkSetColumnFamily(h.getName())) return false;
+                String name = new String(h.getName(), StandardCharsets.UTF_8);
+                boolean current = CURRENT_NAME.matcher(name).matches();
+                boolean legacy = !current && LEGACY_NAME.matcher(name).matches();
+                if (!current && !legacy) return false;
+                if (legacy && !looksLikeMarkSet(db, h)) {
+                    log.warn("Column family {} has a 0.8.0-pre6 GC mark-set name but other contents; leaving it", name);
+                    return false;
+                }
                 db.dropColumnFamily(h);
                 h.close();
+                log.info("Dropped leftover GC mark-set column family {}", name);
                 dropped[0]++;
                 return true;
             } catch (RocksDBException e) {
@@ -161,5 +173,21 @@ public final class DiskMarkSet implements AutoCloseable {
             }
         });
         return dropped[0];
+    }
+
+    /** Empty, or the first entries all have equal-length (digest) keys and the one-byte value {@code {1}}. */
+    private static boolean looksLikeMarkSet(RocksDB db, ColumnFamilyHandle h) {
+        try (org.rocksdb.RocksIterator it = db.newIterator(h)) {
+            int keyLength = -1;
+            int seen = 0;
+            for (it.seekToFirst(); it.isValid() && seen < LEGACY_CONTENT_SAMPLE; it.next(), seen++) {
+                byte[] key = it.key();
+                if (keyLength < 0) keyLength = key.length;
+                if (key.length != keyLength || key.length < 16 || key.length > 64) return false;
+                byte[] value = it.value();
+                if (value.length != 1 || value[0] != 1) return false;
+            }
+            return true;
+        }
     }
 }

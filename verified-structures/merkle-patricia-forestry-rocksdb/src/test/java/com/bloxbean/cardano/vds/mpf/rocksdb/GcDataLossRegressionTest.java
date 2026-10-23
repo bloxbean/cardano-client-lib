@@ -733,14 +733,116 @@ class GcDataLossRegressionTest {
 
     @Test
     void legacyMarkColumnFamiliesFromPre6AreStillDropped() throws Exception {
+        // A genuine 0.8.0-pre6 leftover: "marks_" + nanoTime, 32-byte keys with value 0x01; and an empty one.
         String path = tmp.resolve("legacy-marks").toString();
         try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
-            st.db().createColumnFamily(new ColumnFamilyDescriptor("marks_98765".getBytes())).close();
+            ColumnFamilyHandle h = st.db().createColumnFamily(new ColumnFamilyDescriptor("marks_1234567890123".getBytes()));
+            for (int i = 0; i < 50; i++) {
+                byte[] k = new byte[32];
+                k[0] = (byte) i;
+                st.db().put(h, k, new byte[]{1});
+            }
+            h.close();
+            st.db().createColumnFamily(new ColumnFamilyDescriptor("marks_9876543210".getBytes())).close();
         }
         try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
             assertNotNull(st.nodeStore());
         }
-        assertFalse(columnFamilies(path).contains("marks_98765"));
+        assertFalse(columnFamilies(path).contains("marks_1234567890123"));
+        assertFalse(columnFamilies(path).contains("marks_9876543210"));
+    }
+
+    @Test
+    void applicationColumnFamiliesWithLegacyLookingNamesAreKept() throws Exception {
+        // Round-3 review: marks_2024 (too few digits) and a long-digit name with application data must survive.
+        String path = tmp.resolve("legacy-lookalikes").toString();
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            ColumnFamilyHandle a = st.db().createColumnFamily(new ColumnFamilyDescriptor("marks_2024".getBytes()));
+            st.db().put(a, b("report"), b("q1"));
+            a.close();
+            ColumnFamilyHandle c = st.db().createColumnFamily(new ColumnFamilyDescriptor("marks_20240101123000".getBytes()));
+            st.db().put(c, b("event"), b("payload"));
+            c.close();
+        }
+        try (RocksDbStateTrees st = new RocksDbStateTrees(path)) {
+            assertNotNull(st.nodeStore());
+        }
+        List<String> names = columnFamilies(path);
+        assertTrue(names.contains("marks_2024"));
+        assertTrue(names.contains("marks_20240101123000"));
+        List<ColumnFamilyDescriptor> all = new ArrayList<>();
+        for (String n : names) all.add(new ColumnFamilyDescriptor(n.getBytes()));
+        List<ColumnFamilyHandle> hs = new ArrayList<>();
+        try (org.rocksdb.DBOptions o = new org.rocksdb.DBOptions(); RocksDB db = RocksDB.open(o, path, all, hs)) {
+            assertArrayEquals(b("q1"), db.get(hs.get(names.indexOf("marks_2024")), b("report")));
+            assertArrayEquals(b("payload"), db.get(hs.get(names.indexOf("marks_20240101123000")), b("event")));
+            for (ColumnFamilyHandle h : hs) h.close();
+        }
+    }
+
+    // ---------------------------------------------------------------- round 3: replay cache inside a session
+
+    @Test
+    void manyVersionsInOneSessionBatchReplayTheBatchAtMostOnce() throws Exception {
+        // Round-3 review perf: replaying the whole batch on every putRootWithRefcount made N versions in one batch
+        // quadratic. Count replays instead of timing.
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("many").toString())) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            Map<String, byte[]> model = new LinkedHashMap<>();
+            long before = RefcountLedger.fullReplayCount();
+            RocksDbMptSession.of(st).write(() -> {
+                for (int v = 0; v < 80; v++) {
+                    for (int i = 0; i < 50; i++) {
+                        String k = "k" + ((v * 7 + i) % 400);
+                        trie.put(b(k), b("v" + v + "-" + i));
+                        model.put(hex(k), b("v" + v + "-" + i));
+                    }
+                    st.putRootWithRefcount(trie.getRootHash());
+                }
+            });
+            assertTrue(RefcountLedger.fullReplayCount() - before <= 1,
+                    "replays: " + (RefcountLedger.fullReplayCount() - before));
+            assertEquals(79L, st.rootsIndex().lastVersion());
+            byte[] latest = st.rootsIndex().latest();
+            new GcManager(st.nodeStore(), st.rootsIndex())
+                    .runSync(new RefcountGcStrategy(), RetentionPolicy.keepLatestN(1), new GcOptions());
+            assertIntact(st.nodeStore(), latest, model, "latest");
+            assertEquals(reach(st.nodeStore(), latest)[0], countRefcountKeys(st.nodeStore()));
+        }
+    }
+
+    @Test
+    void sessionReplayCacheNoticesRollbackAndRawWrites() throws Exception {
+        try (RocksDbStateTrees st = new RocksDbStateTrees(tmp.resolve("cache-rollback").toString());
+             WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            MpfTrie trie = new MpfTrie(st.nodeStore());
+            byte[][] roots = new byte[2][];
+            st.nodeStore().withBatch(wb, () -> {
+                for (int i = 0; i < 12; i++) trie.put(b("k" + i), b("v" + i));
+                roots[0] = trie.getRootHash();
+                st.putRootWithRefcount(roots[0]);
+                trie.put(b("k0"), b("changed"));
+                roots[1] = trie.getRootHash();
+                wb.setSavePoint();
+                st.putRootWithRefcount(roots[1]);
+                wb.rollbackToSavePoint();            // the view saw the rolled-back counts
+                st.putRootWithRefcount(roots[1]);    // must replay and count roots[1] once
+                // a raw write the view did not see: drop roots[0]'s own count again
+                wb.delete(st.nodeStore().nodesHandle(),
+                        st.nodeStore().keyPrefixer().prefix(RefcountLedger.refKey(roots[0])));
+                st.putRootWithRefcount(roots[0]);    // must see the raw delete: roots[0] count 1, not 2
+                return null;
+            });
+            st.db().write(wo, wb);
+            RocksDbNodeStore ns = st.nodeStore();
+            assertEquals(1L, refcount(ns, roots[1]));
+            assertEquals(1L, refcount(ns, roots[0]));
+        }
+    }
+
+    private static long refcount(RocksDbNodeStore ns, byte[] hash) throws RocksDBException {
+        byte[] v = ns.db().get(ns.nodesHandle(), ns.keyPrefixer().prefix(RefcountLedger.refKey(hash)));
+        return v == null ? 0 : ByteBuffer.wrap(v).getLong();
     }
 
     @Test

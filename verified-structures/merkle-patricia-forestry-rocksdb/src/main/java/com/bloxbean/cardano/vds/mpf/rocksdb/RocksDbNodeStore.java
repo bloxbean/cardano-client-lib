@@ -3,6 +3,7 @@ package com.bloxbean.cardano.vds.mpf.rocksdb;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RefcountLedger;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.*;
@@ -67,6 +68,9 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
     // the store that opened the batch and the last version number staged in it.
     private static final ThreadLocal<RocksDbNodeStore> TL_OWNER = new ThreadLocal<>();
     private static final ThreadLocal<long[]> TL_LAST_VERSION = new ThreadLocal<>();
+    // Replayed refcount view of the open batch for the owner's CF + namespace, kept up to date by put/delete so
+    // putRootWithRefcount does not replay the whole batch on every call.
+    private static final ThreadLocal<RefcountLedger.BatchView> TL_VIEW = new ThreadLocal<>();
 
     public static final String CF_NODES = "nodes";
 
@@ -193,7 +197,14 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         try {
             WriteBatch currentBatch = TL_BATCH.get();
             if (currentBatch != null) {
-                currentBatch.put(cfNodes, keyPrefixer.prefix(hash), nodeBytes);
+                byte[] prefixed = keyPrefixer.prefix(hash);
+                RefcountLedger.BatchView view = TL_VIEW.get();
+                boolean current = view != null && view.isCurrent(currentBatch);
+                currentBatch.put(cfNodes, prefixed, nodeBytes);
+                if (current) {
+                    view.recordPut(cfNodes.getID(), prefixed, nodeBytes);
+                    view.sync(currentBatch);
+                }
                 java.util.Map<String, byte[]> stagedWrites = TL_STAGED.get();
                 if (stagedWrites == null) {
                     stagedWrites = new java.util.HashMap<>();
@@ -219,7 +230,14 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         try {
             WriteBatch currentBatch = TL_BATCH.get();
             if (currentBatch != null) {
-                currentBatch.delete(cfNodes, keyPrefixer.prefix(hash));
+                byte[] prefixed = keyPrefixer.prefix(hash);
+                RefcountLedger.BatchView view = TL_VIEW.get();
+                boolean current = view != null && view.isCurrent(currentBatch);
+                currentBatch.delete(cfNodes, prefixed);
+                if (current) {
+                    view.recordDelete(cfNodes.getID(), prefixed);
+                    view.sync(currentBatch);
+                }
                 java.util.Map<String, byte[]> stagedWrites = TL_STAGED.get();
                 if (stagedWrites != null) stagedWrites.remove(HexUtil.encodeHexString(hash));
             } else {
@@ -295,6 +313,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         TL_STAGED.set(new java.util.HashMap<>());
         TL_OWNER.set(this);
         TL_LAST_VERSION.set(new long[]{Long.MIN_VALUE});
+        TL_VIEW.set(new RefcountLedger.BatchView(cfNodes.getID(), keyPrefixer.getNamespaceId()));
         try {
             return work.call();
         } catch (Exception e) {
@@ -304,6 +323,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             TL_STAGED.remove();
             TL_OWNER.remove();
             TL_LAST_VERSION.remove();
+            TL_VIEW.remove();
         }
     }
 
@@ -326,6 +346,11 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
     /** Holder for the last version staged in the active batch; {@code Long.MIN_VALUE} when none. */
     long[] activeBatchLastVersion() {
         return activeBatch() != null ? TL_LAST_VERSION.get() : null;
+    }
+
+    /** Replay cache of the active batch for this store's CF + namespace, or {@code null} when none is open. */
+    RefcountLedger.BatchView activeBatchView() {
+        return activeBatch() != null ? TL_VIEW.get() : null;
     }
 
     private boolean sameNamespace(RocksDbNodeStore other) {

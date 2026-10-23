@@ -61,7 +61,8 @@ public final class GcManager {
 
     /**
      * Drops temporary GC column families left behind by a GC run that crashed (names
-     * {@code __vds_gc_marks_<digits>}, or {@code marks_<digits>} from 0.8.0-pre6).
+     * {@code __vds_gc_marks_<digits>}, or {@code marks_<10+ digits>} from 0.8.0-pre6 when its contents look like a
+     * mark set).
      *
      * <p>{@code RocksDbStateTrees}, {@code RocksDbNodeStore(String..)} and {@code RocksDbRootsIndex(String..)} do this
      * themselves. A caller that opens the {@code RocksDB} itself must open every existing column family (list them
