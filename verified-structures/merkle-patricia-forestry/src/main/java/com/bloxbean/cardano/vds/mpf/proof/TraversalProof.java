@@ -41,8 +41,13 @@ import java.util.Objects;
  * <h2>Step Types</h2>
  * <ul>
  *   <li>{@link BranchStep} - Traversal through a 16-way branch node, captures all child hashes</li>
- *   <li>{@link ForkStep} - Traversal diverged at an extension node, captures neighbor info</li>
+ *   <li>{@link ForkStep} - Branch whose only other child is a branch, or divergence inside an extension</li>
+ *   <li>{@link LeafStep} - Branch whose only other child is a leaf</li>
  * </ul>
+ *
+ * <p>Steps are canonical: they are the same steps the official off-chain library
+ * ({@code aiken-lang/merkle-patricia-forestry}) produces, so proofs work with Aiken's {@code has}, {@code miss},
+ * {@code insert}, {@code delete} and {@code update}.</p>
  *
  * <h2>Usage</h2>
  * <p>This class is package-private in its usage - it's created by {@code MpfTrie}'s internal
@@ -233,17 +238,18 @@ public final class TraversalProof {
     }
 
     /**
-     * A proof step representing a fork point where the query path diverges from an extension node.
+     * A proof step whose neighbor is a branch node (Aiken {@code Fork}).
      *
-     * <p>This step is used for non-inclusion proofs where the traversal encounters an extension
-     * node whose path doesn't match the query key. It captures information about the neighbor
-     * subtree that exists at the fork point.</p>
+     * <p>Emitted at a branch whose only other child is a branch, and as the last step of a non-inclusion
+     * proof whose path diverges inside an extension. It matches Aiken's
+     * {@code Fork { skip, neighbor: Neighbor { nibble, prefix, root } }}.</p>
      *
      * <p>The neighbor information includes:</p>
      * <ul>
-     *   <li>neighborNibble - The first nibble of the neighbor's path (different from query)</li>
-     *   <li>suffix - Remaining nibbles of the neighbor's extension path</li>
-     *   <li>neighborRoot - The commitment hash of the neighbor subtree</li>
+     *   <li>neighborNibble - The nibble under which the neighbor branch sits (different from the query path)</li>
+     *   <li>suffix - The neighbor branch's own prefix nibbles ({@code Neighbor.prefix})</li>
+     *   <li>neighborRoot - The raw 16-way merkle root of the neighbor branch's children, without its prefix
+     *   ({@code Neighbor.root}); the verifier recombines it as {@code H(prefix || root)}</li>
      * </ul>
      */
     public static final class ForkStep implements Step {
@@ -284,6 +290,46 @@ public final class TraversalProof {
 
         public byte[] neighborRoot() {
             return neighborRoot == null ? null : Arrays.copyOf(neighborRoot, neighborRoot.length);
+        }
+    }
+
+    /**
+     * Step for a branch whose only other child is a leaf. It matches Aiken's
+     * {@code Leaf { skip, key, value }}: {@code neighborKeyHash} is the neighbor leaf's full path (the hash of its
+     * key) and {@code neighborValueHash} the hash of its value.
+     */
+    public static final class LeafStep implements Step {
+        private final NibblePath skipPath;
+        private final byte[] neighborKeyHash;
+        private final byte[] neighborValueHash;
+
+        public LeafStep(NibblePath skipPath, byte[] neighborKeyHash, byte[] neighborValueHash) {
+            this.skipPath = Objects.requireNonNull(skipPath, "skipPath");
+            this.neighborKeyHash = Arrays.copyOf(Objects.requireNonNull(neighborKeyHash, "neighborKeyHash"), neighborKeyHash.length);
+            this.neighborValueHash = Arrays.copyOf(Objects.requireNonNull(neighborValueHash, "neighborValueHash"), neighborValueHash.length);
+        }
+
+        @Override
+        public LeafStep cloneStep() {
+            return new LeafStep(skipPath, neighborKeyHash, neighborValueHash);
+        }
+
+        @Override
+        public int skip() {
+            return skipPath.length();
+        }
+
+        @Override
+        public NibblePath skipPath() {
+            return skipPath;
+        }
+
+        public byte[] neighborKeyHash() {
+            return Arrays.copyOf(neighborKeyHash, neighborKeyHash.length);
+        }
+
+        public byte[] neighborValueHash() {
+            return Arrays.copyOf(neighborValueHash, neighborValueHash.length);
         }
     }
 }
