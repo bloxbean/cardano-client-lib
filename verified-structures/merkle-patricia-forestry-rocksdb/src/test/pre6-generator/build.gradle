@@ -1,0 +1,12 @@
+plugins { id 'java'; id 'application' }
+repositories { mavenCentral() }
+java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }
+dependencies {
+  implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rocksdb:0.8.0-pre6'
+  implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rdbms:0.8.0-pre6'
+  implementation 'org.rocksdb:rocksdbjni:9.11.2'
+  implementation 'com.h2database:h2:2.4.240'
+  implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.0'
+  implementation 'org.slf4j:slf4j-nop:2.0.17'
+}
+application { mainClass = 'demo.GenPre6Stores' }
