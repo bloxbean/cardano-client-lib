@@ -167,7 +167,7 @@ public final class JellyfishMerkleTree {
      * @deprecated in-memory only; use {@link #JellyfishMerkleTree(JmtStore)} or
      * {@link #JellyfishMerkleTree(JmtStore, JmtProfile)}
      */
-    @Deprecated
+    @Deprecated(since = "0.8.0")
     public JellyfishMerkleTree(JmtStore store, HashFunction hashFn) {
         this(store, new ClassicJmtCommitmentScheme(hashFn), hashFn, JmtMetrics.NOOP);
     }
@@ -185,7 +185,7 @@ public final class JellyfishMerkleTree {
      * @param metrics metrics collector
      * @deprecated in-memory only; use {@link #JellyfishMerkleTree(JmtStore, JmtProfile, JmtMetrics)}
      */
-    @Deprecated
+    @Deprecated(since = "0.8.0")
     public JellyfishMerkleTree(JmtStore store, HashFunction hashFn, JmtMetrics metrics) {
         this(store, new ClassicJmtCommitmentScheme(hashFn), hashFn, metrics);
     }

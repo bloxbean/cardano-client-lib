@@ -21,7 +21,6 @@ import org.junit.jupiter.params.provider.EnumSource;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -162,7 +161,7 @@ class JmtIssue715BackendsTest {
     }
 
     @Test
-    void aggressivePrunePolicyOnlyAnswersFromTheLatestVersion() throws Exception {
+    void aggressivePrunePolicyOnlyAnswersFromTheLatestVersion() {
         // AGGRESSIVE drops a key's horizon value once a newer value exists, so older states are incomplete.
         try (RocksDbJmtStore store = RocksDbJmtStore.open(temp.resolve("aggressive").toString(),
                 RocksDbJmtStore.Options.builder().enableRollbackIndex(true)
@@ -349,7 +348,7 @@ class JmtIssue715BackendsTest {
         inspection.values().forEach(v -> records.add("value " + hex(v.keyHash()) + " " + v.version() + " "
                 + hex(v.value()) + " " + v.tombstone()));
         inspection.staleRecords().forEach(s -> records.add("stale " + s.staleSince() + " " + hex(s.nodeKey().toBytes())));
-        Collections.sort(records);
+        records.sort(null);
         return records;
     }
 
@@ -402,10 +401,12 @@ class JmtIssue715BackendsTest {
 
         @Override
         public void recordProofGeneration(long durationMillis, int proofSize, boolean found) {
+            // Not counted by these tests.
         }
 
         @Override
         public void recordRead(long durationMillis, boolean cacheHit, boolean found) {
+            // Not counted by these tests.
         }
 
         @Override
@@ -417,10 +418,12 @@ class JmtIssue715BackendsTest {
 
         @Override
         public void recordStorageStats(long version, int rootHashSize, long nodeCount, long valueCount) {
+            // Not counted by these tests.
         }
 
         @Override
         public void recordCacheStats(long cacheHits, long cacheMisses, int cacheSize) {
+            // Not counted by these tests.
         }
 
         @Override

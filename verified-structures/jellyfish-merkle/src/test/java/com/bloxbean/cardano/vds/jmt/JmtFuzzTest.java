@@ -414,7 +414,7 @@ class JmtFuzzTest {
     // ---------------------------------------------------------------- reference root
 
     private static byte[] referenceRoot(Map<String, byte[]> state) {
-        List<byte[][]> leaves = new ArrayList<>(); // {keyHash, valueHash}
+        List<byte[][]> leaves = new ArrayList<>(); // each entry holds the key hash, then the value hash
         state.forEach((k, v) -> leaves.add(new byte[][]{HF.digest(bytes(k)), HF.digest(v)}));
         return build(leaves, 0);
     }
