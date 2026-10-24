@@ -2,12 +2,14 @@ package com.bloxbean.cardano.client.common.cbor;
 
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 
+import java.io.ByteArrayOutputStream;
+
 /**
  * The head of one CBOR data item: major type, additional information, argument and where it ends. One place for the
- * RFC 8949 section 5.3 head rules, shared by the {@link CborSpan} walker and the {@link DataItemDecoder}. BREAK
- * ({@code ff}) is handled by callers.
+ * RFC 8949 section 5.3 head rules, shared by the {@link CborSpan} walker and the {@link DataItemDecoder}, and for
+ * writing a head ({@link #write}). BREAK ({@code ff}) is handled by callers.
  */
-final class CborHead {
+public final class CborHead {
     static final int INDEFINITE = -1;
 
     private static final int MAJOR_BYTES = 2;
@@ -20,6 +22,42 @@ final class CborHead {
     long argument; // value, length, count, tag number, or simple/float bits; unsigned 64-bit
     boolean indefinite;
     int end;
+
+    CborHead() {
+    }
+
+    /**
+     * Writes the shortest head of a data item (RFC 8949 section 3).
+     *
+     * @param out      where to write
+     * @param major    the major type, 0 to 7
+     * @param argument the value, length, count or tag number, unsigned 64-bit
+     */
+    public static void write(ByteArrayOutputStream out, int major, long argument) {
+        if (major < 0 || major > 7)
+            throw new IllegalArgumentException("A CBOR major type is 0 to 7, found " + major);
+        int type = major << 5;
+        if (Long.compareUnsigned(argument, 24) < 0) {
+            out.write(type | (int) argument);
+        } else if (Long.compareUnsigned(argument, 0x100) < 0) {
+            out.write(type | 24);
+            out.write((int) argument);
+        } else if (Long.compareUnsigned(argument, 0x10000) < 0) {
+            out.write(type | 25);
+            writeBigEndian(out, argument, 2);
+        } else if (Long.compareUnsigned(argument, 0x1_0000_0000L) < 0) {
+            out.write(type | 26);
+            writeBigEndian(out, argument, 4);
+        } else {
+            out.write(type | 27);
+            writeBigEndian(out, argument, 8);
+        }
+    }
+
+    private static void writeBigEndian(ByteArrayOutputStream out, long value, int bytes) {
+        for (int shift = (bytes - 1) * 8; shift >= 0; shift -= 8)
+            out.write((int) (value >>> shift));
+    }
 
     void read(byte[] buffer, int pos, int limit) {
         if (pos >= limit)

@@ -145,6 +145,9 @@ class RawBlockBodyTest {
                 .isInstanceOf(CborRuntimeException.class);
         RawBlockBody body = RawBlockBody.of(Era.Conway, List.of());
         assertThatThrownBy(() -> body.block(decodeHexString(HEADER + "00"))).isInstanceOf(CborRuntimeException.class);
+        assertThatThrownBy(() -> body.block(decodeHexString("83" + "80" + "40" + "00")))
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("header");
+        assertThatThrownBy(() -> body.block(decodeHexString("a0"))).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> RawBlockBody.of(null, Collections.emptyList())).isInstanceOf(NullPointerException.class);
     }
 

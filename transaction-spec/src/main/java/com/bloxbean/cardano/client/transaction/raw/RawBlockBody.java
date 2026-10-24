@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import com.bloxbean.cardano.client.common.cbor.CborHead;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.spec.Era;
@@ -42,6 +43,7 @@ public final class RawBlockBody {
      * @throws CborRuntimeException     if a transaction is not well-formed or not a Shelley-family transaction
      * @throws IllegalArgumentException if the era has no raw view rules, or a transaction is invalid ({@code isValid}
      *                                  false) in an era before Alonzo, whose blocks cannot mark it
+     * @throws NullPointerException     if the era or the transactions are null
      */
     public static RawBlockBody of(Era era, List<byte[]> transactions) {
         EraRules rules = EraRules.of(Objects.requireNonNull(era, "era is null"));
@@ -66,7 +68,7 @@ public final class RawBlockBody {
             witnessSets.writeBytes(tx.witnessSet().bytes());
             int index = i;
             tx.auxData().ifPresent(aux -> {
-                head(auxData, 0, index);
+                CborHead.write(auxData, 0, index);
                 auxData.writeBytes(aux.bytes());
             });
             if (!tx.isValid())
@@ -77,7 +79,7 @@ public final class RawBlockBody {
                 container(5, auxCount, auxData)));
         if (rules.invalidTransactions) {
             ByteArrayOutputStream invalidTransactions = new ByteArrayOutputStream();
-            invalid.forEach(index -> head(invalidTransactions, 0, index));
+            invalid.forEach(index -> CborHead.write(invalidTransactions, 0, index));
             parts.add(container(4, invalid.size(), invalidTransactions));
         } else if (!invalid.isEmpty()) {
             throw new IllegalArgumentException("Transaction " + invalid.get(0) + " is invalid (isValid false); a " + era
@@ -119,15 +121,17 @@ public final class RawBlockBody {
      *               {@link #size()} and {@link #hash()}
      * @return the block in its hard-fork combinator envelope, {@code [era, [header, body parts...]]}, which
      * {@link RawBlock#of(byte[])} reads back
-     * @throws CborRuntimeException if the header is not a single well-formed CBOR item
+     * @throws CborRuntimeException if the header is not a single well-formed CBOR array of two items
      */
     public byte[] block(byte[] header) {
         CborSpan headerSpan = CborSpan.of(Objects.requireNonNull(header, "header is null"));
+        if (headerSpan.majorType() != 4 || headerSpan.tag() != -1 || headerSpan.size() != 2)
+            throw RawTx.error("A block header is an untagged array [header_body, body_signature]", headerSpan);
         ByteArrayOutputStream out = new ByteArrayOutputStream((int) Math.min(Integer.MAX_VALUE,
                 size() + headerSpan.length() + 16));
-        head(out, 4, 2);
-        head(out, 0, era.value);
-        head(out, 4, parts.size() + 1L);
+        CborHead.write(out, 4, 2);
+        CborHead.write(out, 0, era.value);
+        CborHead.write(out, 4, parts.size() + 1L);
         out.writeBytes(headerSpan.bytes());
         parts.forEach(out::writeBytes);
         return out.toByteArray();
@@ -139,7 +143,7 @@ public final class RawBlockBody {
         ByteArrayOutputStream out = new ByteArrayOutputStream(contents.size() + 9);
         boolean definite = entries <= 23;
         if (definite)
-            head(out, major, entries);
+            CborHead.write(out, major, entries);
         else
             out.write(major << 5 | 31);
         out.writeBytes(contents.toByteArray());
@@ -148,26 +152,4 @@ public final class RawBlockBody {
         return out.toByteArray();
     }
 
-    // The shortest CBOR head of a major type with a non-negative argument (RFC 8949 section 3).
-    private static void head(ByteArrayOutputStream out, int major, long argument) {
-        int type = major << 5;
-        if (argument < 24) {
-            out.write(type | (int) argument);
-        } else if (argument < 0x100) {
-            out.write(type | 24);
-            out.write((int) argument);
-        } else if (argument < 0x10000) {
-            out.write(type | 25);
-            out.write((int) (argument >>> 8));
-            out.write((int) argument);
-        } else if (argument < 0x1_0000_0000L) {
-            out.write(type | 26);
-            for (int shift = 24; shift >= 0; shift -= 8)
-                out.write((int) (argument >>> shift));
-        } else {
-            out.write(type | 27);
-            for (int shift = 56; shift >= 0; shift -= 8)
-                out.write((int) (argument >>> shift));
-        }
-    }
 }

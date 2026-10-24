@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.util;
 
+import com.bloxbean.cardano.client.common.cbor.CborHead;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -97,10 +98,10 @@ public class TransactionBytes {
      */
     public TransactionBytes withVkeyWitness(byte[] vkey, byte[] signature) {
         ByteArrayOutputStream witness = new ByteArrayOutputStream();
-        writeHead(witness, MAJOR_ARRAY, 2);
-        writeHead(witness, MAJOR_BYTES, vkey.length);
+        CborHead.write(witness, MAJOR_ARRAY, 2);
+        CborHead.write(witness, MAJOR_BYTES, vkey.length);
         witness.writeBytes(vkey);
-        writeHead(witness, MAJOR_BYTES, signature.length);
+        CborHead.write(witness, MAJOR_BYTES, signature.length);
         witness.writeBytes(signature);
         return withNewWitnessSetBytes(addWitness(txWitnessBytes, VKEY_WITNESSES, CborSpan.of(witness.toByteArray())));
     }
@@ -201,8 +202,8 @@ public class TransactionBytes {
             return witnessSet.replacing(List.of(array), List.of(appendItem(array, MAJOR_ARRAY, witness.bytes())));
         }
         ByteArrayOutputStream entry = new ByteArrayOutputStream();
-        writeHead(entry, 0, key);
-        writeHead(entry, MAJOR_ARRAY, 1);
+        CborHead.write(entry, 0, key);
+        CborHead.write(entry, MAJOR_ARRAY, 1);
         entry.writeBytes(witness.bytes());
         return appendItem(witnessSet, MAJOR_MAP, entry.toByteArray());
     }
@@ -252,29 +253,11 @@ public class TransactionBytes {
             out.writeBytes(BREAK);
         } else {
             int contentStart = container.offset() + container.headerLength();
-            writeHead(out, major, container.size() + 1L);
+            CborHead.write(out, major, container.size() + 1L);
             out.write(buffer, contentStart, end - contentStart);
             out.writeBytes(content);
         }
         return out.toByteArray();
-    }
-
-    private static void writeHead(ByteArrayOutputStream out, int major, long value) { // value < 2^32
-        int type = major << 5;
-        if (value < 24) {
-            out.write(type | (int) value);
-        } else if (value < 0x100) {
-            out.write(type | 24);
-            out.write((int) value);
-        } else if (value < 0x10000) {
-            out.write(type | 25);
-            out.write((int) (value >> 8));
-            out.write((int) value);
-        } else {
-            out.write(type | 26);
-            for (int shift = 24; shift >= 0; shift -= 8)
-                out.write((int) (value >> shift));
-        }
     }
 
     private void extractTransactionBytesFromTx(byte[] txBytes) {
