@@ -31,8 +31,17 @@ class CborHeadTest {
         assertThat(write(4, 2)).containsExactly(0x82);
         assertThat(write(5, 300)).containsExactly(0xb9, 0x01, 0x2c);
         assertThat(CborSpan.of(concat(write(2, 3), new byte[]{1, 2, 3})).byteString()).containsExactly(1, 2, 3);
+        assertThat(CborSpan.of(concat(write(6, 24), write(0, 1))).tag()).isEqualTo(24);
         assertThatThrownBy(() -> write(8, 0)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> write(-1, 0)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void majorType7IsNotWritten() {
+        // simple values and floats: f818 or f81f would not be well-formed (RFC 8949 section 3.3)
+        for (long argument : new long[]{0, 20, 24, 31})
+            assertThatThrownBy(() -> write(7, argument)).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("0 to 6");
     }
 
     private static byte[] write(int major, long argument) {

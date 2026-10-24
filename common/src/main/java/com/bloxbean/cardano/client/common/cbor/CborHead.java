@@ -27,15 +27,17 @@ public final class CborHead {
     }
 
     /**
-     * Writes the shortest head of a data item (RFC 8949 section 3).
+     * Writes the shortest head of a data item of major type 0 to 6 (RFC 8949 section 3). Major type 7 (simple values
+     * and floats) gives its additional information other meanings (section 3.3) and is not written here.
      *
      * @param out      where to write
-     * @param major    the major type, 0 to 7
+     * @param major    the major type, 0 to 6
      * @param argument the value, length, count or tag number, unsigned 64-bit
+     * @throws IllegalArgumentException if the major type is not 0 to 6
      */
     public static void write(ByteArrayOutputStream out, int major, long argument) {
-        if (major < 0 || major > 7)
-            throw new IllegalArgumentException("A CBOR major type is 0 to 7, found " + major);
+        if (major < 0 || major > 6)
+            throw new IllegalArgumentException("Writes the head of major type 0 to 6, found " + major);
         int type = major << 5;
         if (Long.compareUnsigned(argument, 24) < 0) {
             out.write(type | (int) argument);
