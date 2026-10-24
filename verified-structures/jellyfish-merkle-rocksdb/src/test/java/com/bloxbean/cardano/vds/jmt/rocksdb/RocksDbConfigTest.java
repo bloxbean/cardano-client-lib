@@ -20,7 +20,7 @@ class RocksDbConfigTest {
         try (DBOptions dbOpts = new DBOptions()) {
             config.applyToDbOptions(dbOpts);
 
-            // ADR-0015 Phase 2 optimizations
+            // Parallel compaction and sync tuning
             assertEquals(8, dbOpts.maxBackgroundJobs(), "Should have 8 background jobs for parallel compaction");
             assertEquals(4, dbOpts.maxSubcompactions(), "Should have 4 subcompactions for parallel processing");
             assertEquals(1024 * 1024, dbOpts.bytesPerSync(), "Should sync every 1MB");

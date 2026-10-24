@@ -10,11 +10,6 @@ stop at `0.8.0-pre5-dev1`. Each release instead attaches the runnable fat JAR
 all common platforms bundled) to its
 [GitHub release](https://github.com/bloxbean/cardano-client-lib/releases).
 
-> **Known issue:** `jmt-rdbms` and `jmt-concurrent` currently fail with
-> `JmtFormatMismatchException: Persistent JMT stores require an explicit stable JmtProfile`. They
-> still use the old `(store, commitments, hashFn)` tree constructor. `jmt`, `jmt-integrity`, `mpt`,
-> `mpt-rdbms` and `gc` work.
-
 ## Quick Start
 
 ### Option 1: Build Fat JAR with Tools Entry Point (Recommended)

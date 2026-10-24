@@ -2,7 +2,10 @@ package com.bloxbean.cardano.vds.jmt;
 
 /**
  * Configuration options for {@link JellyfishMerkleTree}.
+ *
+ * @deprecated never used by the tree or any store; it has no effect and will be removed
  */
+@Deprecated(forRemoval = true)
 public final class JmtTreeConfig {
 
     private static final int DEFAULT_NODE_CACHE = 2048;

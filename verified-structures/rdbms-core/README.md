@@ -14,7 +14,7 @@ You use its `DbConfig` to open those backends.
 
 ```gradle
 dependencies {
-    implementation 'com.bloxbean.cardano:cardano-client-rdbms-core:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-rdbms-core:<version>'
 }
 ```
 

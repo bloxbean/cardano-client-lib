@@ -18,6 +18,24 @@ public final class JmtProofVerifier {
         throw new AssertionError("Utility class");
     }
 
+    /**
+     * Verifies that {@code proof} proves the binding {@code key -> value} under {@code rootHash}.
+     *
+     * <p>Pass the expected value to check an inclusion proof, and {@code null} to check that the key is absent.
+     * The result is {@code true} only when the proof's type matches: an inclusion proof never proves absence, and
+     * an absence proof ({@code NON_INCLUSION_EMPTY} or {@code NON_INCLUSION_DIFFERENT_LEAF}) never proves a
+     * non-null value. This matches {@code JellyfishMerkleTree.verifyProofWire(root, key, value, including, wire)}.
+     * Malformed or forged proofs return {@code false}.</p>
+     *
+     * @param rootHash    the trusted root commitment
+     * @param key         the queried key (unhashed)
+     * @param value       the expected value, or {@code null} to verify absence
+     * @param proof       the proof to check
+     * @param hashFn      the tree's hash function
+     * @param commitments the tree's commitment scheme
+     * @return {@code true} if the proof shows {@code key -> value} ({@code value == null}: key absent)
+     * @throws IllegalArgumentException if {@code hashFn} and {@code commitments} use different digest lengths
+     */
     public static boolean verify(byte[] rootHash, byte[] key, byte[] value,
                                  JmtProof proof, HashFunction hashFn, CommitmentScheme commitments) {
         Objects.requireNonNull(rootHash, "rootHash");
@@ -47,8 +65,11 @@ public final class JmtProofVerifier {
                     if (value == null) return false;
                     return verifyInclusion(rootHash, value, proof, hashFn, commitments, keyHash, nibbles);
                 case NON_INCLUSION_EMPTY:
+                    // An absence proof proves that no value is bound to the key: a supplied value is not proven.
+                    if (value != null) return false;
                     return verifyEmpty(rootHash, proof, commitments, nibbles);
                 case NON_INCLUSION_DIFFERENT_LEAF:
+                    if (value != null) return false;
                     return verifyDifferentLeaf(rootHash, proof, commitments, keyHash, nibbles);
                 default:
                     return false;

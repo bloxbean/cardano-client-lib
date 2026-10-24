@@ -1,11 +1,8 @@
 package com.bloxbean.cardano.vds.tools.jmt;
 
-import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
+import com.bloxbean.cardano.vds.jmt.JmtProfile;
 import com.bloxbean.cardano.vds.jmt.JmtProof;
-import com.bloxbean.cardano.vds.jmt.commitment.ClassicJmtCommitmentScheme;
-import com.bloxbean.cardano.vds.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbConfig;
 import com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtStore;
 
@@ -64,8 +61,6 @@ public final class JmtConcurrentLoadTester {
 
     public static void main(String[] args) throws Exception {
         ConcurrentLoadOptions options = ConcurrentLoadOptions.parse(args);
-        HashFunction hashFn = Blake2b256::digest;
-        CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hashFn);
 
         if (Files.notExists(options.rocksDbPath)) {
             Files.createDirectories(options.rocksDbPath);
@@ -78,7 +73,7 @@ public final class JmtConcurrentLoadTester {
 
             try (RocksDbJmtStore store = RocksDbJmtStore.open(
                     options.rocksDbPath.toString(), storeOpts)) {
-                runConcurrentLoad(store, hashFn, commitments, options);
+                runConcurrentLoad(store, options);
             }
         } catch (UnsatisfiedLinkError | RuntimeException e) {
             System.err.println("RocksDB JNI not available or failed to open: " + e.getMessage());
@@ -87,9 +82,8 @@ public final class JmtConcurrentLoadTester {
         }
     }
 
-    private static void runConcurrentLoad(RocksDbJmtStore store, HashFunction hashFn,
-                                          CommitmentScheme commitments, ConcurrentLoadOptions options) throws Exception {
-        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, commitments, hashFn);
+    private static void runConcurrentLoad(RocksDbJmtStore store, ConcurrentLoadOptions options) throws Exception {
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, JmtProfile.classicBlake2b256V1());
 
         // Shared state
         AtomicLong version = new AtomicLong(0);
