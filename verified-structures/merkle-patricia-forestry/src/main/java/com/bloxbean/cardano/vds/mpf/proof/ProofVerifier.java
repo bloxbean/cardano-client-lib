@@ -8,6 +8,13 @@ import com.bloxbean.cardano.vds.mpf.commitment.MpfCommitmentScheme;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Verifies MPF wire proofs with the same semantics as Aiken's {@code aiken-lang/merkle-patricia-forestry}
+ * ({@code has} for inclusion, {@code miss} for non-inclusion).
+ *
+ * <p>Verification never throws for a malformed or mismatching proof; it returns {@code false}. A {@code null}
+ * expected root and the all-zero root (Aiken's {@code mpf.empty}) both denote the empty trie.</p>
+ */
 public final class ProofVerifier {
 
     private ProofVerifier() {
@@ -46,10 +53,22 @@ public final class ProofVerifier {
                                  boolean including, byte[] proofCbor,
                                  HashFunction hashFn, CommitmentScheme commitments) {
         Objects.requireNonNull(proofCbor, "proofCbor");
-        WireProof proof = ProofDecoder.decode(proofCbor);
-        byte[] computed = proof.computeRoot(key, value, including, hashFn, commitments);
-        byte[] normalizedComputed = computed == null ? commitments.nullHash() : computed;
-        byte[] normalizedExpected = expectedRoot == null ? commitments.nullHash() : expectedRoot;
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(hashFn, "hashFn");
+        Objects.requireNonNull(commitments, "commitments");
+        byte[] nullHash = commitments.nullHash();
+        byte[] computed;
+        try {
+            WireProof proof = ProofDecoder.decode(proofCbor, nullHash.length);
+            if (including && value == null) {
+                return false;
+            }
+            computed = proof.computeRoot(key, value, including, hashFn, commitments);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        byte[] normalizedComputed = computed == null ? nullHash : computed;
+        byte[] normalizedExpected = expectedRoot == null || expectedRoot.length == 0 ? nullHash : expectedRoot;
         return Arrays.equals(normalizedExpected, normalizedComputed);
     }
 }

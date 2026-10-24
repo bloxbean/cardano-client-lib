@@ -206,3 +206,90 @@ jobs:
           ./gradlew :verified-structures:jellyfish-merkle-rocksdb:test
           --tests "com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtDifferentialFuzzTest.operationTraceProducesIdenticalRootsAndProofs"
           -PskipSigning=true
+
+  mpf-fuzz:
+    name: MPF bounded fuzz qualification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: 'true'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Fuzz proof decoding and verification
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:merkle-patricia-forestry:test
+          --tests "com.bloxbean.cardano.vds.mpf.MpfFuzzTest.verifierIsTotalForUntrustedProofBytes"
+          -PskipSigning=true
+      - name: Fuzz operation traces against the reference model
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:merkle-patricia-forestry:test
+          --tests "com.bloxbean.cardano.vds.mpf.MpfFuzzTest.operationTracesMatchReferenceAndAikenSemantics"
+          -PskipSigning=true
+      - name: Fuzz mutated proofs
+        env:
+          JAZZER_FUZZ: "1"
+        run: >-
+          ./gradlew :verified-structures:merkle-patricia-forestry:test
+          --tests "com.bloxbean.cardano.vds.mpf.MpfFuzzTest.mutatedProofsNeverProveSomethingElse"
+          -PskipSigning=true
+      - name: Upload fuzz findings
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpf-fuzz-findings
+          path: verified-structures/merkle-patricia-forestry/src/test/resources/com/bloxbean/cardano/vds/mpf/MpfFuzzTestInputs/
+
+  mpf-aiken:
+    name: MPF proofs checked by Aiken and the official JS library
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: 'true'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      # Fails when CCL's proofs change without regenerating onchain/lib/ccl_vectors.ak.
+      - name: Check generated Aiken vectors are current
+        run: >-
+          ./gradlew :verified-structures:merkle-patricia-forestry:test
+          --tests "com.bloxbean.cardano.vds.mpf.AikenVectorsTest"
+          --tests "com.bloxbean.cardano.vds.mpf.MpfJsGoldenVectorsTest"
+          -PskipSigning=true
+      - name: Set up Aiken
+        # aiken-lang/setup-aiken v1.0.4
+        uses: aiken-lang/setup-aiken@1728a4be43be099752e22d8b841706caaa6fdd88
+        with:
+          version: v1.1.23
+      - name: Run CCL proofs through aiken-lang/merkle-patricia-forestry
+        working-directory: verified-structures/merkle-patricia-forestry/onchain
+        run: aiken check
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Fails when the committed JS golden vectors no longer match what the pinned library generates.
+      - name: Regenerate JS golden vectors
+        working-directory: verified-structures/merkle-patricia-forestry/src/test/js
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node generate-vectors.mjs "$RUNNER_TEMP/js-vectors-v1.json"
+          cmp "$RUNNER_TEMP/js-vectors-v1.json" ../resources/mpf-compat/js-vectors-v1.json

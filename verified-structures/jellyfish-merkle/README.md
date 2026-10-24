@@ -331,14 +331,14 @@ if (valid) {
 ```gradle
 dependencies {
     // JMT core only
-    implementation 'com.bloxbean.cardano:jellyfish-merkle:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle:0.8.0'
 
     // For production, add a storage backend:
     // RocksDB backend (recommended)
-    implementation 'com.bloxbean.cardano:jellyfish-merkle-rocksdb:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:0.8.0'
 
     // Or PostgreSQL backend
-    implementation 'com.bloxbean.cardano:jellyfish-merkle-rdbms:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:0.8.0'
     implementation 'org.postgresql:postgresql:42.6.0'
 
     // Optional: Metrics
@@ -452,7 +452,7 @@ on-chain proofs, insert/update/delete transitions, or an existing Aiken verifier
 - [verified-structures-core](../verified-structures-core/) - Core interfaces
 - [jellyfish-merkle-rocksdb](../jellyfish-merkle-rocksdb/) - RocksDB persistence
 - [jellyfish-merkle-rdbms](../jellyfish-merkle-rdbms/) - SQL persistence
-- [merkle-patricia-trie](../merkle-patricia-trie/) - Alternative: MPT for prefix queries
+- [merkle-patricia-forestry](../merkle-patricia-forestry/) - Alternative: MPF, compatible with Aiken on-chain proofs
 
 ## References
 

@@ -87,20 +87,17 @@ class MptRocksDbIntegrationTest {
 
         // GC keep latest 1 (V2)
         RocksDbGc.Options opts = new RocksDbGc.Options();
+        long reachableV2 = GcTestSupport.reach(stateTrees.nodeStore(), rootV2)[0];
         RocksDbGc.Report report = RocksDbGc.gcKeepLatest(stateTrees.nodeStore(), stateTrees.rootsIndex(), 1, opts);
-        assertTrue(report.deleted >= 0);
+        assertTrue(report.deleted > 0, "v1-only nodes must be deleted");
+        assertEquals(pre - report.deleted, countNodes(stateTrees.db(), stateTrees.nodeStore().nodesHandle()));
 
-        long post = countNodes(stateTrees.db(), stateTrees.nodeStore().nodesHandle());
-        assertTrue(post <= pre);
-
-        // Old-only keys should no longer resolve fully in V1 after GC (some nodes pruned)
-        MpfTrie afterGcV1 = new MpfTrie(stateTrees.nodeStore(), rootV1);
-        byte[] maybeK1 = afterGcV1.get(b("k1"));
-        if (maybeK1 != null) {
-            // In case of shared nodes, k1 might still be reachable; ensure V2 still intact regardless
-            MpfTrie afterGcV2 = new MpfTrie(stateTrees.nodeStore(), rootV2);
-            assertArrayEquals(b("five"), afterGcV2.get(b("k5")));
-        }
+        // Exactly V2's nodes remain and V2 is fully readable
+        assertEquals(reachableV2, countNodes(stateTrees.db(), stateTrees.nodeStore().nodesHandle()));
+        Map<String, byte[]> model = new LinkedHashMap<>();
+        v1.forEach((k, v) -> model.put(GcTestSupport.hex(k), b(v)));
+        v2adds.forEach((k, v) -> model.put(GcTestSupport.hex(k), b(v)));
+        GcTestSupport.assertIntact(stateTrees.nodeStore(), rootV2, model, "V2 after gcKeepLatest");
     }
 
     private static long countNodes(RocksDB db, org.rocksdb.ColumnFamilyHandle cf) {

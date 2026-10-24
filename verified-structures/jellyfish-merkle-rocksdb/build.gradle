@@ -5,7 +5,7 @@ plugins {
 dependencies {
     api project(':verified-structures:jellyfish-merkle')
     api project(':verified-structures:rocksdb-core')
-    implementation(libs.rocksdbjni)
+    api(libs.rocksdbjni)
     implementation(libs.slf4j.api)
 
     // Metrics - compileOnly (optional)

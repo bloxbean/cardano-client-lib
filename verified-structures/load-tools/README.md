@@ -65,11 +65,8 @@ java -cp "$LOAD_TOOLS_JAR" \
 ### Option 3: Run via Gradle
 
 ```bash
-# Run via Gradle (using Tools entry point)
+# Run via Gradle: the first argument is the tool name (the main class is the Tools entry point)
 ./gradlew :verified-structures:load-tools:run --args="jmt --records=10000 --batch=1000 --memory"
-
-# Run specific tool class via Gradle (alternative)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester --records=10000 --batch=1000 --memory"
 ```
 
 ## Features
@@ -92,16 +89,16 @@ Tests JMT with RocksDB backend for sustained write performance, proof generation
 
 ```bash
 # Basic load test - 1M operations
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester --records=1000000 --batch=1000 --rocksdb=/tmp/jmt-load"
+./gradlew :verified-structures:load-tools:run --args="jmt --records=1000000 --batch=1000 --rocksdb=/tmp/jmt-load"
 
 # With pruning enabled
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester --records=1000000 --batch=1000 --prune-every=100 --keep-latest=1000 --rocksdb=/tmp/jmt-load"
+./gradlew :verified-structures:load-tools:run --args="jmt --records=1000000 --batch=1000 --prune-every=100 --keep-latest=1000 --rocksdb=/tmp/jmt-load"
 
 # High throughput test (large batches, no WAL)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester --records=10000000 --batch=5000 --no-wal --rocksdb=/tmp/jmt-fast"
+./gradlew :verified-structures:load-tools:run --args="jmt --records=10000000 --batch=5000 --no-wal --rocksdb=/tmp/jmt-fast"
 
 # In-memory baseline
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester --records=100000 --batch=1000 --memory"
+./gradlew :verified-structures:load-tools:run --args="jmt --records=100000 --batch=1000 --memory"
 ```
 
 **Key Options:**
@@ -161,16 +158,16 @@ Tests JMT with H2, SQLite, or PostgreSQL backends.
 
 ```bash
 # H2 database (default)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.RdbmsJmtLoadTester --records=100000 --batch=1000 --db=h2 --path=/tmp/jmt-h2"
+./gradlew :verified-structures:load-tools:run --args="jmt-rdbms --records=100000 --batch=1000 --db=h2 --path=/tmp/jmt-h2"
 
 # SQLite database
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.RdbmsJmtLoadTester --records=100000 --batch=1000 --db=sqlite --path=/tmp/jmt.db"
+./gradlew :verified-structures:load-tools:run --args="jmt-rdbms --records=100000 --batch=1000 --db=sqlite --path=/tmp/jmt.db"
 
 # PostgreSQL (requires running PostgreSQL instance)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.RdbmsJmtLoadTester --records=100000 --batch=1000 --db=postgresql --db-host=localhost --db-name=testdb --db-user=postgres --db-password=secret"
+./gradlew :verified-structures:load-tools:run --args="jmt-rdbms --records=100000 --batch=1000 --db=postgresql --db-host=localhost --db-name=testdb --db-user=postgres --db-password=secret"
 
 # In-memory baseline
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.RdbmsJmtLoadTester --records=100000 --batch=1000 --memory"
+./gradlew :verified-structures:load-tools:run --args="jmt-rdbms --records=100000 --batch=1000 --memory"
 ```
 
 **Key Options:**
@@ -180,74 +177,84 @@ Tests JMT with H2, SQLite, or PostgreSQL backends.
 - `--prune-every=N` - Run pruning every N batches (RDBMS-specific)
 - `--memory` - Use in-memory JMT store (no RDBMS)
 
-### MPT (Merkle Patricia Trie)
+### MPF (Merkle Patricia Forestry)
 
 #### 4. MptLoadTester - RocksDB Performance Testing
 
-Tests MPT with RocksDB backend, supports both plain MPT and SecureTrie (MPF) modes.
+Loads random key/values into an `MpfTrie` on RocksDB (or in memory) and reports throughput.
 
 ```bash
-# SecureTrie/MPF mode (default)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.MptLoadTester --records=1000000 --batch=1000 --secure --rocksdb=/tmp/mpt-load"
+# 1M records in batches of 1000
+./gradlew :verified-structures:load-tools:run --args="mpt --records=1000000 --batch=1000 --rocksdb=/tmp/mpt-load"
 
-# Plain MPT mode
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.MptLoadTester --records=1000000 --batch=1000 --plain --rocksdb=/tmp/mpt-load"
+# With deletes (10% delete ratio) and a proof every 100,000 records
+./gradlew :verified-structures:load-tools:run --args="mpt --records=1000000 --batch=1000 --delete-ratio=0.1 --proof-every=100000 --rocksdb=/tmp/mpt-load"
 
-# With deletes (10% delete ratio)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.MptLoadTester --records=1000000 --batch=1000 --delete-ratio=0.1 --rocksdb=/tmp/mpt-load"
+# Refcount GC: record every batch with putRootWithRefcount, keep the latest 10 versions
+./gradlew :verified-structures:load-tools:run --args="mpt --records=1000000 --batch=1000 --gc=refcount --keep-latest=10 --rocksdb=/tmp/mpt-load"
 
-# With garbage collection enabled (refcount mode)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.MptLoadTester --records=1000000 --batch=1000 --gc=refcount --rocksdb=/tmp/mpt-load"
+# Mark-sweep GC every 100 batches
+./gradlew :verified-structures:load-tools:run --args="mpt --records=1000000 --batch=1000 --gc=marksweep --gc-interval=100 --keep-latest=10 --rocksdb=/tmp/mpt-load"
 ```
 
 **Key Options:**
-- `--secure` - Use SecureTrie/MPF mode (default)
-- `--plain` - Use plain MerklePatriciaTrie mode
+- `--records=N`, `--batch=N`, `--value-size=N`
+- `--rocksdb=PATH` or `--memory`
 - `--delete-ratio=F` - Fraction of deletes per batch (default: 0.0)
-- `--gc=MODE` - Garbage collection mode: none, refcount, mark-sweep (default: none)
-- `--proof-every=N` - Generate proof every N batches
+- `--proof-every=N` - Generate a proof whenever the number of records written so far is a multiple of N
+- `--no-roots` - Do not record a version per batch
+- `--gc=MODE` - `none` (default), `refcount` or `marksweep`
+- `--keep-latest=N` - Versions kept by GC (default: 1)
+- `--gc-interval=N` - Batches between mark-sweep runs
+- `--refcount-every=N` - With `--gc=refcount`, record a version every N batches (default: 1)
+- `--storage-mode=MULTI_VERSION|SINGLE_VERSION`, `--no-wal`, `--progress=N`
+
+With `--gc=refcount` each batch commits the trie nodes and `putRootWithRefcount` together, and versions outside the
+window are dropped with `RefcountGcStrategy.run(keepLatestN(keep-latest))`.
 
 #### 5. RdbmsMptLoadTester - RDBMS Backend Testing
 
-Tests MPT with H2, SQLite, or PostgreSQL backends.
+Tests MPF with H2, SQLite, or PostgreSQL backends.
 
 ```bash
-# H2 database with SecureTrie/MPF mode
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.RdbmsMptLoadTester --records=100000 --batch=1000 --db=h2 --path=/tmp/mpt-h2 --secure"
+# H2 database
+./gradlew :verified-structures:load-tools:run --args="mpt-rdbms --records=100000 --batch=1000 --db=h2 --path=/tmp/mpt-h2"
 
 # SQLite with deletes
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.RdbmsMptLoadTester --records=100000 --batch=1000 --db=sqlite --path=/tmp/mpt.db --delete-ratio=0.1"
+./gradlew :verified-structures:load-tools:run --args="mpt-rdbms --records=100000 --batch=1000 --db=sqlite --path=/tmp/mpt.db --delete-ratio=0.1"
 
 # PostgreSQL
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.RdbmsMptLoadTester --records=100000 --batch=1000 --db=postgresql --db-host=localhost --db-name=testdb --db-user=postgres --db-password=secret"
+./gradlew :verified-structures:load-tools:run --args="mpt-rdbms --records=100000 --batch=1000 --db=postgresql --db-host=localhost --db-name=testdb --db-user=postgres --db-password=secret"
 ```
 
 **Key Options:**
-- `--secure` - Use SecureTrie/MPF mode (default)
-- `--plain` - Use plain MerklePatriciaTrie mode
-- `--delete-ratio=F` - Fraction of deletes per batch (default: 0.0)
 - `--db=TYPE` - Database type: h2, sqlite, postgresql (default: h2)
+- `--path=PATH`, `--jdbc-url=URL`, `--db-host`, `--db-port`, `--db-name`, `--db-user`, `--db-password`
+- `--delete-ratio=F`, `--proof-every=N`, `--memory`
 
 #### 6. GcTool - Garbage Collection Utility
 
-Runs garbage collection on RocksDB-based MPT storage to reclaim space from stale nodes.
+Experiments with the GC strategies on a RocksDB MPF store (default namespace). Arguments are positional;
+`gc --help` prints the usage.
 
 ```bash
-# Refcount GC up to version 10000
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.GcTool --db=/tmp/mpt-rocksdb --gc-type=refcount --version=10000"
+# Generate a store: a pool of 10,000 random keys, 5 versions; each version writes ~1,000 random keys of the pool
+./gradlew :verified-structures:load-tools:run --args="gc generate /tmp/mpt 10000 5"
 
-# Mark-sweep GC (full scan)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.GcTool --db=/tmp/mpt-rocksdb --gc-type=mark-sweep --version=10000"
+# Node count, version count and latest root
+./gradlew :verified-structures:load-tools:run --args="gc stats /tmp/mpt"
 
-# Dry-run mode (estimate space savings without deleting)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.mpt.GcTool --db=/tmp/mpt-rocksdb --gc-type=refcount --version=10000 --dry-run"
+# Refcount GC keeping the latest version
+./gradlew :verified-structures:load-tools:run --args="gc gc-refcount /tmp/mpt keep-latest 1"
+
+# Mark-sweep GC keeping the latest version
+./gradlew :verified-structures:load-tools:run --args="gc gc-marksweep /tmp/mpt keep-latest 1"
 ```
 
-**Key Options:**
-- `--db=PATH` - RocksDB directory
-- `--gc-type=MODE` - Garbage collection mode: refcount, mark-sweep
-- `--version=N` - Target version for GC (prune versions older than this)
-- `--dry-run` - Estimate space savings without actually deleting
+`generate` writes each version in one `RocksDbMptSession` batch that also calls `putRootWithRefcount`, so both
+strategies apply to the result. See
+[merkle-patricia-forestry-rocksdb/docs/gc.md](../merkle-patricia-forestry-rocksdb/docs/gc.md) for how the strategies
+work and the rules for using them.
 
 ## Backend Comparison Guide
 
@@ -257,19 +264,19 @@ Compare JMT performance across all backends:
 
 ```bash
 # 1. RocksDB
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester --records=100000 --batch=1000 --rocksdb=/tmp/jmt-rocks"
+./gradlew :verified-structures:load-tools:run --args="jmt --records=100000 --batch=1000 --rocksdb=/tmp/jmt-rocks"
 
 # 2. H2
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.RdbmsJmtLoadTester --records=100000 --batch=1000 --db=h2 --path=/tmp/jmt-h2"
+./gradlew :verified-structures:load-tools:run --args="jmt-rdbms --records=100000 --batch=1000 --db=h2 --path=/tmp/jmt-h2"
 
 # 3. SQLite
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.RdbmsJmtLoadTester --records=100000 --batch=1000 --db=sqlite --path=/tmp/jmt.db"
+./gradlew :verified-structures:load-tools:run --args="jmt-rdbms --records=100000 --batch=1000 --db=sqlite --path=/tmp/jmt.db"
 
 # 4. PostgreSQL
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.RdbmsJmtLoadTester --records=100000 --batch=1000 --db=postgresql --db-host=localhost --db-name=testdb --db-user=postgres --db-password=secret"
+./gradlew :verified-structures:load-tools:run --args="jmt-rdbms --records=100000 --batch=1000 --db=postgresql --db-host=localhost --db-name=testdb --db-user=postgres --db-password=secret"
 
 # 5. In-Memory (baseline)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester --records=100000 --batch=1000 --memory"
+./gradlew :verified-structures:load-tools:run --args="jmt --records=100000 --batch=1000 --memory"
 ```
 
 ## Performance Metrics
@@ -283,7 +290,7 @@ All tools report:
 - **Memory Usage**: JVM heap usage
 - **Storage Statistics**: Database-specific metrics (RocksDB: pending compaction, memtable size; RDBMS: connection pool stats)
 
-## Expected Performance (ADR-0015 Targets)
+## Expected Performance (indicative targets, not measured guarantees)
 
 ### JMT with RocksDB (Optimized)
 - Throughput: 10-13k ops/s sustained (vs 2.6k baseline)
@@ -336,12 +343,12 @@ Production modules (e.g., `jellyfish-merkle-rdbms`) keep dependencies minimal:
 # Build the module
 ./gradlew :verified-structures:load-tools:build
 
-# Run a specific tool (use fully qualified class name)
-./gradlew :verified-structures:load-tools:run --args="com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester --help"
+# Run a tool by name
+./gradlew :verified-structures:load-tools:run --args="jmt --help"
 
 # Create a fat JAR for distribution
 ./gradlew :verified-structures:load-tools:shadowJar
-java -jar verified-structures/load-tools/build/libs/load-tools-all.jar com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester --help
+java -jar verified-structures/load-tools/build/libs/cardano-client-vds-load-tools-<version>-all.jar jmt --help
 ```
 
 ## Notes

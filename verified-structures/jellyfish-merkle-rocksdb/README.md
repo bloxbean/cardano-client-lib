@@ -83,5 +83,5 @@ markers, roots, latest metadata, and enabled rollback indexes.
 ## Gradle
 
 ```gradle
-implementation "com.bloxbean.cardano:jellyfish-merkle-rocksdb:0.8.0"
+implementation "com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:0.8.0"
 ```

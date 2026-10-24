@@ -2,6 +2,11 @@ package com.bloxbean.cardano.vds.mpf.rocksdb.gc;
 
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbRootsIndex;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
+import org.rocksdb.ColumnFamilyHandle;
+import org.rocksdb.RocksDB;
+
+import java.util.List;
 
 /**
  * Manager for garbage collection operations on RocksDB-backed Merkle Patricia Tries.
@@ -53,6 +58,42 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbRootsIndex;
 public final class GcManager {
     private final RocksDbNodeStore nodeStore;
     private final RocksDbRootsIndex rootsIndex;
+
+    /**
+     * Drops temporary GC column families left behind by a GC run that crashed: names {@code __vds_gc_marks_<digits>}
+     * holding the GC ownership marker, or nothing at all. 0.8.0-pre6 leftovers ({@code marks_<digits>}) are not
+     * recognisable as such; drop them with {@link #dropLegacyGcColumnFamilies}.
+     *
+     * <p>{@code RocksDbStateTrees}, {@code RocksDbNodeStore(String..)} and {@code RocksDbRootsIndex(String..)} do this
+     * themselves. A caller that opens the {@code RocksDB} itself must open every existing column family (list them
+     * with {@code RocksDB.listColumnFamilies}; RocksDB refuses to open a database without all of them) and should
+     * then call this before running GC.</p>
+     *
+     * @param db      the freshly opened database, with no GC running on it
+     * @param handles the handles returned by {@code RocksDB.open}; dropped handles are closed and removed
+     * @return the number of column families dropped
+     */
+    public static int dropLeftoverGcColumnFamilies(RocksDB db, List<ColumnFamilyHandle> handles) {
+        return DiskMarkSet.dropStale(db, handles, List.of());
+    }
+
+    /**
+     * Drops mark-set column families left behind by a crashed GC run of 0.8.0-pre6, which named them
+     * {@code marks_<System.nanoTime()>} and wrote no ownership information. Nothing drops them automatically, since
+     * an application column family can have such a name; list the column families ({@code RocksDB.listColumnFamilies}),
+     * check that the ones to drop are GC leftovers (keys are node hashes, every value is the single byte {@code 0x01}),
+     * and pass their names.
+     *
+     * @param db      the database, with no GC running on it
+     * @param handles the handles returned by {@code RocksDB.open}; dropped handles are closed and removed
+     * @param names   the exact names to drop; each must match {@code marks_<at least 10 digits>}
+     * @return the number of column families dropped
+     * @throws IllegalArgumentException if a name does not match {@code marks_<at least 10 digits>}
+     */
+    public static int dropLegacyGcColumnFamilies(RocksDB db, List<ColumnFamilyHandle> handles,
+                                                 java.util.Collection<String> names) {
+        return DiskMarkSet.dropLegacy(db, handles, names);
+    }
 
     /**
      * Creates a new GcManager for the specified storage components.
