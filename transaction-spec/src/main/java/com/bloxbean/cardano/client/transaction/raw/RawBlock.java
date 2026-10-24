@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.spec.Era;
 
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -217,12 +218,18 @@ public final class RawBlock {
      * {@code BlockBody/Internal.hs}); the block header carries it
      */
     public byte[] bodyHash() {
-        ByteArrayOutputStream hashes = new ByteArrayOutputStream(32 * rules.blockBodyParts());
-        hashes.writeBytes(Blake2bUtil.blake2bHash256(transactionBodies.bytes()));
-        hashes.writeBytes(Blake2bUtil.blake2bHash256(transactionWitnessSets.bytes()));
-        hashes.writeBytes(Blake2bUtil.blake2bHash256(auxiliaryDataSet.bytes()));
+        List<byte[]> parts = new ArrayList<>(List.of(transactionBodies.bytes(), transactionWitnessSets.bytes(),
+                auxiliaryDataSet.bytes()));
         if (invalidTransactions != null)
-            hashes.writeBytes(Blake2bUtil.blake2bHash256(invalidTransactions.bytes()));
+            parts.add(invalidTransactions.bytes());
+        return bodyHash(parts);
+    }
+
+    // The block body hash of the encoded body parts, in block order (shared with RawBlockBody).
+    static byte[] bodyHash(List<byte[]> parts) {
+        ByteArrayOutputStream hashes = new ByteArrayOutputStream(32 * parts.size());
+        for (byte[] part : parts)
+            hashes.writeBytes(Blake2bUtil.blake2bHash256(part));
         return Blake2bUtil.blake2bHash256(hashes.toByteArray());
     }
 
