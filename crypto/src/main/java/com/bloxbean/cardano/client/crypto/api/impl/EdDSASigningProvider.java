@@ -11,7 +11,6 @@ import net.i2p.crypto.eddsa.spec.EdDSAParameterSpec;
 import net.i2p.crypto.eddsa.spec.EdDSAPrivateKeySpec;
 import net.i2p.crypto.eddsa.spec.EdDSAPublicKeySpec;
 
-import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.security.Signature;
@@ -19,9 +18,9 @@ import java.security.Signature;
 public class EdDSASigningProvider implements SigningProvider {
     private static final EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
 
-    /** The group order {@code L = 2^252 + 27742317777372353535851937790883648493}. */
-    private static final BigInteger L = BigInteger.ONE.shiftLeft(252)
-            .add(new BigInteger("27742317777372353535851937790883648493"));
+    /** The group order {@code L = 2^252 + 27742317777372353535851937790883648493}, little-endian. */
+    private static final byte[] L = HexUtil.decodeHexString(
+            "edd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010");
 
     /** libsodium's {@code ge25519_has_small_order} blacklist (last byte compared without its top bit). */
     private static final byte[][] SMALL_ORDER = {
@@ -96,7 +95,9 @@ public class EdDSASigningProvider implements SigningProvider {
      * libsodium's {@code crypto_sign_ed25519_verify_detached}: before the cofactorless equation check, the scalar
      * {@code S} must be canonical ({@code S < L}), {@code R} must not be a small-order encoding, and the public key
      * must be a canonical encoding that is not of small order. The same signature therefore verifies here exactly
-     * when it verifies on a cardano-node (for example the Ed25519 leaf signatures inside KES).
+     * when it verifies on a cardano-node (for example the Ed25519 leaf signatures inside KES). Malformed input
+     * returns {@code false} rather than throwing: {@code null}, a signature that is not 64 bytes, and a public key
+     * that is not 32 bytes or not a curve point.
      *
      * @param signature Signature to verify
      * @param message payload
@@ -105,14 +106,19 @@ public class EdDSASigningProvider implements SigningProvider {
      */
     @Override
     public boolean verify(byte[] signature, byte[] message, byte[] publicKey) {
-        if (signature != null && publicKey != null && signature.length == 64 && publicKey.length == 32
-                && (!scalarIsCanonical(signature) || hasSmallOrder(signature) || !pointIsCanonical(publicKey)
-                || hasSmallOrder(publicKey))) {
+        if (signature == null || publicKey == null || signature.length != 64 || publicKey.length != 32
+                || !scalarIsCanonical(signature) || hasSmallOrder(signature) || !pointIsCanonical(publicKey)
+                || hasSmallOrder(publicKey)) {
             return false;
+        }
+        EdDSAPublicKeySpec pubKey;
+        try {
+            pubKey = new EdDSAPublicKeySpec(publicKey, spec);
+        } catch (IllegalArgumentException e) {
+            return false; // not a curve point (libsodium: ge25519_frombytes_negate_vartime fails)
         }
         try {
             Signature sgr = new EdDSAEngine(MessageDigest.getInstance(spec.getHashAlgorithm()));
-            EdDSAPublicKeySpec pubKey = new EdDSAPublicKeySpec(publicKey, spec);
             PublicKey vKey = new EdDSAPublicKey(pubKey);
             sgr.initVerify(vKey);
             sgr.setParameter(EdDSAEngine.ONE_SHOT_MODE);
@@ -126,11 +132,14 @@ public class EdDSASigningProvider implements SigningProvider {
 
     /** libsodium {@code sc25519_is_canonical(sig + 32)}: {@code S < L}. */
     private static boolean scalarIsCanonical(byte[] signature) {
-        byte[] be = new byte[32];
-        for (int i = 0; i < 32; i++) {
-            be[i] = signature[63 - i];
+        for (int i = 31; i >= 0; i--) {
+            int s = signature[32 + i] & 0xff;
+            int l = L[i] & 0xff;
+            if (s != l) {
+                return s < l;
+            }
         }
-        return new BigInteger(1, be).compareTo(L) < 0;
+        return false;
     }
 
     /** libsodium {@code ge25519_has_small_order}: the first 32 bytes match a blacklisted encoding. */

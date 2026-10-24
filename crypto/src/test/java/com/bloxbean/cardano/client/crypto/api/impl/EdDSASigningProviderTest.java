@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -113,6 +114,29 @@ class EdDSASigningProviderTest {
     }
 
     @Test
+    void verify_returnsFalseForAPublicKeyOffTheCurve() {
+        byte[] signature = Utils.hexToBytes("94825896c7075c31bcb81f06dba2bdcd9dcf16e79288d4b9f87c248215c8468d475f429f3de3b4a2cf67fe17077ae19686020364d6d4fa7a0174bab4a123ba0f");
+        byte[] publicKey = Utils.hexToBytes("374ec224aa6b66698506c892208e14ae6d990fa49d6e93037a2654366cca8caa");
+        byte[] message = "This is a secret message".getBytes(StandardCharsets.UTF_8);
+
+        assertThat(new EdDSASigningProvider().verify(signature, message, publicKey)).isFalse();
+    }
+
+    @Test
+    void verify_returnsFalseForMalformedInput() {
+        byte[] signature = Utils.hexToBytes("94825896c7075c31bcb81f06dba2bdcd9dcf16e79288d4b9f87c248215c8468d475f429f3de3b4a2cf67fe17077ae19686020364d6d4fa7a0174bab4a123ba0f");
+        byte[] publicKey = Utils.hexToBytes("3b6a27bcceb6a42d62a3a8d02a6f0d73653215771de243a63ac048a18b59da29");
+        byte[] message = "This is a secret message".getBytes(StandardCharsets.UTF_8);
+        SigningProvider signingProvider = new EdDSASigningProvider();
+
+        assertThat(signingProvider.verify(Arrays.copyOf(signature, 63), message, publicKey)).isFalse();
+        assertThat(signingProvider.verify(Arrays.copyOf(signature, 65), message, publicKey)).isFalse();
+        assertThat(signingProvider.verify(signature, message, Arrays.copyOf(publicKey, 33))).isFalse();
+        assertThat(signingProvider.verify(null, message, publicKey)).isFalse();
+        assertThat(signingProvider.verify(signature, message, null)).isFalse();
+    }
+
+    @Test
     void signAndVerify() throws Exception{
         byte[] msg = "eyJhbGciOiJFZERTQSJ9.RXhhbXBsZSBvZiBFZDI1NTE5IHNpZ25pbmc".getBytes(StandardCharsets.UTF_8);
         byte[] privateKey = Base64.getUrlDecoder().decode("nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A");
@@ -145,7 +169,8 @@ class EdDSASigningProviderTest {
     /**
      * Edge-case vectors from novifinancial/ed25519-speccheck ({@code cases.json} at commit
      * 65519336fda78a3d016e947df6d82848aca0c9da, Apache-2.0). The expected outcomes are libsodium's
-     * ({@code crypto_sign_verify_detached}), which cardano-node uses: only vector 3 verifies.
+     * ({@code crypto_sign_verify_detached}), which cardano-node uses: only vector 3 verifies. Vectors 4 and 5
+     * pass the cofactored equation only; libsodium checks the cofactorless one and rejects them.
      */
     @ParameterizedTest(name = "speccheck vector {0} -> {4}")
     @CsvSource({
