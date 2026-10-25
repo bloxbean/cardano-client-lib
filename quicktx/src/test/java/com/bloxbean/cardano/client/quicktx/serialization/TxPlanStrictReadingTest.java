@@ -265,6 +265,15 @@ class TxPlanStrictReadingTest {
     }
 
     @Test
+    void anIntentMissingItsAddressIsNotACrashWhenVariablesExist() {
+        String yaml = "variables: {v: " + RECEIVER + "}\n" + tx("intents", "{type: stake_registration}");
+
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
+            assertThat(reader.apply(yaml).getTxs()).hasSize(1);
+        }
+    }
+
+    @Test
     void aFileHoldsOneYamlDocument() {
         String two = tx("intents", "{type: payment, address: " + RECEIVER + "}") + "---\n" + tx("intents", "{type: payment, address: " + SENDER + "}");
 
