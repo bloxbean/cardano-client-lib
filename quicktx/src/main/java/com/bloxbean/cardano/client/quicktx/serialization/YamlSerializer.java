@@ -128,7 +128,10 @@ public class YamlSerializer {
         try {
             JsonNode raw = STRICT_YAML_MAPPER.readTree(yaml);
             // Check the declared variables before textual substitution rewrites them.
-            if (raw != null) StrictReading.checkVariables(raw.get("variables"));
+            if (raw != null) {
+                StrictReading.checkVariables(raw.get("variables"));
+                StrictReading.checkKeys(raw);
+            }
             String resolved = resolveVariables(STRICT_YAML_MAPPER, yaml);
             StrictReading.checkYamlText(resolved);
             JsonNode tree = STRICT_YAML_MAPPER.readTree(resolved);

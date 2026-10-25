@@ -82,8 +82,8 @@ transaction:
 
 ### Variables
 
-The `variables` section defines key-value pairs that can be referenced anywhere in the YAML using `${variable_name}`
-syntax. Variables are resolved before deserialization.
+The `variables` section defines key-value pairs that can be referenced in any value in the YAML using `${variable_name}`
+syntax (not in keys). Variables are resolved before deserialization.
 
 ```yaml
 variables:
@@ -133,8 +133,9 @@ Each entry in the `transaction` list contains a `tx` block with:
 - an empty string for a number, boolean or enum
 - an explicit `null` or an empty value (`address:` with nothing after it), or a `null` element in a list
 - a UTxO reference with extra or missing keys; a reference is `{tx_hash, output_index}` or `{flow_output: {step, output}}`, and `output_index` is a non-negative integer or a `${...}` placeholder
-- a YAML alias (`*name`)
-- an unquoted number not written in plain decimal, such as `010` (YAML reads it as octal 8), `0x10`, `1_000` or `1e3`. Quote such values to keep the text: an unquoted `datum_hex: 0102` would otherwise be read as the number 66.
+- a YAML alias (`*name`), including in `variables`
+- a placeholder used as a key (`'${field}': 5`); placeholders are values
+- an unquoted number not written in plain decimal, such as `010` (YAML reads it as octal 8), `0x10`, `1_000` or `1e3`. Quote such values to keep the text: an unquoted `datum_hex: 0102` would otherwise be read as the number 66. The same applies to values in `variables`, where a decimal such as `1.50` keeps its written form.
 
 These rules apply to the whole document, including extension intents (which keep only their own handling of unknown fields). Unknown keys at the document root, in `context` and in `tx` are always rejected.
 

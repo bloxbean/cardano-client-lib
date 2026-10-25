@@ -30,6 +30,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -135,11 +136,19 @@ public final class StrictReading {
                 if (token.isStructStart()) depth++;
                 else if (token.isStructEnd()) depth--;
                 if (!token.isScalarValue()) continue;
-                // Variable values are data substituted elsewhere; where they are used is what gets checked.
-                if (parser.getParsingContext().pathAsPointer().toString().startsWith("/variables")) continue;
                 if (((YAMLParser) parser).isCurrentAlias())
                     throw new IllegalArgumentException("YAML alias *" + parser.getText() + " at "
                             + parser.getParsingContext().pathAsPointer() + " is not supported; repeat the value instead");
+                // A decimal variable value keeps its written scale (1.50) and is substituted as that number, so only
+                // a text that is not a decimal at all (.inf, 1_0.5) is rejected there.
+                if (token == JsonToken.VALUE_NUMBER_FLOAT
+                        && parser.getParsingContext().pathAsPointer().toString().startsWith("/variables/")) {
+                    if (!isDecimal(parser.getText()))
+                        throw new IllegalArgumentException("Number " + parser.getText() + " at "
+                                + parser.getParsingContext().pathAsPointer()
+                                + " is not written in plain decimal form; write the value in decimal, or quote it to keep the text");
+                    continue;
+                }
                 if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                     String written = parser.getText();
                     String canonical;
@@ -155,6 +164,15 @@ public final class StrictReading {
                                 + "); write the value in decimal, or quote it to keep the text");
                 }
             }
+        }
+    }
+
+    private static boolean isDecimal(String text) {
+        try {
+            new BigDecimal(text);
+            return true;
+        } catch (NumberFormatException notDecimal) {
+            return false;
         }
     }
 
@@ -207,6 +225,34 @@ public final class StrictReading {
             if (containsPlaceholder(entry.getValue()))
                 throw new IllegalArgumentException("Variable " + entry.getKey() + " refers to another placeholder ("
                         + entry.getValue() + "); variable values must be literal");
+        });
+    }
+
+    /**
+     * Rejects a mapping key that holds a placeholder ({@code '${field}': 5}) anywhere outside {@code variables}.
+     * {@link TxPlan#from(String)} substitutes text, so it would rename the key; {@link TxPlanCodec} and the schema
+     * substitute values only and reject the key as unknown. Called on the document as written.
+     *
+     * @param document a TxPlan document tree, before substitution
+     * @throws IllegalArgumentException naming the key and its location
+     */
+    static void checkKeys(JsonNode document) {
+        if (document == null || !document.isObject()) return;
+        document.fields().forEachRemaining(entry -> {
+            if (!"variables".equals(entry.getKey())) checkKeys(entry.getValue(), "/" + entry.getKey());
+        });
+    }
+
+    private static void checkKeys(JsonNode node, String path) {
+        if (node.isArray()) {
+            for (int i = 0; i < node.size(); i++) checkKeys(node.get(i), path + "/" + i);
+            return;
+        }
+        node.fields().forEachRemaining(entry -> {
+            if (entry.getKey().contains("${"))
+                throw new IllegalArgumentException("Key '" + entry.getKey() + "' at " + path
+                        + " is a placeholder; placeholders are values, so write the key out");
+            checkKeys(entry.getValue(), path + "/" + entry.getKey());
         });
     }
 
