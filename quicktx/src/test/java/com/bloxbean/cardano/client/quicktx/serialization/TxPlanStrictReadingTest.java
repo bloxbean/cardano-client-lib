@@ -207,6 +207,19 @@ class TxPlanStrictReadingTest {
     }
 
     @Test
+    void variablesThatReferToPlaceholdersAreRejected() {
+        String chain = "variables: {a: " + RECEIVER + ", b: '${a}', c: '${b}'}\n" + tx("intents", "{type: payment, address: '${c}'}");
+
+        assertRejected(chain, "placeholder");
+        // Even one level is rejected: used through b, TxPlan.from would leave ${a} for the next read to resolve.
+        String oneLevel = "variables: {a: " + RECEIVER + ", b: '${a}'}\n" + tx("intents", "{type: payment, address: '${b}'}");
+        assertRejected(oneLevel, "literal");
+        // A literal variable used directly reads back the same every time.
+        String literal = "variables: {a: " + RECEIVER + "}\n" + tx("intents", "{type: payment, address: '${a}'}");
+        assertThat(TxPlan.from(literal).toYaml()).isEqualTo(TxPlan.from(TxPlan.from(literal).toYaml()).toYaml());
+    }
+
+    @Test
     void lenientCodecStillReadsNonCanonicalYaml() {
         assertThat(LENIENT.fromYaml(tx("intents", "{type: payment, address: " + RECEIVER
                 + ", amounts: [{unit: lovelace, quantity: 010}]}")).getTxs()).hasSize(1);

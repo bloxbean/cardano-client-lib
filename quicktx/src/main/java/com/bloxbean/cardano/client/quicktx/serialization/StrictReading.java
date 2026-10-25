@@ -58,6 +58,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *     <li>an intent that sets a property under two of its names, e.g. both {@code utxo_refs} and its alias
  *     {@code refs}, and a pool intent whose {@code type} disagrees with its update flag
  *     (see {@link #checkDocument(JsonNode)})</li>
+ *     <li>a declared variable whose value is itself a {@code ${...}} template (see {@link #checkVariables(JsonNode)})</li>
  *     <li>YAML aliases ({@code *name}), which the YAML reader would otherwise read as the string {@code "name"}, and
  *     unquoted numbers not written in plain decimal form: {@code 010} (octal 8), {@code 0x10}, {@code 1_000},
  *     {@code 0102} (read as 66 even for a hex string field), {@code +5}, {@code 1.50}, {@code 1e3}
@@ -170,6 +171,29 @@ public final class StrictReading {
                 }
             }
         }
+    }
+
+    /**
+     * Rejects a declared variable whose value is itself a template ({@code v1: "${v2}"}). Substitution is one level, so
+     * such a chain resolves a little further on every read and a written plan never reads back the same. The strict
+     * readers call it on the document's {@code variables} section as written, before any substitution.
+     *
+     * @param variables the document's {@code variables} section, or null
+     * @throws IllegalArgumentException naming the variable
+     */
+    public static void checkVariables(JsonNode variables) {
+        if (variables == null || !variables.isObject()) return;
+        variables.fields().forEachRemaining(entry -> {
+            if (containsPlaceholder(entry.getValue()))
+                throw new IllegalArgumentException("Variable " + entry.getKey() + " refers to another placeholder ("
+                        + entry.getValue() + "); variable values must be literal");
+        });
+    }
+
+    private static boolean containsPlaceholder(JsonNode value) {
+        if (value.isTextual()) return value.asText().contains("${");
+        for (JsonNode child : value) if (containsPlaceholder(child)) return true;
+        return false;
     }
 
     private static void checkPoolUpdateFlag(JsonNode intent) {

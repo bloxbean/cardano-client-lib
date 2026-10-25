@@ -70,7 +70,7 @@ final class TxPlanMutator {
         ObjectNode target = objects.get(choices.pick(objects.size()));
         List<String> names = new ArrayList<>();
         target.fieldNames().forEachRemaining(names::add);
-        switch (choices.pick(9)) {
+        switch (choices.pick(11)) {
             case 0 -> { // drop a field
                 if (!names.isEmpty()) target.remove(names.get(choices.pick(names.size())));
             }
@@ -110,8 +110,32 @@ final class TxPlanMutator {
                     else array.add(array.get(choices.pick(array.size())).deepCopy());
                 }
             }
-            default -> { // replace a value with a placeholder
-                if (!names.isEmpty()) target.put(names.get(choices.pick(names.size())), "${v" + choices.pick(3) + "}");
+            case 8 -> { // hoist a value into variables and refer to it, as TxPlanCodec resolves structurally
+                if (!names.isEmpty() && root instanceof ObjectNode document && target != document) {
+                    String name = names.get(choices.pick(names.size()));
+                    String variable = "v" + choices.pick(3);
+                    JsonNode variables = document.get("variables");
+                    if (!(variables instanceof ObjectNode)) variables = document.putObject("variables");
+                    ((ObjectNode) variables).set(variable, target.get(name));
+                    target.put(name, "${" + variable + "}");
+                }
+            }
+            case 9 -> { // vary the spelling of a text value: case and surrounding whitespace
+                if (!names.isEmpty()) {
+                    String name = names.get(choices.pick(names.size()));
+                    JsonNode value = target.get(name);
+                    if (value != null && value.isTextual()) {
+                        String text = value.asText();
+                        target.put(name, switch (choices.pick(3)) {
+                            case 0 -> text.toUpperCase();
+                            case 1 -> " " + text + " ";
+                            default -> text.isEmpty() ? text : Character.toUpperCase(text.charAt(0)) + text.substring(1);
+                        });
+                    }
+                }
+            }
+            default -> { // replace a value with a placeholder that has no variable
+                if (!names.isEmpty()) target.put(names.get(choices.pick(names.size())), "${u" + choices.pick(3) + "}");
             }
         }
         return root;

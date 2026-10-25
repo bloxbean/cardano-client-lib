@@ -122,6 +122,9 @@ public class YamlSerializer {
      */
     static <T> T deserializeStrict(String yaml, Class<T> type) {
         try {
+            JsonNode raw = STRICT_YAML_MAPPER.readTree(yaml);
+            // Check the declared variables before textual substitution rewrites them.
+            if (raw != null) StrictReading.checkVariables(raw.get("variables"));
             String resolved = resolveVariables(STRICT_YAML_MAPPER, yaml);
             StrictReading.checkYamlText(resolved);
             JsonNode tree = STRICT_YAML_MAPPER.readTree(resolved);
