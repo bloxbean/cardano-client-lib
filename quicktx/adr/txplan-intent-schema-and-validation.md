@@ -23,6 +23,12 @@
   - D8: "strict" also disables float-to-int truncation and numeric enum indexes, and makes UTxO references exact.
   - §8: M2 lands before M1, so I10 uses the real strict readers.
   - §13: two repository tests with a non-existent `to:` field, a broken docs example, and the `.inf` writer case.
+- **r4** (2026-10-25; from implementing M2 and M1 and fuzzing them with Jazzer):
+  - D2: hand-written `String` fields accept every scalar; `signers` entries do not require `ref`.
+  - D4: array items use `anyOf`.
+  - D8: strict readers reject explicit nulls and empty values.
+  - I11 wording: "never a programming error". I12 scoped to strict readers.
+  - §13: the `signers` finding, and four pre-existing robustness bugs that fuzzing found and M2 fixes.
 
 ## 1. Context
 
@@ -140,6 +146,8 @@ Generated keys are exactly `$defs/intent.*`, `$defs/model.*`, `$defs/placeholder
 **Hand-written typed fields are placeholder-tolerant too (r2).** `context` integer fields accept the same placeholders as generated ones, so `additional_signers_count: '${count}'` (accepted by `TxPlanCodec`, see `TxPlanContextPropertiesTest`) is valid:
 - `valid_from_slot` and `valid_to_slot` become `anyOf [integer ≥ 0, integerLike, placeholder]`; Jackson coerces a numeric string to `Long`.
 - `additional_signers_count` becomes `anyOf [integer 0–1000, placeholder]`. It takes no numeric string, because its `StrictIntegerDeserializer` rejects strings.
+- (r4) Hand-written `String` fields of `context` and `tx` (`fee_payer`, `from`, `change_address`, …) accept every scalar, like generated ones (D3). `UtxoRef` fields (`tx_hash`, `step`, `output`) stay string-only, because `UtxoRefDeserializer` requires text.
+- (r4) A `signers` entry does not require `ref`. Today the runtime accepts an entry without `ref`, and `compose(TxPlan)` skips it; see §13.
 
 ### D3. Type mapping is placeholder-tolerant
 
@@ -170,9 +178,11 @@ A Java type the generator cannot map, or a custom deserializer missing from the 
 ### D4. Array placement and extension intents (revised in r2)
 
 Each array accepts what its declared element type accepts at runtime. `TransactionDocument.TxContent` declares `inputs` as `List<TxInputIntent>`, `scripts` as `List<TxScriptAttachmentIntent>` and `intents` as `List<TxIntent>`, and Jackson resolves any registered subtype assignable to the element type:
-- `tx.inputs.items` = `oneOf` over the `TxInputIntent` types (`collect_from`, `script_collect_from`, `reference_input`).
-- `tx.scripts.items` = `oneOf` over the `TxScriptAttachmentIntent` types (`validator`, `native_script`).
-- `tx.intents.items` = `oneOf` over **all 23** types. A probe confirmed that both readers accept `collect_from` under `intents`. The canonical writer (`toYaml()`) still places input and script intents in their own arrays.
+- `tx.inputs.items` = `anyOf` over the `TxInputIntent` types (`collect_from`, `script_collect_from`, `reference_input`).
+- `tx.scripts.items` = `anyOf` over the `TxScriptAttachmentIntent` types (`validator`, `native_script`).
+- `tx.intents.items` = `anyOf` over **all 23** types.
+
+(r4: `anyOf`, not `oneOf`. The core branches exclude each other by their `const` discriminator, but the extension branch and the placeholder-discriminator branch can both match a type such as `${ns}:pay`.) A probe confirmed that both readers accept `collect_from` under `intents`. The canonical writer (`toYaml()`) still places input and script intents in their own arrays.
 
 A core type in an array whose element type it does not implement (e.g. `payment` in `inputs`, `collect_from` in `scripts`) fails validation; the runtime rejects it too ("Could not resolve type id … as a subtype of TxInputIntent").
 
@@ -213,6 +223,8 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
 - **No numeric enum indexes:** `FAIL_ON_NUMBERS_FOR_ENUMS` is enabled. Today `role: 0` silently becomes `spend`.
 - **Exact UTxO references:** `UtxoRefDeserializer` is hand-written and today ignores every key it does not use. A probe showed it accepts `{flow_output: d}` (a string) and `{tx_hash: …, output_index: 0, index: 1}`, producing an empty or partial reference. In strict mode a reference is exactly `{tx_hash, output_index}` or `{flow_output: {step, output}}`, with no other keys.
 
+- **No explicit nulls (r4):** `key: null` and an empty value (`address:` with nothing after it) are rejected, as are `null` list elements (`Nulls.FAIL`). An empty value is usually a forgotten value, and treating it as absent would be another silent drop. The canonical writer never writes `null`. Found by fuzzing: `refs: null` overwrote a field default, so `toYaml()` had no fixed point.
+
 `strictIntentFields(false)` restores all of these to today's behaviour.
 
 ### D9. Documentation
@@ -231,8 +243,8 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 - **I8** (D8): `toYaml()` → `from()` round-trips every intent type with strictness on.
 - **I9** (D8): with `strictIntentFields(false)`, `TxPlanCodec` reads every document exactly as it does today (unknown intent fields ignored), and the option never relaxes TxFlow compilation.
 - **I10** (D1–D4, r2): **the schema is never stricter than the runtime.** Every document a strict reader accepts validates against the schema. Checked by the D7 corpus and by fuzzing (§9).
-- **I11** (D8, r2): **readers are total over untrusted text.** For any input, `TxPlan.from` and `TxPlanCodec.fromYaml` either return a plan or throw the documented failure types (`IllegalArgumentException`, Jackson's `JsonProcessingException` family, or a wrapping `RuntimeException` whose root is one of these). They never throw `NullPointerException`, `ClassCastException`, `StackOverflowError` or another unexpected type, and they never hang.
-- **I12** (D8, r2): **accepted plans have a fixed point.** For any accepted input, `toYaml()` of the result validates against the schema, reads back successfully, and `toYaml()` of that second read equals the first.
+- **I11** (D8, r2; wording r4): **readers are total over untrusted text.** For any input, `TxPlan.from` and `TxPlanCodec.fromYaml` (strict and lenient) either return a plan or reject the input. They never fail with a programming error: no `NullPointerException`, `ClassCastException`, `IndexOutOfBoundsException`, `ArithmeticException`, `UnsupportedOperationException`, `StackOverflowError` or other `Error` anywhere in the cause chain.
+- **I12** (D8, r2; scope r4): **strictly accepted plans have a fixed point.** For any input a strict reader accepts, `toYaml()` of the result reads back with the same reader, and `toYaml()` of that second read equals the first. The lenient codec keeps today's reading, quirks included (I9), so I12 does not cover it.
 
 ## 7. Compatibility
 
@@ -312,6 +324,8 @@ All four were answered by the maintainer on 2026-10-25, before review; none rema
 
 - Two existing tests (`TxPlanRealQuickTxBuilderTest`, `TxPlanQuickTxBuilderIntegrationTest`) give a `payment` intent a `to:` field, which does not exist; the lenient readers drop it silently. M2 corrects them to `address:`. This is the D8 bug class in the repository's own tests.
 - `docs/content/preview/txplan/advanced-usage.mdx` uses `type: script_collect`, which is not a registered type (`script_collect_from` is); M1 corrects it. Another example there carries truncated, illustrative hex.
+- (r4) A `context.signers` entry without `ref` is accepted and then silently skipped by `compose(TxPlan)`. It sits outside intents, so D8 does not cover it; the schema mirrors the runtime. Follow-up: reject it in strict mode.
+- (r4) Found by fuzzing and fixed in M2 because they break I11 or I12 in both modes: `transaction: null`, a null transaction entry and an empty YAML document threw `NullPointerException`; an unresolved `metadata: ${v}` was accepted but could not be written back.
 - The canonical writer emits the string `.inf` unquoted, so it reads back as a float and fails to bind. No Cardano value has this form; I12 fuzzing covers it in M2.
 - `pool_registration` accepts the update flag three ways: the `type` discriminator (`pool_registration` / `pool_update`), `is_update`, and a further `update` property that Jackson derives from Lombok accessors.
 - `script_minting` uses camelCase `policyId`; every other field is snake_case.
