@@ -2,19 +2,63 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cardano-client.dev/schemas/quicktx/transaction/v1alpha1",
   "title": "QuickTx embedded transaction v1alpha1",
+  "description": "QuickTx/TxPlan transaction contract. The root describes a standalone TxPlan YAML document; $defs/transaction is the single transaction embedded by a TxFlow step. Intent definitions ($defs/intent.*, $defs/model.*) are generated from the Jackson model by TxPlanSchemaGenerator: run ./gradlew :quicktx:generateTxPlanSchema after changing an intent.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": [
+        "string",
+        "number",
+        "boolean"
+      ]
+    },
+    "variables": {
+      "type": "object"
+    },
+    "extensions": {
+      "type": "object"
+    },
+    "context": {
+      "$ref": "#/$defs/context"
+    },
+    "transaction": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tx": {
+            "$ref": "#/$defs/tx"
+          }
+        }
+      }
+    }
+  },
   "$defs": {
     "flowOutputRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["flow_output"],
+      "required": [
+        "flow_output"
+      ],
       "properties": {
         "flow_output": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["step", "output"],
+          "required": [
+            "step",
+            "output"
+          ],
           "properties": {
-            "step": { "type": "string", "minLength": 1 },
-            "output": { "type": "string", "minLength": 1 }
+            "step": {
+              "type": "string",
+              "minLength": 1
+            },
+            "output": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         }
       }
@@ -22,69 +66,1750 @@
     "utxoRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tx_hash", "output_index"],
+      "required": [
+        "tx_hash",
+        "output_index"
+      ],
       "properties": {
-        "tx_hash": { "type": "string" },
-        "output_index": { "type": ["integer", "string"] }
+        "tx_hash": {
+          "type": "string"
+        },
+        "output_index": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        }
       }
     },
     "inputRef": {
       "oneOf": [
-        { "$ref": "#/$defs/utxoRef" },
-        { "$ref": "#/$defs/flowOutputRef" }
+        {
+          "$ref": "#/$defs/utxoRef"
+        },
+        {
+          "$ref": "#/$defs/flowOutputRef"
+        }
       ]
     },
     "transaction": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tx"],
+      "required": [
+        "tx"
+      ],
       "properties": {
-        "tx": { "$ref": "#/$defs/tx" },
-        "context": { "$ref": "#/$defs/context" }
+        "tx": {
+          "$ref": "#/$defs/tx"
+        },
+        "context": {
+          "$ref": "#/$defs/context"
+        }
       }
     },
     "tx": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "from": { "type": "string" },
-        "from_ref": { "type": "string" },
-        "from_wallet": { "type": "string" },
-        "change_address": { "type": "string" },
-        "change_datum": { "type": "string" },
-        "change_datum_hash": { "type": "string" },
-        "inputs": { "type": "array", "items": { "type": "object" } },
-        "intents": { "type": "array", "items": { "type": "object", "required": ["type"] } },
-        "scripts": { "type": "array", "items": { "type": "object", "required": ["type"] } }
+        "from": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "from_ref": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "from_wallet": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "change_address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "change_datum": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "change_datum_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/intent.collect_from"
+              },
+              {
+                "$ref": "#/$defs/intent.reference_input"
+              },
+              {
+                "$ref": "#/$defs/intent.script_collect_from"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "intents": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/intent.collect_from"
+              },
+              {
+                "$ref": "#/$defs/intent.donation"
+              },
+              {
+                "$ref": "#/$defs/intent.drep_deregistration"
+              },
+              {
+                "$ref": "#/$defs/intent.drep_registration"
+              },
+              {
+                "$ref": "#/$defs/intent.drep_update"
+              },
+              {
+                "$ref": "#/$defs/intent.governance_proposal"
+              },
+              {
+                "$ref": "#/$defs/intent.metadata"
+              },
+              {
+                "$ref": "#/$defs/intent.minting"
+              },
+              {
+                "$ref": "#/$defs/intent.native_script"
+              },
+              {
+                "$ref": "#/$defs/intent.payment"
+              },
+              {
+                "$ref": "#/$defs/intent.pool_registration"
+              },
+              {
+                "$ref": "#/$defs/intent.pool_retirement"
+              },
+              {
+                "$ref": "#/$defs/intent.pool_update"
+              },
+              {
+                "$ref": "#/$defs/intent.reference_input"
+              },
+              {
+                "$ref": "#/$defs/intent.script_collect_from"
+              },
+              {
+                "$ref": "#/$defs/intent.script_minting"
+              },
+              {
+                "$ref": "#/$defs/intent.stake_delegation"
+              },
+              {
+                "$ref": "#/$defs/intent.stake_deregistration"
+              },
+              {
+                "$ref": "#/$defs/intent.stake_registration"
+              },
+              {
+                "$ref": "#/$defs/intent.stake_withdrawal"
+              },
+              {
+                "$ref": "#/$defs/intent.validator"
+              },
+              {
+                "$ref": "#/$defs/intent.voting"
+              },
+              {
+                "$ref": "#/$defs/intent.voting_delegation"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "pattern": "^[^:]+:.+$"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "scripts": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/intent.native_script"
+              },
+              {
+                "$ref": "#/$defs/intent.validator"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                }
+              }
+            ]
+          }
+        }
       }
     },
     "context": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "fee_payer": { "type": "string" },
-        "fee_payer_ref": { "type": "string" },
-        "collateral_payer": { "type": "string" },
-        "collateral_payer_ref": { "type": "string" },
-        "required_signers": { "type": "array", "items": { "type": "string" } },
-        "valid_from_slot": { "type": "integer", "minimum": 0 },
-        "valid_to_slot": { "type": "integer", "minimum": 0 },
+        "fee_payer": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "fee_payer_ref": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "collateral_payer": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "collateral_payer_ref": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "required_signers": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "valid_from_slot": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "valid_to_slot": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
         "signers": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["ref"],
             "properties": {
-              "ref": { "type": "string" },
-              "scope": { "type": "string" }
+              "ref": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "scope": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
             }
           }
         },
-        "additional_signers_count": { "type": "integer", "minimum": 0, "maximum": 1000 },
-        "deposit_payer": { "type": "string" },
-        "deposit_mode": { "type": "string" }
+        "additional_signers_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "deposit_payer": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "deposit_mode": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
       }
+    },
+    "booleanLike": {
+      "type": "string",
+      "pattern": "^\\s*(true|True|TRUE|false|False|FALSE)\\s*$",
+      "description": "A boolean written as a string, e.g. a quoted '${flag}' substituted as text"
+    },
+    "integerLike": {
+      "type": "string",
+      "pattern": "^\\s*[+-]?[0-9]+\\s*$",
+      "description": "An integer written as a string"
+    },
+    "intent.collect_from": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "refs": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/inputRef"
+                  },
+                  {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "type": {
+          "const": "collect_from"
+        },
+        "utxo_refs": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/inputRef"
+                  },
+                  {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        }
+      }
+    },
+    "intent.donation": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "current_treasury_value": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "donation_amount": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "donation"
+        }
+      }
+    },
+    "intent.drep_deregistration": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "drep_credential_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "drep_credential_type": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "refund_address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "refund_amount": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "type": {
+          "const": "drep_deregistration"
+        }
+      }
+    },
+    "intent.drep_registration": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "anchor_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "anchor_url": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "deposit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "drep_credential_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "drep_credential_type": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "drep_registration"
+        }
+      }
+    },
+    "intent.drep_update": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "anchor_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "anchor_url": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "drep_credential_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "drep_credential_type": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "drep_update"
+        }
+      }
+    },
+    "intent.governance_proposal": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "anchor_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "anchor_url": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "deposit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "gov_action_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "return_address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "governance_proposal"
+        }
+      }
+    },
+    "intent.metadata": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "metadata": { },
+        "type": {
+          "const": "metadata"
+        }
+      }
+    },
+    "intent.minting": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "assets": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/model.Asset"
+                  },
+                  {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "policy_ref": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "receiver": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "script_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "script_type": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "type": {
+          "const": "minting"
+        }
+      }
+    },
+    "intent.native_script": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "script_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "script_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "script_ref": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "native_script"
+        }
+      }
+    },
+    "intent.payment": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "amounts": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/model.Amount"
+                  },
+                  {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "datum": { },
+        "datum_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "datum_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "script_ref_bytes": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "payment"
+        }
+      }
+    },
+    "intent.pool_registration": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "is_update": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/booleanLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "pool_registration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/model.PoolRegistration"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "type": {
+          "const": "pool_registration"
+        },
+        "update": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/booleanLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        }
+      }
+    },
+    "intent.pool_retirement": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pool_id": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "retirement_epoch": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "type": {
+          "const": "pool_retirement"
+        }
+      }
+    },
+    "intent.pool_update": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "is_update": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/booleanLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "pool_registration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/model.PoolRegistration"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "type": {
+          "const": "pool_update"
+        },
+        "update": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/booleanLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        }
+      }
+    },
+    "intent.reference_input": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "refs": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/inputRef"
+                  },
+                  {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "type": {
+          "const": "reference_input"
+        }
+      }
+    },
+    "intent.script_collect_from": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "datum": { },
+        "datum_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer": { },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "script_collect_from"
+        },
+        "utxo_filter": { },
+        "utxo_refs": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/inputRef"
+                  },
+                  {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        }
+      }
+    },
+    "intent.script_minting": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "assets": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/model.Asset"
+                  },
+                  {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "output_datum": { },
+        "output_datum_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "policyId": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "receiver": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer": { },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "script_minting"
+        }
+      }
+    },
+    "intent.stake_delegation": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pool_id": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "stake_address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "stake_delegation"
+        }
+      }
+    },
+    "intent.stake_deregistration": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "refund_address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "stake_address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "stake_deregistration"
+        }
+      }
+    },
+    "intent.stake_registration": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "stake_address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "stake_registration"
+        }
+      }
+    },
+    "intent.stake_withdrawal": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "receiver": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "reward_address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "stake_withdrawal"
+        }
+      }
+    },
+    "intent.validator": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cbor_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "role": {
+          "anyOf": [
+            {
+              "enum": [
+                "spend",
+                "mint",
+                "cert",
+                "reward",
+                "voting",
+                "proposing"
+              ]
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "script_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "script_ref": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "validator"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "enum": [
+                "v1",
+                "v2",
+                "v3"
+              ]
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        }
+      }
+    },
+    "intent.voting": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "anchor_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "anchor_url": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "gov_action_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "gov_action_tx_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "voting"
+        },
+        "vote": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "voter_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      }
+    },
+    "intent.voting_delegation": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "drep_hash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "drep_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "drep_type": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "redeemer_hex": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "const": "voting_delegation"
+        }
+      }
+    },
+    "model.Amount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      }
+    },
+    "model.Asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        }
+      }
+    },
+    "model.MultiHostName": {
+      "type": "object",
+      "required": [
+        "relay_type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "dnsName": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "relay_type": {
+          "const": "multi_host_name"
+        }
+      }
+    },
+    "model.PoolRegistration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cost": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "margin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/model.UnitInterval"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "operator": {
+          "type": "string"
+        },
+        "pledge": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "poolMetadataHash": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "poolMetadataUrl": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "poolOwners": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "relays": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "$ref": "#/$defs/model.MultiHostName"
+                      },
+                      {
+                        "$ref": "#/$defs/model.SingleHostAddr"
+                      },
+                      {
+                        "$ref": "#/$defs/model.SingleHostName"
+                      }
+                    ]
+                  },
+                  {
+                    "$ref": "#/$defs/placeholder"
+                  }
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "rewardAccount": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "STAKE_REGISTRATION",
+                "STAKE_DEREGISTRATION",
+                "STAKE_DELEGATION",
+                "POOL_REGISTRATION",
+                "POOL_RETIREMENT",
+                "GENESIS_KEY_DELEGATION",
+                "MOVE_INSTATENEOUS_REWARDS_CERT",
+                "REG_CERT",
+                "UNREG_CERT",
+                "VOTE_DELEG_CERT",
+                "STAKE_VOTE_DELEG_CERT",
+                "STAKE_REG_DELEG_CERT",
+                "VOTE_REG_DELEG_CERT",
+                "STAKE_VOTE_REG_DELEG_CERT",
+                "AUTH_COMMITTEE_HOT_CERT",
+                "RESIGN_COMMITTEE_COLD_CERT",
+                "REG_DREP_CERT",
+                "UNREG_DREP_CERT",
+                "UPDATE_DREP_CERT"
+              ]
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "vrfKeyHash": {
+          "type": "string"
+        }
+      }
+    },
+    "model.SingleHostAddr": {
+      "type": "object",
+      "required": [
+        "relay_type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ipv4": {
+          "type": "string"
+        },
+        "ipv6": {
+          "type": "string"
+        },
+        "port": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "relay_type": {
+          "const": "single_host_addr"
+        }
+      }
+    },
+    "model.SingleHostName": {
+      "type": "object",
+      "required": [
+        "relay_type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "dnsName": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "port": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "relay_type": {
+          "const": "single_host_name"
+        }
+      }
+    },
+    "model.UnitInterval": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "denominator": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        },
+        "numerator": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/integerLike"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
+        }
+      }
+    },
+    "placeholder": {
+      "type": "string",
+      "pattern": "\\$\\{",
+      "description": "A ${var} or ${{ inputs.x }} placeholder, resolved before binding"
     }
   }
 }

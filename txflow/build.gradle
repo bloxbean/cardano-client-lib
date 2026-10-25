@@ -20,6 +20,9 @@ dependencies {
 
     testFixturesImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
 
+    // Validates embedded transactions against the QuickTx schema
+    testImplementation(libs.networknt.json.schema.validator)
+
     // Integration test dependencies
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':cip:cip20')
