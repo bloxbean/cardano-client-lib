@@ -10,6 +10,13 @@
 ## Revision History
 
 - **r1** (2026-10-25): Initial proposal. OQ1–OQ4 were answered by the maintainer before review (§12).
+- **r2** (2026-10-25; responds to the Aster review of `dbdcf628`, plus evidence from implementation probes):
+  - Aster 1 → D2: hand-written `context` integer fields accept placeholders (and numeric strings for the slots), keeping literal bounds.
+  - Aster 2 → D4: the extension branch is limited to `tx.intents`, matching ADR 0008 and `FlowExtensions.checkTemplateIntents`.
+  - Probe → D4 rewritten: array placement follows each array's declared element type, so `intents` accepts all 23 types; the r1 rule would have rejected `collect_from` under `intents`, which both readers accept. A placeholder-discriminator branch is added.
+  - Probe → D1: property names come from Jackson's built bean deserializer (introspection misses `UnitInterval`); polymorphic nested types (`Relay`) are handled generically.
+  - Probe → D3: enum names come from the mapper (`spend`, case-sensitive); custom deserializers go through an explicit table; every non-string schema is wrapped with the placeholder branch.
+  - New I10 (schema never stricter than the runtime), I11 (reader totality) and I12 (fixed point); §9 adds Jazzer fuzz targets; M1 and M2 exit criteria updated.
 
 ## 1. Context
 
@@ -76,7 +83,7 @@ validator: role=RedeemerTag cbor_hex script_ref script_hash version=PlutusVersio
 ```
 
 - Aliases are visible through `findAliases()`; `collect_from` accepts `refs` for `utxo_refs`.
-- Which array a type belongs in is visible from its Java interface: `TxInputIntent` (`collect_from`, `script_collect_from`, `reference_input`) goes in `inputs`, `TxScriptAttachmentIntent` (`validator`, `native_script`) goes in `scripts`, and every other type goes in `intents`.
+- Which arrays accept a type is visible from its Java interface and each array's declared element type: `inputs` is `List<TxInputIntent>` (`collect_from`, `script_collect_from`, `reference_input`), `scripts` is `List<TxScriptAttachmentIntent>` (`validator`, `native_script`), and `intents` is `List<TxIntent>`, so it accepts every type (corrected in r2, see D4).
 - A second probe compared serializable and deserializable properties per class. The only property written but not read back is `type`, the discriminator Jackson consumes itself. So rejecting unknown fields cannot break a `toYaml()` → `from()` round trip.
 
 ### 1.6 Placeholders appear in typed fields
@@ -113,39 +120,59 @@ The schema is an authoring and CI aid, not a security boundary. Portable input i
 The single source of truth is what Jackson actually binds. A generator in quicktx **test** sources (no main-jar change, no runtime dependency):
 
 - walks `@JsonSubTypes` on `TxIntent`, so a type registered there is picked up automatically
-- introspects each class with the same deserialization config the readers use (`YamlSerializer.getYamlMapper()`)
+- asks Jackson for the bean deserializer it actually builds for each class, using the readers' own mapper (`YamlSerializer.getYamlMapper()`), and takes the property names from that deserializer (r2). Bean-description introspection alone is not faithful: it reports no properties for `UnitInterval`, which Jackson binds through its private fields. Aliases come from introspection (`findAliases()`).
 - emits one definition per type name:
-  `$defs/intent.<type>` = `{type: object, additionalProperties: false, required: [type], properties: {type: {const: "<type>"}, …}}`
+  `$defs/intent.<type>` = `{type: object, additionalProperties: false, required: [type], properties: {type: {const: "<type>"}, …}}`. The `type` discriminator is always the `const`, even where a class also exposes a `type` setter (`pool_registration`).
 - emits each accepted alias as an additional property with the same schema
-- recurses into nested beans that Jackson binds field by field (for example `Amount`, `Asset`, UTxO references, `PoolRegistration`), as `$defs/model.<SimpleName>` with `additionalProperties: false`
+- recurses into nested beans (for example `Amount`, `Asset`, `PoolRegistration`, `UnitInterval`), as `$defs/model.<SimpleName>` with `additionalProperties: false`. Two nested classes with the same simple name fail generation instead of colliding.
+- handles polymorphic nested types generically (r2): a type with `@JsonTypeInfo(use = NAME, property = p)` and `@JsonSubTypes` (for example `Relay`, discriminated by `relay_type`) becomes a `oneOf` over one definition per subtype, each with `p` as a `const`.
 
 ### D2. The generator owns a marked region; everything else stays hand-written
 
-Generated keys are exactly `$defs/intent.*`, `$defs/model.*`, `$defs/placeholder`, and the `items` of `tx.inputs`, `tx.intents` and `tx.scripts`. The generator reads the committed file, replaces only those keys, and writes it back with sorted, stable key order. Everything else stays hand-written and untouched, including `context` with its bounds, `utxoRef`, `flowOutputRef`, `transaction`, `tx`, and the root (D5).
+Generated keys are exactly `$defs/intent.*`, `$defs/model.*`, `$defs/placeholder`, `$defs/integerLike`, and the `items` of `tx.inputs`, `tx.intents` and `tx.scripts`. The generator reads the committed file, replaces only those keys, and writes it back with sorted, stable key order. Everything else stays hand-written and untouched, including `context` with its bounds, `utxoRef`, `flowOutputRef`, `inputRef`, `transaction`, `tx`, and the root (D5).
+
+**Hand-written typed fields are placeholder-tolerant too (r2).** `context` integer fields accept the same placeholders as generated ones, so `additional_signers_count: '${count}'` (accepted by `TxPlanCodec`, see `TxPlanContextPropertiesTest`) is valid:
+- `valid_from_slot` and `valid_to_slot` become `anyOf [integer ≥ 0, integerLike, placeholder]`; Jackson coerces a numeric string to `Long`.
+- `additional_signers_count` becomes `anyOf [integer 0–1000, placeholder]`. It takes no numeric string, because its `StrictIntegerDeserializer` rejects strings.
 
 ### D3. Type mapping is placeholder-tolerant
 
-`$defs/placeholder` is a string containing `${`. Mapping from the Java type Jackson binds:
+`$defs/placeholder` is a string containing `${`. `$defs/integerLike` is a string of decimal digits with an optional leading `-`. Every non-string schema below is wrapped as `anyOf [<schema>, placeholder]`, including arrays and nested objects, because `TxPlanCodec` can replace a whole value with a bound variable.
 
-| Java type | Schema |
+| Java type (as Jackson binds it) | Schema |
 |---|---|
 | `String` | `string` |
-| `int`, `Integer`, `long`, `Long`, `BigInteger` | `integer`, a numeric string, or a placeholder (quantities are written quoted today) |
-| `boolean` | `boolean` or a placeholder |
-| enum (`RedeemerTag`, `PlutusVersion`, …) | `enum` of the names Jackson accepts, or a placeholder |
-| `List<X>` | `array` of X |
+| `int`, `Integer`, `long`, `Long`, `BigInteger` | `integer` or `integerLike` (quantities are written quoted today) |
+| `boolean`, `Boolean` | `boolean` |
+| enum (`RedeemerTag`, `PlutusVersion`, …) | `enum` of the names the mapper writes for each constant, e.g. `spend`, `v2` (r2: `RedeemerTag` uses `@JsonProperty` names, and the mapper is case-sensitive, so `Spend` and `V2` are rejected) |
+| `List<X>`, `Set<X>` | `array` of X |
 | nested bean | `$ref` to `$defs/model.<SimpleName>` |
-| `JsonNode`, or a field with a custom deserializer (`metadata`, `datum`, `redeemer`, `utxo_filter`) | `{}` (open: these have their own grammars) |
+| polymorphic nested type | `oneOf` over its subtype definitions (D1) |
+| `JsonNode` | `{}` (open: `datum`, `redeemer`, `utxo_filter` have their own grammars) |
 
-A Java type the generator cannot map fails generation, naming the class and property, rather than silently emitting `{}`.
+**Custom deserializers (r2)** are mapped through one explicit table in the generator:
 
-### D4. Array placement and extension intents
+| Deserializer | Schema |
+|---|---|
+| `MetadataDeserializer` | `{}` (YAML, JSON or CBOR hex) |
+| `HexToByteArrayDeserializer` | `string` |
+| `InetAddressDeserializer` | `string` |
+| `UtxoRefDeserializer` | `$ref` to the hand-written `$defs/inputRef` (`utxoRef` or `flowOutputRef`) |
 
-- `tx.inputs.items` = `oneOf` over the `TxInputIntent` types.
-- `tx.scripts.items` = `oneOf` over the `TxScriptAttachmentIntent` types.
-- `tx.intents.items` = `oneOf` over all other types.
+A Java type the generator cannot map, or a custom deserializer missing from the table, fails generation and names the class and property, rather than silently emitting `{}`.
 
-Each array also gets one open branch for extension intents: an object whose `type` matches `^[^:]+:.+$` (e.g. `fk:pay`). A core type in the wrong array then fails validation.
+### D4. Array placement and extension intents (revised in r2)
+
+Each array accepts what its declared element type accepts at runtime. `TransactionDocument.TxContent` declares `inputs` as `List<TxInputIntent>`, `scripts` as `List<TxScriptAttachmentIntent>` and `intents` as `List<TxIntent>`, and Jackson resolves any registered subtype assignable to the element type:
+- `tx.inputs.items` = `oneOf` over the `TxInputIntent` types (`collect_from`, `script_collect_from`, `reference_input`).
+- `tx.scripts.items` = `oneOf` over the `TxScriptAttachmentIntent` types (`validator`, `native_script`).
+- `tx.intents.items` = `oneOf` over **all 23** types. A probe confirmed that both readers accept `collect_from` under `intents`. The canonical writer (`toYaml()`) still places input and script intents in their own arrays.
+
+A core type in an array whose element type it does not implement (e.g. `payment` in `inputs`, `collect_from` in `scripts`) fails validation; the runtime rejects it too ("Could not resolve type id … as a subtype of TxInputIntent").
+
+**Extension intents** (r2): only `tx.intents` gets the open branch for an object whose `type` matches `^[^:]+:.+$` (e.g. `fk:pay`). This matches ADR 0008 and `FlowExtensions.checkTemplateIntents`, which rejects extension intents in `inputs` and `scripts` ("Extension intents are allowed only in tx.intents").
+
+**Placeholder discriminators** (r2): each array also accepts an object whose `type` is a placeholder (contains `${`), since `TxPlanCodec` resolves variables before binding. Its fields are not checked by the schema.
 
 ### D5. Root schema for a standalone TxPlan document (hand-written)
 
@@ -161,7 +188,7 @@ Add root properties describing the standalone envelope: `version`, `variables` (
 
 A test validates documents against the schema using `com.networknt:json-schema-validator` **2.x** in quicktx `testImplementation` only (OQ2, resolved; choice in §10.1):
 - **Accepted:** every existing quicktx and txflow YAML fixture and test document, the TxPlan doc examples, and `toYaml()` output for at least one sample of every intent type.
-- **Rejected:** a misspelled intent field, an unknown core type, a core input type placed in `intents`, a wrong enum value.
+- **Rejected:** a misspelled intent field, an unknown core type, a type in an array whose element type it does not implement (`payment` in `inputs`), an extension intent in `inputs` or `scripts`, a wrong enum value (`Spend`), and an out-of-bounds literal `additional_signers_count`.
 
 The accepted documents were not produced by the generator, so they are independent evidence.
 
@@ -189,6 +216,9 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 - **I7** (D8): an unknown field in any core intent fails in `TxPlan.from`, `TxPlanCodec` and TxFlow compilation alike, with the field name in the error.
 - **I8** (D8): `toYaml()` → `from()` round-trips every intent type with strictness on.
 - **I9** (D8): with `strictIntentFields(false)`, `TxPlanCodec` reads every document exactly as it does today (unknown intent fields ignored), and the option never relaxes TxFlow compilation.
+- **I10** (D1–D4, r2): **the schema is never stricter than the runtime.** Every document a strict reader accepts validates against the schema. Checked by the D7 corpus and by fuzzing (§9).
+- **I11** (D8, r2): **readers are total over untrusted text.** For any input, `TxPlan.from` and `TxPlanCodec.fromYaml` either return a plan or throw the documented failure types (`IllegalArgumentException`, Jackson's `JsonProcessingException` family, or a wrapping `RuntimeException` whose root is one of these). They never throw `NullPointerException`, `ClassCastException`, `StackOverflowError` or another unexpected type, and they never hang.
+- **I12** (D8, r2): **accepted plans have a fixed point.** For any accepted input, `toYaml()` of the result validates against the schema, reads back successfully, and `toYaml()` of that second read equals the first.
 
 ## 7. Compatibility
 
@@ -202,20 +232,25 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 ### M1. Generated schema, root schema, guard, conformance tests, docs (one PR)
 - **Entry gates:** this ADR accepted.
 - **Scope:** D1–D7 and D9.
-- **Exit criteria:** I1–I6 hold; `./gradlew :quicktx:test :txflow:test` passes (Java 17); a mutation check (remove one intent field locally) fails the guard.
+- **Exit criteria:** I1–I6 and I10 hold; `./gradlew :quicktx:test :txflow:test` passes (Java 17); a mutation check (remove one intent field locally) fails the guard; the I10 fuzz target runs with `JAZZER_FUZZ=1` and finds no counterexample.
 
 ### M2. Runtime strictness (separate PR, OQ3)
 - **Entry gates:** M1 merged.
 - **Scope:** D8, including the `strictIntentFields` opt-out, plus release notes.
-- **Exit criteria:** I7, I8 and I9 hold for every intent type, with a test per type; both full suites pass.
+- **Exit criteria:** I7, I8 and I9 hold for every intent type, with a test per type; the I11 and I12 fuzz targets run with `JAZZER_FUZZ=1` and find no counterexample; both full suites pass.
 
 ## 9. Verification Strategy
 
 - **Independent acceptance evidence:** existing fixtures, test documents and doc examples written before the generator existed (D7).
-- **Negative cases:** typo fields, unknown types, wrong-array placement, wrong enum values, `scriptTx` entries at the root.
+- **Negative cases:** typo fields, unknown types, a type in an array whose element type it does not implement, extension intents outside `tx.intents`, wrong enum values, `scriptTx` entries at the root.
 - **Placeholder cases:** `${var}` and `${{ inputs.x }}` in integer, boolean and enum fields are accepted by the schema.
 - **Drift:** the guard plus a mutation check per milestone.
 - **Runtime (M2):** per-type unknown-field tests through `TxPlan.from`, `TxPlanCodec` and a portable TxFlow compile; a round trip for every type; the same documents with `strictIntentFields(false)` read as today.
+- **Fuzzing (r2):** Jazzer `@FuzzTest` targets in quicktx, following the existing MPF setup (`libs.jazzer.junit`; a normal build replays committed seeds; `JAZZER_FUZZ=1` explores). jqwik is not used, because quicktx deliberately excludes it from its test classpath.
+  - **M1, schema soundness (I10):** structured mutations of corpus documents (drop, duplicate, rename or retype fields, swap intent types and arrays, insert placeholders). Whenever a reader accepts the mutant, the schema must validate it.
+  - **M2, reader totality (I11):** arbitrary YAML text and structured mutations into both readers, strict and lenient.
+  - **M2, fixed point (I12):** for every accepted mutant, `toYaml()` validates, reads back, and is idempotent.
+  - Any crash input found is committed as a seed once fixed.
 
 ## 10. Alternatives Considered
 
