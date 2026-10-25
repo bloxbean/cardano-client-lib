@@ -29,6 +29,13 @@
   - D8: strict readers reject explicit nulls and empty values.
   - I11 wording: "never a programming error". I12 scoped to strict readers.
   - §13: the `signers` finding, and four pre-existing robustness bugs that fuzzing found and M2 fixes.
+- **r5** (2026-10-26; from a multi-agent review of both implementation PRs — Codex and two Claude reviewers — and further fuzzing):
+  - §1.6 corrected: `TxPlan.from` substitutes text across the whole document.
+  - D2–D4 (schema): placeholders at every structural position; numbers for hex/IP and reference text; trimmed enum names; `booleanLike`; the generator owns the whole `tx.inputs`/`intents`/`scripts` properties; generation fails fast on constructs it cannot describe.
+  - D7: the corpus described as built.
+  - D8: further strict rules, TxFlow uses the shared configuration, extension statement narrowed, fixes that apply in both modes.
+  - I9: stated exceptions.
+  - §13: follow-ups.
 
 ## 1. Context
 
@@ -102,7 +109,7 @@ validator: role=RedeemerTag cbor_hex script_ref script_hash version=PlutusVersio
 
 A TxPlan file is often a template. Numeric and enum fields can hold `${var}` (TxPlan variables) or `${{ inputs.x }}` (TxFlow bindings). There are two read paths:
 - `TxPlanCodec` resolves variables across the whole tree before binding.
-- `TxPlan.from(yaml)` binds first, then resolves selected string fields.
+- `TxPlan.from(yaml)` substitutes `${var}` as **text** across the whole document (including the `variables` block and keys) when a `variables` section is present, then binds; intents later resolve their own string fields (corrected in r5).
 
 A schema meant for files *as written* must therefore accept a placeholder string wherever a typed value is expected.
 
@@ -141,7 +148,7 @@ The single source of truth is what Jackson actually binds. A generator in quickt
 
 ### D2. The generator owns a marked region; everything else stays hand-written
 
-Generated keys are exactly `$defs/intent.*`, `$defs/model.*`, `$defs/placeholder`, `$defs/integerLike`, and the `items` of `tx.inputs`, `tx.intents` and `tx.scripts`. The generator reads the committed file, replaces only those keys, and writes it back with sorted, stable key order. Everything else stays hand-written and untouched, including `context` with its bounds, `utxoRef`, `flowOutputRef`, `inputRef`, `transaction`, `tx`, and the root (D5).
+Generated keys are exactly `$defs/intent.*`, `$defs/model.*`, `$defs/placeholder`, `$defs/integerLike`, `$defs/booleanLike` and the `tx.inputs`, `tx.intents` and `tx.scripts` properties (r5: the whole property, so the array itself may be a placeholder). The generator reads the committed file, replaces only those keys, and writes it back with sorted, stable key order. Everything else stays hand-written and untouched, including `context` with its bounds, `utxoRef`, `flowOutputRef`, `inputRef`, `transaction`, `tx`, and the root (D5).
 
 **Hand-written typed fields are placeholder-tolerant too (r2).** `context` integer fields accept the same placeholders as generated ones, so `additional_signers_count: '${count}'` (accepted by `TxPlanCodec`, see `TxPlanContextPropertiesTest`) is valid:
 - `valid_from_slot` and `valid_to_slot` become `anyOf [integer ≥ 0, integerLike, placeholder]`; Jackson coerces a numeric string to `Long`.
@@ -157,11 +164,11 @@ Generated keys are exactly `$defs/intent.*`, `$defs/model.*`, `$defs/placeholder
 |---|---|
 | `String` | `string`, `number` or `boolean` (r3). Jackson coerces any scalar to text, and the canonical writer relies on it: it writes digit-only hex such as `cbor_hex: 49480100002221200101` and the `String`-typed donation amounts unquoted. A string-only schema rejected the writer's own output (found by the I10 tests). |
 | `int`, `Integer`, `long`, `Long`, `BigInteger` | `integer` or `integerLike` (quantities are written quoted today) |
-| `boolean`, `Boolean` | `boolean` |
-| enum (`RedeemerTag`, `PlutusVersion`, …) | `enum` of the names the mapper writes for each constant, e.g. `spend`, `v2` (r2: `RedeemerTag` uses `@JsonProperty` names, and the mapper is case-sensitive, so `Spend` and `V2` are rejected) |
+| `boolean`, `Boolean` | `boolean` or `booleanLike` (r5: `true`/`True`/`TRUE`/`false`/`False`/`FALSE` as text, with surrounding whitespace, because `TxPlan.from` substitutes a quoted `'${flag}'` as text) |
+| enum (`RedeemerTag`, `PlutusVersion`, …) | `enum` of the names the mapper writes for each constant, e.g. `spend`, `v2` (r2: `RedeemerTag` uses `@JsonProperty` names, and the mapper is case-sensitive, so `Spend` and `V2` are rejected), or the same name with surrounding whitespace, which Jackson trims (r5) |
 | `List<X>`, `Set<X>` | `array` of X |
 | nested bean | `$ref` to `$defs/model.<SimpleName>` |
-| polymorphic nested type | `oneOf` over its subtype definitions (D1) |
+| polymorphic nested type | `anyOf` over its subtype definitions (D1) and an object whose discriminator is a placeholder (r5) |
 | `JsonNode` | `{}` (open: `datum`, `redeemer`, `utxo_filter` have their own grammars) |
 
 **Custom deserializers (r2)** are mapped through one explicit table in the generator:
@@ -169,11 +176,11 @@ Generated keys are exactly `$defs/intent.*`, `$defs/model.*`, `$defs/placeholder
 | Deserializer | Schema |
 |---|---|
 | `MetadataDeserializer` | `{}` (YAML, JSON or CBOR hex) |
-| `HexToByteArrayDeserializer` | `string` |
-| `InetAddressDeserializer` | `string` |
+| `HexToByteArrayDeserializer` | `string` or `number` (r5: it reads the token's text, so unquoted digit-only hex is accepted) |
+| `InetAddressDeserializer` | `string` or `number` (r5: same reason) |
 | `UtxoRefDeserializer` | `$ref` to the hand-written `$defs/inputRef` (`utxoRef` or `flowOutputRef`) |
 
-A Java type the generator cannot map, or a custom deserializer missing from the table, fails generation and names the class and property, rather than silently emitting `{}`.
+A Java type the generator cannot map, or a custom deserializer missing from the table, fails generation and names the class and property, rather than silently emitting `{}`. (r5) Generation also fails on constructs whose accepted input the schema would not describe: `@JsonUnwrapped`, a property Jackson binds that the bean deserializer does not list, scalar or delegating creators on non-polymorphic beans, enum constant aliases, content or key deserializers, `ACCEPT_SINGLE_VALUE_AS_ARRAY`, and `@JsonTypeInfo(defaultImpl)`. Subtypes are taken from Jackson's `SubtypeResolver`, so a subtype named only by `@JsonTypeName` is included.
 
 ### D4. Array placement and extension intents (revised in r2)
 
@@ -188,7 +195,7 @@ A core type in an array whose element type it does not implement (e.g. `payment`
 
 **Extension intents** (r2): only `tx.intents` gets the open branch for an object whose `type` matches `^[^:]+:.+$` (e.g. `fk:pay`). This matches ADR 0008 and `FlowExtensions.checkTemplateIntents`, which rejects extension intents in `inputs` and `scripts` ("Extension intents are allowed only in tx.intents").
 
-**Placeholder discriminators** (r2): each array also accepts an object whose `type` is a placeholder (contains `${`), since `TxPlanCodec` resolves variables before binding. Its fields are not checked by the schema.
+**Placeholder discriminators** (r2): each array also accepts an object whose `type` is a placeholder (contains `${`), since `TxPlanCodec` resolves variables before binding. Its fields are not checked by the schema. (r5) An element may itself be a placeholder, as may the whole array; the hand-written `context`, `transaction`, entries, `tx`, `required_signers`, `signers` and `flow_output` accept a placeholder too.
 
 ### D5. Root schema for a standalone TxPlan document (hand-written)
 
@@ -203,7 +210,7 @@ Add root properties describing the standalone envelope: `version`, `variables` (
 ### D7. Prove the schema accepts real documents
 
 A test validates documents against the schema using `com.networknt:json-schema-validator` **2.x** in quicktx `testImplementation` only (OQ2, resolved; choice in §10.1):
-- **Accepted:** every existing quicktx and txflow YAML fixture and test document, the TxPlan doc examples, and `toYaml()` output for at least one sample of every intent type.
+- **Accepted** (r5: stated as built): `toYaml()` output for one sample of every intent type plus variants (structured Plutus data, flow-output references, other relays, governance actions and DReps); every quicktx test text block that parses as a TxPlan document (`%s` templates filled); every YAML block of the TxPlan docs; and, in txflow, the embedded transaction of every hand-written portable flow that compiles with one value per parameter. YAML built by string concatenation is not scanned. Per-source floors fail the test if a scan finds fewer documents than today.
 - **Rejected:** a misspelled intent field, an unknown core type, a type in an array whose element type it does not implement (`payment` in `inputs`), an extension intent in `inputs` or `scripts`, a wrong enum value (`Spend`), and an out-of-bounds literal `additional_signers_count`.
 
 The accepted documents were not produced by the generator, so they are independent evidence.
@@ -225,7 +232,18 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
 
 - **No explicit nulls (r4):** `key: null` and an empty value (`address:` with nothing after it) are rejected, as are `null` list elements (`Nulls.FAIL`). An empty value is usually a forgotten value, and treating it as absent would be another silent drop. The canonical writer never writes `null`. Found by fuzzing: `refs: null` overwrote a field default, so `toYaml()` had no fixed point.
 
-`strictIntentFields(false)` restores all of these to today's behaviour.
+- **Further rules (r5, from the multi-agent review and fuzzing).** Each was a real silent drop or coercion, reproduced first:
+  - one property under two names (`utxo_refs` and its alias `refs`: Jackson kept the last list), and a pool `type` that contradicts `is_update`/`update`
+  - the string `"null"` for a primitive (`is_update: 'null'` turned a `pool_update` into a `pool_registration`)
+  - `output_index` beyond `int` range (`4294967296` became 0), negative, or text that is neither digits nor a placeholder
+  - YAML aliases (`*r` was read as the string `"r"`), and unquoted numbers not in plain decimal form (`010` → 8, `0x10`, `1_000`, `1e3`; an unquoted `datum_hex: 0102` became `"66"` in the codec). The check reads the raw scalar text.
+  - a declared variable whose value is itself a `${...}` template (each read resolved one more level, so there was no fixed point)
+- **TxFlow (r5):** its portable compiler now builds its mapper with the shared `StrictReading.apply`, so a value is no longer coerced (`quantity: 2000000.5` → `2000000`) before the strict check sees it.
+- **Extension intents (r5, narrowed):** they keep their own `ignoreUnknown`; the scalar, null and YAML rules apply to their fields too.
+
+Fixed in both modes, because they were crashes or silent corruption rather than lenient behaviour worth keeping: malformed structured Plutus data (`fields: 5`, map entries without `k`/`v`, `constructor: abc` became 0); null intents and `scriptTx` entries (now `IllegalArgumentException`); and the canonical writer, which now quotes a string YAML would read back differently (`"0xabc"` was written unquoted and read back as 2748; `".inf"` as a float).
+
+`strictIntentFields(false)` restores all of the strict rules to today's behaviour.
 
 ### D9. Documentation
 
@@ -241,7 +259,7 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 - **I6** (D5): `$defs/transaction` stays referenceable from `txflow-v1alpha1.schema.json`; TxFlow golden hashes and fingerprints are unchanged.
 - **I7** (D8): an unknown field in any core intent fails in `TxPlan.from`, `TxPlanCodec` and TxFlow compilation alike, with the field name in the error.
 - **I8** (D8): `toYaml()` → `from()` round-trips every intent type with strictness on.
-- **I9** (D8): with `strictIntentFields(false)`, `TxPlanCodec` reads every document exactly as it does today (unknown intent fields ignored), and the option never relaxes TxFlow compilation.
+- **I9** (D8): with `strictIntentFields(false)`, `TxPlanCodec` reads every document exactly as it does today (unknown intent fields ignored), and the option never relaxes TxFlow compilation. Stated exceptions (r5): inputs that used to crash or corrupt silently (D8, "fixed in both modes") are rejected or written correctly in both modes. The lenient codec reads like `TxPlanCodec` did; it does not reproduce `TxPlan.from`'s old textual substitution.
 - **I10** (D1–D4, r2): **the schema is never stricter than the runtime.** Every document a strict reader accepts validates against the schema. Checked by the D7 corpus and by fuzzing (§9).
 - **I11** (D8, r2; wording r4): **readers are total over untrusted text.** For any input, `TxPlan.from` and `TxPlanCodec.fromYaml` (strict and lenient) either return a plan or reject the input. They never fail with a programming error: no `NullPointerException`, `ClassCastException`, `IndexOutOfBoundsException`, `ArithmeticException`, `UnsupportedOperationException`, `StackOverflowError` or other `Error` anywhere in the cause chain.
 - **I12** (D8, r2; scope r4): **strictly accepted plans have a fixed point.** For any input a strict reader accepts, `toYaml()` of the result reads back with the same reader, and `toYaml()` of that second read equals the first. The lenient codec keeps today's reading, quirks included (I9), so I12 does not cover it.
@@ -321,6 +339,13 @@ All four were answered by the maintainer on 2026-10-25, before review; none rema
 4. **OQ4 (§13), resolved:** publish the current quirks as-is. The generator stays a faithful mirror, and the quirks get a follow-up.
 
 ## 13. Related Findings (Out of Scope)
+
+- (r5) Follow-ups from the multi-agent review, not addressed here:
+  - `TxPlan.from` substitutes variables as text: a value containing ` #` is cut at the comment, and a map value is written as Java `toString()`. Recommend structural resolution, as `TxPlanCodec` does.
+  - `InetAddressDeserializer` calls `InetAddress.getByName`, so a non-literal `ipv4`/`ipv6` triggers a DNS lookup while reading untrusted YAML.
+  - `pool_registration.pool_registration.type` overwrites the `final` `PoolRegistration.type` field by reflection.
+  - Negative `valid_from_slot`/`valid_to_slot` are accepted; the schema mirrors this.
+  - TxFlow's own YAML parsing (`TxFlowCodec`) does not apply the YAML alias and number-form checks.
 
 - Two existing tests (`TxPlanRealQuickTxBuilderTest`, `TxPlanQuickTxBuilderIntegrationTest`) give a `payment` intent a `to:` field, which does not exist; the lenient readers drop it silently. M2 corrects them to `address:`. This is the D8 bug class in the repository's own tests.
 - `docs/content/preview/txplan/advanced-usage.mdx` uses `type: script_collect`, which is not a registered type (`script_collect_from` is); M1 corrects it. Another example there carries truncated, illustrative hex.
