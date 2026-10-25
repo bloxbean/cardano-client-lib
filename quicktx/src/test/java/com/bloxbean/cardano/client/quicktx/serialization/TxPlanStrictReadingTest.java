@@ -114,6 +114,16 @@ class TxPlanStrictReadingTest {
     }
 
     @Test
+    void unresolvedMetadataPlaceholderIsWrittenBack() {
+        String yaml = tx("intents", "{type: metadata, metadata: '${note}'}");
+
+        String first = TxPlan.from(yaml).toYaml();
+
+        assertThat(first).contains("${note}");
+        assertThat(TxPlan.from(first).toYaml()).isEqualTo(first);
+    }
+
+    @Test
     void lenientCodecStillTruncatesFractionalQuantities() {
         String yaml = tx("intents", "{type: payment, address: " + RECEIVER + ", amounts: [{unit: lovelace, quantity: 2.5}]}");
 
