@@ -1,568 +1,247 @@
 # Merkle Patricia Forestry - RocksDB Backend
 
-RocksDB persistence for Merkle Patricia Forestry (MPF) with garbage collection support.
+RocksDB persistence for Merkle Patricia Forestry (MPF) tries, with version tracking and garbage collection.
 
 ## Overview
 
-This module provides a production-ready RocksDB backend for MPF, including automatic garbage collection, batch operations, and support for both single-version and multi-version storage modes.
-
-## Key Features
-
-- **RocksDB Persistence** - High-performance embedded database
-- **Garbage Collection** - Multiple GC strategies (refcount, mark-sweep)
-- **Multi-Tree Support** - Manage multiple independent tries in one database
-- **Batch Operations** - Atomic batch writes with rollback
-- **Storage Modes** - Single-version or multi-version
-- **GC Tool** - Command-line utility for GC testing and debugging
-
-## Quick Start
-
-### Basic Usage
-
-```java
-import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
-import com.bloxbean.cardano.vds.mpf.MpfTrie;
-import com.bloxbean.cardano.vds.rocksdb.resources.RocksDbResources;
-
-// Initialize RocksDB
-RocksDbResources resources = RocksDbResources.create(Paths.get("data/mpf"));
-        RocksDbNodeStore nodeStore = new RocksDbNodeStore(resources.getDb());
-
-        // Create trie (Blake2b-256 hashing, MPF mode - Cardano/Aiken compatible)
-        MpfTrie trie = new MpfTrie(nodeStore);
-
-// Store data (keys are automatically hashed)
-trie.
-
-        put("alice".getBytes(), "balance:100".
-
-        getBytes());
-        trie.
-
-        put("bob".getBytes(), "balance:200".
-
-        getBytes());
-
-        // Get root hash for on-chain verification
-        byte[] rootHash = trie.getRootHash();
-
-// Cleanup
-resources.
-
-        close();
-```
-
-### Loading Existing Trie
-
-```java
-import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
-import com.bloxbean.cardano.vds.mpf.MpfTrie;
-import com.bloxbean.cardano.vds.rocksdb.resources.RocksDbResources;
-
-// Initialize RocksDB
-RocksDbResources resources = RocksDbResources.create(Paths.get("data/mpf"));
-        RocksDbNodeStore nodeStore = new RocksDbNodeStore(resources.getDb());
-
-        // Load existing trie with known root hash
-        byte[] existingRoot = ... // previously stored root hash
-        MpfTrie trie = new MpfTrie(nodeStore, existingRoot);
-
-        // Retrieve data
-        byte[] value = trie.get("key1".getBytes());
-
-// Cleanup
-resources.
-
-        close();
-```
-
-### Multi-Version Mode with RocksDbStateTrees
-
-```java
-import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbStateTrees;
-import com.bloxbean.cardano.vds.mpf.MpfTrie;
-import com.bloxbean.cardano.vds.core.api.StorageMode;
-
-// Enable versioning
-RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf", StorageMode.MULTI_VERSION);
-
-        // Get node store and create MpfTrie
-        MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
-
-// Version 1
-trie.
-
-        put("alice".getBytes(), "100".
-
-        getBytes());
-        stateTrees.
-
-        commit("ledger");
-
-        long v1 = stateTrees.currentVersion("ledger");
-
-// Version 2
-trie.
-
-        put("alice".getBytes(), "150".
-
-        getBytes());
-        stateTrees.
-
-        commit("ledger");
-
-        long v2 = stateTrees.currentVersion("ledger");
-
-        // Rollback to version 1
-        byte[] rootV1 = stateTrees.getRootHash("ledger", v1);
-trie.
-
-        setRootHash(rootV1);
-
-        byte[] value = trie.get("alice".getBytes());
-// Returns "100"
-```
-
-## Garbage Collection
-
-MPF RocksDB includes multiple GC strategies to reclaim space from stale nodes.
-
-### Reference Counting GC
-
-Tracks references to each node; deletes when refcount reaches zero.
-
-```java
-import com.bloxbean.cardano.vds.mpf.rocksdb.gc.*;
-import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.RefcountGcStrategy;
-
-RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpt");
-
-// Create GC manager
-GcManager gcManager = new GcManager(
-        stateTrees.nodeStore(),
-        stateTrees.rootsIndex()
-);
-
-// Configure GC
-GcOptions options = new GcOptions();
-options.deleteBatchSize =10_000;  // Delete 10K nodes per batch
-options.progress =deleted ->System.out.
-
-println("Deleted: "+deleted);
-
-// Run GC (keep latest 5 versions)
-RetentionPolicy policy = RetentionPolicy.keepLatestN(5);
-GcStrategy strategy = new RefcountGcStrategy();
-
-GcReport report = gcManager.runSync(strategy, policy, options);
-
-System.out.
-
-println("Deleted nodes: "+report.deleted);
-System.out.
-
-println("Duration: "+report.durationMillis +"ms");
-```
-
-### Mark-Sweep GC
-
-Marks reachable nodes from retained roots, sweeps unreachable ones.
-
-```java
-import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
-
-// Mark-sweep GC (more thorough, slower)
-GcStrategy strategy = new OnDiskMarkSweepStrategy();
-        GcReport report = gcManager.runSync(strategy, policy, options);
-```
-
-### GC Strategies Comparison
-
-| Strategy | Speed | Accuracy | Memory | Use Case |
-|----------|-------|----------|--------|----------|
-| **Refcount** | Fast | Exact | Low | Production, incremental GC |
-| **Mark-Sweep** | Slow | Exact | Medium | Recovery, verification |
-
-**Recommendation**: Use `RefcountGcStrategy` for production.
-
-### Retention Policies
-
-```java
-// Keep latest N versions
-RetentionPolicy.keepLatestN(10);
-
-// Keep versions newer than timestamp
-RetentionPolicy.keepNewerThan(System.currentTimeMillis() - 7 * 24 * 3600 * 1000); // 7 days
-
-// Keep specific versions
-RetentionPolicy.keepVersions(Set.of(1L, 5L, 10L));
-
-// Custom policy
-RetentionPolicy.custom(version -> version > 100);
-```
-
-### GC Tool (CLI)
-
-Command-line utility for testing and debugging GC:
-
-```bash
-# Generate test data (10K keys, 5 versions)
-java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
-  generate /tmp/mpt 10000 5
-
-# Show stats
-java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
-  stats /tmp/mpt
-
-# Run refcount GC (keep latest 1 version)
-java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
-  gc-refcount /tmp/mpt keep-latest 1
-
-# Run mark-sweep GC
-java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
-  gc-marksweep /tmp/mpt keep-latest 1
-```
-
-## API Overview
-
-### MpfTrie (Recommended)
-
-The primary API for Cardano developers with automatic key hashing and Aiken compatibility.
-
-```java
-// Constructors
-MpfTrie(NodeStore store)                           // Blake2b-256, MPF mode
-MpfTrie(NodeStore store, byte[] rootHash)          // Load existing trie
-
-// Core operations
-void put(byte[] key, byte[] value)                 // Keys automatically hashed
-byte[] get(byte[] key)
-void delete(byte[] key)
-byte[] getRootHash()
-
-// Proof generation (Aiken-compatible)
-Optional<ListPlutusData> getProofPlutusData(byte[] key)
-Optional<byte[]> getProofWire(byte[] key)
-```
-
-### RocksDbStateTrees
-
-Multi-tree management with versioning and GC support.
-
-```java
-// Constructors
-RocksDbStateTrees(String path)
-RocksDbStateTrees(String path, StorageMode mode)
-RocksDbStateTrees(RocksDB db, StorageMode mode)
-
-// Version management
-void commit(String name)
-byte[] getRootHash(String name)
-byte[] getRootHash(String name, long version)
-long currentVersion(String name)
-long nextVersion(String name)
-
-// Access internals
-RocksDbNodeStore nodeStore()
-RocksDbRootsIndex rootsIndex()
-RocksDB db()
-```
-
-### RocksDbNodeStore
-
-Low-level node storage implementation.
-
-```java
-// Constructor
-RocksDbNodeStore(RocksDB db)
-RocksDbNodeStore(RocksDB db, KeyPrefixer prefixer)
-
-// NodeStore interface
-byte[] get(byte[] hash)
-void put(byte[] hash, byte[] nodeBytes)
-void delete(byte[] hash)
-
-// Batch operations
-void withBatch(WriteBatch batch, Callable<?> operation)
-
-// Access
-ColumnFamilyHandle nodesHandle()
-KeyPrefixer keyPrefixer()
-```
-
-### GcManager
-
-Orchestrates garbage collection.
-
-```java
-// Constructor
-GcManager(RocksDbNodeStore nodeStore, RocksDbRootsIndex rootsIndex)
-
-// Synchronous GC
-GcReport runSync(GcStrategy strategy, RetentionPolicy policy, GcOptions options)
-
-// Asynchronous GC (returns immediately)
-CompletableFuture<GcReport> runAsync(GcStrategy strategy, RetentionPolicy policy, GcOptions options)
-```
-
-### GcOptions
-
-Configuration for GC runs.
-
-```java
-GcOptions options = new GcOptions();
-options.deleteBatchSize = 10_000;        // Nodes per batch
-options.progress = n -> log.info("{}", n); // Progress callback
-options.dryRun = false;                  // Set true to simulate
-options.parallelism = 4;                 // Threads (mark-sweep only)
-```
-
-### GcReport
-
-Results from GC execution.
-
-```java
-GcReport {
-    long marked;         // Nodes marked as reachable
-    long deleted;        // Nodes deleted
-    long total;          // Total nodes processed
-    long durationMillis; // Execution time
-}
-```
-
-## Batch Operations
-
-### Efficient Batch Writes
-
-```java
-import org.rocksdb.WriteBatch;
-import org.rocksdb.WriteOptions;
-import com.bloxbean.cardano.vds.mpf.MpfTrie;
-
-RocksDbNodeStore nodeStore = stateTrees.nodeStore();
-MpfTrie trie = new MpfTrie(nodeStore);
-
-try(
-WriteBatch batch = new WriteBatch();
-WriteOptions writeOpts = new WriteOptions()){
-
-        nodeStore.
-
-withBatch(batch, () ->{
-        // All operations go into the batch
-        trie.
-
-put("key1".getBytes(), "value1".
-
-getBytes());
-        trie.
-
-put("key2".getBytes(), "value2".
-
-getBytes());
-        trie.
-
-put("key3".getBytes(), "value3".
-
-getBytes());
-        return null;
-        });
-
-        // Atomic commit
-        stateTrees.
-
-db().
-
-write(writeOpts, batch);
-}
-```
-
-### Session-Based Batching
-
-```java
-import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbMptSession;
-import com.bloxbean.cardano.vds.mpf.MpfTrie;
-
-// Session automatically batches writes
-try(RocksDbMptSession session = new RocksDbMptSession(stateTrees)){
-MpfTrie trie = new MpfTrie(session.nodeStore());
-
-// Multiple operations batched
-    trie.
-
-put("alice".getBytes(), "100".
-
-getBytes());
-        trie.
-
-put("bob".getBytes(), "200".
-
-getBytes());
-        trie.
-
-put("charlie".getBytes(), "300".
-
-getBytes());
-
-        // Atomic commit
-        session.
-
-commit("accounts");
-}
-```
-
-## Storage Schema
-
-RocksDB stores MPF data in multiple column families:
-
-### Column Families
-
-```
-nodes:     hash → CBOR-encoded node
-roots:     (tree_name, version) → root_hash
-metadata:  key → value (configuration, stats)
-refcounts: hash → int (for refcount GC)
-```
-
-### Key Encoding
-
-```
-Node key:     prefix + hash (32 bytes Blake2b-256)
-Root key:     prefix + tree_name + version (varint)
-Refcount key: prefix + hash
-```
-
-## Performance
-
-### Benchmarks
-
-On commodity hardware (Intel i7-12700K, NVMe SSD):
-
-| Operation | Throughput | Latency (p50) |
-|-----------|-----------|---------------|
-| Insert (single) | 50K ops/sec | 20μs |
-| Insert (batch 1K) | 500K ops/sec | 2ms/batch |
-| Lookup | 100K ops/sec | 10μs |
-| Prefix scan (100 keys) | 50K scans/sec | 20μs |
-| GC (refcount) | 200K nodes/sec | - |
-| GC (mark-sweep) | 50K nodes/sec | - |
-
-### Tuning Tips
-
-**Write-heavy workload:**
-```java
-Options options = new Options()
-    .setWriteBufferSize(128 * 1024 * 1024)  // 128 MB
-    .setMaxWriteBufferNumber(4);
-
-RocksDbResources.builder()
-    .path(path)
-    .options(options)
-    .build();
-```
-
-**Read-heavy workload:**
-```java
-BlockBasedTableConfig tableConfig = new BlockBasedTableConfig()
-    .setBlockSize(64 * 1024)  // 64 KB blocks
-    .setCacheIndexAndFilterBlocks(true)
-    .setFilterPolicy(new BloomFilter(10));
-
-Options options = new Options()
-    .setTableFormatConfig(tableConfig);
-```
+`RocksDbStateTrees` opens (or creates) a RocksDB database holding two column families: `nodes` (trie nodes, plus
+refcounts when refcount GC is used) and `roots` (version → root hash). Use its `nodeStore()` as the `NodeStore` of an
+`MpfTrie`, record roots in its `rootsIndex()`, and reclaim space from old versions with a GC strategy.
+
+Several independent tries can share one database through **namespaces** (`NamespaceOptions`): either a column-family
+prefix (separate CFs) or a one-byte key prefix (shared CFs).
 
 ## Gradle Dependency
 
 ```gradle
 dependencies {
-    implementation 'com.bloxbean.cardano:merkle-patricia-forestry-rocksdb:0.8.0'
-
-    // RocksDB is included transitively
+    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rocksdb:<version>'
 }
 ```
 
-## Design Documentation
+## Quick Start
 
-- [Garbage Collection](docs/gc.md) - GC strategies and algorithms
-- [Core MPF Design](../merkle-patricia-forestry/docs/design.md) - MPF algorithm
-
-## Production Considerations
-
-### 1. Regular GC
+### Single trie, versions recorded per commit
 
 ```java
-// Schedule GC to run daily
-ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbMptSession;
+import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbStateTrees;
 
-scheduler.scheduleAtFixedRate(() -> {
-    try {
-        GcReport report = gcManager.runSync(
-            new RefcountGcStrategy(),
-            RetentionPolicy.keepLatestN(7),  // Keep 1 week
-            new GcOptions()
-        );
-        logger.info("GC completed: deleted {} nodes", report.deleted);
-    } catch (Exception e) {
-        logger.error("GC failed", e);
-    }
-}, 1, 24, TimeUnit.HOURS);
+try (RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf")) {   // MULTI_VERSION by default
+    MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
+    RocksDbMptSession session = RocksDbMptSession.of(stateTrees);
+
+    // One atomic batch: trie nodes + version entry + refcounts
+    long v1 = session.write(() -> {
+        trie.put("alice".getBytes(), "100".getBytes());
+        trie.put("bob".getBytes(), "200".getBytes());
+        return stateTrees.putRootWithRefcount(trie.getRootHash());
+    });
+
+    long v2 = session.write(() -> {
+        trie.put("alice".getBytes(), "150".getBytes());
+        return stateTrees.putRootWithRefcount(trie.getRootHash());
+    });
+
+    // Read an older version
+    MpfTrie atV1 = new MpfTrie(stateTrees.nodeStore(), stateTrees.rootsIndex().get(v1));
+    byte[] alice = atV1.get("alice".getBytes());   // "100"
+}
 ```
 
-### 2. Monitoring
+`putRootWithRefcount` may be called inside the session (as above) or after it; inside, the root, the version entry and
+the refcounts commit atomically with the nodes. If you collect with mark-sweep only, recording roots with
+`stateTrees.rootsIndex().put(version, root)` is enough.
+
+### Re-opening a trie
 
 ```java
-// Monitor RocksDB stats
-String stats = db.getProperty("rocksdb.stats");
-String estimatedSize = db.getProperty("rocksdb.total-sst-files-size");
-
-logger.info("RocksDB stats: {}", stats);
-logger.info("Total size: {} bytes", estimatedSize);
+try (RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf")) {
+    MpfTrie trie = new MpfTrie(stateTrees.nodeStore(), stateTrees.rootsIndex().latest());
+    byte[] value = trie.get("alice".getBytes());
+}
 ```
 
-### 3. Backup and Restore
+### Single-version (snapshot) mode
 
 ```java
-// Backup
-BackupEngine backupEngine = BackupEngine.open(env, new BackupEngineOptions(backupPath));
-backupEngine.createNewBackup(db);
-backupEngine.close();
+import com.bloxbean.cardano.vds.core.api.StorageMode;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions;
 
-// Restore
-BackupEngine backupEngine = BackupEngine.open(env, new BackupEngineOptions(backupPath));
-backupEngine.restoreDbFromLatestBackup(dbPath, dbPath, new RestoreOptions(false));
-backupEngine.close();
+// cleanupOrphanedNodes declares `throws Exception`
+try (RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf", StorageMode.SINGLE_VERSION)) {
+    MpfTrie trie = new MpfTrie(stateTrees.nodeStore(), stateTrees.getCurrentRoot());
+    trie.put("alice".getBytes(), "100".getBytes());
+    stateTrees.putRootSnapshot(trie.getRootHash());   // overwrites version 0
+    stateTrees.cleanupOrphanedNodes(new GcOptions()); // mark-sweep keeping only the current root
+}
 ```
 
-### 4. Graceful Shutdown
+The storage mode is persisted per namespace on first open and validated on every later open. RocksDB defaults to
+`MULTI_VERSION`; the RDBMS backend defaults to `SINGLE_VERSION`.
+
+### Namespaces
 
 ```java
-// Ensure all writes are flushed
-db.flush(new FlushOptions().setWaitForFlush(true));
-
-// Close in correct order
-stateTrees.close();  // Closes DB and resources
+// Shared column families, one-byte key prefix per trie
+new RocksDbStateTrees("data/mpf", NamespaceOptions.keyPrefix((byte) 0x01));
+// Separate column families per trie
+new RocksDbStateTrees("data/mpf", NamespaceOptions.columnFamily("accounts"));
 ```
+
+All index scans and GC runs are scoped to the namespace they were opened with. A RocksDB directory can only be opened
+by one `RocksDbStateTrees` at a time; open namespaces one after another, or build `RocksDbNodeStore` /
+`RocksDbRootsIndex` instances over one shared `RocksDB` handle yourself.
+
+## Garbage Collection
+
+Every `put` writes new nodes and leaves the nodes of older versions in place. GC deletes the nodes that no retained
+version reaches. See [docs/gc.md](docs/gc.md) for the algorithms and the on-disk layout.
+
+```java
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.*;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.*;
+
+// GcManager.runSync and GcStrategy.run declare `throws Exception`
+
+GcManager gc = new GcManager(stateTrees.nodeStore(), stateTrees.rootsIndex());
+GcOptions options = new GcOptions();
+options.deleteBatchSize = 10_000;
+options.progress = deleted -> System.out.println("deleted " + deleted);
+
+GcReport report = gc.runSync(new OnDiskMarkSweepStrategy(), RetentionPolicy.keepLatestN(5), options);
+System.out.println("deleted " + report.deleted + " of " + report.total + " nodes in " + report.durationMillis + " ms");
+```
+
+| Strategy | Cost | Requirements |
+|---|---|---|
+| `OnDiskMarkSweepStrategy` | Walks every retained version and scans the namespace's nodes | None; works on any store |
+| `RefcountGcStrategy` | Walks the retained versions (to protect their nodes) and the dropped versions; no full scan | Versions recorded with `putRootWithRefcount` (only those are reclaimed) |
+
+Rules:
+
+- The `LATEST` root and the root at the last version are always kept, whatever the policy says.
+- Do not run GC while another thread or process writes to the same namespace; the snapshot does not protect
+  re-puts of existing (content-addressed) node keys.
+- Refcount GC never deletes a node a retained version still reaches, even when counts are wrong (for example counts
+  written by pre-0.8.0 code, which counted only roots); it leaks instead and reports the kept nodes in
+  `GcReport.protectedNodes`. It refuses to run when a retained root has no refcount, and leaves nodes that were never
+  counted (for example intermediate nodes written inside a batch) to mark-sweep.
+- Prefer one strategy per namespace; run mark-sweep occasionally to reclaim what refcount GC leaks.
+- Both strategies use a temporary column family `__vds_gc_marks_<digits>`. If you open the `RocksDB` yourself, open it
+  with all column families from `RocksDB.listColumnFamilies` and call `GcManager.dropLeftoverGcColumnFamilies` after a
+  crash. Leftovers of 0.8.0-pre6 (`marks_<digits>`) are never dropped automatically; drop the ones you have checked
+  with `GcManager.dropLegacyGcColumnFamilies` (see
+  [docs/gc.md](docs/gc.md#7-temporary-column-families-and-caller-managed-databases)).
+- Refcount GC removes the entries of the versions it drops from the roots index; mark-sweep leaves the index as it is.
+
+Retention policies: `RetentionPolicy.keepLatestN(n)`, `keepVersions(Collection<Long>)`, `keepRange(from, to)`, or any
+lambda `index -> Collection<byte[]>` returning roots to keep.
+
+`GcManager.runAsync(strategy, policy, options, report -> ...)` runs the same GC on a daemon thread and passes the
+report to the callback.
+
+## API Overview
+
+### RocksDbStateTrees
+
+```java
+RocksDbStateTrees(String dbPath)
+RocksDbStateTrees(String dbPath, StorageMode mode)
+RocksDbStateTrees(String dbPath, NamespaceOptions namespace)
+RocksDbStateTrees(String dbPath, NamespaceOptions namespace, StorageMode mode)
+RocksDbStateTrees(String dbPath, NamespaceOptions namespace, StorageMode mode, RocksDbConfig config)
+
+RocksDbNodeStore nodeStore()
+RocksDbRootsIndex rootsIndex()
+RocksDB db()
+StorageMode storageMode()
+
+long putRootWithRefcount(byte[] root)        // MULTI_VERSION
+void putRootSnapshot(byte[] root)            // SINGLE_VERSION, always version 0
+byte[] getCurrentRoot()                      // SINGLE_VERSION
+GcReport cleanupOrphanedNodes(GcOptions o)   // SINGLE_VERSION
+```
+
+### RocksDbNodeStore
+
+```java
+RocksDbNodeStore(String dbPath)
+RocksDbNodeStore(String dbPath, NamespaceOptions namespace)
+RocksDbNodeStore(RocksDB db, ColumnFamilyHandle cfNodes)
+RocksDbNodeStore(RocksDB db, ColumnFamilyHandle cfNodes, KeyPrefixer prefixer)
+
+byte[] get(byte[] hash)
+void put(byte[] hash, byte[] nodeBytes)
+void delete(byte[] hash)
+<T> T withBatch(WriteBatch batch, Callable<T> work)   // stage writes; the caller writes the batch
+```
+
+### RocksDbRootsIndex
+
+```java
+void put(long version, byte[] root)    // also updates LATEST and the last-version counter
+byte[] get(long version)
+byte[] latest()
+long lastVersion()
+long nextVersion()
+NavigableMap<Long, byte[]> listAll()
+NavigableMap<Long, byte[]> listRange(long fromInclusive, long toInclusive)
+void deleteVersion(long version)
+```
+
+### RocksDbMptSession
+
+```java
+RocksDbMptSession.of(stateTrees)                                            // or of(nodeStore)
+RocksDbMptSession.of(stateTrees, Options.builder().disableWal(true).build())
+<T> T write(Callable<T> work)   // runs work inside nodeStore.withBatch and commits the batch
+void write(Runnable work)
+```
+
+### GcOptions and GcReport
+
+```java
+GcOptions: boolean dryRun; int deleteBatchSize; boolean useSnapshot (default true); LongConsumer progress
+GcReport:  long marked; long total; long deleted; long protectedNodes (refcount); long durationMillis
+```
+
+`dryRun` and `useSnapshot` apply to both strategies. `deleteBatchSize` and `progress` apply to mark-sweep only:
+refcount GC writes its decrements, deletions and index updates as one atomic `WriteBatch`.
+
+## Storage Layout
+
+```
+nodes CF:  [ns][node hash]          -> CBOR-encoded node
+           [ns][0xF0][node hash]    -> refcount, 8-byte big-endian (refcount GC only)
+roots CF:  [ns][version, 8-byte BE] -> root hash
+           [ns]"LATEST"             -> latest root
+           [ns]"VERSION"            -> last version number
+           [ns]"_storage_mode"      -> MULTI_VERSION | SINGLE_VERSION
+```
+
+`[ns]` is the one-byte key prefix of the namespace (`0x00` by default). With `NamespaceOptions.columnFamily(...)`
+the column family names carry the namespace instead.
 
 ## Thread Safety
 
-- **RocksDbStateTrees**: Thread-safe for reads, serialize writes
-- **RocksDbNodeStore**: Thread-safe for reads, batch writes need coordination
-- **MpfTrie**: NOT thread-safe, use separate instances per thread
-- **GcManager**: Thread-safe, can run GC concurrently with reads
-
-## Related Modules
-
-- [merkle-patricia-forestry](../merkle-patricia-forestry/) - MPT core algorithm
-- [rocksdb-core](../rocksdb-core/) - RocksDB utilities
-- [merkle-patricia-forestry-rdbms](../merkle-patricia-forestry-rdbms/) - Alternative: SQL backend
+- `MpfTrie` is not thread-safe; use one instance per thread or synchronize externally.
+- The backend has no concurrency control: serialize writers of a namespace, and pause them while GC runs.
+- Batches opened with `withBatch` / `RocksDbMptSession.write` are bound to the calling thread.
 
 ## Tools
 
-- **GcTool** - CLI for GC testing (see `tools/GcTool.java`)
-- **MptLoadTester** - Performance benchmarking tool (see `tools/MptLoadTester.java`)
+The `load-tools` module has a GC CLI (`com.bloxbean.cardano.vds.tools.mpf.GcTool`) and a load tester
+(`com.bloxbean.cardano.vds.tools.mpf.MptLoadTester`); see [load-tools/README.md](../load-tools/README.md).
+
+## Related Modules
+
+- [merkle-patricia-forestry](../merkle-patricia-forestry/) - MPF core
+- [rocksdb-core](../rocksdb-core/) - RocksDB configuration and namespace utilities
+- [merkle-patricia-forestry-rdbms](../merkle-patricia-forestry-rdbms/) - SQL backend
 
 ## References
 
-- [RocksDB](https://rocksdb.org/) - Embedded key-value store
-- [Aiken Merkle Patricia Forestry](https://github.com/aiken-lang/merkle-patricia-forestry) - Cardano MPF reference implementation
+- [RocksDB](https://rocksdb.org/)
+- [Aiken Merkle Patricia Forestry](https://github.com/aiken-lang/merkle-patricia-forestry)

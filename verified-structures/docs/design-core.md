@@ -4,13 +4,14 @@
 
 ## Table of Contents
 
-1. [Architecture Overview](#architecture-overview)
-2. [Core Interfaces](#core-interfaces)
-3. [Data Structures](#data-structures)
-4. [Algorithms](#algorithms)
-5. [Design Decisions](#design-decisions)
-6. [Performance Characteristics](#performance-characteristics)
-7. [References](#references)
+1. [Architecture Overview](#1-architecture-overview)
+2. [Core Interfaces](#2-core-interfaces)
+3. [Data Structures](#3-data-structures)
+4. [Algorithms](#4-algorithms)
+5. [Design Decisions](#5-design-decisions)
+6. [Performance Characteristics](#6-performance-characteristics)
+7. [Implementation Details](#7-implementation-details)
+8. [References](#8-references)
 
 ---
 
@@ -21,7 +22,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Merkle Tree Implementations              │
-│   (merkle-patricia-trie, jellyfish-merkle)                 │
+│   (merkle-patricia-forestry, jellyfish-merkle)             │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
@@ -645,7 +646,7 @@ public interface NodeStore {
 
 - [design-rocksdb.md](design-rocksdb.md) - RocksDB backend integration
 - [design-rdbms.md](design-rdbms.md) - RDBMS backend integration
-- [merkle-patricia-trie/docs/design-mpt.md](../merkle-patricia-trie/docs/design-mpt.md) - MPT algorithm details
+- [merkle-patricia-forestry/docs/design-mpt.md](../merkle-patricia-forestry/docs/design-mpt.md) - MPF algorithm details
 - [jellyfish-merkle/docs/design-jmt.md](../jellyfish-merkle/docs/design-jmt.md) - JMT architecture
 
 ---

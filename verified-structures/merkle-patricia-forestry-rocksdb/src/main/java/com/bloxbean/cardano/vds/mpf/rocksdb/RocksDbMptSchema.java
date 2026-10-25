@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.vds.mpf.rocksdb;
 
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 
 /**
@@ -30,11 +31,15 @@ final class RocksDbMptSchema {
             ? ""
             : opts.columnFamilyPrefix() + "_";
 
-        return new ColumnFamilies(
-                cfPrefix + CF_NODES,
-                cfPrefix + CF_ROOTS,
-                opts.keyPrefix()  // Always present!
-        );
+        String nodes = cfPrefix + CF_NODES;
+        String roots = cfPrefix + CF_ROOTS;
+        // GC drops leftover mark-set column families by exact name on open (never the opening store's own CFs).
+        // The resolved names end in _nodes / _roots, so they cannot match; keep the invariant explicit.
+        if (DiskMarkSet.isMarkSetColumnFamily(nodes) || DiskMarkSet.isMarkSetColumnFamily(roots)) {
+            throw new IllegalArgumentException("Column family names '" + nodes + "' / '" + roots
+                    + "' collide with GC temporary column family names");
+        }
+        return new ColumnFamilies(nodes, roots, opts.keyPrefix());
     }
 
 

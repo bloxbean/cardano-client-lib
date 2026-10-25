@@ -68,7 +68,8 @@ import java.util.Optional;
  * </ul>
  *
  * <p><b>Thread Safety:</b> This class is NOT thread-safe. External synchronization
- * is required for concurrent access.</p>
+ * is required for concurrent access. The node store backends (RocksDB, RDBMS) do not coordinate
+ * concurrent writers either, so use a single writer per trie (or namespace).</p>
  *
  * @see <a href="https://github.com/aiken-lang/merkle-patricia-forestry">Aiken Merkle Patricia Forestry</a>
  * @since 0.8.0
@@ -189,13 +190,54 @@ public final class MpfTrie {
     }
 
     /**
+     * Opens a trie at {@code root} and fails fast if that root is not in {@code store}.
+     *
+     * <p>The constructors are lenient: given a root that is not in the store, reads return {@code null} and the next
+     * {@code put} silently starts a new trie. Use this factory when the root comes from elsewhere (for example an
+     * on-chain datum) and must match the off-chain store.</p>
+     *
+     * @param store the node store
+     * @param root  the root to open; {@code null} or the all-zero root ({@link #getRootHashOrEmpty()}) open an
+     *              empty trie
+     * @return the trie
+     * @throws IllegalStateException if a non-empty root is not present in the store
+     */
+    public static MpfTrie open(NodeStore store, byte[] root) {
+        return open(store, Blake2b256::digest, root);
+    }
+
+    /**
+     * Opens a trie with a custom hash function and fails fast if {@code root} is not in {@code store}.
+     *
+     * @see #open(NodeStore, byte[])
+     */
+    public static MpfTrie open(NodeStore store, HashFunction hashFn, byte[] root) {
+        return open(store, hashFn, root, new MpfCommitmentScheme(Objects.requireNonNull(hashFn, "hashFn")));
+    }
+
+    /**
+     * Opens a trie with a custom hash function and commitment scheme and fails fast if {@code root} is not in
+     * {@code store}.
+     *
+     * @see #open(NodeStore, byte[])
+     */
+    public static MpfTrie open(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitmentScheme) {
+        Objects.requireNonNull(store, "store");
+        Objects.requireNonNull(commitmentScheme, "commitmentScheme");
+        if (!Impl.isEmptyRoot(root, commitmentScheme.nullHash().length) && store.get(root) == null) {
+            throw new IllegalStateException("MPF root " + HexUtil.encodeHexString(root) + " is not in the node store");
+        }
+        return new MpfTrie(store, hashFn, root, commitmentScheme);
+    }
+
+    /**
      * Sets the root hash of this trie.
      *
      * <p>This method allows switching to a different trie state by changing the root.
      * Useful for reverting to previous states or switching between different tries
-     * that share the same storage backend.</p>
+     * that share the same storage backend. The array is copied.</p>
      *
-     * @param root the new root hash, or null to reset to empty trie
+     * @param root the new root hash, or {@code null} (or the all-zero root) to reset to the empty trie
      */
     public void setRootHash(byte[] root) {
         impl.setRootHash(root);
@@ -207,10 +249,26 @@ public final class MpfTrie {
      * <p>The root hash uniquely identifies the entire state of the trie. This is
      * the value you would commit on-chain for verification against proofs.</p>
      *
+     * <p>The result is a copy. For an empty trie this returns {@code null} (or the all-zero root, if that is what
+     * the trie was opened with); use {@link #getRootHashOrEmpty()} when you need Aiken's empty root.</p>
+     *
      * @return the root hash as a byte array, or null if the trie is empty
      */
     public byte[] getRootHash() {
         return impl.getRootHash();
+    }
+
+    /**
+     * Returns the current root hash, or the all-zero hash for an empty trie.
+     *
+     * <p>This is the value to put in an on-chain datum: Aiken's {@code mpf.empty} root is 32 zero bytes (for
+     * Blake2b-256), while {@link #getRootHash()} returns {@code null} for an empty trie.</p>
+     *
+     * @return a copy of the root hash, never {@code null}
+     */
+    public byte[] getRootHashOrEmpty() {
+        byte[] root = impl.getRootHash();
+        return root == null || impl.isEmpty(root) ? impl.emptyRoot() : root;
     }
 
     /**
@@ -262,8 +320,12 @@ public final class MpfTrie {
      *
      * <p>The key is automatically hashed before proof generation.</p>
      *
+     * <p>The proof is canonical (identical to the official off-chain library's): for a present key it proves
+     * inclusion, for an absent key it proves exclusion and is also the proof Aiken's {@code insert} expects.</p>
+     *
      * @param key the original key to generate proof for
-     * @return the wire-format proof bytes, or empty if proof cannot be generated
+     * @return the wire-format proof bytes
+     * @throws IllegalStateException if the root or a node on the path is missing from the store
      */
     public Optional<byte[]> getProofWire(byte[] key) {
         return impl.getProofWire(hashFn.digest(key));
@@ -663,6 +725,7 @@ public final class MpfTrie {
         private final CommitmentScheme commitments;
 
         private byte[] root; // nullable => empty trie
+        private byte[] emptyRootAlias; // the all-zero root the trie was opened with, returned until the first change
 
         /**
          * Creates a new Merkle Patricia Trie implementation with custom commitment scheme.
@@ -678,21 +741,38 @@ public final class MpfTrie {
             this.hashFn = Objects.requireNonNull(hashFn, "HashFunction");
             this.commitments = Objects.requireNonNull(commitments, "CommitmentScheme");
             this.persistence = new NodePersistence(store, commitments, hashFn);
-            this.root = root == null || root.length == 0 ? null : root;
+            setRootHash(root);
         }
 
         /**
-         * Sets the root hash of the trie.
+         * Sets the root hash of the trie (copied). {@code null}, empty and all-zero roots denote the empty trie.
          */
         void setRootHash(byte[] root) {
-            this.root = root == null || root.length == 0 ? null : root;
+            if (isEmpty(root)) {
+                this.root = null;
+                this.emptyRootAlias = root == null || root.length == 0 ? null : root.clone();
+            } else {
+                this.root = root.clone();
+                this.emptyRootAlias = null;
+            }
         }
 
         /**
-         * Gets the current root hash of the trie.
+         * Gets a copy of the current root hash: {@code null} for the empty trie, unless the trie was opened with the
+         * all-zero root and has not changed since.
          */
         byte[] getRootHash() {
-            return root;
+            if (root != null) return root.clone();
+            return emptyRootAlias == null ? null : emptyRootAlias.clone();
+        }
+
+        boolean isEmpty(byte[] root) {
+            return isEmptyRoot(root, commitments.nullHash().length);
+        }
+
+        /** The all-zero root of the empty trie (Aiken {@code mpf.empty}). */
+        byte[] emptyRoot() {
+            return commitments.nullHash();
         }
 
         /**
@@ -709,6 +789,7 @@ public final class MpfTrie {
             int[] nibblePath = Nibbles.toNibbles(path);
             NodeHash result = putAtNew(this.root, nibblePath, 0, value, key);
             this.root = result != null ? result.toBytes() : null;
+            this.emptyRootAlias = null;
         }
 
         /**
@@ -725,11 +806,21 @@ public final class MpfTrie {
         void delete(byte[] key) {
             int[] nibblePath = Nibbles.toNibbles(key);
             NodeHash result = deleteAtNew(this.root, nibblePath, 0);
+            if (result != null || this.root != null) {
+                this.emptyRootAlias = null;
+            }
             this.root = result != null ? result.toBytes() : null;
         }
 
         /**
-         * Builds an MPF-style inclusion or non-inclusion proof for the provided key.
+         * Builds an MPF proof for the provided (already hashed) key.
+         *
+         * <p>The steps are canonical, i.e. identical to the official off-chain library
+         * ({@code aiken-lang/merkle-patricia-forestry}): at every branch on the path, a branch whose only other child
+         * is a leaf yields a {@code Leaf} step, one whose only other child is a branch yields a {@code Fork} step with
+         * that branch's prefix and raw 16-way merkle root, and any other branch yields a {@code Branch} step. For a
+         * missing key the proof equals the inclusion proof of that key in the trie where it was inserted, so the same
+         * proof works for Aiken's {@code miss}, {@code insert} and {@code delete}.</p>
          */
         private TraversalProof getProof(byte[] key) {
             Objects.requireNonNull(key, "key");
@@ -740,129 +831,91 @@ public final class MpfTrie {
             int[] keyNibbles = Nibbles.toNibbles(key);
             List<TraversalProof.Step> steps = new ArrayList<>();
             NibblePath pendingPrefix = NibblePath.EMPTY;
-            byte[] currentHash = this.root;
-            int depth = 0;
             List<Integer> traversedNibbles = new ArrayList<>();
+            int depth = 0;
+
+            // An unknown root (not in the store) fails like any other missing node.
+            Node node = loadRequired(this.root);
 
             while (true) {
-                Node node = persistence.load(NodeHash.of(currentHash));
-                if (node == null) {
-                    return TraversalProof.nonInclusionMissingBranch(steps);
-                }
-
                 if (node instanceof BranchNode) {
                     BranchNode branch = (BranchNode) node;
                     byte[][] childHashes = materializeChildHashes(branch);
-                    int childIndex = depth < keyNibbles.length ? keyNibbles[depth] : -1;
-
                     if (depth >= keyNibbles.length) {
+                        // Only reachable with unhashed, variable-length paths; MpfTrie always hashes keys.
                         byte[] branchValue = branch.getValue();
-                        byte[] branchValueHash = null;
-                        if (commitments.encodesBranchValueInBranchCommitment()) {
-                            branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
-                        }
-                        steps.add(new TraversalProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
-                        pendingPrefix = NibblePath.EMPTY;
-
+                        byte[] branchValueHash = branchValueHash(branch);
+                        steps.add(new TraversalProof.BranchStep(pendingPrefix, childHashes, -1, branchValueHash));
                         if (branchValue != null) {
                             return TraversalProof.inclusion(steps, branchValue, branchValueHash, NibblePath.EMPTY);
                         }
                         return TraversalProof.nonInclusionMissingBranch(steps);
                     }
 
-                    byte[] childCommit = branch.getChild(childIndex);
-                    if (childCommit == null || childCommit.length == 0) {
-                        byte[] branchValueHash = null;
-                        if (commitments.encodesBranchValueInBranchCommitment()) {
-                            branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
-                        }
-                        steps.add(new TraversalProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
-                        pendingPrefix = NibblePath.EMPTY;
-                        return TraversalProof.nonInclusionMissingBranch(steps);
-                    }
-
-                    byte[] branchValueHash = null;
-                    if (commitments.encodesBranchValueInBranchCommitment()) {
-                        branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
-                    }
-                    steps.add(new TraversalProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
+                    int childIndex = keyNibbles[depth];
+                    steps.add(canonicalStep(branch, childHashes, childIndex, pendingPrefix, traversedNibbles));
                     pendingPrefix = NibblePath.EMPTY;
 
-                    currentHash = childCommit;
+                    byte[] childCommit = childHashes[childIndex];
+                    if (childCommit == null) {
+                        return TraversalProof.nonInclusionMissingBranch(steps);
+                    }
                     traversedNibbles.add(childIndex);
                     depth++;
+                    node = loadRequired(childCommit);
                     continue;
                 }
 
                 if (node instanceof ExtensionNode) {
                     ExtensionNode extension = (ExtensionNode) node;
-                    Nibbles.HP hp = Nibbles.unpackHP(extension.getHp());
-                    int[] extNibbles = hp.nibbles;
+                    int[] extNibbles = Nibbles.unpackHP(extension.getHp()).nibbles;
 
-                    boolean pathMismatch = false;
-                    int mismatchPosition = -1;
-
-                    if (depth + extNibbles.length > keyNibbles.length) {
-                        pathMismatch = true;
-                        mismatchPosition = keyNibbles.length - depth;
-                    } else {
-                        for (int i = 0; i < extNibbles.length; i++) {
-                            if (keyNibbles[depth + i] != extNibbles[i]) {
-                                pathMismatch = true;
-                                mismatchPosition = i;
-                                break;
-                            }
-                        }
+                    int matched = 0;
+                    while (matched < extNibbles.length && depth + matched < keyNibbles.length
+                            && keyNibbles[depth + matched] == extNibbles[matched]) {
+                        matched++;
                     }
 
-                    if (pathMismatch) {
-                        int matched = mismatchPosition < 0 ? 0 : mismatchPosition;
-                        if (matched >= extNibbles.length) {
+                    if (matched < extNibbles.length) {
+                        if (depth + matched >= keyNibbles.length) {
                             return TraversalProof.nonInclusionMissingBranch(steps);
                         }
-
-                        byte[] childCommit = extension.getChild();
-                        if (childCommit == null || childCommit.length == 0) {
-                            return TraversalProof.nonInclusionMissingBranch(steps);
+                        // The path diverges inside the extension. The node at this position has the prefix
+                        // pendingPrefix ++ (extension chain nibbles); the proof ends with a terminal Fork (or Leaf when
+                        // the chain ends in a leaf, which older stores may contain).
+                        Resolved target = resolve(extension);
+                        int[] chain = target.prefix;
+                        int skip = pendingPrefix.length() + matched;
+                        if (target.leaf != null) {
+                            int[] leafPath = concatAll(traversedNibbles, chain, leafNibbles(target.leaf));
+                            return TraversalProof.nonInclusionDifferentLeaf(steps, Nibbles.fromNibbles(leafPath),
+                                    hashFn.digest(target.leaf.getValue()), NibblePath.of(leafNibbles(target.leaf)));
                         }
-
-                        int[] skipPrefix = matched == 0 ? new int[0] : Arrays.copyOf(extNibbles, matched);
-                        int neighborNibble = extNibbles[matched];
-                        int[] suffixNibbles = matched + 1 < extNibbles.length
-                                ? Arrays.copyOfRange(extNibbles, matched + 1, extNibbles.length)
-                                : new int[0];
-
-                        NibblePath forkSkip = concat(pendingPrefix, skipPrefix);
-                        NibblePath forkSuffix = NibblePath.of(suffixNibbles);
-                        byte[] flattenedCommit = persistence.computeExtensionCommitForProof(extension);
-
-                        steps.add(new TraversalProof.ForkStep(forkSkip, neighborNibble, forkSuffix, flattenedCommit));
+                        NibblePath forkSkip = concat(pendingPrefix, Arrays.copyOf(chain, matched));
+                        NibblePath forkSuffix = NibblePath.of(Arrays.copyOfRange(chain, matched + 1, chain.length));
+                        steps.add(new TraversalProof.ForkStep(forkSkip, chain[matched], forkSuffix,
+                                merkle16(target.branch)));
+                        assert forkSkip.length() == skip;
                         return TraversalProof.nonInclusionMissingBranch(steps);
                     }
 
-                    // Extension nibbles are always accumulated as pending prefix for the NEXT branch.
-                    // They must NOT be folded into the preceding BranchStep because the verifier
-                    // interprets skip as nibbles consumed BEFORE the branch, computing the branch
-                    // child nibble at position (cursor + skip). Folding an extension that comes
-                    // AFTER a branch shifts the nibble index and selects the wrong branch slot.
+                    // Extension nibbles become the prefix (skip) of the next branch step.
                     pendingPrefix = concat(pendingPrefix, extNibbles);
-
                     for (int nibble : extNibbles) {
                         traversedNibbles.add(nibble);
                     }
                     depth += extNibbles.length;
                     byte[] childCommit = extension.getChild();
                     if (childCommit == null || childCommit.length == 0) {
-                        return TraversalProof.nonInclusionMissingBranch(steps);
+                        throw new IllegalStateException("Extension node without child");
                     }
-                    currentHash = childCommit;
+                    node = loadRequired(childCommit);
                     continue;
                 }
 
                 if (node instanceof LeafNode) {
                     LeafNode leaf = (LeafNode) node;
-                    Nibbles.HP hp = Nibbles.unpackHP(leaf.getHp());
-                    int[] leafNibbles = hp.nibbles;
+                    int[] leafNibbles = leafNibbles(leaf);
                     if (depth + leafNibbles.length == keyNibbles.length) {
                         boolean matches = true;
                         for (int i = 0; i < leafNibbles.length; i++) {
@@ -873,26 +926,145 @@ public final class MpfTrie {
                         }
                         if (matches) {
                             byte[] value = leaf.getValue();
-                            byte[] valueHash = hashFn.digest(value);
-                            NibblePath suffix = NibblePath.of(leafNibbles);
-                            return TraversalProof.inclusion(steps, value, valueHash, suffix);
+                            return TraversalProof.inclusion(steps, value, hashFn.digest(value), NibblePath.of(leafNibbles));
                         }
                     }
 
-                    int[] conflictingPathNibbles = new int[traversedNibbles.size() + leafNibbles.length];
-                    for (int i = 0; i < traversedNibbles.size(); i++) {
-                        conflictingPathNibbles[i] = traversedNibbles.get(i);
-                    }
-                    System.arraycopy(leafNibbles, 0, conflictingPathNibbles, traversedNibbles.size(), leafNibbles.length);
-                    byte[] conflictingKeyHash = Nibbles.fromNibbles(conflictingPathNibbles);
-
-                    byte[] conflictingValueHash = hashFn.digest(leaf.getValue());
-                    NibblePath conflictingSuffix = NibblePath.of(leafNibbles);
-                    return TraversalProof.nonInclusionDifferentLeaf(steps, conflictingKeyHash, conflictingValueHash, conflictingSuffix);
+                    int[] conflictingPath = concatAll(traversedNibbles, leafNibbles);
+                    return TraversalProof.nonInclusionDifferentLeaf(steps, Nibbles.fromNibbles(conflictingPath),
+                            hashFn.digest(leaf.getValue()), NibblePath.of(leafNibbles));
                 }
 
                 throw new IllegalStateException("Unsupported node type " + node.getClass().getSimpleName());
             }
+        }
+
+        /**
+         * The step for a branch on the path: {@code Leaf}/{@code Fork} when the branch has exactly one child besides
+         * the one on the path, {@code Branch} otherwise (same rule as the off-chain library's {@code Proof.rewind}).
+         */
+        private TraversalProof.Step canonicalStep(BranchNode branch, byte[][] childHashes, int childIndex,
+                                                  NibblePath skipPath, List<Integer> traversedNibbles) {
+            int sibling = -1;
+            int siblings = 0;
+            for (int i = 0; i < 16; i++) {
+                if (i != childIndex && childHashes[i] != null) {
+                    siblings++;
+                    sibling = i;
+                }
+            }
+            if (siblings != 1 || branch.getValue() != null) {
+                return new TraversalProof.BranchStep(skipPath, childHashes, childIndex, branchValueHash(branch));
+            }
+
+            Resolved neighbour = resolve(loadRequired(childHashes[sibling]));
+            if (neighbour.leaf != null) {
+                int[] neighbourPath = concatAll(traversedNibbles, new int[]{sibling}, neighbour.prefix,
+                        leafNibbles(neighbour.leaf));
+                return new TraversalProof.LeafStep(skipPath, Nibbles.fromNibbles(neighbourPath),
+                        hashFn.digest(neighbour.leaf.getValue()));
+            }
+            return new TraversalProof.ForkStep(skipPath, sibling, NibblePath.of(neighbour.prefix),
+                    merkle16(neighbour.branch));
+        }
+
+        /** A logical MPF node: the prefix nibbles of an extension chain plus the branch or leaf it ends in. */
+        private static final class Resolved {
+            final int[] prefix;
+            final BranchNode branch;
+            final LeafNode leaf;
+
+            Resolved(int[] prefix, BranchNode branch, LeafNode leaf) {
+                this.prefix = prefix;
+                this.branch = branch;
+                this.leaf = leaf;
+            }
+        }
+
+        private Resolved resolve(Node node) {
+            int[] prefix = new int[0];
+            Node current = node;
+            while (current instanceof ExtensionNode) {
+                ExtensionNode ext = (ExtensionNode) current;
+                int[] nibbles = Nibbles.unpackHP(ext.getHp()).nibbles;
+                int[] next = Arrays.copyOf(prefix, prefix.length + nibbles.length);
+                System.arraycopy(nibbles, 0, next, prefix.length, nibbles.length);
+                prefix = next;
+                byte[] child = ext.getChild();
+                if (child == null || child.length == 0) {
+                    throw new IllegalStateException("Extension node without child");
+                }
+                current = loadRequired(child);
+            }
+            if (current instanceof BranchNode) return new Resolved(prefix, (BranchNode) current, null);
+            if (current instanceof LeafNode) return new Resolved(prefix, null, (LeafNode) current);
+            throw new IllegalStateException("Unsupported node type " + current.getClass().getSimpleName());
+        }
+
+        private Node loadRequired(byte[] hash) {
+            Node node = persistence.load(NodeHash.of(hash));
+            if (node == null) {
+                throw new IllegalStateException("Node " + HexUtil.encodeHexString(hash)
+                        + " is referenced by the trie but missing from the store");
+            }
+            return node;
+        }
+
+        /** Raw 16-way merkle root of a branch's children (no prefix), as used by {@code Fork} steps. */
+        private byte[] merkle16(BranchNode branch) {
+            byte[] nullHash = commitments.nullHash();
+            byte[][] layer = new byte[16][];
+            for (int i = 0; i < 16; i++) {
+                byte[] child = branch.getChild(i);
+                layer[i] = child == null || child.length == 0 ? nullHash : child;
+            }
+            for (int size = 16; size > 1; size /= 2) {
+                byte[][] next = new byte[size / 2][];
+                for (int i = 0; i < next.length; i++) {
+                    byte[] pair = Arrays.copyOf(layer[2 * i], layer[2 * i].length + layer[2 * i + 1].length);
+                    System.arraycopy(layer[2 * i + 1], 0, pair, layer[2 * i].length, layer[2 * i + 1].length);
+                    next[i] = hashFn.digest(pair);
+                }
+                layer = next;
+            }
+            return layer[0];
+        }
+
+        private byte[] branchValueHash(BranchNode branch) {
+            if (!commitments.encodesBranchValueInBranchCommitment() || branch.getValue() == null) {
+                return null;
+            }
+            return hashFn.digest(branch.getValue());
+        }
+
+        /**
+         * {@code true} for the empty trie: no root, or the all-zero root of the digest length (Aiken's
+         * {@code mpf.empty}).
+         */
+        static boolean isEmptyRoot(byte[] root, int digestLength) {
+            if (root == null || root.length == 0) return true;
+            if (root.length != digestLength) return false;
+            for (byte b : root) {
+                if (b != 0) return false;
+            }
+            return true;
+        }
+
+        private static int[] leafNibbles(LeafNode leaf) {
+            return Nibbles.unpackHP(leaf.getHp()).nibbles;
+        }
+
+        private static int[] concatAll(List<Integer> head, int[]... tails) {
+            int length = head.size();
+            for (int[] t : tails) length += t.length;
+            int[] out = new int[length];
+            int offset = 0;
+            for (Integer n : head) out[offset++] = n;
+            for (int[] t : tails) {
+                System.arraycopy(t, 0, out, offset, t.length);
+                offset += t.length;
+            }
+            return out;
         }
 
         /**

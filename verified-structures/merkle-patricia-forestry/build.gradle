@@ -11,6 +11,7 @@ dependencies {
     implementation(libs.jackson.databind)
 
     testImplementation project(':test-support')
+    testImplementation(libs.jazzer.junit)
 
     jmh(libs.jmh.core)
     jmh(libs.jmh.generator.annprocess)

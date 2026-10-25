@@ -79,11 +79,17 @@ This guarantees:
 
 ### Proof Structure
 
-A proof is a path from root to the target key, containing:
+A proof is the list of steps for the branches on the key's path, in Aiken's `Proof` format:
 
-1. **Branch nodes**: 16-way decision points with sibling hashes
-2. **Extension nodes**: Compressed path segments
-3. **Leaf node**: Terminal node with value hash
+1. **Branch** `{ skip, neighbors }`: a branch with two or more other children; `neighbors` holds the 4 sibling
+   merkle roots of its 16-way merkle tree
+2. **Fork** `{ skip, neighbor: { nibble, prefix, root } }`: a branch whose only other child is a branch (`root` is
+   that branch's raw merkle root, without its `prefix`)
+3. **Leaf** `{ skip, key, value }`: a branch whose only other child is a leaf (its full path and value hash)
+
+`skip` is the number of prefix nibbles before the branch. The steps are the same as the official off-chain library's,
+and the proof of an absent key is the one the library gives after inserting it, so one proof works for Aiken's
+`has`, `miss`, `insert`, `delete` and `update` (see the README table). Details: [design-mpt.md](design-mpt.md#4-proof-generation).
 
 ### PlutusData Format
 
@@ -111,20 +117,18 @@ The root hash commits to the entire trie state.
 
 ### Leaf Commitment
 ```
-H( key_suffix || H(value) )
-```
-
-### Extension Commitment
-```
-H( path || child_hash )
+H( encoded_suffix || H(value) )      // encoded_suffix: 0xFF || packed nibbles (even length),
+                                     //                 0x00 || first nibble || packed rest (odd length)
 ```
 
 ### Branch Commitment
 ```
-MerkleRoot( child[0], child[1], ..., child[15] )
+H( prefix_nibbles || MerkleRoot( child[0], child[1], ..., child[15] ) )
 ```
 
-Where `H` is Blake2b-256 and `MerkleRoot` builds a binary Merkle tree over the 16 children.
+Where `H` is Blake2b-256, `prefix_nibbles` holds one byte per prefix nibble (empty for a branch without prefix) and
+`MerkleRoot` builds a binary Merkle tree over the 16 children (an empty slot is 32 zero bytes). CCL stores a prefixed
+branch as an extension node pointing to a branch node, but commits to it with this single formula, as Aiken does.
 
 For detailed algorithm descriptions, see [design-mpt.md](design-mpt.md).
 

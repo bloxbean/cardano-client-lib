@@ -32,10 +32,9 @@ This library provides experimental Merkle-based authenticated data structures wi
 ## Key Features
 
 ### Merkle Patricia Forestry (MPF)
-- Cardano-optimized radix tree with path compression
-- Space-efficient extension nodes
-- Prefix scanning for range queries
-- Two modes: Classic (off-chain) and MPF (Cardano/Aiken compatible)
+- Radix-16 trie with path compression, compatible with the Aiken
+  [merkle-patricia-forestry](https://github.com/aiken-lang/merkle-patricia-forestry) on-chain library
+- Inclusion and exclusion proofs as Plutus data for Aiken validators
 - `MpfTrie` primary API for Cardano developers
 
 ### Jellyfish Merkle Tree (JMT)
@@ -46,10 +45,17 @@ This library provides experimental Merkle-based authenticated data structures wi
 - Efficient stale node tracking
 
 ### Storage Backends
-- **RocksDB**: High-performance embedded database with garbage collection
-- **PostgreSQL**: Distributed deployments with SQL query support
-- **H2**: In-process SQL database for testing
-- **SQLite**: Lightweight embedded SQL storage
+- **RocksDB** (recommended for now): high-performance embedded database with garbage collection
+- **PostgreSQL**: deployments that need SQL access to the data
+- **H2**: in-process SQL database for testing
+- **SQLite**: lightweight embedded SQL storage
+
+Notes:
+- The RDBMS backends never create their tables. For MPF call `RdbmsMpfSchema.createIfNotExists(dbConfig)` once,
+  or apply the bundled DDL under `/ddl/mpf/{postgres,h2,sqlite}/schema.sql`; for JMT apply
+  `/ddl/jmt/{postgres,h2,sqlite}/schema.sql`.
+- Storage-mode defaults differ: the MPF RocksDB backend defaults to `MULTI_VERSION` (and persists and checks the
+  mode), the MPF RDBMS backend defaults to `SINGLE_VERSION` (and does not persist it). Pass the mode explicitly.
 
 ## Quick Start
 
@@ -57,33 +63,28 @@ This library provides experimental Merkle-based authenticated data structures wi
 
 ```java
 // Add dependency
-implementation 'com.bloxbean.cardano:merkle-patricia-forestry-rocksdb:0.8.0'
+implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rocksdb:0.8.0'
 
-// Initialize storage
-RocksDbResources resources = RocksDbResources.create(Paths.get("mpf-data"));
-RocksDbNodeStore nodeStore = new RocksDbNodeStore(resources.getDb());
+// Open (or create) the database; MULTI_VERSION is the default storage mode
+try (RocksDbStateTrees trees = new RocksDbStateTrees("mpf-data")) {
+    // Create trie (keys are hashed with Blake2b-256, as in Aiken)
+    MpfTrie trie = new MpfTrie(trees.nodeStore());
 
-// Create trie (MpfTrie for Cardano compatibility)
-MpfTrie trie = new MpfTrie(nodeStore);
+    trie.put("account123".getBytes(), accountData);
+    trie.put("account456".getBytes(), accountData2);
 
-// Store data (keys automatically hashed with Blake2b-256)
-trie.put("account123".getBytes(), accountData);
-trie.put("account456".getBytes(), accountData2);
+    byte[] rootHash = trie.getRootHash();       // Use in Cardano transactions
+    trees.putRootWithRefcount(rootHash);        // Record the version
 
-byte[] rootHash = trie.getRootHash();  // Use in Cardano transactions
-
-// Retrieve data
-byte[] value = trie.get("account123".getBytes());
-
-// Cleanup
-resources.close();
+    byte[] value = trie.get("account123".getBytes());
+}
 ```
 
 ### Jellyfish Merkle Tree with RocksDB
 
 ```java
 // Add dependency
-implementation 'com.bloxbean.cardano:jellyfish-merkle-rocksdb:0.8.0'
+implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:0.8.0'
 
 // Initialize a dedicated RocksDB store (the store owns and closes the database)
 RocksDbJmtStore store = new RocksDbJmtStore("jmt-data");
@@ -112,21 +113,20 @@ store.close();
 ```gradle
 dependencies {
     // Core interfaces
-    implementation 'com.bloxbean.cardano:verified-structures-core:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-verified-structures-core:0.8.0'
 
     // MPF with RocksDB
-    implementation 'com.bloxbean.cardano:merkle-patricia-forestry-rocksdb:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rocksdb:0.8.0'
 
     // JMT with RocksDB
-    implementation 'com.bloxbean.cardano:jellyfish-merkle-rocksdb:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:0.8.0'
 
-    // MPF with PostgreSQL
-    implementation 'com.bloxbean.cardano:merkle-patricia-forestry-rdbms:0.8.0'
-    implementation 'org.postgresql:postgresql:42.6.0'
+    // MPF with PostgreSQL (the PostgreSQL driver is included)
+    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rdbms:0.8.0'
 
     // JMT with PostgreSQL
-    implementation 'com.bloxbean.cardano:jellyfish-merkle-rdbms:0.8.0'
-    implementation 'org.postgresql:postgresql:42.6.0'
+    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:0.8.0'
+    implementation 'org.postgresql:postgresql:42.7.10'
 }
 ```
 
@@ -149,12 +149,11 @@ verified-structures-core (interfaces & utilities)
 ## Documentation
 
 - [Design Documentation](docs/) - Architecture and design decisions
-- [ADR-0016](../ADR-0016-verified-structures-modularization.md) - Modularization rationale
 - Each module's README contains specific usage examples
 
 ## Performance
 
-- **MPF**: Optimized for prefix queries and key recovery
+- **MPF**: Aiken-compatible commitments and proofs; original keys are kept in leaves for introspection
 - **JMT**: Designed for batched, versioned off-chain state; benchmark on the target workload and durability settings
 - **RocksDB**: Best for single-node deployments with high throughput
 - **RDBMS**: Best for distributed systems requiring SQL queries

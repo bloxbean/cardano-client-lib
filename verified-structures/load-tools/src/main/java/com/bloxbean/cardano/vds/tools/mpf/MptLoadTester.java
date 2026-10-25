@@ -108,38 +108,25 @@ public final class MptLoadTester {
                      org.rocksdb.WriteOptions wo = new org.rocksdb.WriteOptions()) {
                     // Optionally disable WAL for stress tests (unsafe for durability)
                     if (options.noWal) wo.setDisableWAL(true);
+                    final boolean recordRefcount = recordRoots && gcRefcount
+                            && (options.refcountEvery <= 1 || (commits % options.refcountEvery) == 0);
+                    final long[] refcountVersion = {-1};
                     ((RocksDbNodeStore) stateTrees.nodeStore()).withBatch(wb, () -> {
                         for (Map.Entry<byte[], byte[]> e : updates.entrySet()) {
                             byte[] key = e.getKey();
                             byte[] val = e.getValue();
                             if (val == null) trie.delete(key); else trie.put(key, val);
                         }
+                        // Record root + refcounts in the same batch: putRootWithRefcount sees the staged nodes.
+                        if (recordRefcount) refcountVersion[0] = stateTrees.putRootWithRefcount(trie.getRootHash());
                         return null;
                     });
 
-                    // Record root + refcount ops if requested (using same WriteBatch)
                     if (recordRoots) {
                         byte[] root = trie.getRootHash();
-                        if (gcRefcount && (options.refcountEvery <= 1 || (commits % options.refcountEvery) == 0)) {
-                            final long[] vHolder = new long[1];
-                            stateTrees.rootsIndex().withBatch(wb, () -> {
-                                long v = stateTrees.rootsIndex().nextVersion();
-                                stateTrees.rootsIndex().put(v, root);
-                                vHolder[0] = v;
-                                return null;
-                            });
-                            versionsRecorded = vHolder[0];
-                            com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.RefcountGcStrategy.incrementAll(
-                                    stateTrees.db(), stateTrees.nodeStore().nodesHandle(), stateTrees.nodeStore().nodesHandle(), root, wb, stateTrees.nodeStore().keyPrefixer());
+                        if (recordRefcount) {
+                            versionsRecorded = refcountVersion[0];
                             versionWindow.addLast(versionsRecorded);
-                            while (versionWindow.size() > options.keepLatest) {
-                                Long oldVer = versionWindow.removeFirst();
-                                byte[] oldRoot = stateTrees.rootsIndex().get(oldVer);
-                                if (oldRoot != null) {
-                                    com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.RefcountGcStrategy.decrementAll(
-                                            stateTrees.db(), stateTrees.nodeStore().nodesHandle(), stateTrees.nodeStore().nodesHandle(), oldRoot, wb, stateTrees.nodeStore().keyPrefixer());
-                                }
-                            }
                         } else if (!gcRefcount) {
                             final long[] vHolder = new long[1];
                             stateTrees.rootsIndex().withBatch(wb, () -> {
@@ -154,6 +141,14 @@ public final class MptLoadTester {
                         }
                     }
                     stateTrees.db().write(wo, wb);
+                    if (recordRefcount && versionWindow.size() > options.keepLatest) {
+                        // Drop versions outside the window: decrements their tries and removes their entries.
+                        new com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.RefcountGcStrategy().run(
+                                stateTrees.nodeStore(), stateTrees.rootsIndex(),
+                                com.bloxbean.cardano.vds.mpf.rocksdb.gc.RetentionPolicy.keepLatestN(options.keepLatest),
+                                new com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions());
+                        while (versionWindow.size() > options.keepLatest) versionWindow.removeFirst();
+                    }
                 } catch (Exception ex) {
                     throw new RuntimeException("Failed to write batch to RocksDB", ex);
                 }

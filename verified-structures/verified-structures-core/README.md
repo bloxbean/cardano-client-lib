@@ -29,9 +29,8 @@ public interface NodeStore {
 ```
 
 **Implementations:**
-- `RocksDbNodeStore` (in merkle-patricia-trie-rocksdb)
-- `RdbmsNodeStore` (in merkle-patricia-trie-rdbms)
-- `InMemoryNodeStore` (for testing)
+- `RocksDbNodeStore` (in merkle-patricia-forestry-rocksdb)
+- `RdbmsNodeStore` (in merkle-patricia-forestry-rdbms)
 
 ### HashFunction
 
@@ -259,10 +258,10 @@ MerklePatriciaTrie trie = new MerklePatriciaTrie(store, sha256);
 
 ```gradle
 dependencies {
-    api 'com.bloxbean.cardano:verified-structures-core:0.8.0'
+    api 'com.bloxbean.cardano:cardano-client-verified-structures-core:0.8.0'
 
     // Required for Blake2b
-    implementation 'com.bloxbean.cardano:crypto:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-crypto:0.8.0'
 }
 ```
 
@@ -306,7 +305,7 @@ See [../docs/design-core.md](../docs/design-core.md) for detailed architecture a
 
 ## Related Modules
 
-- [merkle-patricia-trie](../merkle-patricia-trie/) - MPT implementation
+- [merkle-patricia-forestry](../merkle-patricia-forestry/) - MPF implementation
 - [jellyfish-merkle](../jellyfish-merkle/) - JMT implementation
 - [rocksdb-core](../rocksdb-core/) - RocksDB utilities
 - [rdbms-core](../rdbms-core/) - RDBMS utilities
