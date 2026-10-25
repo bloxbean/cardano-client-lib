@@ -95,6 +95,30 @@ class TxFlowCompilerTest {
     }
 
     @Test
+    void portableContextAdditionalSignersCountReachesCompiledTxPlan() {
+        String yaml = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: multisig-later}
+                spec:
+                  steps:
+                    - id: pay
+                      transaction:
+                        tx:
+                          from_ref: account://sender
+                          intents: []
+                        context:
+                          additional_signers_count: 2
+                """;
+        TxFlow flow = TxFlowCodec.standard().parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
+
+        CompiledTxFlow compiled = compiler.compile(FlowCompilationRequest.of(flow, FlowBindings.empty()))
+                .requireCompiledFlow();
+
+        assertEquals(2, compiled.getExecutionPlan().getSteps().get(0).getTxPlan().getAdditionalSignersCount());
+    }
+
+    @Test
     void rejectsMissingWrongAndOutOfRangeBindings() {
         FlowCompilationResult missing = compiler.compile(FlowCompilationRequest.of(
                 definition, FlowBindings.empty()));

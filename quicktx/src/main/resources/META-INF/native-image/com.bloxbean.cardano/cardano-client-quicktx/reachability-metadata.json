@@ -2221,6 +2221,10 @@
       "allDeclaredFields": true,
       "methods": [
         {
+          "name": "getAdditionalSignersCount",
+          "parameterTypes": []
+        },
+        {
           "name": "getCollateralPayer",
           "parameterTypes": []
         },
@@ -2259,6 +2263,12 @@
         {
           "name": "getValidToSlot",
           "parameterTypes": []
+        },
+        {
+          "name": "setAdditionalSignersCount",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
         },
         {
           "name": "setCollateralPayer",

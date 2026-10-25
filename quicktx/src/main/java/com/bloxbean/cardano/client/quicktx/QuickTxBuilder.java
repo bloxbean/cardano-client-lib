@@ -284,6 +284,10 @@ public class QuickTxBuilder {
             }
         }
 
+        if (plan.getAdditionalSignersCount() != null) {
+            context.additionalSignersCount(plan.getAdditionalSignersCount());
+        }
+
         if (plan.getDepositPayer() != null) {
             context.depositPayer(plan.getDepositPayer());
         }

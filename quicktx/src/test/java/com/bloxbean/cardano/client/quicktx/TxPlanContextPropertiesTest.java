@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Tests for TxPlan context properties serialization/deserialization.
@@ -174,5 +175,52 @@ class TxPlanContextPropertiesTest {
         assertThat(restored.getVariables()).containsEntry("receiver", "addr1_receiver");
         assertThat(restored.getFeePayer()).isEqualTo("addr1_fee_payer");
         assertThat(restored.getValidToSlot()).isEqualTo(2000L);
+    }
+
+    @Test
+    void additional_signers_count_round_trip() {
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(5));
+
+        TxPlan plan = TxPlan.from(tx)
+            .additionalSignersCount(3);
+
+        String yaml = plan.toYaml();
+        TxPlan restored = TxPlan.from(yaml);
+
+        assertThat(yaml).contains("context:");
+        assertThat(yaml).contains("additional_signers_count: 3");
+        assertThat(restored.getAdditionalSignersCount()).isEqualTo(3);
+    }
+
+    @Test
+    void additional_signers_count_zero_round_trips_and_unset_is_omitted() {
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(5));
+
+        TxPlan zero = TxPlan.from(tx).additionalSignersCount(0);
+        assertThat(TxPlan.from(zero.toYaml()).getAdditionalSignersCount()).isZero();
+
+        String unsetYaml = TxPlan.from(tx).feePayer("addr1_fee_payer").toYaml();
+        assertThat(unsetYaml).doesNotContain("additional_signers_count");
+        assertThat(TxPlan.from(unsetYaml).getAdditionalSignersCount()).isNull();
+    }
+
+    @Test
+    void negative_additional_signers_count_is_rejected() {
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(5));
+
+        assertThatThrownBy(() -> TxPlan.from(tx).additionalSignersCount(-1))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("additional_signers_count");
+
+        String yaml = TxPlan.from(tx).additionalSignersCount(1).toYaml()
+            .replace("additional_signers_count: 1", "additional_signers_count: -1");
+        assertThatThrownBy(() -> TxPlan.from(yaml))
+            .hasStackTraceContaining("additional_signers_count must not be negative");
     }
 }

@@ -156,6 +156,9 @@ public class TransactionDocument {
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         private java.util.List<SignerRef> signers;
 
+        @JsonProperty("additional_signers_count")
+        private Integer additionalSignersCount;
+
         @JsonProperty("deposit_payer")
         private String depositPayer;
 

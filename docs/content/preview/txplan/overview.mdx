@@ -107,6 +107,7 @@ The `context` section configures transaction-level settings that apply to the `Q
 | `required_signers` | List of required signer credential hashes (hex) |
 | `valid_from_slot` | Transaction validity start slot |
 | `valid_to_slot` | Transaction validity end slot |
+| `additional_signers_count` | Extra vkey signers to include in fee calculation, for signers not attached at build time (e.g. a multisig signed later by several parties). Same as `TxContext.additionalSignersCount(int)` |
 | `deposit_payer` | Address that pays deposit (e.g., for stake registration) |
 | `deposit_mode` | Deposit handling mode (`AUTO`, `CHANGE_OUTPUT`, `ANY_OUTPUT`, `NEW_UTXO_SELECTION`) |
 
