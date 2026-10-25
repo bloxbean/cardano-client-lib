@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.cfg.CoercionAction;
+import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
 import com.fasterxml.jackson.databind.cfg.MapperConfig;
 import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler;
 import com.fasterxml.jackson.databind.introspect.Annotated;
@@ -18,6 +20,7 @@ import com.fasterxml.jackson.databind.introspect.AnnotatedClass;
 import com.fasterxml.jackson.databind.introspect.AnnotationIntrospectorPair;
 import com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector;
 import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
+import com.fasterxml.jackson.databind.type.LogicalType;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,6 +36,9 @@ import java.util.Set;
  *     <li>names of {@code @JsonIgnore} Java-only fields</li>
  *     <li>fractional numbers for integer fields ({@code quantity: 2.5} is not {@code 2})</li>
  *     <li>numeric enum indexes ({@code role: 0} is not {@code spend})</li>
+ *     <li>an empty string for a non-text value ({@code update: ""} is not {@code false}), and a number for a boolean
+ *     ({@code is_update: 1}). The strings {@code "true"} and {@code "false"} still read as booleans, because
+ *     {@code TxPlan.from} substitutes a quoted {@code '${flag}'} as text.</li>
  *     <li>UTxO references with extra or missing keys (see {@code UtxoRefDeserializer})</li>
  *     <li>explicit {@code null} values, including an empty value ({@code address:} with nothing after it), and
  *     {@code null} elements in a list ({@code amounts: [null]}). The canonical writer never writes {@code null}.</li>
@@ -57,6 +63,9 @@ final class StrictReading {
         mapper.enable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES);
         mapper.disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
         mapper.enable(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS);
+        mapper.coercionConfigDefaults().setCoercion(CoercionInputShape.EmptyString, CoercionAction.Fail);
+        for (CoercionInputShape shape : List.of(CoercionInputShape.Integer, CoercionInputShape.Float))
+            mapper.coercionConfigFor(LogicalType.Boolean).setCoercion(shape, CoercionAction.Fail);
         mapper.setDefaultSetterInfo(JsonSetter.Value.forValueNulls(Nulls.FAIL));
         JsonSetter.Value noNullElements = JsonSetter.Value.forContentNulls(Nulls.FAIL);
         mapper.configOverride(List.class).setSetterInfo(noNullElements);

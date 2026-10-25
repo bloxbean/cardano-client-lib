@@ -80,7 +80,11 @@ class TxPlanStrictReadingTest {
                 Arguments.of("UTxO reference without output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + "}]}"), "output_index"),
                 Arguments.of("flow_output that is not an object", tx("inputs", "{type: collect_from, utxo_refs: [{flow_output: first}]}"), "flow_output"),
                 Arguments.of("flow_output with extra key", tx("inputs", "{type: collect_from, utxo_refs: [{flow_output: {step: a, output: b, extra: c}}]}"), "extra"),
-                Arguments.of("UTxO reference that is not an object", tx("inputs", "{type: collect_from, utxo_refs: [" + TX_HASH + "]}"), "object"));
+                Arguments.of("UTxO reference that is not an object", tx("inputs", "{type: collect_from, utxo_refs: [" + TX_HASH + "]}"), "object"),
+                Arguments.of("empty string for a boolean", tx("intents", "{type: pool_update, update: ''}"), "update"),
+                Arguments.of("number for a boolean", tx("intents", "{type: pool_update, is_update: 1}"), "is_update"),
+                Arguments.of("empty string for an integer", tx("intents", "{type: payment, address: " + RECEIVER
+                        + ", amounts: [{unit: lovelace, quantity: ''}]}"), "quantity"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -111,6 +115,15 @@ class TxPlanStrictReadingTest {
         assertThatThrownBy(() -> TxPlan.from("~\n")).hasMessageContaining("must be a mapping");
         assertThatThrownBy(() -> TxPlan.from("transaction: null\n")).hasStackTraceContaining("transaction");
         assertThat(LENIENT.fromYaml("transaction: null\n").getTxs()).isEmpty();
+    }
+
+    @Test
+    void booleanPlaceholdersStillResolve() {
+        String yaml = "variables: {flag: true}\n" + tx("intents", "{type: pool_update, is_update: '${flag}'}");
+
+        // The codec substitutes a typed value; TxPlan.from substitutes text, so it reads the string "true".
+        assertThat(STRICT.fromYaml(yaml).getTxs()).hasSize(1);
+        assertThat(TxPlan.from(yaml).getTxs()).hasSize(1);
     }
 
     @Test
