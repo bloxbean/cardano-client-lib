@@ -114,6 +114,14 @@ class TxPlanStrictReadingTest {
                 Arguments.of("the string null for a primitive int", tx("intents", "{type: pool_retirement, pool_id: "
                         + IntentSamples.POOL_ID + ", retirement_epoch: 'null'}"), "retirement_epoch"),
                 Arguments.of("YAML alias", "transaction:\n  - tx:\n      from: &r " + SENDER + "\n      change_address: *r\n", "alias"),
+                Arguments.of("YAML alias in variables", "variables:\n  original: &receiver " + RECEIVER + "\n  copy: *receiver\n"
+                        + tx("intents", "{type: payment, address: '${copy}'}"), "alias"),
+                Arguments.of("octal variable", "variables: {n: 010}\n" + tx("intents", "{type: payment, address: " + RECEIVER
+                        + ", amounts: [{unit: lovelace, quantity: '${n}'}]}"), "010"),
+                Arguments.of("hexadecimal variable", "variables: {n: 0x10}\n" + tx("intents", "{type: payment, address: " + RECEIVER
+                        + ", amounts: [{unit: lovelace, quantity: '${n}'}]}"), "0x10"),
+                Arguments.of("decimal variable with underscores", "variables: {r: 1_0.5}\n" + tx("intents", "{type: payment, address: "
+                        + RECEIVER + "}"), "1_0.5"),
                 Arguments.of("octal-looking quantity", tx("intents", "{type: payment, address: " + RECEIVER
                         + ", amounts: [{unit: lovelace, quantity: 010}]}"), "010"),
                 Arguments.of("hex string field with a leading zero, unquoted", tx("intents", "{type: payment, address: " + RECEIVER
@@ -225,6 +233,30 @@ class TxPlanStrictReadingTest {
         // A literal variable used directly reads back the same every time.
         String literal = "variables: {a: " + RECEIVER + "}\n" + tx("intents", "{type: payment, address: '${a}'}");
         assertThat(TxPlan.from(literal).toYaml()).isEqualTo(TxPlan.from(TxPlan.from(literal).toYaml()).toYaml());
+    }
+
+    @Test
+    void decimalVariablesKeepTheirWrittenScaleAndRereadAfterWriting() {
+        String yaml = "variables: {r: 1.50}\n" + tx("intents", "{type: payment, address: " + RECEIVER + "}");
+        assertThat(TxPlan.from(yaml).getTxs()).hasSize(1);
+        assertThat(STRICT.fromYaml(yaml).getTxs()).hasSize(1);
+
+        // A runtime BigDecimal kept on the plan is written with its scale and must read back unchanged.
+        String written = STRICT.toYaml(STRICT.fromYaml(tx("intents", "{type: payment, address: " + RECEIVER + "}"),
+                Map.of("r", new BigDecimal("1.50"))));
+        assertThat(STRICT.toYaml(STRICT.readLiteral(written))).isEqualTo(written);
+    }
+
+    @Test
+    void placeholderKeysAreRejectedByEveryStrictReader() {
+        String intentKey = "variables: {field: donation_amount}\n"
+                + tx("intents", "{type: donation, current_treasury_value: 10, '${field}': 5}");
+        String txKey = "variables: {k: change_address}\ntransaction:\n  - tx:\n      from: " + SENDER
+                + "\n      '${k}': " + SENDER + "\n";
+
+        // TxPlan.from would rename the key by text substitution; the codec and the schema never substitute keys.
+        assertRejected(intentKey, "${field}");
+        assertRejected(txKey, "${k}");
     }
 
     @Test
