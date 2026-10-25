@@ -17,6 +17,12 @@
   - Probe → D1: property names come from Jackson's built bean deserializer (introspection misses `UnitInterval`); polymorphic nested types (`Relay`) are handled generically.
   - Probe → D3: enum names come from the mapper (`spend`, case-sensitive); custom deserializers go through an explicit table; every non-string schema is wrapped with the placeholder branch.
   - New I10 (schema never stricter than the runtime), I11 (reader totality) and I12 (fixed point); §9 adds Jazzer fuzz targets; M1 and M2 exit criteria updated.
+- **r3** (2026-10-25; from the first I10 test runs, before review of r2):
+  - D3: `String` fields accept every scalar; `integerLike` allows a sign.
+  - D5: root `transaction` entries do not require `tx`.
+  - D8: "strict" also disables float-to-int truncation and numeric enum indexes, and makes UTxO references exact.
+  - §8: M2 lands before M1, so I10 uses the real strict readers.
+  - §13: two repository tests with a non-existent `to:` field, a broken docs example, and the `.inf` writer case.
 
 ## 1. Context
 
@@ -137,11 +143,11 @@ Generated keys are exactly `$defs/intent.*`, `$defs/model.*`, `$defs/placeholder
 
 ### D3. Type mapping is placeholder-tolerant
 
-`$defs/placeholder` is a string containing `${`. `$defs/integerLike` is a string of decimal digits with an optional leading `-`. Every non-string schema below is wrapped as `anyOf [<schema>, placeholder]`, including arrays and nested objects, because `TxPlanCodec` can replace a whole value with a bound variable.
+`$defs/placeholder` is a string containing `${`. `$defs/integerLike` is a string of decimal digits with an optional leading sign (`new BigInteger("+5")` is valid). Every non-string schema below is wrapped as `anyOf [<schema>, placeholder]`, including arrays and nested objects, because `TxPlanCodec` can replace a whole value with a bound variable.
 
 | Java type (as Jackson binds it) | Schema |
 |---|---|
-| `String` | `string` |
+| `String` | `string`, `number` or `boolean` (r3). Jackson coerces any scalar to text, and the canonical writer relies on it: it writes digit-only hex such as `cbor_hex: 49480100002221200101` and the `String`-typed donation amounts unquoted. A string-only schema rejected the writer's own output (found by the I10 tests). |
 | `int`, `Integer`, `long`, `Long`, `BigInteger` | `integer` or `integerLike` (quantities are written quoted today) |
 | `boolean`, `Boolean` | `boolean` |
 | enum (`RedeemerTag`, `PlutusVersion`, …) | `enum` of the names the mapper writes for each constant, e.g. `spend`, `v2` (r2: `RedeemerTag` uses `@JsonProperty` names, and the mapper is case-sensitive, so `Spend` and `V2` are rejected) |
@@ -176,7 +182,7 @@ A core type in an array whose element type it does not implement (e.g. `payment`
 
 ### D5. Root schema for a standalone TxPlan document (hand-written)
 
-Add root properties describing the standalone envelope: `version`, `variables` (open map), `extensions` (open map), `context` (`$ref` to the existing definition) and `transaction` (array of `{tx: $ref tx}`, `additionalProperties: false`, so `scriptTx` is not valid). `$defs/transaction` keeps its current shape, so TxFlow's `$ref …#/$defs/transaction` is unchanged.
+Add root properties describing the standalone envelope: `version`, `variables` (open map), `extensions` (open map), `context` (`$ref` to the existing definition) and `transaction` (array of `{tx: $ref tx}`, `additionalProperties: false`, so `scriptTx` is not valid). `tx` is not required: the runtime skips an empty entry (r3, found by the I10 fuzz target). `$defs/transaction` keeps its current shape, so TxFlow's `$ref …#/$defs/transaction` is unchanged.
 
 ### D6. Drift guard and one regenerate command
 
@@ -200,6 +206,14 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
 - The switch exists only on `TxPlanCodec`. `TxPlan.from(yaml)` is the convenience reader and is always strict; a caller who needs lenient reading uses the codec.
 - It covers unknown *intent* fields only. Unknown keys elsewhere (`context`, `tx`, the root) are already rejected today, because those classes carry no `ignoreUnknown`, and they stay rejected.
 - TxFlow's portable compilation stays strict regardless: ADR 0002 requires portable documents to "reject unknown fields by default".
+
+**What "strict" covers (r3).** The I10 tests showed that rejecting unknown names alone still lets the runtime accept documents no schema should describe. So the strict readers also refuse silent scalar and reference coercions:
+- **Unknown and ignored names:** `FAIL_ON_UNKNOWN_PROPERTIES` and `FAIL_ON_IGNORED_PROPERTIES` with `ignoreUnknown` stripped, exactly as TxFlow's strict mapper does. Names of `@JsonIgnore` Java-only fields are rejected rather than skipped.
+- **No fractional truncation:** `ACCEPT_FLOAT_AS_INT` is disabled. Today `quantity: 2.5` silently becomes `2`, the same bug class as PR #723's F2.
+- **No numeric enum indexes:** `FAIL_ON_NUMBERS_FOR_ENUMS` is enabled. Today `role: 0` silently becomes `spend`.
+- **Exact UTxO references:** `UtxoRefDeserializer` is hand-written and today ignores every key it does not use. A probe showed it accepts `{flow_output: d}` (a string) and `{tx_hash: …, output_index: 0, index: 1}`, producing an empty or partial reference. In strict mode a reference is exactly `{tx_hash, output_index}` or `{flow_output: {step, output}}`, with no other keys.
+
+`strictIntentFields(false)` restores all of these to today's behaviour.
 
 ### D9. Documentation
 
@@ -229,13 +243,15 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 
 ## 8. Implementation Milestones
 
+**Order (r3): M2 lands first, then M1.** I10's oracle is "a strict reader accepts the document". Implemented first, M1 would have to emulate M2's strictness in test code (unknown fields, scalar coercion, reference shapes) and delete it again in M2. With M2 first, M1's fuzz target uses the real strict readers. The IDs are unchanged; only the gates moved.
+
 ### M1. Generated schema, root schema, guard, conformance tests, docs (one PR)
-- **Entry gates:** this ADR accepted.
+- **Entry gates:** M2 merged (r3).
 - **Scope:** D1–D7 and D9.
 - **Exit criteria:** I1–I6 and I10 hold; `./gradlew :quicktx:test :txflow:test` passes (Java 17); a mutation check (remove one intent field locally) fails the guard; the I10 fuzz target runs with `JAZZER_FUZZ=1` and finds no counterexample.
 
 ### M2. Runtime strictness (separate PR, OQ3)
-- **Entry gates:** M1 merged.
+- **Entry gates:** this ADR accepted (r3: M2 now lands before M1).
 - **Scope:** D8, including the `strictIntentFields` opt-out, plus release notes.
 - **Exit criteria:** I7, I8 and I9 hold for every intent type, with a test per type; the I11 and I12 fuzz targets run with `JAZZER_FUZZ=1` and find no counterexample; both full suites pass.
 
@@ -294,6 +310,9 @@ All four were answered by the maintainer on 2026-10-25, before review; none rema
 
 ## 13. Related Findings (Out of Scope)
 
+- Two existing tests (`TxPlanRealQuickTxBuilderTest`, `TxPlanQuickTxBuilderIntegrationTest`) give a `payment` intent a `to:` field, which does not exist; the lenient readers drop it silently. M2 corrects them to `address:`. This is the D8 bug class in the repository's own tests.
+- `docs/content/preview/txplan/advanced-usage.mdx` uses `type: script_collect`, which is not a registered type (`script_collect_from` is); M1 corrects it. Another example there carries truncated, illustrative hex.
+- The canonical writer emits the string `.inf` unquoted, so it reads back as a float and fails to bind. No Cardano value has this form; I12 fuzzing covers it in M2.
 - `pool_registration` accepts the update flag three ways: the `type` discriminator (`pool_registration` / `pool_update`), `is_update`, and a further `update` property that Jackson derives from Lombok accessors.
 - `script_minting` uses camelCase `policyId`; every other field is snake_case.
 - Docs cover 4 of 23 intent types as YAML examples (§1.1). D9 adds validation guidance only; an intent reference page (possibly generated from the same model) is a follow-up.
