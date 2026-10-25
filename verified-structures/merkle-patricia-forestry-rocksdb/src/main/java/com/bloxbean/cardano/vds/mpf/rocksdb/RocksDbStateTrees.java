@@ -16,6 +16,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Unified RocksDB manager providing both NodeStore and RootsIndex from a single database.
@@ -187,11 +190,11 @@ public final class RocksDbStateTrees implements StateTrees {
         Filter localFilterPolicy = null;
         DBOptions localDbOptions = null;
         RocksDB localDb = null;
-        java.util.List<ColumnFamilyHandle> cfHandles = new java.util.ArrayList<>();
+        List<ColumnFamilyHandle> cfHandles = new ArrayList<>();
         boolean success = false;
         try {
             // List existing CFs and open them all; also ensure nodes and roots exist
-            java.util.List<byte[]> existingCfNames;
+            List<byte[]> existingCfNames;
             try (org.rocksdb.Options tempOpts = new org.rocksdb.Options().setCreateIfMissing(true)) {
                 existingCfNames = RocksDB.listColumnFamilies(tempOpts, dbPath);
             }
@@ -203,19 +206,19 @@ public final class RocksDbStateTrees implements StateTrees {
             BlockBasedTableConfig tableConfig = config.applyToCfOptions(localCfOptions, localBlockCache);
             localFilterPolicy = tableConfig == null ? null : tableConfig.filterPolicy();
 
-            java.util.List<ColumnFamilyDescriptor> cfDescriptors = new java.util.ArrayList<>();
+            List<ColumnFamilyDescriptor> cfDescriptors = new ArrayList<>();
             int nodesColumnFamilyIndex = -1, rootsColumnFamilyIndex = -1;
             for (byte[] cfName : existingCfNames) {
                 cfDescriptors.add(new ColumnFamilyDescriptor(cfName, localCfOptions));
-                if (java.util.Arrays.equals(cfName, schema.nodes().getBytes()))
+                if (Arrays.equals(cfName, schema.nodes().getBytes()))
                     nodesColumnFamilyIndex = cfDescriptors.size() - 1;
-                if (java.util.Arrays.equals(cfName, schema.roots().getBytes()))
+                if (Arrays.equals(cfName, schema.roots().getBytes()))
                     rootsColumnFamilyIndex = cfDescriptors.size() - 1;
             }
             // Ensure default CF present
             boolean hasDefaultCf = false;
             for (byte[] cfName : existingCfNames)
-                if (java.util.Arrays.equals(cfName, RocksDB.DEFAULT_COLUMN_FAMILY)) {
+                if (Arrays.equals(cfName, RocksDB.DEFAULT_COLUMN_FAMILY)) {
                     hasDefaultCf = true;
                     break;
                 }
@@ -242,7 +245,7 @@ public final class RocksDbStateTrees implements StateTrees {
             this.db = localDb;
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
-            DiskMarkSet.dropStale(localDb, cfHandles, java.util.List.of(cfNodes, cfRoots)); // GC leftovers of a crashed run
+            DiskMarkSet.dropStale(localDb, cfHandles, List.of(cfNodes, cfRoots)); // GC leftovers of a crashed run
 
             this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.nodeStore = new RocksDbNodeStore(db, cfNodes, keyPrefixer);

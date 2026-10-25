@@ -11,7 +11,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.concurrent.Callable;
 
 /**
  * RocksDB-based implementation of RootsIndex for versioned root hash management.
@@ -62,7 +68,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
     private final ColumnFamilyHandle cfRoots;
     private final KeyPrefixer keyPrefixer;
     private final DBOptions options;
-    private final java.util.List<AutoCloseable> closeables;
+    private final List<AutoCloseable> closeables;
     private static final ThreadLocal<WriteBatch> TL_BATCH = new ThreadLocal<>();
 
     public static final String CF_ROOTS = "roots";
@@ -90,7 +96,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
 
             RocksDbMptSchema.ColumnFamilies schema = RocksDbMptSchema.columnFamilies(namespaceOptions);
 
-            java.util.List<byte[]> existingCfNames;
+            List<byte[]> existingCfNames;
             try (org.rocksdb.Options tempOpts = new org.rocksdb.Options().setCreateIfMissing(true)) {
                 existingCfNames = RocksDB.listColumnFamilies(tempOpts, dbPath);
             }
@@ -99,7 +105,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
             ColumnFamilyOptions columnFamilyOptions = new ColumnFamilyOptions();
             columnFamilyOptions.useFixedLengthPrefixExtractor(1);
 
-            java.util.List<ColumnFamilyDescriptor> cfDescriptors = new java.util.ArrayList<>();
+            List<ColumnFamilyDescriptor> cfDescriptors = new ArrayList<>();
             int rootsColumnFamilyIndex = -1;
             for (byte[] cfName : existingCfNames) {
                 cfDescriptors.add(new ColumnFamilyDescriptor(cfName, columnFamilyOptions));
@@ -118,13 +124,13 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
                 rootsColumnFamilyIndex = cfDescriptors.size() - 1;
             }
 
-            java.util.List<ColumnFamilyHandle> cfHandles = new java.util.ArrayList<>();
+            List<ColumnFamilyHandle> cfHandles = new ArrayList<>();
             this.options = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
             this.db = RocksDB.open(this.options, dbPath, cfDescriptors, cfHandles);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
-            DiskMarkSet.dropStale(db, cfHandles, java.util.List.of(cfRoots)); // GC leftovers of a crashed run
+            DiskMarkSet.dropStale(db, cfHandles, List.of(cfRoots)); // GC leftovers of a crashed run
             this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
-            this.closeables = new java.util.ArrayList<>();
+            this.closeables = new ArrayList<>();
             this.closeables.add(columnFamilyOptions);
             this.closeables.add(cfRoots);
             this.closeables.add(options);
@@ -153,7 +159,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         this.cfRoots = cfRoots;
         this.keyPrefixer = keyPrefixer;
         this.options = null;
-        this.closeables = java.util.Collections.emptyList();
+        this.closeables = Collections.emptyList();
     }
 
     /**
@@ -220,8 +226,8 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
      *
      * @return a NavigableMap of all version-root pairs, sorted by version
      */
-    public java.util.NavigableMap<Long, byte[]> listAll() {
-        java.util.NavigableMap<Long, byte[]> versionRootMap = new java.util.TreeMap<>();
+    public NavigableMap<Long, byte[]> listAll() {
+        NavigableMap<Long, byte[]> versionRootMap = new TreeMap<>();
         byte[] prefixedLatestKey = keyPrefixer.prefix(LATEST_KEY);
         byte[] prefixedLastVersionKey = keyPrefixer.prefix(LAST_VERSION_KEY);
         // Total-order scan of this namespace only: a prefix-same-as-start iterator positioned with
@@ -231,7 +237,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
             for (iterator.seek(keyPrefixer.namespaceStart()); iterator.isValid(); iterator.next()) {
                 byte[] prefixedKey = iterator.key();
                 if (!keyPrefixer.hasCorrectPrefix(prefixedKey)) break;
-                if (java.util.Arrays.equals(prefixedKey, prefixedLatestKey) || java.util.Arrays.equals(prefixedKey, prefixedLastVersionKey))
+                if (Arrays.equals(prefixedKey, prefixedLatestKey) || Arrays.equals(prefixedKey, prefixedLastVersionKey))
                     continue;
                 byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
                 if (unprefixedKey.length != 8) continue; // skip unknown keys
@@ -253,8 +259,8 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
      * @param toInclusive   the ending version (inclusive)
      * @return a NavigableMap of version-root pairs within the range, or empty if from &gt; to
      */
-    public java.util.NavigableMap<Long, byte[]> listRange(long fromInclusive, long toInclusive) {
-        java.util.NavigableMap<Long, byte[]> rangeResults = new java.util.TreeMap<>();
+    public NavigableMap<Long, byte[]> listRange(long fromInclusive, long toInclusive) {
+        NavigableMap<Long, byte[]> rangeResults = new TreeMap<>();
         if (fromInclusive > toInclusive) return rangeResults;
 
         byte[] startKey = keyPrefixer.prefix(toBytes(fromInclusive));
@@ -265,7 +271,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
             for (iterator.seek(startKey); iterator.isValid(); iterator.next()) {
                 byte[] prefixedKey = iterator.key();
                 if (!keyPrefixer.hasCorrectPrefix(prefixedKey)) break;
-                if (java.util.Arrays.equals(prefixedKey, prefixedLatestKey) || java.util.Arrays.equals(prefixedKey, prefixedLastVersionKey))
+                if (Arrays.equals(prefixedKey, prefixedLatestKey) || Arrays.equals(prefixedKey, prefixedLastVersionKey))
                     continue;
                 byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
                 if (unprefixedKey.length != 8) continue;
@@ -335,7 +341,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
      * @return the result of the work function
      * @throws RuntimeException if the work function throws an exception
      */
-    public <T> T withBatch(WriteBatch batch, java.util.concurrent.Callable<T> work) {
+    public <T> T withBatch(WriteBatch batch, Callable<T> work) {
         WriteBatch previous = TL_BATCH.get();
         TL_BATCH.set(batch);
         try {

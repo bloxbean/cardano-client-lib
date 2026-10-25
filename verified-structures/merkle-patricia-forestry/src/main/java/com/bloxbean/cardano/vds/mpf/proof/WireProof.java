@@ -49,7 +49,7 @@ public final class WireProof {
         Objects.requireNonNull(commitments, "commitments");
 
         byte[] pathBytes = hashFn.digest(key);
-        Ctx ctx = new Ctx(toNibbles(pathBytes), pathBytes.length, hashFn, commitments);
+        Ctx ctx = new Ctx(toNibbles(pathBytes), hashFn, commitments);
         if (including) {
             if (value == null) {
                 throw new IllegalArgumentException("Value required for inclusion proof");
@@ -66,7 +66,6 @@ public final class WireProof {
 
     private static final class Ctx {
         final int[] path;
-        final int digestLength;
         final HashFunction hashFn;
         final CommitmentScheme commitments;
         final byte[] nullHash;
@@ -74,9 +73,8 @@ public final class WireProof {
         final byte[] nullHash4;
         final byte[] nullHash8;
 
-        Ctx(int[] path, int digestLength, HashFunction hashFn, CommitmentScheme commitments) {
+        Ctx(int[] path, HashFunction hashFn, CommitmentScheme commitments) {
             this.path = path;
-            this.digestLength = digestLength;
             this.hashFn = hashFn;
             this.commitments = commitments;
             this.nullHash = commitments.nullHash();
