@@ -47,9 +47,10 @@ witness instead.
 
 **None of the public deployments can unfrack.** Each compiled its `programmable_logic_global`
 dispatcher with a placeholder instead of the unfracking script's hash, so `UnfrackingAct` can never
-be authorised. `Cip113Deployment.isUnfrackingEnabled()` is false for them and the adapter does not
-offer `UNFRACK`; a deployment whose dispatcher names the real script (as the integration suite's
-devnet deployment does) supports it.
+be authorised. `Cip113Deployment.isUnfrackingEnabled()` describes this on-chain property only.
+**Unfracking is temporarily unsupported by this release on every deployment**, including custom
+deployments whose dispatcher enables it. `unfrack(...)` throws `UnsupportedOperationException`,
+and the adapter does not advertise `UNFRACK`.
 
 ## Portable plans
 
@@ -79,6 +80,11 @@ document with programmable-token intents or declared extensions (an `extensions:
 `extension.configure(...)`) and point to `TxPlanCodec`, because the core reader could not
 reconstruct those intents.
 
+The `pt:unfrack` decoder is retained to report an explicit unsupported error for existing documents.
+Its intent validation throws `UnsupportedOperationException`; TxPlan reads/writes reject it and
+portable TxFlow compilation reports `TXFLOW_EXTENSION_INTENT_INVALID` before any step runs.
+Protocol data fields such as `unfracking_logic_script` remain part of registry datums and updates.
+
 ## Operations
 
 | Verb | YAML type | Notes |
@@ -89,7 +95,7 @@ reconstruct those intents.
 | `thirdPartyTransfer(holder, receiver, amount, redeemer)` | `pt:third_party_transfer` | One holder and one policy per transaction; many outputs for that policy aggregate. |
 | `register(name, registration, redeemer)` | `pt:register` | Publishes a named policy for mints in the same transaction, wherever they are written. |
 | `updateRegistry(policy, update, authorization)` | `pt:update_registry` | Must be its own transaction. |
-| `unfrack(policy, authorization)` | `pt:unfrack` | Regroups one policy out of the sender's shared smart-wallet UTxOs into a fresh single-policy output. Must be its own transaction; the token's `unfracking_logic_script` hook authorises it, and a token whose issuer left the hook unset cannot be unfracked. |
+| `unfrack(policy, authorization)` | `pt:unfrack` | Reserved for future support. Throws `UnsupportedOperationException`; persisted intents are rejected during validation. |
 
 Authoring models (`Tx`, `TxPlan`, `QuickTxBuilder.TxContext`) are mutable and not thread-safe,
 but a plan can be built again sequentially: extension-generated intents are a build-local overlay
@@ -107,15 +113,13 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
 - Verification-key transfer, third-party and unfracking credentials are not invoked; registrations
   and registry updates naming one are refused so a token cannot be created that this library could
   not operate. The empty-key sentinel that forbids unfracking is data and remains valid.
-- Unfracking needs a deployment whose dispatcher was compiled against the real unfracking script;
-  none of the public deployments was (see Deployments).
+- Unfracking is temporarily unsupported, regardless of the deployment's dispatcher or registry hook.
 - Protocol-upgrade and authority operations (`ProtocolUpgrade`, `NominateAuthority`,
   `PromoteAuthority`) are not authored by this module.
 - A third-party transaction acts on one policy, because the `third_party` redeemer names one
   registry node. Composition rules apply to the whole ledger transaction: every programmable-token
   operation of one transaction must be authored in a single `Tx` (fragments composed with
-  `compose(tx1, tx2)` are validated together and refused before any lookup), and an unfracking
-  cannot share a transaction with any mint or burn because its validator requires an empty mint. A
+  `compose(tx1, tx2)` are validated together and refused before any lookup). A
   third-party transfer may share a transaction with an unrelated native-asset mint: its validator
   reads only the acted policy's mint and pins only the paired smart-wallet outputs. Owner transfers
   and burns of several policies, with or without a native mint, compose in one `Tx`, and are

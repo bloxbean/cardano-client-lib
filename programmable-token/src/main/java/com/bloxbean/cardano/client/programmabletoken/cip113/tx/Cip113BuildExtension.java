@@ -330,6 +330,8 @@ public final class Cip113BuildExtension implements TxBuildExtension {
 
     private void validateCapabilities(List<ProgrammableTokenIntent> intents) {
         for (ProgrammableTokenIntent intent : intents) {
+            if (intent instanceof ProgrammableUnfrackIntent)
+                throw new UnsupportedOperationException(ProgrammableUnfrackIntent.UNSUPPORTED_MESSAGE);
             ProgrammableTokenCapability capability = capability(intent);
             if (!capabilities.contains(capability))
                 throw new Cip113Exception("Protocol cip-113 does not support operation "

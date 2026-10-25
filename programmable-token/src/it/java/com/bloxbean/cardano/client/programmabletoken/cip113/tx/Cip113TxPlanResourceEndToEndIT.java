@@ -44,11 +44,12 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Executes the user-facing CIP-113 lifecycle from versioned TxPlan YAML resources: registration,
  * mint, transfer, burn, a cross-owner transfer with datums and variable-bearing redeemers, a
- * registry update that sets the unfracking hook, an unfracking of a shared UTxO, and burns around
+ * registry update that sets the unfracking hook, rejection of unfracking, and burns around
  * a transfer of the same asset in one transaction.
  *
  * <p>The substandard is the JuLC {@code TxPlanSubstandard}, which accepts only
@@ -188,18 +189,17 @@ class Cip113TxPlanResourceEndToEndIT {
                 .findFirst().orElseThrow(() -> new AssertionError("no fracked UTxO was created"));
         log.info("fracked UTxO {}#{}", fracked.getTxHash(), fracked.getOutputIndex());
 
-        submit("07-unfrack.yml", with(common, "policy_id", policyId), codec, extension, backend, owner);
+        assertThatThrownBy(() -> codec.fromYaml(loadYaml("07-unfrack.yml"),
+                with(common, "policy_id", policyId)))
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("Unfracking is temporarily unsupported");
 
         List<Utxo> afterUnfrack = protocol.getUtxos(ownerAddress).getValue();
         assertThat(quantity(protocol, ownerAddress, unit))
-                .as("unfracking conserves the holding").isEqualTo(heldBeforeFrack.add(FRACKED_QUANTITY));
-        assertThat(afterUnfrack).noneMatch(utxo -> utxo.getTxHash().equals(fracked.getTxHash())
+                .as("a rejected unfracking leaves the holding unchanged")
+                .isEqualTo(heldBeforeFrack.add(FRACKED_QUANTITY));
+        assertThat(afterUnfrack).anyMatch(utxo -> utxo.getTxHash().equals(fracked.getTxHash())
                 && utxo.getOutputIndex() == fracked.getOutputIndex());
-        assertThat(afterUnfrack).as("the dust stays behind in a UTxO without the acted policy")
-                .anyMatch(utxo -> holds(utxo, dustUnit) && !holds(utxo, unit));
-        assertThat(afterUnfrack).as("the acted policy is regrouped into its own output")
-                .anyMatch(utxo -> holds(utxo, unit) && !holds(utxo, dustUnit)
-                        && FRACKED_QUANTITY.equals(quantityOf(utxo, unit)));
 
         // Burn, transfer and burn the same asset in one transaction, the transfer's unit written in
         // upper case. The burns must reach the ledger as one mint entry of their sum, and the

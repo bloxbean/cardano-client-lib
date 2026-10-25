@@ -15,8 +15,8 @@ reference contracts remain early.
   `contract_version` is refused, all before chain access.
 
 The supported authoring operations are transfer (with an optional inline datum), mint, burn,
-third-party transfer, token registration, registry update, and unfracking (only on a deployment
-whose dispatcher was compiled against a real unfracking script — none of the public ones). Every operation the
+third-party transfer, token registration and registry update. Unfracking is temporarily unsupported
+on every deployment and throws `UnsupportedOperationException`. Every operation the
 adapter advertises is exercised end to end against a Yaci DevKit deployment.
 
 Guarantees in this release:
@@ -25,7 +25,7 @@ Guarantees in this release:
   `Tx`, `TxPlan` or `TxContext` can be built again sequentially. Concurrent use of one authoring
   model is not supported; services and extension descriptors are.
 - Conflicting authorizations, multi-policy third-party actions, verification-key operational
-  credentials, oversized inline datums and unfracking a token without a hook fail before any UTxO
+  credentials, oversized inline datums and unfracking requests fail before any UTxO
   is selected, with a message naming the cause.
 - Deployment resolution is atomic and never assumes a spent output live: a spent
   reference-script outref is skipped, one publishing another script fails resolution.
@@ -37,8 +37,10 @@ Known limitations:
 - Plain `TxPlan.toYaml()` / `TxPlan.from(yaml)` refuse programmable-token plans, including plans
   that only declare the extension, with an error that points to `TxPlanCodec`, the only supported
   YAML path for them.
-- TxFlow and TxFlowStream `TxPlan` steps/items that use QuickTx extensions are not supported yet;
-  flow validation refuses them (`TXFLOW_NON_PORTABLE_EXTENSION`) before any step is submitted.
+- Unfracking Java calls and intent validation throw `UnsupportedOperationException`. The decoder
+  remains registered so existing `pt:unfrack` documents report the explicit unsupported error.
+  Portable TxFlow compilation rejects them with `TXFLOW_EXTENSION_INTENT_INVALID` before any step
+  is submitted. Other programmable-token operations remain supported by registered TxFlow extensions.
 
 Public types may still change before the module is promoted to beta.
 
@@ -63,8 +65,8 @@ Breaking API changes:
   added `issuanceMint`, `issuanceLogic` and `registrySpend`.
 - `DeploymentScripts`: `registrySpend()` and `registryMint()` replaced by `registry()`; added
   `programmableLogicGlobal()`, `issuanceLogic()` and `replacePublished`.
-- `Cip113Protocol.CONTRACT_VERSION` is `0.0.1` and enforced; `UNFRACK` is advertised only when the
-  deployment enables it.
+- `Cip113Protocol.CONTRACT_VERSION` is `0.0.1` and enforced; `UNFRACK` is not advertised while
+  unfracking is temporarily unsupported, even when `unfrackingEnabled` is true.
 
 After an in-place upgrade the client follows the credentials in the live coordination datum. An
 upgrade installing scripts that expect proofs this release does not build makes transactions fail

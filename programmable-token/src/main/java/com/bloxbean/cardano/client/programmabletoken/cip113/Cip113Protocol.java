@@ -37,8 +37,8 @@ public final class Cip113Protocol implements ProgrammableTokenProtocol {
     }
 
     /**
-     * Unfracking is a property of the deployment — its dispatcher either was or was not compiled
-     * against a real unfracking script — so it is offered only where the deployment enables it.
+     * Unfracking is temporarily unsupported, including on custom deployments whose dispatcher
+     * enables it. The deployment flag describes the on-chain scripts, not adapter support.
      */
     @Override
     public Set<ProgrammableTokenCapability> capabilities() {
@@ -49,11 +49,8 @@ public final class Cip113Protocol implements ProgrammableTokenProtocol {
                 ProgrammableTokenCapability.THIRD_PARTY_TRANSFER,
                 ProgrammableTokenCapability.REGISTER,
                 ProgrammableTokenCapability.UPDATE_REGISTRY,
-                ProgrammableTokenCapability.UNFRACK,
                 ProgrammableTokenCapability.INLINE_DATUM,
                 ProgrammableTokenCapability.GLOBAL_STATE);
-        if (!service.deployment().isUnfrackingEnabled())
-            capabilities.remove(ProgrammableTokenCapability.UNFRACK);
         return java.util.Collections.unmodifiableSet(capabilities);
     }
 
