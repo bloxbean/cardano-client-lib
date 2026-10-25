@@ -1242,32 +1242,26 @@ public final class RocksDbJmtStore implements JmtStore {
         }
     }
 
-    /** Greatest per-version root at or below {@code versionInclusive}, or -1. */
+    /**
+     * Greatest per-version root at or below {@code versionInclusive}, or -1. Version keys are big-endian, so this
+     * seeks backward from the horizon's key, skipping the latest-pointer keys, instead of scanning every root.
+     */
     private long floorRootVersion(long versionInclusive) {
-        long floor = -1;
-        byte[] latestRootKey = keyPrefixer.prefix(LATEST_ROOT_KEY);
-        byte[] latestVersionKey = keyPrefixer.prefix(LATEST_VERSION_KEY);
         try (ReadOptions options = totalOrderReadOptions();
              RocksIterator iterator = db.newIterator(cfRoots, options)) {
-            for (iterator.seek(keyPrefixer.prefix(new byte[0])); iterator.isValid(); iterator.next()) {
+            for (iterator.seekForPrev(keyPrefixer.prefix(versionKey(versionInclusive))); iterator.isValid();
+                 iterator.prev()) {
                 byte[] key = iterator.key();
                 if (!keyPrefixer.hasCorrectPrefix(key)) {
                     break;
                 }
-                if (Arrays.equals(key, latestRootKey) || Arrays.equals(key, latestVersionKey)) {
-                    continue;
-                }
                 byte[] unprefixed = keyPrefixer.unprefix(key);
-                if (unprefixed.length != Long.BYTES) {
-                    continue;
-                }
-                long version = ByteBuffer.wrap(unprefixed).getLong();
-                if (version <= versionInclusive && version > floor) {
-                    floor = version;
+                if (unprefixed.length == Long.BYTES) {
+                    return ByteBuffer.wrap(unprefixed).getLong();
                 }
             }
         }
-        return floor;
+        return -1;
     }
 
     private int stageRootPrunes(long versionExclusive, WriteBatch batch) throws RocksDBException {

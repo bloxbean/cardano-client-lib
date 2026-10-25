@@ -18,6 +18,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -282,6 +284,59 @@ class JmtIssue715BackendsTest {
         }
     }
 
+    @Test
+    void replayOfTheLatestVersionWorksAfterAnAggressivePruneBelowIt() {
+        // Review of #719: AGGRESSIVE raises the watermark to the latest version, but a prune below it keeps the nodes
+        // the replay rebuilds from, so a crash-recovery replay must still be an identical no-op.
+        try (RocksDbJmtStore store = RocksDbJmtStore.open(temp.resolve("aggressive-replay").toString(),
+                RocksDbJmtStore.Options.builder().enableRollbackIndex(true)
+                        .prunePolicy(RocksDbJmtStore.ValuePrunePolicy.AGGRESSIVE).build())) {
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
+            tree.put(1, updates("alice", "100", "bob", "200"));
+            tree.put(2, updates("alice", "150"));
+            Map<byte[], byte[]> change = updates("bob", "250", "carol", "300");
+            byte[] root3 = tree.put(3, change).rootHash();
+            assertTrue(tree.pruneUpTo(2) > 0);
+            assertEquals(OptionalLong.of(3), store.pruneWatermark(), "AGGRESSIVE raises the watermark to the latest");
+            List<String> before = fingerprint(store);
+
+            JellyfishMerkleTree.CommitResult replay = tree.put(3, change);
+            assertArrayEquals(root3, replay.rootHash());
+            assertTrue(replay.nodes().isEmpty() && replay.staleNodes().isEmpty() && replay.valueOperations().isEmpty());
+            assertEquals(before, fingerprint(store), "replay changes nothing");
+
+            assertThrows(JmtWriteConflictException.class, () -> tree.put(3, updates("bob", "999")),
+                    "a replay with another root is still rejected");
+            assertEquals(before, fingerprint(store));
+            assertFalse(tree.put(4, updates("dave", "400")).nodes().isEmpty(), "the next version still commits");
+        }
+    }
+
+    @Test
+    void historicalReadTimeIncludesTheRetentionCheck() {
+        // Review of #719: get(key, version) read the latest root and the watermark before starting its timer.
+        InMemoryJmtStore target = new InMemoryJmtStore();
+        boolean[] slow = {false};
+        JmtStore store = (JmtStore) Proxy.newProxyInstance(JmtStore.class.getClassLoader(),
+                new Class<?>[]{JmtStore.class}, (proxy, method, args) -> {
+                    String name = method.getName();
+                    if (slow[0] && (name.equals("latestRoot") || name.equals("pruneWatermark"))) Thread.sleep(50);
+                    try {
+                        return method.invoke(target, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
+        CountingMetrics metrics = new CountingMetrics();
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, PROFILE, metrics);
+        tree.put(1, updates("alice", "100"));
+        tree.put(2, updates("alice", "200"));
+
+        slow[0] = true;
+        assertArrayEquals(bytes("100"), tree.get(bytes("alice"), 1).orElseThrow());
+        assertTrue(metrics.lastReadMillis >= 100, "read time " + metrics.lastReadMillis + " ms");
+    }
+
     @ParameterizedTest
     @EnumSource(Backend.class)
     void treePruneRecordsPruneMetrics(Backend backend) throws Exception {
@@ -393,6 +448,7 @@ class JmtIssue715BackendsTest {
         int lastPruned;
         int rocksDbStats;
         long lastMemTableSize;
+        long lastReadMillis = -1;
 
         @Override
         public void recordCommit(long durationMillis, long version, int batchSize, int nodesWritten, int nodesStale) {
@@ -406,7 +462,7 @@ class JmtIssue715BackendsTest {
 
         @Override
         public void recordRead(long durationMillis, boolean cacheHit, boolean found) {
-            // Not counted by these tests.
+            lastReadMillis = durationMillis;
         }
 
         @Override

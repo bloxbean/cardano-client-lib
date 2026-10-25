@@ -15,7 +15,7 @@ import java.util.Objects;
  * <p>The Jellyfish Merkle Tree persists nodes using a logical key composed of the
  * nibble path from the root to the node and the version at which that node was
  * created. This class encapsulates that composite key and provides the byte
- * byte encoding:</p>
+ * encoding:</p>
  *
  * <pre>
  * NodeKeyBytes = [ 0x4E ('N'), pathLenVarInt, packedPathBytes, versionBE8 ]

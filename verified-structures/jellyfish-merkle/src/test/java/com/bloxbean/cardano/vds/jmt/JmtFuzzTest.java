@@ -325,13 +325,9 @@ class JmtFuzzTest {
         Map<String, byte[]> base = new HashMap<>(h.stateAsOf(latest - 1));
         updates.forEach((k, v) -> base.put(new String(k, StandardCharsets.UTF_8), v));
         if (h.watermark >= latest) {
-            // Pruning up to the latest version removed the nodes a non-empty replay rebuilds: it is rejected with an
-            // explanation. An empty replay either reproduces the committed root (a no-op) or conflicts.
-            if (!updates.isEmpty()) {
-                JmtWriteConflictException e = assertThrows(JmtWriteConflictException.class, () -> tree.put(latest, updates));
-                assertTrue(e.getMessage().contains("cannot be replayed"), e.getMessage());
-                return;
-            }
+            // Pruning up to the latest version may have removed the nodes a replay rebuilds from (not when that
+            // version replaced none). A replay either reproduces the committed root (a no-op) or is rejected, with
+            // the pruning explanation whenever it would otherwise have been identical.
             try {
                 JellyfishMerkleTree.CommitResult r = tree.put(latest, updates);
                 assertArrayEquals(referenceRoot(state), r.rootHash());

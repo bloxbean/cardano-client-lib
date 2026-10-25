@@ -211,7 +211,8 @@ public final class JellyfishMerkleTree {
      * no nodes, stale markers or value operations; no commit metrics are recorded. A replay that produces a
      * different root is rejected by the store ({@link JmtWriteConflictException}). After pruning up to that version
      * the nodes a non-empty replay rebuilds are gone, so it is rejected the same way, with a message saying so; an
-     * empty replay still works.</p>
+     * empty replay still works. Pruning below that version keeps those nodes, so the replay still works, also
+     * after a RocksDB {@code AGGRESSIVE} prune that raised the watermark to the latest version.</p>
      *
      * @param version the version number for this commit (must be monotonically increasing)
      * @param updates map of key → value (values must be non-null)
@@ -222,12 +223,10 @@ public final class JellyfishMerkleTree {
         requireVersion(version);
         Objects.requireNonNull(updates, "updates");
         try (JmtAccessLease ignored = store.accessCoordinator().tryAcquireUpdate("put", version)) {
+            // A replay of the latest version is not pre-checked against the prune watermark: the RocksDB AGGRESSIVE
+            // policy raises the watermark to the latest version while the nodes a replay rebuilds from are intact.
+            // If pruning did remove them, the commit below fails without writing and is reported as a pruned replay.
             Optional<JmtStore.VersionedRoot> expectedLatest = validateCommitVersion(version);
-            if (!updates.isEmpty()) {
-                // A non-empty replay of the latest version rebuilds the nodes that version replaced; pruning up to
-                // it deleted them, so it cannot reproduce the committed root. Empty replays need no such node.
-                rejectPrunedReplay(version, expectedLatest);
-            }
 
             long startTime = System.currentTimeMillis();
 
@@ -272,6 +271,11 @@ public final class JellyfishMerkleTree {
                 commitBatchToStore(version, rootHash, batch, valueOps, expectedLatest);
             } catch (JmtWriteConflictException e) {
                 throw explainPrunedReplay(version, expectedLatest, e);
+            } catch (IllegalStateException e) {
+                // Rebuilt on pruned state, a replay can mark a node it also writes stale; the batch check refuses it.
+                OptionalLong watermark = replayWatermark(version, expectedLatest);
+                if (watermark.isEmpty()) throw e;
+                throw new JmtWriteConflictException(prunedReplayMessage(version, watermark.getAsLong()), e);
             }
 
             // The store accepted an identical replay of the latest version without applying it
@@ -399,10 +403,9 @@ public final class JellyfishMerkleTree {
     public Optional<byte[]> get(byte[] key, long version) {
         requireVersion(version);
         Objects.requireNonNull(key, "key");
+        long startTime = System.currentTimeMillis();
         requireRetainedVersion(version);
         byte[] keyHash = hashFn.digest(key);
-
-        long startTime = System.currentTimeMillis();
         Optional<byte[]> value = store.getValueAt(keyHash, version);
 
         // Record metrics
@@ -1277,13 +1280,6 @@ public final class JellyfishMerkleTree {
         }
     }
 
-    private void rejectPrunedReplay(long version, Optional<JmtStore.VersionedRoot> expectedLatest) {
-        OptionalLong watermark = replayWatermark(version, expectedLatest);
-        if (watermark.isPresent()) {
-            throw new JmtWriteConflictException(prunedReplayMessage(version, watermark.getAsLong()));
-        }
-    }
-
     /**
      * A replay rebuilds the version on the state as of {@code version - 1}. If pruning up to this version removed
      * nodes of that state, the replay computes another root and the store rejects it; say so instead of only
@@ -1307,7 +1303,7 @@ public final class JellyfishMerkleTree {
 
     private static String prunedReplayMessage(long version, long watermark) {
         return "Version " + version + " cannot be replayed: history was pruned up to " + watermark
-                + ", so the state it was built on is incomplete";
+                + ", so the state it was built on may be incomplete";
     }
 
     private static void requireVersion(long version) {
