@@ -91,7 +91,10 @@ class TxPlanSchemaConformanceTest {
                 Arguments.of("additional_signers_count above bound", "context: {additional_signers_count: 1001}\n" + tx("intents", "{type: payment, address: " + RECEIVER + "}")),
                 Arguments.of("unknown context key", "context: {fee_payr: " + SENDER + "}\n" + tx("intents", "{type: payment, address: " + RECEIVER + "}")),
                 Arguments.of("unknown root key", "versio: '1.0'\n" + tx("intents", "{type: payment, address: " + RECEIVER + "}")),
-                Arguments.of("scriptTx entry", "transaction:\n  - scriptTx: {}\n"));
+                Arguments.of("scriptTx entry", "transaction:\n  - scriptTx: {}\n"),
+                // TxPlan.from used to rename the key by textual substitution; no reader substitutes keys now.
+                Arguments.of("placeholder as an intent key", "variables: {field: donation_amount}\n"
+                        + tx("intents", "{type: donation, current_treasury_value: 1, '${field}': 5}")));
     }
 
     @ParameterizedTest(name = "{0}")
