@@ -519,13 +519,16 @@ public class TxPlan {
      * Deserialize YAML string to a complete TxPlan with context.
      * @param yaml the YAML string
      * @return reconstructed TxPlan with all properties restored
+     * <p>Core intents are read strictly: an unknown or misspelled intent field, a fractional number for an integer
+     * field, a numeric enum index or a malformed UTxO reference fails instead of being dropped or coerced. Use
+     * {@code TxPlanCodec.builder().strictIntentFields(false)} to read such a document leniently.
      * @throws IllegalArgumentException if the document declares extensions or uses extension intents;
      *         read those with a {@link TxPlanCodec}
      * @throws RuntimeException if deserialization fails
      */
     public static TxPlan from(String yaml) {
         rejectExtensionDocument(yaml);
-        TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
+        TransactionDocument doc = readDocument(yaml);
         return from(doc);
     }
 
@@ -596,8 +599,15 @@ public class TxPlan {
      */
     public static List<AbstractTx<?>> getTxs(String yaml) {
         rejectExtensionDocument(yaml);
-        TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
+        TransactionDocument doc = readDocument(yaml);
         return getTxs(doc);
+    }
+
+    private static TransactionDocument readDocument(String yaml) {
+        TransactionDocument doc = YamlSerializer.deserializeStrict(yaml, TransactionDocument.class);
+        // An empty or null YAML document binds to null; report it like TxPlanCodec does.
+        if (doc == null) throw new IllegalArgumentException("TxPlan YAML root must be a mapping");
+        return doc;
     }
 
     /**
@@ -646,6 +656,8 @@ public class TxPlan {
     private static List<AbstractTx<?>> getTxs(TransactionDocument doc) {
         List<AbstractTx<?>> transactions = new ArrayList<>();
         Map<String, Object> vars = doc.getVariables();
+        // An explicit `transaction: null` means no transactions, like an absent key.
+        if (doc.getTransaction() == null) return transactions;
 
         for (TransactionDocument.TxEntry entry : doc.getTransaction()) {
             if (entry.isTx()) {

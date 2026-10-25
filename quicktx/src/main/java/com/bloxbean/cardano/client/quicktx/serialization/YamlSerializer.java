@@ -17,6 +17,7 @@ import java.util.Map;
 public class YamlSerializer {
 
     private static final ObjectMapper YAML_MAPPER;
+    private static final ObjectMapper STRICT_YAML_MAPPER;
 
     static {
         YAMLFactory factory = new YAMLFactory();
@@ -28,6 +29,7 @@ public class YamlSerializer {
         YAML_MAPPER = new ObjectMapper(factory);
         // Exclude null values from serialization
         YAML_MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        STRICT_YAML_MAPPER = StrictReading.apply(YAML_MAPPER.copy());
     }
 
     /**
@@ -77,19 +79,30 @@ public class YamlSerializer {
      * @throws RuntimeException if deserialization fails
      */
     public static <T> T deserialize(String yaml, Class<T> type) {
+        return deserialize(YAML_MAPPER, yaml, type);
+    }
+
+    /**
+     * Like {@link #deserialize(String, Class)}, but core intents are read strictly (see {@link StrictReading}).
+     */
+    static <T> T deserializeStrict(String yaml, Class<T> type) {
+        return deserialize(STRICT_YAML_MAPPER, yaml, type);
+    }
+
+    private static <T> T deserialize(ObjectMapper mapper, String yaml, Class<T> type) {
         try {
             // Extract variables and expand template if present
-            JsonNode tree = YAML_MAPPER.readTree(yaml);
+            JsonNode tree = mapper.readTree(yaml);
             JsonNode varsNode = tree.get("variables");
 
             if (varsNode != null && varsNode.isObject()) {
-                Map<String, Object> variables = YAML_MAPPER.convertValue(varsNode, Map.class);
+                Map<String, Object> variables = mapper.convertValue(varsNode, Map.class);
                 // Perform template expansion: replace ${variable} placeholders
                 yaml = VariableResolver.resolve(yaml, variables);
             }
 
             // Deserialize the expanded YAML
-            return YAML_MAPPER.readValue(yaml, type);
+            return mapper.readValue(yaml, type);
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize YAML to " + type.getSimpleName(), e);
         }

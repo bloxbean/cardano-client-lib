@@ -34,7 +34,8 @@ public final class TxPlanCodec {
     private final ObjectMapper mapper;
 
     private TxPlanCodec(Map<String, QuickTxExtension> extensions,
-                        Map<String, QuickTxExtension> extensionsById) {
+                        Map<String, QuickTxExtension> extensionsById,
+                        boolean strictIntentFields) {
         this.extensions = Map.copyOf(extensions);
         this.extensionsById = Map.copyOf(extensionsById);
         this.mapper = YamlSerializer.getYamlMapper().copy();
@@ -67,6 +68,7 @@ public final class TxPlanCodec {
             extension.intentTypes().forEach((operation, type) -> mapper.registerSubtypes(
                     new NamedType(type, ExtensionIntent.canonicalType(extension.id(), operation))));
         });
+        if (strictIntentFields) StrictReading.apply(mapper);
     }
 
     public static Builder builder() {
@@ -332,6 +334,21 @@ public final class TxPlanCodec {
     public static final class Builder {
         private final Map<String, QuickTxExtension> extensions = new LinkedHashMap<>();
         private final Map<String, QuickTxExtension> extensionsById = new LinkedHashMap<>();
+        private boolean strictIntentFields = true;
+
+        /**
+         * Whether core intents are read strictly (the default). A strict codec rejects an unknown or misspelled intent
+         * field, a fractional number for an integer field, a numeric enum index and a malformed UTxO reference.
+         * {@code false} restores the lenient reading, which drops or coerces them. Unknown keys outside intents
+         * ({@code context}, {@code tx}, the root) are rejected either way; TxFlow compilation is always strict.
+         *
+         * @param strictIntentFields false to read core intents leniently
+         * @return this builder
+         */
+        public Builder strictIntentFields(boolean strictIntentFields) {
+            this.strictIntentFields = strictIntentFields;
+            return this;
+        }
 
         public Builder withExtension(String namespace, QuickTxExtension extension) {
             if (namespace == null || !namespace.matches("[a-z][a-z0-9_-]{0,31}"))
@@ -362,7 +379,7 @@ public final class TxPlanCodec {
         }
 
         public TxPlanCodec build() {
-            return new TxPlanCodec(extensions, extensionsById);
+            return new TxPlanCodec(extensions, extensionsById, strictIntentFields);
         }
     }
 

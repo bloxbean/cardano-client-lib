@@ -21,6 +21,7 @@ dependencies {
     testImplementation(project(':test-support')) {
         exclude group: 'net.jqwik'
     }
+    testImplementation(libs.jazzer.junit)
 }
 
 publishing {
