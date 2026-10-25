@@ -4,7 +4,8 @@ import com.code_intelligence.jazzer.api.FuzzedDataProvider;
 import com.code_intelligence.jazzer.junit.FuzzTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -37,16 +38,17 @@ class TxPlanSchemaFuzzTest {
         MUTATOR = new TxPlanMutator(types, vocabulary());
     }
 
-    @Test
-    void seededMutationsTheRuntimeAcceptsValidate() {
-        Random random = new Random(20261025L);
+    @ParameterizedTest(name = "seed {0}")
+    @ValueSource(longs = {20261025L, 1L, 42L, 7919L})
+    void seededMutationsTheRuntimeAcceptsValidate(long seed) {
+        Random random = new Random(seed);
         TxPlanMutator.Choices choices = TxPlanMutator.Choices.of(random);
         int accepted = 0;
-        for (int i = 0; i < 3000; i++) {
+        for (int i = 0; i < 1500; i++) {
             if (checkAgreement(CORPUS.get(random.nextInt(CORPUS.size())), choices)) accepted++;
         }
         // The mutants must still exercise the acceptance path, or the property is vacuous.
-        assertThat(accepted).isGreaterThan(300);
+        assertThat(accepted).isGreaterThan(150);
     }
 
     @FuzzTest(maxDuration = "60s")
@@ -67,10 +69,10 @@ class TxPlanSchemaFuzzTest {
 
     /** @return true when the runtime accepted the mutant (and the schema therefore had to accept it) */
     private static boolean checkAgreement(JsonNode document, TxPlanMutator.Choices choices) {
-        JsonNode mutant = MUTATOR.mutate(document, choices);
-        String yaml = yaml(mutant);
+        String yaml = yaml(MUTATOR.mutate(document, choices));
         if (!TxPlanSchemaSupport.acceptedByRuntime(yaml)) return false;
-        assertThat(TxPlanSchemaSupport.validate(mutant))
+        // Validate the text the runtime read, re-parsed: the writer may turn a text node "737" into the number 737.
+        assertThat(TxPlanSchemaSupport.validate(yaml))
                 .as("the runtime accepts this document but the schema rejects it:%n%s", yaml)
                 .isEmpty();
         return true;

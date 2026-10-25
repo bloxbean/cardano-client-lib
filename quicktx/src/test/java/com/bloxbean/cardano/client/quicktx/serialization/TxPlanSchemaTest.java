@@ -24,7 +24,8 @@ class TxPlanSchemaTest {
 
     @Test
     void schemaIsUpToDate() throws IOException {
-        String committed = Files.readString(SCHEMA_FILE);
+        // Compare with normalized line endings, so a CRLF checkout does not fail the guard.
+        String committed = Files.readString(SCHEMA_FILE).replace("\r\n", "\n");
 
         assertThat(TxPlanSchemaGenerator.generate(committed))
                 .as("TxPlan schema is out of date: run ./gradlew :quicktx:generateTxPlanSchema")
@@ -83,8 +84,9 @@ class TxPlanSchemaTest {
     void txFlowReferenceTargetKeepsItsShape() throws IOException {
         JsonNode transaction = schema().at("/$defs/transaction");
 
-        assertThat(transaction.at("/properties/tx/$ref").asText()).isEqualTo("#/$defs/tx");
-        assertThat(transaction.at("/properties/context/$ref").asText()).isEqualTo("#/$defs/context");
+        // Each may also be a whole-value placeholder, resolved before binding.
+        assertThat(transaction.at("/properties/tx/anyOf/0/$ref").asText()).isEqualTo("#/$defs/tx");
+        assertThat(transaction.at("/properties/context/anyOf/0/$ref").asText()).isEqualTo("#/$defs/context");
         assertThat(transaction.get("required").toString()).isEqualTo("[\"tx\"]");
     }
 

@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.quicktx.serialization;
 
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
@@ -8,34 +10,41 @@ import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.Separators;
 import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.DeserializationConfig;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.KeyDeserializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyName;
 import com.fasterxml.jackson.databind.deser.BeanDeserializerBase;
 import com.fasterxml.jackson.databind.deser.DefaultDeserializationContext;
 import com.fasterxml.jackson.databind.deser.SettableBeanProperty;
+import com.fasterxml.jackson.databind.deser.ValueInstantiator;
 import com.fasterxml.jackson.databind.introspect.AnnotatedClass;
+import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
+import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.TreeMap;
 
 /**
@@ -59,6 +68,8 @@ public final class TxPlanSchemaGenerator {
     static final String PLACEHOLDER = "placeholder";
     static final String INTEGER_LIKE = "integerLike";
     static final String BOOLEAN_LIKE = "booleanLike";
+    /** What Jackson strips from scalar text before parsing it (String.trim: every char up to U+0020). */
+    private static final String TRIMMED = "[\\u0000-\\u0020]*";
     static final List<String> INTENT_ARRAYS = List.of("inputs", "intents", "scripts");
 
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
@@ -70,8 +81,9 @@ public final class TxPlanSchemaGenerator {
      */
     private static final Map<String, JsonNode> CUSTOM_DESERIALIZERS = Map.of(
             "com.bloxbean.cardano.client.quicktx.serialization.MetadataDeserializer", NODES.objectNode(),
-            "com.bloxbean.cardano.client.util.serializers.HexToByteArrayDeserializer", type("string"),
-            "com.bloxbean.cardano.client.util.serializers.InetAddressDeserializer", type("string"),
+            // Both read the token's text, so a digit-only hex or address written unquoted is accepted.
+            "com.bloxbean.cardano.client.util.serializers.HexToByteArrayDeserializer", scalarText("string", "number"),
+            "com.bloxbean.cardano.client.util.serializers.InetAddressDeserializer", scalarText("string", "number"),
             "com.bloxbean.cardano.client.quicktx.intent.UtxoRefDeserializer", ref("inputRef"));
 
     private final ObjectMapper mapper;
@@ -83,6 +95,8 @@ public final class TxPlanSchemaGenerator {
     private TxPlanSchemaGenerator(ObjectMapper mapper) {
         this.mapper = mapper;
         this.config = mapper.getDeserializationConfig();
+        if (config.isEnabled(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY))
+            throw new IllegalStateException("ACCEPT_SINGLE_VALUE_AS_ARRAY is enabled on the reader; the array schemas would be wrong");
         this.context = ((DefaultDeserializationContext) mapper.getDeserializationContext())
                 .createDummyInstance(config);
     }
@@ -136,16 +150,20 @@ public final class TxPlanSchemaGenerator {
             if ("intents".equals(array)) branches.add(discriminatedOpenObject(type("string").put("pattern", "^[^:]+:.+$")));
             // TxPlanCodec resolves variables before binding, so the discriminator itself may be a placeholder.
             branches.add(discriminatedOpenObject(ref(PLACEHOLDER)));
+            // TxPlanCodec resolves variables before binding, so an element, or the whole array, may be a placeholder.
+            branches.add(ref(PLACEHOLDER));
             ObjectNode items = NODES.objectNode();
             items.set("anyOf", branches);
-            ((ObjectNode) txProperties.required(array)).set("items", items);
+            ObjectNode arraySchema = type("array");
+            arraySchema.set("items", items);
+            txProperties.set(array, orPlaceholder(arraySchema));
         }
 
         definitions.put(PLACEHOLDER, type("string").put("pattern", "\\$\\{")
                 .put("description", "A ${var} or ${{ inputs.x }} placeholder, resolved before binding"));
-        definitions.put(INTEGER_LIKE, type("string").put("pattern", "^\\s*[+-]?[0-9]+\\s*$")
+        definitions.put(INTEGER_LIKE, type("string").put("pattern", "^" + TRIMMED + "[+-]?[0-9]+" + TRIMMED + "$")
                 .put("description", "An integer written as a string"));
-        definitions.put(BOOLEAN_LIKE, type("string").put("pattern", "^\\s*(true|True|TRUE|false|False|FALSE)\\s*$")
+        definitions.put(BOOLEAN_LIKE, type("string").put("pattern", "^" + TRIMMED + "(true|True|TRUE|false|False|FALSE)" + TRIMMED + "$")
                 .put("description", "A boolean written as a string, e.g. a quoted '${flag}' substituted as text"));
 
         Map<String, JsonNode> rebuilt = new LinkedHashMap<>();
@@ -161,6 +179,17 @@ public final class TxPlanSchemaGenerator {
             throws JsonMappingException {
         BeanDeserializerBase deserializer = beanDeserializer(type);
         BeanDescription description = config.introspect(type);
+        checkEveryBoundPropertyIsListed(type, deserializer, description, discriminator);
+        // A polymorphic subtype (discriminator != null) is only reached through an object carrying its type id, so a
+        // scalar creator it may have (e.g. Lombok's single-String constructor) is unreachable.
+        ValueInstantiator instantiator = deserializer.getValueInstantiator();
+        if (discriminator == null && (instantiator.canCreateFromString() || instantiator.canCreateUsingDelegate()
+                || instantiator.canCreateUsingArrayDelegate() || instantiator.canCreateFromInt()
+                || instantiator.canCreateFromLong() || instantiator.canCreateFromBoolean()
+                || instantiator.canCreateFromDouble() || instantiator.canCreateFromBigInteger()
+                || instantiator.canCreateFromBigDecimal()))
+            throw unsupported(type.getRawClass().getName(), "it can also be created from a scalar or a delegate,"
+                    + " which the object schema would not describe");
         Map<String, JsonNode> properties = new TreeMap<>();
         for (Iterator<SettableBeanProperty> it = deserializer.properties(); it.hasNext(); ) {
             SettableBeanProperty property = it.next();
@@ -180,6 +209,40 @@ public final class TxPlanSchemaGenerator {
         props.setAll(properties);
         schema.set("properties", props);
         return schema;
+    }
+
+    /**
+     * Fails when Jackson binds a property the generator would not list, e.g. an {@code @JsonUnwrapped} member (bound
+     * through a separate handler and absent from {@link BeanDeserializerBase#properties()}). Without this check such a
+     * field would be accepted by the readers while the regenerated schema stayed unchanged.
+     */
+    private void checkEveryBoundPropertyIsListed(JavaType type, BeanDeserializerBase deserializer,
+                                                 BeanDescription description, String discriminator)
+            throws JsonMappingException {
+        Set<String> listed = new HashSet<>();
+        deserializer.properties().forEachRemaining(property -> listed.add(property.getName()));
+        for (BeanPropertyDefinition definition : description.findProperties()) {
+            AnnotatedMember member = definition.getPrimaryMember();
+            String where = type.getRawClass().getName() + "." + definition.getName();
+            if (member != null) {
+                Object contentDeserializer = config.getAnnotationIntrospector().findContentDeserializer(member);
+                Object keyDeserializer = config.getAnnotationIntrospector().findKeyDeserializer(member);
+                if ((contentDeserializer != null && contentDeserializer != JsonDeserializer.None.class)
+                        || (keyDeserializer != null && keyDeserializer != KeyDeserializer.None.class))
+                    throw unsupported(where, "content or key deserializers are not supported; map the property explicitly");
+                JsonFormat.Value format = config.getAnnotationIntrospector().findFormat(member);
+                if (format != null && Boolean.TRUE.equals(format.getFeature(JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)))
+                    throw unsupported(where, "ACCEPT_SINGLE_VALUE_AS_ARRAY is not supported");
+            }
+            if (member != null
+                    && config.getAnnotationIntrospector().findUnwrappingNameTransformer(member) != null)
+                throw unsupported(type.getRawClass().getName() + "." + definition.getName(),
+                        "@JsonUnwrapped properties are not supported; map their fields explicitly");
+            if (definition.couldDeserialize() && !definition.getName().equals(discriminator)
+                    && !listed.contains(definition.getName()))
+                throw unsupported(type.getRawClass().getName() + "." + definition.getName(),
+                        "Jackson binds this property but its bean deserializer does not list it");
+        }
     }
 
     private JsonNode propertySchema(JavaType owner, SettableBeanProperty property) throws JsonMappingException {
@@ -202,11 +265,21 @@ public final class TxPlanSchemaGenerator {
             return orPlaceholder(type("integer"), ref(INTEGER_LIKE));
         if (raw == Boolean.class || raw == boolean.class) return orPlaceholder(type("boolean"), ref(BOOLEAN_LIKE));
         if (type.isEnumType()) {
+            for (Field constant : raw.getFields()) {
+                if (constant.isEnumConstant() && constant.isAnnotationPresent(JsonAlias.class))
+                    throw unsupported(where, "enum constant aliases (@JsonAlias on " + constant.getName() + ") are not supported");
+            }
             ArrayNode names = NODES.arrayNode();
-            for (Object constant : raw.getEnumConstants()) names.add(mapper.convertValue(constant, String.class));
+            StringJoiner alternatives = new StringJoiner("|", "^" + TRIMMED + "(", ")" + TRIMMED + "$");
+            for (Object constant : raw.getEnumConstants()) {
+                String name = mapper.convertValue(constant, String.class);
+                names.add(name);
+                alternatives.add(name.replaceAll("[^A-Za-z0-9_]", "\\\\$0"));
+            }
             ObjectNode enumSchema = NODES.objectNode();
             enumSchema.set("enum", names);
-            return orPlaceholder(enumSchema);
+            // Jackson also accepts a name with surrounding whitespace.
+            return orPlaceholder(enumSchema, type("string").put("pattern", alternatives.toString()));
         }
         if (type.isCollectionLikeType() || (type.isArrayType() && raw != byte[].class)) {
             ObjectNode array = type("array");
@@ -238,8 +311,9 @@ public final class TxPlanSchemaGenerator {
         for (Map.Entry<String, Class<?>> subtype : subtypes(type.getRawClass()).entrySet()) {
             branches.add(ref(model(constructType(subtype.getValue()), typeInfo.property(), subtype.getKey())));
         }
+        branches.add(discriminatedOpenObject(typeInfo.property(), ref(PLACEHOLDER)));
         ObjectNode schema = NODES.objectNode();
-        schema.set("oneOf", branches);
+        schema.set("anyOf", branches);
         return schema;
     }
 
@@ -286,15 +360,25 @@ public final class TxPlanSchemaGenerator {
         return List.of();
     }
 
+    /** Type ids of the subtypes of a polymorphic base, as Jackson resolves them (incl. {@code @JsonTypeName}). */
     private static Map<String, Class<?>> subtypes(Class<?> base) {
-        JsonSubTypes subTypes = base.getAnnotation(JsonSubTypes.class);
-        if (subTypes == null) throw new IllegalStateException(base.getName() + " has no @JsonSubTypes");
+        ObjectMapper mapper = YamlSerializer.getYamlMapper();
+        DeserializationConfig config = mapper.getDeserializationConfig();
+        AnnotatedClass annotated = config.introspectClassAnnotations(mapper.constructType(base)).getClassInfo();
+        JsonTypeInfo typeInfo = annotated.getAnnotation(JsonTypeInfo.class);
+        if (typeInfo == null) throw new IllegalStateException(base.getName() + " has no @JsonTypeInfo");
+        if (typeInfo.defaultImpl() != JsonTypeInfo.class)
+            throw new IllegalStateException(base.getName() + " declares @JsonTypeInfo(defaultImpl); an unknown type id"
+                    + " would then be accepted, which the schema cannot describe");
         Map<String, Class<?>> result = new TreeMap<>();
-        for (JsonSubTypes.Type subtype : subTypes.value()) {
-            Set<String> names = new LinkedHashSet<>(List.of(subtype.names()));
-            if (!subtype.name().isEmpty()) names.add(subtype.name());
-            for (String name : names) result.put(name, subtype.value());
+        for (NamedType subtype : config.getSubtypeResolver().collectAndResolveSubtypesByTypeId(config, annotated)) {
+            if (subtype.getType() == base || !subtype.hasName()) continue;
+            Class<?> previous = result.put(subtype.getName(), subtype.getType());
+            if (previous != null && previous != subtype.getType())
+                throw new IllegalStateException("Type id " + subtype.getName() + " maps to both " + previous.getName()
+                        + " and " + subtype.getType().getName());
         }
+        if (result.isEmpty()) throw new IllegalStateException(base.getName() + " has no named subtypes");
         return result;
     }
 
@@ -303,10 +387,14 @@ public final class TxPlanSchemaGenerator {
     }
 
     private static ObjectNode discriminatedOpenObject(JsonNode discriminator) {
+        return discriminatedOpenObject("type", discriminator);
+    }
+
+    private static ObjectNode discriminatedOpenObject(String property, JsonNode discriminator) {
         ObjectNode schema = type("object");
-        schema.set("required", NODES.arrayNode().add("type"));
+        schema.set("required", NODES.arrayNode().add(property));
         ObjectNode properties = NODES.objectNode();
-        properties.set("type", discriminator);
+        properties.set(property, discriminator);
         schema.set("properties", properties);
         return schema;
     }
@@ -318,6 +406,12 @@ public final class TxPlanSchemaGenerator {
         ObjectNode schema = NODES.objectNode();
         schema.set("anyOf", anyOf);
         return schema;
+    }
+
+    private static ObjectNode scalarText(String... types) {
+        ArrayNode array = NODES.arrayNode();
+        for (String t : types) array.add(t);
+        return (ObjectNode) NODES.objectNode().set("type", array);
     }
 
     private static ObjectNode type(String type) {
@@ -339,6 +433,12 @@ public final class TxPlanSchemaGenerator {
                 .withObjectIndenter(new DefaultIndenter("  ", "\n"))
                 .withArrayIndenter(new DefaultIndenter("  ", "\n"));
         return JSON.writer(printer).writeValueAsString(schema) + "\n";
+    }
+
+    /** The generated schema of one bean type, for tests of the generator's own rules. */
+    static JsonNode describe(Class<?> type) throws JsonMappingException {
+        TxPlanSchemaGenerator generator = new TxPlanSchemaGenerator(YamlSerializer.getYamlMapper());
+        return generator.beanSchema(generator.constructType(type), null, null);
     }
 
     /** Names of every definition the generator writes, for tests. */

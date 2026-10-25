@@ -17,22 +17,57 @@
       "type": "object"
     },
     "extensions": {
-      "type": "object"
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/placeholder"
+        }
+      ]
     },
     "context": {
-      "$ref": "#/$defs/context"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/context"
+        },
+        {
+          "$ref": "#/$defs/placeholder"
+        }
+      ]
     },
     "transaction": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "tx": {
-            "$ref": "#/$defs/tx"
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "tx": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/tx"
+                      },
+                      {
+                        "$ref": "#/$defs/placeholder"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/$defs/placeholder"
+              }
+            ]
           }
+        },
+        {
+          "$ref": "#/$defs/placeholder"
         }
-      }
+      ]
     }
   },
   "$defs": {
@@ -44,22 +79,35 @@
       ],
       "properties": {
         "flow_output": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "step",
-            "output"
-          ],
-          "properties": {
-            "step": {
-              "type": "string",
-              "minLength": 1
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "step",
+                "output"
+              ],
+              "properties": {
+                "step": {
+                  "type": [
+                    "string",
+                    "number"
+                  ],
+                  "minLength": 1
+                },
+                "output": {
+                  "type": [
+                    "string",
+                    "number"
+                  ],
+                  "minLength": 1
+                }
+              }
             },
-            "output": {
-              "type": "string",
-              "minLength": 1
+            {
+              "$ref": "#/$defs/placeholder"
             }
-          }
+          ]
         }
       }
     },
@@ -72,7 +120,10 @@
       ],
       "properties": {
         "tx_hash": {
-          "type": "string"
+          "type": [
+            "string",
+            "number"
+          ]
         },
         "output_index": {
           "type": [
@@ -100,10 +151,24 @@
       ],
       "properties": {
         "tx": {
-          "$ref": "#/$defs/tx"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/tx"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
         },
         "context": {
-          "$ref": "#/$defs/context"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/context"
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
         }
       }
     },
@@ -154,154 +219,184 @@
           ]
         },
         "inputs": {
-          "type": "array",
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/intent.collect_from"
-              },
-              {
-                "$ref": "#/$defs/intent.reference_input"
-              },
-              {
-                "$ref": "#/$defs/intent.script_collect_from"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/intent.collect_from"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.reference_input"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.script_collect_from"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type"
+                    ],
+                    "properties": {
+                      "type": {
+                        "$ref": "#/$defs/placeholder"
+                      }
+                    }
+                  },
+                  {
                     "$ref": "#/$defs/placeholder"
                   }
-                }
+                ]
               }
-            ]
-          }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
         },
         "intents": {
-          "type": "array",
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/intent.collect_from"
-              },
-              {
-                "$ref": "#/$defs/intent.donation"
-              },
-              {
-                "$ref": "#/$defs/intent.drep_deregistration"
-              },
-              {
-                "$ref": "#/$defs/intent.drep_registration"
-              },
-              {
-                "$ref": "#/$defs/intent.drep_update"
-              },
-              {
-                "$ref": "#/$defs/intent.governance_proposal"
-              },
-              {
-                "$ref": "#/$defs/intent.metadata"
-              },
-              {
-                "$ref": "#/$defs/intent.minting"
-              },
-              {
-                "$ref": "#/$defs/intent.native_script"
-              },
-              {
-                "$ref": "#/$defs/intent.payment"
-              },
-              {
-                "$ref": "#/$defs/intent.pool_registration"
-              },
-              {
-                "$ref": "#/$defs/intent.pool_retirement"
-              },
-              {
-                "$ref": "#/$defs/intent.pool_update"
-              },
-              {
-                "$ref": "#/$defs/intent.reference_input"
-              },
-              {
-                "$ref": "#/$defs/intent.script_collect_from"
-              },
-              {
-                "$ref": "#/$defs/intent.script_minting"
-              },
-              {
-                "$ref": "#/$defs/intent.stake_delegation"
-              },
-              {
-                "$ref": "#/$defs/intent.stake_deregistration"
-              },
-              {
-                "$ref": "#/$defs/intent.stake_registration"
-              },
-              {
-                "$ref": "#/$defs/intent.stake_withdrawal"
-              },
-              {
-                "$ref": "#/$defs/intent.validator"
-              },
-              {
-                "$ref": "#/$defs/intent.voting"
-              },
-              {
-                "$ref": "#/$defs/intent.voting_delegation"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "pattern": "^[^:]+:.+$"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/intent.collect_from"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.donation"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.drep_deregistration"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.drep_registration"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.drep_update"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.governance_proposal"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.metadata"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.minting"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.native_script"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.payment"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.pool_registration"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.pool_retirement"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.pool_update"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.reference_input"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.script_collect_from"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.script_minting"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.stake_delegation"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.stake_deregistration"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.stake_registration"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.stake_withdrawal"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.validator"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.voting"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.voting_delegation"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type"
+                    ],
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "pattern": "^[^:]+:.+$"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type"
+                    ],
+                    "properties": {
+                      "type": {
+                        "$ref": "#/$defs/placeholder"
+                      }
+                    }
+                  },
+                  {
                     "$ref": "#/$defs/placeholder"
                   }
-                }
+                ]
               }
-            ]
-          }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
         },
         "scripts": {
-          "type": "array",
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/intent.native_script"
-              },
-              {
-                "$ref": "#/$defs/intent.validator"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/intent.native_script"
+                  },
+                  {
+                    "$ref": "#/$defs/intent.validator"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type"
+                    ],
+                    "properties": {
+                      "type": {
+                        "$ref": "#/$defs/placeholder"
+                      }
+                    }
+                  },
+                  {
                     "$ref": "#/$defs/placeholder"
                   }
-                }
+                ]
               }
-            ]
-          }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
         }
       }
     },
@@ -338,20 +433,26 @@
           ]
         },
         "required_signers": {
-          "type": "array",
-          "items": {
-            "type": [
-              "string",
-              "number",
-              "boolean"
-            ]
-          }
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
+            }
+          ]
         },
         "valid_from_slot": {
           "anyOf": [
             {
-              "type": "integer",
-              "minimum": 0
+              "type": "integer"
             },
             {
               "$ref": "#/$defs/integerLike"
@@ -364,8 +465,7 @@
         "valid_to_slot": {
           "anyOf": [
             {
-              "type": "integer",
-              "minimum": 0
+              "type": "integer"
             },
             {
               "$ref": "#/$defs/integerLike"
@@ -376,27 +476,41 @@
           ]
         },
         "signers": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "ref": {
-                "type": [
-                  "string",
-                  "number",
-                  "boolean"
-                ]
-              },
-              "scope": {
-                "type": [
-                  "string",
-                  "number",
-                  "boolean"
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "ref": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      },
+                      "scope": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "$ref": "#/$defs/placeholder"
+                  }
                 ]
               }
+            },
+            {
+              "$ref": "#/$defs/placeholder"
             }
-          }
+          ]
         },
         "additional_signers_count": {
           "anyOf": [
@@ -428,12 +542,12 @@
     },
     "booleanLike": {
       "type": "string",
-      "pattern": "^\\s*(true|True|TRUE|false|False|FALSE)\\s*$",
+      "pattern": "^[\\u0000-\\u0020]*(true|True|TRUE|false|False|FALSE)[\\u0000-\\u0020]*$",
       "description": "A boolean written as a string, e.g. a quoted '${flag}' substituted as text"
     },
     "integerLike": {
       "type": "string",
-      "pattern": "^\\s*[+-]?[0-9]+\\s*$",
+      "pattern": "^[\\u0000-\\u0020]*[+-]?[0-9]+[\\u0000-\\u0020]*$",
       "description": "An integer written as a string"
     },
     "intent.collect_from": {
@@ -1343,6 +1457,10 @@
               ]
             },
             {
+              "type": "string",
+              "pattern": "^[\\u0000-\\u0020]*(spend|mint|cert|reward|voting|proposing)[\\u0000-\\u0020]*$"
+            },
+            {
               "$ref": "#/$defs/placeholder"
             }
           ]
@@ -1372,6 +1490,10 @@
                 "v2",
                 "v3"
               ]
+            },
+            {
+              "type": "string",
+              "pattern": "^[\\u0000-\\u0020]*(v1|v2|v3)[\\u0000-\\u0020]*$"
             },
             {
               "$ref": "#/$defs/placeholder"
@@ -1593,7 +1715,10 @@
           ]
         },
         "operator": {
-          "type": "string"
+          "type": [
+            "string",
+            "number"
+          ]
         },
         "pledge": {
           "anyOf": [
@@ -1646,7 +1771,7 @@
               "items": {
                 "anyOf": [
                   {
-                    "oneOf": [
+                    "anyOf": [
                       {
                         "$ref": "#/$defs/model.MultiHostName"
                       },
@@ -1655,6 +1780,17 @@
                       },
                       {
                         "$ref": "#/$defs/model.SingleHostName"
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "relay_type"
+                        ],
+                        "properties": {
+                          "relay_type": {
+                            "$ref": "#/$defs/placeholder"
+                          }
+                        }
                       }
                     ]
                   },
@@ -1702,12 +1838,19 @@
               ]
             },
             {
+              "type": "string",
+              "pattern": "^[\\u0000-\\u0020]*(STAKE_REGISTRATION|STAKE_DEREGISTRATION|STAKE_DELEGATION|POOL_REGISTRATION|POOL_RETIREMENT|GENESIS_KEY_DELEGATION|MOVE_INSTATENEOUS_REWARDS_CERT|REG_CERT|UNREG_CERT|VOTE_DELEG_CERT|STAKE_VOTE_DELEG_CERT|STAKE_REG_DELEG_CERT|VOTE_REG_DELEG_CERT|STAKE_VOTE_REG_DELEG_CERT|AUTH_COMMITTEE_HOT_CERT|RESIGN_COMMITTEE_COLD_CERT|REG_DREP_CERT|UNREG_DREP_CERT|UPDATE_DREP_CERT)[\\u0000-\\u0020]*$"
+            },
+            {
               "$ref": "#/$defs/placeholder"
             }
           ]
         },
         "vrfKeyHash": {
-          "type": "string"
+          "type": [
+            "string",
+            "number"
+          ]
         }
       }
     },
@@ -1719,10 +1862,16 @@
       "additionalProperties": false,
       "properties": {
         "ipv4": {
-          "type": "string"
+          "type": [
+            "string",
+            "number"
+          ]
         },
         "ipv6": {
-          "type": "string"
+          "type": [
+            "string",
+            "number"
+          ]
         },
         "port": {
           "anyOf": [

@@ -106,13 +106,16 @@ final class TxPlanSchemaSupport {
     static Map<String, String> corpus() {
         Map<String, String> corpus = new LinkedHashMap<>();
         collect(Path.of("src/test/java"), ".java", TEXT_BLOCK, true, corpus);
-        collect(Path.of("../docs/content/preview/txplan"), ".mdx", YAML_FENCE, false, corpus);
+        collect(DOCS, ".mdx", YAML_FENCE, false, corpus);
         IntentSamples.documents().forEach((type, yaml) -> corpus.put("sample:" + type, yaml));
+        IntentSamples.variants().forEach((name, yaml) -> corpus.put("variant:" + name, yaml));
         return corpus;
     }
 
+    static final Path DOCS = Path.of("../docs/content/preview/txplan");
+
     private static void collect(Path dir, String suffix, Pattern block, boolean javaTextBlock, Map<String, String> corpus) {
-        if (!Files.isDirectory(dir)) return;
+        if (!Files.isDirectory(dir)) throw new IllegalStateException("Corpus directory is missing: " + dir.toAbsolutePath());
         try (Stream<Path> files = Files.walk(dir)) {
             for (Path file : files.filter(f -> f.toString().endsWith(suffix)).sorted().collect(Collectors.toList())) {
                 Matcher m = block.matcher(Files.readString(file));
@@ -121,7 +124,8 @@ final class TxPlanSchemaSupport {
                     String text = m.group(1);
                     if (javaTextBlock) {
                         try {
-                            text = text.stripIndent().translateEscapes();
+                            // Fill String.format templates so blocks used with .formatted(...) still parse.
+                            text = text.stripIndent().translateEscapes().replace("%s", "1").replace("%d", "1");
                         } catch (IllegalArgumentException notJavaText) {
                             continue;
                         }
