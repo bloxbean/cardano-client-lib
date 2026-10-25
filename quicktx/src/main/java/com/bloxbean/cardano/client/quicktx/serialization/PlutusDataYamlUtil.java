@@ -81,8 +81,9 @@ public class PlutusDataYamlUtil {
                 if (!value.isTextual() && !value.isIntegralNumber()) throw invalid(path + ".bytes", "must be hex text", value);
             }
             case "constructor" -> {
-                // ConstrPlutusData reads the alternative as a long; a larger value would silently wrap.
-                if (!value.isIntegralNumber() || !value.canConvertToLong() || value.longValue() < 0)
+                // ConstrPlutusData reads the alternative as a long (also from decimal text, e.g. a quoted '${c}'
+                // substituted by TxPlan.from); a larger value would silently wrap.
+                if (!isConstructorIndex(value))
                     throw invalid(path + ".constructor", "must be a non-negative integer that fits in a long", value);
                 JsonNode fields = node.get("fields");
                 if (!fields.isArray()) throw invalid(path + ".fields", "must be a list", fields);
@@ -96,12 +97,24 @@ public class PlutusDataYamlUtil {
                 if (!value.isArray()) throw invalid(path + ".map", "must be a list of {k, v}", value);
                 for (int i = 0; i < value.size(); i++) {
                     JsonNode entry = value.get(i);
-                    if (entry == null || !entry.isObject() || entry.size() != 2 || !entry.has("k") || !entry.has("v"))
+                    if (entry == null || !entry.isObject() || !entry.has("k") || !entry.has("v")
+                            || entry.size() != (entry.has(NAME_ANNOTATION) ? 3 : 2))
                         throw invalid(path + ".map[" + i + "]", "must be {k, v}", entry);
                     requireWellFormed(entry.get("k"), path + ".map[" + i + "].k");
                     requireWellFormed(entry.get("v"), path + ".map[" + i + "].v");
                 }
             }
+        }
+    }
+
+    private static boolean isConstructorIndex(JsonNode value) {
+        if (value.isIntegralNumber()) return value.canConvertToLong() && value.longValue() >= 0;
+        String text = value.isTextual() ? value.asText().trim() : "";
+        if (!text.matches("[0-9]{1,19}")) return false;
+        try {
+            return Long.parseLong(text) >= 0;
+        } catch (NumberFormatException tooLarge) {
+            return false;
         }
     }
 
@@ -161,7 +174,9 @@ public class PlutusDataYamlUtil {
                     requireObject(entry, "map");
                     if (!entry.hasNonNull("k") || !entry.hasNonNull("v"))
                         throw new IllegalArgumentException("Plutus data 'map' entries need both k and v, but was: " + entry);
-                    ObjectNode newEntry = MAPPER.createObjectNode();
+                    // Keep any other key, so validation sees it instead of it disappearing here.
+                    ObjectNode newEntry = ((ObjectNode) entry).deepCopy();
+                    newEntry.remove(NAME_ANNOTATION);
                     if (entry.has("k")) {
                         newEntry.set("k", stripFieldNames(entry.get("k")));
                     }

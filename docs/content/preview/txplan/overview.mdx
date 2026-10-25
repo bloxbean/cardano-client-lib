@@ -138,7 +138,7 @@ Each entry in the `transaction` list contains a `tx` block with:
 
 These rules apply to the whole document, including extension intents (which keep only their own handling of unknown fields). Unknown keys at the document root, in `context` and in `tx` are always rejected.
 
-To read an older document leniently, build the codec with `TxPlanCodec.builder().strictIntentFields(false)`. It reads the way `TxPlanCodec` did before strict reading, which differs slightly from the old `TxPlan.from`: it resolves `${var}` structurally and rejects a placeholder that has no variable. TxFlow always reads embedded transactions strictly, with the same rules.
+To read an older document leniently, build the codec with `TxPlanCodec.builder().strictIntentFields(false)`. It reads the way `TxPlanCodec` did before strict reading, which differs slightly from the old `TxPlan.from`: it resolves `${var}` structurally and rejects a placeholder that has no variable. TxFlow binds embedded transactions with the same strict mapping rules; the two YAML-text checks (aliases and number forms) apply to TxPlan files, not yet to TxFlow YAML.
 
 Write booleans as `true`/`false`: YAML 1.1 readers such as this library also accept `yes`/`no`, but YAML 1.2 tools read those as strings.
 

@@ -24,6 +24,8 @@ import java.util.regex.Pattern;
  */
 final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
     private static final Pattern DIGITS = Pattern.compile("[0-9]+");
+    /** {@code ${name}}, or TxFlow's {@code ${{ inputs.name }}}; the name may not be empty. */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{.*[^{}\\s].*}");
 
     UtxoRefDeserializer() {
         super(UtxoRef.class);
@@ -77,7 +79,7 @@ final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
         if (value.isIntegralNumber()) return value.canConvertToInt() && value.intValue() >= 0;
         if (!value.isTextual()) return false;
         String text = value.asText();
-        if (text.startsWith("${") && text.endsWith("}")) return true;
+        if (PLACEHOLDER.matcher(text).matches()) return true;
         if (!DIGITS.matcher(text).matches()) return false;
         try {
             Integer.parseInt(text);
@@ -96,12 +98,12 @@ final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
     }
 
     /**
-     * Text, or a number: the canonical writer leaves a digit-only value such as step id {@code 1} or an all-digit hash
-     * unquoted, so it reads back as a number whose text is the same value.
+     * Text, or a number: the canonical writer leaves a value that reads back as the same number unquoted (step id
+     * {@code 1}, an all-digit hash, an output named {@code 0.5}), so it arrives as a number whose text is the value.
      */
     private static void requireText(JsonNode node, String name, DeserializationContext context) throws IOException {
         JsonNode value = node.get(name);
-        if (value == null || !(value.isTextual() || value.isIntegralNumber()) || value.asText().isEmpty())
+        if (value == null || !(value.isTextual() || value.isNumber()) || value.asText().isEmpty())
             context.reportInputMismatch(UtxoRef.class, "A UTxO reference requires %s as text, but was: %s", name, value);
     }
 }

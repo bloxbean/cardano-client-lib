@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
@@ -104,6 +105,8 @@ class TxPlanStrictReadingTest {
                         + ", output_index: -1}]}"), "output_index"),
                 Arguments.of("non-numeric output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
                         + ", output_index: garbage}]}"), "output_index"),
+                Arguments.of("output_index placeholder without a name", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                        + ", output_index: '${}'}]}"), "output_index"),
                 Arguments.of("empty output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
                         + ", output_index: ''}]}"), "output_index"),
                 Arguments.of("the string null for a primitive boolean", tx("intents", "{type: pool_update, is_update: 'null'}"), "is_update"),
@@ -173,7 +176,8 @@ class TxPlanStrictReadingTest {
     @Test
     void digitOnlyReferenceTextRoundTrips() {
         String hash = "1234567890".repeat(6) + "1234";
-        String yaml = tx("inputs", "{type: collect_from, utxo_refs: [{flow_output: {step: '1', output: '0'}}, {tx_hash: '" + hash + "', output_index: 0}]}");
+        String yaml = tx("inputs", "{type: collect_from, utxo_refs: [{flow_output: {step: '1', output: '0'}}, "
+                + "{flow_output: {step: '2', output: '0.5'}}, {tx_hash: '" + hash + "', output_index: 0}]}");
 
         String first = TxPlan.from(yaml).toYaml();
 
@@ -211,13 +215,78 @@ class TxPlanStrictReadingTest {
     void variablesThatReferToPlaceholdersAreRejected() {
         String chain = "variables: {a: " + RECEIVER + ", b: '${a}', c: '${b}'}\n" + tx("intents", "{type: payment, address: '${c}'}");
 
-        assertRejected(chain, "placeholder");
-        // Even one level is rejected: used through b, TxPlan.from would leave ${a} for the next read to resolve.
+        // TxPlan.from substitutes text, so a chain would resolve one more level on every read.
+        assertThatThrownBy(() -> TxPlan.from(chain)).hasMessageContaining("literal");
         String oneLevel = "variables: {a: " + RECEIVER + ", b: '${a}'}\n" + tx("intents", "{type: payment, address: '${b}'}");
-        assertRejected(oneLevel, "literal");
+        assertThatThrownBy(() -> TxPlan.from(oneLevel)).hasMessageContaining("literal");
+        // TxPlanCodec replaces a variable literally and then refuses a field left holding the text ${a}.
+        assertThatThrownBy(() -> STRICT.fromYaml(oneLevel)).hasMessageContaining("placeholder");
         // A literal variable used directly reads back the same every time.
         String literal = "variables: {a: " + RECEIVER + "}\n" + tx("intents", "{type: payment, address: '${a}'}");
         assertThat(TxPlan.from(literal).toYaml()).isEqualTo(TxPlan.from(TxPlan.from(literal).toYaml()).toYaml());
+    }
+
+    @Test
+    void constructorIndexGivenAsDecimalTextStillReads() {
+        String quoted = "variables: {c: 1}\n" + tx("inputs", "{type: script_collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                + ", output_index: 0}], redeemer: {constructor: '${c}', fields: []}}");
+        String literal = tx("inputs", "{type: script_collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                + ", output_index: 0}], redeemer: {constructor: ' 1', fields: []}}");
+
+        assertThat(TxPlan.from(quoted).getTxs()).hasSize(1);
+        assertThat(STRICT.fromYaml(literal).getTxs()).hasSize(1);
+        assertThat(LENIENT.fromYaml(literal).getTxs()).hasSize(1);
+    }
+
+    @Test
+    void plutusMapEntriesWithExtraKeysAreRejected() {
+        String yaml = tx("inputs", "{type: script_collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                + ", output_index: 0}], redeemer: {map: [{k: {int: 1}, v: {int: 2}, typo: 3}]}}");
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
+            assertThatThrownBy(() -> reader.apply(yaml)).hasStackTraceContaining("must be {k, v}");
+        }
+    }
+
+    @Test
+    void runtimeVariablesRoundTripThroughTheCodecSnapshotReader() {
+        TxPlan decimal = STRICT.fromYaml("transaction: []\n", Map.of("rate", new BigDecimal("1.50")));
+        assertThat(STRICT.fromYaml(decimal.toYaml()).getVariables()).containsKey("rate");
+
+        // The codec replaces a variable literally, so a value that looks like a template is data; snapshots use readLiteral.
+        TxPlan template = STRICT.fromYaml("transaction: []\n", Map.of("unused", "${later}"));
+        assertThat(STRICT.readLiteral(template.toYaml()).getVariables()).containsEntry("unused", "${later}");
+    }
+
+    @Test
+    void variableNamesThatBreakTextualSubstitutionAreRejected() {
+        String yaml = "variables:\n  'n${': " + RECEIVER + "\n" + tx("intents", "{type: payment, address: " + RECEIVER + "}");
+
+        assertThatThrownBy(() -> TxPlan.from(yaml)).hasMessageContaining("Variable name");
+    }
+
+    @Test
+    void aFileHoldsOneYamlDocument() {
+        String two = tx("intents", "{type: payment, address: " + RECEIVER + "}") + "---\n" + tx("intents", "{type: payment, address: " + SENDER + "}");
+
+        assertRejected(two, "one YAML document");
+    }
+
+    @Test
+    void scriptTxNextToTxIsRejectedNotDropped() {
+        String yaml = "transaction: [{tx: {from: " + SENDER + ", intents: []}, scriptTx: {}}]";
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
+            assertThatThrownBy(() -> reader.apply(yaml)).hasStackTraceContaining("scriptTx");
+        }
+    }
+
+    @Test
+    void stringsThatCannotBePlainKeepTheirQuotingStyle() {
+        // The canonical bytes for these did not change: only values YAML would read as a different number are affected.
+        for (String value : List.of(" padded ", "@x", "*x", "'q'")) {
+            String yaml = TxPlan.from(new Tx().from(SENDER).payToAddress(value, Amount.ada(1))).toYaml();
+            assertThat(yaml).as(value).doesNotContain("address: \"");
+            assertThat(((PaymentIntent) TxPlan.from(yaml).getTxs().get(0).getIntentions().get(0)).getAddress()).isEqualTo(value);
+        }
     }
 
     @Test

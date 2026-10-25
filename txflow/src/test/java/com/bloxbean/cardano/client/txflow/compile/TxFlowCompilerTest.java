@@ -702,6 +702,16 @@ class TxFlowCompilerTest {
                 result.getDiagnostics().toString());
     }
 
+    @Test
+    void poolTypeContradictingItsUpdateFlagIsRejectedBeforeBinding() {
+        FlowCompilationResult result = compileIntent("intents", "{\"type\":\"pool_update\",\"update\":false}");
+
+        assertTrue(result.hasErrors(), result.getDiagnostics().toString());
+        assertTrue(result.getDiagnostics().stream().anyMatch(diagnostic ->
+                        diagnostic.code().equals("TXFLOW_TRANSACTION_INVALID") && diagnostic.message().contains("contradicts")),
+                result.getDiagnostics().toString());
+    }
+
     @ParameterizedTest(name = "no coercion before the strict check: {0}")
     @ValueSource(strings = {"quantity: 2000000.5", "quantity: null", "quantity: ''"})
     void compilerRejectsCoercedValuesInEmbeddedIntents(String quantity) {

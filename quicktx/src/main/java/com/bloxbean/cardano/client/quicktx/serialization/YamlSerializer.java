@@ -37,9 +37,10 @@ public class YamlSerializer {
     }
 
     /**
-     * Quotes a string value whenever YAML would read the unquoted text back as a different value. Jackson's default
-     * check misses YAML 1.1 forms, so the string {@code "0xabc"} was written unquoted and read back as {@code 2748},
-     * and {@code ".inf"} as a float. Strings that read back unchanged, such as digit-only hex, stay unquoted.
+     * Quotes a string value whenever YAML would read the unquoted text back as a number with a different value.
+     * Jackson's default check misses YAML 1.1 forms, so the string {@code "0xabc"} was written unquoted and read back as
+     * {@code 2748}, and {@code ".inf"} as a float. Only those values change: strings that read back as the same number
+     * (digit-only hex) stay unquoted, and text that cannot be plain is still single-quoted by the emitter itself.
      */
     static final class RoundTripQuotingChecker extends StringQuotingChecker.Default {
         private static final long serialVersionUID = 1L;
@@ -57,12 +58,15 @@ public class YamlSerializer {
                 parser.nextToken();
                 parser.nextToken();
                 JsonToken token = parser.nextToken();
-                if (token == JsonToken.VALUE_STRING) return !value.equals(parser.getText());
-                if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT)
+                if (token != JsonToken.VALUE_NUMBER_INT && token != JsonToken.VALUE_NUMBER_FLOAT) return false;
+                try {
                     return !value.equals(parser.getNumberValue().toString());
-                return true;
-            } catch (IOException | RuntimeException e) {
-                return true;
+                } catch (IOException | RuntimeException notANumberValue) {
+                    return true; // e.g. .inf: a float token that does not convert, so it cannot be left plain
+                }
+            } catch (IOException | RuntimeException notPlain) {
+                // Not valid as a plain scalar: the emitter falls back to quoting it by itself.
+                return false;
             }
         }
     }

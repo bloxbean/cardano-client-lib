@@ -152,7 +152,6 @@ public final class TxPlanCodec {
             if (variablesNode != null && !variablesNode.isObject())
                 throw new IllegalArgumentException("variables must be a mapping");
 
-            if (strictIntentFields) StrictReading.checkVariables(variablesNode);
             Map<String, Object> variables = new LinkedHashMap<>();
             if (variablesNode != null)
                 variables.putAll(mapper.convertValue(variablesNode,

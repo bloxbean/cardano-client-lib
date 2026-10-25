@@ -669,6 +669,9 @@ public class TxPlan {
             TransactionDocument.TxEntry entry = doc.getTransaction().get(index);
             if (entry == null)
                 throw new IllegalArgumentException("transaction[" + index + "] is empty; each entry must be a mapping with tx");
+            if (entry.isScriptTx() && entry.isTx())
+                throw new IllegalArgumentException("transaction[" + index + "] has both tx and scriptTx; scriptTx YAML format"
+                        + " is not supported, use tx only");
             if (entry.isTx()) {
                 // Create Tx from TxContent (no variable resolution, no legacy processing)
                 Tx tx = new Tx();

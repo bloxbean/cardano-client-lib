@@ -17,6 +17,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.IgnoredPropertyException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +60,16 @@ final class QuickTxTemplateMaterializer {
         validateProjectionConflicts(txNode, path + ".tx");
         validateKnownIntentChoices(txNode, path + ".tx");
         validateUtxoReferenceShapes(txNode, path + ".tx");
+
+        // Conflicts that binding would resolve silently (a pool type against its update flag, a property under two
+        // names) are checked on the template as written, before the first binding.
+        try {
+            ObjectNode wrapper = JsonNodeFactory.instance.objectNode();
+            wrapper.putArray("transaction").addObject().set("tx", txNode);
+            StrictReading.checkDocument(wrapper);
+        } catch (IllegalArgumentException conflict) {
+            throw invalid(conflict.getMessage(), path + ".tx");
+        }
 
         TransactionDocument document = new TransactionDocument();
         document.setVersion("1.0");

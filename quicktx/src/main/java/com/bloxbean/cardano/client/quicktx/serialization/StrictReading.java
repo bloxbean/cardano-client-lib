@@ -67,7 +67,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * These rules apply to the whole document. Extension intent classes keep their own {@code ignoreUnknown} setting, but
  * the scalar, null and YAML rules apply to their fields too.
  * TxFlow's portable compiler builds its strict mapper with {@link #apply(ObjectMapper)}, so embedded transactions are
- * read by the same rules. Extension intents keep their own {@code ignoreUnknown} setting; their codec validates them.
+ * bound by the same rules.
  * <p>
  * Shared with the TxFlow module; not a stable public API.
  */
@@ -127,14 +127,28 @@ public final class StrictReading {
      */
     public static void checkYamlText(String yaml) throws IOException {
         try (JsonParser parser = YAML.createParser(yaml)) {
+            int roots = 0;
+            int depth = 0;
             for (JsonToken token = parser.nextToken(); token != null; token = parser.nextToken()) {
+                if (depth == 0 && (token.isStructStart() || token.isScalarValue()) && ++roots > 1)
+                    throw new IllegalArgumentException("A TxPlan file holds one YAML document; found another after ---");
+                if (token.isStructStart()) depth++;
+                else if (token.isStructEnd()) depth--;
                 if (!token.isScalarValue()) continue;
+                // Variable values are data substituted elsewhere; where they are used is what gets checked.
+                if (parser.getParsingContext().pathAsPointer().toString().startsWith("/variables")) continue;
                 if (((YAMLParser) parser).isCurrentAlias())
                     throw new IllegalArgumentException("YAML alias *" + parser.getText() + " at "
                             + parser.getParsingContext().pathAsPointer() + " is not supported; repeat the value instead");
                 if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                     String written = parser.getText();
-                    String canonical = parser.getNumberValue().toString();
+                    String canonical;
+                    try {
+                        canonical = parser.getNumberValue().toString();
+                    } catch (IOException notANumber) { // .inf, .nan
+                        throw new IllegalArgumentException("Number " + written + " at " + parser.getParsingContext().pathAsPointer()
+                                + " has no decimal value; quote it to keep the text");
+                    }
                     if (!written.equals(canonical))
                         throw new IllegalArgumentException("Number " + written + " at " + parser.getParsingContext().pathAsPointer()
                                 + " is not written in plain decimal form (it reads as " + canonical
@@ -175,8 +189,10 @@ public final class StrictReading {
 
     /**
      * Rejects a declared variable whose value is itself a template ({@code v1: "${v2}"}). Substitution is one level, so
-     * such a chain resolves a little further on every read and a written plan never reads back the same. The strict
-     * readers call it on the document's {@code variables} section as written, before any substitution.
+     * such a chain resolves a little further on every read and a written plan never reads back the same.
+     * {@link TxPlan#from(String)} calls it on the document's {@code variables} section as written, before its textual
+     * substitution. {@link TxPlanCodec} does not need it: it replaces a variable literally, never re-reading the value as
+     * a template, and reads snapshots with {@code readLiteral}.
      *
      * @param variables the document's {@code variables} section, or null
      * @throws IllegalArgumentException naming the variable
@@ -184,6 +200,10 @@ public final class StrictReading {
     public static void checkVariables(JsonNode variables) {
         if (variables == null || !variables.isObject()) return;
         variables.fields().forEachRemaining(entry -> {
+            // TxPlan.from substitutes ${name} as text, so a name with $, braces or a line break breaks the match.
+            if (!entry.getKey().matches("[^${}\\r\\n]+"))
+                throw new IllegalArgumentException("Variable name '" + entry.getKey()
+                        + "' must not contain $, {, } or a line break");
             if (containsPlaceholder(entry.getValue()))
                 throw new IllegalArgumentException("Variable " + entry.getKey() + " refers to another placeholder ("
                         + entry.getValue() + "); variable values must be literal");

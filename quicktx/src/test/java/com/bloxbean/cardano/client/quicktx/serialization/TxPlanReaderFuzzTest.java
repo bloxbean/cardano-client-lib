@@ -126,7 +126,9 @@ class TxPlanReaderFuzzTest {
             }
             accepted++;
             // The lenient codec keeps today's reading, including its quirks (ADR I9), so I12 covers strict readers.
-            if (reader != LENIENT_READER) assertFixedPoint(plan, reader, yaml);
+            // TxPlanCodec replaces variables literally and reads its own snapshots with readLiteral.
+            if (reader == STRICT_READER) assertFixedPoint(plan, STRICT::readLiteral, yaml);
+            else if (reader == PLAIN_READER) assertFixedPoint(plan, reader, yaml);
             written.put(reader, plan.toYaml());
         }
         String plain = written.get(PLAIN_READER);
