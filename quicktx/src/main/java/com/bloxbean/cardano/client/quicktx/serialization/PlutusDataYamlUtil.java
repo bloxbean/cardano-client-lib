@@ -81,8 +81,9 @@ public class PlutusDataYamlUtil {
                 if (!value.isTextual() && !value.isIntegralNumber()) throw invalid(path + ".bytes", "must be hex text", value);
             }
             case "constructor" -> {
-                if (!value.isIntegralNumber() || value.bigIntegerValue().signum() < 0)
-                    throw invalid(path + ".constructor", "must be a non-negative integer", value);
+                // ConstrPlutusData reads the alternative as a long; a larger value would silently wrap.
+                if (!value.isIntegralNumber() || !value.canConvertToLong() || value.longValue() < 0)
+                    throw invalid(path + ".constructor", "must be a non-negative integer that fits in a long", value);
                 JsonNode fields = node.get("fields");
                 if (!fields.isArray()) throw invalid(path + ".fields", "must be a list", fields);
                 for (int i = 0; i < fields.size(); i++) requireWellFormed(fields.get(i), path + ".fields[" + i + "]");

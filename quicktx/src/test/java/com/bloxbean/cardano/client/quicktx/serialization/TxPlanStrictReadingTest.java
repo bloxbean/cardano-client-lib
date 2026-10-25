@@ -186,7 +186,8 @@ class TxPlanStrictReadingTest {
     void malformedPlutusDataIsRejectedNotCrashed() {
         for (String shape : List.of("{constructor: 0, fields: 5}", "{list: 5}", "{map: 5}", "{map: [null]}",
                 "{map: [{k: {int: 1}}]}", "{list: [5]}", "{constructor: 0, fields: [null]}", "{constructor: 0}",
-                "{constructor: abc, fields: []}", "{int: 1, bytes: ab}", "{constructor: -1, fields: []}")) {
+                "{constructor: abc, fields: []}", "{int: 1, bytes: ab}", "{constructor: -1, fields: []}",
+                "{constructor: 123456789012345678901234567890, fields: []}")) {
             String yaml = tx("inputs", "{type: script_collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: 0}], redeemer: " + shape + "}");
             for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
                 assertThatThrownBy(() -> reader.apply(yaml)).as(shape)
