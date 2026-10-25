@@ -2,11 +2,18 @@ package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.math.BigInteger;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Tests for TxPlan context properties serialization/deserialization.
@@ -174,5 +181,108 @@ class TxPlanContextPropertiesTest {
         assertThat(restored.getVariables()).containsEntry("receiver", "addr1_receiver");
         assertThat(restored.getFeePayer()).isEqualTo("addr1_fee_payer");
         assertThat(restored.getValidToSlot()).isEqualTo(2000L);
+    }
+
+    @Test
+    void additional_signers_count_round_trip() {
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(5));
+
+        TxPlan plan = TxPlan.from(tx)
+            .additionalSignersCount(3);
+
+        String yaml = plan.toYaml();
+        TxPlan restored = TxPlan.from(yaml);
+
+        assertThat(yaml).contains("context:");
+        assertThat(yaml).contains("additional_signers_count: 3");
+        assertThat(restored.getAdditionalSignersCount()).isEqualTo(3);
+    }
+
+    @Test
+    void additional_signers_count_zero_round_trips_and_unset_is_omitted() {
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(5));
+
+        TxPlan zero = TxPlan.from(tx).additionalSignersCount(0);
+        assertThat(TxPlan.from(zero.toYaml()).getAdditionalSignersCount()).isZero();
+
+        String unsetYaml = TxPlan.from(tx).feePayer("addr1_fee_payer").toYaml();
+        assertThat(unsetYaml).doesNotContain("additional_signers_count");
+        assertThat(TxPlan.from(unsetYaml).getAdditionalSignersCount()).isNull();
+    }
+
+    @Test
+    void negative_additional_signers_count_is_rejected() {
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(5));
+
+        assertThatThrownBy(() -> TxPlan.from(tx).additionalSignersCount(-1))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("additional_signers_count");
+
+        String yaml = TxPlan.from(tx).additionalSignersCount(1).toYaml()
+            .replace("additional_signers_count: 1", "additional_signers_count: -1");
+        assertThatThrownBy(() -> TxPlan.from(yaml))
+            .hasStackTraceContaining("additional_signers_count must not be negative");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT + 1, Integer.MAX_VALUE})
+    void oversized_additional_signers_count_is_rejected(int count) {
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(5));
+
+        assertThatThrownBy(() -> TxPlan.from(tx).additionalSignersCount(count))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("additional_signers_count must not exceed " + TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT);
+
+        String yaml = "context:\n  additional_signers_count: " + count + "\ntransaction: []\n";
+        assertThatThrownBy(() -> TxPlan.from(yaml))
+            .hasStackTraceContaining("additional_signers_count must not exceed");
+        assertThatThrownBy(() -> TxPlanCodec.builder().build().fromYaml(yaml))
+            .hasStackTraceContaining("additional_signers_count must not exceed");
+    }
+
+    @Test
+    void max_additional_signers_count_is_accepted() {
+        String yaml = "context:\n  additional_signers_count: " + TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT + "\ntransaction: []\n";
+
+        assertThat(TxPlan.from(yaml).getAdditionalSignersCount()).isEqualTo(TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT);
+    }
+
+    @Test
+    void additional_signers_count_variable_accepts_any_integer_type_in_range() {
+        String yaml = "context:\n  additional_signers_count: '${count}'\ntransaction: []\n";
+        TxPlanCodec codec = TxPlanCodec.builder().build();
+
+        for (Object count : List.of(2, 2L, BigInteger.valueOf(2), TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT,
+                (long) TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT)) {
+            assertThat(codec.fromYaml(yaml, Map.of("count", count)).getAdditionalSignersCount())
+                .as("%s %s", count.getClass().getSimpleName(), count)
+                .isEqualTo(((Number) count).intValue());
+        }
+
+        assertThatThrownBy(() -> codec.fromYaml(yaml, Map.of("count", TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT + 1L)))
+            .hasStackTraceContaining("additional_signers_count must not exceed");
+        assertThatThrownBy(() -> codec.fromYaml(yaml, Map.of("count", 3_000_000_000L)))
+            .hasStackTraceContaining("additional_signers_count must be an integer");
+        assertThatThrownBy(() -> codec.fromYaml(yaml, Map.of("count", 2.5d)))
+            .hasStackTraceContaining("additional_signers_count must be an integer");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"-0.5", "2.9", "2.0", "'2'", "3000000000"})
+    void non_integer_additional_signers_count_is_rejected(String value) {
+        String yaml = "context:\n  additional_signers_count: " + value + "\ntransaction: []\n";
+
+        assertThatThrownBy(() -> TxPlan.from(yaml))
+            .hasStackTraceContaining("additional_signers_count must be an integer");
+        assertThatThrownBy(() -> TxPlanCodec.builder().build().fromYaml(yaml))
+            .hasStackTraceContaining("additional_signers_count must be an integer");
     }
 }

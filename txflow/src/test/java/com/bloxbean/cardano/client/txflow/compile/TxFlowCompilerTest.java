@@ -19,7 +19,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,6 +94,30 @@ class TxFlowCompilerTest {
         assertEquals(1, first.getExecutionPlan().getSteps().get(1).getNeeds().size());
         assertEquals(1, first.getExecutionPlan().getSteps().get(0).getOutputBindings().size());
         assertEquals(java.util.Set.of("audit"), first.getExplicitConsumers().get("prepare"));
+    }
+
+    @Test
+    void portableContextAdditionalSignersCountReachesCompiledTxPlan() {
+        String yaml = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: multisig-later}
+                spec:
+                  steps:
+                    - id: pay
+                      transaction:
+                        tx:
+                          from_ref: account://sender
+                          intents: []
+                        context:
+                          additional_signers_count: 2
+                """;
+        TxFlow flow = TxFlowCodec.standard().parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
+
+        CompiledTxFlow compiled = compiler.compile(FlowCompilationRequest.of(flow, FlowBindings.empty()))
+                .requireCompiledFlow();
+
+        assertEquals(2, compiled.getExecutionPlan().getSteps().get(0).getTxPlan().getAdditionalSignersCount());
     }
 
     @Test
@@ -593,6 +619,50 @@ class TxFlowCompilerTest {
 
         assertTransactionDiagnostic(result, "TXFLOW_TRANSACTION_INVALID",
                 "$.spec.steps[0].transaction.context." + rejectedField);
+    }
+
+    @Test
+    void integerAndLongBindingsForAdditionalSignersCountAreEquivalent() {
+        String yaml = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: bound-signers}
+                spec:
+                  parameters:
+                    count: {type: integer, minimum: 0, maximum: 1000, required: true}
+                  steps:
+                    - id: pay
+                      transaction:
+                        tx:
+                          from_ref: account://sender
+                          intents: []
+                        context:
+                          additional_signers_count: '${{ inputs.count }}'
+                """;
+        TxFlow flow = TxFlowCodec.standard().parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
+
+        for (Object count : List.of(2, 2L, 1000L)) {
+            CompiledTxFlow compiled = compiler.compile(FlowCompilationRequest.of(flow,
+                    FlowBindings.builder().put("count", count).build())).requireCompiledFlow();
+
+            assertEquals(((Number) count).intValue(),
+                    compiled.getExecutionPlan().getSteps().get(0).getTxPlan().getAdditionalSignersCount(),
+                    count.getClass().getSimpleName() + " " + count);
+        }
+    }
+
+    @ParameterizedTest(name = "invalid additional_signers_count: {0}")
+    @ValueSource(strings = {"1001", "2147483647", "-1", "-0.5", "2.9"})
+    void compilerRejectsInvalidAdditionalSignersCount(String value) {
+        FlowCompilationResult result = compileTransaction(
+                "{\"tx\":{\"intents\":[]},\"context\":{\"additional_signers_count\":" + value + "}}");
+
+        assertTrue(result.hasErrors(), result.getDiagnostics().toString());
+        assertTrue(result.getDiagnostics().stream().anyMatch(diagnostic ->
+                        diagnostic.code().equals("TXFLOW_TRANSACTION_INVALID")
+                                && diagnostic.documentPath().startsWith("$.spec.steps[0].transaction")
+                                && diagnostic.message().contains("additional_signers_count")),
+                result.getDiagnostics().toString());
     }
 
     private static Stream<Arguments> ambiguousContextChoices() {

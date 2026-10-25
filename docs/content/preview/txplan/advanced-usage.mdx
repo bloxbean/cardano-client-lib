@@ -230,6 +230,7 @@ TxFlow flow = TxFlow.builder("escrow")
 | `withSigner(ref, scope)` | Add a signer reference with specific scope |
 | `validFrom(slot)` | Set validity start slot |
 | `validTo(slot)` | Set validity end slot |
+| `additionalSignersCount(n)` | Count `n` extra signers in fee calculation (signers not attached at build time); 0 to 1000 |
 | `depositPayer(address)` | Set deposit payer address |
 | `depositMode(mode)` | Set deposit mode (`AUTO`, `CHANGE_OUTPUT`, etc.) |
 | `toYaml()` | Serialize to YAML string |

@@ -2017,6 +2017,15 @@
       "condition": {
         "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
+      "type": "com.bloxbean.cardano.client.quicktx.serialization.StrictIntegerDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
       "type": "com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument",
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
@@ -2221,6 +2230,10 @@
       "allDeclaredFields": true,
       "methods": [
         {
+          "name": "getAdditionalSignersCount",
+          "parameterTypes": []
+        },
+        {
           "name": "getCollateralPayer",
           "parameterTypes": []
         },
@@ -2259,6 +2272,12 @@
         {
           "name": "getValidToSlot",
           "parameterTypes": []
+        },
+        {
+          "name": "setAdditionalSignersCount",
+          "parameterTypes": [
+            "java.lang.Integer"
+          ]
         },
         {
           "name": "setCollateralPayer",

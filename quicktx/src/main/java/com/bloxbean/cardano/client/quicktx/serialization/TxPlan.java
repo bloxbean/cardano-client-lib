@@ -25,6 +25,13 @@ import java.util.Set;
  */
 public class TxPlan {
 
+    /**
+     * Upper bound for {@code additional_signers_count}. Fee estimation adds one dummy witness per signer, so a portable
+     * plan must not be able to request unbounded work. A vkey witness is about 101 bytes, so a transaction within the
+     * current 16,384-byte max_tx_size carries at most about 160; 1000 leaves room for a larger limit.
+     */
+    public static final int MAX_ADDITIONAL_SIGNERS_COUNT = 1000;
+
     private Map<String, Object> variables = new HashMap<>();
     private Map<String, ExtensionMetadata> extensions = new java.util.LinkedHashMap<>();
     private List<AbstractTx<?>> txList = new ArrayList<>();
@@ -38,6 +45,7 @@ public class TxPlan {
     private Long validFromSlot;
     private Long validToSlot;
     private List<TransactionDocument.SignerRef> signerRefs = new ArrayList<>();
+    private Integer additionalSignersCount;
     private String depositPayer;
     private String depositMode;
 
@@ -260,6 +268,32 @@ public class TxPlan {
     }
 
     /**
+     * Set the number of additional signers to account for in fee calculation.
+     * Use this for signers that are not attached when the transaction is built, e.g. a
+     * multisig built in one step and signed later by several parties.
+     * Naming aligned with QuickTxBuilder.TxContext for consistency.
+     * @param count number of additional signers, from 0 to {@link #MAX_ADDITIONAL_SIGNERS_COUNT}
+     * @return this plan for method chaining
+     */
+    public TxPlan additionalSignersCount(int count) {
+        if (count < 0)
+            throw new IllegalArgumentException("additional_signers_count must not be negative: " + count);
+        if (count > MAX_ADDITIONAL_SIGNERS_COUNT)
+            throw new IllegalArgumentException("additional_signers_count must not exceed "
+                    + MAX_ADDITIONAL_SIGNERS_COUNT + ": " + count);
+        this.additionalSignersCount = count;
+        return this;
+    }
+
+    /**
+     * Get the number of additional signers to account for in fee calculation.
+     * @return additional signers count (null if not set)
+     */
+    public Integer getAdditionalSignersCount() {
+        return additionalSignersCount;
+    }
+
+    /**
      * Set the deposit payer address.
      * @param address the deposit payer address
      * @return this plan for method chaining
@@ -341,7 +375,7 @@ public class TxPlan {
         // Set context properties if any are specified
         if (feePayer != null || collateralPayer != null || feePayerRef != null || collateralPayerRef != null ||
             !requiredSigners.isEmpty() || (signerRefs != null && !signerRefs.isEmpty()) ||
-            validFromSlot != null || validToSlot != null ||
+            validFromSlot != null || validToSlot != null || additionalSignersCount != null ||
             depositPayer != null || depositMode != null) {
             TransactionDocument.TxContext context = new TransactionDocument.TxContext();
             context.setFeePayer(feePayer);
@@ -356,6 +390,7 @@ public class TxPlan {
             if (signerRefs != null && !signerRefs.isEmpty()) {
                 context.setSigners(signerRefs);
             }
+            context.setAdditionalSignersCount(additionalSignersCount);
             context.setDepositPayer(depositPayer);
             context.setDepositMode(depositMode);
             doc.setContext(context);
@@ -532,6 +567,9 @@ public class TxPlan {
             }
             if (context.getSigners() != null && !context.getSigners().isEmpty()) {
                 plan.signerRefs.addAll(context.getSigners());
+            }
+            if (context.getAdditionalSignersCount() != null) {
+                plan.additionalSignersCount(context.getAdditionalSignersCount());
             }
             if (context.getDepositPayer() != null) {
                 plan.depositPayer(context.getDepositPayer());
