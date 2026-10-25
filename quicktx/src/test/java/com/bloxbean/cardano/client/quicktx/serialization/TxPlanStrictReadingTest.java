@@ -23,6 +23,7 @@ import static com.bloxbean.cardano.client.quicktx.serialization.IntentSamples.SE
 import static com.bloxbean.cardano.client.quicktx.serialization.IntentSamples.TX_HASH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
  * Strict reading of core intents by {@link TxPlan#from(String)} and {@link TxPlanCodec}, and the
@@ -270,6 +271,17 @@ class TxPlanStrictReadingTest {
 
         for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
             assertThat(reader.apply(yaml).getTxs()).hasSize(1);
+        }
+    }
+
+    @Test
+    void scriptHexOfTheWrongCborShapeIsRejectedNotCastFailed() {
+        String yaml = tx("scripts", "{type: native_script, script_hex: '40'}");
+
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
+            Throwable thrown = catchThrowable(() -> reader.apply(yaml));
+            assertThat(thrown).hasStackTraceContaining("must be CBOR Array");
+            for (Throwable t = thrown; t != null; t = t.getCause()) assertThat(t).isNotInstanceOf(ClassCastException.class);
         }
     }
 

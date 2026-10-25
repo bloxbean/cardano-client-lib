@@ -357,7 +357,7 @@ public class VotingIntent implements TxIntent {
             try {
                 Voter _voter = voter;
                 if (_voter == null && voterHex != null && !voterHex.isEmpty()) {
-                    Array voterArray = (Array) CborSerializationUtil.deserialize(HexUtil.decodeHexString(voterHex));
+                    Array voterArray = CborItems.decode(HexUtil.decodeHexString(voterHex), Array.class, "voter_hex");
                     _voter = Voter.deserialize(voterArray);
                 }
 
