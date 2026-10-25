@@ -91,6 +91,29 @@ class TxPlanStrictReadingTest {
     }
 
     @Test
+    void explicitNullsAndEmptyValuesAreRejected() {
+        assertRejected(tx("inputs", "{type: reference_input, refs: null}"), "refs");
+        assertRejected(tx("intents", "{type: payment, address: " + RECEIVER + ", amounts: [null]}"), "null");
+        String emptyValue = "transaction:\n  - tx:\n      from: " + SENDER + "\n      intents:\n        - type: payment\n          address:\n";
+        assertRejected(emptyValue, "address");
+        assertRejected("context:\n  fee_payer:\n" + tx("intents", "{type: payment, address: " + RECEIVER + "}"), "fee_payer");
+        assertThat(LENIENT.fromYaml(tx("inputs", "{type: reference_input, refs: null}")).getTxs()).hasSize(1);
+    }
+
+    @Test
+    void emptyTransactionEntriesAndDocumentsAreRejectedNotCrashed() {
+        for (TxPlanCodec codec : List.of(STRICT, LENIENT)) {
+            assertThatThrownBy(() -> codec.fromYaml("transaction:\n  -\n")).isInstanceOf(RuntimeException.class)
+                    .satisfies(e -> assertThat(e).hasStackTraceContaining("transaction"));
+        }
+        assertThatThrownBy(() -> TxPlan.from("transaction:\n  -\n")).hasStackTraceContaining("transaction");
+        assertThatThrownBy(() -> TxPlan.from("")).hasStackTraceContaining("No content");
+        assertThatThrownBy(() -> TxPlan.from("~\n")).hasMessageContaining("must be a mapping");
+        assertThatThrownBy(() -> TxPlan.from("transaction: null\n")).hasStackTraceContaining("transaction");
+        assertThat(LENIENT.fromYaml("transaction: null\n").getTxs()).isEmpty();
+    }
+
+    @Test
     void lenientCodecStillTruncatesFractionalQuantities() {
         String yaml = tx("intents", "{type: payment, address: " + RECEIVER + ", amounts: [{unit: lovelace, quantity: 2.5}]}");
 

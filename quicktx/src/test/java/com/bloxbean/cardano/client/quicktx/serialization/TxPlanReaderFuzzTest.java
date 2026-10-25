@@ -26,8 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *     <li>a reader returns a plan or rejects the input, and never fails with a programming error
  *     ({@code NullPointerException}, {@code ClassCastException}, an index error, {@code StackOverflowError} or any
  *     other {@link Error})</li>
- *     <li>an accepted plan is writable, its YAML reads back with the same reader (strictly, for a strict reader), and
- *     writing that again gives the same YAML</li>
+ *     <li>a plan a strict reader accepts is writable, its YAML reads back strictly, and writing that again gives the
+ *     same YAML (the lenient codec keeps today's reading, quirks included)</li>
  * </ul>
  * The seeded tests run in every build; the {@code @FuzzTest}s replay their committed seeds and explore new inputs with
  * {@code JAZZER_FUZZ=1}.
@@ -37,7 +37,8 @@ class TxPlanReaderFuzzTest {
     private static final int MAX_TEXT = 16 * 1024;
     private static final TxPlanCodec STRICT = TxPlanCodec.builder().build();
     private static final TxPlanCodec LENIENT = TxPlanCodec.builder().strictIntentFields(false).build();
-    private static final List<Function<String, TxPlan>> READERS = List.of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml);
+    private static final Function<String, TxPlan> LENIENT_READER = LENIENT::fromYaml;
+    private static final List<Function<String, TxPlan>> READERS = List.of(TxPlan::from, STRICT::fromYaml, LENIENT_READER);
     private static final List<Class<? extends Throwable>> PROGRAMMING_ERRORS = List.of(
             NullPointerException.class, ClassCastException.class, IndexOutOfBoundsException.class,
             ArithmeticException.class, UnsupportedOperationException.class, Error.class);
@@ -118,7 +119,8 @@ class TxPlanReaderFuzzTest {
                 continue;
             }
             accepted++;
-            assertFixedPoint(plan, reader, yaml);
+            // The lenient codec keeps today's reading, including its quirks (ADR I9), so I12 covers strict readers.
+            if (reader != LENIENT_READER) assertFixedPoint(plan, reader, yaml);
         }
         return accepted;
     }

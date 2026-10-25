@@ -130,6 +130,7 @@ Each entry in the `transaction` list contains a `tx` block with:
 - a fractional number for an integer field, e.g. `quantity: 2.5`
 - a number for an enum, e.g. `role: 0` instead of `role: spend`
 - a UTxO reference with extra or missing keys; a reference is `{tx_hash, output_index}` or `{flow_output: {step, output}}`
+- an explicit `null` or an empty value (`address:` with nothing after it), or a `null` element in a list
 
 Unknown keys elsewhere (the document root, `context`, `tx`) are always rejected. To read an older document leniently, build the codec with `TxPlanCodec.builder().strictIntentFields(false)`. TxFlow always reads embedded transactions strictly.
 

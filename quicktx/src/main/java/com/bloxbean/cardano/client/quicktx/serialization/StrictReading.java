@@ -3,6 +3,8 @@ package com.bloxbean.cardano.client.quicktx.serialization;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.AnnotationIntrospector;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -18,6 +20,8 @@ import com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector;
 import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Strict reading of core TxPlan intents, shared by {@link TxPlan#from(String)} and {@link TxPlanCodec}.
@@ -30,6 +34,8 @@ import java.io.IOException;
  *     <li>fractional numbers for integer fields ({@code quantity: 2.5} is not {@code 2})</li>
  *     <li>numeric enum indexes ({@code role: 0} is not {@code spend})</li>
  *     <li>UTxO references with extra or missing keys (see {@code UtxoRefDeserializer})</li>
+ *     <li>explicit {@code null} values, including an empty value ({@code address:} with nothing after it), and
+ *     {@code null} elements in a list ({@code amounts: [null]}). The canonical writer never writes {@code null}.</li>
  * </ul>
  * TxFlow's portable compiler applies the same rules to embedded transactions. Extension intents keep their own
  * {@code ignoreUnknown} setting; their codec validates them.
@@ -51,6 +57,10 @@ final class StrictReading {
         mapper.enable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES);
         mapper.disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
         mapper.enable(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS);
+        mapper.setDefaultSetterInfo(JsonSetter.Value.forValueNulls(Nulls.FAIL));
+        JsonSetter.Value noNullElements = JsonSetter.Value.forContentNulls(Nulls.FAIL);
+        mapper.configOverride(List.class).setSetterInfo(noNullElements);
+        mapper.configOverride(Set.class).setSetterInfo(noNullElements);
         AnnotationIntrospector existing = mapper.getDeserializationConfig().getAnnotationIntrospector();
         mapper.setAnnotationIntrospector(AnnotationIntrospectorPair.pair(new CoreIntentFieldsAreKnown(), existing));
         mapper.addHandler(new DiscriminatorIsKnown());

@@ -659,7 +659,10 @@ public class TxPlan {
         // An explicit `transaction: null` means no transactions, like an absent key.
         if (doc.getTransaction() == null) return transactions;
 
-        for (TransactionDocument.TxEntry entry : doc.getTransaction()) {
+        for (int index = 0; index < doc.getTransaction().size(); index++) {
+            TransactionDocument.TxEntry entry = doc.getTransaction().get(index);
+            if (entry == null)
+                throw new IllegalArgumentException("transaction[" + index + "] is empty; each entry must be a mapping with tx");
             if (entry.isTx()) {
                 // Create Tx from TxContent (no variable resolution, no legacy processing)
                 Tx tx = new Tx();
