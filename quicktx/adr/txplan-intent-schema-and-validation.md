@@ -41,6 +41,9 @@
   - §7: TxFlow behaviour changes and the canonical-writer change recorded.
   - M2 exit criteria: per-type tests in quicktx, programmable-token suite included.
   - §13: two more small follow-ups.
+- **r7** (2026-10-26; from the automated reviews of #725 at `b070dc2d` and #726 at `ceaef1c5`):
+  - D8: the YAML-text checks now cover `variables` (an alias there was substituted as the anchor name, `n: 010` as 8); a decimal variable keeps its written scale, so a kept `BigDecimal` `1.50` still rereads.
+  - D8: in `TxPlan.from`, a placeholder used as a mapping key (`'${field}': 5`) is rejected. Its textual substitution renamed the key; the codec and the schema substitute values only.
 
 ## 1. Context
 
@@ -241,7 +244,8 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
   - one property under two names (`utxo_refs` and its alias `refs`: Jackson kept the last list), and a pool `type` that contradicts `is_update`/`update`
   - the string `"null"` for a primitive (`is_update: 'null'` turned a `pool_update` into a `pool_registration`)
   - `output_index` beyond `int` range (`4294967296` became 0), negative, or text that is neither digits nor a placeholder
-  - YAML aliases (`*r` was read as the string `"r"`), and unquoted numbers not in plain decimal form (`010` → 8, `0x10`, `1_000`, `1e3`; an unquoted `datum_hex: 0102` became `"66"` in the codec). The check reads the raw scalar text.
+  - YAML aliases (`*r` was read as the string `"r"`), and unquoted numbers not in plain decimal form (`010` → 8, `0x10`, `1_000`, `1e3`; an unquoted `datum_hex: 0102` became `"66"` in the codec). The check reads the raw scalar text. (r7) It covers `variables` too, since a variable value is substituted as it was read; there a decimal only has to be decimal text, so `1.50` keeps its scale.
+  - (r7) in `TxPlan.from`, a placeholder used as a mapping key (`'${field}': 5`). Its textual substitution renamed the key; `TxPlanCodec` and the schema substitute values only, and reject the key as unknown.
   - in `TxPlan.from` only, a declared variable whose value is itself a `${...}` template, or whose name contains `$`, braces or a line break (its textual substitution resolved one more level per read, so there was no fixed point). Checked on the `variables` block as written. `TxPlanCodec` keeps its existing contract: a replacement value is literal and never re-read as a template, and snapshots are read with `readLiteral` (r6).
 - **TxFlow (r5):** its portable compiler now builds its mapper with the shared `StrictReading.apply`, so a value is no longer coerced (`quantity: 2000000.5` → `2000000`) before the strict check sees it.
 - **Extension intents (r5, narrowed):** they keep their own `ignoreUnknown`; the scalar, null and YAML rules apply to their fields too.
