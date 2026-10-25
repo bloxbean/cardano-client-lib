@@ -143,6 +143,7 @@ public final class TxPlanCodec {
 
     private TxPlan read(String yaml, Map<String, Object> runtimeVariables, boolean resolve) {
         try {
+            if (strictIntentFields) StrictReading.checkYamlText(yaml);
             JsonNode unresolved = mapper.readTree(yaml);
             if (!(unresolved instanceof ObjectNode))
                 throw new IllegalArgumentException("TxPlan YAML root must be a mapping");
@@ -171,7 +172,7 @@ public final class TxPlanCodec {
             // The tree is final (resolved, or literal for readLiteral), so the core reconstruction gets a document without
             // variables: it decodes Plutus data exactly as for a literal plan and has nothing to
             // substitute, so a replacement value is never read as a template a second time.
-            if (strictIntentFields) StrictReading.rejectAliasConflicts(root);
+            if (strictIntentFields) StrictReading.checkDocument(root);
             TransactionDocument document = mapper.treeToValue(root, TransactionDocument.class);
             TxPlan plan = reconstruct(document);
             plan.setVariables(variables);
@@ -180,7 +181,8 @@ public final class TxPlanCodec {
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            throw new IllegalStateException("Unable to deserialize extension-aware TxPlan", e);
+            throw new IllegalStateException("Unable to deserialize extension-aware TxPlan: "
+                    + YamlSerializer.rootMessage(e), e);
         }
     }
 

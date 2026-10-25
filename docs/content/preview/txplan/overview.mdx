@@ -124,15 +124,23 @@ Each entry in the `transaction` list contains a `tx` block with:
 
 ### Strict Reading
 
-`TxPlan.from(yaml)` and `TxPlanCodec` read intents strictly. A mistake fails with an error that names it, instead of being dropped or silently changed:
+`TxPlan.from(yaml)` and `TxPlanCodec` read documents strictly. A mistake fails with an error that names it, instead of being dropped or silently changed:
 
 - an unknown or misspelled intent field, e.g. `donation_amout` or `to:` instead of `address:`
+- one property given twice under different names, e.g. both `utxo_refs` and `refs`
 - a fractional number for an integer field, e.g. `quantity: 2.5`
-- a number for an enum, e.g. `role: 0` instead of `role: spend`
-- a UTxO reference with extra or missing keys; a reference is `{tx_hash, output_index}` or `{flow_output: {step, output}}`
+- a number for an enum (`role: 0` instead of `role: spend`), or for a boolean
+- an empty string for a number, boolean or enum
 - an explicit `null` or an empty value (`address:` with nothing after it), or a `null` element in a list
+- a UTxO reference with extra or missing keys; a reference is `{tx_hash, output_index}` or `{flow_output: {step, output}}`, and `output_index` is a non-negative integer or a `${...}` placeholder
+- a YAML alias (`*name`)
+- an unquoted number not written in plain decimal, such as `010` (YAML reads it as octal 8), `0x10`, `1_000` or `1e3`. Quote such values to keep the text: an unquoted `datum_hex: 0102` would otherwise be read as the number 66.
 
-Unknown keys elsewhere (the document root, `context`, `tx`) are always rejected. To read an older document leniently, build the codec with `TxPlanCodec.builder().strictIntentFields(false)`. TxFlow always reads embedded transactions strictly.
+These rules apply to the whole document, including extension intents (which keep only their own handling of unknown fields). Unknown keys at the document root, in `context` and in `tx` are always rejected.
+
+To read an older document leniently, build the codec with `TxPlanCodec.builder().strictIntentFields(false)`. It reads the way `TxPlanCodec` did before strict reading, which differs slightly from the old `TxPlan.from`: it resolves `${var}` structurally and rejects a placeholder that has no variable. TxFlow always reads embedded transactions strictly, with the same rules.
+
+Write booleans as `true`/`false`: YAML 1.1 readers such as this library also accept `yes`/`no`, but YAML 1.2 tools read those as strings.
 
 ## QuickTxBuilder Integration
 

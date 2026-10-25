@@ -25,6 +25,7 @@ class ReachabilityMetadataTest {
                         "com.bloxbean.cardano.client.quicktx.serialization.StrictReading",
                         "com.bloxbean.cardano.client.quicktx.serialization.StrictReading$CoreIntentFieldsAreKnown",
                         "com.bloxbean.cardano.client.quicktx.serialization.StrictReading$DiscriminatorIsKnown",
+                        "com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer$RoundTripQuotingChecker",
                         "com.bloxbean.cardano.client.quicktx.intent.PlutusDataValue");
         assertThat(guard.problems()).as("reachability metadata %s is out of date", guard.metadataPath()).isEmpty();
     }

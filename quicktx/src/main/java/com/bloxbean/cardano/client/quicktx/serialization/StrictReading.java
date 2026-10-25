@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.Nulls;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.AnnotationIntrospector;
 import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -25,6 +26,8 @@ import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector;
 import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
 import com.fasterxml.jackson.databind.type.LogicalType;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,8 +56,15 @@ import java.util.concurrent.ConcurrentHashMap;
  *     string {@code "null"} for a primitive, and {@code null} elements in a list ({@code amounts: [null]}). The
  *     canonical writer never writes {@code null}.</li>
  *     <li>an intent that sets a property under two of its names, e.g. both {@code utxo_refs} and its alias
- *     {@code refs} (see {@link #rejectAliasConflicts(JsonNode)})</li>
+ *     {@code refs}, and a pool intent whose {@code type} disagrees with its update flag
+ *     (see {@link #checkDocument(JsonNode)})</li>
+ *     <li>YAML aliases ({@code *name}), which the YAML reader would otherwise read as the string {@code "name"}, and
+ *     unquoted numbers not written in plain decimal form: {@code 010} (octal 8), {@code 0x10}, {@code 1_000},
+ *     {@code 0102} (read as 66 even for a hex string field), {@code +5}, {@code 1.50}, {@code 1e3}
+ *     (see {@link #checkYamlText(String)})</li>
  * </ul>
+ * These rules apply to the whole document. Extension intent classes keep their own {@code ignoreUnknown} setting, but
+ * the scalar, null and YAML rules apply to their fields too.
  * TxFlow's portable compiler builds its strict mapper with {@link #apply(ObjectMapper)}, so embedded transactions are
  * read by the same rules. Extension intents keep their own {@code ignoreUnknown} setting; their codec validates them.
  * <p>
@@ -62,7 +72,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class StrictReading {
 
+    /** Context attribute set on strict mappers; custom deserializers read it to apply their own strict checks. */
+    public static final String STRICT_ATTRIBUTE = "com.bloxbean.cardano.client.quicktx.strictReading";
+
     private static final ObjectMapper INTROSPECTION = new ObjectMapper();
+    private static final YAMLFactory YAML = new YAMLFactory();
     private static final Map<String, Class<?>> CORE_INTENTS = coreIntents();
     private static final Map<Class<?>, List<Set<String>>> ALIAS_GROUPS = new ConcurrentHashMap<>();
 
@@ -92,18 +106,53 @@ public final class StrictReading {
         AnnotationIntrospector existing = mapper.getDeserializationConfig().getAnnotationIntrospector();
         mapper.setAnnotationIntrospector(AnnotationIntrospectorPair.pair(new CoreIntentFieldsAreKnown(), existing));
         mapper.addHandler(new DiscriminatorIsKnown());
+        mapper.setDefaultAttributes(mapper.getDeserializationConfig().getAttributes()
+                .withSharedAttribute(STRICT_ATTRIBUTE, Boolean.TRUE));
         return mapper;
     }
 
+    /** True when {@code context} belongs to a mapper configured by {@link #apply(ObjectMapper)}. */
+    public static boolean isStrict(DeserializationContext context) {
+        return Boolean.TRUE.equals(context.getAttribute(STRICT_ATTRIBUTE));
+    }
+
     /**
-     * Rejects a core intent that sets one property under two names, its canonical name and an alias (for example
-     * {@code collect_from} with both {@code utxo_refs} and {@code refs}); Jackson would keep only the last one. Called on
-     * the resolved document tree by the strict readers.
+     * Rejects YAML constructs that would be read as something other than what is written: aliases, and unquoted numbers
+     * whose text is not the plain decimal form of the value they are read as.
+     *
+     * @param yaml TxPlan YAML text, after any textual variable substitution
+     * @throws IllegalArgumentException naming the offending value and its location
+     * @throws IOException when the text is not well-formed YAML
+     */
+    public static void checkYamlText(String yaml) throws IOException {
+        try (JsonParser parser = YAML.createParser(yaml)) {
+            for (JsonToken token = parser.nextToken(); token != null; token = parser.nextToken()) {
+                if (!token.isScalarValue()) continue;
+                if (((YAMLParser) parser).isCurrentAlias())
+                    throw new IllegalArgumentException("YAML alias *" + parser.getText() + " at "
+                            + parser.getParsingContext().pathAsPointer() + " is not supported; repeat the value instead");
+                if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
+                    String written = parser.getText();
+                    String canonical = parser.getNumberValue().toString();
+                    if (!written.equals(canonical))
+                        throw new IllegalArgumentException("Number " + written + " at " + parser.getParsingContext().pathAsPointer()
+                                + " is not written in plain decimal form (it reads as " + canonical
+                                + "); write the value in decimal, or quote it to keep the text");
+                }
+            }
+        }
+    }
+
+    /**
+     * Rejects intents whose fields contradict each other in a way Jackson would resolve silently by key order: one
+     * property set under two names, its canonical name and an alias (for example {@code collect_from} with both
+     * {@code utxo_refs} and {@code refs}), and a pool intent whose {@code type} disagrees with {@code is_update} or
+     * {@code update}. Called on the resolved document tree by the strict readers.
      *
      * @param document a TxPlan document tree
-     * @throws IllegalArgumentException when an intent uses two names of one property
+     * @throws IllegalArgumentException naming the conflict
      */
-    public static void rejectAliasConflicts(JsonNode document) {
+    public static void checkDocument(JsonNode document) {
         if (document == null) return;
         for (JsonNode entry : document.path("transaction")) {
             JsonNode tx = entry.path("tx");
@@ -111,6 +160,7 @@ public final class StrictReading {
                 for (JsonNode intent : tx.path(array)) {
                     Class<?> type = CORE_INTENTS.get(intent.path("type").asText(""));
                     if (type == null || !intent.isObject()) continue;
+                    checkPoolUpdateFlag(intent);
                     for (Set<String> names : ALIAS_GROUPS.computeIfAbsent(type, StrictReading::aliasGroups)) {
                         List<String> present = names.stream().filter(intent::has).sorted().toList();
                         if (present.size() > 1)
@@ -119,6 +169,21 @@ public final class StrictReading {
                     }
                 }
             }
+        }
+    }
+
+    private static void checkPoolUpdateFlag(JsonNode intent) {
+        String type = intent.path("type").asText();
+        if (!"pool_registration".equals(type) && !"pool_update".equals(type)) return;
+        for (String flag : List.of("is_update", "update")) {
+            JsonNode value = intent.get(flag);
+            if (value == null) continue;
+            String text = value.asText().trim();
+            boolean isUpdate = value.isBoolean() ? value.booleanValue() : Boolean.parseBoolean(text);
+            boolean recognised = value.isBoolean() || text.equalsIgnoreCase("true") || text.equalsIgnoreCase("false");
+            if (recognised && isUpdate != "pool_update".equals(type))
+                throw new IllegalArgumentException("Intent " + type + " has " + flag + ": " + value
+                        + ", which contradicts its type; omit " + flag + " and let type decide");
         }
     }
 

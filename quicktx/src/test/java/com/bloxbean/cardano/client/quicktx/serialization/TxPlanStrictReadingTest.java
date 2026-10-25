@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.quicktx.serialization;
 
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.intent.PaymentIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -51,6 +53,19 @@ class TxPlanStrictReadingTest {
         assertThat(LENIENT.fromYaml(typo).toYaml()).as("lenient codec ignores it").isEqualTo(LENIENT.fromYaml(yaml).toYaml());
     }
 
+    static Stream<Arguments> variants() {
+        return IntentSamples.variants().entrySet().stream().map(e -> Arguments.of(e.getKey(), e.getValue()));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("variants")
+    void variantsReadStrictlyAndRoundTrip(String name, String yaml) {
+        String first = STRICT.fromYaml(yaml).toYaml();
+
+        assertThat(STRICT.fromYaml(first).toYaml()).as(name).isEqualTo(first);
+        assertThat(TxPlan.from(yaml).toYaml()).as(name).isEqualTo(first);
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("samples")
     void everyIntentRoundTripsWhenStrict(String type, String yaml) {
@@ -74,7 +89,7 @@ class TxPlanStrictReadingTest {
                 Arguments.of("Java-only @JsonIgnore field", tx("intents", "{type: payment, address: " + RECEIVER + ", script: x}"), "script"),
                 Arguments.of("fractional integer", tx("intents", "{type: payment, address: " + RECEIVER
                         + ", amounts: [{unit: lovelace, quantity: 2.5}]}"), "2.5"),
-                Arguments.of("numeric enum index", tx("scripts", "{type: validator, role: 0, cbor_hex: '49480100002221200101', version: v2}"), "0"),
+                Arguments.of("numeric enum index", tx("scripts", "{type: validator, role: 0, cbor_hex: '49480100002221200101', version: v2}"), "RedeemerTag"),
                 Arguments.of("extra UTxO reference key", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
                         + ", output_index: 0, index: 1}]}"), "index"),
                 Arguments.of("UTxO reference without output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + "}]}"), "output_index"),
@@ -91,9 +106,19 @@ class TxPlanStrictReadingTest {
                         + ", output_index: garbage}]}"), "output_index"),
                 Arguments.of("empty output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
                         + ", output_index: ''}]}"), "output_index"),
-                Arguments.of("the string null for a primitive boolean", tx("intents", "{type: pool_update, is_update: 'null'}"), "null"),
+                Arguments.of("the string null for a primitive boolean", tx("intents", "{type: pool_update, is_update: 'null'}"), "is_update"),
                 Arguments.of("the string null for a primitive int", tx("intents", "{type: pool_retirement, pool_id: "
-                        + IntentSamples.POOL_ID + ", retirement_epoch: 'null'}"), "null"),
+                        + IntentSamples.POOL_ID + ", retirement_epoch: 'null'}"), "retirement_epoch"),
+                Arguments.of("YAML alias", "transaction:\n  - tx:\n      from: &r " + SENDER + "\n      change_address: *r\n", "alias"),
+                Arguments.of("octal-looking quantity", tx("intents", "{type: payment, address: " + RECEIVER
+                        + ", amounts: [{unit: lovelace, quantity: 010}]}"), "010"),
+                Arguments.of("hex string field with a leading zero, unquoted", tx("intents", "{type: payment, address: " + RECEIVER
+                        + ", datum_hex: 0102}"), "0102"),
+                Arguments.of("hexadecimal integer", tx("intents", "{type: payment, address: " + RECEIVER
+                        + ", amounts: [{unit: lovelace, quantity: 0x10}]}"), "0x10"),
+                Arguments.of("integer with underscores", tx("intents", "{type: payment, address: " + RECEIVER
+                        + ", amounts: [{unit: lovelace, quantity: 1_000}]}"), "1_000"),
+                Arguments.of("pool type contradicting its update flag", tx("intents", "{type: pool_update, is_update: false}"), "contradicts"),
                 Arguments.of("canonical name and alias together", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
                         + ", output_index: 0}], refs: [{tx_hash: " + TX_HASH + ", output_index: 1}]}"), "refs"),
                 Arguments.of("empty string for an integer", tx("intents", "{type: payment, address: " + RECEIVER
@@ -146,6 +171,48 @@ class TxPlanStrictReadingTest {
     }
 
     @Test
+    void digitOnlyReferenceTextRoundTrips() {
+        String hash = "1234567890".repeat(6) + "1234";
+        String yaml = tx("inputs", "{type: collect_from, utxo_refs: [{flow_output: {step: '1', output: '0'}}, {tx_hash: '" + hash + "', output_index: 0}]}");
+
+        String first = TxPlan.from(yaml).toYaml();
+
+        assertThat(first).as("the writer leaves digit-only text unquoted").contains("step: 1");
+        assertThat(TxPlan.from(first).toYaml()).isEqualTo(first);
+        assertThat(STRICT.fromYaml(first).toYaml()).isEqualTo(first);
+    }
+
+    @Test
+    void malformedPlutusDataIsRejectedNotCrashed() {
+        for (String shape : List.of("{constructor: 0, fields: 5}", "{list: 5}", "{map: 5}", "{map: [null]}",
+                "{map: [{k: {int: 1}}]}", "{list: [5]}", "{constructor: 0, fields: [null]}", "{constructor: 0}",
+                "{constructor: abc, fields: []}", "{int: 1, bytes: ab}", "{constructor: -1, fields: []}")) {
+            String yaml = tx("inputs", "{type: script_collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: 0}], redeemer: " + shape + "}");
+            for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
+                assertThatThrownBy(() -> reader.apply(yaml)).as(shape)
+                        .hasStackTraceContaining("Plutus data")
+                        .isNotInstanceOfAny(ClassCastException.class, NullPointerException.class);
+            }
+        }
+    }
+
+    @Test
+    void stringsThatLookLikeNumbersSurviveTheCanonicalWriter() {
+        for (String value : List.of("0xabc", ".inf", "1_000", "1e3", "+5", "0b101", "010")) {
+            String yaml = TxPlan.from(new Tx().from(SENDER).payToAddress(value, Amount.ada(1))).toYaml();
+
+            PaymentIntent payment = (PaymentIntent) TxPlan.from(yaml).getTxs().get(0).getIntentions().get(0);
+            assertThat(payment.getAddress()).as("%s written as:%n%s", value, yaml).isEqualTo(value);
+        }
+    }
+
+    @Test
+    void lenientCodecStillReadsNonCanonicalYaml() {
+        assertThat(LENIENT.fromYaml(tx("intents", "{type: payment, address: " + RECEIVER
+                + ", amounts: [{unit: lovelace, quantity: 010}]}")).getTxs()).hasSize(1);
+    }
+
+    @Test
     void unresolvedMetadataPlaceholderIsWrittenBack() {
         String yaml = tx("intents", "{type: metadata, metadata: '${note}'}");
 
@@ -185,7 +252,10 @@ class TxPlanStrictReadingTest {
 
     private static void assertRejected(String yaml, String mentioned) {
         for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml)) {
-            assertThatThrownBy(() -> reader.apply(yaml)).hasStackTraceContaining(mentioned);
+            // The message itself names the problem (ADR I7), not only a nested cause.
+            assertThatThrownBy(() -> reader.apply(yaml))
+                    .hasMessageContaining(mentioned)
+                    .isNotInstanceOfAny(NullPointerException.class, ClassCastException.class);
         }
     }
 

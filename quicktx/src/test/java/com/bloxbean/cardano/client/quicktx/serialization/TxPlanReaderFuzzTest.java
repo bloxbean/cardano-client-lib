@@ -12,8 +12,10 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -37,8 +39,10 @@ class TxPlanReaderFuzzTest {
     private static final int MAX_TEXT = 16 * 1024;
     private static final TxPlanCodec STRICT = TxPlanCodec.builder().build();
     private static final TxPlanCodec LENIENT = TxPlanCodec.builder().strictIntentFields(false).build();
+    private static final Function<String, TxPlan> PLAIN_READER = TxPlan::from;
+    private static final Function<String, TxPlan> STRICT_READER = STRICT::fromYaml;
     private static final Function<String, TxPlan> LENIENT_READER = LENIENT::fromYaml;
-    private static final List<Function<String, TxPlan>> READERS = List.of(TxPlan::from, STRICT::fromYaml, LENIENT_READER);
+    private static final List<Function<String, TxPlan>> READERS = List.of(PLAIN_READER, STRICT_READER, LENIENT_READER);
     private static final List<Class<? extends Throwable>> PROGRAMMING_ERRORS = List.of(
             NullPointerException.class, ClassCastException.class, IndexOutOfBoundsException.class,
             ArithmeticException.class, UnsupportedOperationException.class, Error.class);
@@ -48,6 +52,7 @@ class TxPlanReaderFuzzTest {
 
     static {
         IntentSamples.documents().values().forEach(yaml -> SEEDS.add(tree(yaml)));
+        IntentSamples.variants().values().forEach(yaml -> SEEDS.add(tree(yaml)));
         List<String> types = Arrays.stream(TxIntent.class.getAnnotation(JsonSubTypes.class).value())
                 .map(JsonSubTypes.Type::name).toList();
         TreeSet<String> names = new TreeSet<>(List.of("variables", "refs", "utxo_refs", "flow_output", "step", "output",
@@ -110,6 +115,7 @@ class TxPlanReaderFuzzTest {
     /** @return how many readers accepted the text */
     private static int check(String yaml) {
         int accepted = 0;
+        Map<Function<String, TxPlan>, String> written = new HashMap<>();
         for (Function<String, TxPlan> reader : READERS) {
             TxPlan plan;
             try {
@@ -121,6 +127,18 @@ class TxPlanReaderFuzzTest {
             accepted++;
             // The lenient codec keeps today's reading, including its quirks (ADR I9), so I12 covers strict readers.
             if (reader != LENIENT_READER) assertFixedPoint(plan, reader, yaml);
+            written.put(reader, plan.toYaml());
+        }
+        String plain = written.get(PLAIN_READER);
+        String strict = written.get(STRICT_READER);
+        if (strict != null) {
+            // Strictness only rejects; whatever the strict codec reads, the lenient codec reads the same way.
+            assertThat(written.get(LENIENT_READER)).as("lenient codec reads the strict codec's document identically:%n%s", yaml)
+                    .isEqualTo(strict);
+        }
+        if (plain != null && strict != null) {
+            assertThat(plain).as("TxPlan.from and the strict codec read the same document identically:%n%s", yaml)
+                    .isEqualTo(strict);
         }
         return accepted;
     }

@@ -4,8 +4,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
+import com.fasterxml.jackson.dataformat.yaml.util.StringQuotingChecker;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -21,7 +23,8 @@ public class YamlSerializer {
     private static final ObjectMapper STRICT_YAML_MAPPER;
 
     static {
-        YAMLFactory factory = new YAMLFactory();
+        // rebuild() keeps the constructor's defaults (e.g. EMPTY_STRING_AS_NULL); builder() alone does not.
+        YAMLFactory factory = new YAMLFactory().rebuild().stringQuotingChecker(new RoundTripQuotingChecker()).build();
         factory.enable(YAMLGenerator.Feature.MINIMIZE_QUOTES);
         factory.disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
         factory.disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID); // Disable !<type> tags
@@ -31,6 +34,37 @@ public class YamlSerializer {
         // Exclude null values from serialization
         YAML_MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         STRICT_YAML_MAPPER = StrictReading.apply(YAML_MAPPER.copy());
+    }
+
+    /**
+     * Quotes a string value whenever YAML would read the unquoted text back as a different value. Jackson's default
+     * check misses YAML 1.1 forms, so the string {@code "0xabc"} was written unquoted and read back as {@code 2748},
+     * and {@code ".inf"} as a float. Strings that read back unchanged, such as digit-only hex, stay unquoted.
+     */
+    static final class RoundTripQuotingChecker extends StringQuotingChecker.Default {
+        private static final long serialVersionUID = 1L;
+        private static final YAMLFactory PLAIN = new YAMLFactory();
+
+        @Override
+        public boolean needToQuoteValue(String value) {
+            return super.needToQuoteValue(value) || readsBackDifferently(value);
+        }
+
+        private static boolean readsBackDifferently(String value) {
+            if (value.isEmpty()) return false;
+            // The default check has already quoted anything with special characters, so the value embeds safely.
+            try (JsonParser parser = PLAIN.createParser("v: " + value)) {
+                parser.nextToken();
+                parser.nextToken();
+                JsonToken token = parser.nextToken();
+                if (token == JsonToken.VALUE_STRING) return !value.equals(parser.getText());
+                if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT)
+                    return !value.equals(parser.getNumberValue().toString());
+                return true;
+            } catch (IOException | RuntimeException e) {
+                return true;
+            }
+        }
     }
 
     /**
@@ -88,11 +122,13 @@ public class YamlSerializer {
      */
     static <T> T deserializeStrict(String yaml, Class<T> type) {
         try {
-            JsonNode tree = STRICT_YAML_MAPPER.readTree(resolveVariables(STRICT_YAML_MAPPER, yaml));
-            StrictReading.rejectAliasConflicts(tree);
+            String resolved = resolveVariables(STRICT_YAML_MAPPER, yaml);
+            StrictReading.checkYamlText(resolved);
+            JsonNode tree = STRICT_YAML_MAPPER.readTree(resolved);
+            StrictReading.checkDocument(tree);
             return STRICT_YAML_MAPPER.treeToValue(tree, type);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to deserialize YAML to " + type.getSimpleName(), e);
+            throw new RuntimeException("Failed to deserialize YAML to " + type.getSimpleName() + ": " + rootMessage(e), e);
         }
     }
 
@@ -103,6 +139,15 @@ public class YamlSerializer {
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize YAML to " + type.getSimpleName(), e);
         }
+    }
+
+    /** The innermost message, so a strict-reading error names the offending field or value. */
+    static String rootMessage(Throwable failure) {
+        Throwable current = failure;
+        while (current.getCause() != null && current.getCause() != current) current = current.getCause();
+        // Jackson's full message includes the reference chain, i.e. the field the problem is in.
+        String message = current.getMessage();
+        return message == null ? current.getClass().getSimpleName() : message;
     }
 
     /** Expands {@code ${variable}} placeholders from the document's {@code variables} section, if any. */

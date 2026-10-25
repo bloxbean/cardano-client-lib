@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.quicktx.intent;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.bloxbean.cardano.client.quicktx.serialization.StrictReading;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
@@ -17,10 +17,10 @@ import java.util.regex.Pattern;
  * is decoded as a concrete transaction-hash/output-index reference. Semantic validation
  * remains the responsibility of the owning intent or TxFlow.
  * <p>
- * A strict reader (one that enables {@link DeserializationFeature#FAIL_ON_IGNORED_PROPERTIES},
- * as the TxPlan readers and TxFlow's portable compiler do) also checks the shape: a reference is
- * exactly {@code {tx_hash, output_index}} or {@code {flow_output: {step, output}}}, with no other
- * keys. A lenient reader keeps the historical behaviour and ignores keys it does not use.
+ * A strict reader (a mapper configured by {@link StrictReading#apply}, as the TxPlan readers and
+ * TxFlow's portable compiler are) also checks the shape: a reference is exactly
+ * {@code {tx_hash, output_index}} or {@code {flow_output: {step, output}}}, with no other keys. A
+ * lenient reader keeps the historical behaviour and ignores keys it does not use.
  */
 final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
     private static final Pattern DIGITS = Pattern.compile("[0-9]+");
@@ -32,7 +32,7 @@ final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
     @Override
     public UtxoRef deserialize(JsonParser parser, DeserializationContext context) throws IOException {
         JsonNode node = parser.getCodec().readTree(parser);
-        if (context.isEnabled(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES)) checkShape(node, context);
+        if (StrictReading.isStrict(context)) checkShape(node, context);
         JsonNode flowOutput = node.get("flow_output");
         if (flowOutput != null && flowOutput.isObject()) {
             return new FlowOutputRef(flowOutput.path("step").asText(null),
@@ -95,9 +95,13 @@ final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
         }
     }
 
+    /**
+     * Text, or a number: the canonical writer leaves a digit-only value such as step id {@code 1} or an all-digit hash
+     * unquoted, so it reads back as a number whose text is the same value.
+     */
     private static void requireText(JsonNode node, String name, DeserializationContext context) throws IOException {
         JsonNode value = node.get(name);
-        if (value == null || !value.isTextual() || value.asText().isEmpty())
-            context.reportInputMismatch(UtxoRef.class, "A UTxO reference requires a non-empty %s", name);
+        if (value == null || !(value.isTextual() || value.isIntegralNumber()) || value.asText().isEmpty())
+            context.reportInputMismatch(UtxoRef.class, "A UTxO reference requires %s as text, but was: %s", name, value);
     }
 }

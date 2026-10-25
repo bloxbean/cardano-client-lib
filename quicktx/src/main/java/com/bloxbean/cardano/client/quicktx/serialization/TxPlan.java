@@ -517,11 +517,12 @@ public class TxPlan {
 
     /**
      * Deserialize YAML string to a complete TxPlan with context.
+     * <p>The document is read strictly (see {@link StrictReading}): an unknown or misspelled intent field, a fractional
+     * number for an integer field, a numeric enum index, an explicit null, a malformed UTxO reference, a YAML alias or
+     * a number not written in plain decimal fails instead of being dropped or coerced. Use
+     * {@code TxPlanCodec.builder().strictIntentFields(false)} to read such a document leniently.
      * @param yaml the YAML string
      * @return reconstructed TxPlan with all properties restored
-     * <p>Core intents are read strictly: an unknown or misspelled intent field, a fractional number for an integer
-     * field, a numeric enum index or a malformed UTxO reference fails instead of being dropped or coerced. Use
-     * {@code TxPlanCodec.builder().strictIntentFields(false)} to read such a document leniently.
      * @throws IllegalArgumentException if the document declares extensions or uses extension intents;
      *         read those with a {@link TxPlanCodec}
      * @throws RuntimeException if deserialization fails

@@ -6,11 +6,18 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.MapPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.cert.MultiHostName;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
+import com.bloxbean.cardano.client.transaction.spec.cert.Relay;
 import com.bloxbean.cardano.client.transaction.spec.cert.SingleHostAddr;
 import com.bloxbean.cardano.client.transaction.spec.cert.SingleHostName;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
@@ -20,6 +27,7 @@ import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
 import com.bloxbean.cardano.client.transaction.spec.governance.VoterType;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.InfoAction;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.NoConfidence;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.HexUtil;
 
@@ -84,6 +92,39 @@ final class IntentSamples {
         return documents;
     }
 
+    /**
+     * Further shapes for the fuzz and property tests: structured Plutus data, flow-output references, other relays,
+     * governance actions and DRep kinds. Keyed by a description.
+     */
+    static Map<String, String> variants() {
+        Map<String, Supplier<Tx>> variants = new LinkedHashMap<>();
+        variants.put("structured plutus data", () -> tx().collectFrom(List.of(utxo()), structured(), structured()));
+        variants.put("inline datum payment", () -> tx().payToContract(SCRIPT_ADDRESS, Amount.ada(3), structured()));
+        variants.put("multi-host relay", () -> tx().registerPool(poolRegistration(List.of(
+                MultiHostName.builder().dnsName("pool.example.com").build()))));
+        variants.put("no-confidence proposal", () -> tx().createProposal(new NoConfidence(), STAKE_ADDRESS, anchor()));
+        variants.put("delegate to a DRep key", () -> tx().delegateVotingPowerTo(SENDER, DRep.addrKeyHash(KEY_HASH)));
+        variants.put("delegate to no-confidence", () -> tx().delegateVotingPowerTo(SENDER, DRep.noConfidence()));
+
+        Map<String, String> documents = new LinkedHashMap<>();
+        variants.forEach((name, tx) -> documents.put(name, TxPlan.from(tx.get()).feePayer(SENDER).toYaml()));
+        documents.put("flow output reference", "transaction:\n  - tx:\n      from: " + SENDER
+                + "\n      inputs:\n        - type: collect_from\n          utxo_refs:\n"
+                + "            - flow_output: {step: '1', output: change}\n"
+                + "            - {tx_hash: " + TX_HASH + ", output_index: 3}\n");
+        documents.put("variables", "variables:\n  receiver: " + RECEIVER + "\n  amount: 4000000\n"
+                + "transaction:\n  - tx:\n      from: " + SENDER + "\n      intents:\n        - type: payment\n"
+                + "          address: ${receiver}\n          amounts:\n            - unit: lovelace\n"
+                + "              quantity: ${amount}\n");
+        return documents;
+    }
+
+    private static PlutusData structured() {
+        MapPlutusData map = new MapPlutusData();
+        map.put(BytesPlutusData.of("key"), BigIntPlutusData.of(7));
+        return ConstrPlutusData.of(1, ListPlutusData.of(BigIntPlutusData.of(1), BytesPlutusData.of("ab")), map);
+    }
+
     private static Tx tx() {
         return new Tx().from(SENDER);
     }
@@ -128,22 +169,26 @@ final class IntentSamples {
 
     private static PoolRegistration poolRegistration() {
         try {
-            return PoolRegistration.builder()
-                    .operator(HexUtil.decodeHexString("ed40b0a319f639a70b1e2a4de00f112c4f7b7d4849f0abd25c4336a4"))
-                    .vrfKeyHash(HexUtil.decodeHexString("b95af7a0a58928fbd0e73b03ce81dedd42d4a776685b443cf2016c18438a3b9b"))
-                    .pledge(BigInteger.valueOf(6_600_000_000_000L))
-                    .cost(BigInteger.valueOf(340_000_000))
-                    .margin(new UnitInterval(BigInteger.valueOf(13), BigInteger.valueOf(1000)))
-                    .rewardAccount("e1f3c3d69b1d4eca197096cbfd67450f64123de4a5ed61b1f94a356134")
-                    .poolOwners(Set.of("f3c3d69b1d4eca197096cbfd67450f64123de4a5ed61b1f94a356134"))
-                    .relays(List.of(
-                            SingleHostAddr.builder().port(3001).ipv4((Inet4Address) Inet4Address.getByName("54.177.41.35")).build(),
-                            SingleHostName.builder().port(3001).dnsName("relay.example.com").build()))
-                    .poolMetadataUrl("https://git.io/JttTl")
-                    .poolMetadataHash("51700f7e33476a20b6e5a3f681e31d2cf0d8e706393f45912a5dbe3a8d7edd41")
-                    .build();
+            return poolRegistration(List.of(
+                    SingleHostAddr.builder().port(3001).ipv4((Inet4Address) Inet4Address.getByName("54.177.41.35")).build(),
+                    SingleHostName.builder().port(3001).dnsName("relay.example.com").build()));
         } catch (UnknownHostException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static PoolRegistration poolRegistration(List<Relay> relays) {
+        return PoolRegistration.builder()
+                .operator(HexUtil.decodeHexString("ed40b0a319f639a70b1e2a4de00f112c4f7b7d4849f0abd25c4336a4"))
+                .vrfKeyHash(HexUtil.decodeHexString("b95af7a0a58928fbd0e73b03ce81dedd42d4a776685b443cf2016c18438a3b9b"))
+                .pledge(BigInteger.valueOf(6_600_000_000_000L))
+                .cost(BigInteger.valueOf(340_000_000))
+                .margin(new UnitInterval(BigInteger.valueOf(13), BigInteger.valueOf(1000)))
+                .rewardAccount("e1f3c3d69b1d4eca197096cbfd67450f64123de4a5ed61b1f94a356134")
+                .poolOwners(Set.of("f3c3d69b1d4eca197096cbfd67450f64123de4a5ed61b1f94a356134"))
+                .relays(relays)
+                .poolMetadataUrl("https://git.io/JttTl")
+                .poolMetadataHash("51700f7e33476a20b6e5a3f681e31d2cf0d8e706393f45912a5dbe3a8d7edd41")
+                .build();
     }
 }
