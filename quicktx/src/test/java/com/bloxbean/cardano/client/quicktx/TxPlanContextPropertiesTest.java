@@ -7,6 +7,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.math.BigInteger;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -250,6 +253,26 @@ class TxPlanContextPropertiesTest {
         String yaml = "context:\n  additional_signers_count: " + TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT + "\ntransaction: []\n";
 
         assertThat(TxPlan.from(yaml).getAdditionalSignersCount()).isEqualTo(TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT);
+    }
+
+    @Test
+    void additional_signers_count_variable_accepts_any_integer_type_in_range() {
+        String yaml = "context:\n  additional_signers_count: '${count}'\ntransaction: []\n";
+        TxPlanCodec codec = TxPlanCodec.builder().build();
+
+        for (Object count : List.of(2, 2L, BigInteger.valueOf(2), TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT,
+                (long) TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT)) {
+            assertThat(codec.fromYaml(yaml, Map.of("count", count)).getAdditionalSignersCount())
+                .as("%s %s", count.getClass().getSimpleName(), count)
+                .isEqualTo(((Number) count).intValue());
+        }
+
+        assertThatThrownBy(() -> codec.fromYaml(yaml, Map.of("count", TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT + 1L)))
+            .hasStackTraceContaining("additional_signers_count must not exceed");
+        assertThatThrownBy(() -> codec.fromYaml(yaml, Map.of("count", 3_000_000_000L)))
+            .hasStackTraceContaining("additional_signers_count must be an integer");
+        assertThatThrownBy(() -> codec.fromYaml(yaml, Map.of("count", 2.5d)))
+            .hasStackTraceContaining("additional_signers_count must be an integer");
     }
 
     @ParameterizedTest

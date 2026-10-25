@@ -21,6 +21,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -618,6 +619,36 @@ class TxFlowCompilerTest {
 
         assertTransactionDiagnostic(result, "TXFLOW_TRANSACTION_INVALID",
                 "$.spec.steps[0].transaction.context." + rejectedField);
+    }
+
+    @Test
+    void integerAndLongBindingsForAdditionalSignersCountAreEquivalent() {
+        String yaml = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: bound-signers}
+                spec:
+                  parameters:
+                    count: {type: integer, minimum: 0, maximum: 1000, required: true}
+                  steps:
+                    - id: pay
+                      transaction:
+                        tx:
+                          from_ref: account://sender
+                          intents: []
+                        context:
+                          additional_signers_count: '${{ inputs.count }}'
+                """;
+        TxFlow flow = TxFlowCodec.standard().parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
+
+        for (Object count : List.of(2, 2L, 1000L)) {
+            CompiledTxFlow compiled = compiler.compile(FlowCompilationRequest.of(flow,
+                    FlowBindings.builder().put("count", count).build())).requireCompiledFlow();
+
+            assertEquals(((Number) count).intValue(),
+                    compiled.getExecutionPlan().getSteps().get(0).getTxPlan().getAdditionalSignersCount(),
+                    count.getClass().getSimpleName() + " " + count);
+        }
     }
 
     @ParameterizedTest(name = "invalid additional_signers_count: {0}")
