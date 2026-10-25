@@ -36,6 +36,11 @@
   - D8: further strict rules, TxFlow uses the shared configuration, extension statement narrowed, fixes that apply in both modes.
   - I9: stated exceptions.
   - §13: follow-ups.
+- **r6** (2026-10-26; from the confirmation reviews of the fix commits — Codex and Claude — and further fuzzing):
+  - D8: template-valued variables are a `TxPlan.from` rule; `TxPlanCodec` keeps its literal-replacement contract.
+  - §7: TxFlow behaviour changes and the canonical-writer change recorded.
+  - M2 exit criteria: per-type tests in quicktx, programmable-token suite included.
+  - §13: two more small follow-ups.
 
 ## 1. Context
 
@@ -237,7 +242,7 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
   - the string `"null"` for a primitive (`is_update: 'null'` turned a `pool_update` into a `pool_registration`)
   - `output_index` beyond `int` range (`4294967296` became 0), negative, or text that is neither digits nor a placeholder
   - YAML aliases (`*r` was read as the string `"r"`), and unquoted numbers not in plain decimal form (`010` → 8, `0x10`, `1_000`, `1e3`; an unquoted `datum_hex: 0102` became `"66"` in the codec). The check reads the raw scalar text.
-  - a declared variable whose value is itself a `${...}` template (each read resolved one more level, so there was no fixed point)
+  - in `TxPlan.from` only, a declared variable whose value is itself a `${...}` template, or whose name contains `$`, braces or a line break (its textual substitution resolved one more level per read, so there was no fixed point). Checked on the `variables` block as written. `TxPlanCodec` keeps its existing contract: a replacement value is literal and never re-read as a template, and snapshots are read with `readLiteral` (r6).
 - **TxFlow (r5):** its portable compiler now builds its mapper with the shared `StrictReading.apply`, so a value is no longer coerced (`quantity: 2000000.5` → `2000000`) before the strict check sees it.
 - **Extension intents (r5, narrowed):** they keep their own `ignoreUnknown`; the scalar, null and YAML rules apply to their fields too.
 
@@ -269,6 +274,8 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 - **Schema:** stays `v1alpha1` with the same `$id`. It becomes stricter: a document with unknown intent fields that passed the loose schema now fails it. Such fields were already ignored at runtime, so they had no effect.
 - **Runtime (D8):** a standalone TxPlan with an unknown or misspelled intent field that parses today will fail. 0.8.0 is pre-release (`0.8.0-pre7-SNAPSHOT`), and TxFlow already behaves this way. The release notes must call it out, together with the `TxPlanCodec.builder().strictIntentFields(false)` opt-out.
 - **Format quirks:** the generated schema publishes current names as-is (§13), so no document changes meaning.
+- **TxFlow (r6):** portable compilation now binds embedded transactions with the shared strict mapper. Templates that compiled before and now fail with `TXFLOW_TRANSACTION_INVALID` include `context.fee_payer: null` (and other explicit nulls), `role: 0`, `quantity: ''`, `quantity: 2000000.5`, and a pool `type` that contradicts its update flag. The YAML-text checks (aliases, number forms) do not yet apply to TxFlow YAML (§13).
+- **Canonical writer (r6):** only strings YAML would read back as a different number are now quoted (`0x1F`, `1_000`, `+5`, `-0`, `.5`, `1e3`, `.inf`, …); a before/after comparison of the writer over a set of tricky strings shows every other value byte-identical. Hashes of `toYaml()` text change only for plans that held such a value, and those plans did not read back correctly before.
 - **Build:** one test-scope dependency (`com.networknt:json-schema-validator` 2.x); published artifacts' dependencies do not change.
 
 ## 8. Implementation Milestones
@@ -283,7 +290,7 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 ### M2. Runtime strictness (separate PR, OQ3)
 - **Entry gates:** this ADR accepted (r3: M2 now lands before M1).
 - **Scope:** D8, including the `strictIntentFields` opt-out, plus release notes.
-- **Exit criteria:** I7, I8 and I9 hold for every intent type, with a test per type; the I11 and I12 fuzz targets run with `JAZZER_FUZZ=1` and find no counterexample; both full suites pass.
+- **Exit criteria:** I7, I8 and I9 hold for every intent type, with a test per type in quicktx (TxFlow uses the same mapper, so its tests cover representative types); the I11 and I12 fuzz targets run with `JAZZER_FUZZ=1` and find no counterexample; the quicktx, txflow and programmable-token suites pass.
 
 ## 9. Verification Strategy
 
@@ -340,6 +347,7 @@ All four were answered by the maintainer on 2026-10-25, before review; none rema
 
 ## 13. Related Findings (Out of Scope)
 
+- (r6) Also not addressed: a `variables` entry with an explicit null value is accepted; after `TxPlan.from`'s textual substitution, an error can name the substituted text rather than the variable (e.g. "Number 0x10 … quote it" for a variable the user did quote).
 - (r5) Follow-ups from the multi-agent review, not addressed here:
   - `TxPlan.from` substitutes variables as text: a value containing ` #` is cut at the comment, and a map value is written as Java `toString()`. Recommend structural resolution, as `TxPlanCodec` does.
   - `InetAddressDeserializer` calls `InetAddress.getByName`, so a non-literal `ipv4`/`ipv6` triggers a DNS lookup while reading untrusted YAML.
