@@ -4,12 +4,15 @@ import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.Nulls;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.AnnotationIntrospector;
+import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.cfg.CoercionAction;
 import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
@@ -18,13 +21,19 @@ import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler;
 import com.fasterxml.jackson.databind.introspect.Annotated;
 import com.fasterxml.jackson.databind.introspect.AnnotatedClass;
 import com.fasterxml.jackson.databind.introspect.AnnotationIntrospectorPair;
+import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector;
 import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
 import com.fasterxml.jackson.databind.type.LogicalType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Strict reading of core TxPlan intents, shared by {@link TxPlan#from(String)} and {@link TxPlanCodec}.
@@ -40,13 +49,22 @@ import java.util.Set;
  *     ({@code is_update: 1}). The strings {@code "true"} and {@code "false"} still read as booleans, because
  *     {@code TxPlan.from} substitutes a quoted {@code '${flag}'} as text.</li>
  *     <li>UTxO references with extra or missing keys (see {@code UtxoRefDeserializer})</li>
- *     <li>explicit {@code null} values, including an empty value ({@code address:} with nothing after it), and
- *     {@code null} elements in a list ({@code amounts: [null]}). The canonical writer never writes {@code null}.</li>
+ *     <li>explicit {@code null} values, including an empty value ({@code address:} with nothing after it), the
+ *     string {@code "null"} for a primitive, and {@code null} elements in a list ({@code amounts: [null]}). The
+ *     canonical writer never writes {@code null}.</li>
+ *     <li>an intent that sets a property under two of its names, e.g. both {@code utxo_refs} and its alias
+ *     {@code refs} (see {@link #rejectAliasConflicts(JsonNode)})</li>
  * </ul>
- * TxFlow's portable compiler applies the same rules to embedded transactions. Extension intents keep their own
- * {@code ignoreUnknown} setting; their codec validates them.
+ * TxFlow's portable compiler builds its strict mapper with {@link #apply(ObjectMapper)}, so embedded transactions are
+ * read by the same rules. Extension intents keep their own {@code ignoreUnknown} setting; their codec validates them.
+ * <p>
+ * Shared with the TxFlow module; not a stable public API.
  */
-final class StrictReading {
+public final class StrictReading {
+
+    private static final ObjectMapper INTROSPECTION = new ObjectMapper();
+    private static final Map<String, Class<?>> CORE_INTENTS = coreIntents();
+    private static final Map<Class<?>, List<Set<String>>> ALIAS_GROUPS = new ConcurrentHashMap<>();
 
     private StrictReading() {
     }
@@ -57,8 +75,9 @@ final class StrictReading {
      * @param mapper a mapper copy used to read TxPlan documents
      * @return the same mapper
      */
-    static ObjectMapper apply(ObjectMapper mapper) {
+    public static ObjectMapper apply(ObjectMapper mapper) {
         mapper.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        mapper.enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES);
         // Also the signal UtxoRefDeserializer uses to check reference shapes strictly.
         mapper.enable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES);
         mapper.disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
@@ -74,6 +93,53 @@ final class StrictReading {
         mapper.setAnnotationIntrospector(AnnotationIntrospectorPair.pair(new CoreIntentFieldsAreKnown(), existing));
         mapper.addHandler(new DiscriminatorIsKnown());
         return mapper;
+    }
+
+    /**
+     * Rejects a core intent that sets one property under two names, its canonical name and an alias (for example
+     * {@code collect_from} with both {@code utxo_refs} and {@code refs}); Jackson would keep only the last one. Called on
+     * the resolved document tree by the strict readers.
+     *
+     * @param document a TxPlan document tree
+     * @throws IllegalArgumentException when an intent uses two names of one property
+     */
+    public static void rejectAliasConflicts(JsonNode document) {
+        if (document == null) return;
+        for (JsonNode entry : document.path("transaction")) {
+            JsonNode tx = entry.path("tx");
+            for (String array : List.of("inputs", "intents", "scripts")) {
+                for (JsonNode intent : tx.path(array)) {
+                    Class<?> type = CORE_INTENTS.get(intent.path("type").asText(""));
+                    if (type == null || !intent.isObject()) continue;
+                    for (Set<String> names : ALIAS_GROUPS.computeIfAbsent(type, StrictReading::aliasGroups)) {
+                        List<String> present = names.stream().filter(intent::has).sorted().toList();
+                        if (present.size() > 1)
+                            throw new IllegalArgumentException("Intent " + intent.path("type").asText()
+                                    + " sets one property under several names " + present + "; use one");
+                    }
+                }
+            }
+        }
+    }
+
+    private static List<Set<String>> aliasGroups(Class<?> type) {
+        List<Set<String>> groups = new ArrayList<>();
+        BeanDescription description = INTROSPECTION.getDeserializationConfig().introspect(INTROSPECTION.constructType(type));
+        for (BeanPropertyDefinition property : description.findProperties()) {
+            if (property.findAliases().isEmpty()) continue;
+            Set<String> names = new LinkedHashSet<>();
+            names.add(property.getName());
+            property.findAliases().forEach(alias -> names.add(alias.getSimpleName()));
+            groups.add(names);
+        }
+        return groups;
+    }
+
+    private static Map<String, Class<?>> coreIntents() {
+        Map<String, Class<?>> intents = new HashMap<>();
+        for (JsonSubTypes.Type subtype : TxIntent.class.getAnnotation(JsonSubTypes.class).value())
+            intents.put(subtype.name(), subtype.value());
+        return Map.copyOf(intents);
     }
 
     /**

@@ -101,12 +101,13 @@ final class TxPlanMutator {
                     else target.set(name, NODES.objectNode().set(fieldNames.get(choices.pick(fieldNames.size())), value));
                 }
             }
-            case 7 -> { // duplicate an array element
+            case 7 -> { // duplicate an array element, or add a null one
                 List<ArrayNode> arrays = new ArrayList<>();
                 collectArrays(root, arrays);
                 if (!arrays.isEmpty()) {
                     ArrayNode array = arrays.get(choices.pick(arrays.size()));
-                    if (!array.isEmpty()) array.add(array.get(choices.pick(array.size())).deepCopy());
+                    if (choices.pick(3) == 0 || array.isEmpty()) array.addNull();
+                    else array.add(array.get(choices.pick(array.size())).deepCopy());
                 }
             }
             default -> { // replace a value with a placeholder

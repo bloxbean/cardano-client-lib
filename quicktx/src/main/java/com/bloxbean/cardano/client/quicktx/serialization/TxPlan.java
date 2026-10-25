@@ -603,6 +603,11 @@ public class TxPlan {
         return getTxs(doc);
     }
 
+    private static void requirePresent(TxIntent intention, String array) {
+        // A null element (e.g. `intents: [null]` or an empty `-`) is malformed input, not a programming error.
+        if (intention == null) throw new IllegalArgumentException("tx." + array + " contains an empty entry");
+    }
+
     private static TransactionDocument readDocument(String yaml) {
         TransactionDocument doc = YamlSerializer.deserializeStrict(yaml, TransactionDocument.class);
         // An empty or null YAML document binds to null; report it like TxPlanCodec does.
@@ -696,6 +701,7 @@ public class TxPlan {
                 // Add input intentions first (if present)
                 if (content.getInputs() != null) {
                     for (var inputIntention : content.getInputs()) {
+                        requirePresent(inputIntention, "inputs");
                         // Resolve variables using each intention's own resolveVariables method
                         var resolvedIntention = inputIntention.resolveVariables(vars);
                         tx.addIntention(resolvedIntention);
@@ -705,6 +711,7 @@ public class TxPlan {
                 // Then add regular intentions
                 if (content.getIntents() != null) {
                     for (var intention : content.getIntents()) {
+                        requirePresent(intention, "intents");
                         // Resolve variables using each intention's own resolveVariables method
                         var resolvedIntention = intention.resolveVariables(vars);
                         tx.addIntention(resolvedIntention);
@@ -714,6 +721,7 @@ public class TxPlan {
                 // Script intentions
                 if (content.getScripts() != null) {
                     for (var scriptIntention : content.getScripts()) {
+                        requirePresent(scriptIntention, "scripts");
                         // Resolve variables using each intention's own resolveVariables method
                         var resolvedIntention = scriptIntention.resolveVariables(vars);
                         tx.addIntention(resolvedIntention);
@@ -723,7 +731,7 @@ public class TxPlan {
                 transactions.add(tx);
 
             } else if (entry.isScriptTx()) {
-                throw new UnsupportedOperationException(
+                throw new IllegalArgumentException(
                     "scriptTx YAML format is not supported. Use tx format instead — " +
                     "all script operations are now available in the unified Tx."
                 );

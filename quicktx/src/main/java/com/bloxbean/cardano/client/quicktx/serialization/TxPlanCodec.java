@@ -32,12 +32,14 @@ public final class TxPlanCodec {
     /** Extensions bound by id: any namespace whose metadata names that id resolves to them. */
     private final Map<String, QuickTxExtension> extensionsById;
     private final ObjectMapper mapper;
+    private final boolean strictIntentFields;
 
     private TxPlanCodec(Map<String, QuickTxExtension> extensions,
                         Map<String, QuickTxExtension> extensionsById,
                         boolean strictIntentFields) {
         this.extensions = Map.copyOf(extensions);
         this.extensionsById = Map.copyOf(extensionsById);
+        this.strictIntentFields = strictIntentFields;
         this.mapper = YamlSerializer.getYamlMapper().copy();
         // Quote strings that look like numbers so a written plan reads back with the same value
         // types, e.g. deployment network "0" stays a String. Only this codec's mapper copy changes.
@@ -169,6 +171,7 @@ public final class TxPlanCodec {
             // The tree is final (resolved, or literal for readLiteral), so the core reconstruction gets a document without
             // variables: it decodes Plutus data exactly as for a literal plan and has nothing to
             // substitute, so a replacement value is never read as a template a second time.
+            if (strictIntentFields) StrictReading.rejectAliasConflicts(root);
             TransactionDocument document = mapper.treeToValue(root, TransactionDocument.class);
             TxPlan plan = reconstruct(document);
             plan.setVariables(variables);

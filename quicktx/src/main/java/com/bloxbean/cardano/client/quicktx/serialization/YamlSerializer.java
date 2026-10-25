@@ -8,6 +8,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -86,26 +87,33 @@ public class YamlSerializer {
      * Like {@link #deserialize(String, Class)}, but core intents are read strictly (see {@link StrictReading}).
      */
     static <T> T deserializeStrict(String yaml, Class<T> type) {
-        return deserialize(STRICT_YAML_MAPPER, yaml, type);
+        try {
+            JsonNode tree = STRICT_YAML_MAPPER.readTree(resolveVariables(STRICT_YAML_MAPPER, yaml));
+            StrictReading.rejectAliasConflicts(tree);
+            return STRICT_YAML_MAPPER.treeToValue(tree, type);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to deserialize YAML to " + type.getSimpleName(), e);
+        }
     }
 
     private static <T> T deserialize(ObjectMapper mapper, String yaml, Class<T> type) {
         try {
-            // Extract variables and expand template if present
-            JsonNode tree = mapper.readTree(yaml);
-            JsonNode varsNode = tree.get("variables");
-
-            if (varsNode != null && varsNode.isObject()) {
-                Map<String, Object> variables = mapper.convertValue(varsNode, Map.class);
-                // Perform template expansion: replace ${variable} placeholders
-                yaml = VariableResolver.resolve(yaml, variables);
-            }
-
             // Deserialize the expanded YAML
-            return mapper.readValue(yaml, type);
+            return mapper.readValue(resolveVariables(mapper, yaml), type);
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize YAML to " + type.getSimpleName(), e);
         }
+    }
+
+    /** Expands {@code ${variable}} placeholders from the document's {@code variables} section, if any. */
+    private static String resolveVariables(ObjectMapper mapper, String yaml) throws IOException {
+        JsonNode tree = mapper.readTree(yaml);
+        JsonNode varsNode = tree.get("variables");
+        if (varsNode != null && varsNode.isObject()) {
+            Map<String, Object> variables = mapper.convertValue(varsNode, Map.class);
+            return VariableResolver.resolve(yaml, variables);
+        }
+        return yaml;
     }
 
     /**

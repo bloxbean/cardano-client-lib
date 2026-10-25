@@ -651,6 +651,19 @@ class TxFlowCompilerTest {
         }
     }
 
+    @ParameterizedTest(name = "no coercion before the strict check: {0}")
+    @ValueSource(strings = {"quantity: 2000000.5", "quantity: null", "quantity: ''"})
+    void compilerRejectsCoercedValuesInEmbeddedIntents(String quantity) {
+        FlowCompilationResult result = compileTransaction("{\"tx\":{\"intents\":[{\"type\":\"payment\","
+                + "\"address\":\"addr_test1q\",\"amounts\":[{\"unit\":\"lovelace\",\"quantity\":"
+                + quantity.substring("quantity: ".length()).replace("''", "\"\"") + "}]}]}}");
+
+        assertTrue(result.hasErrors(), result.getDiagnostics().toString());
+        assertTrue(result.getDiagnostics().stream().anyMatch(diagnostic ->
+                        diagnostic.code().equals("TXFLOW_TRANSACTION_INVALID")),
+                result.getDiagnostics().toString());
+    }
+
     @ParameterizedTest(name = "invalid additional_signers_count: {0}")
     @ValueSource(strings = {"1001", "2147483647", "-1", "-0.5", "2.9"})
     void compilerRejectsInvalidAdditionalSignersCount(String value) {

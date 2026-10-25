@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Selects the appropriate {@link UtxoRef} representation from its serialized shape.
@@ -22,6 +23,8 @@ import java.util.Set;
  * keys. A lenient reader keeps the historical behaviour and ignores keys it does not use.
  */
 final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
+    private static final Pattern DIGITS = Pattern.compile("[0-9]+");
+
     UtxoRefDeserializer() {
         super(UtxoRef.class);
     }
@@ -62,9 +65,26 @@ final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
         }
         requireOnly(node, Set.of("tx_hash", "output_index"), context);
         requireText(node, "tx_hash", context);
-        JsonNode outputIndex = node.get("output_index");
-        if (outputIndex == null || !(outputIndex.isIntegralNumber() || outputIndex.isTextual()))
-            context.reportInputMismatch(UtxoRef.class, "A UTxO reference requires an integer output_index");
+        if (!isOutputIndex(node.get("output_index")))
+            context.reportInputMismatch(UtxoRef.class,
+                    "A UTxO reference requires output_index as a non-negative integer or a ${...} placeholder, but was: %s",
+                    node.get("output_index"));
+    }
+
+    /** Values {@link UtxoRef#setOutputIndexFromYaml} reads as an index or a placeholder, without narrowing or guessing. */
+    private static boolean isOutputIndex(JsonNode value) {
+        if (value == null) return false;
+        if (value.isIntegralNumber()) return value.canConvertToInt() && value.intValue() >= 0;
+        if (!value.isTextual()) return false;
+        String text = value.asText();
+        if (text.startsWith("${") && text.endsWith("}")) return true;
+        if (!DIGITS.matcher(text).matches()) return false;
+        try {
+            Integer.parseInt(text);
+            return true;
+        } catch (NumberFormatException tooLarge) {
+            return false;
+        }
     }
 
     private static void requireOnly(JsonNode node, Set<String> allowed, DeserializationContext context) throws IOException {

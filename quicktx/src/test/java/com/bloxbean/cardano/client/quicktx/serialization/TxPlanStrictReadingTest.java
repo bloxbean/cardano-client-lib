@@ -83,6 +83,19 @@ class TxPlanStrictReadingTest {
                 Arguments.of("UTxO reference that is not an object", tx("inputs", "{type: collect_from, utxo_refs: [" + TX_HASH + "]}"), "object"),
                 Arguments.of("empty string for a boolean", tx("intents", "{type: pool_update, update: ''}"), "update"),
                 Arguments.of("number for a boolean", tx("intents", "{type: pool_update, is_update: 1}"), "is_update"),
+                Arguments.of("output_index beyond int range", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                        + ", output_index: 4294967296}]}"), "output_index"),
+                Arguments.of("negative output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                        + ", output_index: -1}]}"), "output_index"),
+                Arguments.of("non-numeric output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                        + ", output_index: garbage}]}"), "output_index"),
+                Arguments.of("empty output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                        + ", output_index: ''}]}"), "output_index"),
+                Arguments.of("the string null for a primitive boolean", tx("intents", "{type: pool_update, is_update: 'null'}"), "null"),
+                Arguments.of("the string null for a primitive int", tx("intents", "{type: pool_retirement, pool_id: "
+                        + IntentSamples.POOL_ID + ", retirement_epoch: 'null'}"), "null"),
+                Arguments.of("canonical name and alias together", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                        + ", output_index: 0}], refs: [{tx_hash: " + TX_HASH + ", output_index: 1}]}"), "refs"),
                 Arguments.of("empty string for an integer", tx("intents", "{type: payment, address: " + RECEIVER
                         + ", amounts: [{unit: lovelace, quantity: ''}]}"), "quantity"));
     }
@@ -111,7 +124,13 @@ class TxPlanStrictReadingTest {
                     .satisfies(e -> assertThat(e).hasStackTraceContaining("transaction"));
         }
         assertThatThrownBy(() -> TxPlan.from("transaction:\n  -\n")).hasStackTraceContaining("transaction");
-        assertThatThrownBy(() -> TxPlan.from("")).hasStackTraceContaining("No content");
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
+            assertThatThrownBy(() -> reader.apply("transaction: [{tx: {intents: [null]}}]"))
+                    .hasStackTraceContaining("intents").isNotInstanceOf(NullPointerException.class);
+        }
+        assertThatThrownBy(() -> TxPlan.from("transaction: [{scriptTx: {}}]"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("scriptTx");
+        assertThatThrownBy(() -> TxPlan.from("")).hasMessageContaining("must be a mapping");
         assertThatThrownBy(() -> TxPlan.from("~\n")).hasMessageContaining("must be a mapping");
         assertThatThrownBy(() -> TxPlan.from("transaction: null\n")).hasStackTraceContaining("transaction");
         assertThat(LENIENT.fromYaml("transaction: null\n").getTxs()).isEmpty();
@@ -146,12 +165,13 @@ class TxPlanStrictReadingTest {
 
     @Test
     void validReferenceShapesAndCoercionsStillRead() {
-        String yaml = tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: '1'},"
-                + " {tx_hash: " + TX_HASH + ", output_index: 2}]}")
+        String yaml = "variables: {index: 3}\n" + tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: '1'},"
+                + " {tx_hash: " + TX_HASH + ", output_index: 2}, {tx_hash: " + TX_HASH + ", output_index: '${index}'}]}")
                 + "      intents:\n        - {type: payment, address: " + RECEIVER + ", amounts: [{unit: lovelace, quantity: '5000000'}]}\n"
                 + "      scripts:\n        - {type: validator, role: spend, cbor_hex: 49480100002221200101, version: v2}\n";
 
         assertThat(TxPlan.from(yaml).getTxs().get(0).getIntentions()).hasSize(3);
+        assertThat(TxPlan.from(yaml.replace("utxo_refs:", "refs:")).getTxs().get(0).getIntentions()).hasSize(3);
         assertThat(STRICT.fromYaml(yaml).getTxs().get(0).getIntentions()).hasSize(3);
     }
 
