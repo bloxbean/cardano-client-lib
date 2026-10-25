@@ -131,6 +131,37 @@ class JmtPropertyBasedTest {
                 "non-inclusion proof must verify for an absent key");
     }
 
+    // P3b: the object verifier and the wire verifier give the same answer for every claim, and an absence
+    // proof never proves a value (issue #715 item 3).
+    @Property(tries = 200)
+    void objectAndWireVerifiersAgree(@ForAll("hashFunctions") HashFunction hashFn,
+                                     @ForAll("entries") List<Map.Entry<byte[], byte[]>> raw,
+                                     @ForAll("randomKey") byte[] probe,
+                                     @ForAll("randomKey") byte[] claimed) {
+        Fixture f = new Fixture(hashFn, raw);
+        List<byte[]> keys = new ArrayList<>();
+        keys.add(probe);
+        keys.add(f.expected.keySet().iterator().next().getData());
+        for (byte[] key : keys) {
+            JmtProof proof = f.tree.getProof(key, f.version).orElseThrow();
+            byte[] wire = f.tree.getProofWire(key, f.version).orElseThrow();
+            byte[] actual = f.expected.get(new ByteArrayWrapper(key));
+            for (byte[] value : new byte[][]{null, claimed, actual}) {
+                boolean object = JmtProofVerifier.verify(f.root, key, value, proof, hashFn, f.commitments);
+                boolean wired = f.tree.verifyProofWire(f.root, key, value, value != null, wire);
+                assertEquals(object, wired, "object and wire verifiers disagree");
+                boolean truth = actual == null ? value == null : value != null && java.util.Arrays.equals(actual, value);
+                assertEquals(truth, object, "verifier result must match the tree's contents");
+                // The wire verifier's membership flag must agree with the value: (value, false) and (null, true)
+                // never verify.
+                assertFalse(f.tree.verifyProofWire(f.root, key, value, value == null, wire), "mismatched including flag");
+                if (proof.type() != JmtProof.ProofType.INCLUSION && value != null) {
+                    assertFalse(object, "an absence proof must not prove a value");
+                }
+            }
+        }
+    }
+
     // P4: forged / tampered inclusion checks are rejected (value swap, wrong root, wrong key).
     @Property(tries = 150)
     void tamperedInclusionRejected(@ForAll("hashFunctions") HashFunction hashFn,

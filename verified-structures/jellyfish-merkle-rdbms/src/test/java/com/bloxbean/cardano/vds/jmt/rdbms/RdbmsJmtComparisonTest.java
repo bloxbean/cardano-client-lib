@@ -45,7 +45,7 @@ class RdbmsJmtComparisonTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        String jdbcUrl = "jdbc:h2:mem:test_jmt_compare_" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1";
+        String jdbcUrl = "jdbc:h2:mem:test_jmt_compare_" + UUID.randomUUID().toString().replace('-', '_') + ";DB_CLOSE_DELAY=-1";
         dbConfig = DbConfig.builder()
             .simpleJdbcUrl(jdbcUrl)
             .build();

@@ -11,7 +11,7 @@ nodes are stored changes.
 
 ```gradle
 dependencies {
-    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rdbms:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rdbms:<version>'
 
     // Plus the JDBC driver for your database (the PostgreSQL driver is already included).
     // Any recent version works; CCL is tested with these:

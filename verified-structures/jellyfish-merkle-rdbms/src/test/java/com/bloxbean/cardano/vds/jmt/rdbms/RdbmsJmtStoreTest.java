@@ -25,6 +25,7 @@ import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -50,7 +51,7 @@ class RdbmsJmtStoreTest {
     @BeforeEach
     void setUp() throws Exception {
         // Use H2 in-memory database for testing
-        String jdbcUrl = "jdbc:h2:mem:test_jmt_" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1";
+        String jdbcUrl = "jdbc:h2:mem:test_jmt_" + UUID.randomUUID().toString().replace('-', '_') + ";DB_CLOSE_DELAY=-1";
         dbConfig = DbConfig.builder()
             .simpleJdbcUrl(jdbcUrl)
             .build();
@@ -266,7 +267,7 @@ class RdbmsJmtStoreTest {
 
     @Test
     void h2PrefixCannotChangeIdempotencyKeySelection() throws Exception {
-        String jdbcUrl = "jdbc:h2:mem:prefixed_jmt_" + System.nanoTime()
+        String jdbcUrl = "jdbc:h2:mem:prefixed_jmt_" + UUID.randomUUID().toString().replace('-', '_')
                 + ";DB_CLOSE_DELAY=-1";
         try (DbConfig prefixedConfig = DbConfig.builder()
                 .simpleJdbcUrl(jdbcUrl)

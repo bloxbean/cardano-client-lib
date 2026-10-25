@@ -31,17 +31,17 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>Run with:
  * <pre>
- * ./gradlew :state-trees:jmh -Pjmh.include=".*JmtV2Benchmark.*"
+ * ./gradlew :verified-structures:jellyfish-merkle:jmh -Pjmh.include=".*JmtV2Benchmark.*"
  * </pre>
  *
  * <p>Run specific benchmark:
  * <pre>
- * ./gradlew :state-trees:jmh -Pjmh.include=".*insertBatch.*"
+ * ./gradlew :verified-structures:jellyfish-merkle:jmh -Pjmh.include=".*insertBatch.*"
  * </pre>
  *
  * <p>With GC profiler:
  * <pre>
- * ./gradlew :state-trees:jmh -Pjmh.include=".*JmtV2Benchmark.*" -Pjmh.prof=gc
+ * ./gradlew :verified-structures:jellyfish-merkle:jmh -Pjmh.include=".*JmtV2Benchmark.*" -Pjmh.prof=gc
  * </pre>
  */
 @BenchmarkMode(Mode.Throughput)

@@ -15,6 +15,7 @@ import java.sql.Connection;
 import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -31,7 +32,7 @@ class RdbmsJmtTruncateIdempotentTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        String jdbcUrl = "jdbc:h2:mem:test_jmt_trunc_" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1";
+        String jdbcUrl = "jdbc:h2:mem:test_jmt_trunc_" + UUID.randomUUID().toString().replace('-', '_') + ";DB_CLOSE_DELAY=-1";
         dbConfig = DbConfig.builder().simpleJdbcUrl(jdbcUrl).build();
         try (Connection conn = dbConfig.dataSource().getConnection();
              Statement stmt = conn.createStatement()) {

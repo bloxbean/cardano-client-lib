@@ -1,22 +1,11 @@
 package com.bloxbean.cardano.vds.mpf.rdbms;
 
+import com.bloxbean.cardano.vds.rdbms.common.BundledSchema;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 import com.bloxbean.cardano.vds.rdbms.common.TableNameResolver;
-import com.bloxbean.cardano.vds.rdbms.dialect.H2Dialect;
-import com.bloxbean.cardano.vds.rdbms.dialect.PostgresDialect;
 import com.bloxbean.cardano.vds.rdbms.dialect.SqlDialect;
-import com.bloxbean.cardano.vds.rdbms.dialect.SqliteDialect;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.regex.Matcher;
 
 /**
  * Creates the MPF RDBMS tables ({@code mpt_nodes}, {@code mpt_roots}, {@code mpt_latest}) and their indexes.
@@ -44,14 +33,14 @@ import java.util.regex.Matcher;
 public final class RdbmsMpfSchema {
 
     /** Base names used in the bundled DDL, rewritten through {@link TableNameResolver}. */
-    private static final String[] NAMES = {
-            "mpt_nodes", "mpt_roots", "mpt_latest", "idx_mpt_nodes_ns", "idx_mpt_roots_ns"};
+    private static final BundledSchema DDL = new BundledSchema("MPF", RdbmsMpfSchema.class, "/ddl/mpf",
+            "mpt_nodes", "mpt_roots", "mpt_latest", "idx_mpt_nodes_ns", "idx_mpt_roots_ns");
 
     /**
      * Longest identifier PostgreSQL keeps (NAMEDATALEN - 1). PostgreSQL silently truncates longer names, so two
      * long prefixes could map to the same table; the limit is enforced for every dialect to keep schemas portable.
      */
-    public static final int MAX_IDENTIFIER_LENGTH = 63;
+    public static final int MAX_IDENTIFIER_LENGTH = BundledSchema.MAX_IDENTIFIER_LENGTH;
 
     private RdbmsMpfSchema() {
     }
@@ -71,30 +60,7 @@ public final class RdbmsMpfSchema {
      * @throws IllegalStateException    if the DDL cannot be read or executed
      */
     public static void createIfNotExists(DbConfig config) {
-        Objects.requireNonNull(config, "config");
-        List<String> statements = statements(config.dialect(), config.tablePrefix());
-        try (Connection conn = config.dataSource().getConnection()) {
-            boolean autoCommit = conn.getAutoCommit();
-            try (Statement stmt = conn.createStatement()) {
-                for (String sql : statements) {
-                    stmt.execute(sql);
-                }
-                if (!autoCommit) {
-                    conn.commit();
-                }
-            } catch (SQLException | RuntimeException e) {
-                if (!autoCommit) {
-                    try {
-                        conn.rollback();
-                    } catch (SQLException rollbackFailure) {
-                        e.addSuppressed(rollbackFailure);
-                    }
-                }
-                throw e;
-            }
-        } catch (SQLException e) {
-            throw new IllegalStateException("Failed to create MPF schema for " + config.dialect().name(), e);
-        }
+        DDL.createIfNotExists(config);
     }
 
     /**
@@ -107,51 +73,6 @@ public final class RdbmsMpfSchema {
      *                                  generated name longer than {@link #MAX_IDENTIFIER_LENGTH}
      */
     public static List<String> statements(SqlDialect dialect, String tablePrefix) {
-        Objects.requireNonNull(dialect, "dialect");
-        TableNameResolver resolver = new TableNameResolver(tablePrefix);
-        for (String name : NAMES) {
-            String resolved = resolver.resolve(name);
-            if (resolved.length() > MAX_IDENTIFIER_LENGTH) {
-                throw new IllegalArgumentException("Table prefix '" + resolver.tablePrefix() + "' is too long: generated name '"
-                        + resolved + "' has " + resolved.length() + " characters, the maximum is " + MAX_IDENTIFIER_LENGTH);
-            }
-        }
-        String ddl = readResource("/ddl/mpf/" + ddlDirectory(dialect) + "/schema.sql");
-
-        StringBuilder withoutComments = new StringBuilder();
-        for (String line : ddl.split("\\R")) {
-            int comment = line.indexOf("--");
-            withoutComments.append(comment >= 0 ? line.substring(0, comment) : line).append('\n');
-        }
-
-        List<String> out = new ArrayList<>();
-        for (String raw : withoutComments.toString().split(";")) {
-            String sql = raw.trim();
-            if (sql.isEmpty()) continue;
-            for (String name : NAMES) {
-                sql = sql.replaceAll("\\b" + name + "\\b", Matcher.quoteReplacement(resolver.resolve(name)));
-            }
-            out.add(sql);
-        }
-        return out;
-    }
-
-    private static String ddlDirectory(SqlDialect dialect) {
-        if (dialect instanceof H2Dialect) return "h2";
-        if (dialect instanceof PostgresDialect) return "postgres";
-        if (dialect instanceof SqliteDialect) return "sqlite";
-        throw new IllegalArgumentException("No bundled MPF DDL for dialect " + dialect.name()
-                + "; apply an equivalent schema manually");
-    }
-
-    private static String readResource(String path) {
-        try (InputStream in = RdbmsMpfSchema.class.getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalStateException("Missing bundled DDL resource " + path);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read " + path, e);
-        }
+        return DDL.statements(dialect, tablePrefix);
     }
 }

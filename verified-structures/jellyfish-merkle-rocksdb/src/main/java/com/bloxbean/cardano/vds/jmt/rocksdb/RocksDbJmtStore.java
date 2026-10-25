@@ -4,6 +4,7 @@ import com.bloxbean.cardano.vds.core.NibblePath;
 import com.bloxbean.cardano.vds.jmt.JmtEncoding;
 import com.bloxbean.cardano.vds.jmt.JmtNode;
 import com.bloxbean.cardano.vds.jmt.NodeKey;
+import com.bloxbean.cardano.vds.jmt.metrics.JmtMetrics;
 import com.bloxbean.cardano.vds.jmt.store.JmtAccessCoordinator;
 import com.bloxbean.cardano.vds.jmt.store.JmtAccessLease;
 import com.bloxbean.cardano.vds.jmt.store.JmtFormatDescriptor;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 
 import static com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtSchema.*;
@@ -1155,6 +1157,21 @@ public final class RocksDbJmtStore implements JmtStore {
         return Collections.unmodifiableList(results);
     }
 
+    /**
+     * Publishes RocksDB health statistics through {@link JmtMetrics#recordRocksDbStats}. The tree does not
+     * call this; call it periodically (for example from a scheduler) to keep the {@code jmt.rocksdb.*} gauges
+     * current. The values are those of {@link #sampleDbProperties()} (the nodes column family; 0 when a
+     * property is unavailable).
+     *
+     * @param metrics the metrics sink
+     */
+    public void recordStats(JmtMetrics metrics) {
+        Objects.requireNonNull(metrics, "metrics");
+        DbProperties p = sampleDbProperties();
+        metrics.recordRocksDbStats(p.pendingCompactionBytes(), p.runningCompactions(), p.curSizeActiveMemTable(),
+                (int) Math.min(Integer.MAX_VALUE, p.numImmutableMemTables()));
+    }
+
     @Override
     public int pruneUpTo(long versionInclusive) {
         requireFormatInitialized();
@@ -1200,11 +1217,21 @@ public final class RocksDbJmtStore implements JmtStore {
                 nodesPruned++;
             }
             int valuesPruned = stageValuePrunes(versionInclusive, batch);
-            int rootsPruned = stageRootPrunes(versionInclusive, batch);
+            // Keep the root the horizon's state is read from: with no commit in (floorRoot, horizon], pruning up to
+            // the horizon removes exactly what pruning up to floorRoot removes, so floorRoot is the effective horizon.
+            long floorRoot = floorRootVersion(versionInclusive);
+            long effectiveHorizon = floorRoot >= 0 ? floorRoot : versionInclusive;
+            int rootsPruned = stageRootPrunes(effectiveHorizon, batch);
             int recordsPruned = nodesPruned + valuesPruned + rootsPruned;
             if (recordsPruned > 0) {
                 long currentWatermark = readPruneWatermark();
-                long newWatermark = Math.max(currentWatermark, versionInclusive);
+                long newWatermark = Math.max(currentWatermark, effectiveHorizon);
+                if (storeOptions != null && storeOptions.prunePolicy() == ValuePrunePolicy.AGGRESSIVE) {
+                    // AGGRESSIVE drops a key's horizon value once a newer value exists, so only state as of the
+                    // latest version is complete.
+                    long latestVersion = latestRoot().map(VersionedRoot::version).orElse(newWatermark);
+                    newWatermark = Math.max(newWatermark, latestVersion);
+                }
                 batch.put(cfMetadata, keyPrefixer.prefix(PRUNE_WATERMARK_KEY),
                         versionKey(newWatermark));
                 db.write(writeOptions, batch);
@@ -1213,6 +1240,28 @@ public final class RocksDbJmtStore implements JmtStore {
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to atomically prune JMT nodes and values", e);
         }
+    }
+
+    /**
+     * Greatest per-version root at or below {@code versionInclusive}, or -1. Version keys are big-endian, so this
+     * seeks backward from the horizon's key, skipping the latest-pointer keys, instead of scanning every root.
+     */
+    private long floorRootVersion(long versionInclusive) {
+        try (ReadOptions options = totalOrderReadOptions();
+             RocksIterator iterator = db.newIterator(cfRoots, options)) {
+            for (iterator.seekForPrev(keyPrefixer.prefix(versionKey(versionInclusive))); iterator.isValid();
+                 iterator.prev()) {
+                byte[] key = iterator.key();
+                if (!keyPrefixer.hasCorrectPrefix(key)) {
+                    break;
+                }
+                byte[] unprefixed = keyPrefixer.unprefix(key);
+                if (unprefixed.length == Long.BYTES) {
+                    return ByteBuffer.wrap(unprefixed).getLong();
+                }
+            }
+        }
+        return -1;
     }
 
     private int stageRootPrunes(long versionExclusive, WriteBatch batch) throws RocksDBException {
@@ -1304,6 +1353,11 @@ public final class RocksDbJmtStore implements JmtStore {
                 }
             }
 
+            if (retainedVersion < 0 && pruneWatermark >= 0) {
+                // Nothing is written: the batch is discarded. The state as of this version is retained only as
+                // pruned history, so there would be no latest root.
+                throw new IllegalStateException("Cannot truncate to version " + versionExclusive + ": no root at or below it survives pruning up to watermark " + pruneWatermark);
+            }
             if (retainedVersion >= 0 && retainedRoot != null) {
                 batch.put(cfRoots, prefixedLatestRootKey, retainedRoot);
                 batch.put(cfRoots, prefixedLatestVersionKey, versionKey(retainedVersion));
@@ -1456,6 +1510,12 @@ public final class RocksDbJmtStore implements JmtStore {
 
     private static byte[] versionKey(long version) {
         return ByteBuffer.allocate(Long.BYTES).putLong(version).array();
+    }
+
+    @Override
+    public OptionalLong pruneWatermark() {
+        long watermark = readPruneWatermark();
+        return watermark < 0 ? OptionalLong.empty() : OptionalLong.of(watermark);
     }
 
     private long readPruneWatermark() {

@@ -51,9 +51,9 @@ This library provides experimental Merkle-based authenticated data structures wi
 - **SQLite**: lightweight embedded SQL storage
 
 Notes:
-- The RDBMS backends never create their tables. For MPF call `RdbmsMpfSchema.createIfNotExists(dbConfig)` once,
-  or apply the bundled DDL under `/ddl/mpf/{postgres,h2,sqlite}/schema.sql`; for JMT apply
-  `/ddl/jmt/{postgres,h2,sqlite}/schema.sql`.
+- The RDBMS backends never create their tables on their own. Call `RdbmsMpfSchema.createIfNotExists(dbConfig)`
+  (MPF) or `RdbmsJmtSchemaInstaller.createIfNotExists(dbConfig)` (JMT) once, or apply the bundled DDL under
+  `/ddl/{mpf,jmt}/{postgres,h2,sqlite}/schema.sql` with your migration tool.
 - Storage-mode defaults differ: the MPF RocksDB backend defaults to `MULTI_VERSION` (and persists and checks the
   mode), the MPF RDBMS backend defaults to `SINGLE_VERSION` (and does not persist it). Pass the mode explicitly.
 
@@ -63,7 +63,7 @@ Notes:
 
 ```java
 // Add dependency
-implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rocksdb:0.8.0'
+implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rocksdb:<version>'
 
 // Open (or create) the database; MULTI_VERSION is the default storage mode
 try (RocksDbStateTrees trees = new RocksDbStateTrees("mpf-data")) {
@@ -84,14 +84,13 @@ try (RocksDbStateTrees trees = new RocksDbStateTrees("mpf-data")) {
 
 ```java
 // Add dependency
-implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:0.8.0'
+implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:<version>'
 
 // Initialize a dedicated RocksDB store (the store owns and closes the database)
 RocksDbJmtStore store = new RocksDbJmtStore("jmt-data");
 
-// Create tree
-HashFunction hashFn = Blake2b256::digest;
-JellyfishMerkleTree tree = new JellyfishMerkleTree(store, hashFn);
+// Create tree with the classic Blake2b-256 v1 profile (the store records it and rejects other formats)
+JellyfishMerkleTree tree = new JellyfishMerkleTree(store);
 
 // Batch insert
 Map<byte[], byte[]> updates = new HashMap<>();
@@ -113,20 +112,19 @@ store.close();
 ```gradle
 dependencies {
     // Core interfaces
-    implementation 'com.bloxbean.cardano:cardano-client-verified-structures-core:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-verified-structures-core:<version>'
 
     // MPF with RocksDB
-    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rocksdb:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rocksdb:<version>'
 
     // JMT with RocksDB
-    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:<version>'
 
     // MPF with PostgreSQL (the PostgreSQL driver is included)
-    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rdbms:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rdbms:<version>'
 
-    // JMT with PostgreSQL
-    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:0.8.0'
-    implementation 'org.postgresql:postgresql:42.7.10'
+    // JMT with PostgreSQL (the PostgreSQL driver is included)
+    implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle-rdbms:<version>'
 }
 ```
 
@@ -174,8 +172,10 @@ verified-structures-core (interfaces & utilities)
 
 ## Thread Safety
 
-- **MPF/JMT Core**: NOT thread-safe, requires external synchronization
-- **RocksDB Stores**: Thread-safe for reads, writes need coordination
+- **MPF Core**: NOT thread-safe, requires external synchronization
+- **JMT Core**: one writer per namespace, enforced by the store's access coordinator (competing writes fail
+  fast with `JmtConcurrentMutationException`); see the JMT README
+- **MPF RocksDB Stores**: Thread-safe for reads, writes need coordination
 - **RDBMS Stores**: Thread-safe via connection pooling
 
 ## Related Projects

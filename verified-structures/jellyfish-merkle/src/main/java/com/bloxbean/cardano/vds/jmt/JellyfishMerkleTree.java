@@ -14,6 +14,7 @@ import com.bloxbean.cardano.vds.jmt.proof.JmtProofCodec;
 import com.bloxbean.cardano.vds.jmt.store.JmtAccessLease;
 import com.bloxbean.cardano.vds.jmt.store.JmtFormatDescriptor;
 import com.bloxbean.cardano.vds.jmt.store.JmtStore;
+import com.bloxbean.cardano.vds.jmt.store.JmtWriteConflictException;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 
 /**
@@ -83,7 +85,12 @@ public final class JellyfishMerkleTree {
     }
 
     /**
-     * Creates a new JellyfishMerkleTree backed by the specified store.
+     * Creates a new JellyfishMerkleTree backed by the specified store, with a custom commitment scheme.
+     *
+     * <p><b>In-memory only.</b> This constructor installs the {@code unversioned} format descriptor, which
+     * persistent stores ({@code RocksDbJmtStore}, {@code RdbmsJmtStore}) reject with
+     * {@link com.bloxbean.cardano.vds.jmt.store.JmtFormatMismatchException}. For a persistent store use
+     * {@link #JellyfishMerkleTree(JmtStore)} or {@link #JellyfishMerkleTree(JmtStore, JmtProfile)}.</p>
      *
      * @param store       the storage layer for nodes and values
      * @param commitments the commitment scheme for computing node hashes
@@ -94,7 +101,12 @@ public final class JellyfishMerkleTree {
     }
 
     /**
-     * Creates a new JellyfishMerkleTree with metrics enabled.
+     * Creates a new JellyfishMerkleTree with a custom commitment scheme and metrics enabled.
+     *
+     * <p><b>In-memory only.</b> This constructor installs the {@code unversioned} format descriptor, which
+     * persistent stores ({@code RocksDbJmtStore}, {@code RdbmsJmtStore}) reject with
+     * {@link com.bloxbean.cardano.vds.jmt.store.JmtFormatMismatchException}. For a persistent store use
+     * {@link #JellyfishMerkleTree(JmtStore)} or {@link #JellyfishMerkleTree(JmtStore, JmtProfile)}.</p>
      *
      * @param store       the storage layer for nodes and values
      * @param commitments the commitment scheme for computing node hashes
@@ -107,6 +119,11 @@ public final class JellyfishMerkleTree {
 
     /**
      * Creates a new JellyfishMerkleTree with full customization (metrics and custom proof codec).
+     *
+     * <p><b>In-memory only.</b> This constructor installs the {@code unversioned} format descriptor, which
+     * persistent stores ({@code RocksDbJmtStore}, {@code RdbmsJmtStore}) reject with
+     * {@link com.bloxbean.cardano.vds.jmt.store.JmtFormatMismatchException}. For a persistent store use
+     * {@link #JellyfishMerkleTree(JmtStore)} or {@link #JellyfishMerkleTree(JmtStore, JmtProfile)}.</p>
      *
      * @param store       the storage layer for nodes and values
      * @param commitments the commitment scheme for computing node hashes
@@ -137,12 +154,20 @@ public final class JellyfishMerkleTree {
     /**
      * Creates a new JellyfishMerkleTree with default ClassicJmtCommitmentScheme and no metrics.
      *
-     * <p>This is the simplest constructor for most use cases. It uses the classic JMT commitment scheme
-     * inspired by Diem's reference implementation.
+     * <p><b>In-memory only.</b> This constructor installs the {@code unversioned} format descriptor, which
+     * persistent stores ({@code RocksDbJmtStore}, {@code RdbmsJmtStore}) reject with
+     * {@link com.bloxbean.cardano.vds.jmt.store.JmtFormatMismatchException}. For a persistent store use
+     * {@link #JellyfishMerkleTree(JmtStore)} or {@link #JellyfishMerkleTree(JmtStore, JmtProfile)}.</p>
+     *
+     * <p>With {@code Blake2b256::digest} the roots and proofs are identical to the default profile's, so moving
+     * to {@code new JellyfishMerkleTree(store)} changes no commitment.</p>
      *
      * @param store  the storage layer for nodes and values
      * @param hashFn the hash function for keys and values
+     * @deprecated in-memory only; use {@link #JellyfishMerkleTree(JmtStore)} or
+     * {@link #JellyfishMerkleTree(JmtStore, JmtProfile)}
      */
+    @Deprecated(since = "0.8.0")
     public JellyfishMerkleTree(JmtStore store, HashFunction hashFn) {
         this(store, new ClassicJmtCommitmentScheme(hashFn), hashFn, JmtMetrics.NOOP);
     }
@@ -150,12 +175,17 @@ public final class JellyfishMerkleTree {
     /**
      * Creates a new JellyfishMerkleTree with default ClassicJmtCommitmentScheme and metrics enabled.
      *
-     * <p>This constructor is useful when you want metrics but don't need a custom commitment scheme.
+     * <p><b>In-memory only.</b> This constructor installs the {@code unversioned} format descriptor, which
+     * persistent stores ({@code RocksDbJmtStore}, {@code RdbmsJmtStore}) reject with
+     * {@link com.bloxbean.cardano.vds.jmt.store.JmtFormatMismatchException}. For a persistent store use
+     * {@link #JellyfishMerkleTree(JmtStore)} or {@link #JellyfishMerkleTree(JmtStore, JmtProfile)}.</p>
      *
      * @param store   the storage layer for nodes and values
      * @param hashFn  the hash function for keys and values
      * @param metrics metrics collector
+     * @deprecated in-memory only; use {@link #JellyfishMerkleTree(JmtStore, JmtProfile, JmtMetrics)}
      */
+    @Deprecated(since = "0.8.0")
     public JellyfishMerkleTree(JmtStore store, HashFunction hashFn, JmtMetrics metrics) {
         this(store, new ClassicJmtCommitmentScheme(hashFn), hashFn, metrics);
     }
@@ -166,7 +196,7 @@ public final class JellyfishMerkleTree {
      * <p><b>Diem-Inspired Architecture:</b></p>
      * <p>Following Diem's design, this implementation does NOT support individual key deletion.
      * All values must be non-null. For deletion semantics in blockchain applications, use
-     * the version-based rollback pattern (see ADR-0012 for reorg/rollback handling).</p>
+     * the version-based rollback pattern ({@link JmtStore#truncateAfter(long)}).</p>
      *
      * <p>Commit Pattern:
      * <ol>
@@ -176,15 +206,26 @@ public final class JellyfishMerkleTree {
      *   <li>Commit the batch to storage</li>
      * </ol>
      *
+     * <p><b>Replay:</b> the latest committed version may be committed again (crash recovery). If the replay
+     * produces the committed root, the store keeps its state unchanged, and the result carries that root with
+     * no nodes, stale markers or value operations; no commit metrics are recorded. A replay that produces a
+     * different root is rejected by the store ({@link JmtWriteConflictException}). After pruning up to that version
+     * the nodes a non-empty replay rebuilds are gone, so it is rejected the same way, with a message saying so; an
+     * empty replay still works. Pruning below that version keeps those nodes, so the replay still works, also
+     * after a RocksDB {@code AGGRESSIVE} prune that raised the watermark to the latest version.</p>
+     *
      * @param version the version number for this commit (must be monotonically increasing)
      * @param updates map of key → value (values must be non-null)
-     * @return commit result with root hash, nodes, and stale markers
+     * @return commit result with root hash, nodes, and stale markers (empty for an identical replay)
      * @throws NullPointerException if updates is null, any key is null, or any value is null
      */
     public CommitResult put(long version, Map<byte[], byte[]> updates) {
         requireVersion(version);
         Objects.requireNonNull(updates, "updates");
         try (JmtAccessLease ignored = store.accessCoordinator().tryAcquireUpdate("put", version)) {
+            // A replay of the latest version is not pre-checked against the prune watermark: the RocksDB AGGRESSIVE
+            // policy raises the watermark to the latest version while the nodes a replay rebuilds from are intact.
+            // If pruning did remove them, the commit below fails without writing and is reported as a pruned replay.
             Optional<JmtStore.VersionedRoot> expectedLatest = validateCommitVersion(version);
 
             long startTime = System.currentTimeMillis();
@@ -226,7 +267,24 @@ public final class JellyfishMerkleTree {
 
             // 6. Convert to batch and commit to storage
             TreeUpdateBatch batch = cache.toBatch();
-            commitBatchToStore(version, rootHash, batch, valueOps, expectedLatest);
+            try {
+                commitBatchToStore(version, rootHash, batch, valueOps, expectedLatest);
+            } catch (JmtWriteConflictException e) {
+                throw explainPrunedReplay(version, expectedLatest, e);
+            } catch (IllegalStateException e) {
+                // Rebuilt on pruned state, a replay can mark a node it also writes stale; the batch check refuses it.
+                OptionalLong watermark = replayWatermark(version, expectedLatest);
+                if (watermark.isEmpty()) throw e;
+                throw new JmtWriteConflictException(prunedReplayMessage(version, watermark.getAsLong()), e);
+            }
+
+            // The store accepted an identical replay of the latest version without applying it
+            // (JmtStore.CommitConfig#shouldApply): report that nothing was written.
+            if (expectedLatest.isPresent() && expectedLatest.get().version() == version
+                    && Arrays.equals(expectedLatest.get().rootHash(), rootHash)) {
+                return new CommitResult(version, rootHash, Collections.emptyMap(),
+                        Collections.emptyList(), Collections.emptyList());
+            }
 
             // 7. Build result
             Map<NodeKey, JmtNode> nodes = new LinkedHashMap<>();
@@ -254,6 +312,25 @@ public final class JellyfishMerkleTree {
     }
 
     /**
+     * Prunes history up to {@code versionInclusive} through {@link JmtStore#pruneUpTo(long)} and records the
+     * prune metrics ({@link JmtMetrics#recordPrune}). Calling {@code store.pruneUpTo} directly prunes the same
+     * way but records no metrics.
+     *
+     * <p>The store reports one total, so the metrics record it as the number of pruned records (nodes,
+     * superseded values and roots) with {@code valuesPruned = 0}.</p>
+     *
+     * @param versionInclusive the prune horizon; state at and after the resulting
+     *                         {@link JmtStore#pruneWatermark() watermark} stays fully readable and provable
+     * @return the number of node, value and root records removed
+     */
+    public int pruneUpTo(long versionInclusive) {
+        long startTime = System.currentTimeMillis();
+        int pruned = store.pruneUpTo(versionInclusive);
+        metrics.recordPrune(System.currentTimeMillis() - startTime, versionInclusive, pruned, 0);
+        return pruned;
+    }
+
+    /**
      * Retrieves the value for a key at the latest version.
      *
      * <p><b>Performance:</b> This is the fastest way to read values, directly querying
@@ -268,7 +345,7 @@ public final class JellyfishMerkleTree {
      *
      * <p><b>Verifiability:</b> This method does NOT verify that the value is in the tree
      * or that the tree structure is correct. For untrusted data or when cryptographic
-     * verification is required, use {@link #getProof(byte[], long)} (byte[], long)} instead.
+     * verification is required, use {@link #getProof(byte[], long)} instead.
      *
      * @param key the key to look up (will be hashed)
      * @return the value if present, empty otherwise
@@ -302,18 +379,33 @@ public final class JellyfishMerkleTree {
      *
      * <p><b>Verifiability:</b> This method does NOT verify that the value is in the tree
      * or that the tree structure is correct. For untrusted data or when cryptographic
-     * verification is required, use {@link #getProof(byte[], long)} (byte[], long)} instead.
+     * verification is required, use {@link #getProof(byte[], long)} instead.
+     *
+     * <p><b>Which versions can be read:</b> the result is the state <i>as of</i> {@code version}: the value
+     * written by the newest commit at or before {@code version}. A version between two commits therefore reads
+     * the earlier commit's state. {@code version} must not be newer than the latest committed version, and must
+     * not be below the store's {@link JmtStore#pruneWatermark() prune watermark}, where history is no longer
+     * fully retained. Both are rejected rather than answered with the latest or a partial state. On a store
+     * with no commit yet every key is absent. {@link #getProof(byte[], long)} is stricter: it needs a root
+     * committed at exactly {@code version}. A caller whose own position (a chain tip, a rollback target between
+     * two commits) may be ahead of the latest commit reads at {@code min(position, latestRoot().version())}.</p>
+     *
+     * <p>The check reads the latest version and the watermark without taking a read lease, so a prune that runs
+     * concurrently with this read can still make it see partial history. Do not prune while reading below the
+     * new horizon.</p>
      *
      * @param key     the key to look up (will be hashed)
      * @param version the tree version to query
-     * @return the value if present at that version, empty otherwise
+     * @return the value as of that version, empty if the key had no value then
+     * @throws IllegalArgumentException if {@code version} is negative, newer than the latest committed version,
+     *                                  or below the prune watermark
      */
     public Optional<byte[]> get(byte[] key, long version) {
         requireVersion(version);
         Objects.requireNonNull(key, "key");
-        byte[] keyHash = hashFn.digest(key);
-
         long startTime = System.currentTimeMillis();
+        requireRetainedVersion(version);
+        byte[] keyHash = hashFn.digest(key);
         Optional<byte[]> value = store.getValueAt(keyHash, version);
 
         // Record metrics
@@ -361,7 +453,8 @@ public final class JellyfishMerkleTree {
      *
      * @param key     the key to look up (will be hashed)
      * @param version the tree version to query
-     * @return proof containing both value and cryptographic proof data, or empty if version doesn't exist
+     * @return proof containing both value and cryptographic proof data, or empty if no root is committed at exactly
+     *         {@code version} or {@code version} is below the store's prune watermark
      * @see JmtProof#value()
      * @see JmtProofVerifier
      */
@@ -375,6 +468,11 @@ public final class JellyfishMerkleTree {
             // Get root hash for this version
             Optional<byte[]> rootHashOpt = store.rootHash(version);
             if (rootHashOpt.isEmpty()) {
+                return Optional.empty();
+            }
+            // Below the prune watermark the version's values may be gone (RocksDB AGGRESSIVE keeps such roots).
+            OptionalLong watermark = store.pruneWatermark();
+            if (watermark.isPresent() && version < watermark.getAsLong()) {
                 return Optional.empty();
             }
 
@@ -1113,16 +1211,11 @@ public final class JellyfishMerkleTree {
     /**
      * Computes the hash of a leaf node.
      *
-     * <p>The hash is computed as H(0x00 || suffix || valueHash) where:
-     * <ul>
-     *   <li>suffix = remaining nibbles from the leaf's position to the full key</li>
-     *   <li>valueHash = hash of the value</li>
-     * </ul>
+     * <p>The hash is the commitment scheme's leaf commitment of the full key hash and the value hash; for the
+     * classic scheme that is {@code H(0x00 || keyHash || valueHash)}. The leaf's position does not enter the
+     * hash.</p>
      *
-     * <p>Example: If keyHash has 64 nibbles and the leaf is stored at path length 5,
-     * then suffix = nibbles[5..64].
-     *
-     * @param leafPath the storage path where this leaf is located
+     * @param leafPath the storage path where this leaf is located (unused by the classic scheme)
      * @param keyHash the full key hash (32 bytes)
      * @param valueHash the value hash (32 bytes)
      * @return the computed leaf hash
@@ -1169,6 +1262,48 @@ public final class JellyfishMerkleTree {
                     + " is not newer than latest version " + latest.get().version());
         }
         return latest;
+    }
+
+    private void requireRetainedVersion(long version) {
+        Optional<JmtStore.VersionedRoot> latest = store.latestRoot();
+        if (latest.isEmpty()) {
+            return;
+        }
+        if (version > latest.get().version()) {
+            throw new IllegalArgumentException("Version " + version
+                    + " is newer than the latest committed version " + latest.get().version());
+        }
+        OptionalLong watermark = store.pruneWatermark();
+        if (watermark.isPresent() && version < watermark.getAsLong()) {
+            throw new IllegalArgumentException("Version " + version + " is below the prune watermark "
+                    + watermark.getAsLong() + "; its state is no longer retained");
+        }
+    }
+
+    /**
+     * A replay rebuilds the version on the state as of {@code version - 1}. If pruning up to this version removed
+     * nodes of that state, the replay computes another root and the store rejects it; say so instead of only
+     * "different root hash".
+     */
+    private JmtWriteConflictException explainPrunedReplay(long version, Optional<JmtStore.VersionedRoot> expectedLatest,
+                                                          JmtWriteConflictException conflict) {
+        OptionalLong watermark = replayWatermark(version, expectedLatest);
+        return watermark.isEmpty() ? conflict
+                : new JmtWriteConflictException(prunedReplayMessage(version, watermark.getAsLong()), conflict);
+    }
+
+    /** The prune watermark if {@code version} is a replay of the latest version pruned up to, else empty. */
+    private OptionalLong replayWatermark(long version, Optional<JmtStore.VersionedRoot> expectedLatest) {
+        if (expectedLatest.isEmpty() || expectedLatest.get().version() != version) {
+            return OptionalLong.empty();
+        }
+        OptionalLong watermark = store.pruneWatermark();
+        return watermark.isPresent() && watermark.getAsLong() >= version ? watermark : OptionalLong.empty();
+    }
+
+    private static String prunedReplayMessage(long version, long watermark) {
+        return "Version " + version + " cannot be replayed: history was pruned up to " + watermark
+                + ", so the state it was built on may be incomplete";
     }
 
     private static void requireVersion(long version) {

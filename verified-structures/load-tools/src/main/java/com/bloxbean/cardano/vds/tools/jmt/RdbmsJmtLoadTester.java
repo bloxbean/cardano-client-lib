@@ -1,19 +1,15 @@
 package com.bloxbean.cardano.vds.tools.jmt;
 
-import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
+import com.bloxbean.cardano.vds.jmt.JmtProfile;
 import com.bloxbean.cardano.vds.jmt.JmtProof;
-import com.bloxbean.cardano.vds.jmt.commitment.ClassicJmtCommitmentScheme;
-import com.bloxbean.cardano.vds.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.store.InMemoryJmtStore;
 import com.bloxbean.cardano.vds.jmt.store.JmtStore;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
+import com.bloxbean.cardano.vds.jmt.rdbms.RdbmsJmtSchemaInstaller;
 import com.bloxbean.cardano.vds.jmt.rdbms.RdbmsJmtStore;
 
 import java.security.SecureRandom;
-import java.sql.Connection;
-import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -53,13 +49,11 @@ public final class RdbmsJmtLoadTester {
 
     public static void main(String[] args) throws Exception {
         LoadOptions options = LoadOptions.parse(args);
-        HashFunction hashFn = Blake2b256::digest;
-        CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hashFn);
 
         if (options.inMemory) {
             // In-memory mode
             InMemoryJmtStore store = new InMemoryJmtStore();
-            runLoad(store, hashFn, commitments, options);
+            runLoad(store, options);
         } else {
             // RDBMS mode
             DbConfig dbConfig;
@@ -84,10 +78,10 @@ public final class RdbmsJmtLoadTester {
             }
 
             // Create schema
-            createSchema(dbConfig, options.dbType);
+            createSchema(dbConfig);
 
             try (RdbmsJmtStore store = new RdbmsJmtStore(dbConfig)) {
-                runLoad(store, hashFn, commitments, options);
+                runLoad(store, options);
             }
         }
     }
@@ -111,52 +105,14 @@ public final class RdbmsJmtLoadTester {
         return "jdbc:postgresql://" + host + ":" + port + "/" + database;
     }
 
-    private static void createSchema(DbConfig config, String dbType) throws Exception {
-        String schemaResource;
-        switch (dbType.toLowerCase()) {
-            case "h2":
-                schemaResource = "/ddl/jmt/h2/schema.sql";
-                break;
-            case "sqlite":
-                schemaResource = "/ddl/jmt/sqlite/schema.sql";
-                break;
-            case "postgresql":
-            case "postgres":
-                schemaResource = "/ddl/jmt/postgres/schema.sql";
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported database type: " + dbType);
-        }
-
-        try (Connection conn = config.dataSource().getConnection();
-             Statement stmt = conn.createStatement()) {
-            String schema = new String(
-                RdbmsJmtLoadTester.class.getResourceAsStream(schemaResource).readAllBytes(),
-                java.nio.charset.StandardCharsets.UTF_8
-            );
-
-            // H2 supports multi-statement execution, but PostgreSQL and SQLite do not
-            if (dbType.equalsIgnoreCase("h2")) {
-                stmt.execute(schema);
-            } else {
-                // Split by semicolon and execute statements individually
-                String[] statements = schema.split(";");
-                for (String sql : statements) {
-                    // Remove SQL comments and trim whitespace
-                    String cleaned = sql.replaceAll("--[^\n]*", "").trim();
-                    if (!cleaned.isEmpty()) {
-                        stmt.execute(cleaned);
-                    }
-                }
-            }
-        }
+    private static void createSchema(DbConfig config) {
+        RdbmsJmtSchemaInstaller.createIfNotExists(config);
     }
 
     private static final int MAX_UPDATE_POOL = 100_000;  // Cap update key pool to 100K keys
 
-    private static void runLoad(JmtStore store, HashFunction hashFn,
-                                 CommitmentScheme commitments, LoadOptions options) {
-        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, commitments, hashFn);
+    private static void runLoad(JmtStore store, LoadOptions options) {
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, JmtProfile.classicBlake2b256V1());
         Random random = new SecureRandom();
 
         long version = 0;
