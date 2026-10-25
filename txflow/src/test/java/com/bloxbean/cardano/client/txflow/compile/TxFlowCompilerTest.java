@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.stream.Stream;
 
@@ -617,6 +618,20 @@ class TxFlowCompilerTest {
 
         assertTransactionDiagnostic(result, "TXFLOW_TRANSACTION_INVALID",
                 "$.spec.steps[0].transaction.context." + rejectedField);
+    }
+
+    @ParameterizedTest(name = "invalid additional_signers_count: {0}")
+    @ValueSource(strings = {"1001", "2147483647", "-1", "-0.5", "2.9"})
+    void compilerRejectsInvalidAdditionalSignersCount(String value) {
+        FlowCompilationResult result = compileTransaction(
+                "{\"tx\":{\"intents\":[]},\"context\":{\"additional_signers_count\":" + value + "}}");
+
+        assertTrue(result.hasErrors(), result.getDiagnostics().toString());
+        assertTrue(result.getDiagnostics().stream().anyMatch(diagnostic ->
+                        diagnostic.code().equals("TXFLOW_TRANSACTION_INVALID")
+                                && diagnostic.documentPath().startsWith("$.spec.steps[0].transaction")
+                                && diagnostic.message().contains("additional_signers_count")),
+                result.getDiagnostics().toString());
     }
 
     private static Stream<Arguments> ambiguousContextChoices() {

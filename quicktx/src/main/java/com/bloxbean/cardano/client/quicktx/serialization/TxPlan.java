@@ -25,6 +25,13 @@ import java.util.Set;
  */
 public class TxPlan {
 
+    /**
+     * Upper bound for {@code additional_signers_count}. Fee estimation adds one dummy witness per signer, so a portable
+     * plan must not be able to request unbounded work. A vkey witness is about 101 bytes, so a transaction within the
+     * current 16,384-byte max_tx_size carries at most about 160; 1000 leaves room for a larger limit.
+     */
+    public static final int MAX_ADDITIONAL_SIGNERS_COUNT = 1000;
+
     private Map<String, Object> variables = new HashMap<>();
     private Map<String, ExtensionMetadata> extensions = new java.util.LinkedHashMap<>();
     private List<AbstractTx<?>> txList = new ArrayList<>();
@@ -265,12 +272,15 @@ public class TxPlan {
      * Use this for signers that are not attached when the transaction is built, e.g. a
      * multisig built in one step and signed later by several parties.
      * Naming aligned with QuickTxBuilder.TxContext for consistency.
-     * @param count number of additional signers (must not be negative)
+     * @param count number of additional signers, from 0 to {@link #MAX_ADDITIONAL_SIGNERS_COUNT}
      * @return this plan for method chaining
      */
     public TxPlan additionalSignersCount(int count) {
         if (count < 0)
             throw new IllegalArgumentException("additional_signers_count must not be negative: " + count);
+        if (count > MAX_ADDITIONAL_SIGNERS_COUNT)
+            throw new IllegalArgumentException("additional_signers_count must not exceed "
+                    + MAX_ADDITIONAL_SIGNERS_COUNT + ": " + count);
         this.additionalSignersCount = count;
         return this;
     }

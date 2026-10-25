@@ -2,7 +2,10 @@ package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Set;
 
@@ -222,5 +225,41 @@ class TxPlanContextPropertiesTest {
             .replace("additional_signers_count: 1", "additional_signers_count: -1");
         assertThatThrownBy(() -> TxPlan.from(yaml))
             .hasStackTraceContaining("additional_signers_count must not be negative");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT + 1, Integer.MAX_VALUE})
+    void oversized_additional_signers_count_is_rejected(int count) {
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(5));
+
+        assertThatThrownBy(() -> TxPlan.from(tx).additionalSignersCount(count))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("additional_signers_count must not exceed " + TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT);
+
+        String yaml = "context:\n  additional_signers_count: " + count + "\ntransaction: []\n";
+        assertThatThrownBy(() -> TxPlan.from(yaml))
+            .hasStackTraceContaining("additional_signers_count must not exceed");
+        assertThatThrownBy(() -> TxPlanCodec.builder().build().fromYaml(yaml))
+            .hasStackTraceContaining("additional_signers_count must not exceed");
+    }
+
+    @Test
+    void max_additional_signers_count_is_accepted() {
+        String yaml = "context:\n  additional_signers_count: " + TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT + "\ntransaction: []\n";
+
+        assertThat(TxPlan.from(yaml).getAdditionalSignersCount()).isEqualTo(TxPlan.MAX_ADDITIONAL_SIGNERS_COUNT);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"-0.5", "2.9", "2.0", "'2'", "3000000000"})
+    void non_integer_additional_signers_count_is_rejected(String value) {
+        String yaml = "context:\n  additional_signers_count: " + value + "\ntransaction: []\n";
+
+        assertThatThrownBy(() -> TxPlan.from(yaml))
+            .hasStackTraceContaining("additional_signers_count must be an integer");
+        assertThatThrownBy(() -> TxPlanCodec.builder().build().fromYaml(yaml))
+            .hasStackTraceContaining("additional_signers_count must be an integer");
     }
 }

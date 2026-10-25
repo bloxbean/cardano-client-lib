@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.quicktx.intent.TxScriptAttachmentIntent;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -157,6 +158,7 @@ public class TransactionDocument {
         private java.util.List<SignerRef> signers;
 
         @JsonProperty("additional_signers_count")
+        @JsonDeserialize(using = StrictIntegerDeserializer.class)
         private Integer additionalSignersCount;
 
         @JsonProperty("deposit_payer")
