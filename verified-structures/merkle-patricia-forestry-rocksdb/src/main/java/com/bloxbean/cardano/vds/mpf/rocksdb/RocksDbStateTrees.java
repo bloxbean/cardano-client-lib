@@ -392,6 +392,10 @@ public final class RocksDbStateTrees implements StateTrees {
      *
      * <p>Use this for every version of a namespace that is collected with {@code RefcountGcStrategy}.</p>
      *
+     * <p><b>Single writer:</b> this method reads the next version and the current counts, then writes the new
+     * values, without locking. Call it from one writer per namespace at a time; concurrent calls can assign the
+     * same version (one root replacing the other) or lose an increment.</p>
+     *
      * <p><b>Note:</b> This method is only valid for {@link StorageMode#MULTI_VERSION} mode.</p>
      *
      * <p>Usage:</p>

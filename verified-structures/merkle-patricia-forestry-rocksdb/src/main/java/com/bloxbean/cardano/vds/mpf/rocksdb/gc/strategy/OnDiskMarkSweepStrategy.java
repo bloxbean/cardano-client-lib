@@ -11,6 +11,8 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.GcRoots;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RefcountLedger;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import org.rocksdb.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -35,8 +37,13 @@ import java.util.*;
  * writer that re-puts an existing key (or commits a root reusing an old, unmarked node) during GC can still lose
  * that node. <b>Pause every writer of the namespace while GC runs.</b> The roots index is not modified: entries of
  * versions that are not retained stay listed, but their tries may no longer be readable.</p>
+ *
+ * <p>With no retained root (for example a namespace whose roots were never recorded in the roots index), every node
+ * of the namespace is deleted; a warning is logged.</p>
  */
 public class OnDiskMarkSweepStrategy implements GcStrategy {
+    private static final Logger log = LoggerFactory.getLogger(OnDiskMarkSweepStrategy.class);
+
     public static final String CF_MARKS = "marks"; // legacy constant; the mark set CF is named by DiskMarkSet.CF_PREFIX
 
     /** Digest length assumed when there is no retained root to infer it from. */
@@ -53,6 +60,9 @@ public class OnDiskMarkSweepStrategy implements GcStrategy {
             // (2) Roots to keep, and the digest length of this namespace's node keys
             List<byte[]> roots = GcRoots.retainedRoots(index, policy);
             int digestLength = GcRoots.digestLength(roots, DEFAULT_DIGEST_LENGTH);
+            if (roots.isEmpty()) {
+                log.warn("Mark-sweep GC found no retained root: every node of this namespace will be deleted");
+            }
 
             // (3) Mark into a fresh, uniquely-named column family; (4) sweep this namespace
             KeyPrefixer keyPrefixer = store.keyPrefixer();

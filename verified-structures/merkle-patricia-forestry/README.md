@@ -86,6 +86,10 @@ starts a new trie (`getProofWire` throws `IllegalStateException` for a root or n
 > also check every step of the redeemer proof: `Fork` nibble and prefix bytes in 0..15, 32-byte `root`, `key` and
 > `value`, and a neighbor nibble different from the key's nibble at that position.
 
+> Proof bytes are not a canonical encoding: the same proof can be encoded several ways (for example non-minimal
+> integers or indefinite-length arrays), and `verifyProofWire` accepts all of them. Do not use proof bytes, or their
+> hash, as an identifier or nullifier; use the key and the root.
+
 > Proofs produced by CCL 0.8.0-pre6 and earlier differ: exclusion proofs ending in a `Fork` step were rejected
 > by Aiken, and inclusion proofs only used `Branch` steps, which Aiken accepts for `has`/`update` but not for
 > `delete`. Regenerate proofs with the current version. Old inclusion proofs still verify with `verifyProofWire`;
