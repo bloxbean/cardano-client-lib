@@ -30,6 +30,9 @@ import com.bloxbean.cardano.client.programmabletoken.cip113.PolicyIdDerivation;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.IssuanceCborHex;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.RegistryNode;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
+import com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
@@ -47,8 +50,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -165,7 +170,67 @@ class SpentGlobalStateAndRegistryUpdateTest {
                 .doesNotContain(GLOBAL_STATE.getTxHash());
     }
 
+    /**
+     * The same transaction saved as a TxPlan and reloaded. YAML keeps a spent UTxO only as an outref
+     * ({@code utxo_refs}), so the spend must be recognised from the reference alone.
+     */
+    @Test
+    void aMintThatSpendsItsGlobalStateStillDoesNotReferenceItAfterAYamlRoundTrip() {
+        Transaction txn = buildReloaded(mintSpendingGlobalState(), true);
+
+        assertThat(txn.getBody().getInputs()).extracting(TransactionInput::getTransactionId)
+                .as("the reloaded global-state spend is kept").contains(GLOBAL_STATE.getTxHash());
+        assertThat(Optional.ofNullable(txn.getBody().getReferenceInputs()).orElse(List.of()))
+                .extracting(TransactionInput::getTransactionId)
+                .as("a UTxO the reloaded transaction spends must not also be a reference input")
+                .doesNotContain(GLOBAL_STATE.getTxHash());
+    }
+
+    /** A reloaded spend the backend cannot resolve is refused by name, not silently ignored. */
+    @Test
+    void aReloadedSpendOfAnUnknownUtxoIsRefusedByItsOutref() {
+        String outref = GLOBAL_STATE.getTxHash() + "#" + GLOBAL_STATE.getOutputIndex();
+
+        assertThatThrownBy(() -> buildReloaded(mintSpendingGlobalState(), false))
+                .satisfies(e -> assertThat(causeChain(e)).contains(outref));
+    }
+
     // ------------------------------------------------------------------ helpers
+
+    private static ProgrammableTokenTx mintSpendingGlobalState() {
+        var tx = new ProgrammableTokenTx().from(ADMIN.toBech32())
+                .mint(POLICY_A, RECEIVER.toBech32(), List.of(new Asset("0x" + TOK, BigInteger.TEN)),
+                        BigIntPlutusData.of(0), null);
+        tx.collectFrom(GLOBAL_STATE, BigIntPlutusData.of(1));
+        tx.payToContract(GLOBAL_STATE.getAddress(), GLOBAL_STATE.getAmount(), ConstrPlutusData.of(0));
+        tx.attachSpendingValidator(GLOBAL_STATE_SPEND);
+        return tx;
+    }
+
+    /** {@code tx} saved as TxPlan YAML, reloaded, and built; the reload carries the spend as an outref only. */
+    private static Transaction buildReloaded(ProgrammableTokenTx tx, boolean globalStateOnChain) {
+        return build(new ArrayList<>(), globalStateOnChain, (builder, extension) -> {
+            TxPlanCodec codec = TxPlanCodec.builder()
+                    .withExtension(ProgrammableTokenExtension.DEFAULT_NAMESPACE, extension).build();
+            String yaml = codec.toYaml(extension.configure(TxPlan.from(tx)));
+            TxPlan restored = codec.fromYaml(yaml);
+            assertThat(restored.getTxs().get(0).getIntentions())
+                    .filteredOn(ScriptCollectFromIntent.class::isInstance)
+                    .map(ScriptCollectFromIntent.class::cast)
+                    .singleElement()
+                    .satisfies(collect -> {
+                        assertThat(collect.getUtxos()).as("precondition: YAML drops the UTxO bodies").isNullOrEmpty();
+                        assertThat(collect.getUtxoRefs()).hasSize(1);
+                    });
+            return builder.compose(restored);
+        });
+    }
+
+    private static String causeChain(Throwable e) {
+        StringBuilder messages = new StringBuilder();
+        for (Throwable t = e; t != null; t = t.getCause()) messages.append(t.getMessage()).append(" | ");
+        return messages.toString();
+    }
 
     private static RegistryNode nodeA() {
         return RegistryNode.builder().key(POLICY_A).next("ff".repeat(28))
@@ -177,13 +242,18 @@ class SpentGlobalStateAndRegistryUpdateTest {
     }
 
     private static Transaction build(ProgrammableTokenTx tx, List<Transaction> evaluated) {
+        return build(evaluated, true, (builder, extension) -> builder.compose(tx));
+    }
+
+    private static Transaction build(List<Transaction> evaluated, boolean globalStateOnChain,
+                                     BiFunction<QuickTxBuilder, ProgrammableTokenExtension, QuickTxBuilder.TxContext> compose) {
         ProtocolParams protocolParams = protocolParams();
         ProtocolParamsSupplier protocolParamsSupplier = () -> protocolParams;
         Map<String, List<Utxo>> chain = new LinkedHashMap<>();
         chain.put(ADMIN.toBech32(), List.of(FEE_UTXO));
         chain.put(PARAMS.getAddress(), List.of(PARAMS));
         chain.put(NODE_A.getAddress(), List.of(NODE_A));
-        chain.put(GLOBAL_STATE.getAddress(), List.of(GLOBAL_STATE));
+        if (globalStateOnChain) chain.put(GLOBAL_STATE.getAddress(), List.of(GLOBAL_STATE));
         UtxoSupplier utxoSupplier = new InMemoryUtxoSupplier(chain);
 
         Cip113ProtocolService service = service(protocolParamsSupplier);
@@ -201,9 +271,9 @@ class SpentGlobalStateAndRegistryUpdateTest {
                     ExUnits.builder().mem(BigInteger.valueOf(100_000)).steps(BigInteger.valueOf(10_000_000)).build()))
                     .evaluateTx(cbor, inputUtxos);
         };
-        return new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
-                .withExtension(extension)
-                .compose(tx)
+        QuickTxBuilder builder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
+                .withExtension(extension);
+        return compose.apply(builder, extension)
                 .feePayer(ADMIN.toBech32())
                 .collateralPayer(ADMIN.toBech32())
                 .withScriptSupplier(service.scripts())
@@ -227,7 +297,8 @@ class SpentGlobalStateAndRegistryUpdateTest {
             }
         };
         DeploymentScripts scripts = new DeploymentScripts((ScriptSupplier) null, DEPLOYMENT)
-                .registerAll(List.of(BASE, TRANSFER, LOGIC_A, THIRD_PARTY, DISPATCHER, ISSUANCE_LOGIC, REGISTRY));
+                .registerAll(List.of(BASE, TRANSFER, LOGIC_A, THIRD_PARTY, DISPATCHER, ISSUANCE_LOGIC, REGISTRY,
+                        GLOBAL_STATE_SPEND));
         Utxo template = Utxo.builder().txHash("dd".repeat(32)).outputIndex(0)
                 .address("addr_test1template")
                 .amount(List.of(Amount.lovelace(BigInteger.valueOf(5_000_000L))))

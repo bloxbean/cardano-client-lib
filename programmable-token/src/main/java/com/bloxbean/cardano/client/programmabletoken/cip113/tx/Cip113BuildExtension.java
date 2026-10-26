@@ -422,18 +422,41 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                 .from(owner);
     }
 
-    /** Every UTxO the authored transactions spend with {@code collectFrom}, script inputs included. */
+    /**
+     * Every UTxO the authored transactions spend with {@code collectFrom}, script inputs included.
+     *
+     * <p>A plan reloaded from YAML carries a spend only as {@code utxo_refs} (the UTxO itself is not
+     * serialised), so a spend without its UTxO is resolved through the build's supplier.</p>
+     */
     private static List<Utxo> callerSpends(ExtensionBuildContext context) {
         return context.getTransactions().stream()
                 .flatMap(tx -> tx.getIntentions().stream())
                 .flatMap(intent -> {
                     if (intent instanceof com.bloxbean.cardano.client.quicktx.intent.CollectFromIntent collect)
-                        return collect.getUtxos() == null ? java.util.stream.Stream.<Utxo>empty() : collect.getUtxos().stream();
+                        return spent(context, collect.getUtxos(), collect.getUtxoRefs(), collect.getType());
                     if (intent instanceof com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent collect)
-                        return collect.getUtxos() == null ? java.util.stream.Stream.<Utxo>empty() : collect.getUtxos().stream();
+                        return spent(context, collect.getUtxos(), collect.getUtxoRefs(), collect.getType());
                     return java.util.stream.Stream.<Utxo>empty();
                 })
                 .toList();
+    }
+
+    private static java.util.stream.Stream<Utxo> spent(ExtensionBuildContext context, List<Utxo> utxos,
+                                                      List<com.bloxbean.cardano.client.quicktx.intent.UtxoRef> refs,
+                                                      String type) {
+        if (utxos != null && !utxos.isEmpty()) return utxos.stream();
+        if (refs == null) return java.util.stream.Stream.empty();
+        return refs.stream().map(ref -> {
+            String outref = ref.getTxHash() + "#" + ref.getOutputIndex();
+            if (ref.getTxHash() == null || ref.getOutputIndex() == null)
+                throw new Cip113Exception("The " + type + " input " + outref + " is not a resolved outref;"
+                        + " supply its variables before building.");
+            return context.getUtxoSupplier().getTxOutput(ref.getTxHash(), ref.getOutputIndex())
+                    .orElseThrow(() -> new Cip113Exception("The " + type + " input " + outref
+                            + " could not be found through the build's UTxO supplier. A programmable-token"
+                            + " build must know what a spent input holds, e.g. whether it is the token's"
+                            + " global state."));
+        });
     }
 
     /** Every reference input the authored transactions add with {@code readFrom}. */

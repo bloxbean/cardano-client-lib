@@ -91,6 +91,9 @@ evaluated without a fee input and the registry's spend handler failed on the emp
 Fixed: a mint whose transaction spends the token's global-state UTxO (a substandard enforcing a
 supply cap on mint) no longer also adds that UTxO as a reference input, which the ledger rejects.
 A global-state UTxO the caller collects is taken as the token's global state.
+This now also holds for a plan reloaded from TxPlan YAML, where a `collect_from` or
+`script_collect_from` input is only an outref: the spent UTxO is resolved through the build's UTxO
+supplier, and an outref that cannot be resolved is refused by name.
 
 Fixed: a deployment script read from its published reference input is no longer also carried in
 the witness set when the caller declares reference scripts of its own (`withReferenceScripts`),
