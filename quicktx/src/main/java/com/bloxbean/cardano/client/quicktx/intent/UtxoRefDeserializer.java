@@ -23,9 +23,7 @@ import java.util.regex.Pattern;
  * lenient reader keeps the historical behaviour and ignores keys it does not use.
  */
 final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
-    private static final Pattern DIGITS = Pattern.compile("[0-9]+");
-    /** {@code ${name}}, or TxFlow's {@code ${{ inputs.name }}}; the name may not be empty. */
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{.*[^{}\\s].*}");
+    private static final Pattern DIGITS = Pattern.compile("\\d+");
 
     UtxoRefDeserializer() {
         super(UtxoRef.class);
@@ -79,7 +77,7 @@ final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
         if (value.isIntegralNumber()) return value.canConvertToInt() && value.intValue() >= 0;
         if (!value.isTextual()) return false;
         String text = value.asText();
-        if (PLACEHOLDER.matcher(text).matches()) return true;
+        if (isPlaceholder(text)) return true;
         if (!DIGITS.matcher(text).matches()) return false;
         try {
             Integer.parseInt(text);
@@ -87,6 +85,26 @@ final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
         } catch (NumberFormatException tooLarge) {
             return false;
         }
+    }
+
+    /**
+     * {@code ${name}}, or TxFlow's {@code ${{ inputs.name }}}; the name may not be empty. One linear pass over untrusted
+     * text that accepts exactly what the regular expression {@code \$\{.*[^{}\s].*}} did, without its backtracking.
+     * Between {@code ${} and the final <code>}</code>: at least one character that is not a brace or whitespace, no
+     * {@code \n} or {@code \r}, and at most one other line separator (the expression's {@code .} refuses U+0085, U+2028
+     * and U+2029, but its middle class accepts one).
+     */
+    static boolean isPlaceholder(String text) {
+        if (text.length() < 4 || !text.startsWith("${") || !text.endsWith("}")) return false;
+        boolean named = false;
+        int separators = 0;
+        for (int i = 2; i < text.length() - 1; i++) {
+            char c = text.charAt(i);
+            if (c == '\n' || c == '\r') return false;
+            if ((c == '\u0085' || c == '\u2028' || c == '\u2029') && ++separators > 1) return false;
+            if (c != '{' && c != '}' && c != ' ' && c != '\t' && c != '\u000B' && c != '\f') named = true;
+        }
+        return named;
     }
 
     private static void requireOnly(JsonNode node, Set<String> allowed, DeserializationContext context) throws IOException {
