@@ -228,6 +228,8 @@ final class Cip113TransactionMaterializer extends Tx {
     private String resolvedIndexFingerprint;
 
     private static final String LOVELACE = "lovelace";
+    /** What an issuance redeemer is called in a conflicting-redeemer refusal. */
+    private static final String ISSUANCE = "issuance";
 
     /**
      * Build against the extension's protocol service and a per-build registry snapshot.
@@ -551,7 +553,7 @@ final class Cip113TransactionMaterializer extends Tx {
         String key = policyId.toLowerCase();
         requireOpen(key);
         rejectConflictingRedeemer(substandardRedeemers.get(key), transferRedeemer, key, "transfer");
-        rejectConflictingRedeemer(burnIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
+        rejectConflictingRedeemer(burnIssuanceRedeemers.get(key), issuanceRedeemer, key, ISSUANCE);
 
         BigInteger burned = asset.getValue().negate();          // arrives negative, as Tx expects
         String assetNameHex = HexUtil.encodeHexString(asset.getNameAsBytes());
@@ -594,8 +596,8 @@ final class Cip113TransactionMaterializer extends Tx {
             throw new Cip113Exception("Holder UTxO " + ref + " is pinned twice, by two third-party burns."
                     + " A UTxO can be spent once; put every asset to burn from it in one burn.");
         rejectConflictingRedeemer(substandardRedeemers.get(key), thirdPartyRedeemer, key, "third-party");
-        rejectConflictingRedeemer(burnIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
-        rejectConflictingRedeemer(mintIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
+        rejectConflictingRedeemer(burnIssuanceRedeemers.get(key), issuanceRedeemer, key, ISSUANCE);
+        rejectConflictingRedeemer(mintIssuanceRedeemers.get(key), issuanceRedeemer, key, ISSUANCE);
 
         Map<String, BigInteger> byUnit = new LinkedHashMap<>();
         for (Asset asset : assets) {
@@ -637,8 +639,8 @@ final class Cip113TransactionMaterializer extends Tx {
                     + " in this one with a register intent whose name the mint references.");
         }
         requireInlineDatumWithinBound(inlineDatum, "mint");
-        rejectConflictingRedeemer(mintIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
-        rejectConflictingRedeemer(burnIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
+        rejectConflictingRedeemer(mintIssuanceRedeemers.get(key), issuanceRedeemer, key, ISSUANCE);
+        rejectConflictingRedeemer(burnIssuanceRedeemers.get(key), issuanceRedeemer, key, ISSUANCE);
         mintIssuanceRedeemers.put(key, issuanceRedeemer);
         for (Asset asset : assets) {
             if (asset.getValue().signum() <= 0)
@@ -1025,15 +1027,7 @@ final class Cip113TransactionMaterializer extends Tx {
         List<Utxo> selected = new ArrayList<>();
 
         for (Utxo utxo : candidates) {
-            boolean useful = false;
-            for (Amount amount : utxo.getAmount()) {
-                String unit = amount.getUnit();
-                if (!requiredByUnit.containsKey(unit)) continue;
-                if (accumulated.getOrDefault(unit, BigInteger.ZERO)
-                        .compareTo(requiredByUnit.get(unit)) >= 0) continue;
-                useful = true;
-            }
-            if (!useful) continue;
+            if (!coversAShortfall(utxo, accumulated, requiredByUnit)) continue;
 
             selected.add(utxo);
             for (Amount amount : utxo.getAmount()) {
@@ -1050,6 +1044,18 @@ final class Cip113TransactionMaterializer extends Tx {
                     + ", found " + accumulated + ".");
         }
         return selected;
+    }
+
+    /** Whether {@code utxo} holds a required unit whose accumulated quantity is still short. */
+    private static boolean coversAShortfall(Utxo utxo, Map<String, BigInteger> accumulated,
+                                            Map<String, BigInteger> requiredByUnit) {
+        for (Amount amount : utxo.getAmount()) {
+            BigInteger required = requiredByUnit.get(amount.getUnit());
+            if (required != null
+                    && accumulated.getOrDefault(amount.getUnit(), BigInteger.ZERO).compareTo(required) < 0)
+                return true;
+        }
+        return false;
     }
 
     private static BigInteger usefulQuantity(Utxo utxo, Map<String, BigInteger> requiredByUnit) {
@@ -1428,10 +1434,14 @@ final class Cip113TransactionMaterializer extends Tx {
                     }
                 }
             }
-            String datum = output.getInlineDatum() != null ? output.getInlineDatum().serializeToHex()
-                    : output.getDatumHash() != null ? "hash:" + HexUtil.encodeHexString(output.getDatumHash())
-                    : "";
-            return new Continuation(output.getAddress(), units.toString(), datum);
+            return new Continuation(output.getAddress(), units.toString(), datumOf(output));
+        }
+
+        /** The inline datum's hex, a datum hash marked as such, or empty for no datum. */
+        private static String datumOf(TransactionOutput output) {
+            if (output.getInlineDatum() != null) return output.getInlineDatum().serializeToHex();
+            if (output.getDatumHash() != null) return "hash:" + HexUtil.encodeHexString(output.getDatumHash());
+            return "";
         }
 
         @Override public boolean equals(Object o) {
@@ -2030,18 +2040,7 @@ final class Cip113TransactionMaterializer extends Tx {
                 throw new Cip113Exception("Base-script input " + key + " is neither pinned by a"
                         + " third-party burn nor selected for a seizure — report it.");
 
-            List<Amount> kept = new ArrayList<>();
-            for (Amount held : input.getAmount()) {
-                BigInteger due = owed.getOrDefault(held.getUnit(), BigInteger.ZERO);
-                if (LOVELACE.equals(held.getUnit()) || due.signum() == 0) {
-                    kept.add(held);            // lovelace rides along; nothing taken from this unit
-                    continue;
-                }
-                BigInteger take = due.min(held.getQuantity());
-                owed.put(held.getUnit(), due.subtract(take));
-                BigInteger left = held.getQuantity().subtract(take);
-                if (left.signum() > 0) kept.add(withQuantity(held, left));
-            }
+            List<Amount> kept = takeOwed(input, owed);
             if (burn != null && owed.values().stream().anyMatch(q -> q.signum() > 0))
                 throw new Cip113Exception("Holder UTxO " + key + " does not cover the burn " + burn.byUnit);
 
@@ -2053,6 +2052,30 @@ final class Cip113TransactionMaterializer extends Tx {
             declaredOutputLovelace = declaredOutputLovelace.add(lovelaceOf(kept));
         }
 
+        requireSeizuresCovered(remaining);
+    }
+
+    /**
+     * What {@code input} keeps once {@code owed} is taken from it. {@code owed} is reduced in place,
+     * so a seizure's remainder carries over to the holder's next input.
+     */
+    private static List<Amount> takeOwed(Utxo input, Map<String, BigInteger> owed) {
+        List<Amount> kept = new ArrayList<>();
+        for (Amount held : input.getAmount()) {
+            BigInteger due = owed.getOrDefault(held.getUnit(), BigInteger.ZERO);
+            if (LOVELACE.equals(held.getUnit()) || due.signum() == 0) {
+                kept.add(held);            // lovelace rides along; nothing taken from this unit
+                continue;
+            }
+            BigInteger take = due.min(held.getQuantity());
+            owed.put(held.getUnit(), due.subtract(take));
+            BigInteger left = held.getQuantity().subtract(take);
+            if (left.signum() > 0) kept.add(withQuantity(held, left));
+        }
+        return kept;
+    }
+
+    private static void requireSeizuresCovered(Map<String, Map<String, BigInteger>> remaining) {
         for (Map.Entry<String, Map<String, BigInteger>> holder : remaining.entrySet()) {
             BigInteger short_ = holder.getValue().values().stream().reduce(BigInteger.ZERO, BigInteger::add);
             if (short_.signum() > 0) {

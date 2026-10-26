@@ -36,7 +36,6 @@ import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -158,13 +157,6 @@ class CallerGlobalStateTest {
     }
 
     // ------------------------------------------------------------- helpers
-
-    private static List<TransactionOutput> outputsHolding(Transaction txn, String unit) {
-        return txn.getBody().getOutputs().stream()
-                .filter(o -> o.getValue().getMultiAssets() != null && o.getValue().getMultiAssets().stream()
-                        .anyMatch(ma -> unit.startsWith(ma.getPolicyId())))
-                .toList();
-    }
 
     private static Transaction build(Cip113Deployment deployment, ProgrammableTokenTx tx, Utxo held) {
         return build(deployment, tx, OWNER, held);

@@ -31,6 +31,8 @@ import java.util.Map;
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ProgrammableThirdPartyBurnIntent implements ProgrammableTokenIntent {
     public static final String OPERATION = "third_party_burn";
+    private static final String THIRD_PARTY_REDEEMER = "third_party_redeemer";
+    private static final String ISSUANCE_REDEEMER = "issuance_redeemer";
 
     /** {@code txHash#outputIndex} of the holder's smart-wallet UTxO the tokens are burned from. */
     private String holderUtxoRef;
@@ -44,15 +46,15 @@ public class ProgrammableThirdPartyBurnIntent implements ProgrammableTokenIntent
     @JsonIgnore
     private PlutusDataValue issuanceRedeemer;
 
-    @JsonGetter("third_party_redeemer")
+    @JsonGetter(THIRD_PARTY_REDEEMER)
     public JsonNode thirdPartyRedeemerStructured() {
         return thirdPartyRedeemer == null ? null : thirdPartyRedeemer.structuredForYaml();
     }
 
-    @JsonSetter("third_party_redeemer")
+    @JsonSetter(THIRD_PARTY_REDEEMER)
     public void thirdPartyRedeemerStructured(JsonNode value) {
         thirdPartyRedeemer = PlutusDataValue.readStructured(
-                thirdPartyRedeemer, value, "third_party_redeemer");
+                thirdPartyRedeemer, value, THIRD_PARTY_REDEEMER);
     }
 
     @JsonGetter("third_party_redeemer_hex")
@@ -63,18 +65,18 @@ public class ProgrammableThirdPartyBurnIntent implements ProgrammableTokenIntent
     @JsonSetter("third_party_redeemer_hex")
     public void thirdPartyRedeemerHex(String value) {
         thirdPartyRedeemer = PlutusDataValue.readCborHex(
-                thirdPartyRedeemer, value, "third_party_redeemer");
+                thirdPartyRedeemer, value, THIRD_PARTY_REDEEMER);
     }
 
-    @JsonGetter("issuance_redeemer")
+    @JsonGetter(ISSUANCE_REDEEMER)
     public JsonNode issuanceRedeemerStructured() {
         return issuanceRedeemer == null ? null : issuanceRedeemer.structuredForYaml();
     }
 
-    @JsonSetter("issuance_redeemer")
+    @JsonSetter(ISSUANCE_REDEEMER)
     public void issuanceRedeemerStructured(JsonNode value) {
         issuanceRedeemer = PlutusDataValue.readStructured(
-                issuanceRedeemer, value, "issuance_redeemer");
+                issuanceRedeemer, value, ISSUANCE_REDEEMER);
     }
 
     @JsonGetter("issuance_redeemer_hex")
@@ -85,7 +87,7 @@ public class ProgrammableThirdPartyBurnIntent implements ProgrammableTokenIntent
     @JsonSetter("issuance_redeemer_hex")
     public void issuanceRedeemerHex(String value) {
         issuanceRedeemer = PlutusDataValue.readCborHex(
-                issuanceRedeemer, value, "issuance_redeemer");
+                issuanceRedeemer, value, ISSUANCE_REDEEMER);
     }
 
     @Override public String getOperation() { return OPERATION; }
@@ -113,7 +115,7 @@ public class ProgrammableThirdPartyBurnIntent implements ProgrammableTokenIntent
     private static void validateUtxoRef(String utxoRef) {
         if (utxoRef == null || utxoRef.isBlank())
             throw new IllegalStateException("holder_utxo_ref is required");
-        if (!utxoRef.matches("(?i)[0-9a-f]{64}#[0-9]{1,9}"))
+        if (!utxoRef.matches("(?i)[0-9a-f]{64}#\\d{1,9}"))
             throw new IllegalStateException("holder_utxo_ref must be <txHash>#<outputIndex> with a"
                     + " 64-character hex transaction id, but got '" + utxoRef + "'");
     }
@@ -121,9 +123,9 @@ public class ProgrammableThirdPartyBurnIntent implements ProgrammableTokenIntent
     @Override
     public TxIntent resolveVariables(Map<String, Object> variables) {
         PlutusDataValue resolvedThirdParty = thirdPartyRedeemer == null ? null
-                : thirdPartyRedeemer.resolve(variables, "third_party_redeemer");
+                : thirdPartyRedeemer.resolve(variables, THIRD_PARTY_REDEEMER);
         PlutusDataValue resolvedIssuance = issuanceRedeemer == null ? null
-                : issuanceRedeemer.resolve(variables, "issuance_redeemer");
+                : issuanceRedeemer.resolve(variables, ISSUANCE_REDEEMER);
         if (resolvedThirdParty == thirdPartyRedeemer && resolvedIssuance == issuanceRedeemer) return this;
         return toBuilder().thirdPartyRedeemer(resolvedThirdParty)
                 .issuanceRedeemer(resolvedIssuance).build();

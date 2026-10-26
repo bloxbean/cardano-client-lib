@@ -18,6 +18,7 @@ import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableThirdPar
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTokenAsset;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlanCodec;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
@@ -69,6 +70,7 @@ class ThirdPartyBurnTest {
         assertThat(rewardRedeemer(txn, DEPLOYMENT.programmableLogicGlobalCredential()))
                 .isEqualTo(Cip113Redeemers.thirdPartyAct());
         assertThat(withdrawnCredentials(txn)).as("a third-party burn never loads the transfer delegate")
+                .isNotEmpty()
                 .doesNotContain(DEPLOYMENT.getTransferScriptHash());
 
         // The custody handover: third_party.registry_node_idx == issuance_logic's RefInput idx.
@@ -282,8 +284,10 @@ class ThirdPartyBurnTest {
 
     @Test
     void aMalformedHolderUtxoRefIsRefusedWhenAuthored() {
-        assertThatThrownBy(() -> new ProgrammableTokenTx().thirdPartyBurn("abc#0", POLICY_A,
-                List.of(asset(TOK, 1)), auth()))
+        ProgrammableTokenTx tx = new ProgrammableTokenTx();
+        List<Asset> assets = List.of(asset(TOK, 1));
+        ThirdPartyBurnAuthorization authorization = auth();
+        assertThatThrownBy(() -> tx.thirdPartyBurn("abc#0", POLICY_A, assets, authorization))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("<txHash>#<outputIndex>");
     }

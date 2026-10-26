@@ -213,8 +213,9 @@ class Cip113TransactionMaterializerGuardsTest {
         RegistryNode onChain = node(POLICY, "ffff", LOGIC_HASH);
         Cip113TransactionMaterializer tx = new Cip113TransactionMaterializer(
                 cannot, registryOf(onChain), utxoSupplier).from(ownerAddress().toBech32());
+        PlutusData authorization = BigIntPlutusData.of(0);
 
-        assertThatThrownBy(() -> tx.recordUnfrackForExtension(POLICY, BigIntPlutusData.of(0)))
+        assertThatThrownBy(() -> tx.recordUnfrackForExtension(POLICY, authorization))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("cannot unfrack")
                 .hasMessageContaining(cannot.getParamsPolicy());

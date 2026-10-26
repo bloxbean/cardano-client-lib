@@ -20,6 +20,14 @@ public final class Cip113Deployments {
 
     private Cip113Deployments() {}
 
+    /** The transactions publishing each deployment's reference scripts, outputs 0-6. */
+    private static final String PREVIEW_REF_SCRIPTS_TX =
+            "f543e7b8126102afa7bae9e790d5616d8eff0671635900d9bf33c21a72ccb6dd";
+    private static final String PREPROD_REF_SCRIPTS_TX =
+            "e24679be141c1b99a49f47fcdc3e46ad09571baf0f8fa0d5b0d6094d55267b59";
+    private static final String MAINNET_REF_SCRIPTS_TX =
+            "6f25126164d14e6675f5ec09e8e2a0addfe303d8f49879d74eeeccf9c7d52d37";
+
     /**
      * Preview deployment, bootstrapped by
      * {@code 8e9668a6432ea4567bb1deba919c0f76adcce8373d6d89d1a06faee2c83d00f9}.
@@ -56,13 +64,13 @@ public final class Cip113Deployments {
             .maxInlineDatumBytes(1024)
 
             // Reference scripts, published in f543e7b8…
-            .referenceScript("35622813d81ba2d6e068c7d52f6fdad5aa2a5d84b212ec3e28716c16", ref("f543e7b8126102afa7bae9e790d5616d8eff0671635900d9bf33c21a72ccb6dd", 0)) // programmable_logic_base
-            .referenceScript("3b212b37b1a1fb334539c42e7473376a7fc15b60c26ae0fd4d06279e", ref("f543e7b8126102afa7bae9e790d5616d8eff0671635900d9bf33c21a72ccb6dd", 1)) // programmable_logic_global
-            .referenceScript("5fe7c82a32a69e5839e9da77e1e9992c1e55f7d372c3d58d8f744ef7", ref("f543e7b8126102afa7bae9e790d5616d8eff0671635900d9bf33c21a72ccb6dd", 2)) // transfer
-            .referenceScript("4c601638f4ee5ad3ba71d4d1b8a0b24b9117b7b3a679c66a96dfb7c6", ref("f543e7b8126102afa7bae9e790d5616d8eff0671635900d9bf33c21a72ccb6dd", 3)) // third_party
-            .referenceScript("2798c1fcdc5f2b2b4ab9a72ce68add485d81915c5430e4ac79afc87b", ref("f543e7b8126102afa7bae9e790d5616d8eff0671635900d9bf33c21a72ccb6dd", 4)) // unfracking
-            .referenceScript("621131d2df1acfdad5928a34572834cde904502441d6d41c642a10f6", ref("f543e7b8126102afa7bae9e790d5616d8eff0671635900d9bf33c21a72ccb6dd", 5)) // issuance_logic
-            .referenceScript("03322dd0912f1c36b67cce2aa5cebe8ff1dde6c7dbf365206b07e2fd", ref("f543e7b8126102afa7bae9e790d5616d8eff0671635900d9bf33c21a72ccb6dd", 6)) // upgrade_multisig
+            .referenceScript("35622813d81ba2d6e068c7d52f6fdad5aa2a5d84b212ec3e28716c16", ref(PREVIEW_REF_SCRIPTS_TX, 0)) // programmable_logic_base
+            .referenceScript("3b212b37b1a1fb334539c42e7473376a7fc15b60c26ae0fd4d06279e", ref(PREVIEW_REF_SCRIPTS_TX, 1)) // programmable_logic_global
+            .referenceScript("5fe7c82a32a69e5839e9da77e1e9992c1e55f7d372c3d58d8f744ef7", ref(PREVIEW_REF_SCRIPTS_TX, 2)) // transfer
+            .referenceScript("4c601638f4ee5ad3ba71d4d1b8a0b24b9117b7b3a679c66a96dfb7c6", ref(PREVIEW_REF_SCRIPTS_TX, 3)) // third_party
+            .referenceScript("2798c1fcdc5f2b2b4ab9a72ce68add485d81915c5430e4ac79afc87b", ref(PREVIEW_REF_SCRIPTS_TX, 4)) // unfracking
+            .referenceScript("621131d2df1acfdad5928a34572834cde904502441d6d41c642a10f6", ref(PREVIEW_REF_SCRIPTS_TX, 5)) // issuance_logic
+            .referenceScript("03322dd0912f1c36b67cce2aa5cebe8ff1dde6c7dbf365206b07e2fd", ref(PREVIEW_REF_SCRIPTS_TX, 6)) // upgrade_multisig
             .build();
 
     /**
@@ -101,13 +109,13 @@ public final class Cip113Deployments {
             .maxInlineDatumBytes(1024)
 
             // Reference scripts, published in e24679be…
-            .referenceScript("be59f7750a5d947bb649e70d574d066791ec34a1dfee2a087c8511e3", ref("e24679be141c1b99a49f47fcdc3e46ad09571baf0f8fa0d5b0d6094d55267b59", 0)) // programmable_logic_base
-            .referenceScript("b4e81fa9a3291025cd279067daf4e43578d4c3f759e5490958f58cf6", ref("e24679be141c1b99a49f47fcdc3e46ad09571baf0f8fa0d5b0d6094d55267b59", 1)) // programmable_logic_global
-            .referenceScript("5ff03dd084ec86a164dbf9bfe890605fe9fcba8d6657328eab8bb350", ref("e24679be141c1b99a49f47fcdc3e46ad09571baf0f8fa0d5b0d6094d55267b59", 2)) // transfer
-            .referenceScript("4bd96a9082194ff43ddd10d3092167f5856375959ff0ca1e1478ef6a", ref("e24679be141c1b99a49f47fcdc3e46ad09571baf0f8fa0d5b0d6094d55267b59", 3)) // third_party
-            .referenceScript("e0a7938719cf21dfb39454c6dfb180207c52b006c02293b9cce37f18", ref("e24679be141c1b99a49f47fcdc3e46ad09571baf0f8fa0d5b0d6094d55267b59", 4)) // unfracking
-            .referenceScript("23b58b985141fe5ffd2eb93c5ee4fa0e11d46a934c2837c0230071fd", ref("e24679be141c1b99a49f47fcdc3e46ad09571baf0f8fa0d5b0d6094d55267b59", 5)) // issuance_logic
-            .referenceScript("2bb086c379276cbdd8571eecbc16c33512a93068d6a2359ab63b2e1b", ref("e24679be141c1b99a49f47fcdc3e46ad09571baf0f8fa0d5b0d6094d55267b59", 6)) // upgrade_multisig
+            .referenceScript("be59f7750a5d947bb649e70d574d066791ec34a1dfee2a087c8511e3", ref(PREPROD_REF_SCRIPTS_TX, 0)) // programmable_logic_base
+            .referenceScript("b4e81fa9a3291025cd279067daf4e43578d4c3f759e5490958f58cf6", ref(PREPROD_REF_SCRIPTS_TX, 1)) // programmable_logic_global
+            .referenceScript("5ff03dd084ec86a164dbf9bfe890605fe9fcba8d6657328eab8bb350", ref(PREPROD_REF_SCRIPTS_TX, 2)) // transfer
+            .referenceScript("4bd96a9082194ff43ddd10d3092167f5856375959ff0ca1e1478ef6a", ref(PREPROD_REF_SCRIPTS_TX, 3)) // third_party
+            .referenceScript("e0a7938719cf21dfb39454c6dfb180207c52b006c02293b9cce37f18", ref(PREPROD_REF_SCRIPTS_TX, 4)) // unfracking
+            .referenceScript("23b58b985141fe5ffd2eb93c5ee4fa0e11d46a934c2837c0230071fd", ref(PREPROD_REF_SCRIPTS_TX, 5)) // issuance_logic
+            .referenceScript("2bb086c379276cbdd8571eecbc16c33512a93068d6a2359ab63b2e1b", ref(PREPROD_REF_SCRIPTS_TX, 6)) // upgrade_multisig
             .build();
 
     /**
@@ -146,13 +154,13 @@ public final class Cip113Deployments {
             .maxInlineDatumBytes(1024)
 
             // Reference scripts, published in 6f251261…
-            .referenceScript("d91d08e381f8ef95ffbb3f8048f020d7361ded8f3abfdf66c25fa838", ref("6f25126164d14e6675f5ec09e8e2a0addfe303d8f49879d74eeeccf9c7d52d37", 0)) // programmable_logic_base
-            .referenceScript("46b61f0584f21481b22ea18f945e48ac4148f50fc3ade494a7762440", ref("6f25126164d14e6675f5ec09e8e2a0addfe303d8f49879d74eeeccf9c7d52d37", 1)) // programmable_logic_global
-            .referenceScript("cb418959c00d6779e176fcf6227824a6ac3b5bea7a672ef66a216dae", ref("6f25126164d14e6675f5ec09e8e2a0addfe303d8f49879d74eeeccf9c7d52d37", 2)) // transfer
-            .referenceScript("92e307862c5374ee78f3cfdaaa45447f7f0db6776d54fa5f8df1a85c", ref("6f25126164d14e6675f5ec09e8e2a0addfe303d8f49879d74eeeccf9c7d52d37", 3)) // third_party
-            .referenceScript("d431d4cba00d664acb127bb391c211086ca72fe570fd85f139af578e", ref("6f25126164d14e6675f5ec09e8e2a0addfe303d8f49879d74eeeccf9c7d52d37", 4)) // unfracking
-            .referenceScript("ed3fb7e046b4f3387e0749fb46847dbc15e85e61aaa76558f968136d", ref("6f25126164d14e6675f5ec09e8e2a0addfe303d8f49879d74eeeccf9c7d52d37", 5)) // issuance_logic
-            .referenceScript("2ab871806b01d07fe7d93bf45ff4ce97bd156d168d7a08078ac8a517", ref("6f25126164d14e6675f5ec09e8e2a0addfe303d8f49879d74eeeccf9c7d52d37", 6)) // upgrade_multisig
+            .referenceScript("d91d08e381f8ef95ffbb3f8048f020d7361ded8f3abfdf66c25fa838", ref(MAINNET_REF_SCRIPTS_TX, 0)) // programmable_logic_base
+            .referenceScript("46b61f0584f21481b22ea18f945e48ac4148f50fc3ade494a7762440", ref(MAINNET_REF_SCRIPTS_TX, 1)) // programmable_logic_global
+            .referenceScript("cb418959c00d6779e176fcf6227824a6ac3b5bea7a672ef66a216dae", ref(MAINNET_REF_SCRIPTS_TX, 2)) // transfer
+            .referenceScript("92e307862c5374ee78f3cfdaaa45447f7f0db6776d54fa5f8df1a85c", ref(MAINNET_REF_SCRIPTS_TX, 3)) // third_party
+            .referenceScript("d431d4cba00d664acb127bb391c211086ca72fe570fd85f139af578e", ref(MAINNET_REF_SCRIPTS_TX, 4)) // unfracking
+            .referenceScript("ed3fb7e046b4f3387e0749fb46847dbc15e85e61aaa76558f968136d", ref(MAINNET_REF_SCRIPTS_TX, 5)) // issuance_logic
+            .referenceScript("2ab871806b01d07fe7d93bf45ff4ce97bd156d168d7a08078ac8a517", ref(MAINNET_REF_SCRIPTS_TX, 6)) // upgrade_multisig
             .build();
 
     private static TransactionInput ref(String txHash, int index) {

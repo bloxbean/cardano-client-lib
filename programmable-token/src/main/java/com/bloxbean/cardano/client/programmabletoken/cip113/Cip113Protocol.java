@@ -80,47 +80,44 @@ public final class Cip113Protocol implements ProgrammableTokenProtocol {
         if (deployment == null) return;
         Cip113Deployment configured = service.deployment();
 
-        Object bootstrap = deployment.get("bootstrap_tx");
-        if (bootstrap != null) {
-            String hash = String.valueOf(bootstrap).trim();
-            if (!hash.matches("(?i)[0-9a-f]{64}"))
-                throw new IllegalArgumentException("TxPlan deployment bootstrap_tx must be a"
-                        + " 32-byte transaction hash but was '" + bootstrap + "'");
-            if (configured.getBootstrapTxHash() != null
-                    && !configured.getBootstrapTxHash().equalsIgnoreCase(hash))
-                throw new IllegalArgumentException("TxPlan deployment bootstrap_tx " + hash
-                        + " does not match configured CIP-113 deployment "
-                        + configured.getBootstrapTxHash());
-        }
+        requireConfiguredHex(deployment.get("bootstrap_tx"), "bootstrap_tx", 32, "transaction hash",
+                configured.getBootstrapTxHash());
+        requireConfiguredHex(deployment.get("params_policy"), "params_policy", 28, "policy id",
+                configured.getParamsPolicy());
+        requireConfiguredWalletKey(deployment.get("smart_wallet_key"), configured);
+        requireConfiguredNetwork(deployment.get("network"), configured);
+    }
 
-        Object paramsPolicy = deployment.get("params_policy");
-        if (paramsPolicy != null) {
-            String policy = String.valueOf(paramsPolicy).trim();
-            if (!policy.matches("(?i)[0-9a-f]{56}"))
-                throw new IllegalArgumentException("TxPlan deployment params_policy must be a"
-                        + " 28-byte policy id but was '" + paramsPolicy + "'");
-            if (configured.getParamsPolicy() != null
-                    && !configured.getParamsPolicy().equalsIgnoreCase(policy))
-                throw new IllegalArgumentException("TxPlan deployment params_policy " + policy
-                        + " does not match configured CIP-113 deployment "
-                        + configured.getParamsPolicy());
-        }
+    /** A hex value the plan pins, when present: well-formed, and equal to the configured one if known. */
+    private static void requireConfiguredHex(Object value, String key, int bytes, String kind,
+                                             String configuredValue) {
+        if (value == null) return;
+        String hex = String.valueOf(value).trim();
+        if (!hex.matches("(?i)[0-9a-f]{" + (bytes * 2) + "}"))
+            throw new IllegalArgumentException("TxPlan deployment " + key + " must be a "
+                    + bytes + "-byte " + kind + " but was '" + value + "'");
+        if (configuredValue != null && !configuredValue.equalsIgnoreCase(hex))
+            throw new IllegalArgumentException("TxPlan deployment " + key + " " + hex
+                    + " does not match configured CIP-113 deployment " + configuredValue);
+    }
 
-        // The wallet a plan's sender spends from depends on it: a plan written for one key and
-        // replayed under the other would silently act on a different wallet.
-        Object walletKey = deployment.get("smart_wallet_key");
+    /**
+     * The wallet a plan's sender spends from depends on the key: a plan written for one key and
+     * replayed under the other would silently act on a different wallet.
+     */
+    private static void requireConfiguredWalletKey(Object walletKey, Cip113Deployment configured) {
         if (walletKey != null && (configured.getSmartWalletKey() == null || !configured.getSmartWalletKey().name()
                 .equalsIgnoreCase(String.valueOf(walletKey).trim())))
             throw new IllegalArgumentException("TxPlan deployment smart_wallet_key '" + walletKey
                     + "' does not match configured CIP-113 deployment " + configured.getSmartWalletKey());
+    }
 
-        Object network = deployment.get("network");
-        if (network != null && configured.getNetwork() != null) {
-            String expected = String.valueOf(configured.getNetwork().getNetworkId());
-            if (!expected.equals(String.valueOf(network).trim()))
-                throw new IllegalArgumentException("TxPlan deployment network '" + network
-                        + "' does not match configured CIP-113 deployment network id " + expected);
-        }
+    private static void requireConfiguredNetwork(Object network, Cip113Deployment configured) {
+        if (network == null || configured.getNetwork() == null) return;
+        String expected = String.valueOf(configured.getNetwork().getNetworkId());
+        if (!expected.equals(String.valueOf(network).trim()))
+            throw new IllegalArgumentException("TxPlan deployment network '" + network
+                    + "' does not match configured CIP-113 deployment network id " + expected);
     }
 
     @Override

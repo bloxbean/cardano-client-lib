@@ -33,6 +33,7 @@ import java.util.List;
  */
 public class ProgrammableTokenTx extends Tx {
     public static final String EXTENSION_ID = "programmable-token";
+    private static final String ISSUANCE_REDEEMER = "issuance redeemer";
 
     @Override
     public ProgrammableTokenTx from(String sender) {
@@ -83,7 +84,7 @@ public class ProgrammableTokenTx extends Tx {
         if (policy == null) throw new IllegalArgumentException("policy is required");
         require(receiver, "receiver");
         requireAssets(assets, "mint");
-        requirePlutusData(issuanceRedeemer, "issuance redeemer");
+        requirePlutusData(issuanceRedeemer, ISSUANCE_REDEEMER);
         addIntention(ProgrammableMintIntent.builder()
                 .policy(policy).receiver(receiver).assets(assets.stream()
                         .map(ProgrammableTokenAsset::from).toList())
@@ -113,7 +114,7 @@ public class ProgrammableTokenTx extends Tx {
         if (authorization == null) throw new IllegalArgumentException("authorization is required");
         requireAssets(assets, "burn");
         requirePlutusData(authorization.getTransferRedeemer(), "transfer redeemer");
-        requirePlutusData(authorization.getIssuanceRedeemer(), "issuance redeemer");
+        requirePlutusData(authorization.getIssuanceRedeemer(), ISSUANCE_REDEEMER);
         addIntention(ProgrammableBurnIntent.builder()
                 .policy(ProgrammableTokenPolicyRef.policyId(policyId)).assets(assets.stream()
                         .map(ProgrammableTokenAsset::from).toList())
@@ -167,13 +168,13 @@ public class ProgrammableTokenTx extends Tx {
     public ProgrammableTokenTx thirdPartyBurn(String holderUtxoRef, String policyId, List<Asset> assets,
                                               ThirdPartyBurnAuthorization authorization) {
         require(holderUtxoRef, "holderUtxoRef");
-        if (!holderUtxoRef.matches("(?i)[0-9a-f]{64}#[0-9]{1,9}"))
+        if (!holderUtxoRef.matches("(?i)[0-9a-f]{64}#\\d{1,9}"))
             throw new IllegalArgumentException("holderUtxoRef must be <txHash>#<outputIndex> with a"
                     + " 64-character hex transaction id, but got '" + holderUtxoRef + "'");
         if (authorization == null) throw new IllegalArgumentException("authorization is required");
         requireAssets(assets, "third-party burn");
         requirePlutusData(authorization.getThirdPartyRedeemer(), "third-party redeemer");
-        requirePlutusData(authorization.getIssuanceRedeemer(), "issuance redeemer");
+        requirePlutusData(authorization.getIssuanceRedeemer(), ISSUANCE_REDEEMER);
         addIntention(ProgrammableThirdPartyBurnIntent.builder()
                 .holderUtxoRef(holderUtxoRef.toLowerCase())
                 .policy(ProgrammableTokenPolicyRef.policyId(policyId)).assets(assets.stream()

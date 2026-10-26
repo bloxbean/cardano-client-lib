@@ -239,17 +239,19 @@ class ThirdPartyCompositionTest {
         Utxo b = held("20", 0, HOLDER_B, Amount.asset(UNIT_A, 9));
         ThirdPartyFixture fixture = new ThirdPartyFixture().holding(a, b);
 
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx = admin()
                 .thirdPartyBurn(ref(a), POLICY_A, List.of(asset(TOK, 1)), ThirdPartyBurnAuthorization.of(R, R))
                 .thirdPartyBurn(ref(b), POLICY_A, List.of(asset(TOK, 1)),
-                        ThirdPartyBurnAuthorization.of(BigIntPlutusData.of(8), R))))
+                        ThirdPartyBurnAuthorization.of(BigIntPlutusData.of(8), R));
+        assertThatThrownBy(() -> fixture.build(tx))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("different third-party redeemers");
 
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx2 = admin()
                 .thirdPartyTransfer(HOLDER_A.toBech32(), RECEIVER.toBech32(), Amount.asset(UNIT_A, 1),
                         BigIntPlutusData.of(8))
-                .thirdPartyBurn(ref(b), POLICY_A, List.of(asset(TOK, 1)), auth())))
+                .thirdPartyBurn(ref(b), POLICY_A, List.of(asset(TOK, 1)), auth());
+        assertThatThrownBy(() -> fixture.build(tx2))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("different third-party redeemers");
     }
@@ -260,16 +262,18 @@ class ThirdPartyCompositionTest {
         Utxo b = held("20", 0, HOLDER_B, Amount.asset(UNIT_A, 9));
         ThirdPartyFixture fixture = new ThirdPartyFixture().withThirdPartyLogicA(LOGIC_B).holding(a, b);
 
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx = admin()
                 .thirdPartyBurn(ref(a), POLICY_A, List.of(asset(TOK, 1)), ThirdPartyBurnAuthorization.of(R, R))
                 .thirdPartyBurn(ref(b), POLICY_A, List.of(asset(TOK, 1)),
-                        ThirdPartyBurnAuthorization.of(R, BigIntPlutusData.of(8)))))
+                        ThirdPartyBurnAuthorization.of(R, BigIntPlutusData.of(8)));
+        assertThatThrownBy(() -> fixture.build(tx))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("different issuance redeemers");
 
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx2 = admin()
                 .mint(POLICY_A, RECEIVER.toBech32(), List.of(asset(TOK2, 1)), BigIntPlutusData.of(8), null)
-                .thirdPartyBurn(ref(b), POLICY_A, List.of(asset(TOK, 1)), auth())))
+                .thirdPartyBurn(ref(b), POLICY_A, List.of(asset(TOK, 1)), auth());
+        assertThatThrownBy(() -> fixture.build(tx2))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("different issuance redeemers");
     }
@@ -281,9 +285,10 @@ class ThirdPartyCompositionTest {
         PlutusScript logic = mintingLogicCoveredBy(fixture, true);
         fixture.withScripts(logic);
 
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx = admin()
                 .register("new", registration(logic), R)
-                .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 9)), auth())))
+                .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 9)), auth());
+        assertThatThrownBy(() -> fixture.build(tx))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("covering")
                 .hasMessageContaining(POLICY_A);
@@ -294,9 +299,10 @@ class ThirdPartyCompositionTest {
         Utxo pinned = held("10", 0, HOLDER_A, Amount.asset(UNIT_A, 9));
         ThirdPartyFixture fixture = new ThirdPartyFixture().holding(pinned);
 
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx = admin()
                 .mint(POLICY_A, RECEIVER.toBech32(), List.of(asset(TOK, 4)), R, null)
-                .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 4)), auth())))
+                .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 4)), auth());
+        assertThatThrownBy(() -> fixture.build(tx))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("net");
     }
@@ -306,9 +312,10 @@ class ThirdPartyCompositionTest {
         Utxo pinned = held("10", 0, HOLDER_A, Amount.asset(UNIT_A, 9));
         ThirdPartyFixture fixture = new ThirdPartyFixture().holding(pinned);
 
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx = admin()
                 .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 1)), auth())
-                .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 2)), auth())))
+                .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 2)), auth());
+        assertThatThrownBy(() -> fixture.build(tx))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining(ref(pinned))
                 .hasMessageContaining("twice");
@@ -320,9 +327,10 @@ class ThirdPartyCompositionTest {
         Utxo b = held("20", 0, HOLDER_B, Amount.asset(UNIT_B, 9));
         ThirdPartyFixture fixture = new ThirdPartyFixture().holding(a, b);
 
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx = admin()
                 .thirdPartyBurn(ref(a), POLICY_A, List.of(asset(TOK, 1)), auth())
-                .thirdPartyTransfer(HOLDER_B.toBech32(), RECEIVER.toBech32(), Amount.asset(UNIT_B, 1), R)))
+                .thirdPartyTransfer(HOLDER_B.toBech32(), RECEIVER.toBech32(), Amount.asset(UNIT_B, 1), R);
+        assertThatThrownBy(() -> fixture.build(tx))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("exactly one policy")
                 .hasMessageContaining(POLICY_A)
@@ -335,14 +343,16 @@ class ThirdPartyCompositionTest {
         Utxo own = held("20", 0, ADMIN, Amount.asset(UNIT_A, 9));
         ThirdPartyFixture fixture = new ThirdPartyFixture().holding(pinned, own);
 
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx = admin()
                 .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 1)), auth())
-                .transfer(RECEIVER.toBech32(), Amount.asset(UNIT_A, 1), R)))
+                .transfer(RECEIVER.toBech32(), Amount.asset(UNIT_A, 1), R);
+        assertThatThrownBy(() -> fixture.build(tx))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("cannot be mixed with owner operations");
-        assertThatThrownBy(() -> fixture.build(admin()
+        ProgrammableTokenTx tx2 = admin()
                 .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 1)), auth())
-                .burn(POLICY_A, List.of(asset(TOK, 1)), BurnAuthorization.of(R, R))))
+                .burn(POLICY_A, List.of(asset(TOK, 1)), BurnAuthorization.of(R, R));
+        assertThatThrownBy(() -> fixture.build(tx2))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("cannot be mixed with owner operations");
         assertThatThrownBy(() -> fixture.build(admin()
@@ -375,9 +385,11 @@ class ThirdPartyCompositionTest {
         List<TransactionOutput> outputs = List.of(first, foreign, second,
                 output(ADMIN.toBech32(), null, 0));
 
-        assertThatThrownBy(() -> Cip113TransactionMaterializer.continuationRunStart(outputs, hash(BASE),
-                List.of(Cip113TransactionMaterializer.Continuation.of(first),
-                        Cip113TransactionMaterializer.Continuation.of(second))))
+        String base = hash(BASE);
+        List<Cip113TransactionMaterializer.Continuation> expected = List.of(
+                Cip113TransactionMaterializer.Continuation.of(first),
+                Cip113TransactionMaterializer.Continuation.of(second));
+        assertThatThrownBy(() -> Cip113TransactionMaterializer.continuationRunStart(outputs, base, expected))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("after or among");
 

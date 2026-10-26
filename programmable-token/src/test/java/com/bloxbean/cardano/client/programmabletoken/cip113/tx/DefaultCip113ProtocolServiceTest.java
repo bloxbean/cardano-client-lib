@@ -436,20 +436,21 @@ class DefaultCip113ProtocolServiceTest {
         assertThatCode(() -> protocol.validateMetadata(metadata(Cip113Protocol.CONTRACT_VERSION,
                 Map.of("params_policy", PARAMS_POLICY.toUpperCase()))))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> protocol.validateMetadata(metadata(null,
-                Map.of("params_policy", "fe".repeat(28)))))
+        ExtensionMetadata otherPolicy = metadata(null, Map.of("params_policy", "fe".repeat(28)));
+        assertThatThrownBy(() -> protocol.validateMetadata(otherPolicy))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("params_policy");
-        assertThatThrownBy(() -> protocol.validateMetadata(metadata(null,
-                Map.of("params_policy", "short"))))
+        ExtensionMetadata malformedPolicy = metadata(null, Map.of("params_policy", "short"));
+        assertThatThrownBy(() -> protocol.validateMetadata(malformedPolicy))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("28-byte policy id");
 
         // A plan persisted against the 0.8.0-pre6 adapter: alpha.2 contracts, the old Preview
         // deployment. It describes transaction shapes v0.0.1 rejects, so it is refused outright.
-        assertThatThrownBy(() -> protocol.validateMetadata(metadata("0.5.0-alpha.2", Map.of(
+        ExtensionMetadata alpha2Plan = metadata("0.5.0-alpha.2", Map.of(
                 "network", 0,
-                "bootstrap_tx", "a432339cbd7318222c8c51ed4fb52ee4c68f676037622aa7361dd45d897324a4"))))
+                "bootstrap_tx", "a432339cbd7318222c8c51ed4fb52ee4c68f676037622aa7361dd45d897324a4"));
+        assertThatThrownBy(() -> protocol.validateMetadata(alpha2Plan))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("0.5.0-alpha.2")
                 .hasMessageContaining(Cip113Protocol.CONTRACT_VERSION);
@@ -479,11 +480,12 @@ class DefaultCip113ProtocolServiceTest {
         assertThatThrownBy(() -> secondTokens.txPlanCodec().fromYaml(yaml))
                 .as("the other deployment's codec refuses the plan while reading it")
                 .hasStackTraceContaining("params_policy " + PARAMS_POLICY);
-        assertThatThrownBy(() -> secondTokens.extension().validateMetadata(replayed))
+        var secondExtension = secondTokens.extension();
+        assertThatThrownBy(() -> secondExtension.validateMetadata(replayed))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("params_policy " + PARAMS_POLICY)
                 .hasMessageContaining("12".repeat(28));
-        assertThatThrownBy(() -> secondTokens.extension().newBuildExtension(replayed))
+        assertThatThrownBy(() -> secondExtension.newBuildExtension(replayed))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("params_policy");
     }
