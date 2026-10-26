@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.address.CredentialType;
 import com.bloxbean.cardano.client.transaction.spec.Withdrawal;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
@@ -10,25 +12,35 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+/**
+ * Utility class for sorting withdrawals in the order the Cardano ledger uses.
+ * The ledger sorts withdrawals by reward account credential: script credentials come before
+ * key credentials, then credentials of the same type are sorted by hash. Redeemer indices
+ * must match positions in this sorted list.
+ */
 public class WithdrawalUtil {
 
     /**
-     * Returns a comparator that compares Withdrawals by their stake key hash in lexicographic order.
-     * This comparator can be used to sort withdrawals to ensure correct redeemer indices for script-based withdrawals.
+     * Returns a comparator that sorts Withdrawals in ledger order: script credentials first,
+     * then key credentials, and by credential hash within each type.
+     *
      * @return Comparator for Withdrawal objects
      */
     public static Comparator<Withdrawal> getWithdrawalComparator() {
+        Comparator<Credential> credentialComparator = Comparator
+                .comparing((Credential credential) -> credential.getType() == CredentialType.Script ? 0 : 1)
+                .thenComparing(credential -> HexUtil.encodeHexString(credential.getBytes()));
+
         return Comparator.comparing(w -> {
             Address addr = new Address(w.getRewardAddress());
-            return addr.getDelegationCredentialHash()
-                    .map(HexUtil::encodeHexString)
-                    .orElseThrow(() -> new IllegalArgumentException("Unable to extract stake key hash from reward address: " + w.getRewardAddress()));
-        });
+            return addr.getDelegationCredential()
+                    .orElseThrow(() -> new IllegalArgumentException("Unable to extract delegation credential from reward address: " + w.getRewardAddress()));
+        }, credentialComparator);
     }
 
     /**
-     * Sorts the list of Withdrawal by stake key hash. The withdrawals list in transaction body is sorted by the
-     * stake key hash of the reward address to ensure correct redeemer indices for script-based withdrawals.
+     * Returns a new list of withdrawals sorted in ledger order: script credentials before key credentials,
+     * then by hash within each type, to ensure correct redeemer indices for script-based withdrawals.
      * This method is useful to get the final index of a Withdrawal in the list of Withdrawal in the transaction body.
      * @param withdrawals list of withdrawals
      * @return sorted list of Withdrawal

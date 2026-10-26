@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.function.helper;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
@@ -340,5 +341,63 @@ class WithdrawalUtilTest {
         assertThat(sortedWithdrawals.get(index1).getRewardAddress()).isEqualTo(scriptStakeAddress1);
         assertThat(sortedWithdrawals.get(index2).getRewardAddress()).isEqualTo(scriptStakeAddress2);
         assertThat(sortedWithdrawals.get(index3).getRewardAddress()).isEqualTo(scriptStakeAddress3);
+    }
+
+    private String createRewardAddress(String stakeKeyHash) {
+        Address rewardAddr = AddressProvider.getRewardAddress(
+                Credential.fromKey(HexUtil.decodeHexString(stakeKeyHash)),
+                Networks.testnet()
+        );
+        return rewardAddr.toBech32();
+    }
+
+    private String createScriptRewardAddress(String scriptHash) {
+        Address rewardAddr = AddressProvider.getRewardAddress(
+                Credential.fromScript(HexUtil.decodeHexString(scriptHash)),
+                Networks.testnet()
+        );
+        return rewardAddr.toBech32();
+    }
+
+    @Test
+    void getSortedWithdrawals_mixedCredentials_scriptBeforeKey() {
+        // Key hash sorts before both script hashes, but the ledger puts script credentials first
+        String keyHash = "11" + "00".repeat(27);
+        String scriptHash1 = "dd" + "00".repeat(27);
+        String scriptHash2 = "22" + "00".repeat(27);
+
+        String keyAddr = createRewardAddress(keyHash);
+        String scriptAddr1 = createScriptRewardAddress(scriptHash1);
+        String scriptAddr2 = createScriptRewardAddress(scriptHash2);
+
+        List<Withdrawal> withdrawals = List.of(
+                new Withdrawal(keyAddr, BigInteger.valueOf(100)),
+                new Withdrawal(scriptAddr1, BigInteger.ZERO),
+                new Withdrawal(scriptAddr2, BigInteger.ZERO)
+        );
+
+        List<Withdrawal> sorted = WithdrawalUtil.getSortedWithdrawals(withdrawals);
+
+        assertThat(sorted).extracting(Withdrawal::getRewardAddress)
+                .containsExactly(scriptAddr2, scriptAddr1, keyAddr);
+    }
+
+    @Test
+    void getIndex_mixedCredentials_matchesLedgerOrder() {
+        String keyHash = "11" + "00".repeat(27);
+        String scriptHash = "dd" + "00".repeat(27);
+
+        String keyAddr = createRewardAddress(keyHash);
+        String scriptAddr = createScriptRewardAddress(scriptHash);
+
+        List<Withdrawal> sorted = WithdrawalUtil.getSortedWithdrawals(List.of(
+                new Withdrawal(keyAddr, BigInteger.valueOf(100)),
+                new Withdrawal(scriptAddr, BigInteger.ZERO)
+        ));
+
+        assertThat(WithdrawalUtil.getIndexByRewardAddress(sorted, scriptAddr)).isEqualTo(0);
+        assertThat(WithdrawalUtil.getIndexByRewardAddress(sorted, keyAddr)).isEqualTo(1);
+        assertThat(WithdrawalUtil.getIndexByStakeKeyHash(sorted, scriptHash)).isEqualTo(0);
+        assertThat(WithdrawalUtil.getIndexByStakeKeyHash(sorted, keyHash)).isEqualTo(1);
     }
 }
