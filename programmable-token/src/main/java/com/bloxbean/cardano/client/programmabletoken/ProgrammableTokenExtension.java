@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableBurnInte
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableMintIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegisterIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegistryUpdateIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableThirdPartyBurnIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableThirdPartyTransferIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTransferIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableUnfrackIntent;
@@ -29,6 +30,7 @@ public final class ProgrammableTokenExtension implements QuickTxExtension {
             ProgrammableMintIntent.OPERATION, ProgrammableMintIntent.class,
             ProgrammableBurnIntent.OPERATION, ProgrammableBurnIntent.class,
             ProgrammableThirdPartyTransferIntent.OPERATION, ProgrammableThirdPartyTransferIntent.class,
+            ProgrammableThirdPartyBurnIntent.OPERATION, ProgrammableThirdPartyBurnIntent.class,
             ProgrammableRegisterIntent.OPERATION, ProgrammableRegisterIntent.class,
             ProgrammableRegistryUpdateIntent.OPERATION, ProgrammableRegistryUpdateIntent.class,
             ProgrammableUnfrackIntent.OPERATION, ProgrammableUnfrackIntent.class);

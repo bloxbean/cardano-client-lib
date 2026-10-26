@@ -82,6 +82,14 @@ public class Cip113Deployment {
     @Singular("referenceScript")
     Map<String, TransactionInput> referenceScripts;
 
+    /**
+     * Which of the owner's credentials keys their smart wallet. CIP-113 leaves the choice to the
+     * application; whatever it is, the wallet a sender spends from and the key that must sign
+     * follow it. Defaults to {@link SmartWalletKey#PAYMENT}.
+     */
+    @Builder.Default
+    SmartWalletKey smartWalletKey = SmartWalletKey.PAYMENT;
+
     /** Asset name of the coordination NFT. */
     public static final String PROTOCOL_PARAMS_ASSET_NAME = "ProtocolParams";
 

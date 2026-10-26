@@ -61,8 +61,8 @@ public final class Cip113Protocol implements ProgrammableTokenProtocol {
      * Pin a persisted plan to the configured deployment before any chain I/O.
      *
      * <p>{@code contract_version}, when present, must be {@link #CONTRACT_VERSION}.
-     * {@code bootstrap_tx} and {@code params_policy}, when present, must equal the configured
-     * deployment's; {@code network}, when present, must be the configured network id. Omitting
+     * {@code bootstrap_tx}, {@code params_policy} and {@code smart_wallet_key}, when present, must
+     * equal the configured deployment's; {@code network}, when present, must be the configured network id. Omitting
      * any of them means "bind to the explicitly configured runtime deployment". Both are compared as
      * text so a plan whose {@code network} resolved to a number behaves the same as one that
      * wrote it as a string.</p>
@@ -105,6 +105,14 @@ public final class Cip113Protocol implements ProgrammableTokenProtocol {
                         + " does not match configured CIP-113 deployment "
                         + configured.getParamsPolicy());
         }
+
+        // The wallet a plan's sender spends from depends on it: a plan written for one key and
+        // replayed under the other would silently act on a different wallet.
+        Object walletKey = deployment.get("smart_wallet_key");
+        if (walletKey != null && (configured.getSmartWalletKey() == null || !configured.getSmartWalletKey().name()
+                .equalsIgnoreCase(String.valueOf(walletKey).trim())))
+            throw new IllegalArgumentException("TxPlan deployment smart_wallet_key '" + walletKey
+                    + "' does not match configured CIP-113 deployment " + configured.getSmartWalletKey());
 
         Object network = deployment.get("network");
         if (network != null && configured.getNetwork() != null) {

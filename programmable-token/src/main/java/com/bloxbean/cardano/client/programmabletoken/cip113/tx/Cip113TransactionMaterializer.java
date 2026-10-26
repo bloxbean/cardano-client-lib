@@ -102,6 +102,8 @@ final class Cip113TransactionMaterializer extends Tx {
 
     /** Resolves a global-state UTxO by NFT policy; null when wired by hand. */
     private Function<String, Utxo> globalStateResolver;
+    private final List<TransactionInput> callerReferences = new ArrayList<>();
+    private final List<Utxo> callerSpends = new ArrayList<>();
 
     /** Programmable payments declared but not yet turned into inputs/withdrawals. */
     private final Map<String, List<PendingPayment>> pending = new LinkedHashMap<>();
@@ -133,8 +135,23 @@ final class Cip113TransactionMaterializer extends Tx {
 
     private Dispatch dispatch = Dispatch.TRANSFER;
 
-    /** Whose smart wallet a third-party action acts on. Null unless {@link #thirdPartyFrom} ran. */
+    /**
+     * Whose smart wallet the next third-party payment is drawn from. Null unless
+     * {@link #thirdPartyFrom} ran; each payment records the holder current when it was recorded.
+     */
     private Address thirdPartyHolder;
+
+    /** Third-party burns of named holder UTxOs, keyed by {@code txHash#index}. */
+    private final Map<String, PinnedBurn> pinnedBurns = new LinkedHashMap<>();
+
+    /** Issuance redeemers of recorded mints, keyed by policy id: one minting-logic invocation each. */
+    private final Map<String, PlutusData> mintIssuanceRedeemers = new LinkedHashMap<>();
+
+    /** A third-party action's expected continuing output per acted-on input, keyed by {@code txHash#index}. */
+    private final Map<String, Continuation> continuations = new LinkedHashMap<>();
+
+    /** Key of the registry node a registration in this transaction spends, when it registers one. */
+    private String registeringCoveringKey;
 
     /** The policy being unfracked. Null unless {@link #recordUnfrackForExtension} ran. */
     private String unfrackPolicy;
@@ -224,8 +241,11 @@ final class Cip113TransactionMaterializer extends Tx {
         this.scripts = service.scripts();
         this.protocolParamsSupplier = service.protocolParamsSupplier();
         // Coordination and global state are read through the build's supplier, like the registry
-        // (QuickTx extension contract C1).
-        this.globalStateResolver = globalStateCs -> service.globalStateUtxo(globalStateCs, utxoSupplier);
+        // (QuickTx extension contract C1). A global-state UTxO the caller already reads is used
+        // as is: finding it otherwise needs a policy → holders asset index, which not every
+        // backend offers (Yaci Store, Koios, Ogmios do not).
+        this.globalStateResolver = globalStateCs -> callerGlobalState(globalStateCs)
+                .orElseGet(() -> service.globalStateUtxo(globalStateCs, utxoSupplier));
         // Optional here: a service that could not resolve the coordination UTxO yields null, and
         // the verb that needs one says so by name instead of failing inside Tx.readFrom.
         Utxo coordination = service.coordinationUtxo(utxoSupplier);
@@ -259,6 +279,38 @@ final class Cip113TransactionMaterializer extends Tx {
     Cip113TransactionMaterializer excludeInputs(Set<String> inputRefs) {
         if (inputRefs != null) externallyReservedInputRefs.addAll(inputRefs);
         return this;
+    }
+
+    /** Reference inputs the caller added with {@code Tx.readFrom}, consulted for global state. */
+    Cip113TransactionMaterializer withCallerReferences(List<TransactionInput> references) {
+        if (references != null) callerReferences.addAll(references);
+        return this;
+    }
+
+    /** UTxOs the caller's own transactions spend, consulted for a global state spent rather than read. */
+    Cip113TransactionMaterializer withCallerSpends(List<Utxo> spends) {
+        if (spends != null) callerSpends.addAll(spends);
+        return this;
+    }
+
+    /** A UTxO the caller spends that carries a token of {@code globalStateCs}, if any. */
+    private Optional<Utxo> callerSpentGlobalState(String globalStateCs) {
+        String policy = globalStateCs.toLowerCase();
+        return callerSpends.stream()
+                .filter(utxo -> utxo.getAmount() != null && utxo.getAmount().stream()
+                        .anyMatch(a -> a.getUnit() != null && a.getUnit().toLowerCase().startsWith(policy)))
+                .findFirst();
+    }
+
+    private Optional<Utxo> callerGlobalState(String globalStateCs) {
+        String policy = globalStateCs.toLowerCase();
+        for (TransactionInput reference : callerReferences) {
+            Optional<Utxo> utxo = utxoSupplier.getTxOutput(reference.getTransactionId(), reference.getIndex());
+            if (utxo.isPresent() && utxo.get().getAmount().stream()
+                    .anyMatch(a -> a.getUnit() != null && a.getUnit().toLowerCase().startsWith(policy)))
+                return utxo;
+        }
+        return Optional.empty();
     }
 
     /**
@@ -458,10 +510,19 @@ final class Cip113TransactionMaterializer extends Tx {
         Address target = new Address(address);
         Address destination = SmartWalletAddress.isSmartWallet(deployment, target)
                 ? target
-                : SmartWalletAddress.ofPaymentCredential(deployment, target);
+                : SmartWalletAddress.ofOwner(deployment, target);
 
+        Address holderWallet = null;
+        if (dispatch == Dispatch.THIRD_PARTY) {
+            if (thirdPartyHolder == null)
+                throw new Cip113Exception("A third-party payment needs its holder: call"
+                        + " thirdPartyFrom(holder) before recording it.");
+            holderWallet = SmartWalletAddress.isSmartWallet(deployment, thirdPartyHolder)
+                    ? thirdPartyHolder
+                    : SmartWalletAddress.ofOwner(deployment, thirdPartyHolder);
+        }
         pending.computeIfAbsent(policyId, k -> new ArrayList<>())
-                .add(new PendingPayment(destination, amount));
+                .add(new PendingPayment(destination, amount, holderWallet));
 
         // One programmable policy per output, plus its own min-ADA.
         BigInteger minAda = minAdaFor(destination, List.of(amount), inlineDatum);
@@ -507,6 +568,50 @@ final class Cip113TransactionMaterializer extends Tx {
         log.debug("Burning {} of {}", burned, unit);
     }
 
+    /**
+     * Record a third-party burn: destroy {@code assets} out of the named holder UTxO
+     * {@code txHash#index}, authorised by the token's third-party logic (spending) and minting
+     * logic (the negative mint) rather than by the holder.
+     *
+     * <p>The UTxO is pinned, never selected: it is resolved and checked in {@link #materialise()},
+     * spent exactly as named, and excluded from any seizure's coin selection. Every third-party
+     * action of the transaction shares one third-party logic invocation and every burn one
+     * minting-logic invocation, so their redeemers must agree.</p>
+     */
+    void recordThirdPartyBurnForExtension(String txHash, int index, String policyId, List<Asset> assets,
+                                          PlutusData thirdPartyRedeemer, PlutusData issuanceRedeemer) {
+        String key = policyId.toLowerCase();
+        requireOpen(key);
+        if (dispatch == Dispatch.UNFRACKING || (dispatch == Dispatch.TRANSFER && !pending.isEmpty()))
+            throw new Cip113Exception("A CIP-113 third-party burn cannot be mixed with owner"
+                    + " operations: the dispatcher authorises one action per transaction.");
+        if (registry.byPolicy(key).isEmpty())
+            throw new Cip113Exception("Policy " + key + " is not registered");
+        dispatch = Dispatch.THIRD_PARTY;
+
+        String ref = ref(txHash, index);
+        if (pinnedBurns.containsKey(ref))
+            throw new Cip113Exception("Holder UTxO " + ref + " is pinned twice, by two third-party burns."
+                    + " A UTxO can be spent once; put every asset to burn from it in one burn.");
+        rejectConflictingRedeemer(substandardRedeemers.get(key), thirdPartyRedeemer, key, "third-party");
+        rejectConflictingRedeemer(burnIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
+        rejectConflictingRedeemer(mintIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
+
+        Map<String, BigInteger> byUnit = new LinkedHashMap<>();
+        for (Asset asset : assets) {
+            if (asset.getValue() == null || asset.getValue().signum() <= 0)
+                throw new Cip113Exception("A third-party burn needs positive quantities");
+            String assetNameHex = HexUtil.encodeHexString(asset.getNameAsBytes());
+            byUnit.merge(key + assetNameHex, asset.getValue(), BigInteger::add);
+            // Negative, as Tx expects of a burn; one mint entry per asset name for the policy.
+            burns.computeIfAbsent(key, k -> new LinkedHashMap<>())
+                    .merge(assetNameHex, asset.getValue().negate(), BigInteger::add);
+        }
+        pinnedBurns.put(ref, new PinnedBurn(txHash.toLowerCase(), index, key, byUnit));
+        substandardRedeemers.put(key, thirdPartyRedeemer);
+        burnIssuanceRedeemers.put(key, issuanceRedeemer);
+    }
+
     private static void rejectConflictingRedeemer(PlutusData existing, PlutusData candidate,
                                                   String policy, String role) {
         if (existing == null || PlutusDataEquality.equals(existing, candidate)) return;
@@ -532,6 +637,9 @@ final class Cip113TransactionMaterializer extends Tx {
                     + " in this one with a register intent whose name the mint references.");
         }
         requireInlineDatumWithinBound(inlineDatum, "mint");
+        rejectConflictingRedeemer(mintIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
+        rejectConflictingRedeemer(burnIssuanceRedeemers.get(key), issuanceRedeemer, key, "issuance");
+        mintIssuanceRedeemers.put(key, issuanceRedeemer);
         for (Asset asset : assets) {
             if (asset.getValue().signum() <= 0)
                 throw new Cip113Exception("A programmable mint needs positive quantities; use a"
@@ -582,7 +690,7 @@ final class Cip113TransactionMaterializer extends Tx {
      * change subtracts the first's payments a second time.</p>
      */
     void materialise() {
-        if (pending.isEmpty()) return;
+        if (pending.isEmpty() && pinnedBurns.isEmpty()) return;
         if (!materialised.isEmpty())
             throw new Cip113Exception("Programmable-token operations of " + materialised
                     + " are already materialised; materialise() runs once per transaction.");
@@ -596,13 +704,16 @@ final class Cip113TransactionMaterializer extends Tx {
         }
 
         if (dispatch == Dispatch.THIRD_PARTY) {
-            if (pending.size() > 1)
+            Set<String> policies = new LinkedHashSet<>(pending.keySet());
+            pinnedBurns.values().forEach(burn -> policies.add(burn.policyId));
+            if (policies.size() > 1)
                 throw new Cip113Exception("A CIP-113 third-party transaction acts on exactly one"
-                        + " policy, but " + pending.keySet() + " were recorded. The third_party"
+                        + " policy, but " + policies + " were recorded. The third_party"
                         + " redeemer names a single registry node, so split them into separate"
                         + " transactions.");
-            String policy = pending.keySet().iterator().next();
-            materialiseThirdParty(policy, registeredNode(policy), requiredByUnit(pending.get(policy)));
+            String policy = policies.iterator().next();
+            materialiseThirdParty(policy, registeredNode(policy));
+            materialised.add(policy);
         } else {
             materialiseOwnerOperations();
         }
@@ -774,10 +885,10 @@ final class Cip113TransactionMaterializer extends Tx {
      * Attach a spending validator, preferring the chain's copy over our own.
      *
      * <p>When the deployment published the script as a reference script, pointing at that UTxO
-     * costs a few dozen bytes instead of carrying several kilobytes in the witness set. CCL's
-     * reference-script resolver picks it up from {@code readFrom}, and it runs before index
-     * resolution, so the extra reference input is already in place when the positional indices
-     * are computed.</p>
+     * costs a few dozen bytes instead of carrying several kilobytes in the witness set. The
+     * reference input is added here, before index resolution, so it is already in place when the
+     * positional indices are computed; {@link #referenceIfPublished} says how the witness copy
+     * is dropped.</p>
      */
     private void attachSpending(PlutusScript script) {
         referenceIfPublished(script);
@@ -794,8 +905,9 @@ final class Cip113TransactionMaterializer extends Tx {
      * Add the reference input publishing a script, if the deployment published one.
      *
      * <p>The validator is still attached alongside: attaching is what makes CCL emit the Spend or
-     * Reward redeemer for it. CCL's own {@code ReferenceScriptResolver} then recognises that a
-     * reference input already carries the script and drops the witness copy.</p>
+     * Reward redeemer for it. The extension hands the script to QuickTx as a reference script
+     * ({@link Cip113BuildExtension#referenceScripts()}), which then drops the witness copy — also
+     * when the caller declared reference scripts of its own and QuickTx resolves none itself.</p>
      */
     private void referenceIfPublished(PlutusScript script) {
         if (scripts == null || script == null) return;
@@ -887,9 +999,16 @@ final class Cip113TransactionMaterializer extends Tx {
     }
 
     private List<Utxo> selectInputs(Map<String, BigInteger> requiredByUnit, Address wallet) {
+        return selectInputs(requiredByUnit, wallet, Set.of());
+    }
+
+    /** {@link #selectInputs(Map, Address)} never picking one of {@code excluded} ({@code txHash#index}). */
+    private List<Utxo> selectInputs(Map<String, BigInteger> requiredByUnit, Address wallet,
+                                    Set<String> excluded) {
         List<Utxo> candidates = new ArrayList<>(utxoSupplier.getAll(wallet.toBech32()));
         candidates.removeIf(utxo -> externallyReservedInputRefs.contains(
-                ref(utxo.getTxHash(), utxo.getOutputIndex())));
+                ref(utxo.getTxHash(), utxo.getOutputIndex()))
+                || excluded.contains(ref(utxo.getTxHash(), utxo.getOutputIndex())));
 
         // Prefer single-policy UTxOs, then the candidates covering most of what is needed. The
         // deterministic tie-breakers keep positional third-party pairing reproducible and avoid
@@ -952,7 +1071,25 @@ final class Cip113TransactionMaterializer extends Tx {
     }
 
     private Address smartWallet() {
-        return SmartWalletAddress.ofPaymentCredential(deployment, owner);
+        return SmartWalletAddress.ofOwner(deployment, owner);
+    }
+
+    private boolean spendsOwnWallet() {
+        String wallet;
+        try {
+            wallet = smartWallet().toBech32();
+        } catch (Cip113Exception e) {
+            return false;
+        }
+        return plbInputs.stream().anyMatch(utxo -> wallet.equals(utxo.getAddress()));
+    }
+
+    private java.util.Optional<byte[]> ownerSignerHash() {
+        try {
+            return java.util.Optional.of(SmartWalletAddress.ownerSigner(deployment, owner));
+        } catch (Cip113Exception e) {
+            return java.util.Optional.empty();
+        }
     }
 
     // ---------------------------------------------------- index finalisation
@@ -1189,6 +1326,18 @@ final class Cip113TransactionMaterializer extends Tx {
      */
     private int resolveOutputsStartIdx(Transaction txn) {
         List<TransactionOutput> outputs = txn.getBody().getOutputs();
+        if (dispatch == Dispatch.THIRD_PARTY) {
+            List<Continuation> expected = new ArrayList<>();
+            for (TransactionInput input : LedgerOrdering.sortedInputs(txn)) {
+                Continuation continuation = continuations.get(ref(input.getTransactionId(), input.getIndex()));
+                if (continuation != null) expected.add(continuation);
+            }
+            if (expected.size() != plbInputRefs.size())
+                throw new Cip113Exception("Only " + expected.size() + " of the " + plbInputRefs.size()
+                        + " acted-on base-script inputs are in the finished transaction — report it.");
+            outputsStartIdx = continuationRunStart(outputs, deployment.getProgrammableLogicBaseHash(), expected);
+            return outputsStartIdx;
+        }
         outputsStartIdx = dispatch == Dispatch.UNFRACKING
                 ? firstContiguousRunWithoutPolicy(outputs, pairedOutputAddress, pairedOutputCount, unfrackPolicy)
                 : firstContiguousRun(outputs, pairedOutputAddress, pairedOutputCount);
@@ -1239,6 +1388,121 @@ final class Cip113TransactionMaterializer extends Tx {
         }
         throw new Cip113Exception("No continuing output at " + address + ", so this action has no"
                 + " outputs to pair its inputs against.");
+    }
+
+    /**
+     * What identifies a continuing output: its address, its native assets and its datum. Lovelace
+     * is left out — the validator only ratchets it, and balancing may legitimately top it up.
+     */
+    static final class Continuation {
+        private final String address;
+        private final String assets;
+        private final String datum;
+
+        private Continuation(String address, String assets, String datum) {
+            this.address = address;
+            this.assets = assets;
+            this.datum = datum;
+        }
+
+        /** The continuation this builder emits: {@code kept} at {@code address} with {@code datum}. */
+        static Continuation expected(String address, List<Amount> kept, PlutusData datum) {
+            Map<String, BigInteger> units = new java.util.TreeMap<>();
+            for (Amount amount : kept) {
+                if (LOVELACE.equals(amount.getUnit()) || amount.getQuantity().signum() == 0) continue;
+                units.merge(amount.getUnit().toLowerCase(), amount.getQuantity(), BigInteger::add);
+            }
+            return new Continuation(address, units.toString(), datum == null ? "" : datum.serializeToHex());
+        }
+
+        /** The same identity, read off a finished transaction's output. */
+        static Continuation of(TransactionOutput output) {
+            Map<String, BigInteger> units = new java.util.TreeMap<>();
+            if (output.getValue() != null && output.getValue().getMultiAssets() != null) {
+                for (MultiAsset ma : output.getValue().getMultiAssets()) {
+                    for (Asset asset : ma.getAssets()) {
+                        if (asset.getValue() == null || asset.getValue().signum() == 0) continue;
+                        units.merge(ma.getPolicyId().toLowerCase()
+                                + HexUtil.encodeHexString(asset.getNameAsBytes()).toLowerCase(),
+                                asset.getValue(), BigInteger::add);
+                    }
+                }
+            }
+            String datum = output.getInlineDatum() != null ? output.getInlineDatum().serializeToHex()
+                    : output.getDatumHash() != null ? "hash:" + HexUtil.encodeHexString(output.getDatumHash())
+                    : "";
+            return new Continuation(output.getAddress(), units.toString(), datum);
+        }
+
+        @Override public boolean equals(Object o) {
+            if (!(o instanceof Continuation)) return false;
+            Continuation c = (Continuation) o;
+            return address.equals(c.address) && assets.equals(c.assets) && datum.equals(c.datum);
+        }
+
+        @Override public int hashCode() {
+            return Objects.hash(address, assets, datum);
+        }
+
+        @Override public String toString() {
+            return address + " " + assets + (datum.isEmpty() ? "" : " datum=" + datum);
+        }
+    }
+
+    /**
+     * Where a third-party action's continuing outputs start: they are the LAST
+     * {@code expected.size()} base-script outputs, contiguous, matching {@code expected} (one per
+     * acted-on input, in the ledger's input order) one for one.
+     *
+     * <p>Anchoring on the end rather than on an address is what allows several holders, and a
+     * destination at a wallet that is also acted on: everything else at the base script —
+     * destinations, minted outputs, the caller's own — precedes the continuations. Anything that
+     * does not match fails here, naming the output, instead of letting the delegate pair an input
+     * against an output that is not its continuation.</p>
+     */
+    static int continuationRunStart(List<TransactionOutput> outputs, String baseScriptHash,
+                                    List<Continuation> expected) {
+        int n = expected.size();
+        int last = -1;
+        for (int i = 0; i < outputs.size(); i++)
+            if (isBaseScriptAddress(outputs.get(i).getAddress(), baseScriptHash)) last = i;
+        if (n == 0 || last < 0)
+            throw new Cip113Exception("No continuing output at the base script, so this third-party"
+                    + " action has no outputs to pair its " + n + " inputs against.");
+        int start = last - n + 1;
+        for (int k = 0; k < n; k++) {
+            int at = start + k;
+            TransactionOutput output = at >= 0 ? outputs.get(at) : null;
+            if (output == null || !isBaseScriptAddress(output.getAddress(), baseScriptHash)
+                    || !expected.get(k).equals(Continuation.of(output))) {
+                throw new Cip113Exception("The continuing outputs of this third-party action must be"
+                        + " the last " + n + " base-script outputs, contiguous and in ledger input"
+                        + " order, but output " + at + (output == null ? "" : " (" + Continuation.of(output) + ")")
+                        + " is not the continuation expected there (" + expected.get(k) + ")."
+                        + " A caller-authored output at a base-script address after or among the"
+                        + " continuing outputs breaks the positional pairing the third_party"
+                        + " validator relies on: author it in the same Tx as the programmable-token"
+                        + " operations, which places it before them, or in a separate transaction."
+                        + " Outputs must not be merged (mergeOutputs must stay off).");
+            }
+        }
+        return start;
+    }
+
+    private boolean isBaseScriptAddress(String address) {
+        return isBaseScriptAddress(address, deployment.getProgrammableLogicBaseHash());
+    }
+
+    private static boolean isBaseScriptAddress(String address, String baseScriptHash) {
+        if (address == null) return false;
+        try {
+            return AddressProvider.getPaymentCredential(new Address(address))
+                    .filter(c -> c.getType() == CredentialType.Script)
+                    .map(c -> HexUtil.encodeHexString(c.getBytes()).equalsIgnoreCase(baseScriptHash))
+                    .orElse(false);
+        } catch (Exception e) {
+            return false;                 // Byron or unparseable: not a base-script address
+        }
     }
 
     private static boolean carriesPolicy(TransactionOutput output, String policyId) {
@@ -1415,10 +1679,17 @@ final class Cip113TransactionMaterializer extends Tx {
      * <p>{@code Tx} exposes no required-signers API — it lives on {@code QuickTxBuilder.TxContext}
      * — so this sets it on the body. Doing it before balancing means fee calculation accounts
      * for it.</p>
+     *
+     * <p>Only when the owner's own wallet is spent: nothing else reads the owner's key. A
+     * registration or mint spends no wallet, and a third-party action spends the holder's, which
+     * its own logic authorises. Declaring it anyway forced a needless witness — under
+     * {@code SmartWalletKey.STAKE}, a stake-key signature on a plain mint.</p>
      */
     private void declareOwnerAsRequiredSigner(Transaction txn) {
-        if (owner == null) return;
-        AddressProvider.getPaymentCredentialHash(owner).ifPresent(hash -> {
+        if (owner == null || !spendsOwnWallet()) return;
+        // The key the wallet is keyed by. A sender without one owns no wallet to authorise; a
+        // spend from one fails earlier, where the wallet is derived.
+        ownerSignerHash().ifPresent(hash -> {
             List<byte[]> signers = txn.getBody().getRequiredSigners();
             if (signers == null) {
                 signers = new ArrayList<>();
@@ -1496,7 +1767,7 @@ final class Cip113TransactionMaterializer extends Tx {
         }
         Address destination = SmartWalletAddress.isSmartWallet(deployment, target)
                 ? target
-                : SmartWalletAddress.ofPaymentCredential(deployment, target);
+                : SmartWalletAddress.ofOwner(deployment, target);
 
         attachMintValidator(issuanceScript);
         mintAsset(issuanceScript, List.of(asset), Cip113Redeemers.issuanceMint(0),
@@ -1555,52 +1826,76 @@ final class Cip113TransactionMaterializer extends Tx {
     }
 
     /**
-     * Build the seizure half of a third-party action.
+     * Build a third-party action: every seizure and every pinned burn of one policy, from any
+     * number of holders.
      *
-     * <p>The layout the {@code third_party} validator demands:</p>
+     * <p>The layout the {@code third_party} validator demands, and how it is met:</p>
      * <ul>
-     *   <li>The destination outputs — already emitted by the payment, which ran before this — sit
-     *       ahead of {@code outputs_start_idx} and are where the seized tokens go.</li>
-     *   <li>From {@code outputs_start_idx} on, one continuing output per acted-on input, walked in
-     *       the ledger's input order rather than declaration order, because the validator pairs
-     *       them positionally against {@code self.inputs}.</li>
-     *   <li>Each pair keeps address, datum and reference script byte-identical and carries at
-     *       least the input's lovelace; every policy other than the acted-on one is passed through
-     *       untouched.</li>
+     *   <li>Every base-script input of the transaction is acted on and must hold the policy. A
+     *       pinned burn spends exactly the UTxO it names; a seizure's inputs are coin-selected
+     *       from that holder's wallet, never including a pinned UTxO.</li>
+     *   <li>One continuing output per acted-on input, in the ledger's input order across all
+     *       holders (the validator pairs them positionally against {@code self.inputs}), each
+     *       keeping address, datum and reference script and at least the input's lovelace, with
+     *       every other policy passed through untouched.</li>
+     *   <li>The continuing outputs are the LAST base-script outputs of the transaction:
+     *       destinations and minted outputs, already emitted by the time this runs, precede them,
+     *       which is what lets {@link #continuationRunStart} locate them unambiguously.</li>
+     *   <li>Burns become one negative mint for the policy's total ({@link #materialiseBurn});
+     *       its {@code issuance_logic} proof names the very node the third-party redeemer names,
+     *       so the {@code third_party} delegate covers the burn's custody.</li>
      * </ul>
      */
-    private void materialiseThirdParty(String policyId, RegistryLookup.RegistryNodeUtxo node,
-                                       Map<String, BigInteger> seizedByUnit) {
-        Address holderWallet = SmartWalletAddress.isSmartWallet(deployment, thirdPartyHolder)
-                ? thirdPartyHolder
-                : SmartWalletAddress.ofPaymentCredential(deployment, thirdPartyHolder);
-
-        rejectSeizingToSelf(holderWallet);
+    private void materialiseThirdParty(String policyId, RegistryLookup.RegistryNodeUtxo node) {
+        rejectOwnerOperationsInThirdParty();
+        rejectSeizingToSelf();
         requireScripts("a third-party action");
+        rejectCallerBaseScriptSpends();
 
-        List<Utxo> selected = selectInputs(seizedByUnit, holderWallet);
-        if (selected.isEmpty()) {
-            throw new Cip113Exception("No base-script UTxOs holding policy " + policyId
-                    + " found at " + holderWallet.toBech32() + ", so there is nothing to seize."
-                    + " A third-party action acts on the holder's smart wallet, not the sender's.");
+        // Pinned holder UTxOs first: they are named, so each is resolved and checked as such.
+        Set<String> pinnedRefs = new LinkedHashSet<>(pinnedBurns.keySet());
+        List<Utxo> acted = new ArrayList<>();
+        for (PinnedBurn burn : pinnedBurns.values()) {
+            burn.utxo = resolvePinned(burn);
+            acted.add(burn.utxo);
+        }
+
+        // Seizures, per holder wallet and unit, from that holder's own unpinned UTxOs.
+        Map<String, Map<String, BigInteger>> seizedByHolder = new LinkedHashMap<>();
+        Map<String, String> holderOfInput = new LinkedHashMap<>();
+        for (PendingPayment payment : pending.getOrDefault(policyId, List.of())) {
+            seizedByHolder.computeIfAbsent(payment.holderWallet.toBech32(), k -> new LinkedHashMap<>())
+                    .merge(payment.amount.getUnit(), payment.amount.getQuantity(), BigInteger::add);
+        }
+        for (Map.Entry<String, Map<String, BigInteger>> holder : seizedByHolder.entrySet()) {
+            List<Utxo> selected = selectInputs(holder.getValue(), new Address(holder.getKey()), pinnedRefs);
+            selected.forEach(u -> holderOfInput.put(ref(u.getTxHash(), u.getOutputIndex()), holder.getKey()));
+            if (selected.isEmpty()) {
+                throw new Cip113Exception("No base-script UTxOs holding policy " + policyId
+                        + " found at " + holder.getKey() + ", so there is nothing to seize."
+                        + " A third-party action acts on the holder's smart wallet, not the sender's.");
+            }
+            acted.addAll(selected);
         }
 
         // The validator walks self.inputs, which the ledger sorts by (txId, index) — so the paired
-        // outputs have to be emitted in that order, not the order coin selection happened to pick.
-        selected.sort(Comparator.comparing(Utxo::getTxHash)
+        // outputs follow that order across all holders, not the order inputs were found in.
+        acted.sort(Comparator.comparing((Utxo u) -> u.getTxHash().toLowerCase())
                 .thenComparingInt(Utxo::getOutputIndex));
 
         attachSpending(scripts.programmableLogicBase());
         attachReward(scripts.thirdPartyDelegate());
 
         PlutusData spendPlaceholder = Cip113Redeemers.baseSpend(0, 0);
-        collectFrom(selected, spendPlaceholder);
-        plbInputs.addAll(selected);
-        selected.forEach(u -> plbInputRefs.add(ref(u.getTxHash(), u.getOutputIndex())));
+        collectFrom(acted, spendPlaceholder);
+        plbInputs.addAll(acted);
+        acted.forEach(u -> plbInputRefs.add(ref(u.getTxHash(), u.getOutputIndex())));
 
         readFrom(node.getUtxo());
         referencedNodes.put(policyId, node);
-        prepareIncidentalPolicyProofs(selected);
+        // No registry proofs for co-resident policies: those are the transfer delegate's, and
+        // third_party reads only the acted node, pinning every other policy byte-identical in the
+        // continuing output instead.
         addGlobalStateReference(policyId, node.getDatum().getGlobalStateCs());
 
         withdrawDispatcher(Cip113Redeemers.thirdPartyAct());
@@ -1610,73 +1905,174 @@ final class Cip113TransactionMaterializer extends Tx {
         invokeLogicScript(node.getDatum().getThirdPartyTransferLogicScript(),
                 substandardRedeemers.get(policyId), "third-party logic");
 
-        emitPairedOutputs(policyId, selected, holderWallet, seizedByUnit);
+        emitContinuations(acted, seizedByHolder, holderOfInput);
+        materialiseBurn(policyId, node);
 
         fundFromFeePayer();
     }
 
-    /**
-     * Refuse a seizure that pays back into the wallet it seized from.
-     *
-     * <p>The paired continuing outputs are located by address, so a destination at the same smart
-     * wallet is indistinguishable from them — and the seizure would be a no-op regardless.</p>
-     */
-    private void rejectSeizingToSelf(Address holderWallet) {
-        String wallet = holderWallet.toBech32();
+    /** An owner transfer or burn recorded on a third-party materializer would need TransferAct. */
+    private void rejectOwnerOperationsInThirdParty() {
         for (List<PendingPayment> payments : pending.values()) {
             for (PendingPayment payment : payments) {
-                if (payment.destination != null && wallet.equals(payment.destination.toBech32())) {
+                if (payment.holderWallet == null)
+                    throw new Cip113Exception("A CIP-113 third-party action cannot be mixed with"
+                            + " owner operations: the dispatcher authorises one action per"
+                            + " transaction.");
+            }
+        }
+    }
+
+    /**
+     * Refuse a seizure that pays back into the very wallet it seizes from.
+     *
+     * <p>It is a no-op that only costs fees. A seizure into a wallet that is acted on by a
+     * <i>different</i> seizure or burn of the same transaction is not refused: the continuing
+     * outputs are the last base-script outputs, so a destination at that wallet stays
+     * distinguishable from them.</p>
+     */
+    private void rejectSeizingToSelf() {
+        for (List<PendingPayment> payments : pending.values()) {
+            for (PendingPayment payment : payments) {
+                if (payment.holderWallet != null && payment.destination != null
+                        && payment.holderWallet.toBech32().equals(payment.destination.toBech32())) {
                     throw new Cip113Exception("A third-party action cannot send the seized tokens"
-                            + " back to the same smart wallet it seized them from — there would be"
-                            + " nothing to distinguish the destination output from the holder's"
-                            + " own continuing output, and the seizure would be a no-op.");
+                            + " back to the same smart wallet it seized them from — the seizure"
+                            + " would be a no-op.");
                 }
             }
         }
     }
 
     /**
-     * One continuing output per acted-on input, each the input minus its share of the seizure.
-     *
-     * <p>The seizure is drawn from the inputs in order until it is satisfied, so a partial seizure
-     * empties the first UTxOs rather than shaving every one of them.</p>
+     * The validator pairs EVERY base-script input with a continuing output, so a base-script
+     * UTxO the caller spends with {@code collectFrom} would shift the pairing.
      */
-    private void emitPairedOutputs(String policyId, List<Utxo> selected, Address holderWallet,
-                                   Map<String, BigInteger> seizedByUnit) {
-        Map<String, BigInteger> remaining = new LinkedHashMap<>(seizedByUnit);
-        pairedOutputAddress = holderWallet.toBech32();
+    private void rejectCallerBaseScriptSpends() {
+        for (Utxo spend : callerSpends) {
+            if (isBaseScriptAddress(spend.getAddress()))
+                throw new Cip113Exception("This third-party transaction also spends base-script UTxO "
+                        + ref(spend.getTxHash(), spend.getOutputIndex()) + " with collectFrom. The"
+                        + " third_party validator pairs every base-script input with a continuing"
+                        + " output, so name it with thirdPartyBurn or seize from its holder instead.");
+        }
+    }
 
-        for (Utxo input : selected) {
+    /**
+     * The holder UTxO a third-party burn names, checked for everything the burn needs.
+     *
+     * <p>{@link UtxoSupplier#getTxOutput} resolves spent outputs too, so the UTxO is confirmed
+     * against the unspent set at its own address.</p>
+     */
+    private Utxo resolvePinned(PinnedBurn burn) {
+        String ref = burn.ref();
+        if (externallyReservedInputRefs.contains(ref))
+            throw new Cip113Exception("Holder UTxO " + ref + " is already spent by another part of"
+                    + " this transaction, so it cannot also be third-party burned.");
+        Utxo output = utxoSupplier.getTxOutput(burn.txHash, burn.outputIndex).orElseThrow(() ->
+                new Cip113Exception("Holder UTxO " + ref + " was not found: it is unknown or"
+                        + " already spent."));
+        Utxo utxo = utxoSupplier.getAll(output.getAddress()).stream()
+                .filter(u -> ref.equals(ref(u.getTxHash(), u.getOutputIndex())))
+                .findFirst()
+                .orElseThrow(() -> new Cip113Exception("Holder UTxO " + ref + " was not found"
+                        + " unspent at " + output.getAddress() + ": it has already been spent."));
+
+        if (!SmartWalletAddress.isSmartWallet(deployment, new Address(utxo.getAddress())))
+            throw new Cip113Exception("Holder UTxO " + ref + " sits at " + utxo.getAddress()
+                    + ", which is not a smart wallet of this deployment (base script "
+                    + deployment.getProgrammableLogicBaseHash() + " with an inline stake"
+                    + " credential), so it holds no programmable tokens to burn.");
+        boolean inlineDatum = utxo.getInlineDatum() != null && !utxo.getInlineDatum().isBlank();
+        if (!inlineDatum && utxo.getDataHash() != null && !utxo.getDataHash().isBlank())
+            throw new Cip113Exception("Holder UTxO " + ref + " carries a datum hash. Its continuing"
+                    + " output must reproduce the datum, and CIP-113 continuing outputs support no"
+                    + " datum or an inline datum only.");
+        if (utxo.getReferenceScriptHash() != null && !utxo.getReferenceScriptHash().isBlank())
+            throw new Cip113Exception("Holder UTxO " + ref + " carries a reference script ("
+                    + utxo.getReferenceScriptHash() + "). Its continuing output would have to carry"
+                    + " the same script, which this builder cannot resolve for an arbitrary holder"
+                    + " output, so it cannot be third-party burned through CCL.");
+        boolean holdsPolicy = utxo.getAmount().stream().anyMatch(a -> burn.policyId.equals(policyOf(a)));
+        if (!holdsPolicy)
+            throw new Cip113Exception("Holder UTxO " + ref + " does not hold policy " + burn.policyId
+                    + ", so there is nothing of it to burn there.");
+        for (Map.Entry<String, BigInteger> entry : burn.byUnit.entrySet()) {
+            BigInteger held = utxo.getAmount().stream()
+                    .filter(a -> entry.getKey().equals(a.getUnit()))
+                    .map(Amount::getQuantity).reduce(BigInteger.ZERO, BigInteger::add);
+            if (held.compareTo(entry.getValue()) < 0)
+                throw new Cip113Exception("Holder UTxO " + ref + " does not cover the burn: it holds "
+                        + held + " of " + entry.getKey() + ", the burn destroys " + entry.getValue() + ".");
+        }
+        return utxo;
+    }
+
+    /**
+     * One continuing output per acted-on input, in ledger order: a pinned UTxO minus its burn, a
+     * seized UTxO minus its share of that holder's seizure.
+     *
+     * <p>A seizure is drawn from the holder's inputs in ledger order until it is satisfied, so a
+     * partial seizure empties the first UTxOs rather than shaving every one of them.</p>
+     */
+    private void emitContinuations(List<Utxo> acted, Map<String, Map<String, BigInteger>> seizedByHolder,
+                                   Map<String, String> holderOfInput) {
+        Map<String, Map<String, BigInteger>> remaining = new LinkedHashMap<>();
+        seizedByHolder.forEach((holder, units) -> remaining.put(holder, new LinkedHashMap<>(units)));
+
+        for (Utxo input : acted) {
+            String key = ref(input.getTxHash(), input.getOutputIndex());
+            PinnedBurn burn = pinnedBurns.get(key);
+            Map<String, BigInteger> owed = burn != null
+                    ? new LinkedHashMap<>(burn.byUnit)
+                    : remaining.get(holderOfInput.get(key));
+            if (owed == null)
+                throw new Cip113Exception("Base-script input " + key + " is neither pinned by a"
+                        + " third-party burn nor selected for a seizure — report it.");
+
             List<Amount> kept = new ArrayList<>();
             for (Amount held : input.getAmount()) {
-                BigInteger owed = remaining.getOrDefault(held.getUnit(), BigInteger.ZERO);
-                if (LOVELACE.equals(held.getUnit()) || owed.signum() == 0) {
-                    kept.add(held);            // lovelace rides along; nothing seized from this unit
+                BigInteger due = owed.getOrDefault(held.getUnit(), BigInteger.ZERO);
+                if (LOVELACE.equals(held.getUnit()) || due.signum() == 0) {
+                    kept.add(held);            // lovelace rides along; nothing taken from this unit
                     continue;
                 }
-                BigInteger take = owed.min(held.getQuantity());
-                remaining.put(held.getUnit(), owed.subtract(take));
+                BigInteger take = due.min(held.getQuantity());
+                owed.put(held.getUnit(), due.subtract(take));
                 BigInteger left = held.getQuantity().subtract(take);
-                if (left.signum() > 0) {
-                    kept.add(withQuantity(held, left));
-                }
+                if (left.signum() > 0) kept.add(withQuantity(held, left));
             }
-            continuingOutput(input, holderWallet, kept);
+            if (burn != null && owed.values().stream().anyMatch(q -> q.signum() > 0))
+                throw new Cip113Exception("Holder UTxO " + key + " does not cover the burn " + burn.byUnit);
+
+            Address address = new Address(input.getAddress());
+            PlutusData datum = continuingOutput(input, address, kept);
+            continuations.put(key, Continuation.expected(address.toBech32(), kept, datum));
+            // The continuation returns the input's lovelace, so it is an output to fund like any
+            // other: counting it keeps fundFromFeePayer from treating that ADA as spendable.
+            declaredOutputLovelace = declaredOutputLovelace.add(lovelaceOf(kept));
         }
 
-        BigInteger short_ = remaining.values().stream().reduce(BigInteger.ZERO, BigInteger::add);
-        if (short_.signum() > 0) {
-            throw new Cip113Exception("The selected UTxOs at " + holderWallet.toBech32()
-                    + " are short by " + short_ + " of what this seizure moves. Coin selection"
-                    + " picked inputs that do not cover it, which should not happen — report it.");
+        for (Map.Entry<String, Map<String, BigInteger>> holder : remaining.entrySet()) {
+            BigInteger short_ = holder.getValue().values().stream().reduce(BigInteger.ZERO, BigInteger::add);
+            if (short_.signum() > 0) {
+                throw new Cip113Exception("The selected UTxOs at " + holder.getKey()
+                        + " are short by " + short_ + " of what this seizure moves. Coin selection"
+                        + " picked inputs that do not cover it, which should not happen — report it.");
+            }
         }
+    }
+
+    private static BigInteger lovelaceOf(List<Amount> amounts) {
+        return amounts.stream().filter(a -> LOVELACE.equals(a.getUnit()))
+                .map(Amount::getQuantity).reduce(BigInteger.ZERO, BigInteger::add);
     }
 
     /**
      * The continuing output paired with one base-script input: same address, datum and reference
      * script, carrying {@code kept}.
      */
-    private void continuingOutput(Utxo input, Address address, List<Amount> kept) {
+    private PlutusData continuingOutput(Utxo input, Address address, List<Amount> kept) {
         boolean hasInlineDatum = input.getInlineDatum() != null && !input.getInlineDatum().isBlank();
         // Backends report the hash of an inline datum as well, so a hash alone is what marks a
         // datum-hash output — the one shape a continuing output cannot reproduce.
@@ -1704,6 +2100,7 @@ final class Cip113TransactionMaterializer extends Tx {
         }
         super.payToAddress(address.toBech32(), kept, null, inlineDatum, referenceScript, null);
         pairedOutputCount++;
+        return inlineDatum;
     }
 
     static Amount withQuantity(Amount amount, BigInteger quantity) {
@@ -1889,6 +2286,7 @@ final class Cip113TransactionMaterializer extends Tx {
 
         RegistryLookup.RegistryNodeUtxo covering = registry.coveringNode(policyId);
         RegistryNode coveringNode = covering.getDatum();
+        this.registeringCoveringKey = coveringNode.getKey();
 
         RegistryNode newNode = RegistryNode.builder()
                 .key(policyId)
@@ -1945,6 +2343,11 @@ final class Cip113TransactionMaterializer extends Tx {
      */
     String registeredPolicyId() {
         return registeredPolicyId;
+    }
+
+    /** Key of the registry node the registration in this transaction spends, or null. */
+    String registeringCoveringKey() {
+        return registeringCoveringKey;
     }
 
     private IssuanceCborHex readIssuanceTemplate() {
@@ -2018,6 +2421,13 @@ final class Cip113TransactionMaterializer extends Tx {
         // The node's minting logic authorises the change. The registry rejects a key credential
         // outright, so this must resolve to a script.
         invokeLogicScript(current.getMintingLogicScript(), issuanceRedeemer, "minting logic");
+
+        // Fund the fee up front, as every other verb does. The continuation copies the node's
+        // value exactly, so without a pinned input the change before balancing is 0 rather than
+        // negative: QuickTx then evaluates a transaction that spends only the node, and the
+        // registry's output scan fails on the empty-value change output. Balancing appending the
+        // input afterwards would also re-evaluate before any extension could re-index redeemers.
+        fundFromFeePayer();
 
         log.debug("Updating registry node {}", policyId);
         return this;
@@ -2130,6 +2540,16 @@ final class Cip113TransactionMaterializer extends Tx {
         if (globalStateCs == null || globalStateCs.isEmpty()) return;
         if (!globalStateReferenced.add(globalStateCs.toLowerCase())) return;
 
+        // A substandard that SPENDS its global state (a supply cap enforced on mint, say) already
+        // carries it as an input, and its validators read it from there. Adding the same UTxO as a
+        // reference input too is rejected by the ledger (BabbageNonDisjointRefInputs).
+        Optional<Utxo> spent = callerSpentGlobalState(globalStateCs);
+        if (spent.isPresent()) {
+            log.debug("Global state {}#{} for policy {} is spent by the caller; not referenced",
+                    spent.get().getTxHash(), spent.get().getOutputIndex(), policyId);
+            return;
+        }
+
         Utxo utxo = globalStateResolver == null ? null : globalStateResolver.apply(globalStateCs);
         if (utxo == null) {
             throw new Cip113Exception("Policy " + policyId + " declares global state under policy "
@@ -2175,12 +2595,13 @@ final class Cip113TransactionMaterializer extends Tx {
         PlutusData existing = logicWithdrawals.get(rewardAddress);
         if (existing != null) {
             if (!PlutusDataEquality.equals(existing, redeemer)) {
-                throw new Cip113Exception("Two policies in this transaction share the " + role
+                throw new Cip113Exception("Two operations in this transaction invoke the " + role
                         + " credential " + HexUtil.encodeHexString(logic.getBytes())
-                        + " but were given different redeemers. The ledger has one withdrawal per"
-                        + " reward account, so only one redeemer can reach that script — split"
-                        + " these into separate transactions, or give both policies the same"
-                        + " redeemer.");
+                        + " with different redeemers — two policies sharing one logic script, or one"
+                        + " token using one credential for several roles (third-party and minting"
+                        + " logic, say). The ledger has one withdrawal per reward account, so only"
+                        + " one redeemer can reach that script — split these into separate"
+                        + " transactions, or give them the same redeemer.");
             }
             return;                       // same script, same redeemer: already invoked
         }
@@ -2267,10 +2688,38 @@ final class Cip113TransactionMaterializer extends Tx {
     private static final class PendingPayment {
         final Address destination;
         final Amount amount;
+        /** The smart wallet a third-party payment is drawn from; null for an owner operation. */
+        final Address holderWallet;
 
         PendingPayment(Address destination, Amount amount) {
+            this(destination, amount, null);
+        }
+
+        PendingPayment(Address destination, Amount amount, Address holderWallet) {
             this.destination = destination;
             this.amount = amount;
+            this.holderWallet = holderWallet;
+        }
+    }
+
+    /** A third-party burn of one named holder UTxO. Quantities are positive, keyed by unit. */
+    private static final class PinnedBurn {
+        final String txHash;
+        final int outputIndex;
+        final String policyId;
+        final Map<String, BigInteger> byUnit;
+        /** The resolved, unspent holder UTxO; set once the burn is materialised. */
+        Utxo utxo;
+
+        PinnedBurn(String txHash, int outputIndex, String policyId, Map<String, BigInteger> byUnit) {
+            this.txHash = txHash;
+            this.outputIndex = outputIndex;
+            this.policyId = policyId;
+            this.byUnit = byUnit;
+        }
+
+        String ref() {
+            return Cip113TransactionMaterializer.ref(txHash, outputIndex);
         }
     }
 }
