@@ -1,8 +1,10 @@
 package com.bloxbean.cardano.client.quicktx.serialization;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -31,6 +33,10 @@ public class YamlSerializer {
         factory.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
 
         YAML_MAPPER = new ObjectMapper(factory);
+        // Variables pass through a tree before binding. Preserve decimal precision and scale in both reading modes
+        // and in valueToTree snapshots instead of silently rounding through double or stripping trailing zeroes.
+        YAML_MAPPER.enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
+        YAML_MAPPER.configure(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES, false);
         // Exclude null values from serialization
         YAML_MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         STRICT_YAML_MAPPER = StrictReading.apply(YAML_MAPPER.copy());

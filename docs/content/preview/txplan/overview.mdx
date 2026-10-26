@@ -85,6 +85,9 @@ transaction:
 The `variables` section defines key-value pairs that can be referenced in any value in the YAML using `${variable_name}`
 syntax (not in keys). Variables are resolved before deserialization.
 
+Decimal variable values retain their precision and scale in both strict and lenient readers, including codec snapshots.
+For example, `1.23456789012345678900` remains an exact `BigDecimal` rather than being rounded to a `double`.
+
 ```yaml
 variables:
   treasury: addr_test1_treasury

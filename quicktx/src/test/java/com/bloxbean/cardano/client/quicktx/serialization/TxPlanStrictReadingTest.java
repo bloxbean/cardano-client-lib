@@ -249,14 +249,31 @@ class TxPlanStrictReadingTest {
 
     @Test
     void placeholderKeysAreRejectedByEveryStrictReader() {
+        String rootKey = "variables: {field: context}\n'${field}': {fee_payer: " + SENDER + "}\ntransaction: []\n";
         String intentKey = "variables: {field: donation_amount}\n"
                 + tx("intents", "{type: donation, current_treasury_value: 10, '${field}': 5}");
         String txKey = "variables: {k: change_address}\ntransaction:\n  - tx:\n      from: " + SENDER
                 + "\n      '${k}': " + SENDER + "\n";
 
         // TxPlan.from would rename the key by text substitution; the codec and the schema never substitute keys.
+        assertRejected(rootKey, "${field}");
         assertRejected(intentKey, "${field}");
         assertRejected(txKey, "${k}");
+    }
+
+    @Test
+    void decimalVariablesPreservePrecisionAndScale() {
+        String decimal = "1.23456789012345678900";
+        String yaml = "variables: {value: " + decimal + "}\ntransaction: []\n";
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
+            TxPlan plan = reader.apply(yaml);
+            assertThat(plan.getVariables().get("value")).isEqualTo(new BigDecimal(decimal));
+        }
+
+        TxPlan runtime = STRICT.fromYaml("transaction: []\n", Map.of("value", new BigDecimal(decimal)));
+        String snapshot = STRICT.toYaml(runtime);
+        assertThat(STRICT.readLiteral(snapshot).getVariables().get("value")).isEqualTo(new BigDecimal(decimal));
+        assertThat(STRICT.toYaml(STRICT.readLiteral(snapshot))).isEqualTo(snapshot);
     }
 
     @Test

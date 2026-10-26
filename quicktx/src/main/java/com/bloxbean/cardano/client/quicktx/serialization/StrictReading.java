@@ -239,7 +239,10 @@ public final class StrictReading {
     static void checkKeys(JsonNode document) {
         if (document == null || !document.isObject()) return;
         document.fields().forEachRemaining(entry -> {
-            if (!"variables".equals(entry.getKey())) checkKeys(entry.getValue(), "/" + entry.getKey());
+            if (!"variables".equals(entry.getKey())) {
+                checkKey(entry.getKey(), "/");
+                checkKeys(entry.getValue(), "/" + entry.getKey());
+            }
         });
     }
 
@@ -249,11 +252,15 @@ public final class StrictReading {
             return;
         }
         node.fields().forEachRemaining(entry -> {
-            if (entry.getKey().contains("${"))
-                throw new IllegalArgumentException("Key '" + entry.getKey() + "' at " + path
-                        + " is a placeholder; placeholders are values, so write the key out");
+            checkKey(entry.getKey(), path);
             checkKeys(entry.getValue(), path + "/" + entry.getKey());
         });
+    }
+
+    private static void checkKey(String key, String path) {
+        if (key.contains("${"))
+            throw new IllegalArgumentException("Key '" + key + "' at " + path
+                    + " is a placeholder; placeholders are values, so write the key out");
     }
 
     private static boolean containsPlaceholder(JsonNode value) {
