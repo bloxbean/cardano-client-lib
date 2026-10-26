@@ -90,7 +90,10 @@ public final class TxPlanSchemaGenerator {
     private final DeserializationConfig config;
     private final DefaultDeserializationContext context;
     private final Map<String, ObjectNode> definitions = new TreeMap<>();
-    private final Map<String, String> modelClasses = new HashMap<>();
+    private final Map<String, ModelShape> modelShapes = new HashMap<>();
+
+    private record ModelShape(JavaType type, String discriminator, String discriminatorValue) {
+    }
 
     private TxPlanSchemaGenerator(ObjectMapper mapper) {
         this.mapper = mapper;
@@ -256,6 +259,14 @@ public final class TxPlanSchemaGenerator {
 
     private JsonNode typeSchema(JavaType type, String where) throws JsonMappingException {
         Class<?> raw = type.getRawClass();
+        // A deserializer on the type itself overrides the usual scalar/enum/container representation too.
+        // Inspect it before the built-in mappings, just as propertySchema does for a member annotation.
+        AnnotatedClass annotated = config.introspectClassAnnotations(type).getClassInfo();
+        Object custom = config.getAnnotationIntrospector().findDeserializer(annotated);
+        if (custom != null && custom != JsonDeserializer.None.class) {
+            String name = custom instanceof Class<?> c ? c.getName() : custom.getClass().getName();
+            return customSchema(name, where);
+        }
         if (JsonNode.class.isAssignableFrom(raw)) return NODES.objectNode();
         // Jackson coerces any scalar to text, and the canonical writer relies on it (unquoted digit-only hex,
         // numeric amounts in String fields), so a string field accepts every scalar.
@@ -294,7 +305,6 @@ public final class TxPlanSchemaGenerator {
         if (raw.isPrimitive() || raw.getName().startsWith("java.") || raw == byte[].class)
             throw unsupported(where, "type " + type.toCanonical() + " has no schema mapping");
 
-        AnnotatedClass annotated = config.introspectClassAnnotations(type).getClassInfo();
         JsonTypeInfo typeInfo = annotated.getAnnotation(JsonTypeInfo.class);
         if (typeInfo != null) return orPlaceholder(polymorphicSchema(type, typeInfo, where));
 
@@ -321,10 +331,14 @@ public final class TxPlanSchemaGenerator {
     private String model(JavaType type, String discriminator, String discriminatorValue) throws JsonMappingException {
         Class<?> raw = type.getRawClass();
         String key = MODEL_PREFIX + raw.getSimpleName();
-        String existing = modelClasses.putIfAbsent(key, raw.getName());
+        ModelShape shape = new ModelShape(type, discriminator, discriminatorValue);
+        ModelShape existing = modelShapes.putIfAbsent(key, shape);
         if (existing != null) {
-            if (!existing.equals(raw.getName()))
-                throw unsupported(raw.getName(), "simple name collides with " + existing);
+            if (existing.type().getRawClass() != raw)
+                throw unsupported(raw.getName(), "simple name collides with " + existing.type().getRawClass().getName());
+            if (!existing.equals(shape))
+                throw unsupported(raw.getName(), key + " is reused with incompatible Java types or discriminators: "
+                        + existing + " and " + shape + "; map each shape explicitly");
             return key;
         }
         definitions.put(key, NODES.objectNode()); // reserve the key so recursive types terminate

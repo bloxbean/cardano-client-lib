@@ -6,6 +6,9 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.deser.std.StringDeserializer;
 import org.junit.jupiter.api.Test;
@@ -91,6 +94,8 @@ class TxPlanSchemaConformanceTest {
                 Arguments.of("additional_signers_count above bound", "context: {additional_signers_count: 1001}\n" + tx("intents", "{type: payment, address: " + RECEIVER + "}")),
                 Arguments.of("unknown context key", "context: {fee_payr: " + SENDER + "}\n" + tx("intents", "{type: payment, address: " + RECEIVER + "}")),
                 Arguments.of("unknown root key", "versio: '1.0'\n" + tx("intents", "{type: payment, address: " + RECEIVER + "}")),
+                Arguments.of("placeholder as a root key", "variables: {field: context}\n'${field}': {fee_payer: "
+                        + SENDER + "}\ntransaction: []\n"),
                 Arguments.of("scriptTx entry", "transaction:\n  - scriptTx: {}\n"),
                 // TxPlan.from used to rename the key by textual substitution; no reader substitutes keys now.
                 Arguments.of("placeholder as an intent key", "variables: {field: donation_amount}\n"
@@ -135,6 +140,7 @@ class TxPlanSchemaConformanceTest {
     static Stream<Arguments> runtimeAcceptedTemplates() {
         String donation = "{type: donation, current_treasury_value: 100, donation_amount: 5}";
         return Stream.of(
+                Arguments.of("exact decimal variable", "variables: {value: 1.23456789012345678900}\ntransaction: []\n"),
                 Arguments.of("whole intents array from a variable", "variables:\n  xs: [" + donation + "]\n"
                         + "transaction:\n  - tx:\n      from: " + SENDER + "\n      intents: '${xs}'\n"),
                 Arguments.of("one intent from a variable", "variables:\n  d: " + donation + "\n"
@@ -164,7 +170,9 @@ class TxPlanSchemaConformanceTest {
                 Arguments.of(WithSingleValueArray.class, "ACCEPT_SINGLE_VALUE_AS_ARRAY"),
                 Arguments.of(WithStringCreator.class, "scalar"),
                 Arguments.of(WithContentDeserializer.class, "content or key"),
-                Arguments.of(WithDefaultImpl.class, "defaultImpl"));
+                Arguments.of(WithDefaultImpl.class, "defaultImpl"),
+                Arguments.of(WithGenericModels.class, "incompatible"),
+                Arguments.of(WithAliasedShape.class, "incompatible"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -186,6 +194,54 @@ class TxPlanSchemaConformanceTest {
 
     static class WithEnumAlias {
         public Mode mode;
+    }
+
+    @Test
+    void unmappedEnumDeserializerCannotSilentlyBecomeAnEnumSchema() throws Exception {
+        // The runtime accepts a value outside the Java constant names. Generating enum: [FAST] would reject it.
+        assertThat(YamlSerializer.getYamlMapper().readValue("mode: custom", WithCustomEnum.class).mode)
+                .isEqualTo(CustomMode.FAST);
+        assertThatThrownBy(() -> TxPlanSchemaGenerator.describe(WithCustomEnum.class))
+                .hasMessageContaining("CustomModeDeserializer");
+    }
+
+    @JsonDeserialize(using = CustomModeDeserializer.class)
+    enum CustomMode {
+        FAST
+    }
+
+    static class CustomModeDeserializer extends JsonDeserializer<CustomMode> {
+        @Override
+        public CustomMode deserialize(JsonParser parser, DeserializationContext context) {
+            return CustomMode.FAST;
+        }
+    }
+
+    static class WithCustomEnum {
+        public CustomMode mode;
+    }
+
+    static class Box<T> {
+        public T value;
+    }
+
+    static class WithGenericModels {
+        public Box<Boolean> flag;
+        public Box<String> text;
+    }
+
+    @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind")
+    @JsonSubTypes({@JsonSubTypes.Type(value = AliasedCircle.class, name = "circle"),
+            @JsonSubTypes.Type(value = AliasedCircle.class, name = "round")})
+    interface AliasedShape {
+    }
+
+    static class AliasedCircle implements AliasedShape {
+        public int radius;
+    }
+
+    static class WithAliasedShape {
+        public AliasedShape shape;
     }
 
     static class WithSingleValueArray {
