@@ -37,9 +37,14 @@ namespaces in a shared column family are never read or modified.
 - `keepRange(from, to)` — roots of versions in `[from, to]`;
 - any lambda `index -> Collection<byte[]>`.
 
-On top of the policy, every strategy always keeps the root under `LATEST` and the root at `lastVersion()`
-(`gc.internal.GcRoots`). This also applies when a strategy is called directly through `GcStrategy.run(..)` and to
-`RocksDbStateTrees.cleanupOrphanedNodes(..)`.
+On top of the policy, when a roots index is given, every strategy always keeps the root under `LATEST` and the
+root at `lastVersion()` (`gc.internal.GcRoots`). This also applies when a strategy is called directly through
+`GcStrategy.run(..)` and to `RocksDbStateTrees.cleanupOrphanedNodes(..)`.
+
+A caller that records its roots elsewhere can call `OnDiskMarkSweepStrategy.run(..)` with a `null` roots index. The
+policy's roots are then the only roots kept, so they must include the current root. The run is rejected before
+anything is marked or deleted when the policy returns no root, or a root (other than the all-zero empty root) with no
+node in the namespace. `RefcountGcStrategy` needs the roots index.
 
 ## 3. Mark-and-sweep — `strategy.OnDiskMarkSweepStrategy`
 

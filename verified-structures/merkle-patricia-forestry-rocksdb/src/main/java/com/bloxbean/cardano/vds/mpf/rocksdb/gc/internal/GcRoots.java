@@ -16,6 +16,11 @@ import java.util.List;
  * never make the current trie unreadable, even when it is used directly through
  * {@code GcStrategy.run(...)}.</p>
  *
+ * <p>Without a roots index (a caller that records its roots elsewhere), the policy's roots are the only roots kept,
+ * so the policy must include the current root. It must return at least one root: an empty result is rejected rather
+ * than letting a GC run delete every node. For an empty current trie, pass the all-zero root
+ * ({@code MpfTrie.getRootHashOrEmpty()}); a {@code null} root is dropped.</p>
+ *
  * <p>Internal API: it may change without notice.</p>
  */
 public final class GcRoots {
@@ -26,14 +31,22 @@ public final class GcRoots {
     /**
      * Returns the distinct, non-empty roots to keep.
      *
-     * @param index  the roots index of the namespace being collected
+     * @param index  the roots index of the namespace being collected, or {@code null} when the caller records its
+     *               roots elsewhere and the policy supplies all of them
      * @param policy the retention policy
      * @return the roots to keep, in policy order followed by the latest roots
+     * @throws IllegalArgumentException if there is no index and the policy returns no root
      */
     public static List<byte[]> retainedRoots(RocksDbRootsIndex index, RetentionPolicy policy) {
         List<byte[]> out = new ArrayList<>();
         Collection<byte[]> fromPolicy = policy.resolveRoots(index);
         if (fromPolicy != null) for (byte[] r : fromPolicy) addUnique(out, r);
+        if (index == null) {
+            if (out.isEmpty()) {
+                throw new IllegalArgumentException("Without a roots index the retention policy must return a root");
+            }
+            return out;
+        }
         addUnique(out, index.latest());
         long last = index.lastVersion();
         if (last >= 0) addUnique(out, index.get(last));

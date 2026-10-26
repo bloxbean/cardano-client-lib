@@ -308,6 +308,56 @@ public class OnDiskMarkSweepGcTest {
         assertTrue(report.deleted > 0, "Should delete nodes even with snapshot");
     }
 
+    @Test
+    public void testWithoutRootsIndexKeepsOnlyPolicyRoots() throws Exception {
+        // A caller that records its roots elsewhere passes no index; the policy's roots are the only ones kept.
+        byte[] key1 = randomKey();
+        byte[] value1 = randomValue();
+        trie.put(key1, value1);
+        byte[] root1 = trie.getRootHash();
+        for (int i = 0; i < 50; i++) {
+            trie.put(randomKey(), randomValue());
+        }
+        byte[] root2 = trie.getRootHash();
+
+        GcReport report = new OnDiskMarkSweepStrategy().run(
+                stateTrees.nodeStore(), null, ignored -> java.util.List.of(root2), new GcOptions());
+
+        assertTrue(report.deleted > 0, "Nodes reachable only from the unretained root should be deleted");
+        assertEquals(0, GcTestSupport.reach(stateTrees.nodeStore(), root2)[1], "The retained trie must be intact");
+        assertArrayEquals(value1, new MpfTrie(stateTrees.nodeStore(), root2).get(key1));
+        assertNull(stateTrees.nodeStore().get(root1), "The unretained root's node should be deleted");
+    }
+
+    @Test
+    public void testWithoutRootsIndexRejectsEmptyPolicy() throws Exception {
+        trie.put(randomKey(), randomValue());
+        byte[] root = trie.getRootHash();
+        long nodesBefore = countNodes();
+
+        assertThrows(IllegalArgumentException.class, () -> new OnDiskMarkSweepStrategy().run(
+                stateTrees.nodeStore(), null, ignored -> java.util.List.of(), new GcOptions()));
+
+        assertEquals(nodesBefore, countNodes(), "A rejected run must not delete anything");
+        assertEquals(0, GcTestSupport.reach(stateTrees.nodeStore(), root)[1]);
+    }
+
+    @Test
+    public void testWithoutRootsIndexRejectsRootWithoutNode() throws Exception {
+        // A wrong root (another namespace, a stale or mistyped hash) would mark nothing and sweep everything.
+        trie.put(randomKey(), randomValue());
+        byte[] root = trie.getRootHash();
+        byte[] unknown = new byte[32];
+        unknown[0] = 1;
+        long nodesBefore = countNodes();
+
+        assertThrows(IllegalArgumentException.class, () -> new OnDiskMarkSweepStrategy().run(
+                stateTrees.nodeStore(), null, ignored -> java.util.List.of(root, unknown), new GcOptions()));
+
+        assertEquals(nodesBefore, countNodes(), "A rejected run must not delete anything");
+        assertEquals(0, GcTestSupport.reach(stateTrees.nodeStore(), root)[1]);
+    }
+
     // Helper methods
 
     private byte[] randomKey() {
