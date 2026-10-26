@@ -1,5 +1,5 @@
-# Regroup one policy out of the owner's shared smart-wallet UTxOs into its own output. The
-# token's unfracking hook (set by 06) authorises it; an unfracking is always its own transaction.
+# Reserved unfracking intent. Retained as a rejection fixture: this release throws
+# UnsupportedOperationException during validation, even when the token's hook is set.
 version: '1.0'
 variables:
   network_id: 0

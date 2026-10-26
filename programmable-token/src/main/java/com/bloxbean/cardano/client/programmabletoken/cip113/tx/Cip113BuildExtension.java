@@ -492,6 +492,8 @@ public final class Cip113BuildExtension implements TxBuildExtension {
 
     private void validateCapabilities(List<ProgrammableTokenIntent> intents) {
         for (ProgrammableTokenIntent intent : intents) {
+            if (intent instanceof ProgrammableUnfrackIntent)
+                throw new UnsupportedOperationException(ProgrammableUnfrackIntent.UNSUPPORTED_MESSAGE);
             // A third-party burn is both a third-party action and a burn, so it needs both.
             Set<ProgrammableTokenCapability> required = intent instanceof ProgrammableThirdPartyBurnIntent
                     ? EnumSet.of(ProgrammableTokenCapability.THIRD_PARTY_TRANSFER, ProgrammableTokenCapability.BURN)

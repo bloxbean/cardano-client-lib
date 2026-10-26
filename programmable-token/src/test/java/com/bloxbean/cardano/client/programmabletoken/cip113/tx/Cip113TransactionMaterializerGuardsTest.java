@@ -14,6 +14,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.programmabletoken.BurnAuthorization;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenCapability;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableUnfrackIntent;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployments;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Exception;
@@ -186,9 +187,9 @@ class Cip113TransactionMaterializerGuardsTest {
     }
 
     @Test
-    void theAdapterAdvertisesUnfracking() {
+    void theAdapterDoesNotAdvertiseUnfrackingEvenWhenTheDeploymentEnablesIt() {
         assertThat(new Cip113Protocol(serviceFor(deployment())).capabilities())
-                .contains(ProgrammableTokenCapability.UNFRACK);
+                .doesNotContain(ProgrammableTokenCapability.UNFRACK);
     }
 
     /**
@@ -485,18 +486,18 @@ class Cip113TransactionMaterializerGuardsTest {
     }
 
     @Test
-    void unfrackingMustBeItsOwnTransaction() {
+    void manuallyAuthoredUnfrackingWithATransferIsUnsupportedBeforeChainAccess() {
         UtxoSupplier utxoSupplier = mock(UtxoSupplier.class);
         Cip113ProtocolService service = serviceWith(node(POLICY, "ffff", LOGIC_HASH));
         ProgrammableTokenTx tx = new ProgrammableTokenTx()
                 .from(ownerAddress().toBech32())
-                .unfrack(POLICY, BigIntPlutusData.of(0))
                 .transfer(ownerAddress().toBech32(), Amount.asset(POLICY, "Tok", BigInteger.ONE),
                         BigIntPlutusData.of(0));
+        tx.addIntention(new ProgrammableUnfrackIntent());
 
         assertThatThrownBy(() -> prepare(service, utxoSupplier, tx))
-                .isInstanceOf(Cip113Exception.class)
-                .hasMessageContaining("its own transaction");
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("Unfracking is temporarily unsupported");
         verifyNoInteractions(utxoSupplier);
         verify(service, never()).registryLookup(any());
     }
@@ -548,22 +549,22 @@ class Cip113TransactionMaterializerGuardsTest {
         verify(service, never()).registryLookup(any());
     }
 
-    /** The unfracking validator requires an empty mint, wherever in the transaction it is authored. */
+    /** A manually added intent cannot bypass the temporary restriction, even across fragments. */
     @Test
-    void unfrackingCannotShareATransactionWithACoreMint() {
+    void manuallyAuthoredUnfrackingWithACoreMintIsUnsupportedBeforeChainAccess() {
         UtxoSupplier utxoSupplier = mock(UtxoSupplier.class);
         Cip113ProtocolService service = serviceWith(node(POLICY, "ffff", LOGIC_HASH));
         ProgrammableTokenTx unfrack = new ProgrammableTokenTx()
-                .from(ownerAddress().toBech32())
-                .unfrack(POLICY, BigIntPlutusData.of(0));
+                .from(ownerAddress().toBech32());
+        unfrack.addIntention(new ProgrammableUnfrackIntent());
         Tx mint = new Tx()
                 .from(holderAddress().toBech32())
                 .mintAssets(new ScriptPubkey("11".repeat(28)), new Asset("0x01", BigInteger.ONE),
                         holderAddress().toBech32());
 
         assertThatThrownBy(() -> prepare(service, utxoSupplier, unfrack, mint))
-                .isInstanceOf(Cip113Exception.class)
-                .hasMessageContaining("empty mint");
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("Unfracking is temporarily unsupported");
         verifyNoInteractions(utxoSupplier);
         verify(service, never()).registryLookup(any());
     }

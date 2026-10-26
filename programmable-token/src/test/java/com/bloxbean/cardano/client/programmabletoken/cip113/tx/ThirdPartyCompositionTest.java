@@ -358,8 +358,8 @@ class ThirdPartyCompositionTest {
         assertThatThrownBy(() -> fixture.build(admin()
                 .thirdPartyBurn(ref(pinned), POLICY_A, List.of(asset(TOK, 1)), auth())
                 .unfrack(POLICY_A, R)))
-                .isInstanceOf(Cip113Exception.class)
-                .hasMessageContaining("its own transaction");
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("temporarily unsupported");
     }
 
     /** A later fragment's output at a base-script address lands after the continuations. */

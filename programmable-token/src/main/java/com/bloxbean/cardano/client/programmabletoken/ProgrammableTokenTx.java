@@ -207,7 +207,8 @@ public class ProgrammableTokenTx extends Tx {
     }
 
     /**
-     * Regroup one policy out of the sender's shared smart-wallet UTxOs into its own output.
+     * Reserved API for regrouping one policy out of the sender's shared smart-wallet UTxOs.
+     * Temporarily unsupported in this release.
      *
      * <p>A "fracked" UTxO holds several policies, so a restriction scoped to one of them locks
      * the others as well. Unfracking spends every smart-wallet UTxO that holds {@code policyId}
@@ -215,13 +216,11 @@ public class ProgrammableTokenTx extends Tx {
      * policy's tokens into one fresh single-policy output at the same smart wallet. The token's
      * unfracking hook authorises it with {@code authorization}; a token whose issuer never set a
      * hook cannot be unfracked. It must be the only operation in its transaction.</p>
+     *
+     * @throws UnsupportedOperationException always; unfracking is temporarily unsupported
      */
     public ProgrammableTokenTx unfrack(String policyId, PlutusData authorization) {
-        ProgrammableTokenPolicyRef.policyId(policyId);
-        requirePlutusData(authorization, "authorization");
-        addIntention(ProgrammableUnfrackIntent.builder()
-                .policyId(policyId).authorization(PlutusDataValue.of(authorization)).build());
-        return this;
+        throw new UnsupportedOperationException(ProgrammableUnfrackIntent.UNSUPPORTED_MESSAGE);
     }
 
     private static void require(String value, String field) {

@@ -40,13 +40,12 @@ capabilities:
     - third_party_transfer
     - register
     - update_registry
-    - unfrack
     - inline_datum
     - global_state
   unsupported:
     - verification-key transfer, third-party or unfracking credentials (the adapter invokes script credentials only; registrations and updates naming one are refused)
     - more than one policy per third-party transaction (the third_party redeemer names a single registry node)
     - unfracking combined with any other programmable operation in one transaction (the validator requires an empty mint)
-    - unfracking on a deployment whose programmable_logic_global was compiled without the real unfracking script (every public v0.0.1 deployment; UNFRACK is then not advertised)
+    - unfracking (temporarily unsupported on every deployment; Java calls and intent validation throw UnsupportedOperationException)
     - protocol-upgrade and authority operations (ProtocolUpgrade, NominateAuthority, PromoteAuthority)
     - concurrent use of one mutable Tx, TxPlan or TxContext (sequential reuse is supported)

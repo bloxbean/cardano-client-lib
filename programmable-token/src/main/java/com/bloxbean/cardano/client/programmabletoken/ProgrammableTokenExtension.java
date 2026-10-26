@@ -33,6 +33,7 @@ public final class ProgrammableTokenExtension implements QuickTxExtension {
             ProgrammableThirdPartyBurnIntent.OPERATION, ProgrammableThirdPartyBurnIntent.class,
             ProgrammableRegisterIntent.OPERATION, ProgrammableRegisterIntent.class,
             ProgrammableRegistryUpdateIntent.OPERATION, ProgrammableRegistryUpdateIntent.class,
+            // Retain decoding of persisted plans; validation rejects this reserved operation.
             ProgrammableUnfrackIntent.OPERATION, ProgrammableUnfrackIntent.class);
 
     private final ProgrammableTokenProtocol protocol;

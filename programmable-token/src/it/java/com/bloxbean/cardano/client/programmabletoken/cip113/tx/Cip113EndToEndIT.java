@@ -79,7 +79,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <h2>What it proves</h2>
  * <p>Steps 0-5 stand the protocol up and read it back. Steps 6-18 are the end-to-end path a real
  * user walks: register a token, mint it, transfer it (to self and to another owner), burn it,
- * seize it, update its registry entry, and unfrack a shared UTxO. Steps 20-25 are the edge cases of
+ * seize it, update its registry entry, and reject unfracking of a shared UTxO. Steps 20-25 cover
  * one transaction carrying several operations: burns around a transfer of the same asset, a unit
  * written in upper case, an empty asset name, and a second registered policy sharing a UTxO with
  * the first. Because the chain is reset each run, every step starts from a known state.</p>
@@ -1111,9 +1111,8 @@ public class Cip113EndToEndIT {
     /**
      * Change a registered token's mutable rules in place: set its unfracking hook.
      *
-     * <p>Before the update, unfracking the token must be refused at build time — its hook is the
-     * empty-key sentinel the registration left, and no chain access is needed to say so. After the
-     * update, re-reading the node proves the datum actually changed and the frozen fields did not.</p>
+     * <p>Unfracking remains temporarily unsupported. Updating its protocol datum field still
+     * works: re-reading the node proves the datum changed and the frozen fields did not.</p>
      */
     @Test
     @Order(15)
@@ -1128,9 +1127,9 @@ public class Cip113EndToEndIT {
         assertThatThrownBy(() -> build(new ProgrammableTokenTx()
                 .from(account.baseAddress())
                 .unfrack(examplePolicyId, PlutusData.unit())).build())
-                .as("unfracking a token whose issuer never set a hook is refused before chain access")
-                .isInstanceOf(Cip113Exception.class)
-                .hasMessageContaining("forbidden for policy " + examplePolicyId);
+                .as("unfracking is refused before chain access")
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("Unfracking is temporarily unsupported");
 
         RegistryNode updated = current.toBuilder()
                 .unfrackingLogicScript(AlwaysTrueScripts.credential())
@@ -1204,14 +1203,10 @@ public class Cip113EndToEndIT {
 
     // --------------------------------------------------------------- step 17
 
-    /**
-     * Unfrack a shared UTxO: the example token minted together with an unrelated native asset into
-     * one output — what a freeze scoped to the token would lock as a whole — is split so the token
-     * sits in its own output and the other asset stays where it was.
-     */
+    /** A shared UTxO and a configured hook cannot opt back into unsupported unfracking. */
     @Test
     @Order(17)
-    void step17_unfrackASharedUtxo() throws Exception {
+    void step17_rejectUnfrackingASharedUtxo() throws Exception {
         requireDeployment("Unfracking");
         String unit = unitOf(requireExamplePolicyId());
         Address smartWallet = protocolService.smartWalletAddress(ownerAddress);
@@ -1239,38 +1234,18 @@ public class Cip113EndToEndIT {
         log.info("=== Unfracking === shared UTxO {}#{} holds {} + dust", fracked.getTxHash(),
                 fracked.getOutputIndex(), unit);
 
-        StringBuilder shape = new StringBuilder();
-        Result<String> result = build(new ProgrammableTokenTx()
+        assertThatThrownBy(() -> new ProgrammableTokenTx()
                 .from(account.baseAddress())
-                .unfrack(examplePolicyId, PlutusData.unit()))   // alwaysTrue hook ignores it
-                .preBalanceTx((ctx, txn) -> shape.append(describe("before balancing", txn)))
-                .completeAndWait(log::info);
-        log.info("{}", shape);
-        assertThat(result.isSuccessful())
-                .as("An unfracking must validate: SpendViaUnfracking on every shared input, the"
-                        + " unfracking delegate and the hook withdrawn-zero, each input paired with"
-                        + " a byte-identical continuing output minus the acted policy, and the"
-                        + " policy regrouped at the owner: %s", result.getResponse())
-                .isTrue();
+                .unfrack(examplePolicyId, PlutusData.unit()))
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("Unfracking is temporarily unsupported");
 
-        List<Utxo> after = smartWalletUtxos();
         assertThat(programmableQuantity(unit))
-                .as("unfracking conserves the holding").isEqualTo(heldBefore.add(FRACKED_QUANTITY));
-        assertThat(after).as("the shared UTxO was spent")
-                .noneMatch(u -> u.getTxHash().equals(fracked.getTxHash())
+                .as("a rejected unfracking leaves the holding unchanged")
+                .isEqualTo(heldBefore.add(FRACKED_QUANTITY));
+        assertThat(smartWalletUtxos()).as("the shared UTxO was not spent")
+                .anyMatch(u -> u.getTxHash().equals(fracked.getTxHash())
                         && u.getOutputIndex() == fracked.getOutputIndex());
-        assertThat(after).as("the dust stays behind in a continuing output without the token")
-                .anyMatch(u -> holds(u, dustUnit) && !holds(u, unit));
-        assertThat(after).as("the token is regrouped into its own single-policy output")
-                .anyMatch(u -> holds(u, unit) && !holds(u, dustUnit)
-                        && FRACKED_QUANTITY.equals(quantity(u.getAmount(), unit)));
-
-        assertThatThrownBy(() -> build(new ProgrammableTokenTx()
-                .from(account.baseAddress())
-                .unfrack(examplePolicyId, PlutusData.unit())).build())
-                .as("with nothing shared left, a second unfracking has nothing to do")
-                .isInstanceOf(Cip113Exception.class)
-                .hasMessageContaining("Nothing to unfrack");
     }
 
     // --------------------------------------------------------------- step 18

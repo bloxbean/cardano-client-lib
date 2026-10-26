@@ -96,7 +96,8 @@ class Cip113BuiltTransactionTest {
             .issuanceLogicHash(hash(ISSUANCE_LOGIC))
             .transferScriptHash(hash(TRANSFER))
             .thirdPartyScriptHash(hash(THIRD_PARTY))
-            .unfrackingScriptHash("66".repeat(28))
+            // Ordinary builds must not need an unfracking hash, even if the chain enables it.
+            .unfrackingEnabled(true)
             .registryNodeCs("59fd9f91c09ab82bbc40b58e62c455eab8d3105ca3d2f46948af7b0c")
             .issuanceCborHexCs("44".repeat(28))
             .maxInlineDatumBytes(1024)

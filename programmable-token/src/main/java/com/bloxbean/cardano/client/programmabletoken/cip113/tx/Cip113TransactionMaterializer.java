@@ -1286,7 +1286,8 @@ final class Cip113TransactionMaterializer extends Tx {
         List<Withdrawal> ledgerOrder = LedgerOrdering.sortedWithdrawals(txn);
         String transferReward = deployment.transferRewardAddress();
         String thirdPartyReward = deployment.thirdPartyRewardAddress();
-        String unfrackingReward = deployment.unfrackingRewardAddress();
+        String unfrackingReward = dispatch == Dispatch.UNFRACKING
+                ? deployment.unfrackingRewardAddress() : null;
         String issuanceLogicReward = issuanceLogicInvoked ? deployment.issuanceLogicRewardAddress() : null;
 
         for (Redeemer redeemer : txn.getWitnessSet().getRedeemers()) {
@@ -1305,7 +1306,7 @@ final class Cip113TransactionMaterializer extends Tx {
             } else if (thirdPartyReward.equals(withdrawal.getRewardAddress())) {
                 redeemer.setData(Cip113Redeemers.thirdParty(
                         actedNodeIndex(txn), resolveOutputsStartIdx(txn)));
-            } else if (unfrackingReward.equals(withdrawal.getRewardAddress())) {
+            } else if (withdrawal.getRewardAddress().equals(unfrackingReward)) {
                 redeemer.setData(Cip113Redeemers.unfracking(
                         actedNodeIndex(txn), resolveOutputsStartIdx(txn)));
             } else if (withdrawal.getRewardAddress().equals(issuanceLogicReward)) {

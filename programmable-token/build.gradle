@@ -13,8 +13,8 @@ dependencies {
 
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':core')
-    // Runs the CIP-113 lifecycle as a TxFlow to prove TxFlow supports the extension (ADR 0008).
-    integrationTestImplementation project(':txflow')
+    // Offline portable-flow validation tests and the integration lifecycle (ADR 0008).
+    testImplementation project(':txflow')
     // Applies parameters to the CIP-113 validators (every one of them is parameterized) and
     // evaluates scripts locally, which reports the actual failing validator instead of the
     // empty ScriptFailures a remote evaluator returns when it cannot build a context. A test
