@@ -3,7 +3,7 @@
 **Status**: Proposed
 **Date**: 2026-10-25
 **Issue**: TBD
-**Modules**: `quicktx` (schema, generator, tests, optional runtime change); `txflow` (no code change; consumes the schema by `$ref`)
+**Modules**: `quicktx` (schema, generator, tests, runtime strictness); `txflow` (shared strict reader configuration and schema conformance tests; consumes the schema by `$ref`)
 **Related ADRs**: [ADR 0002: Portable TxFlow Contract](../../txflow/adr/0002-portable-txflow-contract-and-runtime.md) (§ Transaction Schema Ownership), [ADR 0008: Generic QuickTx Extensions in TxFlow](../../txflow/adr/0008-generic-quicktx-extensions-in-txflow.md)
 **Risk**: Medium. The schema change is additive tooling, but D8 changes runtime parsing of standalone TxPlan YAML (documents that parse today can fail).
 
@@ -44,6 +44,10 @@
 - **r7** (2026-10-26; from the automated reviews of #725 at `b070dc2d` and #726 at `ceaef1c5`):
   - D8: the YAML-text checks now cover `variables` (an alias there was substituted as the anchor name, `n: 010` as 8); a decimal variable keeps its written scale, so a kept `BigDecimal` `1.50` still rereads.
   - D8: in `TxPlan.from`, a placeholder used as a mapping key (`'${field}': 5`) is rejected. Its textual substitution renamed the key; the codec and the schema substitute values only.
+- **r8** (2026-10-26; review consistency fixes):
+  - D2: slot integers remain unbounded below, matching the current reader and §13; reference text fields also accept numbers.
+  - D8 and I12: clarify the full strictness opt-out and the codec's `readLiteral` snapshot round trip.
+  - Module scope, D1 and OQ3 aligned with the revised TxFlow work, polymorphic schema and milestone order.
 
 ## 1. Context
 
@@ -152,16 +156,16 @@ The single source of truth is what Jackson actually binds. A generator in quickt
   `$defs/intent.<type>` = `{type: object, additionalProperties: false, required: [type], properties: {type: {const: "<type>"}, …}}`. The `type` discriminator is always the `const`, even where a class also exposes a `type` setter (`pool_registration`).
 - emits each accepted alias as an additional property with the same schema
 - recurses into nested beans (for example `Amount`, `Asset`, `PoolRegistration`, `UnitInterval`), as `$defs/model.<SimpleName>` with `additionalProperties: false`. Two nested classes with the same simple name fail generation instead of colliding.
-- handles polymorphic nested types generically (r2): a type with `@JsonTypeInfo(use = NAME, property = p)` and `@JsonSubTypes` (for example `Relay`, discriminated by `relay_type`) becomes a `oneOf` over one definition per subtype, each with `p` as a `const`.
+- handles polymorphic nested types generically (r2): a type with `@JsonTypeInfo(use = NAME, property = p)` and `@JsonSubTypes` (for example `Relay`, discriminated by `relay_type`) becomes an `anyOf` over one definition per subtype, each with `p` as a `const`, plus the placeholder-discriminator branch in D3.
 
 ### D2. The generator owns a marked region; everything else stays hand-written
 
 Generated keys are exactly `$defs/intent.*`, `$defs/model.*`, `$defs/placeholder`, `$defs/integerLike`, `$defs/booleanLike` and the `tx.inputs`, `tx.intents` and `tx.scripts` properties (r5: the whole property, so the array itself may be a placeholder). The generator reads the committed file, replaces only those keys, and writes it back with sorted, stable key order. Everything else stays hand-written and untouched, including `context` with its bounds, `utxoRef`, `flowOutputRef`, `inputRef`, `transaction`, `tx`, and the root (D5).
 
 **Hand-written typed fields are placeholder-tolerant too (r2).** `context` integer fields accept the same placeholders as generated ones, so `additional_signers_count: '${count}'` (accepted by `TxPlanCodec`, see `TxPlanContextPropertiesTest`) is valid:
-- `valid_from_slot` and `valid_to_slot` become `anyOf [integer ≥ 0, integerLike, placeholder]`; Jackson coerces a numeric string to `Long`.
+- `valid_from_slot` and `valid_to_slot` become `anyOf [integer, integerLike, placeholder]`; Jackson coerces a numeric string to `Long`. Negative slots are currently accepted, so a schema minimum would violate I10 (see §13).
 - `additional_signers_count` becomes `anyOf [integer 0–1000, placeholder]`. It takes no numeric string, because its `StrictIntegerDeserializer` rejects strings.
-- (r4) Hand-written `String` fields of `context` and `tx` (`fee_payer`, `from`, `change_address`, …) accept every scalar, like generated ones (D3). `UtxoRef` fields (`tx_hash`, `step`, `output`) stay string-only, because `UtxoRefDeserializer` requires text.
+- (r4) Hand-written `String` fields of `context` and `tx` (`fee_payer`, `from`, `change_address`, …) accept every scalar, like generated ones (D3). Reference text fields (`tx_hash`, `step`, `output`) accept strings or numbers, matching `UtxoRefDeserializer`'s numeric-to-text conversion (r5).
 - (r4) A `signers` entry does not require `ref`. Today the runtime accepts an entry without `ref`, and `compose(TxPlan)` skips it; see §13.
 
 ### D3. Type mapping is placeholder-tolerant
@@ -229,7 +233,7 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
 
 **Opt-out.** `TxPlanCodec.builder().strictIntentFields(false)` restores today's behaviour: unknown intent fields are ignored. The default is `true`.
 - The switch exists only on `TxPlanCodec`. `TxPlan.from(yaml)` is the convenience reader and is always strict; a caller who needs lenient reading uses the codec.
-- It covers unknown *intent* fields only. Unknown keys elsewhere (`context`, `tx`, the root) are already rejected today, because those classes carry no `ignoreUnknown`, and they stay rejected.
+- Despite its name, the switch controls all strict reading rules below, including scalar coercions, nulls and reference shapes. Unknown keys outside intents (`context`, `tx`, the root) are already rejected today, because those classes carry no `ignoreUnknown`, and they stay rejected in either mode.
 - TxFlow's portable compilation stays strict regardless: ADR 0002 requires portable documents to "reject unknown fields by default".
 
 **What "strict" covers (r3).** The I10 tests showed that rejecting unknown names alone still lets the runtime accept documents no schema should describe. So the strict readers also refuse silent scalar and reference coercions:
@@ -252,7 +256,7 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
 
 Fixed in both modes, because they were crashes or silent corruption rather than lenient behaviour worth keeping: malformed structured Plutus data (`fields: 5`, map entries without `k`/`v`, `constructor: abc` became 0); null intents and `scriptTx` entries (now `IllegalArgumentException`); and the canonical writer, which now quotes a string YAML would read back differently (`"0xabc"` was written unquoted and read back as 2748; `".inf"` as a float).
 
-`strictIntentFields(false)` restores all of the strict rules to today's behaviour.
+`strictIntentFields(false)` restores the strict rules to today's behaviour, except for the fixes explicitly applied in both modes above. It does not change `TxPlan.from` or TxFlow.
 
 ### D9. Documentation
 
@@ -271,7 +275,7 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 - **I9** (D8): with `strictIntentFields(false)`, `TxPlanCodec` reads every document exactly as it does today (unknown intent fields ignored), and the option never relaxes TxFlow compilation. Stated exceptions (r5): inputs that used to crash or corrupt silently (D8, "fixed in both modes") are rejected or written correctly in both modes. The lenient codec reads like `TxPlanCodec` did; it does not reproduce `TxPlan.from`'s old textual substitution.
 - **I10** (D1–D4, r2): **the schema is never stricter than the runtime.** Every document a strict reader accepts validates against the schema. Checked by the D7 corpus and by fuzzing (§9).
 - **I11** (D8, r2; wording r4): **readers are total over untrusted text.** For any input, `TxPlan.from` and `TxPlanCodec.fromYaml` (strict and lenient) either return a plan or reject the input. They never fail with a programming error: no `NullPointerException`, `ClassCastException`, `IndexOutOfBoundsException`, `ArithmeticException`, `UnsupportedOperationException`, `StackOverflowError` or other `Error` anywhere in the cause chain.
-- **I12** (D8, r2; scope r4): **strictly accepted plans have a fixed point.** For any input a strict reader accepts, `toYaml()` of the result reads back with the same reader, and `toYaml()` of that second read equals the first. The lenient codec keeps today's reading, quirks included (I9), so I12 does not cover it.
+- **I12** (D8, r2; scope r4, clarified r8): **strictly accepted plans have a fixed point.** For any input a strict reader accepts, its serialized snapshot reads back and serializes identically. `TxPlan.from` snapshots are read with `TxPlan.from`; codec snapshots use `codec.readLiteral(codec.toYaml(plan))`, so retained variables and literal `${...}` replacement values are not rebound. The lenient codec keeps today's reading, quirks included (I9), so I12 does not cover it.
 
 ## 7. Compatibility
 
@@ -346,7 +350,7 @@ All four were answered by the maintainer on 2026-10-25, before review; none rema
 
 1. **OQ1 (D8), resolved:** reject unknown intent fields **by default**, with a `TxPlanCodec.builder().strictIntentFields(false)` opt-out. Reasons: 0.8.0 is pre-release, TxFlow already rejects them, and ADR 0002 rule 3 asks for the same validation rules.
 2. **OQ2 (D7), resolved:** add `com.networknt:json-schema-validator` 2.x to quicktx `testImplementation` (§10.1).
-3. **OQ3, resolved:** two PRs (M1, then M2), so the behaviour change is reviewed on its own.
+3. **OQ3, resolved:** two PRs, so the behaviour change is reviewed on its own. The revised order is M2, then M1 (§8), with strict readers supplying the schema acceptance oracle.
 4. **OQ4 (§13), resolved:** publish the current quirks as-is. The generator stays a faithful mirror, and the quirks get a follow-up.
 
 ## 13. Related Findings (Out of Scope)
