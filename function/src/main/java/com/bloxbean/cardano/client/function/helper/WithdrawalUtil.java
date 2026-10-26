@@ -2,6 +2,8 @@ package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.address.CredentialType;
 import com.bloxbean.cardano.client.transaction.spec.Withdrawal;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
@@ -12,31 +14,34 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * Utility class for sorting withdrawals by delegation credential hash (canonical CBOR order).
- * The Cardano ledger requires withdrawals to be sorted by stake key hash, and redeemer indices
+ * Utility class for sorting withdrawals in the order the Cardano ledger uses.
+ * The ledger sorts withdrawals by reward account credential: script credentials come before
+ * key credentials, then credentials of the same type are sorted by hash. Redeemer indices
  * must match positions in this sorted list.
  */
 public class WithdrawalUtil {
 
     /**
-     * Returns a comparator that sorts Withdrawals by their delegation credential hash.
-     * This matches the canonical CBOR ordering used by the Cardano ledger.
+     * Returns a comparator that sorts Withdrawals in ledger order: script credentials first,
+     * then key credentials, and by credential hash within each type.
      *
      * @return Comparator for Withdrawal objects
      */
     public static Comparator<Withdrawal> getWithdrawalComparator() {
+        Comparator<Credential> credentialComparator = Comparator
+                .comparing((Credential credential) -> credential.getType() == CredentialType.Script ? 0 : 1)
+                .thenComparing(credential -> HexUtil.encodeHexString(credential.getBytes()));
+
         return Comparator.comparing(withdrawal -> {
             Address address = new Address(withdrawal.getRewardAddress());
-            return HexUtil.encodeHexString(
-                    AddressProvider.getDelegationCredentialHash(address)
-                            .orElseThrow(() -> new IllegalArgumentException(
-                                    "No delegation credential hash found for address: " + withdrawal.getRewardAddress()))
-            );
-        });
+            return AddressProvider.getDelegationCredential(address)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "No delegation credential found for address: " + withdrawal.getRewardAddress()));
+        }, credentialComparator);
     }
 
     /**
-     * Returns a new list of withdrawals sorted by delegation credential hash.
+     * Returns a new list of withdrawals sorted in ledger order.
      *
      * @param withdrawals list of withdrawals to sort
      * @return sorted copy of the withdrawal list

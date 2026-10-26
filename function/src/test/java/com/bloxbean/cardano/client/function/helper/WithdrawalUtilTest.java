@@ -26,6 +26,14 @@ class WithdrawalUtilTest {
         return rewardAddr.toBech32();
     }
 
+    private String createScriptRewardAddress(String scriptHash) {
+        Address rewardAddr = AddressProvider.getRewardAddress(
+                Credential.fromScript(HexUtil.decodeHexString(scriptHash)),
+                Networks.testnet()
+        );
+        return rewardAddr.toBech32();
+    }
+
     @Test
     void getSortedWithdrawals_multipleWithdrawals_sortedByCredentialHash() {
         // Use stake key hashes that are NOT in alphabetical order
@@ -176,5 +184,47 @@ class WithdrawalUtilTest {
 
         assertThat(withdrawals.get(0).getRewardAddress()).isEqualTo(addr2); // 22...
         assertThat(withdrawals.get(1).getRewardAddress()).isEqualTo(addr1); // dd...
+    }
+
+    @Test
+    void getSortedWithdrawals_mixedCredentials_scriptBeforeKey() {
+        // Key hash sorts before both script hashes, but the ledger puts script credentials first
+        String keyHash = "11" + "00".repeat(27);
+        String scriptHash1 = "dd" + "00".repeat(27);
+        String scriptHash2 = "22" + "00".repeat(27);
+
+        String keyAddr = createRewardAddress(keyHash);
+        String scriptAddr1 = createScriptRewardAddress(scriptHash1);
+        String scriptAddr2 = createScriptRewardAddress(scriptHash2);
+
+        List<Withdrawal> withdrawals = List.of(
+                new Withdrawal(keyAddr, BigInteger.valueOf(100)),
+                new Withdrawal(scriptAddr1, BigInteger.ZERO),
+                new Withdrawal(scriptAddr2, BigInteger.ZERO)
+        );
+
+        List<Withdrawal> sorted = WithdrawalUtil.getSortedWithdrawals(withdrawals);
+
+        assertThat(sorted).extracting(Withdrawal::getRewardAddress)
+                .containsExactly(scriptAddr2, scriptAddr1, keyAddr);
+    }
+
+    @Test
+    void getIndex_mixedCredentials_matchesLedgerOrder() {
+        String keyHash = "11" + "00".repeat(27);
+        String scriptHash = "dd" + "00".repeat(27);
+
+        String keyAddr = createRewardAddress(keyHash);
+        String scriptAddr = createScriptRewardAddress(scriptHash);
+
+        List<Withdrawal> sorted = WithdrawalUtil.getSortedWithdrawals(List.of(
+                new Withdrawal(keyAddr, BigInteger.valueOf(100)),
+                new Withdrawal(scriptAddr, BigInteger.ZERO)
+        ));
+
+        assertThat(WithdrawalUtil.getIndexByRewardAddress(sorted, scriptAddr)).isEqualTo(0);
+        assertThat(WithdrawalUtil.getIndexByRewardAddress(sorted, keyAddr)).isEqualTo(1);
+        assertThat(WithdrawalUtil.getIndexByStakeKeyHash(sorted, scriptHash)).isEqualTo(0);
+        assertThat(WithdrawalUtil.getIndexByStakeKeyHash(sorted, keyHash)).isEqualTo(1);
     }
 }
