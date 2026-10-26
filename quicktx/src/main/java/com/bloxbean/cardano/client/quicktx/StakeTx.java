@@ -452,8 +452,8 @@ class StakeTx {
             if (txn.getBody().getWithdrawals() == null || txn.getBody().getWithdrawals().isEmpty())
                 txn.getBody().setWithdrawals(new ArrayList<>());
 
-            // Sort withdrawalContexts by stake key hash to ensure correct redeemer indices
-            // Withdrawals must be ordered by their address bytes in canonical CBOR encoding
+            // Redeemer indices follow ledger order: scripts before keys, then by credential hash.
+            // This differs from the address-byte order of the canonical CBOR withdrawal map.
             List<WithdrawalContext> sortedWithdrawalContexts = withdrawalContexts.stream()
                     .sorted(Comparator.comparing(
                             WithdrawalContext::getWithdrawal,
