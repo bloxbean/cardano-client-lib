@@ -172,7 +172,7 @@ public class DefaultCip113ProtocolService implements Cip113ProtocolService {
     public Address smartWalletAddress(Address ownerAddress) {
         Cip113Deployment deployment = deployment();
         if (deployment.getProgrammableLogicBaseHash() == null) deployment = resolved().getDeployment();
-        return SmartWalletAddress.ofPaymentCredential(deployment, ownerAddress);
+        return SmartWalletAddress.ofOwner(deployment, ownerAddress);
     }
 
     // ------------------------------------------------------------ deployment

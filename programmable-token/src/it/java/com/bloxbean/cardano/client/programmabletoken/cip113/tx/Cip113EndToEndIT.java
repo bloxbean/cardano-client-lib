@@ -983,6 +983,79 @@ public class Cip113EndToEndIT {
                 .isGreaterThanOrEqualTo(2);
     }
 
+    // -------------------------------------------------------------- step 13b
+
+    /**
+     * Third-party burn of a named holder UTxO: a partial burn leaves the remainder in a continuing
+     * output at the holder's wallet, and the custody check is handed to {@code third_party}
+     * ({@code third_party.registry_node_idx} equals issuance_logic's {@code RefInput}); a full
+     * burn of that continuation then empties it. Self-contained — it mints to a fresh holder
+     * first — so it moves nothing the other steps count.
+     */
+    @Test
+    @Order(13)
+    void step13b_thirdPartyBurnOfANamedHolderUtxo() {
+        requireDeployment("Third-party burn");
+        String unit = unitOf(requireExamplePolicyId());
+        Address holder = new Address(new Account(network).baseAddress());
+        String holderWallet = protocolService.smartWalletAddress(holder).toBech32();
+        var authorization = com.bloxbean.cardano.client.programmabletoken.ThirdPartyBurnAuthorization.of(
+                BigIntPlutusData.of(0), BigIntPlutusData.of(0));   // alwaysTrue ignores both
+
+        Result<String> minted = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .mint(examplePolicyId, holder.getAddress(), List.of(exampleAsset(BigInteger.TEN)),
+                        BigIntPlutusData.of(0), null))
+                .completeAndWait(log::info);
+        assertThat(minted.isSuccessful()).as("minting to the holder: %s", minted.getResponse()).isTrue();
+
+        Utxo held = protocolService.getUtxos(holder).getValue().stream()
+                .filter(u -> quantity(u.getAmount(), unit).signum() > 0).findFirst().orElseThrow();
+        log.info("=== Third-party burn === burning 4 of {} from {}#{}", unit, held.getTxHash(), held.getOutputIndex());
+
+        java.util.concurrent.atomic.AtomicReference<com.bloxbean.cardano.client.transaction.spec.Transaction>
+                submitted = new java.util.concurrent.atomic.AtomicReference<>();
+        Result<String> partial = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .thirdPartyBurn(held.getTxHash() + "#" + held.getOutputIndex(), examplePolicyId,
+                        List.of(exampleAsset(BigInteger.valueOf(4))), authorization))
+                .withTxInspector(submitted::set)
+                .completeAndWait(log::info);
+        assertThat(partial.isSuccessful())
+                .as("A partial third-party burn must validate: %s", partial.getResponse()).isTrue();
+        assertThat(programmableQuantity(holder, unit))
+                .as("the burned amount is destroyed, the remainder stays with the holder")
+                .isEqualTo(BigInteger.valueOf(6));
+
+        var txn = submitted.get();
+        assertThat(txn).as("the inspector saw the submitted transaction").isNotNull();
+        var node = protocolService.registryLookup().byPolicy(examplePolicyId).orElseThrow().getUtxo();
+        int nodeIdx = LedgerOrdering.indexOfReferenceInput(txn, node.getTxHash(), node.getOutputIndex());
+        PlutusData thirdParty = rewardRedeemer(txn, resolved.thirdPartyCredential());
+        assertThat(((com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData) thirdParty).getData()
+                .getPlutusDataList().get(0))
+                .as("third_party.registry_node_idx names the policy's node")
+                .isEqualTo(BigIntPlutusData.of(nodeIdx));
+        assertThat(rewardRedeemer(txn, resolved.issuanceLogicCredential())).isEqualTo(
+                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.issuanceLogic(
+                        java.util.Map.of(examplePolicyId,
+                                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.mintRefInput(nodeIdx))));
+
+        Utxo remainder = protocolService.getUtxos(holder).getValue().stream()
+                .filter(u -> quantity(u.getAmount(), unit).signum() > 0).findFirst().orElseThrow();
+        assertThat(remainder.getAddress()).as("the continuation keeps the holder's address").isEqualTo(holderWallet);
+        assertThat(quantity(remainder.getAmount(), unit)).isEqualTo(BigInteger.valueOf(6));
+
+        Result<String> full = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .thirdPartyBurn(remainder.getTxHash() + "#" + remainder.getOutputIndex(), examplePolicyId,
+                        List.of(exampleAsset(BigInteger.valueOf(6))), authorization))
+                .completeAndWait(log::info);
+        assertThat(full.isSuccessful())
+                .as("A full third-party burn of the continuation must validate: %s", full.getResponse()).isTrue();
+        assertThat(programmableQuantity(holder, unit)).as("nothing of the token is left").isZero();
+    }
+
     // --------------------------------------------------------------- step 14
 
     /**

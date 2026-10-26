@@ -52,6 +52,13 @@ be authorised. `Cip113Deployment.isUnfrackingEnabled()` describes this on-chain 
 deployments whose dispatcher enables it. `unfrack(...)` throws `UnsupportedOperationException`,
 and the adapter does not advertise `UNFRACK`.
 
+**Smart-wallet key.** A smart wallet is `(base script, owner credential)`, and CIP-113 lets the
+application key it by the owner's payment or stake credential. `Cip113Deployment.smartWalletKey`
+says which (`PAYMENT` by default). It decides the wallet a sender spends from, the wallet a plain
+receiver address is mapped to, and the key declared as required signer. An application that keeps
+tokens at `(base script, stake credential)` sets `STAKE`; under the default it could receive at
+such a wallet but never spend from it.
+
 ## Portable plans
 
 For a portable plan, configure the same extension on the plan codec and builder:
@@ -92,7 +99,8 @@ Protocol data fields such as `unfracking_logic_script` remain part of registry d
 | `transfer(receiver, amount, redeemer[, datum])` | `pt:transfer` | Owner transfer to a smart wallet; optional bounded inline datum on the receiving output. The unit is read as standard QuickTx reads it (hex in any case; a 56-character unit is the empty asset name). |
 | `mint(policy, receiver, assets, redeemer, datum)` | `pt:mint` | Policy may be a literal id or the name of a registration in the same transaction. |
 | `burn(policyId, assets, authorization)` | `pt:burn` | Literal `policy_id` only: a `policy_ref` names a registration in the same transaction, and a burn needs the policy's registry node and held tokens, which do not exist until that registration is on chain. Transfer and issuance redeemers are distinct; every burn of one policy in a transaction must agree on both. |
-| `thirdPartyTransfer(holder, receiver, amount, redeemer)` | `pt:third_party_transfer` | One holder and one policy per transaction; many outputs for that policy aggregate. |
+| `thirdPartyTransfer(holder, receiver, amount, redeemer)` | `pt:third_party_transfer` | Seizure: the token's third-party logic authorises moving tokens out of `holder`'s smart wallet, inputs coin-selected from it. One policy per transaction, any number of holders. |
+| `thirdPartyBurn(holderUtxoRef, policyId, assets, authorization)` | `pt:third_party_burn` | Burns `assets` out of the named holder UTxO (`txHash#index`), authorised by the token's third-party logic and minting logic (`ThirdPartyBurnAuthorization`: one redeemer each). Literal `policy_id` only. See "Third-party actions" below. |
 | `register(name, registration, redeemer)` | `pt:register` | Publishes a named policy for mints in the same transaction, wherever they are written. |
 | `updateRegistry(policy, update, authorization)` | `pt:update_registry` | Must be its own transaction. |
 | `unfrack(policy, authorization)` | `pt:unfrack` | Reserved for future support. Throws `UnsupportedOperationException`; persisted intents are rejected during validation. |
@@ -108,6 +116,36 @@ so no verb takes them as arguments. Anything the caller adds with `Tx.readFrom(.
 `reference_input` intent in a plan lands in the same body; naming a UTxO the protocol already reads
 adds nothing twice, and every CIP-113 redeemer index is computed over the ledger-sorted union.
 
+## Third-party actions
+
+`thirdPartyTransfer` (seize) and `thirdPartyBurn` act on someone else's smart wallet without the
+holder's signature. The token's `third_party_transfer_logic_script` decides who may do that, and a
+burn additionally runs its `minting_logic_script`.
+
+- **Signer.** Neither verb declares a signer. Whatever key the token's third-party or minting logic
+  checks (an admin or power-user key) is the caller's to add with `withRequiredSigners(...)` and to
+  sign with.
+- **Anyone, if the logic says so.** A token whose third-party logic always succeeds lets *anyone*
+  seize or burn *anyone's* tokens of it. That is the token's design, not something this library can
+  refuse.
+- **The burnt UTxO is named.** `holderUtxoRef` must be unspent, sit at a smart wallet of the
+  configured deployment, hold the policy and cover the assets, and carry no datum hash. A holder UTxO
+  carrying a reference script cannot be third-party burned through CCL. Everything else in it (other
+  asset names, other policies, lovelace, the inline datum) stays in a continuing output at the same
+  address; a pinned UTxO is never picked by a seizure's coin selection.
+- **Composition.** Any mix of seizures and third-party burns of **one policy**, from any number of
+  holders, shares one transaction, as may `mint` and `register`. The `third_party` redeemer names a
+  single registry node, so a second policy is refused, and owner `transfer`, `burn` and `unfrack`
+  are refused because the dispatcher authorises one action per transaction. Also refused: the same
+  UTxO named twice; different redeemers for one logic script (third-party, minting, or one
+  credential serving both); a registration whose covering registry node is the acted policy's node;
+  a mint and a burn of the same asset name that net to zero (otherwise they net into one mint
+  entry); and a seizure back into the very wallet it seizes from.
+- **Output order.** The continuing outputs are the last base-script outputs of the transaction, one
+  per acted-on input in ledger input order; destinations and minted outputs precede them. An output
+  at a smart-wallet address authored in the same `Tx` lands before them and is fine; one from a later
+  `compose(...)` fragment would land after them and is refused.
+
 ## Limitations of the CIP-113 adapter
 
 - Verification-key transfer, third-party and unfracking credentials are not invoked; registrations
@@ -120,7 +158,7 @@ adds nothing twice, and every CIP-113 redeemer index is computed over the ledger
   registry node. Composition rules apply to the whole ledger transaction: every programmable-token
   operation of one transaction must be authored in a single `Tx` (fragments composed with
   `compose(tx1, tx2)` are validated together and refused before any lookup). A
-  third-party transfer may share a transaction with an unrelated native-asset mint: its validator
+  third-party action may share a transaction with an unrelated native-asset mint: its validator
   reads only the acted policy's mint and pins only the paired smart-wallet outputs. Owner transfers
   and burns of several policies, with or without a native mint, compose in one `Tx`, and are
   funded by one input selection, so a smart-wallet UTxO holding several of those policies is spent
