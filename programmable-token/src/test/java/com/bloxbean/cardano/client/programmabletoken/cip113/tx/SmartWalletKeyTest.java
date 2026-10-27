@@ -23,6 +23,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.programmabletoken.BurnAuthorization;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenExtension;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
+import com.bloxbean.cardano.client.programmabletoken.ThirdPartyBurnAuthorization;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployments;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Protocol;
@@ -41,6 +42,9 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.InputStream;
 import java.math.BigInteger;
@@ -51,6 +55,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -156,6 +161,50 @@ class SmartWalletKeyTest {
         assertThat(txn.getBody().getRequiredSigners()).extracting(HexUtil::encodeHexString).contains(OWNER_STAKE);
     }
 
+    @ParameterizedTest
+    @EnumSource(SmartWalletKey.class)
+    void aThirdPartyBurnFromTheSendersWalletDeclaresNoHolderSigner(SmartWalletKey key) {
+        Cip113Deployment deployment = PAYMENT_KEYED.toBuilder().smartWalletKey(key).build();
+        Utxo held = heldByOwner(deployment);
+
+        Transaction txn = build(deployment, thirdPartyBurnFromOwner(held), held);
+
+        assertThat(txn.getBody().getInputs()).extracting(TransactionInput::getTransactionId)
+                .contains(held.getTxHash());
+        assertThat(txn.getBody().getRequiredSigners())
+                .as("third-party authorization does not require the holder's %s key", key).isNullOrEmpty();
+    }
+
+    @ParameterizedTest
+    @EnumSource(SmartWalletKey.class)
+    void aThirdPartyTransferFromTheSendersWalletDeclaresNoHolderSigner(SmartWalletKey key) {
+        Cip113Deployment deployment = PAYMENT_KEYED.toBuilder().smartWalletKey(key).build();
+        Utxo held = heldByOwner(deployment);
+
+        Transaction txn = build(deployment, new ProgrammableTokenTx().from(OWNER.toBech32())
+                .thirdPartyTransfer(OWNER.toBech32(), RECEIVER.toBech32(),
+                        Amount.asset(UNIT_A, 5), BigIntPlutusData.of(0)), held);
+
+        assertThat(txn.getBody().getInputs()).extracting(TransactionInput::getTransactionId)
+                .contains(held.getTxHash());
+        assertThat(txn.getBody().getRequiredSigners())
+                .as("third-party authorization does not require the holder's %s key", key).isNullOrEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"55", "77"})
+    void aThirdPartyBurnPreservesAnExplicitAdminOrHolderSigner(String signerByte) {
+        String requiredSigner = signerByte.repeat(28);
+        Utxo held = heldByOwner(STAKE_KEYED);
+
+        Transaction txn = build(STAKE_KEYED, thirdPartyBurnFromOwner(held), OWNER,
+                context -> context.withRequiredSigners(HexUtil.decodeHexString(requiredSigner)), held);
+
+        assertThat(txn.getBody().getRequiredSigners()).extracting(HexUtil::encodeHexString)
+                .as("the caller can explicitly require an admin key or the holder's stake key")
+                .containsExactly(requiredSigner);
+    }
+
     @Test
     void aStakeKeyedMintFromAnEnterpriseIssuerStillBuilds() {
         Transaction txn = build(STAKE_KEYED, new ProgrammableTokenTx().from(ENTERPRISE_ISSUER.toBech32())
@@ -216,6 +265,20 @@ class SmartWalletKeyTest {
 
     // ------------------------------------------------------------- helpers
 
+    private static Utxo heldByOwner(Cip113Deployment deployment) {
+        return Utxo.builder().txHash("0c".repeat(32)).outputIndex(0)
+                .address(SmartWalletAddress.ofOwner(deployment, OWNER).toBech32())
+                .amount(List.of(Amount.lovelace(BigInteger.valueOf(2_000_000L)), Amount.asset(UNIT_A, 20)))
+                .build();
+    }
+
+    private static ProgrammableTokenTx thirdPartyBurnFromOwner(Utxo held) {
+        return new ProgrammableTokenTx().from(OWNER.toBech32())
+                .thirdPartyBurn(held.getTxHash() + "#" + held.getOutputIndex(), POLICY_A,
+                        List.of(new Asset("0x" + TOK, BigInteger.valueOf(5))),
+                        ThirdPartyBurnAuthorization.of(BigIntPlutusData.of(0), BigIntPlutusData.of(0)));
+    }
+
     private static List<TransactionOutput> outputsHolding(Transaction txn, String unit) {
         return txn.getBody().getOutputs().stream()
                 .filter(o -> o.getValue().getMultiAssets() != null && o.getValue().getMultiAssets().stream()
@@ -228,6 +291,11 @@ class SmartWalletKeyTest {
     }
 
     private static Transaction build(Cip113Deployment deployment, ProgrammableTokenTx tx, Address payer, Utxo... smartWallet) {
+        return build(deployment, tx, payer, context -> { }, smartWallet);
+    }
+
+    private static Transaction build(Cip113Deployment deployment, ProgrammableTokenTx tx, Address payer,
+                                     Consumer<QuickTxBuilder.TxContext> configure, Utxo... smartWallet) {
         ProtocolParams protocolParams = protocolParams();
         ProtocolParamsSupplier protocolParamsSupplier = () -> protocolParams;
         Map<String, List<Utxo>> chain = new LinkedHashMap<>();
@@ -257,14 +325,15 @@ class SmartWalletKeyTest {
                     .mem(BigInteger.valueOf(100_000)).steps(BigInteger.valueOf(10_000_000)).build()))
                     .evaluateTx(cbor, inputUtxos);
         };
-        return new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
+        QuickTxBuilder.TxContext context = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, null)
                 .withExtension(extension)
                 .compose(tx)
                 .feePayer(payer.toBech32())
                 .collateralPayer(payer.toBech32())
                 .withScriptSupplier(service.scripts())
-                .withTxEvaluator(evaluator)
-                .build();
+                .withTxEvaluator(evaluator);
+        configure.accept(context);
+        return context.build();
     }
 
     private static Cip113ProtocolService service(Cip113Deployment deployment, ProtocolParamsSupplier protocolParamsSupplier) {

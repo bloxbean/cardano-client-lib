@@ -1691,12 +1691,16 @@ final class Cip113TransactionMaterializer extends Tx {
      * — so this sets it on the body. Doing it before balancing means fee calculation accounts
      * for it.</p>
      *
-     * <p>Only when the owner's own wallet is spent: nothing else reads the owner's key. A
+     * <p>Only when the owner's own wallet is spent under owner authorization. A
      * registration or mint spends no wallet, and a third-party action spends the holder's, which
      * its own logic authorises. Declaring it anyway forced a needless witness — under
      * {@code SmartWalletKey.STAKE}, a stake-key signature on a plain mint.</p>
      */
     private void declareOwnerAsRequiredSigner(Transaction txn) {
+        // Third-party logic authorizes the spend even when the sender and holder share a wallet.
+        // Keep any signers the caller explicitly declared, without adding the holder's key.
+        if (dispatch == Dispatch.THIRD_PARTY) return;
+
         if (owner == null || !spendsOwnWallet()) return;
         // The key the wallet is keyed by. A sender without one owns no wallet to authorise; a
         // spend from one fails earlier, where the wallet is derived.
