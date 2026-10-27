@@ -66,7 +66,10 @@ public class YamlSerializer {
                 JsonToken token = parser.nextToken();
                 if (token != JsonToken.VALUE_NUMBER_INT && token != JsonToken.VALUE_NUMBER_FLOAT) return false;
                 try {
-                    return !value.equals(parser.getNumberValue().toString());
+                    if (!value.equals(parser.getNumberValue().toString())) return true;
+                    // The strict reader compares a float with its BigDecimal text (StrictReading.checkYamlText), which
+                    // differs for values such as 1.0E-5; quote those so the output always reads back.
+                    return token == JsonToken.VALUE_NUMBER_FLOAT && !value.equals(parser.getDecimalValue().toString());
                 } catch (IOException | RuntimeException notANumberValue) {
                     return true; // e.g. .inf: a float token that does not convert, so it cannot be left plain
                 }

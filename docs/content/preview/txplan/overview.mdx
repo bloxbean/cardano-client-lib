@@ -131,7 +131,9 @@ Each entry in the `transaction` list contains a `tx` block with:
 
 - an unknown or misspelled intent field, e.g. `donation_amout` or `to:` instead of `address:`
 - one property given twice under different names, e.g. both `utxo_refs` and `refs`
-- a fractional number for an integer field, e.g. `quantity: 2.5`
+- a fractional number for an integer field, e.g. `quantity: 2.5` (a whole number written as `2000000.0` is fine)
+- an intent written as a list (`[payment, {...}]`) instead of a mapping with `type`
+- a second YAML document after `---` (an empty one at the end is fine)
 - a number for an enum (`role: 0` instead of `role: spend`), or for a boolean
 - an empty string for a number, boolean or enum
 - an explicit `null` or an empty value (`address:` with nothing after it), or a `null` element in a list
@@ -144,7 +146,7 @@ These rules apply to the whole document, including extension intents (which keep
 
 To read an older document leniently, build the codec with `TxPlanCodec.builder().strictIntentFields(false)`. It reads the way `TxPlanCodec` did before strict reading, which differs slightly from the old `TxPlan.from`: it resolves `${var}` structurally and rejects a placeholder that has no variable. TxFlow binds embedded transactions with the same strict mapping rules; the two YAML-text checks (aliases and number forms) apply to TxPlan files, not yet to TxFlow YAML.
 
-Write booleans as `true`/`false`: YAML 1.1 readers such as this library also accept `yes`/`no`, but YAML 1.2 tools read those as strings.
+Write booleans as `true`/`false`: YAML 1.1 readers such as this library also accept `yes`/`no`, but YAML 1.2 tools read those as strings. For the same reason, quote a text value that is one of these words: an unquoted `yes` in a text field is read as `"true"`.
 
 ### Validating Your YAML
 

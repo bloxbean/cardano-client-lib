@@ -13,24 +13,30 @@ import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.cfg.CoercionAction;
 import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
 import com.fasterxml.jackson.databind.cfg.MapperConfig;
 import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler;
+import com.fasterxml.jackson.databind.deser.std.NumberDeserializers;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.introspect.Annotated;
 import com.fasterxml.jackson.databind.introspect.AnnotatedClass;
 import com.fasterxml.jackson.databind.introspect.AnnotationIntrospectorPair;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector;
 import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.type.LogicalType;
+import com.fasterxml.jackson.databind.util.AccessPattern;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -38,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * Strict reading of core TxPlan intents, shared by {@link TxPlan#from(String)} and {@link TxPlanCodec}.
@@ -47,7 +54,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *     <li>unknown intent fields: core intents carry {@code @JsonIgnoreProperties(ignoreUnknown = true)}, which is
  *     ignored here, so {@code donation_amout: 5} fails instead of becoming {@code donation_amount = null}</li>
  *     <li>names of {@code @JsonIgnore} Java-only fields</li>
- *     <li>fractional numbers for integer fields ({@code quantity: 2.5} is not {@code 2})</li>
+ *     <li>fractional numbers for integer fields ({@code quantity: 2.5} is not {@code 2}). A whole number written as a
+ *     float ({@code 2000000.0}, as JSON tools often write it) still reads as that integer.</li>
  *     <li>numeric enum indexes ({@code role: 0} is not {@code spend})</li>
  *     <li>an empty string for a non-text value ({@code update: ""} is not {@code false}), and a number for a boolean
  *     ({@code is_update: 1}). The strings {@code "true"} and {@code "false"} still read as booleans, because
@@ -62,8 +70,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *     <li>a declared variable whose value is itself a {@code ${...}} template (see {@link #checkVariables(JsonNode)})</li>
  *     <li>YAML aliases ({@code *name}), which the YAML reader would otherwise read as the string {@code "name"}, and
  *     unquoted numbers not written in plain decimal form: {@code 010} (octal 8), {@code 0x10}, {@code 1_000},
- *     {@code 0102} (read as 66 even for a hex string field), {@code +5}, {@code 1.50}, {@code 1e3}
+ *     {@code 0102} (read as 66 even for a hex string field), {@code +5}, {@code .5}, {@code 1e3}
  *     (see {@link #checkYamlText(String)})</li>
+ *     <li>a second YAML document with content after {@code ---}</li>
+ *     <li>an intent written as a list ({@code [payment, {...}]}) instead of a mapping with {@code type}</li>
  * </ul>
  * These rules apply to the whole document. Extension intent classes keep their own {@code ignoreUnknown} setting, but
  * the scalar, null and YAML rules apply to their fields too.
@@ -81,6 +91,12 @@ public final class StrictReading {
     private static final YAMLFactory YAML = new YAMLFactory();
     private static final Map<String, Class<?>> CORE_INTENTS = coreIntents();
     private static final Map<Class<?>, List<Set<String>>> ALIAS_GROUPS = new ConcurrentHashMap<>();
+    private static final SimpleModule WHOLE_NUMBERS = new SimpleModule("TxPlanWholeNumbers")
+            .addDeserializer(BigInteger.class, new WholeNumber<>(BigInteger.class, Function.identity()))
+            .addDeserializer(Long.class, new WholeNumber<>(Long.class, BigInteger::longValueExact))
+            .addDeserializer(long.class, new WholeNumber<>(long.class, BigInteger::longValueExact))
+            .addDeserializer(Integer.class, new WholeNumber<>(Integer.class, BigInteger::intValueExact))
+            .addDeserializer(int.class, new WholeNumber<>(int.class, BigInteger::intValueExact));
 
     private StrictReading() {
     }
@@ -97,6 +113,7 @@ public final class StrictReading {
         // Also the signal UtxoRefDeserializer uses to check reference shapes strictly.
         mapper.enable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES);
         mapper.disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
+        mapper.registerModule(WHOLE_NUMBERS);
         mapper.enable(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS);
         mapper.coercionConfigDefaults().setCoercion(CoercionInputShape.EmptyString, CoercionAction.Fail);
         for (CoercionInputShape shape : List.of(CoercionInputShape.Integer, CoercionInputShape.Float))
@@ -131,7 +148,9 @@ public final class StrictReading {
             int roots = 0;
             int depth = 0;
             for (JsonToken token = parser.nextToken(); token != null; token = parser.nextToken()) {
-                if (depth == 0 && (token.isStructStart() || token.isScalarValue()) && ++roots > 1)
+                // An empty document (a trailing ---) reads as a null root; only a document with content counts.
+                if (depth == 0 && (token.isStructStart() || token.isScalarValue()) && token != JsonToken.VALUE_NULL
+                        && ++roots > 1)
                     throw new IllegalArgumentException("A TxPlan file holds one YAML document; found another after ---");
                 if (token.isStructStart()) depth++;
                 else if (token.isStructEnd()) depth--;
@@ -153,8 +172,11 @@ public final class StrictReading {
                     String written = parser.getText();
                     String canonical;
                     try {
-                        canonical = parser.getNumberValue().toString();
-                    } catch (IOException notANumber) { // .inf, .nan
+                        // Floats are read as BigDecimal, so compare with that text: 20000000.0 is plain, 1e3 is not.
+                        canonical = token == JsonToken.VALUE_NUMBER_FLOAT
+                                ? parser.getDecimalValue().toString()
+                                : parser.getNumberValue().toString();
+                    } catch (IOException | NumberFormatException notANumber) { // .inf, .nan
                         throw new IllegalArgumentException("Number " + written + " at " + parser.getParsingContext().pathAsPointer()
                                 + " has no decimal value; quote it to keep the text");
                     }
@@ -191,6 +213,10 @@ public final class StrictReading {
             JsonNode tx = entry.path("tx");
             for (String array : List.of("inputs", "intents", "scripts")) {
                 for (JsonNode intent : tx.path(array)) {
+                    // Jackson also binds the list form [type, {...}], which would skip the checks below.
+                    if (intent.isArray())
+                        throw new IllegalArgumentException("An entry in tx." + array + " is a list; write each intent as a"
+                                + " mapping with a type field");
                     Class<?> type = CORE_INTENTS.get(intent.path("type").asText(""));
                     if (type == null || !intent.isObject()) continue;
                     checkPoolUpdateFlag(intent);
@@ -318,6 +344,58 @@ public final class StrictReading {
                 return null;
             JsonIgnoreProperties.Value value = annotations.findPropertyIgnoralByName(config, annotated);
             return (value == null ? JsonIgnoreProperties.Value.empty() : value.withoutIgnoreUnknown()).withoutMerge();
+        }
+    }
+
+    /**
+     * Reads an integer field written as a float. A whole number ({@code 2000000.0}) becomes that integer; a fractional
+     * one ({@code 2.5}) is rejected rather than truncated. Every other input goes to Jackson's standard deserializer.
+     */
+    private static final class WholeNumber<T> extends StdDeserializer<T> {
+        private final JsonDeserializer<?> standard;
+        private final Function<BigInteger, T> convert;
+
+        WholeNumber(Class<T> type, Function<BigInteger, T> convert) {
+            super(type);
+            this.standard = type == BigInteger.class
+                    ? NumberDeserializers.BigIntegerDeserializer.instance
+                    : NumberDeserializers.find(type, type.getName());
+            this.convert = convert;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public T deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+            if (!parser.hasToken(JsonToken.VALUE_NUMBER_FLOAT)) return (T) standard.deserialize(parser, context);
+            BigDecimal value = parser.getDecimalValue();
+            BigInteger whole;
+            try {
+                whole = value.toBigIntegerExact();
+            } catch (ArithmeticException fractional) {
+                return (T) context.handleWeirdNumberValue(handledType(), value,
+                        "has a fractional part; an integer field takes a whole number");
+            }
+            try {
+                return convert.apply(whole);
+            } catch (ArithmeticException outOfRange) {
+                return (T) context.handleWeirdNumberValue(handledType(), value, "is out of range");
+            }
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public T getNullValue(DeserializationContext context) throws JsonMappingException {
+            return (T) standard.getNullValue(context);
+        }
+
+        @Override
+        public AccessPattern getNullAccessPattern() {
+            return standard.getNullAccessPattern();
+        }
+
+        @Override
+        public LogicalType logicalType() {
+            return LogicalType.Integer;
         }
     }
 

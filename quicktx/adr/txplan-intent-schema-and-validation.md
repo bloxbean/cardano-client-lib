@@ -48,6 +48,12 @@
   - D2: slot integers remain unbounded below, matching the current reader and §13; reference text fields also accept numbers.
   - D8 and I12: clarify the full strictness opt-out and the codec's `readLiteral` snapshot round trip.
   - Module scope, D1 and OQ3 aligned with the revised TxFlow work, polymorphic schema and milestone order.
+- **r9** (2026-10-27; reviewer1 review of `cb10d41b`, after #725 and #726 were merged into this PR): strict reading stays the default; the false positives and the one bypass are fixed.
+  - D8: an intent written as a list (`[pool_update, {...}]`) is rejected; Jackson bound it and the alias and pool-flag checks skipped it.
+  - D8: a whole number written as a float (`20000000.0`) reads as that integer; only a fractional part is rejected. The number-form check compares a float with its `BigDecimal` text, so `20000000.0` is plain.
+  - D8: an empty trailing YAML document is allowed. The extra rules the code already enforced are listed, and unquoted YAML 1.1 booleans are recorded as a limitation.
+  - D8 and §7: TxFlow copies in-memory plans with `TxPlan.fromSnapshot`, which reads the library's own output as before; legacy TxFlow documents are re-written with the canonical writer.
+  - I9: the shared mapper's `BigDecimal` reading is a stated exception. §13: legacy TxFlow and list-form relays added; the `.inf` writer item marked fixed.
 
 ## 1. Context
 
@@ -229,7 +235,7 @@ The accepted documents were not produced by the generator, so they are independe
 
 ### D8. Standalone TxPlan rejects unknown intent fields
 
-By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read core intents with `ignoreUnknown` disabled, as TxFlow's strict mapper does, so `donation_amout` fails and names the field (OQ1, resolved). The `@JsonIgnoreProperties(ignoreUnknown = true)` annotations stay in place for other mappers; the readers override them, so nothing else changes. Extension intents keep their codec's own rules.
+By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read core intents with `ignoreUnknown` disabled, as TxFlow's strict mapper does, so `donation_amout` fails and names the field (OQ1, resolved). The `@JsonIgnoreProperties(ignoreUnknown = true)` annotations stay in place for other mappers; the readers override them, so nothing else changes. Extension intents keep their own `ignoreUnknown` setting (see below).
 
 **Opt-out.** `TxPlanCodec.builder().strictIntentFields(false)` restores today's behaviour: unknown intent fields are ignored. The default is `true`.
 - The switch exists only on `TxPlanCodec`. `TxPlan.from(yaml)` is the convenience reader and is always strict; a caller who needs lenient reading uses the codec.
@@ -238,7 +244,7 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
 
 **What "strict" covers (r3).** The I10 tests showed that rejecting unknown names alone still lets the runtime accept documents no schema should describe. So the strict readers also refuse silent scalar and reference coercions:
 - **Unknown and ignored names:** `FAIL_ON_UNKNOWN_PROPERTIES` and `FAIL_ON_IGNORED_PROPERTIES` with `ignoreUnknown` stripped, exactly as TxFlow's strict mapper does. Names of `@JsonIgnore` Java-only fields are rejected rather than skipped.
-- **No fractional truncation:** `ACCEPT_FLOAT_AS_INT` is disabled. Today `quantity: 2.5` silently becomes `2`, the same bug class as PR #723's F2.
+- **No fractional truncation:** `ACCEPT_FLOAT_AS_INT` is disabled. Today `quantity: 2.5` silently becomes `2`, the same bug class as PR #723's F2. (r9) A whole number written as a float (`quantity: 20000000.0`, as JSON tools often write it) still reads as that integer: only a fractional part is rejected, and a value outside the field's range is rejected rather than wrapped.
 - **No numeric enum indexes:** `FAIL_ON_NUMBERS_FOR_ENUMS` is enabled. Today `role: 0` silently becomes `spend`.
 - **Exact UTxO references:** `UtxoRefDeserializer` is hand-written and today ignores every key it does not use. A probe showed it accepts `{flow_output: d}` (a string) and `{tx_hash: …, output_index: 0, index: 1}`, producing an empty or partial reference. In strict mode a reference is exactly `{tx_hash, output_index}` or `{flow_output: {step, output}}`, with no other keys.
 
@@ -250,8 +256,13 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
   - `output_index` beyond `int` range (`4294967296` became 0), negative, or text that is neither digits nor a placeholder
   - YAML aliases (`*r` was read as the string `"r"`), and unquoted numbers not in plain decimal form (`010` → 8, `0x10`, `1_000`, `1e3`; an unquoted `datum_hex: 0102` became `"66"` in the codec). The check reads the raw scalar text. (r7) It covers `variables` too, since a variable value is substituted as it was read; there a decimal only has to be decimal text, so `1.50` keeps its scale.
   - (r7) in `TxPlan.from`, a placeholder used as a mapping key (`'${field}': 5`). Its textual substitution renamed the key; `TxPlanCodec` and the schema substitute values only, and reject the key as unknown.
+  - (r9) an entry of `inputs`, `intents` or `scripts` written as a list (`[pool_update, {is_update: false}]`). Jackson binds this form, and the alias and pool-flag checks above did not see it, so the example became a `pool_registration`.
+  - (r9, already enforced, now listed) a second YAML document with content after `---` (an empty trailing document is allowed); an empty string for any non-text value; a number or numeric text for a boolean.
   - in `TxPlan.from` only, a declared variable whose value is itself a `${...}` template, or whose name contains `$`, braces or a line break (its textual substitution resolved one more level per read, so there was no fixed point). Checked on the `variables` block as written. `TxPlanCodec` keeps its existing contract: a replacement value is literal and never re-read as a template, and snapshots are read with `readLiteral` (r6).
+- **Number form (r9):** the plain-decimal check compares a float with its `BigDecimal` text, which is how the readers bind it: `20000000.0` and `1.50` are plain, `1e3`, `.5` and `0.0000001` (which reads as `1E-7`) are not. The canonical writer quotes a string that either comparison would read back differently.
+- **Limitation (r9):** the readers parse YAML 1.1, so unquoted `yes`, `no`, `on` and `off` are booleans; a text field given `datum_hex: yes` receives `"true"`. Quote such values. A YAML 1.2 tool reading the same file sees a string, so the schema and the runtime can disagree on these words.
 - **TxFlow (r5):** its portable compiler now builds its mapper with the shared `StrictReading.apply`, so a value is no longer coerced (`quantity: 2000000.5` → `2000000`) before the strict check sees it.
+- **TxFlow snapshots (r9):** TxFlow copies an in-memory plan (execution snapshots, compiled steps, stream copies) with `TxPlan.fromSnapshot`, which reads this library's own `toYaml()` output without the strict rules, as `TxPlan.from` did before this ADR. A plan built in Java, for example with `addVariable("b", "${a}")`, therefore runs as before. Legacy TxFlow documents re-write each step with the canonical writer before `TxPlan.from` reads it, so a quoted `"0xabc"` stays a string.
 - **Extension intents (r5, narrowed):** they keep their own `ignoreUnknown`; the scalar, null and YAML rules apply to their fields too.
 
 Fixed in both modes, because they were crashes or silent corruption rather than lenient behaviour worth keeping: malformed structured Plutus data (`fields: 5`, map entries without `k`/`v`, `constructor: abc` became 0); null intents and `scriptTx` entries (now `IllegalArgumentException`); and the canonical writer, which now quotes a string YAML would read back differently (`"0xabc"` was written unquoted and read back as 2748; `".inf"` as a float).
@@ -272,7 +283,7 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 - **I6** (D5): `$defs/transaction` stays referenceable from `txflow-v1alpha1.schema.json`; TxFlow golden hashes and fingerprints are unchanged.
 - **I7** (D8): an unknown field in any core intent fails in `TxPlan.from`, `TxPlanCodec` and TxFlow compilation alike, with the field name in the error.
 - **I8** (D8): `toYaml()` → `from()` round-trips every intent type with strictness on.
-- **I9** (D8): with `strictIntentFields(false)`, `TxPlanCodec` reads every document exactly as it does today (unknown intent fields ignored), and the option never relaxes TxFlow compilation. Stated exceptions (r5): inputs that used to crash or corrupt silently (D8, "fixed in both modes") are rejected or written correctly in both modes. The lenient codec reads like `TxPlanCodec` did; it does not reproduce `TxPlan.from`'s old textual substitution.
+- **I9** (D8): with `strictIntentFields(false)`, `TxPlanCodec` reads every document exactly as it does today (unknown intent fields ignored), and the option never relaxes TxFlow compilation. Stated exceptions (r5): inputs that used to crash or corrupt silently (D8, "fixed in both modes") are rejected or written correctly in both modes. (r9) The shared YAML mapper reads floats as `BigDecimal` in both modes, so a decimal variable keeps its precision and `getVariables()` returns `BigDecimal` where it returned `Double`. The lenient codec reads like `TxPlanCodec` did; it does not reproduce `TxPlan.from`'s old textual substitution.
 - **I10** (D1–D4, r2): **the schema is never stricter than the runtime.** Every document a strict reader accepts validates against the schema. Checked by the D7 corpus and by fuzzing (§9).
 - **I11** (D8, r2; wording r4): **readers are total over untrusted text.** For any input, `TxPlan.from` and `TxPlanCodec.fromYaml` (strict and lenient) either return a plan or reject the input. They never fail with a programming error: no `NullPointerException`, `ClassCastException`, `IndexOutOfBoundsException`, `ArithmeticException`, `UnsupportedOperationException`, `StackOverflowError` or other `Error` anywhere in the cause chain.
 - **I12** (D8, r2; scope r4, clarified r8): **strictly accepted plans have a fixed point.** For any input a strict reader accepts, its serialized snapshot reads back and serializes identically. `TxPlan.from` snapshots are read with `TxPlan.from`; codec snapshots use `codec.readLiteral(codec.toYaml(plan))`, so retained variables and literal `${...}` replacement values are not rebound. The lenient codec keeps today's reading, quirks included (I9), so I12 does not cover it.
@@ -282,7 +293,7 @@ The TxPlan docs gain a "Validating your YAML" section: the schema URL, how to po
 - **Schema:** stays `v1alpha1` with the same `$id`. It becomes stricter: a document with unknown intent fields that passed the loose schema now fails it. Such fields were already ignored at runtime, so they had no effect.
 - **Runtime (D8):** a standalone TxPlan with an unknown or misspelled intent field that parses today will fail. 0.8.0 is pre-release (`0.8.0-pre7-SNAPSHOT`), and TxFlow already behaves this way. The release notes must call it out, together with the `TxPlanCodec.builder().strictIntentFields(false)` opt-out.
 - **Format quirks:** the generated schema publishes current names as-is (§13), so no document changes meaning.
-- **TxFlow (r6):** portable compilation now binds embedded transactions with the shared strict mapper. Templates that compiled before and now fail with `TXFLOW_TRANSACTION_INVALID` include `context.fee_payer: null` (and other explicit nulls), `role: 0`, `quantity: ''`, `quantity: 2000000.5`, and a pool `type` that contradicts its update flag. The YAML-text checks (aliases, number forms) do not yet apply to TxFlow YAML (§13).
+- **TxFlow (r6):** portable compilation now binds embedded transactions with the shared strict mapper. Templates that compiled before and now fail with `TXFLOW_TRANSACTION_INVALID` include `context.fee_payer: null` (and other explicit nulls), `role: 0`, `quantity: ''`, `quantity: 2000000.5`, and a pool `type` that contradicts its update flag. `quantity: 2000000.0` still compiles (r9). The YAML-text checks (aliases, number forms) do not yet apply to TxFlow YAML (§13). Plans built in Java are copied with `TxPlan.fromSnapshot` and are not affected (r9).
 - **Canonical writer (r6):** only strings YAML would read back as a different number are now quoted (`0x1F`, `1_000`, `+5`, `-0`, `.5`, `1e3`, `.inf`, …); a before/after comparison of the writer over a set of tricky strings shows every other value byte-identical. Hashes of `toYaml()` text change only for plans that held such a value, and those plans did not read back correctly before.
 - **Build:** one test-scope dependency (`com.networknt:json-schema-validator` 2.x); published artifacts' dependencies do not change.
 
@@ -362,12 +373,14 @@ All four were answered by the maintainer on 2026-10-25, before review; none rema
   - `pool_registration.pool_registration.type` overwrites the `final` `PoolRegistration.type` field by reflection.
   - Negative `valid_from_slot`/`valid_to_slot` are accepted; the schema mirrors this.
   - TxFlow's own YAML parsing (`TxFlowCodec`) does not apply the YAML alias and number-form checks.
+  - (r9) Legacy (non-portable) TxFlow documents bind steps with `FlowDocument`'s mapper, which keeps `ignoreUnknown`, so a misspelled intent field is still dropped there. I7's "TxFlow compilation" means portable v1alpha1.
+  - (r9) A pool relay written as a list (`[single_host_addr, {...}]`) is bound by the runtime and rejected by the schema. It changes no value, so it is left for a follow-up.
 
 - Two existing tests (`TxPlanRealQuickTxBuilderTest`, `TxPlanQuickTxBuilderIntegrationTest`) give a `payment` intent a `to:` field, which does not exist; the lenient readers drop it silently. M2 corrects them to `address:`. This is the D8 bug class in the repository's own tests.
 - `docs/content/preview/txplan/advanced-usage.mdx` uses `type: script_collect`, which is not a registered type (`script_collect_from` is); M1 corrects it. Another example there carries truncated, illustrative hex.
 - (r4) A `context.signers` entry without `ref` is accepted and then silently skipped by `compose(TxPlan)`. It sits outside intents, so D8 does not cover it; the schema mirrors the runtime. Follow-up: reject it in strict mode.
 - (r4) Found by fuzzing and fixed in M2 because they break I11 or I12 in both modes: `transaction: null`, a null transaction entry and an empty YAML document threw `NullPointerException`; an unresolved `metadata: ${v}` was accepted but could not be written back.
-- The canonical writer emits the string `.inf` unquoted, so it reads back as a float and fails to bind. No Cardano value has this form; I12 fuzzing covers it in M2.
+- The canonical writer emitted the string `.inf` unquoted, so it read back as a float and failed to bind. Fixed in M2 (D8, "fixed in both modes").
 - `pool_registration` accepts the update flag three ways: the `type` discriminator (`pool_registration` / `pool_update`), `is_update`, and a further `update` property that Jackson derives from Lombok accessors.
 - `script_minting` uses camelCase `policyId`; every other field is snake_case.
 - Docs cover 4 of 23 intent types as YAML examples (§1.1). D9 adds validation guidance only; an intent reference page (possibly generated from the same model) is a follow-up.

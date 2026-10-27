@@ -533,6 +533,23 @@ public class TxPlan {
         return from(doc);
     }
 
+    /**
+     * Reads YAML written by {@link #toYaml()} back into an independent copy of a plan.
+     *
+     * <p>Unlike {@link #from(String)}, this does not apply the strict-reading rules. Those rules are for documents
+     * people write; a snapshot of an in-memory plan, for example one built in Java with
+     * {@code addVariable("s", "${other}")}, may hold values they reject. Use it only for this library's own output,
+     * such as TxFlow's execution copies.</p>
+     *
+     * @param yaml YAML produced by {@link #toYaml()}
+     * @return the reconstructed plan
+     */
+    public static TxPlan fromSnapshot(String yaml) {
+        TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
+        if (doc == null) throw new IllegalArgumentException("TxPlan YAML root must be a mapping");
+        return from(doc);
+    }
+
     static TxPlan from(TransactionDocument doc) {
         TxPlan plan = new TxPlan();
 

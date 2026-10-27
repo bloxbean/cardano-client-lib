@@ -91,6 +91,9 @@ class TxPlanStrictReadingTest {
                 Arguments.of("Java-only @JsonIgnore field", tx("intents", "{type: payment, address: " + RECEIVER + ", script: x}"), "script"),
                 Arguments.of("fractional integer", tx("intents", "{type: payment, address: " + RECEIVER
                         + ", amounts: [{unit: lovelace, quantity: 2.5}]}"), "2.5"),
+                Arguments.of("fractional int", tx("intents", "{type: pool_retirement, pool_id: " + IntentSamples.POOL_ID
+                        + ", retirement_epoch: 300.5}"), "300.5"),
+                Arguments.of("intent written as a list", tx("intents", "[pool_update, {is_update: false}]"), "list"),
                 Arguments.of("numeric enum index", tx("scripts", "{type: validator, role: 0, cbor_hex: '49480100002221200101', version: v2}"), "RedeemerTag"),
                 Arguments.of("extra UTxO reference key", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
                         + ", output_index: 0, index: 1}]}"), "index"),
@@ -212,7 +215,7 @@ class TxPlanStrictReadingTest {
 
     @Test
     void stringsThatLookLikeNumbersSurviveTheCanonicalWriter() {
-        for (String value : List.of("0xabc", ".inf", "1_000", "1e3", "+5", "0b101", "010")) {
+        for (String value : List.of("0xabc", ".inf", "1_000", "1e3", "+5", "0b101", "010", "1.0E-5", "2.0E7")) {
             String yaml = TxPlan.from(new Tx().from(SENDER).payToAddress(value, Amount.ada(1))).toYaml();
 
             PaymentIntent payment = (PaymentIntent) TxPlan.from(yaml).getTxs().get(0).getIntentions().get(0);
@@ -339,6 +342,41 @@ class TxPlanStrictReadingTest {
         String two = tx("intents", "{type: payment, address: " + RECEIVER + "}") + "---\n" + tx("intents", "{type: payment, address: " + SENDER + "}");
 
         assertRejected(two, "one YAML document");
+    }
+
+    @Test
+    void anEmptyTrailingDocumentIsAllowed() {
+        String yaml = tx("intents", "{type: payment, address: " + RECEIVER + "}") + "---\n";
+
+        assertThat(TxPlan.from(yaml).getTxs()).hasSize(1);
+        assertThat(STRICT.fromYaml(yaml).getTxs()).hasSize(1);
+    }
+
+    @Test
+    void wholeNumbersWrittenAsFloatsReadAsIntegers() {
+        String yaml = tx("intents", "{type: payment, address: " + RECEIVER + ", amounts: [{unit: lovelace, quantity: 20000000.0}]}")
+                + "        - {type: pool_retirement, pool_id: " + IntentSamples.POOL_ID + ", retirement_epoch: 300.0}\n";
+
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml)) {
+            List<TxIntent> intents = reader.apply(yaml).getTxs().get(0).getIntentions();
+            assertThat(((PaymentIntent) intents.get(0)).getAmounts().get(0).getQuantity()).isEqualTo(BigInteger.valueOf(20_000_000));
+            assertThat(intents.get(1)).extracting("retirementEpoch").isEqualTo(300);
+        }
+        assertRejected(tx("intents", "{type: pool_retirement, pool_id: " + IntentSamples.POOL_ID
+                + ", retirement_epoch: 4294967296.0}"), "out of range");
+    }
+
+    @Test
+    void snapshotsOfJavaBuiltPlansAreReadWithoutTheAuthoringRules() {
+        TxPlan plan = TxPlan.from(new Tx().from(SENDER).payToAddress(RECEIVER, Amount.ada(1)))
+                .addVariable("a", "x")
+                .addVariable("b", "${a}");
+        String snapshot = plan.toYaml();
+
+        // The rule against template-valued variables is for documents people write; a snapshot reads as it did before.
+        assertThatThrownBy(() -> TxPlan.from(snapshot)).hasMessageContaining("literal");
+        assertThat(TxPlan.fromSnapshot(snapshot).getVariables()).containsEntry("b", "x");
+        assertThat(TxPlan.fromSnapshot(snapshot).getTxs()).hasSize(1);
     }
 
     @Test
