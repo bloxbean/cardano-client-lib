@@ -40,7 +40,7 @@ class TxFlowConformanceFixturesTest {
         JsonNode schema = mapper.readTree(resource("/schema/txflow-v1alpha1.schema.json"));
         assertEquals("https://cardano-client.dev/schemas/txflow/v1alpha1",
                 schema.path("$id").asText());
-        assertEquals("https://cardano-client.dev/schemas/quicktx/transaction/v1alpha1#/$defs/transaction",
+        assertEquals("https://cardano-client.dev/schemas/txplan/v1alpha1#/$defs/transaction",
                 schema.at("/$defs/step/properties/transaction/$ref").asText());
         JsonNode catalog = mapper.readTree(resource("/txflow-diagnostic-codes.json"));
         assertTrue(catalog.path("codes").has("TXFLOW_IDEMPOTENCY_CONFLICT"));

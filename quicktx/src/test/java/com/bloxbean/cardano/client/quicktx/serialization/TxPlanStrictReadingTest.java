@@ -27,13 +27,13 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
  * Strict reading of core intents by {@link TxPlan#from(String)} and {@link TxPlanCodec}, and the
- * {@code strictIntentFields(false)} opt-out (ADR D8, I7-I9).
+ * {@code strictReading(false)} opt-out (ADR D8, I7-I9).
  */
 class TxPlanStrictReadingTest {
 
     private static final Map<String, String> SAMPLES = IntentSamples.documents();
     private static final TxPlanCodec STRICT = TxPlanCodec.builder().build();
-    private static final TxPlanCodec LENIENT = TxPlanCodec.builder().strictIntentFields(false).build();
+    private static final TxPlanCodec LENIENT = TxPlanCodec.builder().strictReading(false).build();
 
     @Test
     void samplesCoverEveryRegisteredIntentType() {

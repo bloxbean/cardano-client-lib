@@ -36,12 +36,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class EmbeddedTransactionSchemaTest {
 
-    private static final String QUICKTX_SCHEMA_ID = "https://cardano-client.dev/schemas/quicktx/transaction/v1alpha1";
+    private static final String QUICKTX_SCHEMA_ID = "https://cardano-client.dev/schemas/txplan/v1alpha1";
     private static final Pattern TEXT_BLOCK = Pattern.compile("\"\"\"[ \\t]*\\R(.*?)\"\"\"", Pattern.DOTALL);
 
     @Test
     void embeddedTransactionsOfCompilableFlowsValidate() throws IOException {
-        String quickTxSchema = resource("/schema/quicktx-transaction-v1alpha1.schema.json");
+        String quickTxSchema = resource("/schema/txplan-v1alpha1.schema.json");
         Schema transaction = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12,
                         builder -> builder.schemas(Map.of(QUICKTX_SCHEMA_ID, quickTxSchema)))
                 .getSchema(SchemaLocation.of(QUICKTX_SCHEMA_ID + "#/$defs/transaction"));

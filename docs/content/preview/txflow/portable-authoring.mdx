@@ -210,7 +210,7 @@ of silently losing behavior.
 ### Current JSON Schema boundary
 
 `txflow-v1alpha1.schema.json` references
-`quicktx-transaction-v1alpha1.schema.json#/$defs/transaction`. The QuickTx schema covers the
+`txplan-v1alpha1.schema.json#/$defs/transaction`. The QuickTx schema covers the
 embedded, single-transaction structural projection represented by `TransactionDocument`—the `tx`
 fields and optional transaction `context`.
 
@@ -439,7 +439,7 @@ The schemas are available on the classpath as:
 
 ```text
 /schema/txflow-v1alpha1.schema.json
-/schema/quicktx-transaction-v1alpha1.schema.json
+/schema/txplan-v1alpha1.schema.json
 ```
 
 An external schema validator must resolve the TxFlow schema's QuickTx `$ref` to the second resource.

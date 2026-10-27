@@ -520,7 +520,7 @@ public class TxPlan {
      * <p>The document is read strictly (see {@link StrictReading}): an unknown or misspelled intent field, a fractional
      * number for an integer field, a numeric enum index, an explicit null, a malformed UTxO reference, a YAML alias or
      * a number not written in plain decimal fails instead of being dropped or coerced. Use
-     * {@code TxPlanCodec.builder().strictIntentFields(false)} to read such a document leniently.
+     * {@code TxPlanCodec.builder().strictReading(false)} to read such a document leniently.
      * @param yaml the YAML string
      * @return reconstructed TxPlan with all properties restored
      * @throws IllegalArgumentException if the document declares extensions or uses extension intents;

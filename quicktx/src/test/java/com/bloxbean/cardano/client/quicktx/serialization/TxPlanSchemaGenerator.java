@@ -48,7 +48,7 @@ import java.util.StringJoiner;
 import java.util.TreeMap;
 
 /**
- * Generates the intent part of {@code quicktx-transaction-v1alpha1.schema.json} from the Jackson model the TxPlan
+ * Generates the intent part of {@code txplan-v1alpha1.schema.json} from the Jackson model the TxPlan
  * readers use (ADR "Generated TxPlan Intent Schema and Strict Intent Validation", D1-D4).
  * <p>
  * Every core intent registered in {@code @JsonSubTypes} on {@link TxIntent} becomes {@code $defs/intent.<type>}; nested
@@ -62,7 +62,7 @@ import java.util.TreeMap;
  */
 public final class TxPlanSchemaGenerator {
 
-    static final String SCHEMA_RESOURCE = "/schema/quicktx-transaction-v1alpha1.schema.json";
+    static final String SCHEMA_RESOURCE = "/schema/txplan-v1alpha1.schema.json";
     static final String INTENT_PREFIX = "intent.";
     static final String MODEL_PREFIX = "model.";
     static final String PLACEHOLDER = "placeholder";

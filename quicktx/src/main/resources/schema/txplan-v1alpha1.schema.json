@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cardano-client.dev/schemas/quicktx/transaction/v1alpha1",
-  "title": "QuickTx embedded transaction v1alpha1",
+  "$id": "https://cardano-client.dev/schemas/txplan/v1alpha1",
+  "title": "TxPlan v1alpha1",
   "description": "QuickTx/TxPlan transaction contract. The root describes a standalone TxPlan YAML document; $defs/transaction is the single transaction embedded by a TxFlow step. Intent definitions ($defs/intent.*, $defs/model.*) are generated from the Jackson model by TxPlanSchemaGenerator: run ./gradlew :quicktx:generateTxPlanSchema after changing an intent.",
   "type": "object",
   "additionalProperties": false,

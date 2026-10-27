@@ -38,7 +38,7 @@ class TxPlanReaderFuzzTest {
 
     private static final int MAX_TEXT = 16 * 1024;
     private static final TxPlanCodec STRICT = TxPlanCodec.builder().build();
-    private static final TxPlanCodec LENIENT = TxPlanCodec.builder().strictIntentFields(false).build();
+    private static final TxPlanCodec LENIENT = TxPlanCodec.builder().strictReading(false).build();
     private static final Function<String, TxPlan> PLAIN_READER = TxPlan::from;
     private static final Function<String, TxPlan> STRICT_READER = STRICT::fromYaml;
     private static final Function<String, TxPlan> LENIENT_READER = LENIENT::fromYaml;

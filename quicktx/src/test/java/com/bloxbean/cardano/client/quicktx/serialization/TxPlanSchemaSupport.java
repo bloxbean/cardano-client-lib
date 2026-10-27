@@ -29,7 +29,7 @@ import java.util.stream.Stream;
  */
 final class TxPlanSchemaSupport {
 
-    static final String SCHEMA_ID = "https://cardano-client.dev/schemas/quicktx/transaction/v1alpha1";
+    static final String SCHEMA_ID = "https://cardano-client.dev/schemas/txplan/v1alpha1";
     static final ObjectMapper YAML = YamlSerializer.getYamlMapper();
 
     private static final Schema SCHEMA = loadSchema();
