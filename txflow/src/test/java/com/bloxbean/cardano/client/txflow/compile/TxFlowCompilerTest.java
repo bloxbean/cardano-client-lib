@@ -713,7 +713,9 @@ class TxFlowCompilerTest {
     }
 
     @ParameterizedTest(name = "no coercion before the strict check: {0}")
-    @ValueSource(strings = {"quantity: 2000000.5", "quantity: null", "quantity: ''"})
+    // TxFlow reads floats as double, which may already have lost digits, so it rejects every float for an integer.
+    @ValueSource(strings = {"quantity: 2000000.5", "quantity: null", "quantity: ''", "quantity: 2000000.0",
+            "quantity: 9007199254740993.0", "quantity: 1000000.00000000001"})
     void compilerRejectsCoercedValuesInEmbeddedIntents(String quantity) {
         FlowCompilationResult result = compileTransaction("{\"tx\":{\"intents\":[{\"type\":\"payment\","
                 + "\"address\":\"addr_test1q\",\"amounts\":[{\"unit\":\"lovelace\",\"quantity\":"

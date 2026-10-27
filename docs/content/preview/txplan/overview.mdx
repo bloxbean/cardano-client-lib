@@ -131,7 +131,7 @@ Each entry in the `transaction` list contains a `tx` block with:
 
 - an unknown or misspelled intent field, e.g. `donation_amout` or `to:` instead of `address:`
 - one property given twice under different names, e.g. both `utxo_refs` and `refs`
-- a fractional number for an integer field, e.g. `quantity: 2.5` (a whole number written as `2000000.0` is fine)
+- a fractional number for an integer field, e.g. `quantity: 2.5` (a whole number written as `2000000.0` is fine in a TxPlan file; TxFlow templates take integers only)
 - an intent written as a list (`[payment, {...}]`) instead of a mapping with `type`
 - a second YAML document after `---` (an empty one at the end is fine)
 - a number for an enum (`role: 0` instead of `role: spend`), or for a boolean

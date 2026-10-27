@@ -103,8 +103,9 @@ public class TxPlanStrictReadingIT extends TestDataBaseIT {
 
     @Test
     void numberLikeMetadataTextSurvivesTheCanonicalWriterOnChain() throws Exception {
+        // Not "0x…": the metadata text convention reads a 0x prefix as bytes (a separate, existing behaviour).
         CBORMetadata metadata = new CBORMetadata()
-                .put(BigInteger.valueOf(1001), "0x1F")
+                .put(BigInteger.valueOf(1001), "1_000")
                 .put(BigInteger.valueOf(1002), "20000000.0");
         TxPlan built = TxPlan.from(new Tx()
                 .payToAddress(receiver2, Amount.ada(2))
@@ -119,7 +120,7 @@ public class TxPlanStrictReadingIT extends TestDataBaseIT {
                 .getJSONMetadataByTxnHash(result.getValue()).getValue();
         assertThat(onChain).anySatisfy(entry -> {
             assertThat(entry.getLabel()).isEqualTo("1001");
-            assertThat(entry.getJsonMetadata().asText()).isEqualTo("0x1F");
+            assertThat(entry.getJsonMetadata().asText()).isEqualTo("1_000");
         });
         assertThat(onChain).anySatisfy(entry -> {
             assertThat(entry.getLabel()).isEqualTo("1002");

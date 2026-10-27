@@ -85,7 +85,7 @@ import java.util.function.Function;
 public final class StrictReading {
 
     /** Context attribute set on strict mappers; custom deserializers read it to apply their own strict checks. */
-    public static final String STRICT_ATTRIBUTE = "com.bloxbean.cardano.client.quicktx.strictReading";
+    static final String STRICT_ATTRIBUTE = "com.bloxbean.cardano.client.quicktx.strictReading";
 
     private static final ObjectMapper INTROSPECTION = new ObjectMapper();
     private static final YAMLFactory YAML = new YAMLFactory();
@@ -143,7 +143,7 @@ public final class StrictReading {
      * @throws IllegalArgumentException naming the offending value and its location
      * @throws IOException when the text is not well-formed YAML
      */
-    public static void checkYamlText(String yaml) throws IOException {
+    static void checkYamlText(String yaml) throws IOException {
         try (JsonParser parser = YAML.createParser(yaml)) {
             int roots = 0;
             int depth = 0;
@@ -241,7 +241,7 @@ public final class StrictReading {
      * @param variables the document's {@code variables} section, or null
      * @throws IllegalArgumentException naming the variable
      */
-    public static void checkVariables(JsonNode variables) {
+    static void checkVariables(JsonNode variables) {
         if (variables == null || !variables.isObject()) return;
         variables.fields().forEachRemaining(entry -> {
             // TxPlan.from substitutes ${name} as text, so a name with $, braces or a line break breaks the match.
@@ -349,7 +349,11 @@ public final class StrictReading {
 
     /**
      * Reads an integer field written as a float. A whole number ({@code 2000000.0}) becomes that integer; a fractional
-     * one ({@code 2.5}) is rejected rather than truncated. Every other input goes to Jackson's standard deserializer.
+     * one ({@code 2.5}) is rejected rather than truncated.
+     * <p>
+     * Only an exact decimal is converted. The TxPlan readers read floats as {@code BigDecimal}; a {@code double} (as
+     * TxFlow's parser produces) may already have lost digits ({@code 9007199254740993.0}, {@code 2000000.0000000001}),
+     * so it goes to Jackson's standard deserializer, which rejects it. Every other input goes there too.
      */
     private static final class WholeNumber<T> extends StdDeserializer<T> {
         private final JsonDeserializer<?> standard;
@@ -357,6 +361,7 @@ public final class StrictReading {
 
         WholeNumber(Class<T> type, Function<BigInteger, T> convert) {
             super(type);
+            // Jackson's own deserializer for the type: BigInteger has its own instance; find() covers the others.
             this.standard = type == BigInteger.class
                     ? NumberDeserializers.BigIntegerDeserializer.instance
                     : NumberDeserializers.find(type, type.getName());
@@ -366,8 +371,14 @@ public final class StrictReading {
         @Override
         @SuppressWarnings("unchecked")
         public T deserialize(JsonParser parser, DeserializationContext context) throws IOException {
-            if (!parser.hasToken(JsonToken.VALUE_NUMBER_FLOAT)) return (T) standard.deserialize(parser, context);
+            if (!parser.hasToken(JsonToken.VALUE_NUMBER_FLOAT) || parser.getNumberType() != JsonParser.NumberType.BIG_DECIMAL)
+                return (T) standard.deserialize(parser, context);
             BigDecimal value = parser.getDecimalValue();
+            // Count the integer digits before building the number: 1E+100000000 would take seconds, and a value longer
+            // than Jackson's number limit could not be read back once the writer prints it in full.
+            long digits = (long) value.precision() - value.scale();
+            if (digits > parser.streamReadConstraints().getMaxNumberLength())
+                return (T) context.handleWeirdNumberValue(handledType(), value, "has too many digits");
             BigInteger whole;
             try {
                 whole = value.toBigIntegerExact();
@@ -382,6 +393,7 @@ public final class StrictReading {
             }
         }
 
+        // Null handling stays the standard one, so a primitive keeps failing on null (FAIL_ON_NULL_FOR_PRIMITIVES).
         @Override
         @SuppressWarnings("unchecked")
         public T getNullValue(DeserializationContext context) throws JsonMappingException {

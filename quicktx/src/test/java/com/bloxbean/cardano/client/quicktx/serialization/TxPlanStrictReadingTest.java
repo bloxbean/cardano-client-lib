@@ -12,6 +12,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,7 @@ import static com.bloxbean.cardano.client.quicktx.serialization.IntentSamples.TX
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
  * Strict reading of core intents by {@link TxPlan#from(String)} and {@link TxPlanCodec}, and the
@@ -364,6 +366,17 @@ class TxPlanStrictReadingTest {
         }
         assertRejected(tx("intents", "{type: pool_retirement, pool_id: " + IntentSamples.POOL_ID
                 + ", retirement_epoch: 4294967296.0}"), "out of range");
+        // A whole number longer than Jackson's number limit could not be read back once written in full.
+        assertRejected(tx("intents", "{type: payment, address: " + RECEIVER
+                + ", amounts: [{unit: lovelace, quantity: 1E+1000}]}"), "too many digits");
+    }
+
+    @Test
+    void aHugeExponentIsRejectedWithoutBuildingTheNumber() {
+        String yaml = tx("intents", "{type: pool_retirement, pool_id: " + IntentSamples.POOL_ID
+                + ", retirement_epoch: 1E+100000000}");
+
+        assertTimeoutPreemptively(Duration.ofSeconds(5), () -> assertRejected(yaml, "too many digits"));
     }
 
     @Test
