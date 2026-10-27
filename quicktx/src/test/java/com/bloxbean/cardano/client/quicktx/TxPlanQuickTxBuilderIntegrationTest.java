@@ -71,10 +71,10 @@ class TxPlanQuickTxBuilderIntegrationTest {
                       from: ${sender}
                       intents:
                         - type: payment
-                          to: ${receiver}
-                          amount:
-                            unit: lovelace
-                            quantity: 5000000
+                          address: ${receiver}
+                          amounts:
+                            - unit: lovelace
+                              quantity: 5000000
                 """;
 
         MockQuickTxBuilder builder = new MockQuickTxBuilder();

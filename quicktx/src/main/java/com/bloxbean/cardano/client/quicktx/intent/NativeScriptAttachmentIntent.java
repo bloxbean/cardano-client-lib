@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.quicktx.intent;
 
 import co.nstant.in.cbor.model.Array;
-import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -121,7 +120,7 @@ public class NativeScriptAttachmentIntent implements TxScriptAttachmentIntent {
 
                 // Decode hex to bytes of native script body and deserialize to NativeScript
                 byte[] scriptBytes = HexUtil.decodeHexString(resolvedScriptHex);
-                Array cborArray = (Array) CborSerializationUtil.deserialize(scriptBytes);
+                Array cborArray = CborItems.decode(scriptBytes, Array.class, "script_hex");
                 NativeScript deserializedScript = NativeScript.deserialize(cborArray);
 
                 // Return new instance with script object set and scriptHex cleared

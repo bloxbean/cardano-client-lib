@@ -21,6 +21,18 @@ dependencies {
     testImplementation(project(':test-support')) {
         exclude group: 'net.jqwik'
     }
+    testImplementation(libs.networknt.json.schema.validator)
+    testImplementation(libs.jazzer.junit)
+}
+
+// Regenerates the intent part of the QuickTx transaction schema from the Jackson model.
+// TxPlanSchemaTest fails until this is run after an intent is added or changed.
+tasks.register('generateTxPlanSchema', JavaExec) {
+    group = 'build'
+    description = 'Regenerates the generated intent definitions in quicktx-transaction-v1alpha1.schema.json'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.bloxbean.cardano.client.quicktx.serialization.TxPlanSchemaGenerator'
+    args = [file('src/main/resources/schema/quicktx-transaction-v1alpha1.schema.json').absolutePath]
 }
 
 publishing {
