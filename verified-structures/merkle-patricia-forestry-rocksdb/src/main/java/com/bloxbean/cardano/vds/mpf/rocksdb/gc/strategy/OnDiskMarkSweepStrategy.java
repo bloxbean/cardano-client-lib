@@ -42,7 +42,8 @@ import java.util.*;
  * <p>The roots index may be {@code null} for a caller that records its roots elsewhere: the policy's roots, which
  * must then include the current root, are the only roots kept. Before anything is marked or deleted, the run is
  * rejected if the policy returns no root, or a root other than the all-zero empty root
- * ({@code MpfTrie.getRootHashOrEmpty()}) that has no node in this namespace.</p>
+ * ({@code MpfTrie.getRootHashOrEmpty()}) that has no committed node in this namespace. Commit the retained tries
+ * before running GC: roots visible only in an open write batch cannot be traversed by the marking step.</p>
  *
  * <p>With a roots index and no retained root (for example a namespace whose roots were never recorded in the roots
  * index), every node of the namespace is deleted; a warning is logged.</p>
@@ -69,9 +70,11 @@ public class OnDiskMarkSweepStrategy implements GcStrategy {
                 // Without an index nothing else protects the current trie: a root with no node would mark nothing,
                 // and the sweep would delete the whole namespace.
                 for (byte[] root : roots) {
-                    if (!GcRoots.isZeroRoot(root) && store.get(root) == null) {
+                    // Match DiskMarkSet's committed reads; store.get can also see nodes staged in an open batch.
+                    if (!GcRoots.isZeroRoot(root)
+                            && db.get(store.nodesHandle(), store.keyPrefixer().prefix(root)) == null) {
                         throw new IllegalArgumentException("Retained root " + HexUtil.encodeHexString(root)
-                                + " has no node in this namespace");
+                                + " has no committed node in this namespace");
                     }
                 }
             }

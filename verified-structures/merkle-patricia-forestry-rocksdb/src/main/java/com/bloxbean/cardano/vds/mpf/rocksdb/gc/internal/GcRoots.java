@@ -11,9 +11,9 @@ import java.util.List;
 /**
  * Resolves the roots a GC run must keep.
  *
- * <p>Every strategy keeps the roots chosen by the {@link RetentionPolicy} plus, unconditionally, the root under
- * the {@code LATEST} key and the root recorded at {@link RocksDbRootsIndex#lastVersion()}. A policy can therefore
- * never make the current trie unreadable, even when it is used directly through
+ * <p>When a roots index is given, every strategy keeps the roots chosen by the {@link RetentionPolicy} plus the
+ * root under the {@code LATEST} key and the root recorded at {@link RocksDbRootsIndex#lastVersion()}. With that
+ * index, a policy can therefore never make the current trie unreadable, even when it is used directly through
  * {@code GcStrategy.run(...)}.</p>
  *
  * <p>Without a roots index (a caller that records its roots elsewhere), the policy's roots are the only roots kept,

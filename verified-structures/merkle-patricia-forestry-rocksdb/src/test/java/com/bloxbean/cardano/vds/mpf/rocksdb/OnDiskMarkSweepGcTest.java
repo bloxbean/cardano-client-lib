@@ -5,14 +5,25 @@ import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.*;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.*;
+import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
+import static com.bloxbean.cardano.vds.mpf.rocksdb.GcTestSupport.assertIntact;
+import static com.bloxbean.cardano.vds.mpf.rocksdb.GcTestSupport.b;
+import static com.bloxbean.cardano.vds.mpf.rocksdb.GcTestSupport.countNodeKeys;
+import static com.bloxbean.cardano.vds.mpf.rocksdb.GcTestSupport.hex;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -356,6 +367,95 @@ public class OnDiskMarkSweepGcTest {
 
         assertEquals(nodesBefore, countNodes(), "A rejected run must not delete anything");
         assertEquals(0, GcTestSupport.reach(stateTrees.nodeStore(), root)[1]);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, 0", "false, 0", "true, 7", "false, 7"})
+    void withoutRootsIndexRejectsStagedForkBeforeDeletingAnything(boolean useSnapshot, int namespace) throws Exception {
+        RocksDbNodeStore store = new RocksDbNodeStore(stateTrees.db(), stateTrees.nodeStore().nodesHandle(),
+                new KeyPrefixer((byte) namespace));
+        MpfTrie history = new MpfTrie(store);
+        Map<String, byte[]> historicalModel = new LinkedHashMap<>();
+        Map<String, byte[]> currentModel = new LinkedHashMap<>();
+        for (int i = 0; i < 64; i++) {
+            history.put(b("k" + i), b("old" + i));
+            historicalModel.put(hex("k" + i), b("old" + i));
+        }
+        byte[] historicalRoot = history.getRootHash();
+        for (int i = 0; i < 64; i++) {
+            history.put(b("k" + i), b("current" + i));
+            currentModel.put(hex("k" + i), b("current" + i));
+        }
+        byte[] currentRoot = history.getRootHash();
+        MpfTrie fork = new MpfTrie(store, historicalRoot);
+        Map<String, byte[]> forkModel = new LinkedHashMap<>(historicalModel);
+        forkModel.put(hex("k0"), b("fork-value"));
+        long nodesBefore = countNodeKeys(store);
+        GcOptions options = new GcOptions();
+        options.useSnapshot = useSnapshot;
+
+        byte[] forkRoot = RocksDbMptSession.of(store).write(() -> {
+            fork.put(b("k0"), b("fork-value"));
+            byte[] stagedRoot = fork.getRootHash();
+            assertNotNull(store.get(stagedRoot), "The session exposes the staged root");
+            assertNull(store.db().get(store.nodesHandle(), store.keyPrefixer().prefix(stagedRoot)),
+                    "The root must not yet be visible to GC's committed-data traversal");
+
+            // Even retaining the current committed root cannot protect the historical nodes reused by this fork.
+            assertThrows(IllegalArgumentException.class, () -> new OnDiskMarkSweepStrategy().run(
+                    store, null, ignored -> List.of(currentRoot, stagedRoot), options));
+            assertEquals(nodesBefore, countNodeKeys(store), "A rejected run must not delete anything");
+            return stagedRoot;
+        });
+
+        assertIntact(store, historicalRoot, historicalModel, "historical trie after rejected GC");
+        assertIntact(store, currentRoot, currentModel, "current trie after rejected GC");
+        assertIntact(store, forkRoot, forkModel, "fork after its batch commits");
+
+        // Once the fork is committed, the same policy must collect garbage and preserve both retained tries.
+        GcReport report = new OnDiskMarkSweepStrategy().run(
+                store, null, ignored -> List.of(currentRoot, forkRoot), options);
+        assertTrue(report.deleted > 0);
+        assertNull(store.get(historicalRoot), "The unretained historical root should be collected");
+        assertIntact(store, currentRoot, currentModel, "current trie after GC");
+        assertIntact(store, forkRoot, forkModel, "committed fork after GC");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void withoutRootsIndexEmptyRootCollectsOnlyItsNamespace(boolean useSnapshot) throws Exception {
+        trie.put(b("key"), b("value"));
+        byte[] oldRoot = trie.getRootHash();
+        trie.delete(b("key"));
+        byte[] emptyRoot = trie.getRootHashOrEmpty();
+        assertArrayEquals(new byte[32], emptyRoot);
+        long nodesBefore = countNodeKeys(stateTrees.nodeStore());
+        assertTrue(nodesBefore > 0, "The empty trie must have historical nodes to collect");
+
+        RocksDbNodeStore otherStore = new RocksDbNodeStore(stateTrees.db(), stateTrees.nodeStore().nodesHandle(),
+                new KeyPrefixer((byte) 7));
+        MpfTrie otherTrie = new MpfTrie(otherStore);
+        otherTrie.put(b("other-key"), b("other-value"));
+        byte[] otherRoot = otherTrie.getRootHash();
+        Map<String, byte[]> otherModel = Map.of(hex("other-key"), b("other-value"));
+        GcOptions options = new GcOptions();
+        options.useSnapshot = useSnapshot;
+        options.dryRun = true;
+
+        GcReport dryRun = new OnDiskMarkSweepStrategy().run(
+                stateTrees.nodeStore(), null, ignored -> List.of(emptyRoot), options);
+        assertEquals(nodesBefore, dryRun.deleted);
+        assertEquals(nodesBefore, countNodeKeys(stateTrees.nodeStore()), "Dry-run must keep all historical nodes");
+        assertIntact(stateTrees.nodeStore(), oldRoot, Map.of(hex("key"), b("value")), "historical trie after dry-run");
+        assertIntact(otherStore, otherRoot, otherModel, "other namespace after dry-run");
+
+        options.dryRun = false;
+        GcReport report = new OnDiskMarkSweepStrategy().run(
+                stateTrees.nodeStore(), null, ignored -> List.of(emptyRoot), options);
+        assertEquals(nodesBefore, report.deleted);
+        assertEquals(0, countNodeKeys(stateTrees.nodeStore()));
+        assertNull(stateTrees.nodeStore().get(oldRoot));
+        assertIntact(otherStore, otherRoot, otherModel, "other namespace after GC");
     }
 
     // Helper methods
