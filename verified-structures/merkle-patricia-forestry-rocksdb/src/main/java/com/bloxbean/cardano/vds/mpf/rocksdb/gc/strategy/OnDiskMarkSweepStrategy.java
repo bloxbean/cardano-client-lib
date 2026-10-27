@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy;
 
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbRootsIndex;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions;
@@ -22,8 +23,8 @@ import java.util.*;
  *
  * <ol>
  *   <li>With {@link GcOptions#useSnapshot} (the default) a snapshot is taken first.</li>
- *   <li>The retained roots are resolved: the policy's roots plus the LATEST root and the root at the last
- *       version (see {@link GcRoots}).</li>
+ *   <li>The retained roots are resolved: the policy's roots plus, when a roots index is given, the LATEST root and
+ *       the root at the last version (see {@link GcRoots}).</li>
  *   <li>Mark: every node reachable from a retained root is recorded in the marks column family.</li>
  *   <li>Sweep: the node keys of <em>this namespace only</em> are scanned (through the snapshot when there is
  *       one), and every unmarked node is deleted together with its refcount entry, if any. Refcount entries of
@@ -38,8 +39,14 @@ import java.util.*;
  * that node. <b>Pause every writer of the namespace while GC runs.</b> The roots index is not modified: entries of
  * versions that are not retained stay listed, but their tries may no longer be readable.</p>
  *
- * <p>With no retained root (for example a namespace whose roots were never recorded in the roots index), every node
- * of the namespace is deleted; a warning is logged.</p>
+ * <p>The roots index may be {@code null} for a caller that records its roots elsewhere: the policy's roots, which
+ * must then include the current root, are the only roots kept. Before anything is marked or deleted, the run is
+ * rejected if the policy returns no root, or a root other than the all-zero empty root
+ * ({@code MpfTrie.getRootHashOrEmpty()}) that has no committed node in this namespace. Commit the retained tries
+ * before running GC: roots visible only in an open write batch cannot be traversed by the marking step.</p>
+ *
+ * <p>With a roots index and no retained root (for example a namespace whose roots were never recorded in the roots
+ * index), every node of the namespace is deleted; a warning is logged.</p>
  */
 public class OnDiskMarkSweepStrategy implements GcStrategy {
     private static final Logger log = LoggerFactory.getLogger(OnDiskMarkSweepStrategy.class);
@@ -59,6 +66,18 @@ public class OnDiskMarkSweepStrategy implements GcStrategy {
         try {
             // (2) Roots to keep, and the digest length of this namespace's node keys
             List<byte[]> roots = GcRoots.retainedRoots(index, policy);
+            if (index == null) {
+                // Without an index nothing else protects the current trie: a root with no node would mark nothing,
+                // and the sweep would delete the whole namespace.
+                for (byte[] root : roots) {
+                    // Match DiskMarkSet's committed reads; store.get can also see nodes staged in an open batch.
+                    if (!GcRoots.isZeroRoot(root)
+                            && db.get(store.nodesHandle(), store.keyPrefixer().prefix(root)) == null) {
+                        throw new IllegalArgumentException("Retained root " + HexUtil.encodeHexString(root)
+                                + " has no committed node in this namespace");
+                    }
+                }
+            }
             int digestLength = GcRoots.digestLength(roots, DEFAULT_DIGEST_LENGTH);
             if (roots.isEmpty()) {
                 log.warn("Mark-sweep GC found no retained root: every node of this namespace will be deleted");

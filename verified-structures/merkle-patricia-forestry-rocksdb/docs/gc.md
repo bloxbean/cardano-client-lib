@@ -37,9 +37,20 @@ namespaces in a shared column family are never read or modified.
 - `keepRange(from, to)` — roots of versions in `[from, to]`;
 - any lambda `index -> Collection<byte[]>`.
 
-On top of the policy, every strategy always keeps the root under `LATEST` and the root at `lastVersion()`
-(`gc.internal.GcRoots`). This also applies when a strategy is called directly through `GcStrategy.run(..)` and to
-`RocksDbStateTrees.cleanupOrphanedNodes(..)`.
+On top of the policy, when a roots index is given, every strategy always keeps the root under `LATEST` and the
+root at `lastVersion()` (`gc.internal.GcRoots`). This also applies when a strategy is called directly through
+`GcStrategy.run(..)` and to `RocksDbStateTrees.cleanupOrphanedNodes(..)`.
+
+A caller that records its roots elsewhere can call `OnDiskMarkSweepStrategy.run(..)` with a `null` roots index. The
+policy's roots are then the only roots kept, so they must include the current root. The run is rejected before
+anything is marked or deleted when the policy returns no root, or a root (other than the all-zero empty root) with no
+committed node in the namespace. Roots visible only in an open `withBatch` / `RocksDbMptSession` are rejected:
+validation and marking both read committed RocksDB data. Commit the retained tries before running GC. The built-in
+`RetentionPolicy` factories and `RefcountGcStrategy` need the roots index; without one, supply a custom policy.
+
+**0.8.x compatibility note:** Calling mark-sweep without a roots index and with an empty policy now throws
+`IllegalArgumentException` instead of deleting the whole namespace. To collect all historical nodes of an empty
+current trie, explicitly retain its all-zero root (`MpfTrie.getRootHashOrEmpty()`).
 
 ## 3. Mark-and-sweep — `strategy.OnDiskMarkSweepStrategy`
 

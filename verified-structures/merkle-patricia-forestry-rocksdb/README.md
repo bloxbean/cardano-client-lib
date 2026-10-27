@@ -121,7 +121,9 @@ System.out.println("deleted " + report.deleted + " of " + report.total + " nodes
 
 Rules:
 
-- The `LATEST` root and the root at the last version are always kept, whatever the policy says.
+- With a roots index, the `LATEST` root and the root at the last version are always kept, whatever the policy says.
+  `OnDiskMarkSweepStrategy` also runs without one (`null`); the policy's roots are then the only roots kept.
+  Commit those tries before running GC; a root visible only in an open write batch is rejected.
 - Do not run GC while another thread or process writes to the same namespace; the snapshot does not protect
   re-puts of existing (content-addressed) node keys.
 - Refcount GC never deletes a node a retained version still reaches, even when counts are wrong (for example counts
