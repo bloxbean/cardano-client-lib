@@ -380,6 +380,46 @@ class TxPlanStrictReadingTest {
     }
 
     @Test
+    void aTinyFractionIsRejectedWithoutExpandingItsScale() {
+        assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+            for (String number : List.of("1E-100000000", "-1E-100000000", "1.20E-100000000")) {
+                assertRejected(tx("intents", "{type: payment, amounts: [{unit: lovelace, quantity: "
+                        + number + "}]}"), "fractional part");
+                assertRejected(tx("intents", "{type: pool_retirement, retirement_epoch: "
+                        + number + "}"), "fractional part");
+                assertRejected("context: {valid_to_slot: " + number + "}\ntransaction: []\n", "fractional part");
+            }
+        });
+    }
+
+    @Test
+    void wholeNumberLengthIncludesTheMinusSign() {
+        for (String number : List.of("1E+999", "-1E+998")) {
+            String yaml = tx("intents", "{type: payment, amounts: [{unit: lovelace, quantity: " + number + "}]}");
+            for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml)) {
+                TxPlan plan = reader.apply(yaml);
+                PaymentIntent payment = (PaymentIntent) plan.getTxs().get(0).getIntentions().get(0);
+                assertThat(payment.getAmounts().get(0).getQuantity()).isEqualTo(new BigDecimal(number).toBigIntegerExact());
+                assertThat(reader.apply(plan.toYaml()).toYaml()).isEqualTo(plan.toYaml());
+            }
+        }
+        assertRejected(tx("intents", "{type: payment, amounts: [{unit: lovelace, quantity: -1E+999}]}"), "too many digits");
+    }
+
+    @Test
+    void scaledZeroKeepsJacksonConversionLimits() {
+        String boundary = tx("intents", "{type: payment, amounts: [{unit: lovelace, quantity: 0E-100000}]}");
+        String excessive = boundary.replace("0E-100000", "0E-100001");
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
+            TxPlan plan = reader.apply(boundary);
+            PaymentIntent payment = (PaymentIntent) plan.getTxs().get(0).getIntentions().get(0);
+            assertThat(payment.getAmounts().get(0).getQuantity()).isEqualTo(BigInteger.ZERO);
+            assertThat(reader.apply(plan.toYaml()).toYaml()).isEqualTo(plan.toYaml());
+            assertThatThrownBy(() -> reader.apply(excessive)).hasMessageContaining("scale");
+        }
+    }
+
+    @Test
     void snapshotsOfJavaBuiltPlansAreReadWithoutTheAuthoringRules() {
         TxPlan plan = TxPlan.from(new Tx().from(SENDER).payToAddress(RECEIVER, Amount.ada(1)))
                 .addVariable("a", "x")

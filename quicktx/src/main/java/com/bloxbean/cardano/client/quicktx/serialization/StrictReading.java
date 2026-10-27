@@ -374,11 +374,18 @@ public final class StrictReading {
             if (!parser.hasToken(JsonToken.VALUE_NUMBER_FLOAT) || parser.getNumberType() != JsonParser.NumberType.BIG_DECIMAL)
                 return (T) standard.deserialize(parser, context);
             BigDecimal value = parser.getDecimalValue();
-            // Count the integer digits before building the number: 1E+100000000 would take seconds, and a value longer
-            // than Jackson's number limit could not be read back once the writer prints it in full.
-            long digits = (long) value.precision() - value.scale();
-            if (digits > parser.streamReadConstraints().getMaxNumberLength())
+            // toBigIntegerExact builds 10^scale before rejecting a fraction. Check first, so a tiny value such as
+            // 1E-100000000 cannot force that expansion. Stripping zeroes also keeps 2000000.0 and scaled zero valid.
+            if (value.scale() > 0 && value.stripTrailingZeros().scale() > 0)
+                return (T) context.handleWeirdNumberValue(handledType(), value,
+                        "has a fractional part; an integer field takes a whole number");
+            // Count the integer text, including its sign, before building it: 1E+100000000 would take seconds, and a
+            // value longer than Jackson's number limit could not be read back once the writer prints it in full.
+            long length = (long) value.precision() - value.scale() + (value.signum() < 0 ? 1 : 0);
+            if (length > parser.streamReadConstraints().getMaxNumberLength())
                 return (T) context.handleWeirdNumberValue(handledType(), value, "has too many digits");
+            // Keep the constraint used by Jackson's standard BigInteger conversion, including for scaled zero.
+            parser.streamReadConstraints().validateBigIntegerScale(value.scale());
             BigInteger whole;
             try {
                 whole = value.toBigIntegerExact();

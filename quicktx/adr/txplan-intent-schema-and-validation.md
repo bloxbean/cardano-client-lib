@@ -63,6 +63,9 @@
   - D8: why TxFlow's snapshot copies use `TxPlan.fromSnapshot` rather than the codec's literal copy. `StrictReading`'s text and variable checks are package-private.
   - D5, §1.4, I7, §7, §9 and OQ1: stale or unscoped statements corrected (TxFlow's `$ref` moved with r10; "TxFlow already rejects" means portable v1alpha1; TxFlow compile tests cover representative types).
   - §13: the open review items, and metadata text starting with `0x`, which the metadata convention reads as bytes.
+- **r12** (2026-10-28; review of `5d76df09`):
+  - D8: reject fractional decimals before converting them to integers. The positive-exponent length guard did not cover `1E-100000000`: Java 17's `toBigIntegerExact` expanded its scale before rejecting it, consuming tens of seconds. Regression tests cover both strict readers and `BigInteger`, `Integer`, and `Long` fields.
+  - D8: count the minus sign in the integer length guard, so an accepted `-1E+999` cannot become an unreadable 1001-character number. Preserve Jackson's decimal-to-integer scale constraint, including for scaled zero.
 
 ## 1. Context
 
@@ -255,6 +258,7 @@ By default, both standalone readers (`TxPlan.from(yaml)` and `TxPlanCodec`) read
 - **Unknown and ignored names:** `FAIL_ON_UNKNOWN_PROPERTIES` and `FAIL_ON_IGNORED_PROPERTIES` with `ignoreUnknown` stripped, exactly as TxFlow's strict mapper does. Names of `@JsonIgnore` Java-only fields are rejected rather than skipped.
 - **No fractional truncation:** `ACCEPT_FLOAT_AS_INT` is disabled. Today `quantity: 2.5` silently becomes `2`, the same bug class as PR #723's F2. (r9) A whole number written as a float (`quantity: 20000000.0`, as JSON tools often write it) still reads as that integer: only a fractional part is rejected, and a value outside the field's range is rejected rather than wrapped. (r11) The conversion uses the exact decimal value, which the TxPlan readers have, and rejects a value longer than Jackson's number limit (1000 digits) before building it. A `double`, which TxFlow's parser produces, may already be rounded, so TxFlow rejects every float for an integer field. Fields with their own deserializer (`additional_signers_count`) take integers only.
 - **No numeric enum indexes:** `FAIL_ON_NUMBERS_FOR_ENUMS` is enabled. Today `role: 0` silently becomes `spend`.
+- **Bounded decimal conversion (r12):** fractional decimals are rejected before integer conversion expands their scale; `1E-100000000` fails immediately. The number length includes a minus sign, and Jackson's decimal-to-integer scale constraint also applies. Whole-number decimals and scaled zero within those limits remain valid.
 - **Exact UTxO references:** `UtxoRefDeserializer` is hand-written and today ignores every key it does not use. A probe showed it accepts `{flow_output: d}` (a string) and `{tx_hash: …, output_index: 0, index: 1}`, producing an empty or partial reference. In strict mode a reference is exactly `{tx_hash, output_index}` or `{flow_output: {step, output}}`, with no other keys.
 
 - **No explicit nulls (r4):** `key: null` and an empty value (`address:` with nothing after it) are rejected, as are `null` list elements (`Nulls.FAIL`). An empty value is usually a forgotten value, and treating it as absent would be another silent drop. The canonical writer never writes `null`. Found by fuzzing: `refs: null` overwrote a field default, so `toYaml()` had no fixed point.
