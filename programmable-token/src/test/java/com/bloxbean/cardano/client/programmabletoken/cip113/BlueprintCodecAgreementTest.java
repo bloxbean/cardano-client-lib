@@ -71,42 +71,71 @@ class BlueprintCodecAgreementTest {
     void registryNodeMatchesTheBlueprint() {
         assertConstructor("registry_node/RegistryNode", 0,
                 "key", "next", "minting_logic_script", "transfer_logic_script",
-                "third_party_transfer_logic_script", "unfracking_logic_script", "global_state_cs");
+                "third_party_logic_script", "unfracking_logic_script", "global_state_cs");
     }
 
     /**
      * The three dispatch arms, in the order {@code Cip113Redeemers} hard-codes them: transfer 0,
-     * third-party 1, unfracking 2. Naming the wrong arm authorises the wrong delegate.
+     * third-party 1, unfracking 2. Naming the wrong arm authorises the wrong delegate. In v0.0.1
+     * the arms are on the dispatcher's redeemer; every base-script input carries one spend shape.
      */
     @Test
     void baseSpendRedeemerArmsMatchTheBlueprint() {
-        Map<Integer, BlueprintSchema> arms = constructors("types/BaseSpendRedeemer");
+        Map<Integer, BlueprintSchema> arms = constructors("types/ProgrammableLogicGlobalRedeemer");
 
-        assertThat(arms.get(0).getTitle()).isEqualTo("SpendViaTransfer");
-        assertThat(arms.get(1).getTitle()).isEqualTo("SpendViaThirdParty");
-        assertThat(arms.get(2).getTitle()).isEqualTo("SpendViaUnfracking");
+        assertThat(arms.get(0).getTitle()).isEqualTo("TransferAct");
+        assertThat(arms.get(1).getTitle()).isEqualTo("ThirdPartyAct");
+        assertThat(arms.get(2).getTitle()).isEqualTo("UnfrackingAct");
 
+        assertConstructor("types/ProgrammableLogicGlobalRedeemer", 0);
+        assertConstructor("types/ProgrammableLogicGlobalRedeemer", 1);
+        assertConstructor("types/ProgrammableLogicGlobalRedeemer", 2);
+
+        assertThat(constructors("types/BaseSpendRedeemer")).hasSize(1);
         assertConstructor("types/BaseSpendRedeemer", 0, "params_idx", "wdrl_idx");
-        assertConstructor("types/BaseSpendRedeemer", 1, "params_idx", "wdrl_idx");
-        assertConstructor("types/BaseSpendRedeemer", 2, "params_idx", "wdrl_idx");
     }
 
     @Test
     void transferRedeemerMatchesTheBlueprint() {
-        assertConstructor("types/TransferRedeemer", 0, "params_idx", "proofs");
+        assertConstructor("types/TransferRedeemer", 0, "proofs");
     }
 
     @Test
     void thirdPartyRedeemerMatchesTheBlueprint() {
         assertConstructor("types/ThirdPartyRedeemer", 0,
-                "params_idx", "registry_node_idx", "outputs_start_idx");
+                "registry_node_idx", "outputs_start_idx");
     }
 
-    /** Same three index hints as the third-party redeemer; {@code Cip113Redeemers.unfracking}. */
+    /** Same two index hints as the third-party redeemer; {@code Cip113Redeemers.unfracking}. */
     @Test
     void unfrackingRedeemerMatchesTheBlueprint() {
         assertConstructor("types/UnfrackingRedeemer", 0,
-                "params_idx", "registry_node_idx", "outputs_start_idx");
+                "registry_node_idx", "outputs_start_idx");
+    }
+
+    /** Every token's permanent issuance policy reads only the params UTxO's position. */
+    @Test
+    void issuanceMintRedeemerMatchesTheBlueprint() {
+        assertConstructor("types/IssuanceMintRedeemer", 0, "params_idx");
+    }
+
+    /**
+     * issuance_logic's redeemer is a map from policy id to registry proof — not a constructor —
+     * which is why {@code Cip113Redeemers.issuanceLogic} builds a {@code MapPlutusData}.
+     */
+    @Test
+    void issuanceLogicRedeemerIsAPolicyToProofMap() {
+        BlueprintSchema schema = blueprint.getDefinitions().get("types/IssuanceLogicRedeemer");
+        assertThat(schema).isNotNull();
+        assertThat(schema.getDataType()).hasToString("map");
+    }
+
+    /** {@code ProgrammableLogicGlobalParams} decodes these six fields positionally. */
+    @Test
+    void protocolParamsDatumMatchesTheBlueprint() {
+        assertConstructor("programmable_logic/params/ProtocolParams", 0,
+                "programmable_logic_global_cred", "issuance_logic_cred", "transfer_cred",
+                "third_party_cred", "upgrade_cred", "pending_upgrade_cred");
     }
 
     /**
@@ -134,8 +163,8 @@ class BlueprintCodecAgreementTest {
     }
 
     /**
-     * There is deliberately no upstream constructor for a node update — {@code registry_spend}
-     * recognises one by the absence of a registry-node mint. If a constructor for it ever appears,
+     * There is deliberately no upstream constructor for a node update — the registry's spend
+     * handler recognises one by the absence of a registry-node mint. If a constructor for it ever appears,
      * {@code updateRegistryNode} should be revisited rather than left on the implicit path.
      */
     @Test
@@ -158,6 +187,6 @@ class BlueprintCodecAgreementTest {
         assertThat(blueprint.getPreamble().getVersion())
                 .as("the codecs, the policy-id derivation and the index discipline were all read"
                         + " off this version; re-vendoring is a review, not a drop-in")
-                .isEqualTo("0.5.0-alpha.2");
+                .isEqualTo("0.0.1");
     }
 }

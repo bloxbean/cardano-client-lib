@@ -17,17 +17,18 @@ import com.bloxbean.cardano.client.backend.model.TxContentOutputAmount;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxoOutputs;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
-import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
-import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployments;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Exception;
+import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTokenService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Protocol;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
-import com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Data;
+import com.bloxbean.cardano.client.programmabletoken.cip113.model.ProgrammableLogicGlobalParams;
 import com.bloxbean.cardano.client.programmabletoken.cip113.model.RegistryNode;
+import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
 import com.bloxbean.cardano.client.quicktx.extension.ExtensionMetadata;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,8 +67,16 @@ class DefaultCip113ProtocolServiceTest {
     private static final String PARAMS_POLICY = "11".repeat(28);
     private static final String REGISTRY_NODE_CS = "22".repeat(28);
     private static final String PLB_HASH = "33".repeat(28);
-    private static final String REGISTRY_SPEND_HASH = "44".repeat(28);
-    private static final String COORDINATION_SPEND_HASH = "55".repeat(28);
+    /** The registry's mint and spend share one script in v0.0.1, so its nodes sit at its policy. */
+    private static final String REGISTRY_SPEND_HASH = REGISTRY_NODE_CS;
+    /** protocol_params' mint and spend share one script: the coordination UTxO sits at its policy. */
+    private static final String COORDINATION_SPEND_HASH = PARAMS_POLICY;
+    private static final String TEMPLATE_POLICY = "44".repeat(28);
+    private static final String PLG_HASH = "55".repeat(28);
+    private static final String ISSUANCE_LOGIC_HASH = "56".repeat(28);
+    private static final String TRANSFER_HASH = "66".repeat(28);
+    private static final String THIRD_PARTY_HASH = "77".repeat(28);
+    private static final String UPGRADE_HASH = "99".repeat(28);
     private static final String PARAMS_UNIT = PARAMS_POLICY + HexUtil.encodeHexString(
             Cip113Deployment.PROTOCOL_PARAMS_ASSET_NAME.getBytes(StandardCharsets.UTF_8));
 
@@ -75,6 +84,30 @@ class DefaultCip113ProtocolServiceTest {
             Credential.fromScript(COORDINATION_SPEND_HASH), Networks.testnet());
     private final Address registryAddress = AddressProvider.getEntAddress(
             Credential.fromScript(REGISTRY_SPEND_HASH), Networks.testnet());
+    private final Address refScriptsAddress = AddressProvider.getEntAddress(
+            Credential.fromKey("bb".repeat(28)), Networks.testnet());
+
+    /**
+     * A complete v0.0.1 description: the chain cannot supply the base script, registry or bounds.
+     * The transfer delegate is published as a reference script by the bootstrap tx, output #2.
+     */
+    private static final Cip113Deployment DEPLOYMENT = Cip113Deployment.builder()
+            .network(Networks.testnet())
+            .bootstrapTxHash(BOOTSTRAP_TX)
+            .paramsPolicy(PARAMS_POLICY)
+            .programmableLogicBaseHash(PLB_HASH)
+            .programmableLogicGlobalHash(PLG_HASH)
+            .issuanceLogicHash(ISSUANCE_LOGIC_HASH)
+            .transferScriptHash(TRANSFER_HASH)
+            .thirdPartyScriptHash(THIRD_PARTY_HASH)
+            .unfrackingScriptHash("88".repeat(28))
+            .upgradeScriptHash(UPGRADE_HASH)
+            .registryNodeCs(REGISTRY_NODE_CS)
+            .issuanceCborHexCs(TEMPLATE_POLICY)
+            .maxInlineDatumBytes(2048)
+            .referenceScript(TRANSFER_HASH,
+                    TransactionInput.builder().transactionId(BOOTSTRAP_TX).index(2).build())
+            .build();
 
     private BackendService backend;
     private TransactionService transactionService;
@@ -97,15 +130,14 @@ class DefaultCip113ProtocolServiceTest {
     }
 
     private DefaultCip113ProtocolService service() {
-        return new DefaultCip113ProtocolService(backend,
-                Cip113Deployments.fromBootstrapTx(BOOTSTRAP_TX, Networks.testnet()));
+        return new DefaultCip113ProtocolService(backend, DEPLOYMENT);
     }
 
     @Test
     void concurrentFirstCallersShareOneResolution() throws Exception {
         bootstrapReads(300L, Result.success("ok").withValue(bootstrap()));
         holderOfParamsNft(coordinationAddress);
-        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, 2048));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
         DefaultCip113ProtocolService service = service();
 
         for (CompletableFuture<Utxo> caller : twoConcurrentCallers(service)) {
@@ -113,7 +145,7 @@ class DefaultCip113ProtocolServiceTest {
         }
         assertThat(bootstrapReads).as("one chain walk for both callers").hasValue(1);
         assertThat(service.deployment().getProgrammableLogicBaseHash()).isEqualTo(PLB_HASH);
-        assertThat(service.deployment().getRegistrySpendScriptHash()).isEqualTo(REGISTRY_SPEND_HASH);
+        assertThat(service.deployment().getRegistryNodeCs()).isEqualTo(REGISTRY_SPEND_HASH);
     }
 
     @Test
@@ -124,7 +156,7 @@ class DefaultCip113ProtocolServiceTest {
             return attempt == 1 ? Result.error("backend down") : Result.success("ok").withValue(bootstrap());
         });
         holderOfParamsNft(coordinationAddress);
-        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, 2048));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
         DefaultCip113ProtocolService service = service();
 
         for (CompletableFuture<Utxo> caller : twoConcurrentCallers(service)) {
@@ -153,15 +185,14 @@ class DefaultCip113ProtocolServiceTest {
         assertThat(result.isSuccessful()).isFalse();
         assertThat(result.getResponse())
                 .contains(PARAMS_UNIT)
-                .contains(BOOTSTRAP_TX + "#0")
-                .contains("spent or no longer carries");
+                .contains(coordinationAddress.toBech32());
     }
 
     @Test
     void theBootstrapOutputIsUsedOnlyAfterPositiveVerification() throws Exception {
         bootstrapReads(0L, Result.success("ok").withValue(bootstrap()));
         when(assetService.getAllAssetAddresses(PARAMS_UNIT)).thenReturn(Result.error("unsupported"));
-        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, 2048));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
 
         DefaultCip113ProtocolService service = service();
 
@@ -175,29 +206,158 @@ class DefaultCip113ProtocolServiceTest {
         String upgradeTx = "cd".repeat(32);
         bootstrapReads(0L, Result.success("ok").withValue(bootstrap()));
         holderOfParamsNft(coordinationAddress);
-        unspentAt(coordinationAddress, coordinationUtxo(upgradeTx, 4096));
+        unspentAt(coordinationAddress, coordinationUtxo(upgradeTx, "ee".repeat(28)));
 
         DefaultCip113ProtocolService service = service();
 
         assertThat(service.coordinationUtxo().getTxHash()).isEqualTo(upgradeTx);
-        assertThat(service.deployment().getMaxInlineDatumBytes()).isEqualTo(4096);
+        assertThat(service.deployment().getTransferScriptHash()).isEqualTo("ee".repeat(28));
     }
 
     @Test
     void anExplicitResolutionRefreshesThePublishedState() throws Exception {
         bootstrapReads(0L, Result.success("ok").withValue(bootstrap()));
         holderOfParamsNft(coordinationAddress);
-        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, 2048));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
         DefaultCip113ProtocolService service = service();
         service.coordinationUtxo();
 
-        unspentAt(coordinationAddress, coordinationUtxo("ef".repeat(32), 1024));
+        unspentAt(coordinationAddress, coordinationUtxo("ef".repeat(32), "ee".repeat(28)));
         Result<Cip113Deployment> refreshed = service.resolveDeployment();
 
         assertThat(refreshed.isSuccessful()).as(refreshed.getResponse()).isTrue();
         assertThat(service.coordinationUtxo().getTxHash()).isEqualTo("ef".repeat(32));
-        assertThat(service.deployment().getMaxInlineDatumBytes()).isEqualTo(1024);
+        assertThat(service.deployment().getTransferScriptHash()).isEqualTo("ee".repeat(28));
         assertThat(bootstrapReads).hasValue(2);
+    }
+
+    /**
+     * The bootstrap's reference-script output, once spent, is never assumed live: resolution
+     * succeeds, but the script is not recorded as published, so a transaction carries it as a
+     * witness instead of referencing a spent output.
+     */
+    @Test
+    void aSpentReferenceScriptOutputIsNeverAssumedLive() throws Exception {
+        bootstrapReads(0L, Result.success("ok").withValue(bootstrap()));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
+
+        DefaultCip113ProtocolService service = service();
+        Result<Cip113Deployment> result = service.resolveDeployment();
+
+        assertThat(result.isSuccessful()).as(result.getResponse()).isTrue();
+        assertThat(service.scripts().publishedAt(TRANSFER_HASH)).isEmpty();
+    }
+
+    @Test
+    void aReferenceScriptIsUsedOnlyAfterPositiveVerification() throws Exception {
+        bootstrapReads(0L, Result.success("ok").withValue(bootstrap()));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
+        unspentAt(refScriptsAddress, publishedTransfer());
+
+        DefaultCip113ProtocolService service = service();
+
+        assertThat(service.coordinationUtxo().getTxHash()).isEqualTo(BOOTSTRAP_TX);
+        assertThat(service.scripts().publishedAt(TRANSFER_HASH)).contains(publishedTransfer());
+    }
+
+    /**
+     * Re-resolving replaces the published set: an outref spent since the last resolution stops
+     * being referenced, and a failed resolution leaves the last good set untouched.
+     */
+    @Test
+    void reResolutionDropsAReferenceScriptSpentSinceAndAFailureLeavesTheLastGoodSet() throws Exception {
+        bootstrapReads(0L, Result.success("ok").withValue(bootstrap()));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
+        unspentAt(refScriptsAddress, publishedTransfer());
+        DefaultCip113ProtocolService service = service();
+        assertThat(service.resolveDeployment().isSuccessful()).isTrue();
+        assertThat(service.scripts().publishedAt(TRANSFER_HASH)).contains(publishedTransfer());
+
+        when(utxoService.getUtxos(eq(coordinationAddress.toBech32()), anyInt(), eq(1), any()))
+                .thenReturn(Result.success("ok").withValue(List.of()));
+        assertThat(service.resolveDeployment().isSuccessful()).isFalse();
+        assertThat(service.scripts().publishedAt(TRANSFER_HASH)).as("last good set kept")
+                .contains(publishedTransfer());
+
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
+        when(utxoService.getUtxos(eq(refScriptsAddress.toBech32()), anyInt(), eq(1), any()))
+                .thenReturn(Result.success("ok").withValue(List.of()));
+        assertThat(service.resolveDeployment().isSuccessful()).isTrue();
+        assertThat(service.scripts().publishedAt(TRANSFER_HASH)).isEmpty();
+    }
+
+    /** A reference-script outref publishing some other script means the description is wrong. */
+    @Test
+    void aReferenceScriptOutrefPublishingAnotherScriptFailsResolution() throws Exception {
+        bootstrapReads(0L, Result.success("ok").withValue(bootstrap("cc".repeat(28))));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
+
+        Result<Cip113Deployment> result = service().resolveDeployment();
+
+        assertThat(result.isSuccessful()).isFalse();
+        assertThat(result.getResponse())
+                .contains(BOOTSTRAP_TX + "#2")
+                .contains("cc".repeat(28))
+                .contains(TRANSFER_HASH);
+    }
+
+    /** A backend that does not report reference-script hashes falls back to witnesses. */
+    @Test
+    void aBackendThatReportsNoReferenceScriptHashFallsBackToWitnesses() throws Exception {
+        bootstrapReads(0L, Result.success("ok").withValue(bootstrap(null)));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
+
+        DefaultCip113ProtocolService service = service();
+        Result<Cip113Deployment> result = service.resolveDeployment();
+
+        assertThat(result.isSuccessful()).as(result.getResponse()).isTrue();
+        assertThat(service.scripts().publishedAt(TRANSFER_HASH)).isEmpty();
+    }
+
+    /** A description missing a compile-time parameter cannot be completed from chain. */
+    @Test
+    void anIncompleteDescriptionIsRefusedBeforeChainAccess() throws Exception {
+        DefaultCip113ProtocolService service = new DefaultCip113ProtocolService(backend,
+                DEPLOYMENT.toBuilder().programmableLogicBaseHash(null).registryNodeCs(null).build());
+
+        Result<Cip113Deployment> result = service.resolveDeployment();
+
+        assertThat(result.isSuccessful()).isFalse();
+        assertThat(result.getResponse())
+                .contains("programmableLogicBaseHash")
+                .contains("registryNodeCs");
+        verify(transactionService, never()).getTransactionUtxos(anyString());
+    }
+
+    /** A described template outref is read directly — no asset-holder index needed. */
+    @Test
+    void aDescribedIssuanceTemplateIsReadFromItsOutref() throws Exception {
+        String genesisTx = "ad".repeat(32);
+        Address alwaysFail = AddressProvider.getEntAddress(Credential.fromScript("ce".repeat(28)), Networks.testnet());
+        String templateUnit = TEMPLATE_POLICY + HexUtil.encodeHexString(
+                Cip113Deployment.ISSUANCE_CBOR_HEX_ASSET_NAME.getBytes(StandardCharsets.UTF_8));
+        bootstrapReads(0L, Result.success("ok").withValue(bootstrap()));
+        when(transactionService.getTransactionUtxos(genesisTx)).thenReturn(Result.success("ok")
+                .withValue(TxContentUtxo.builder().outputs(List.of(TxContentUtxoOutputs.builder()
+                        .address(alwaysFail.toBech32()).outputIndex(2)
+                        .amount(List.of(TxContentOutputAmount.builder().unit(templateUnit).quantity("1").build()))
+                        .build())).build()));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
+        Utxo template = Utxo.builder().txHash(genesisTx).outputIndex(2).address(alwaysFail.toBech32())
+                .amount(List.of(Amount.lovelace(BigInteger.valueOf(10_000_000L)),
+                        Amount.builder().unit(templateUnit).quantity(BigInteger.ONE).build()))
+                .build();
+
+        DefaultCip113ProtocolService described = new DefaultCip113ProtocolService(backend, DEPLOYMENT.toBuilder()
+                .issuanceTemplateRef(TransactionInput.builder().transactionId(genesisTx).index(2).build()).build());
+
+        Result<Cip113Deployment> missing = described.resolveDeployment();
+        assertThat(missing.isSuccessful()).as("an outref that is not an unspent template output").isFalse();
+        assertThat(missing.getResponse()).contains(genesisTx + "#2").contains("is not an unspent");
+
+        unspentAt(alwaysFail, template);
+        assertThat(described.issuanceTemplateUtxo()).isEqualTo(template);
+        verify(assetService, never()).getAllAssetAddresses(templateUnit);
     }
 
     // ------------------------------------------------------ programmable balance
@@ -239,8 +399,7 @@ class DefaultCip113ProtocolServiceTest {
     @Test
     void planMetadataIsValidatedAgainstTheConfiguredDeploymentBeforeChainAccess() {
         Cip113ProtocolService service = mock(Cip113ProtocolService.class);
-        when(service.deployment()).thenReturn(
-                Cip113Deployments.fromBootstrapTx(BOOTSTRAP_TX, Networks.testnet()));
+        when(service.deployment()).thenReturn(DEPLOYMENT);
         Cip113Protocol protocol = new Cip113Protocol(service);
 
         assertThatCode(() -> protocol.validateMetadata(metadata(Map.of(
@@ -268,6 +427,75 @@ class DefaultCip113ProtocolServiceTest {
         verify(service, never()).coordinationUtxo();
     }
 
+    @Test
+    void planMetadataPinsTheParamsPolicyAndContractVersion() {
+        Cip113ProtocolService service = mock(Cip113ProtocolService.class);
+        when(service.deployment()).thenReturn(DEPLOYMENT);
+        Cip113Protocol protocol = new Cip113Protocol(service);
+
+        assertThatCode(() -> protocol.validateMetadata(metadata(Cip113Protocol.CONTRACT_VERSION,
+                Map.of("params_policy", PARAMS_POLICY.toUpperCase()))))
+                .doesNotThrowAnyException();
+        ExtensionMetadata otherPolicy = metadata(null, Map.of("params_policy", "fe".repeat(28)));
+        assertThatThrownBy(() -> protocol.validateMetadata(otherPolicy))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("params_policy");
+        ExtensionMetadata malformedPolicy = metadata(null, Map.of("params_policy", "short"));
+        assertThatThrownBy(() -> protocol.validateMetadata(malformedPolicy))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("28-byte policy id");
+
+        // A plan persisted against the 0.8.0-pre6 adapter: alpha.2 contracts, the old Preview
+        // deployment. It describes transaction shapes v0.0.1 rejects, so it is refused outright.
+        ExtensionMetadata alpha2Plan = metadata("0.5.0-alpha.2", Map.of(
+                "network", 0,
+                "bootstrap_tx", "a432339cbd7318222c8c51ed4fb52ee4c68f676037622aa7361dd45d897324a4"));
+        assertThatThrownBy(() -> protocol.validateMetadata(alpha2Plan))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("0.5.0-alpha.2")
+                .hasMessageContaining(Cip113Protocol.CONTRACT_VERSION);
+
+        verify(service, never()).resolveDeployment();
+        verify(service, never()).coordinationUtxo();
+    }
+
+    /**
+     * A custom deployment need not name a bootstrap transaction, so the network alone cannot tell
+     * two deployments on one network apart. A plan the service wrote for one must be refused by a
+     * service configured for the other, or its register and policy_ref mint would target it.
+     */
+    @Test
+    void aServiceGeneratedPlanIsRefusedByAnotherDeploymentOnTheSameNetwork() {
+        Cip113Deployment first = DEPLOYMENT.toBuilder().bootstrapTxHash(null).build();
+        Cip113Deployment second = first.toBuilder().paramsPolicy("12".repeat(28)).build();
+        Cip113ProgrammableTokenService firstTokens = serviceFor(first);
+        Cip113ProgrammableTokenService secondTokens = serviceFor(second);
+
+        ProgrammableTokenTx tx = new ProgrammableTokenTx().transfer(coordinationAddress.toBech32(),
+                Amount.asset(PLB_HASH + "00", 1), PlutusData.unit());
+        String yaml = firstTokens.txPlanCodec().toYaml(firstTokens.extension().configure(TxPlan.from(tx)));
+        ExtensionMetadata replayed = firstTokens.txPlanCodec().fromYaml(yaml).getExtensions().get("pt");
+
+        assertThat(replayed.getDeployment()).containsEntry("params_policy", PARAMS_POLICY);
+        assertThatThrownBy(() -> secondTokens.txPlanCodec().fromYaml(yaml))
+                .as("the other deployment's codec refuses the plan while reading it")
+                .hasStackTraceContaining("params_policy " + PARAMS_POLICY);
+        var secondExtension = secondTokens.extension();
+        assertThatThrownBy(() -> secondExtension.validateMetadata(replayed))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("params_policy " + PARAMS_POLICY)
+                .hasMessageContaining("12".repeat(28));
+        assertThatThrownBy(() -> secondExtension.newBuildExtension(replayed))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("params_policy");
+    }
+
+    private static Cip113ProgrammableTokenService serviceFor(Cip113Deployment deployment) {
+        Cip113ProtocolService service = mock(Cip113ProtocolService.class);
+        when(service.deployment()).thenReturn(deployment);
+        return new Cip113ProgrammableTokenService(service);
+    }
+
     // ------------------------------------------------------------- fixtures
 
     /**
@@ -279,12 +507,12 @@ class DefaultCip113ProtocolServiceTest {
     void aBuildReadsTheCoordinationUtxoThroughItsSupplier() throws Exception {
         bootstrapReads(0L, Result.success("ok").withValue(bootstrap()));
         holderOfParamsNft(coordinationAddress);
-        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, 2048));
+        unspentAt(coordinationAddress, coordinationUtxo(BOOTSTRAP_TX, TRANSFER_HASH));
         DefaultCip113ProtocolService service = service();
         String replacementTx = "cd".repeat(32);
 
         UtxoSupplier recreated = mock(UtxoSupplier.class);
-        when(recreated.getAll(coordinationAddress.toBech32())).thenReturn(List.of(coordinationUtxo(replacementTx, 2048)));
+        when(recreated.getAll(coordinationAddress.toBech32())).thenReturn(List.of(coordinationUtxo(replacementTx, TRANSFER_HASH)));
         assertThat(service.coordinationUtxo(recreated).getTxHash()).isEqualTo(replacementTx);
 
         UtxoSupplier spent = mock(UtxoSupplier.class);
@@ -294,7 +522,7 @@ class DefaultCip113ProtocolServiceTest {
                 .hasMessageContaining("is visible at " + coordinationAddress.toBech32());
 
         UtxoSupplier upgraded = mock(UtxoSupplier.class);
-        when(upgraded.getAll(coordinationAddress.toBech32())).thenReturn(List.of(coordinationUtxo(replacementTx, 4096)));
+        when(upgraded.getAll(coordinationAddress.toBech32())).thenReturn(List.of(coordinationUtxo(replacementTx, "ee".repeat(28))));
         assertThatThrownBy(() -> service.coordinationUtxo(upgraded))
                 .isInstanceOf(Cip113Exception.class)
                 .hasMessageContaining("other protocol parameters");
@@ -322,8 +550,13 @@ class DefaultCip113ProtocolServiceTest {
     }
 
     private static ExtensionMetadata metadata(Map<String, Object> deployment) {
+        return metadata(null, deployment);
+    }
+
+    private static ExtensionMetadata metadata(String contractVersion, Map<String, Object> deployment) {
         return ExtensionMetadata.builder()
                 .extension("programmable-token").schemaVersion("1").protocol(Cip113Protocol.ID)
+                .contractVersion(contractVersion)
                 .deployment(deployment).build();
     }
 
@@ -359,35 +592,49 @@ class DefaultCip113ProtocolServiceTest {
                 .thenReturn(Result.success("ok").withValue(List.of(utxo)));
     }
 
-    private Utxo coordinationUtxo(String txHash, int maxInlineDatumBytes) {
+    private Utxo coordinationUtxo(String txHash, String transferHash) {
         return Utxo.builder()
                 .txHash(txHash).outputIndex(0)
                 .address(coordinationAddress.toBech32())
                 .amount(List.of(Amount.lovelace(BigInteger.valueOf(5_000_000L)),
                         Amount.builder().unit(PARAMS_UNIT).quantity(BigInteger.ONE).build()))
-                .inlineDatum(coordinationDatum(maxInlineDatumBytes).serializeToHex())
+                .inlineDatum(coordinationDatum(transferHash).serializeToHex())
                 .build();
     }
 
-    private static PlutusData coordinationDatum(int maxInlineDatumBytes) {
-        return ConstrPlutusData.of(0,
-                Cip113Data.bytesOfHex(REGISTRY_NODE_CS),
-                Cip113Data.credential(Credential.fromScript(PLB_HASH)),
-                Cip113Data.credential(Credential.fromScript("66".repeat(28))),
-                Cip113Data.credential(Credential.fromScript("77".repeat(28))),
-                Cip113Data.credential(Credential.fromScript("88".repeat(28))),
-                Cip113Data.credential(Credential.fromScript("99".repeat(28))),
-                BigIntPlutusData.of(maxInlineDatumBytes));
+    private static PlutusData coordinationDatum(String transferHash) {
+        return ProgrammableLogicGlobalParams.builder()
+                .programmableLogicGlobalCred(Credential.fromScript(PLG_HASH))
+                .issuanceLogicCred(Credential.fromScript(ISSUANCE_LOGIC_HASH))
+                .transferCred(Credential.fromScript(transferHash))
+                .thirdPartyCred(Credential.fromScript(THIRD_PARTY_HASH))
+                .upgradeCred(Credential.fromScript(UPGRADE_HASH))
+                .build()
+                .toPlutusData();
     }
 
-    /** The bootstrap transaction: coordination output #0 and the origin registry node #1. */
+    /** The transfer delegate's reference-script output, as an unspent UTxO. */
+    private Utxo publishedTransfer() {
+        return Utxo.builder().txHash(BOOTSTRAP_TX).outputIndex(2)
+                .address(refScriptsAddress.toBech32()).referenceScriptHash(TRANSFER_HASH)
+                .amount(List.of(Amount.lovelace(BigInteger.valueOf(20_000_000L)))).build();
+    }
+
     private TxContentUtxo bootstrap() {
+        return bootstrap(TRANSFER_HASH);
+    }
+
+    /**
+     * The bootstrap transaction: coordination output #0, the origin registry node #1 and the
+     * transfer delegate's reference script #2 (reported as {@code referenceScriptHash}).
+     */
+    private TxContentUtxo bootstrap(String referenceScriptHash) {
         TxContentUtxoOutputs coordination = TxContentUtxoOutputs.builder()
                 .address(coordinationAddress.toBech32()).outputIndex(0)
                 .amount(List.of(
                         TxContentOutputAmount.builder().unit("lovelace").quantity("5000000").build(),
                         TxContentOutputAmount.builder().unit(PARAMS_UNIT).quantity("1").build()))
-                .inlineDatum(coordinationDatum(2048).serializeToHex())
+                .inlineDatum(coordinationDatum(TRANSFER_HASH).serializeToHex())
                 .build();
         TxContentUtxoOutputs originNode = TxContentUtxoOutputs.builder()
                 .address(registryAddress.toBech32()).outputIndex(1)
@@ -396,6 +643,11 @@ class DefaultCip113ProtocolServiceTest {
                         TxContentOutputAmount.builder().unit(REGISTRY_NODE_CS).quantity("1").build()))
                 .inlineDatum("00")
                 .build();
-        return TxContentUtxo.builder().outputs(List.of(coordination, originNode)).build();
+        TxContentUtxoOutputs transferScript = TxContentUtxoOutputs.builder()
+                .address(refScriptsAddress.toBech32()).outputIndex(2)
+                .amount(List.of(TxContentOutputAmount.builder().unit("lovelace").quantity("20000000").build()))
+                .referenceScriptHash(referenceScriptHash)
+                .build();
+        return TxContentUtxo.builder().outputs(List.of(coordination, originNode, transferScript)).build();
     }
 }

@@ -1,7 +1,7 @@
 name: Integration Tests (Devnet)
 
 # Runs integration tests that require a local Cardano devnet (yaci-devkit).
-# These tests exercise generated blueprint validators and TxFlow stream execution
+# These tests exercise generated blueprint validators, CIP-113 signing and TxFlow stream execution
 # against a real Cardano devnet.
 
 on:
@@ -82,6 +82,12 @@ jobs:
           --tests "com.bloxbean.cardano.client.txflow.stream.TxFlowStreamContractIntegrationTest"
           -PskipSigning=true --info --stacktrace
 
+      - name: Run CIP-113 signer integration tests
+        run: >-
+          ./gradlew :programmable-token:integrationTest
+          --tests "com.bloxbean.cardano.client.programmabletoken.cip113.tx.Cip113ThirdPartySignerIT"
+          -PskipSigning=true --info --stacktrace
+
       # Upload Gradle HTML test report and JUnit XML results as artifacts
       # so full stack traces are available even when the job fails
       - name: Upload test reports
@@ -110,6 +116,15 @@ jobs:
           path: |
             txflow/build/reports/tests/integrationTest/
             txflow/build/test-results/integrationTest/
+
+      - name: Upload CIP-113 signer test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cip113-signer-test-reports
+          path: |
+            programmable-token/build/reports/tests/integrationTest/
+            programmable-token/build/test-results/integrationTest/
 
   txflow-java21:
     name: TxStream beginner path (JDK 21 Dev-Net)

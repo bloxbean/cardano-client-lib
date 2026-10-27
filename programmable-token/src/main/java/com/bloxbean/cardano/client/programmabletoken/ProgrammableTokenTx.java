@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableBurnInte
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableMintIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegisterIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegistryUpdateIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableThirdPartyBurnIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableThirdPartyTransferIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTokenAsset;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTransferIntent;
@@ -32,6 +33,7 @@ import java.util.List;
  */
 public class ProgrammableTokenTx extends Tx {
     public static final String EXTENSION_ID = "programmable-token";
+    private static final String ISSUANCE_REDEEMER = "issuance redeemer";
 
     @Override
     public ProgrammableTokenTx from(String sender) {
@@ -82,7 +84,7 @@ public class ProgrammableTokenTx extends Tx {
         if (policy == null) throw new IllegalArgumentException("policy is required");
         require(receiver, "receiver");
         requireAssets(assets, "mint");
-        requirePlutusData(issuanceRedeemer, "issuance redeemer");
+        requirePlutusData(issuanceRedeemer, ISSUANCE_REDEEMER);
         addIntention(ProgrammableMintIntent.builder()
                 .policy(policy).receiver(receiver).assets(assets.stream()
                         .map(ProgrammableTokenAsset::from).toList())
@@ -112,7 +114,7 @@ public class ProgrammableTokenTx extends Tx {
         if (authorization == null) throw new IllegalArgumentException("authorization is required");
         requireAssets(assets, "burn");
         requirePlutusData(authorization.getTransferRedeemer(), "transfer redeemer");
-        requirePlutusData(authorization.getIssuanceRedeemer(), "issuance redeemer");
+        requirePlutusData(authorization.getIssuanceRedeemer(), ISSUANCE_REDEEMER);
         addIntention(ProgrammableBurnIntent.builder()
                 .policy(ProgrammableTokenPolicyRef.policyId(policyId)).assets(assets.stream()
                         .map(ProgrammableTokenAsset::from).toList())
@@ -133,6 +135,52 @@ public class ProgrammableTokenTx extends Tx {
         addIntention(ProgrammableThirdPartyTransferIntent.builder()
                 .holder(holder).receiver(receiver).amount(amount)
                 .thirdPartyRedeemer(PlutusDataValue.of(thirdPartyRedeemer)).build());
+        return this;
+    }
+
+    /**
+     * Burn tokens out of someone else's smart wallet: an authorised party (an issuer admin, a
+     * compliance officer) destroys {@code assets} held in the UTxO {@code holderUtxoRef}.
+     *
+     * <p>The holder does not sign. The UTxO is spent under the token's <i>third-party</i> logic
+     * and the negative mint runs the token's <i>minting</i> logic; both must accept, and
+     * {@link ThirdPartyBurnAuthorization} carries one redeemer for each. Whatever key those
+     * scripts check is the caller's to add with {@code withRequiredSigners(...)}, as for a
+     * seizure. A token whose third-party logic always succeeds lets <b>anyone</b> burn
+     * <b>anyone's</b> tokens this way.</p>
+     *
+     * <p>The UTxO is named, not selected: {@code holderUtxoRef} is {@code txHash#outputIndex}. It
+     * must be unspent, sit at a smart wallet of the configured deployment, hold the policy and
+     * cover {@code assets}, and carry no datum hash and no reference script. Everything else it
+     * holds — its other asset names, other policies, lovelace and inline datum — stays in a
+     * continuing output at the same address.</p>
+     *
+     * <p>Several third-party burns and seizures ({@link #thirdPartyTransfer}) of the same policy,
+     * from any holders, may share a transaction, as may {@link #mint} and {@link #register}. The
+     * third-party redeemer names a single registry node, so one transaction acts on one policy,
+     * and owner operations ({@link #transfer}, {@link #burn}, {@link #unfrack}) cannot join it.</p>
+     *
+     * @param holderUtxoRef {@code txHash#outputIndex} of the holder's smart-wallet UTxO
+     * @param policyId      the literal policy id being burned
+     * @param assets        asset names and positive quantities to destroy
+     * @param authorization the third-party and issuance redeemers
+     */
+    public ProgrammableTokenTx thirdPartyBurn(String holderUtxoRef, String policyId, List<Asset> assets,
+                                              ThirdPartyBurnAuthorization authorization) {
+        require(holderUtxoRef, "holderUtxoRef");
+        if (!holderUtxoRef.matches("(?i)[0-9a-f]{64}#\\d{1,9}"))
+            throw new IllegalArgumentException("holderUtxoRef must be <txHash>#<outputIndex> with a"
+                    + " 64-character hex transaction id, but got '" + holderUtxoRef + "'");
+        if (authorization == null) throw new IllegalArgumentException("authorization is required");
+        requireAssets(assets, "third-party burn");
+        requirePlutusData(authorization.getThirdPartyRedeemer(), "third-party redeemer");
+        requirePlutusData(authorization.getIssuanceRedeemer(), ISSUANCE_REDEEMER);
+        addIntention(ProgrammableThirdPartyBurnIntent.builder()
+                .holderUtxoRef(holderUtxoRef.toLowerCase())
+                .policy(ProgrammableTokenPolicyRef.policyId(policyId)).assets(assets.stream()
+                        .map(ProgrammableTokenAsset::from).toList())
+                .thirdPartyRedeemer(PlutusDataValue.of(authorization.getThirdPartyRedeemer()))
+                .issuanceRedeemer(PlutusDataValue.of(authorization.getIssuanceRedeemer())).build());
         return this;
     }
 
@@ -159,7 +207,8 @@ public class ProgrammableTokenTx extends Tx {
     }
 
     /**
-     * Regroup one policy out of the sender's shared smart-wallet UTxOs into its own output.
+     * Reserved API for regrouping one policy out of the sender's shared smart-wallet UTxOs.
+     * Temporarily unsupported in this release.
      *
      * <p>A "fracked" UTxO holds several policies, so a restriction scoped to one of them locks
      * the others as well. Unfracking spends every smart-wallet UTxO that holds {@code policyId}
@@ -167,13 +216,11 @@ public class ProgrammableTokenTx extends Tx {
      * policy's tokens into one fresh single-policy output at the same smart wallet. The token's
      * unfracking hook authorises it with {@code authorization}; a token whose issuer never set a
      * hook cannot be unfracked. It must be the only operation in its transaction.</p>
+     *
+     * @throws UnsupportedOperationException always; unfracking is temporarily unsupported
      */
     public ProgrammableTokenTx unfrack(String policyId, PlutusData authorization) {
-        ProgrammableTokenPolicyRef.policyId(policyId);
-        requirePlutusData(authorization, "authorization");
-        addIntention(ProgrammableUnfrackIntent.builder()
-                .policyId(policyId).authorization(PlutusDataValue.of(authorization)).build());
-        return this;
+        throw new UnsupportedOperationException(ProgrammableUnfrackIntent.UNSUPPORTED_MESSAGE);
     }
 
     private static void require(String value, String field) {

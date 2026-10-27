@@ -5,12 +5,13 @@ import com.bloxbean.cardano.aiken.AikenTransactionEvaluator;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
-import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
+import com.bloxbean.cardano.client.backend.model.TxContentUtxoOutputs;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
@@ -22,9 +23,11 @@ import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,17 +42,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Deploys the whole CIP-113 protocol onto a fresh chain, in one transaction.
+ * Deploys the whole CIP-113 core v0.0.1 protocol onto a fresh chain, in three transactions.
  *
- * <p>Reimplemented from the reference deployment
- * ({@code cip113-programmable-tokens-platform}'s {@code PreviewProtocolDeploymentMintTest}) so the
- * integration suite can stand up its own devnet instance rather than depending on someone else's
- * Preview deployment.</p>
+ * <p>Reimplemented from the reference deploy ceremony (cip113-programmable-tokens-platform's
+ * frontend, which wraps {@code @easy1staking/cip113-sdk-ts}'s bootstrap) so the integration suite
+ * can stand up its own devnet instance rather than depending on someone else's Preview
+ * deployment.</p>
  *
  * <p>Every validator is parameterized, and several are parameterized by <i>another</i> validator's
  * hash, so the order below is a dependency order rather than a stylistic one. Two UTxOs seed the
- * one-shot policies: {@code utxo1} for both {@code protocol_params_mint} and {@code registry_mint},
- * {@code utxo2} for {@code issuance_cbor_hex_mint}.</p>
+ * one-shot policies: {@code utxo1} for {@code upgrade_multisig}, {@code utxo2} for
+ * {@code protocol_params}, {@code registry} and {@code issuance_cbor_hex_mint}. The transactions:
+ * the upgrade-authority config UTxO plus the reward-account registrations; the protocol genesis,
+ * in which the authority must activate itself (upstream #143), so after the first; and the
+ * reference scripts.</p>
+ *
+ * <p>Unlike the public deployments, the dispatcher is compiled against the <i>real</i>
+ * unfracking script hash, so the suite can exercise unfracking.</p>
  */
 final class Cip113Bootstrap {
 
@@ -95,8 +104,8 @@ final class Cip113Bootstrap {
     record Deployed(String bootstrapTxHash, String paramsPolicy, String registryNodeCs,
                     String issuanceCborHexCs, String programmableLogicBaseHash,
                     String transferHash, String thirdPartyHash, String unfrackingHash,
-                    String registrySpendHash, List<PlutusScript> referenceScripts,
-                    List<PlutusScript> appliedScripts) {}
+                    List<PlutusScript> referenceScripts, List<PlutusScript> appliedScripts,
+                    Cip113Deployment deployment) {}
 
     Deployed deploy(BackendService backendService, Account admin, Network network) throws Exception {
         var utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
@@ -121,51 +130,45 @@ final class Cip113Bootstrap {
         PlutusScript alwaysFail = apply("always_fail.always_fail.spend",
                 BytesPlutusData.of(HexUtil.decodeHexString(ALWAYS_FAIL_NONCE)));
 
-        // blake2b_256(txHash ‖ outputIndex) — a nonce unique to this deployment.
-        byte[] coordinationNonce = Blake2bUtil.blake2bHash256(HexUtil.decodeHexString(
-                utxo1.getTxHash() + String.format("%02x", utxo1.getOutputIndex())));
-        PlutusScript coordinationSpend = apply("coordination_spend.coordination_spend.spend",
-                BytesPlutusData.of(coordinationNonce));
-
-        PlutusScript protocolParamsMint = apply("protocol_params_mint.protocol_params_mint.mint",
-                utxo1Ref, BytesPlutusData.of(coordinationSpend.getScriptHash()));
-
-        // Every delegate hangs off the params policy — the deployment's permanent anchor.
-        BytesPlutusData paramsPolicy = BytesPlutusData.of(protocolParamsMint.getScriptHash());
-
-        PlutusScript plb = apply("programmable_logic_base.programmable_logic_base.spend", paramsPolicy);
-        PlutusScript transfer = apply("transfer.transfer.withdraw", paramsPolicy);
-        PlutusScript thirdParty = apply("third_party.third_party.withdraw", paramsPolicy);
-        PlutusScript unfracking = apply("unfracking.unfracking.withdraw", paramsPolicy);
-
-        PlutusScript upgradeMultisig = apply("upgrade_multisig.upgrade_multisig.withdraw",
-                ListPlutusData.of(BytesPlutusData.of(
-                        AddressProvider.getPaymentCredentialHash(new Address(admin.baseAddress()))
-                                .orElseThrow())),
-                BigIntPlutusData.of(1));
-
         PlutusScript issuanceCborHexMint = apply("issuance_cbor_hex_mint.issuance_cbor_hex_mint.mint",
                 utxo2Ref, BytesPlutusData.of(alwaysFail.getScriptHash()));
+        // Mint and spend share one script; RegistryInit binds the origin node to it.
+        PlutusScript registry = apply("registry.registry.mint",
+                utxo2Ref, BytesPlutusData.of(issuanceCborHexMint.getScriptHash()));
+        PlutusScript protocolParams = apply("protocol_params.protocol_params.mint", utxo2Ref);
 
-        // registry_spend before registry_mint: registry_mint takes its credential as a parameter,
-        // and RegistryInit binds the origin node's address to it.
-        PlutusScript registrySpend = apply("registry_spend.registry_spend.spend", paramsPolicy);
-        PlutusScript registryMint = apply("registry_mint.registry_mint.mint",
-                utxo1Ref,
-                BytesPlutusData.of(issuanceCborHexMint.getScriptHash()),
-                scriptCredential(registrySpend));
+        // Every delegate hangs off the params policy — the deployment's permanent anchor.
+        BytesPlutusData paramsPolicy = BytesPlutusData.of(protocolParams.getScriptHash());
 
-        PlutusData issuanceTemplateDatum = buildIssuanceTemplate(plb, registryMint, protocolParamsMint);
+        PlutusScript plb = apply("programmable_logic_base.programmable_logic_base.spend", paramsPolicy);
+        PlutusData plbCred = scriptCredential(plb);
+        BytesPlutusData registryCs = BytesPlutusData.of(registry.getScriptHash());
+        BigIntPlutusData bound = BigIntPlutusData.of(MAX_INLINE_DATUM_BYTES);
+        PlutusScript transfer = apply("transfer.transfer.withdraw", plbCred, registryCs, bound);
+        PlutusScript thirdParty = apply("third_party.third_party.withdraw", plbCred, registryCs, bound);
+        PlutusScript unfracking = apply("unfracking.unfracking.withdraw", plbCred, registryCs, bound);
+        PlutusScript issuanceLogic = apply("issuance_logic.issuance_logic.withdraw",
+                plbCred, registryCs, paramsPolicy, bound);
+        PlutusScript plg = apply("programmable_logic_global.programmable_logic_global.withdraw",
+                BytesPlutusData.of(transfer.getScriptHash()),
+                BytesPlutusData.of(thirdParty.getScriptHash()),
+                BytesPlutusData.of(unfracking.getScriptHash()));
+
+        PlutusScript upgradeMultisig = apply("upgrade_multisig.upgrade_multisig.mint", utxo1Ref);
+
+        PlutusData issuanceTemplateDatum = buildIssuanceTemplate(protocolParams);
+
+        byte[] adminKeyHash = AddressProvider.getPaymentCredentialHash(new Address(admin.baseAddress()))
+                .orElseThrow();
 
         // ---- the datums ------------------------------------------------------------------------
         PlutusData coordinationDatum = ConstrPlutusData.of(0,
-                BytesPlutusData.of(registryMint.getScriptHash()),
-                scriptCredential(plb),
+                scriptCredential(plg),
+                scriptCredential(issuanceLogic),
                 scriptCredential(transfer),
                 scriptCredential(thirdParty),
-                scriptCredential(unfracking),
                 scriptCredential(upgradeMultisig),
-                BigIntPlutusData.of(BigInteger.valueOf(MAX_INLINE_DATUM_BYTES)));
+                ConstrPlutusData.of(1));                        // pending_upgrade_cred: None
 
         // Origin node: empty key, sentinel next, every credential the empty-vkey sentinel.
         PlutusData originNodeDatum = ConstrPlutusData.of(0,
@@ -174,110 +177,171 @@ final class Cip113Bootstrap {
                 emptyVkey(), emptyVkey(), emptyVkey(), emptyVkey(),
                 BytesPlutusData.of(new byte[0]));
 
-        // ---- the single bootstrap transaction --------------------------------------------------
-        Address coordinationAddress = AddressProvider.getEntAddress(coordinationSpend, network);
-        Address registryAddress = AddressProvider.getEntAddress(registrySpend, network);
+        // The upgrade authority's tree: one signature, the admin's.
+        PlutusData upgradeTree = ConstrPlutusData.of(0, BytesPlutusData.of(adminKeyHash));
+
+        Address coordinationAddress = AddressProvider.getEntAddress(protocolParams, network);
+        Address registryAddress = AddressProvider.getEntAddress(registry, network);
         Address issuanceTemplateAddress = AddressProvider.getEntAddress(alwaysFail, network);
+        Address upgradeConfigAddress = AddressProvider.getEntAddress(upgradeMultisig, network);
         // Same address, named for what it is used for below.
         Address alwaysFailAddress = issuanceTemplateAddress;
 
+        log.info("  scripts:");
+        log.info("    always_fail        " + alwaysFail.getPolicyId());
+        log.info("    protocol_params    " + protocolParams.getPolicyId()
+                + "  addr " + coordinationAddress.getAddress());
+        log.info("    plb                " + plb.getPolicyId());
+        log.info("    plg                " + plg.getPolicyId());
+        log.info("    transfer           " + transfer.getPolicyId());
+        log.info("    third_party        " + thirdParty.getPolicyId());
+        log.info("    unfracking         " + unfracking.getPolicyId());
+        log.info("    issuance_logic     " + issuanceLogic.getPolicyId());
+        log.info("    upgrade_multisig   " + upgradeMultisig.getPolicyId());
+        log.info("    issuance_cbor_hex  " + issuanceCborHexMint.getPolicyId()
+                + "  addr " + issuanceTemplateAddress.getAddress());
+        log.info("    registry           " + registry.getPolicyId()
+                + "  addr " + registryAddress.getAddress());
+        log.info("  seeds: utxo1=" + utxo1.getTxHash() + "#" + utxo1.getOutputIndex()
+                + "  utxo2=" + utxo2.getTxHash() + "#" + utxo2.getOutputIndex());
+
+        // ---- transaction 1: the upgrade authority and the reward accounts ----------------------
+        Tx authority = new Tx()
+                .collectFrom(List.of(utxo1))
+                .mintAsset(upgradeMultisig, new Asset(nameHex("UpgradeMultisig"), BigInteger.ONE),
+                        ConstrPlutusData.of(0))
+                .payToContract(upgradeConfigAddress.getAddress(),
+                        List.of(Amount.ada(5), asset(upgradeMultisig, "UpgradeMultisig")),
+                        upgradeTree)
+                .from(admin.baseAddress());
+
+        // Every withdraw-zero credential is re-parameterized on every deployment, so its reward
+        // account is new each time and always needs registering. Without this their withdraw-zero
+        // — which every operation depends on — is invalid.
+        for (PlutusScript withdrawn : List.of(plg, transfer, thirdParty, unfracking, issuanceLogic,
+                upgradeMultisig)) {
+            authority.registerStakeAddress(AddressProvider.getRewardAddress(withdrawn, network).toBech32());
+        }
+        String authorityTx = submit(backendService, admin, authority, "upgrade authority", null);
+
+        Utxo upgradeConfig = utxoSupplier.getAll(upgradeConfigAddress.getAddress()).stream()
+                .filter(u -> u.getTxHash().equals(authorityTx))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("The upgrade-authority config UTxO from "
+                        + authorityTx + " is not visible at " + upgradeConfigAddress.getAddress()));
+
+        // ---- transaction 2: the protocol genesis ------------------------------------------------
         Tx tx = new Tx()
-                .collectFrom(List.of(utxo1, utxo2))
-                .mintAsset(registryMint, new Asset("", BigInteger.ONE), ConstrPlutusData.of(0))
-                .mintAsset(protocolParamsMint, new Asset(nameHex("ProtocolParams"), BigInteger.ONE),
+                .collectFrom(List.of(utxo2))
+                .readFrom(upgradeConfig)
+                .mintAsset(registry, new Asset("", BigInteger.ONE), ConstrPlutusData.of(0))
+                .mintAsset(protocolParams, new Asset(nameHex("ProtocolParams"), BigInteger.ONE),
                         ConstrPlutusData.of(1))
                 .mintAsset(issuanceCborHexMint, new Asset(nameHex("IssuanceCborHex"), BigInteger.ONE),
                         ConstrPlutusData.of(2))
+                // The initial authority activates itself: protocol_params requires upgrade_cred
+                // among the withdrawals at genesis, and upgrade_multisig checks its tree against
+                // the required signers.
+                .withdraw(AddressProvider.getRewardAddress(upgradeMultisig, network).toBech32(),
+                        BigInteger.ZERO, ConstrPlutusData.of(0))
+                .attachRewardValidator(upgradeMultisig)
                 .payToContract(coordinationAddress.getAddress(),
-                        List.of(Amount.ada(5), asset(protocolParamsMint, "ProtocolParams")),
+                        List.of(Amount.ada(5), asset(protocolParams, "ProtocolParams")),
                         coordinationDatum)
                 .payToContract(registryAddress.getAddress(),
-                        List.of(Amount.ada(5), assetRaw(registryMint, "")),
+                        List.of(Amount.ada(5), assetRaw(registry, "")),
                         originNodeDatum)
-                // The template datum is over 2 KB, so its min-UTxO is far above the flat 5 ADA
-                // the other two outputs use. Compute it rather than guess.
+                // The template datum is large, so its min-UTxO is far above the flat 5 ADA the
+                // other two outputs use. Compute it rather than guess.
                 .payToContract(issuanceTemplateAddress.getAddress(),
                         List.of(Amount.lovelace(issuanceTemplateLovelace(backendService,
                                         issuanceTemplateAddress, issuanceCborHexMint, issuanceTemplateDatum)),
                                 asset(issuanceCborHexMint, "IssuanceCborHex")),
                         issuanceTemplateDatum)
-                // Reference scripts, so later transactions do not have to carry them inline.
-                // Published at the always-fail address rather than the admin's own: a
-                // reference-script UTxO holding nothing but ADA is indistinguishable from ordinary
-                // change to coin selection, and spending one destroys the published script for
-                // every transaction that references it.
-                .payToAddress(alwaysFailAddress.getAddress(), Amount.ada(5), plb)
-                .payToAddress(alwaysFailAddress.getAddress(), Amount.ada(20), transfer)
-                .payToAddress(alwaysFailAddress.getAddress(), Amount.ada(20), thirdParty)
-                .payToAddress(alwaysFailAddress.getAddress(), Amount.ada(12), unfracking)
                 .from(admin.baseAddress());
+        String bootstrapTx = submit(backendService, admin, tx, "protocol genesis", adminKeyHash);
 
-        // The three delegates are re-parameterized on every deployment, so their reward accounts
-        // are new each time and always need registering. Without this their withdraw-zero — which
-        // every transfer depends on — is invalid.
-        for (PlutusScript delegate : List.of(transfer, thirdParty, unfracking, upgradeMultisig)) {
-            tx.registerStakeAddress(AddressProvider.getRewardAddress(delegate, network).toBech32());
+        // ---- transaction 3: reference scripts ----------------------------------------------------
+        // Published at the always-fail address rather than the admin's own: a reference-script
+        // UTxO holding nothing but ADA is indistinguishable from ordinary change to coin
+        // selection, and spending one destroys the published script for every transaction that
+        // references it.
+        List<PlutusScript> referenceScripts = List.of(plb, plg, transfer, thirdParty, unfracking,
+                issuanceLogic, upgradeMultisig);
+        Tx publish = new Tx().from(admin.baseAddress());
+        for (PlutusScript script : referenceScripts) {
+            publish.payToAddress(alwaysFailAddress.getAddress(), Amount.ada(25), script);
+        }
+        String referenceTx = submit(backendService, admin, publish, "reference scripts", null);
+
+        Cip113Deployment.Cip113DeploymentBuilder deployment = Cip113Deployment.builder()
+                .network(network)
+                .bootstrapTxHash(bootstrapTx)
+                .paramsPolicy(protocolParams.getPolicyId())
+                .programmableLogicBaseHash(plb.getPolicyId())
+                .programmableLogicGlobalHash(plg.getPolicyId())
+                .issuanceLogicHash(issuanceLogic.getPolicyId())
+                .transferScriptHash(transfer.getPolicyId())
+                .thirdPartyScriptHash(thirdParty.getPolicyId())
+                .unfrackingScriptHash(unfracking.getPolicyId())
+                .unfrackingEnabled(true)
+                .upgradeScriptHash(upgradeMultisig.getPolicyId())
+                .registryNodeCs(registry.getPolicyId())
+                .issuanceCborHexCs(issuanceCborHexMint.getPolicyId())
+                .maxInlineDatumBytes((int) MAX_INLINE_DATUM_BYTES);
+        // Where each output landed, read back from chain rather than assumed.
+        for (TxContentUtxoOutputs output : outputsOf(backendService, referenceTx)) {
+            String hash = output.getReferenceScriptHash();
+            if (hash == null || hash.isEmpty()) continue;
+            deployment.referenceScript(hash, TransactionInput.builder()
+                    .transactionId(referenceTx).index(output.getOutputIndex()).build());
+        }
+        String templateUnit = issuanceCborHexMint.getPolicyId()
+                + HexUtil.encodeHexString("IssuanceCborHex".getBytes(StandardCharsets.UTF_8));
+        for (TxContentUtxoOutputs output : outputsOf(backendService, bootstrapTx)) {
+            if (output.getAmount().stream().anyMatch(a -> templateUnit.equals(a.getUnit()))) {
+                deployment.issuanceTemplateRef(TransactionInput.builder()
+                        .transactionId(bootstrapTx).index(output.getOutputIndex()).build());
+            }
         }
 
-        // A Mint redeemer's index is its policy's position in the sorted mint map, so an
-        // evaluation error like RedeemerError{tag:"Mint", index:0} only names a validator once
-        // that order is known.
-        log.info("  scripts:");
-        log.info("    always_fail        " + alwaysFail.getPolicyId());
-        log.info("    coordination_spend " + coordinationSpend.getPolicyId()
-                + "  addr " + coordinationAddress.getAddress());
-        log.info("    protocol_params    " + protocolParamsMint.getPolicyId());
-        log.info("    plb                " + plb.getPolicyId());
-        log.info("    transfer           " + transfer.getPolicyId());
-        log.info("    third_party        " + thirdParty.getPolicyId());
-        log.info("    unfracking         " + unfracking.getPolicyId());
-        log.info("    upgrade_multisig   " + upgradeMultisig.getPolicyId());
-        log.info("    issuance_cbor_hex  " + issuanceCborHexMint.getPolicyId()
-                + "  addr " + issuanceTemplateAddress.getAddress());
-        log.info("    registry_spend     " + registrySpend.getPolicyId()
-                + "  addr " + registryAddress.getAddress());
-        log.info("    registry_mint      " + registryMint.getPolicyId());
-
-        List<String> mintOrder = new ArrayList<>(List.of(
-                registryMint.getPolicyId(), protocolParamsMint.getPolicyId(),
-                issuanceCborHexMint.getPolicyId()));
-        mintOrder.sort(String::compareTo);
-        log.info("  mint redeemer indices (sorted policy order):");
-        for (int i = 0; i < mintOrder.size(); i++) {
-            String policy = mintOrder.get(i);
-            String which = policy.equals(registryMint.getPolicyId()) ? "registry_mint (RegistryInit)"
-                    : policy.equals(protocolParamsMint.getPolicyId()) ? "protocol_params_mint"
-                    : "issuance_cbor_hex_mint";
-            log.info("    index " + i + " -> " + which + "  " + policy);
-        }
-        log.info("  seeds: utxo1=" + utxo1.getTxHash() + "#" + utxo1.getOutputIndex()
-                + "  utxo2=" + utxo2.getTxHash() + "#" + utxo2.getOutputIndex());
-
-        Result<String> result = new QuickTxBuilder(backendService)
-                .compose(tx)
-                .feePayer(admin.baseAddress())
-                .withSigner(SignerProviders.signerFrom(admin))
-                .withTxEvaluator(new AikenTransactionEvaluator(backendService))
-                .mergeOutputs(false)
-                .completeAndWait(log::info);
-
-        if (!result.isSuccessful()) {
-            throw new IllegalStateException("CIP-113 bootstrap failed: " + result.getResponse());
-        }
-
-        return new Deployed(result.getValue(),
-                HexUtil.encodeHexString(protocolParamsMint.getScriptHash()),
-                HexUtil.encodeHexString(registryMint.getScriptHash()),
+        return new Deployed(bootstrapTx,
+                HexUtil.encodeHexString(protocolParams.getScriptHash()),
+                HexUtil.encodeHexString(registry.getScriptHash()),
                 HexUtil.encodeHexString(issuanceCborHexMint.getScriptHash()),
                 HexUtil.encodeHexString(plb.getScriptHash()),
                 HexUtil.encodeHexString(transfer.getScriptHash()),
                 HexUtil.encodeHexString(thirdParty.getScriptHash()),
                 HexUtil.encodeHexString(unfracking.getScriptHash()),
-                HexUtil.encodeHexString(registrySpend.getScriptHash()),
-                List.of(plb, transfer, thirdParty, unfracking),
-                List.of(alwaysFail, coordinationSpend, protocolParamsMint, plb, transfer,
-                        thirdParty, unfracking, upgradeMultisig, issuanceCborHexMint,
-                        registrySpend, registryMint));
+                referenceScripts,
+                List.of(alwaysFail, protocolParams, plb, plg, transfer, thirdParty, unfracking,
+                        issuanceLogic, upgradeMultisig, issuanceCborHexMint, registry),
+                deployment.build());
+    }
+
+    private static String submit(BackendService backendService, Account admin, Tx tx, String what,
+                                 byte[] requiredSigner) {
+        QuickTxBuilder.TxContext context = new QuickTxBuilder(backendService)
+                .compose(tx)
+                .feePayer(admin.baseAddress())
+                .withSigner(SignerProviders.signerFrom(admin))
+                .withTxEvaluator(new AikenTransactionEvaluator(backendService))
+                .mergeOutputs(false);
+        if (requiredSigner != null) context = context.withRequiredSigners(requiredSigner);
+        Result<String> result = context.completeAndWait(log::info);
+        if (!result.isSuccessful()) {
+            throw new IllegalStateException("CIP-113 " + what + " failed: " + result.getResponse());
+        }
+        return result.getValue();
+    }
+
+    private static List<TxContentUtxoOutputs> outputsOf(BackendService backendService, String txHash)
+            throws Exception {
+        Result<TxContentUtxo> result = backendService.getTransactionService().getTransactionUtxos(txHash);
+        if (!result.isSuccessful()) {
+            throw new IllegalStateException("Could not read " + txHash + ": " + result.getResponse());
+        }
+        return result.getValue().getOutputs();
     }
 
     /**
@@ -313,16 +377,8 @@ final class Cip113Bootstrap {
         return minAda.add(oneAda).add(oneAda).subtract(BigInteger.ONE).divide(oneAda).multiply(oneAda);
     }
 
-    private PlutusData buildIssuanceTemplate(PlutusScript plb, PlutusScript registryMint,
-                                             PlutusScript protocolParamsMint) throws Exception {
-        PlutusScript dummy = apply("issuance_mint.issuance_mint.mint",
-                scriptCredential(plb),
-                BytesPlutusData.of(registryMint.getScriptHash()),
-                ConstrPlutusData.of(1, BytesPlutusData.of(HexUtil.decodeHexString(DUMMY_POLICY_ID))),
-                // A bare policy id, not a credential. This parameter used to be a Credential in the
-                // same position with the same arity, and passing the old shape still produces a
-                // template — one whose derived policy ids registry_mint then refuses.
-                BytesPlutusData.of(protocolParamsMint.getScriptHash()));
+    private PlutusData buildIssuanceTemplate(PlutusScript protocolParamsMint) throws Exception {
+        PlutusScript dummy = issuanceMint(DUMMY_POLICY_ID, protocolParamsMint);
 
         String body = HexUtil.encodeHexString(dummy.serializeScriptBody());
         String[] parts = body.split(DUMMY_POLICY_ID);
@@ -337,9 +393,26 @@ final class Cip113Bootstrap {
                     + " credential, so bytes must follow the hole.");
         }
 
+        // The registry recomputes blake2b_224(0x03 ‖ prefix ‖ hash ‖ postfix) on every insert, so
+        // check the split against a real application before it goes on chain.
+        String probe = "0123456789abcdef0123456789abcdef0123456789abcdef01234567";
+        String derived = HexUtil.encodeHexString(Blake2bUtil.blake2bHash224(
+                HexUtil.decodeHexString("03" + parts[0] + probe + parts[1])));
+        if (!derived.equals(issuanceMint(probe, protocolParamsMint).getPolicyId())) {
+            throw new IllegalStateException("The issuance template does not reproduce issuance_mint's"
+                    + " policy id: the split is off by a CBOR wrapping layer.");
+        }
+
         return ConstrPlutusData.of(0,
                 BytesPlutusData.of(HexUtil.decodeHexString(parts[0])),
                 BytesPlutusData.of(HexUtil.decodeHexString(parts[1])));
+    }
+
+    /** {@code issuance_mint(minting_logic_cred: Credential, params_policy: PolicyId)}. */
+    private PlutusScript issuanceMint(String credentialHash, PlutusScript protocolParamsMint) throws Exception {
+        return apply("issuance_mint.issuance_mint.mint",
+                ConstrPlutusData.of(1, BytesPlutusData.of(HexUtil.decodeHexString(credentialHash))),
+                BytesPlutusData.of(protocolParamsMint.getScriptHash()));
     }
 
     // ------------------------------------------------------------------------ helpers
@@ -408,7 +481,6 @@ final class Cip113Bootstrap {
         lines.add("transfer delegate : " + d.transferHash());
         lines.add("thirdparty deleg. : " + d.thirdPartyHash());
         lines.add("registry node cs  : " + d.registryNodeCs());
-        lines.add("registry spend    : " + d.registrySpendHash());
         lines.add("issuance tmpl cs  : " + d.issuanceCborHexCs());
         return lines;
     }

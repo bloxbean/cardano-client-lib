@@ -22,7 +22,6 @@ import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenExtension;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenPolicyRef;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployment;
-import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Deployments;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Exception;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTokenService;
 import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProtocolService;
@@ -80,7 +79,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <h2>What it proves</h2>
  * <p>Steps 0-5 stand the protocol up and read it back. Steps 6-18 are the end-to-end path a real
  * user walks: register a token, mint it, transfer it (to self and to another owner), burn it,
- * seize it, update its registry entry, and unfrack a shared UTxO. Steps 20-25 are the edge cases of
+ * seize it, update its registry entry, and reject unfracking of a shared UTxO. Steps 20-25 cover
  * one transaction carrying several operations: burns around a transfer of the same asset, a unit
  * written in upper case, an empty asset name, and a second registered policy sharing a UTxO with
  * the first. Because the chain is reset each run, every step starts from a known state.</p>
@@ -310,7 +309,7 @@ public class Cip113EndToEndIT {
         // Everything downstream resolves from the bootstrap transaction, exactly as it would for a
         // deployment someone else created — so this also exercises the discovery path.
         programmableTokens = Cip113ProgrammableTokenService.create(backendService,
-                Cip113Deployments.fromBootstrapTx(deployed.bootstrapTxHash(), network));
+                deployed.deployment());
         protocolService = programmableTokens.advanced();
 
         // Hand the service the scripts the bootstrap just applied. Nothing on chain has used them
@@ -335,10 +334,9 @@ public class Cip113EndToEndIT {
         assertThat(resolved.getTransferScriptHash()).isEqualToIgnoringCase(deployed.transferHash());
         assertThat(resolved.getUnfrackingScriptHash()).isEqualToIgnoringCase(deployed.unfrackingHash());
         assertThat(resolved.getRegistryNodeCs()).isEqualToIgnoringCase(deployed.registryNodeCs());
-        assertThat(resolved.getRegistrySpendScriptHash())
-                .as("the registry address must be discovered from the bootstrap transaction, not"
-                        + " supplied — the coordination datum does not carry it")
-                .isEqualToIgnoringCase(deployed.registrySpendHash());
+        assertThat(resolved.getProgrammableLogicGlobalHash())
+                .as("the dispatcher named by the on-chain coordination datum is the one the bootstrap applied")
+                .isEqualToIgnoringCase(deployed.deployment().getProgrammableLogicGlobalHash());
     }
 
     // ---------------------------------------------------------------- step 1
@@ -455,20 +453,19 @@ public class Cip113EndToEndIT {
         var base = scripts.programmableLogicBase();
         var transfer = scripts.transferDelegate();
         var unfracking = scripts.unfrackingDelegate();
-        var registrySpend = scripts.registrySpend();
-        var registryMint = scripts.registryMint();
+        var registry = scripts.registry();
 
         log.info("=== Applied scripts === base {} ({} bytes) transfer {} ({} bytes) unfracking {}"
-                        + " registry_spend {} registry_mint {}",
+                        + " registry {}",
                 base.getPolicyId(), base.getCborHex().length() / 2, transfer.getPolicyId(),
                 transfer.getCborHex().length() / 2, unfracking.getPolicyId(),
-                registrySpend.getPolicyId(), registryMint.getPolicyId());
+                registry.getPolicyId());
 
         // Fetched by hash, so a mismatch would mean the backend served the wrong script.
         assertThat(base.getPolicyId()).isEqualToIgnoringCase(resolved.getProgrammableLogicBaseHash());
         assertThat(transfer.getPolicyId()).isEqualToIgnoringCase(resolved.getTransferScriptHash());
         assertThat(unfracking.getPolicyId()).isEqualToIgnoringCase(resolved.getUnfrackingScriptHash());
-        assertThat(registryMint.getPolicyId()).isEqualToIgnoringCase(resolved.getRegistryNodeCs());
+        assertThat(registry.getPolicyId()).isEqualToIgnoringCase(resolved.getRegistryNodeCs());
     }
 
     // ---------------------------------------------------------------- step 6
@@ -737,7 +734,7 @@ public class Cip113EndToEndIT {
         requireDeployment("Lazy initialisation");
 
         Cip113ProtocolService fresh = Cip113ProgrammableTokenService.create(backendService,
-                Cip113Deployments.fromBootstrapTx(deployed.bootstrapTxHash(), network)).advanced();
+                deployed.deployment()).advanced();
 
         log.info("=== A service that was never resolved ===");
         assertThat(fresh.coordinationUtxo()).as("the coordination UTxO must resolve on demand").isNotNull();
@@ -861,7 +858,9 @@ public class Cip113EndToEndIT {
                 .burn(examplePolicyId, List.of(exampleAsset(toBurn)),
                         BurnAuthorization.of(BigIntPlutusData.of(0), BigIntPlutusData.of(0)));
 
-        Result<String> result = build(tx).completeAndWait(log::info);
+        java.util.concurrent.atomic.AtomicReference<com.bloxbean.cardano.client.transaction.spec.Transaction>
+                submitted = new java.util.concurrent.atomic.AtomicReference<>();
+        Result<String> result = build(tx).withTxInspector(submitted::set).completeAndWait(log::info);
         assertThat(result.isSuccessful())
                 .as("Burn must validate: issuance_mint delegates custody to the transfer validator"
                         + " and no_escape requires the remainder to stay at the base script: %s",
@@ -871,6 +870,31 @@ public class Cip113EndToEndIT {
         assertThat(programmableQuantity(unit))
                 .as("the burned amount must be destroyed and the remainder still held")
                 .isEqualTo(held.subtract(toBurn));
+
+        // Custody: issuance_logic's RefInput must name the reference input the transfer proof
+        // names, so the transfer delegate covers the burn. A mismatch would still validate —
+        // issuance_logic falls back to no_escape — so only the redeemers show which path ran.
+        var txn = submitted.get();
+        assertThat(txn).as("the inspector saw the submitted transaction").isNotNull();
+        var node = protocolService.registryLookup().byPolicy(examplePolicyId).orElseThrow().getUtxo();
+        int nodeIdx = LedgerOrdering.indexOfReferenceInput(txn, node.getTxHash(), node.getOutputIndex());
+        assertThat(rewardRedeemer(txn, resolved.transferCredential())).isEqualTo(
+                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.transfer(List.of(
+                        com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.tokenExists(nodeIdx))));
+        assertThat(rewardRedeemer(txn, resolved.issuanceLogicCredential())).isEqualTo(
+                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.issuanceLogic(
+                        java.util.Map.of(examplePolicyId,
+                                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.mintRefInput(nodeIdx))));
+    }
+
+    /** The Reward redeemer whose index names {@code credential}'s withdrawal in ledger order. */
+    private static PlutusData rewardRedeemer(com.bloxbean.cardano.client.transaction.spec.Transaction txn,
+                                             com.bloxbean.cardano.client.address.Credential credential) {
+        int idx = LedgerOrdering.indexOfWithdrawal(txn, credential);
+        return txn.getWitnessSet().getRedeemers().stream()
+                .filter(r -> r.getTag() == com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Reward
+                        && r.getIndex().intValue() == idx)
+                .findFirst().orElseThrow().getData();
     }
 
     // --------------------------------------------------------------- step 13
@@ -959,6 +983,79 @@ public class Cip113EndToEndIT {
                 .isGreaterThanOrEqualTo(2);
     }
 
+    // -------------------------------------------------------------- step 13b
+
+    /**
+     * Third-party burn of a named holder UTxO: a partial burn leaves the remainder in a continuing
+     * output at the holder's wallet, and the custody check is handed to {@code third_party}
+     * ({@code third_party.registry_node_idx} equals issuance_logic's {@code RefInput}); a full
+     * burn of that continuation then empties it. Self-contained — it mints to a fresh holder
+     * first — so it moves nothing the other steps count.
+     */
+    @Test
+    @Order(13)
+    void step13b_thirdPartyBurnOfANamedHolderUtxo() {
+        requireDeployment("Third-party burn");
+        String unit = unitOf(requireExamplePolicyId());
+        Address holder = new Address(new Account(network).baseAddress());
+        String holderWallet = protocolService.smartWalletAddress(holder).toBech32();
+        var authorization = com.bloxbean.cardano.client.programmabletoken.ThirdPartyBurnAuthorization.of(
+                BigIntPlutusData.of(0), BigIntPlutusData.of(0));   // alwaysTrue ignores both
+
+        Result<String> minted = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .mint(examplePolicyId, holder.getAddress(), List.of(exampleAsset(BigInteger.TEN)),
+                        BigIntPlutusData.of(0), null))
+                .completeAndWait(log::info);
+        assertThat(minted.isSuccessful()).as("minting to the holder: %s", minted.getResponse()).isTrue();
+
+        Utxo held = protocolService.getUtxos(holder).getValue().stream()
+                .filter(u -> quantity(u.getAmount(), unit).signum() > 0).findFirst().orElseThrow();
+        log.info("=== Third-party burn === burning 4 of {} from {}#{}", unit, held.getTxHash(), held.getOutputIndex());
+
+        java.util.concurrent.atomic.AtomicReference<com.bloxbean.cardano.client.transaction.spec.Transaction>
+                submitted = new java.util.concurrent.atomic.AtomicReference<>();
+        Result<String> partial = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .thirdPartyBurn(held.getTxHash() + "#" + held.getOutputIndex(), examplePolicyId,
+                        List.of(exampleAsset(BigInteger.valueOf(4))), authorization))
+                .withTxInspector(submitted::set)
+                .completeAndWait(log::info);
+        assertThat(partial.isSuccessful())
+                .as("A partial third-party burn must validate: %s", partial.getResponse()).isTrue();
+        assertThat(programmableQuantity(holder, unit))
+                .as("the burned amount is destroyed, the remainder stays with the holder")
+                .isEqualTo(BigInteger.valueOf(6));
+
+        var txn = submitted.get();
+        assertThat(txn).as("the inspector saw the submitted transaction").isNotNull();
+        var node = protocolService.registryLookup().byPolicy(examplePolicyId).orElseThrow().getUtxo();
+        int nodeIdx = LedgerOrdering.indexOfReferenceInput(txn, node.getTxHash(), node.getOutputIndex());
+        PlutusData thirdParty = rewardRedeemer(txn, resolved.thirdPartyCredential());
+        assertThat(((com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData) thirdParty).getData()
+                .getPlutusDataList().get(0))
+                .as("third_party.registry_node_idx names the policy's node")
+                .isEqualTo(BigIntPlutusData.of(nodeIdx));
+        assertThat(rewardRedeemer(txn, resolved.issuanceLogicCredential())).isEqualTo(
+                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.issuanceLogic(
+                        java.util.Map.of(examplePolicyId,
+                                com.bloxbean.cardano.client.programmabletoken.cip113.model.Cip113Redeemers.mintRefInput(nodeIdx))));
+
+        Utxo remainder = protocolService.getUtxos(holder).getValue().stream()
+                .filter(u -> quantity(u.getAmount(), unit).signum() > 0).findFirst().orElseThrow();
+        assertThat(remainder.getAddress()).as("the continuation keeps the holder's address").isEqualTo(holderWallet);
+        assertThat(quantity(remainder.getAmount(), unit)).isEqualTo(BigInteger.valueOf(6));
+
+        Result<String> full = build(new ProgrammableTokenTx()
+                .from(account.baseAddress())
+                .thirdPartyBurn(remainder.getTxHash() + "#" + remainder.getOutputIndex(), examplePolicyId,
+                        List.of(exampleAsset(BigInteger.valueOf(6))), authorization))
+                .completeAndWait(log::info);
+        assertThat(full.isSuccessful())
+                .as("A full third-party burn of the continuation must validate: %s", full.getResponse()).isTrue();
+        assertThat(programmableQuantity(holder, unit)).as("nothing of the token is left").isZero();
+    }
+
     // --------------------------------------------------------------- step 14
 
     /**
@@ -1014,9 +1111,8 @@ public class Cip113EndToEndIT {
     /**
      * Change a registered token's mutable rules in place: set its unfracking hook.
      *
-     * <p>Before the update, unfracking the token must be refused at build time — its hook is the
-     * empty-key sentinel the registration left, and no chain access is needed to say so. After the
-     * update, re-reading the node proves the datum actually changed and the frozen fields did not.</p>
+     * <p>Unfracking remains temporarily unsupported. Updating its protocol datum field still
+     * works: re-reading the node proves the datum changed and the frozen fields did not.</p>
      */
     @Test
     @Order(15)
@@ -1031,9 +1127,9 @@ public class Cip113EndToEndIT {
         assertThatThrownBy(() -> build(new ProgrammableTokenTx()
                 .from(account.baseAddress())
                 .unfrack(examplePolicyId, PlutusData.unit())).build())
-                .as("unfracking a token whose issuer never set a hook is refused before chain access")
-                .isInstanceOf(Cip113Exception.class)
-                .hasMessageContaining("forbidden for policy " + examplePolicyId);
+                .as("unfracking is refused before chain access")
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("Unfracking is temporarily unsupported");
 
         RegistryNode updated = current.toBuilder()
                 .unfrackingLogicScript(AlwaysTrueScripts.credential())
@@ -1107,14 +1203,10 @@ public class Cip113EndToEndIT {
 
     // --------------------------------------------------------------- step 17
 
-    /**
-     * Unfrack a shared UTxO: the example token minted together with an unrelated native asset into
-     * one output — what a freeze scoped to the token would lock as a whole — is split so the token
-     * sits in its own output and the other asset stays where it was.
-     */
+    /** A shared UTxO and a configured hook cannot opt back into unsupported unfracking. */
     @Test
     @Order(17)
-    void step17_unfrackASharedUtxo() throws Exception {
+    void step17_rejectUnfrackingASharedUtxo() throws Exception {
         requireDeployment("Unfracking");
         String unit = unitOf(requireExamplePolicyId());
         Address smartWallet = protocolService.smartWalletAddress(ownerAddress);
@@ -1142,38 +1234,18 @@ public class Cip113EndToEndIT {
         log.info("=== Unfracking === shared UTxO {}#{} holds {} + dust", fracked.getTxHash(),
                 fracked.getOutputIndex(), unit);
 
-        StringBuilder shape = new StringBuilder();
-        Result<String> result = build(new ProgrammableTokenTx()
+        assertThatThrownBy(() -> new ProgrammableTokenTx()
                 .from(account.baseAddress())
-                .unfrack(examplePolicyId, PlutusData.unit()))   // alwaysTrue hook ignores it
-                .preBalanceTx((ctx, txn) -> shape.append(describe("before balancing", txn)))
-                .completeAndWait(log::info);
-        log.info("{}", shape);
-        assertThat(result.isSuccessful())
-                .as("An unfracking must validate: SpendViaUnfracking on every shared input, the"
-                        + " unfracking delegate and the hook withdrawn-zero, each input paired with"
-                        + " a byte-identical continuing output minus the acted policy, and the"
-                        + " policy regrouped at the owner: %s", result.getResponse())
-                .isTrue();
+                .unfrack(examplePolicyId, PlutusData.unit()))
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("Unfracking is temporarily unsupported");
 
-        List<Utxo> after = smartWalletUtxos();
         assertThat(programmableQuantity(unit))
-                .as("unfracking conserves the holding").isEqualTo(heldBefore.add(FRACKED_QUANTITY));
-        assertThat(after).as("the shared UTxO was spent")
-                .noneMatch(u -> u.getTxHash().equals(fracked.getTxHash())
+                .as("a rejected unfracking leaves the holding unchanged")
+                .isEqualTo(heldBefore.add(FRACKED_QUANTITY));
+        assertThat(smartWalletUtxos()).as("the shared UTxO was not spent")
+                .anyMatch(u -> u.getTxHash().equals(fracked.getTxHash())
                         && u.getOutputIndex() == fracked.getOutputIndex());
-        assertThat(after).as("the dust stays behind in a continuing output without the token")
-                .anyMatch(u -> holds(u, dustUnit) && !holds(u, unit));
-        assertThat(after).as("the token is regrouped into its own single-policy output")
-                .anyMatch(u -> holds(u, unit) && !holds(u, dustUnit)
-                        && FRACKED_QUANTITY.equals(quantity(u.getAmount(), unit)));
-
-        assertThatThrownBy(() -> build(new ProgrammableTokenTx()
-                .from(account.baseAddress())
-                .unfrack(examplePolicyId, PlutusData.unit())).build())
-                .as("with nothing shared left, a second unfracking has nothing to do")
-                .isInstanceOf(Cip113Exception.class)
-                .hasMessageContaining("Nothing to unfrack");
     }
 
     // --------------------------------------------------------------- step 18

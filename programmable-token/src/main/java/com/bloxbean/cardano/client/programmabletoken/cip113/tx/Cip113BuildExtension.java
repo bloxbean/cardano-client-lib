@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenCapability;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenPolicyRef;
 import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenTx;
@@ -17,6 +18,7 @@ import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableBurnInte
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableMintIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegisterIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableRegistryUpdateIntent;
+import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableThirdPartyBurnIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableThirdPartyTransferIntent;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTokenAsset;
 import com.bloxbean.cardano.client.programmabletoken.intent.ProgrammableTokenIntent;
@@ -34,6 +36,7 @@ import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -45,6 +48,9 @@ import java.util.stream.Collectors;
 
 /** Build-local CIP-113 materializer used by the CIP-113 Programmable Token protocol. */
 public final class Cip113BuildExtension implements TxBuildExtension {
+    private static final String INLINE_DATUM = "inline_datum";
+    private static final String ISSUANCE_REDEEMER = "issuance_redeemer";
+
     private final Cip113ProtocolService service;
     private final Set<ProgrammableTokenCapability> capabilities;
     private final List<Cip113TransactionMaterializer> materializers = new ArrayList<>();
@@ -149,17 +155,17 @@ public final class Cip113BuildExtension implements TxBuildExtension {
      *
      * <p>A registry update and an unfracking each have an on-chain shape that admits nothing
      * else (one continuing node output; an empty mint and positionally paired outputs). A
-     * third-party action is authorised by the token's admin logic rather than the sender, so it
-     * cannot share a transaction with owner operations, and its redeemer names one registry
-     * node, so it acts on one policy.</p>
+     * third-party action (seizures and third-party burns) is dispatched through
+     * {@code ThirdPartyAct}, and the dispatcher authorises one action per transaction, so no owner
+     * operation that spends a wallet can join it; its redeemer names one registry node, so it
+     * acts on one policy. Mints and registrations spend no base-script input and may join.</p>
      */
     private static void validateComposition(List<ProgrammableTokenIntent> intents) {
         long registrations = intents.stream().filter(ProgrammableRegisterIntent.class::isInstance).count();
         long updates = intents.stream().filter(ProgrammableRegistryUpdateIntent.class::isInstance).count();
         long unfracks = intents.stream().filter(ProgrammableUnfrackIntent.class::isInstance).count();
-        List<ProgrammableThirdPartyTransferIntent> thirdParty = intents.stream()
-                .filter(ProgrammableThirdPartyTransferIntent.class::isInstance)
-                .map(ProgrammableThirdPartyTransferIntent.class::cast).toList();
+        List<ProgrammableTokenIntent> thirdParty = intents.stream()
+                .filter(Cip113BuildExtension::isThirdParty).toList();
 
         if (registrations > 1)
             throw new Cip113Exception("CIP-113 supports one token registration per transaction");
@@ -173,26 +179,104 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             throw new Cip113Exception("A CIP-113 unfracking must be its own transaction: the"
                     + " validator requires an empty mint and pairs every base-script input with a"
                     + " continuing output");
-        if (!thirdParty.isEmpty() && intents.size() > thirdParty.size())
-            throw new Cip113Exception(
-                    "A CIP-113 third-party transfer cannot be mixed with owner operations");
+        if (!thirdParty.isEmpty()) validateThirdPartyComposition(intents, thirdParty);
+    }
 
-        if (!thirdParty.isEmpty()) {
-            Set<String> holders = thirdParty.stream()
-                    .map(ProgrammableThirdPartyTransferIntent::getHolder)
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
-            if (holders.size() != 1)
-                throw new Cip113Exception(
-                        "One CIP-113 transaction can act for only one third-party holder");
-            Set<String> policies = thirdParty.stream()
-                    .map(intent -> policyFromAmount(intent.getAmount()))
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
-            if (policies.size() != 1)
-                throw new Cip113Exception("One CIP-113 third-party transaction can act on exactly"
-                        + " one policy, but " + policies + " were declared. The third_party"
-                        + " redeemer names a single registry node, so split these into separate"
-                        + " transactions.");
+    private static boolean isThirdParty(ProgrammableTokenIntent intent) {
+        return intent instanceof ProgrammableThirdPartyTransferIntent
+                || intent instanceof ProgrammableThirdPartyBurnIntent;
+    }
+
+    /** The policy a third-party intent acts on, lowercase; a malformed unit fails here. */
+    private static String thirdPartyPolicy(ProgrammableTokenIntent intent) {
+        if (intent instanceof ProgrammableThirdPartyTransferIntent seizure)
+            return policyFromAmount(seizure.getAmount());
+        return ((ProgrammableThirdPartyBurnIntent) intent).getPolicy().getPolicyId().toLowerCase();
+    }
+
+    /**
+     * The third-party branch of the composition rules, all decidable before any chain read.
+     *
+     * <ul>
+     *   <li>Only mints and registrations may join: an owner transfer, owner burn or unfracking
+     *       would need a second dispatcher arm.</li>
+     *   <li>One policy: the {@code third_party} redeemer names a single registry node.</li>
+     *   <li>A holder UTxO is pinned at most once: a UTxO is spent once.</li>
+     *   <li>A mint and a third-party burn of the same asset name share one mint-map entry, so
+     *       they are netted; a net of zero would be an empty entry the ledger rejects.</li>
+     * </ul>
+     *
+     * <p>Redeemer agreement (one third-party logic and one minting logic invocation each) needs
+     * the registry node to see which credentials coincide, so the materializer checks it.</p>
+     */
+    private static void validateThirdPartyComposition(List<ProgrammableTokenIntent> intents,
+                                                      List<ProgrammableTokenIntent> thirdParty) {
+        requireOnlyMintsAndRegistrationsAlongside(intents);
+        String policy = theOnePolicy(thirdParty);
+        Map<String, java.math.BigInteger> burnedByName = burnedByName(thirdParty);
+        Map<String, java.math.BigInteger> mintedByName = mintedByName(intents, policy);
+        for (Map.Entry<String, java.math.BigInteger> minted : mintedByName.entrySet()) {
+            java.math.BigInteger burned = burnedByName.get(minted.getKey());
+            if (burned != null && burned.equals(minted.getValue()))
+                throw new Cip113Exception("This transaction mints and third-party burns the same "
+                        + minted.getValue() + " of " + policy + minted.getKey() + ". They net into one"
+                        + " mint entry, and a net of zero is an empty entry the ledger rejects. Drop"
+                        + " both, or change one of the quantities.");
         }
+    }
+
+    private static void requireOnlyMintsAndRegistrationsAlongside(List<ProgrammableTokenIntent> intents) {
+        for (ProgrammableTokenIntent intent : intents) {
+            if (!isThirdParty(intent) && !(intent instanceof ProgrammableMintIntent)
+                    && !(intent instanceof ProgrammableRegisterIntent))
+                throw new Cip113Exception("A CIP-113 third-party action cannot be mixed with owner"
+                        + " operations (" + intent.getOperation() + "): it is dispatched through"
+                        + " ThirdPartyAct, and the dispatcher authorises one action per transaction."
+                        + " Only mints and registrations may share it.");
+        }
+    }
+
+    private static String theOnePolicy(List<ProgrammableTokenIntent> thirdParty) {
+        Set<String> policies = thirdParty.stream().map(Cip113BuildExtension::thirdPartyPolicy)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (policies.size() != 1)
+            throw new Cip113Exception("One CIP-113 third-party transaction can act on exactly"
+                    + " one policy, but " + policies + " were declared. The third_party"
+                    + " redeemer names a single registry node, so split these into separate"
+                    + " transactions.");
+        return policies.iterator().next();
+    }
+
+    /** What the third-party burns take, by asset name; a holder UTxO pinned twice fails here. */
+    private static Map<String, java.math.BigInteger> burnedByName(List<ProgrammableTokenIntent> thirdParty) {
+        Set<String> pinned = new LinkedHashSet<>();
+        Map<String, java.math.BigInteger> burnedByName = new LinkedHashMap<>();
+        for (ProgrammableTokenIntent intent : thirdParty) {
+            if (intent instanceof ProgrammableThirdPartyBurnIntent burn) {
+                String ref = burn.getHolderUtxoRef().toLowerCase();
+                if (!pinned.add(ref))
+                    throw new Cip113Exception("Holder UTxO " + ref + " is pinned twice, by two third-party"
+                            + " burns. A UTxO can be spent once; put every asset to burn from it in one"
+                            + " burn.");
+                for (ProgrammableTokenAsset asset : burn.getAssets())
+                    burnedByName.merge(asset.getName(), asset.getQuantity(), java.math.BigInteger::add);
+            }
+        }
+        return burnedByName;
+    }
+
+    /** What the mints of {@code policy} create, by asset name. */
+    private static Map<String, java.math.BigInteger> mintedByName(List<ProgrammableTokenIntent> intents,
+                                                                   String policy) {
+        Map<String, java.math.BigInteger> mintedByName = new LinkedHashMap<>();
+        for (ProgrammableTokenIntent intent : intents) {
+            if (intent instanceof ProgrammableMintIntent mint && mint.getPolicy() != null
+                    && policy.equalsIgnoreCase(mint.getPolicy().getPolicyId())) {
+                for (ProgrammableTokenAsset asset : mint.getAssets())
+                    mintedByName.merge(asset.getName(), asset.getQuantity(), java.math.BigInteger::add);
+            }
+        }
+        return mintedByName;
     }
 
     private void materializeSource(ExtensionBuildContext context, Tx source, String owner,
@@ -216,9 +300,8 @@ public final class Cip113BuildExtension implements TxBuildExtension {
             return;
         }
 
-        if (intents.get(0) instanceof ProgrammableThirdPartyTransferIntent) {
-            materializeThirdParty(context, source, owner, intents.stream()
-                    .map(ProgrammableThirdPartyTransferIntent.class::cast).toList(), registry);
+        if (intents.stream().anyMatch(Cip113BuildExtension::isThirdParty)) {
+            materializeThirdParty(context, source, owner, intents, registry);
             return;
         }
 
@@ -243,13 +326,13 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                 ProgrammableTransferIntent transfer = (ProgrammableTransferIntent) intent;
                 String policy = policyFromAmount(transfer.getAmount());
                 primary.recordTransferForExtension(policy, transfer.getReceiver(), transfer.getAmount(),
-                        resolvedOptional(transfer.getInlineDatum(), "inline_datum"));
+                        resolvedOptional(transfer.getInlineDatum(), INLINE_DATUM));
                 primary.withRedeemer(policy, resolved(transfer.getTransferRedeemer(), "transfer_redeemer"));
             } else if (intent instanceof ProgrammableBurnIntent) {
                 ProgrammableBurnIntent burn = (ProgrammableBurnIntent) intent;
                 String policy = resolvePolicy(burn.getPolicy(), namedPolicies);
                 PlutusData transferRedeemer = resolved(burn.getTransferRedeemer(), "transfer_redeemer");
-                PlutusData issuanceRedeemer = resolved(burn.getIssuanceRedeemer(), "issuance_redeemer");
+                PlutusData issuanceRedeemer = resolved(burn.getIssuanceRedeemer(), ISSUANCE_REDEEMER);
                 for (ProgrammableTokenAsset declaredAsset : burn.getAssets()) {
                     primary.recordBurnForExtension(policy, declaredAsset.toLedgerAsset().negate(),
                             transferRedeemer, issuanceRedeemer);
@@ -266,23 +349,65 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                         .map(ProgrammableTokenAsset::toLedgerAsset)
                         .toList();
                 primary.recordMintForExtension(policy, assets,
-                        resolved(mint.getIssuanceRedeemer(), "issuance_redeemer"),
-                        mint.getReceiver(), resolvedOptional(mint.getInlineDatum(), "inline_datum"));
+                        resolved(mint.getIssuanceRedeemer(), ISSUANCE_REDEEMER),
+                        mint.getReceiver(), resolvedOptional(mint.getInlineDatum(), INLINE_DATUM));
             }
         }
         finish(context, source, primary);
     }
 
+    /**
+     * A third-party action: any seizures and third-party burns of one policy, from any holders,
+     * with mints and a registration alongside.
+     *
+     * <p>Order is what keeps the positional pairing unambiguous: the registration and the mints
+     * are recorded first and the seizure destinations next, so all of their outputs precede the
+     * continuing outputs {@link Cip113TransactionMaterializer#materialise()} emits last.</p>
+     */
     private void materializeThirdParty(ExtensionBuildContext context, Tx source, String owner,
-                                       List<ProgrammableThirdPartyTransferIntent> intents,
-                                       RegistryLookup registry) {
-        Cip113TransactionMaterializer materializer = newMaterializer(context, owner, registry)
-                .thirdPartyFrom(new Address(intents.get(0).getHolder()));
-        String policy = policyFromAmount(intents.get(0).getAmount());
-        for (ProgrammableThirdPartyTransferIntent intent : intents) {
-            materializer.recordTransferForExtension(policy, intent.getReceiver(), intent.getAmount(), null);
-            materializer.withRedeemer(policy,
-                    resolved(intent.getThirdPartyRedeemer(), "third_party_redeemer"));
+                                       List<ProgrammableTokenIntent> intents, RegistryLookup registry) {
+        Cip113TransactionMaterializer materializer = newMaterializer(context, owner, registry);
+        String policy = intents.stream().filter(Cip113BuildExtension::isThirdParty)
+                .map(Cip113BuildExtension::thirdPartyPolicy).findFirst().orElseThrow();
+        Map<String, String> namedPolicies = new LinkedHashMap<>();
+
+        for (ProgrammableTokenIntent intent : intents) {
+            if (!(intent instanceof ProgrammableRegisterIntent)) continue;
+            ProgrammableRegisterIntent registration = (ProgrammableRegisterIntent) intent;
+            materializer.registerToken(Cip113Registration.toSpec(registration.getRegistration()),
+                    resolved(registration.getRegistrationRedeemer(), "registration_redeemer"));
+            namedPolicies.put(registration.getName(), materializer.registeredPolicyId());
+            // The registration spends its covering node; third_party reads the acted policy's node
+            // as a reference input, and one UTxO cannot be both.
+            if (policy.equalsIgnoreCase(materializer.registeringCoveringKey()))
+                throw new Cip113Exception("The registration in this transaction inserts after the"
+                        + " registry node of " + policy + " — its covering node is the node this"
+                        + " third-party action reads. A UTxO cannot be spent and referenced in one"
+                        + " transaction, so register in a separate transaction.");
+        }
+
+        for (ProgrammableTokenIntent intent : intents) {
+            if (!(intent instanceof ProgrammableMintIntent)) continue;
+            ProgrammableMintIntent mint = (ProgrammableMintIntent) intent;
+            materializer.recordMintForExtension(resolvePolicy(mint.getPolicy(), namedPolicies),
+                    mint.getAssets().stream().map(ProgrammableTokenAsset::toLedgerAsset).toList(),
+                    resolved(mint.getIssuanceRedeemer(), ISSUANCE_REDEEMER),
+                    mint.getReceiver(), resolvedOptional(mint.getInlineDatum(), INLINE_DATUM));
+        }
+
+        for (ProgrammableTokenIntent intent : intents) {
+            if (intent instanceof ProgrammableThirdPartyTransferIntent seizure) {
+                materializer.thirdPartyFrom(new Address(seizure.getHolder()));
+                materializer.recordTransferForExtension(policy, seizure.getReceiver(), seizure.getAmount(), null);
+                materializer.withRedeemer(policy,
+                        resolved(seizure.getThirdPartyRedeemer(), "third_party_redeemer"));
+            } else if (intent instanceof ProgrammableThirdPartyBurnIntent burn) {
+                String[] ref = burn.getHolderUtxoRef().split("#");
+                materializer.recordThirdPartyBurnForExtension(ref[0], Integer.parseInt(ref[1]), policy,
+                        burn.getAssets().stream().map(ProgrammableTokenAsset::toLedgerAsset).toList(),
+                        resolved(burn.getThirdPartyRedeemer(), "third_party_redeemer"),
+                        resolved(burn.getIssuanceRedeemer(), ISSUANCE_REDEEMER));
+            }
         }
         materializer.materialise();
         finish(context, source, materializer);
@@ -292,7 +417,59 @@ public final class Cip113BuildExtension implements TxBuildExtension {
                                                           String owner, RegistryLookup registry) {
         return new Cip113TransactionMaterializer(service, context.getUtxoSupplier(), registry)
                 .excludeInputs(Set.copyOf(context.getReservedInputs()))
+                .withCallerReferences(callerReferences(context))
+                .withCallerSpends(callerSpends(context))
                 .from(owner);
+    }
+
+    /**
+     * Every UTxO the authored transactions spend with {@code collectFrom}, script inputs included.
+     *
+     * <p>A plan reloaded from YAML carries a spend only as {@code utxo_refs} (the UTxO itself is not
+     * serialised), so a spend without its UTxO is resolved through the build's supplier.</p>
+     */
+    private static List<Utxo> callerSpends(ExtensionBuildContext context) {
+        return context.getTransactions().stream()
+                .flatMap(tx -> tx.getIntentions().stream())
+                .flatMap(intent -> {
+                    if (intent instanceof com.bloxbean.cardano.client.quicktx.intent.CollectFromIntent collect)
+                        return spent(context, collect.getUtxos(), collect.getUtxoRefs(), collect.getType());
+                    if (intent instanceof com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent collect)
+                        return spent(context, collect.getUtxos(), collect.getUtxoRefs(), collect.getType());
+                    return java.util.stream.Stream.<Utxo>empty();
+                })
+                .toList();
+    }
+
+    private static java.util.stream.Stream<Utxo> spent(ExtensionBuildContext context, List<Utxo> utxos,
+                                                      List<com.bloxbean.cardano.client.quicktx.intent.UtxoRef> refs,
+                                                      String type) {
+        if (utxos != null && !utxos.isEmpty()) return utxos.stream();
+        if (refs == null) return java.util.stream.Stream.empty();
+        return refs.stream().map(ref -> {
+            String outref = ref.getTxHash() + "#" + ref.getOutputIndex();
+            if (ref.getTxHash() == null || ref.getOutputIndex() == null)
+                throw new Cip113Exception("The " + type + " input " + outref + " is not a resolved outref;"
+                        + " supply its variables before building.");
+            return context.getUtxoSupplier().getTxOutput(ref.getTxHash(), ref.getOutputIndex())
+                    .orElseThrow(() -> new Cip113Exception("The " + type + " input " + outref
+                            + " could not be found through the build's UTxO supplier. A programmable-token"
+                            + " build must know what a spent input holds, e.g. whether it is the token's"
+                            + " global state."));
+        });
+    }
+
+    /** Every reference input the authored transactions add with {@code readFrom}. */
+    private static List<com.bloxbean.cardano.client.transaction.spec.TransactionInput> callerReferences(
+            ExtensionBuildContext context) {
+        return context.getTransactions().stream()
+                .flatMap(tx -> tx.getIntentions().stream())
+                .filter(com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntent.class::isInstance)
+                .map(com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntent.class::cast)
+                .flatMap(intent -> intent.getRefs().stream())
+                .map(ref -> com.bloxbean.cardano.client.transaction.spec.TransactionInput.builder()
+                        .transactionId(ref.getTxHash()).index(ref.getOutputIndex()).build())
+                .toList();
     }
 
     /**
@@ -308,6 +485,14 @@ public final class Cip113BuildExtension implements TxBuildExtension {
         }
         materializer.getIntentions().forEach(intent -> context.addPreparedIntent(source, intent));
         materializers.add(materializer);
+    }
+
+    /** The published scripts the materializers reference instead of witnessing. */
+    @Override
+    public Collection<PlutusScript> referenceScripts() {
+        return materializers.stream()
+                .flatMap(materializer -> materializer.referencedScripts().stream())
+                .toList();
     }
 
     @Override
@@ -330,8 +515,13 @@ public final class Cip113BuildExtension implements TxBuildExtension {
 
     private void validateCapabilities(List<ProgrammableTokenIntent> intents) {
         for (ProgrammableTokenIntent intent : intents) {
-            ProgrammableTokenCapability capability = capability(intent);
-            if (!capabilities.contains(capability))
+            if (intent instanceof ProgrammableUnfrackIntent)
+                throw new UnsupportedOperationException(ProgrammableUnfrackIntent.UNSUPPORTED_MESSAGE);
+            // A third-party burn is both a third-party action and a burn, so it needs both.
+            Set<ProgrammableTokenCapability> required = intent instanceof ProgrammableThirdPartyBurnIntent
+                    ? EnumSet.of(ProgrammableTokenCapability.THIRD_PARTY_TRANSFER, ProgrammableTokenCapability.BURN)
+                    : EnumSet.of(capability(intent));
+            if (!capabilities.containsAll(required))
                 throw new Cip113Exception("Protocol cip-113 does not support operation "
                         + intent.getOperation() + " in this CCL adapter");
         }
