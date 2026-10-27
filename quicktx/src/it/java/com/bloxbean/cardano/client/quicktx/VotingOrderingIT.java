@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.it.BaseIT;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
@@ -51,13 +52,15 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Property-style check of Voting redeemer indices on Yaci DevKit (API: localhost:8080, admin: localhost:10000).
  * <p>
  * Setup registers three script DReps and two key DReps, then creates two InfoAction proposals. One key DRep's
- * hash sorts before every script hash, so hash-only ordering would shift the script indices. Each trial then
+ * hash sorts before every script hash, so hash-only ordering would shift the script indices. The DReps and the
+ * trials are all derived from the seed; only the funded payer account is fresh per run. Each trial then
  * votes from a random subset of DReps, on one or both proposals, in a random insertion order, and the
  * transaction must be confirmed.
  * <p>
@@ -77,6 +80,7 @@ class VotingOrderingIT extends BaseIT {
 
     private static final long SEED = Long.parseLong(setting("voting.it.seed", "VOTING_IT_SEED", String.valueOf(System.nanoTime())));
     private static final int RANDOM_TRIALS = Integer.parseInt(setting("voting.it.trials", "VOTING_IT_TRIALS", "6"));
+    private static final int KEY_CANDIDATES = 20;
     private static final Anchor ANCHOR = new Anchor("https://xyz.com",
             HexUtil.decodeHexString("cafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
@@ -96,27 +100,32 @@ class VotingOrderingIT extends BaseIT {
         payer = new Account(Networks.testnet());
         Random random = new Random(SEED);
 
-        // Fresh parameters per run give fresh script hashes, so reruns never hit an already registered DRep
+        // Everything below comes from the seed, so a replayed seed rebuilds the same DReps. Key DReps use
+        // seed-derived account numbers of a fixed mnemonic (DRep keys are derived per account, m/1852'/1815'/account'/3/0).
+        List<Account> candidates = random.ints(KEY_CANDIDATES, 10_000, Integer.MAX_VALUE).distinct().boxed()
+                .map(account -> Account.createFromMnemonic(Networks.testnet(), YACI_DEFAULT_MNEMONIC, account, 0))
+                .collect(Collectors.toList());
+        Account lowKey = candidates.stream().min(Comparator.comparing(VotingOrderingIT::keyHash)).orElseThrow();
+        keyDReps.add(lowKey);
+        keyDReps.add(candidates.stream().filter(account -> account != lowKey).findFirst().orElseThrow());
+        keyDReps.sort(Comparator.comparing(VotingOrderingIT::keyHash));
+
+        // Draw script parameters until three scripts hash above the low key, so hash-only ordering would put that
+        // key first. The low key is the minimum of KEY_CANDIDATES hashes, so a draw almost always qualifies.
+        String lowKeyHash = keyHash(lowKey);
         String compiledCode = loadCompiledCode();
         Set<Integer> params = new LinkedHashSet<>();
-        while (params.size() < 3)
-            params.add(1 + random.nextInt(1_000_000));
+        for (int draw = 0; draw < 10_000 && params.size() < 3; draw++) {
+            int param = 1 + random.nextInt(1_000_000);
+            if (scriptDRep(compiledCode, param).hash().compareTo(lowKeyHash) > 0)
+                params.add(param);
+        }
+        assertThat(params).as("three script hashes above key hash %s", lowKeyHash).hasSize(3);
         scriptDReps = params.stream()
                 .map(param -> scriptDRep(compiledCode, param))
                 .sorted(Comparator.comparing(ScriptDRep::hash))
                 .collect(Collectors.toList());
         assertThat(scriptDReps).extracting(ScriptDRep::hash).doesNotHaveDuplicates();
-
-        // One key hash must precede every script hash; the second key DRep is random
-        String lowestScriptHash = scriptDReps.get(0).hash();
-        for (int attempt = 0; attempt < 1000 && keyDReps.isEmpty(); attempt++) {
-            Account candidate = new Account(Networks.testnet());
-            if (keyHash(candidate).compareTo(lowestScriptHash) < 0)
-                keyDReps.add(candidate);
-        }
-        assertThat(keyDReps).as("a DRep key hash lower than %s", lowestScriptHash).hasSize(1);
-        keyDReps.add(new Account(Networks.testnet()));
-        keyDReps.sort(Comparator.comparing(VotingOrderingIT::keyHash));
 
         scriptDReps.forEach(s -> log.info("Script DRep {} (param {}): {}", s.name(), s.param(), s.hash()));
         for (int i = 0; i < keyDReps.size(); i++)
@@ -125,7 +134,7 @@ class VotingOrderingIT extends BaseIT {
         fundPayer();
 
         // Script DRep registration runs the publish handler with the DRep's own redeemer. A replayed seed gives
-        // the same scripts, which may already be registered; only the ledger's explicit rejection is accepted.
+        // the same DReps, which may already be registered; only the ledger's explicit rejection is accepted.
         for (ScriptDRep script : scriptDReps) {
             Tx registration = new Tx()
                     .registerDRep(script.credential(), ANCHOR, BigIntPlutusData.of(script.param()))
@@ -143,14 +152,21 @@ class VotingOrderingIT extends BaseIT {
             }
         }
 
-        Tx keyRegistration = new Tx().from(payer.baseAddress());
-        keyDReps.forEach(account -> keyRegistration.registerDRep(account, ANCHOR));
-        assertConfirmed(new QuickTxBuilder(backendService).compose(keyRegistration)
-                .withSigner(SignerProviders.signerFrom(payer))
-                .withSigner(SignerProviders.drepKeySignerFrom(keyDReps.get(0)))
-                .withSigner(SignerProviders.drepKeySignerFrom(keyDReps.get(1)))
-                .mergeOutputs(false)
-                .completeAndWait(Duration.ofMinutes(2), log::info), "register key DReps");
+        for (Account account : keyDReps) {
+            TxResult result = new QuickTxBuilder(backendService)
+                    .compose(new Tx().registerDRep(account, ANCHOR).from(payer.baseAddress()))
+                    .withSigner(SignerProviders.signerFrom(payer))
+                    .withSigner(SignerProviders.drepKeySignerFrom(account))
+                    .mergeOutputs(false)
+                    .completeAndWait(Duration.ofMinutes(2), log::info);
+            String name = "key DRep " + keyHash(account).substring(0, 8);
+            if (result.isSuccessful())
+                assertConfirmed(result, "register " + name);
+            else {
+                assertThat(result.getResponse()).as("register %s", name).contains("DRepAlreadyRegistered");
+                log.info("{} already registered (replayed seed)", name);
+            }
+        }
 
         // The proposal deposit return account must be registered before the proposals
         assertConfirmed(new QuickTxBuilder(backendService)
@@ -226,28 +242,43 @@ class VotingOrderingIT extends BaseIT {
     }
 
     @Test
-    void swappedRedeemer_rejectedByScript() {
-        // Guards the fixture: if scripts accepted any redeemer, the trials above could not detect a swap
+    void swappedRedeemer_rejectedByVotingScript() {
+        // Guards the fixture: if scripts accepted any redeemer, the trials above could not detect a swap.
+        // Both transactions are only built (script cost is evaluated by the backend), never submitted.
         ScriptDRep s0 = scriptDReps.get(0);
         ScriptDRep s1 = scriptDReps.get(1);
-        Tx voteTx = new Tx()
-                .createVote(s0.voter(), proposals.get(0), Vote.YES, null, BigIntPlutusData.of(s1.param()))
-                .attachVotingValidator(s0.validator())
-                .from(payer.baseAddress());
 
-        boolean rejected;
-        try {
-            TxResult result = new QuickTxBuilder(backendService).compose(voteTx)
-                    .withSigner(SignerProviders.signerFrom(payer))
-                    .mergeOutputs(false)
-                    .completeAndWait(Duration.ofMinutes(1), log::info);
-            rejected = !result.isSuccessful();
-            log.info("Swapped redeemer result: {}", result.getResponse());
-        } catch (Exception e) {
-            log.info("Swapped redeemer rejected: {}", e.getMessage());
-            rejected = true;
-        }
-        assertThat(rejected).as("script %s must reject the redeemer of %s", s0.name(), s1.name()).isTrue();
+        // Control: S0's own redeemer evaluates, so setup and evaluator work
+        Transaction control = buildVote(s0, s0.param());
+        assertThat(control.getWitnessSet().getRedeemers()).singleElement()
+                .satisfies(redeemer -> assertThat(redeemer.getTag()).isEqualTo(RedeemerTag.Voting));
+
+        // Swapped: S1's redeemer must fail S0's vote script during script cost evaluation
+        assertThatThrownBy(() -> buildVote(s0, s1.param()))
+                .as("script %s must reject the redeemer of %s", s0.name(), s1.name())
+                .isInstanceOfSatisfying(TxBuildException.class, e -> {
+                    log.info("Swapped redeemer rejected: {}", e.getCause() == null ? e : e.getCause().getMessage());
+                    assertThat(e).hasMessage("Error while evaluating script cost");
+                    assertThat(e.getCause()).isInstanceOf(TxBuildException.class);
+                    // The backend relays Ogmios' EvaluateTx failure as JSON nested in a JSON string, so quotes may be
+                    // escaped. Require the vote script at index 0 to fail with 3012 (script evaluated to an error).
+                    assertThat(e.getCause().getMessage())
+                            .startsWith("Failed to compute script cost")
+                            .contains("EvaluationFailure")
+                            .containsPattern(json("index", "0") + WS + "," + WS + Q + "purpose" + Q + WS + ":" + WS + Q + "vote")
+                            .containsPattern(json("code", "3012"));
+                });
+    }
+
+    private Transaction buildVote(ScriptDRep script, int redeemer) {
+        Tx voteTx = new Tx()
+                .createVote(script.voter(), proposals.get(0), Vote.YES, null, BigIntPlutusData.of(redeemer))
+                .attachVotingValidator(script.validator())
+                .from(payer.baseAddress());
+        return new QuickTxBuilder(backendService).compose(voteTx)
+                .withSigner(SignerProviders.signerFrom(payer))
+                .mergeOutputs(false)
+                .build();
     }
 
     private void assertVotingRedeemers(Transaction transaction, Set<Integer> scriptsUsed, Set<Integer> keysUsed) {
@@ -335,6 +366,15 @@ class VotingOrderingIT extends BaseIT {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    // Regex pieces for JSON that may be nested in a JSON string: an optionally escaped quote, and whitespace
+    // that may include a literal \n
+    private static final String Q = "\\\\?\"";
+    private static final String WS = "(?:\\s|\\\\n)*";
+
+    private static String json(String name, String value) {
+        return Q + name + Q + WS + ":" + WS + value + "\\b";
     }
 
     private static String setting(String property, String env, String defaultValue) {
