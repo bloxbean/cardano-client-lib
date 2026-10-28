@@ -9,6 +9,8 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 import java.util.Objects;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
+
 /**
  * {@literal
  * voting_procedure =
@@ -38,11 +40,11 @@ public class VotingProcedure {
     }
 
     public static VotingProcedure deserialize(Array array) {
-        if (array != null && array.getDataItems().size() != 2)
+        List<DataItem> diList = definiteItems(array, "voting_procedure");
+        if (diList.size() != 2)
             throw new IllegalArgumentException("Invalid voting_procedure array. Expected 2 items. Found : "
-                    + array.getDataItems().size());
+                    + diList.size());
 
-        List<DataItem> diList = array.getDataItems();
         Vote vote = Vote.deserialize((UnsignedInteger) diList.get(0));
 
         //anchor

@@ -71,6 +71,23 @@ public class CborSerializationUtil {
     }
 
     /**
+     * The items of an array that must have a definite length. cardano-ledger accepts both lengths for most arrays, but
+     * up to protocol version 11 (Conway) a record decoded with Coders' {@code RecD} reads the list header before its
+     * fields ({@code decodeCount (RecD _)}), and a tuple with {@code decodeListLenOf}, so an indefinite-length one is
+     * rejected.
+     *
+     * @param array the array
+     * @param name  what the array is, for the error message
+     * @return the items of the array
+     * @throws CborRuntimeException if the array has an indefinite length
+     */
+    public static List<DataItem> definiteItems(Array array, String name) {
+        if (array.isChunked())
+            throw new CborRuntimeException("Invalid " + name + ": expected a definite-length array");
+        return array.getDataItems();
+    }
+
+    /**
      * Convert a ByteString dataitem to Hex value
      * @param di
      * @return
@@ -210,7 +227,8 @@ public class CborSerializationUtil {
      * <p>
      * Decoding is iterative, so items of any nesting depth decode on any thread, and produces the same trees as
      * cbor-java's {@code CborDecoder}, except that maps are
-     * {@link com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap}s.
+     * {@link com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap}s and an indefinite-length array is
+     * {@code chunked} without a trailing {@link Special#BREAK} item, so its items are just its elements.
      * Input that is not well-formed CBOR (RFC 8949) is rejected.
      *
      * @param bytes CBOR bytes

@@ -24,6 +24,7 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
 
 @Data
@@ -62,7 +63,7 @@ public class AuxiliaryData {
      * @throws CborDeserializationException if the array is not of that shape
      */
     public static AuxiliaryData deserialize(Array array) throws CborDeserializationException {
-        List<DataItem> items = withoutBreak(array.getDataItems());
+        List<DataItem> items = definiteItems(array, "aux data");
         if (items.size() != 2 || !(items.get(0) instanceof Map) || !(items.get(1) instanceof Array))
             throw new CborDeserializationException("Aux data [metadata, scripts] expected");
         AuxiliaryData auxiliaryData = new AuxiliaryData();

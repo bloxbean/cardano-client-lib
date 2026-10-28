@@ -7,6 +7,7 @@ import lombok.*;
 
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 
 @Getter
@@ -17,7 +18,8 @@ import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIn
 @Builder
 public class ProtocolVersion {
     private int major;
-    private int minor;
+    // cardano-ledger: a Natural until protocol version 12, then a Word32
+    private long minor;
 
     public Array serialize() {
         Array array = new Array();
@@ -34,7 +36,7 @@ public class ProtocolVersion {
                     + protocolVerDIList.size());
 
         int major = toInt(protocolVerDIList.get(0));
-        int minor = toInt(protocolVerDIList.get(1));
+        long minor = getBigInteger(protocolVerDIList.get(1)).longValueExact();
 
         return new ProtocolVersion(major, minor);
     }

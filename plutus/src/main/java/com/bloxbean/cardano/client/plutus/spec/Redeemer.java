@@ -11,6 +11,8 @@ import lombok.*;
 import java.math.BigInteger;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -127,7 +129,7 @@ public class Redeemer {
         if (redeemerKeyDIList == null || redeemerKeyDIList.size() != 2)
             throw new CborDeserializationException("Redeemer deserialization error. Invalid no of DataItems in key");
 
-        List<DataItem> redeemerValueDIList = redeemerValue.getDataItems();
+        List<DataItem> redeemerValueDIList = definiteItems(redeemerValue, "redeemer value");
         if (redeemerValueDIList == null || redeemerValueDIList.size() != 2)
             throw new CborDeserializationException("Redeemer deserialization error. Invalid no of DataItems in value");
 

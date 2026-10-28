@@ -22,8 +22,10 @@ import static org.assertj.core.api.Assertions.fail;
 
 /**
  * The iterative codec against the recursive one it replaces: {@link CborSerializationUtil#deserialize(byte[])} must
- * give cbor-java's trees, and {@link CborSerializationUtil#serialize} the old encoder's bytes, on real transactions and
- * blocks, on seeded random CBOR and on fuzzed input.
+ * give cbor-java's trees (without the BREAK item that cbor-java ends an indefinite array with), and
+ * {@link CborSerializationUtil#serialize} the old encoder's bytes, on real transactions and blocks, on seeded random
+ * CBOR and on fuzzed input. (Unlike cbor-java, the decoder also reads tag 30 and 38 over an indefinite array, which
+ * these inputs do not hold; see {@link DataItemDecoderTest}.)
  */
 class DataItemCodecDifferentialTest {
 
@@ -131,7 +133,8 @@ class DataItemCodecDifferentialTest {
                             .isEqualTo(LegacyCborEncoder.encode(actual, canonical));
                 continue;
             }
-            assertThat(actual.equals(oracle)).as("%s item %d equals cbor-java's", what, i).isTrue();
+            assertThat(actual.equals(CborJava.withoutBreaks(oracle))).as("%s item %d equals cbor-java's", what, i)
+                    .isTrue();
             for (boolean canonical : new boolean[]{false, true}) {
                 byte[] legacy = LegacyCborEncoder.encode(oracle, canonical);
                 assertThat(LegacyCborEncoder.encode(actual, canonical)).as("%s item %d encoding", what, i).isEqualTo(legacy);

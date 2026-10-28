@@ -28,7 +28,9 @@ import java.util.TreeMap;
  * Containers are encoded with an explicit stack instead of recursion, so items of any nesting depth encode on any
  * thread. The output is the same as the cbor-java based encoder it replaces, byte for byte: maps that need canonical
  * ordering buffer their encoded entries and sort them by unsigned lexicographic order of the key bytes; everything else
- * streams.
+ * streams. The one difference: an indefinite array is closed with a BREAK whether or not its last item is
+ * {@link Special#BREAK}, as {@link com.bloxbean.cardano.client.common.cbor.CborSerializationUtil#deserialize(byte[])}
+ * leaves that item out.
  */
 public class CustomCborEncoder extends CborEncoder {
     private static final BigInteger MINUS_ONE = BigInteger.valueOf(-1);
@@ -155,10 +157,12 @@ public class CustomCborEncoder extends CborEncoder {
 
     private static final class ArrayFrame extends Frame {
         private final Iterator<DataItem> items;
+        private final boolean breakAtEnd;
 
-        ArrayFrame(Frame parent, Buffer out, List<DataItem> items) {
+        ArrayFrame(Frame parent, Buffer out, List<DataItem> items, boolean breakAtEnd) {
             super(parent, out);
             this.items = items.iterator();
+            this.breakAtEnd = breakAtEnd;
         }
 
         @Override
@@ -169,6 +173,12 @@ public class CustomCborEncoder extends CborEncoder {
         @Override
         DataItem next() {
             return items.next();
+        }
+
+        @Override
+        void finish() {
+            if (breakAtEnd)
+                writeBreak(out);
         }
     }
 
@@ -409,12 +419,22 @@ public class CustomCborEncoder extends CborEncoder {
                 case ARRAY: {
                     Array array = (Array) item;
                     List<DataItem> items = array.getDataItems();
-                    if (array.isChunked())
+                    if (array.isChunked()) {
+                        // An indefinite array decoded by CborSerializationUtil holds just its items; one built the
+                        // cbor-java way ends with a BREAK item. Either way it is closed with one BREAK.
+                        int size = items.size();
+                        if (size > 0 && items.get(size - 1) == Special.BREAK)
+                            items = items.subList(0, size - 1);
                         out.write(MajorType.ARRAY.getValue() << 5 | 31);
-                    else
+                        if (items.isEmpty())
+                            writeBreak(out);
+                        else
+                            frame = new ArrayFrame(parent, out, items, true);
+                    } else {
                         writeHead(out, MajorType.ARRAY, items.size());
-                    if (!items.isEmpty())
-                        frame = new ArrayFrame(parent, out, items);
+                        if (!items.isEmpty())
+                            frame = new ArrayFrame(parent, out, items, false);
+                    }
                     break;
                 }
                 case MAP: {

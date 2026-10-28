@@ -10,6 +10,7 @@ import lombok.*;
 import java.util.List;
 import java.util.Objects;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toHex;
 
 /**
@@ -43,7 +44,7 @@ public class Constitution {
     }
 
     public static Constitution deserialize(Array array) {
-        List<DataItem> constitutionDIList = array.getDataItems();
+        List<DataItem> constitutionDIList = definiteItems(array, "constitution");
 
         if (constitutionDIList.size() != 2)
             throw new IllegalArgumentException("Invalid constitution array. Expected 2 items. Found : "

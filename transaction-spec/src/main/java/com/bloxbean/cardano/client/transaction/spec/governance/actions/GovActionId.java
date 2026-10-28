@@ -13,6 +13,8 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 import java.util.Objects;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -32,12 +34,11 @@ public class GovActionId {
     }
 
     public static GovActionId deserialize(DataItem di) {
-        Array actionIdArray = (Array) di;
-        if (actionIdArray != null && actionIdArray.getDataItems().size() != 2)
+        List<DataItem> diList = definiteItems((Array) di, "gov_action_id");
+        if (diList.size() != 2)
             throw new IllegalArgumentException("Invalid gov_action_id array. Expected 2 items. Found : "
-                    + actionIdArray.getDataItems().size());
+                    + diList.size());
 
-        List<DataItem> diList = actionIdArray.getDataItems();
         String txId = HexUtil.encodeHexString(((ByteString) diList.get(0)).getBytes());
         int govActionIndex = ((UnsignedInteger) diList.get(1)).getValue().intValue();
 

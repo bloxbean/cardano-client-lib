@@ -19,10 +19,10 @@ public class MultiHostName implements Relay {
         Array array = new Array();
         array.add(new UnsignedInteger(2));
 
-        if (dnsName != null && !dnsName.isEmpty())
+        if (dnsName != null) // cardano-ledger's DnsName may be empty (textToDns 64)
             array.add(new UnicodeString(dnsName));
         else
-            throw new CborSerializationException("Serialization failed. DNS name can't be null for SingleHostName relay");
+            throw new CborSerializationException("Serialization failed. DNS name can't be null for MultiHostName relay");
 
         return array;
     }
