@@ -31,11 +31,12 @@ import java.util.List;
  * Decodes CBOR bytes into the same {@link DataItem} trees as cbor-java 0.9's {@code CborDecoder} with its default
  * settings, without recursion: containers are frames on an explicit stack, so any nesting depth decodes on any thread.
  * <p>
-  * Trees match cbor-java's: an indefinite array is {@code chunked} and ends with {@link Special#BREAK}; an indefinite
-  * map is {@code chunked}; chunked byte and text strings are joined and not marked chunked; the innermost tag is
-  * attached to the item and outer tags are chained on it; tag 30 becomes a {@link RationalNumber} and tag 38 a
- * {@link LanguageTaggedString}; untagged {@code false/true/null/undefined} are cbor-java's singletons; a repeated map
- * key keeps its first position and the last value. Maps are {@link EncodedKeyMap}s.
+ * Trees match cbor-java's, except that an indefinite array does not end with {@link Special#BREAK}: it is
+ * {@code chunked} and holds just its items. An indefinite map is {@code chunked}; chunked byte and text strings are
+ * joined and not marked chunked; the innermost tag is attached to the item and outer tags are chained on it; tag 30
+ * becomes a {@link RationalNumber} and tag 38 a {@link LanguageTaggedString} (over a definite or an indefinite
+ * array); untagged {@code false/true/null/undefined} are cbor-java's singletons; a repeated map key keeps its first
+ * position and the last value. Maps are {@link EncodedKeyMap}s.
  * <p>
  * Input must be well-formed (RFC 8949 section 5.3), checked with the same head rules as {@link CborSpan}: unlike
  * cbor-java, a misplaced BREAK, a tag on BREAK and an invalid string chunk are rejected. Declared sizes are checked
@@ -129,8 +130,6 @@ final class DataItemDecoder {
                     if (top.key != null)
                         throw CborHead.error("BREAK after a map key without its value", pos);
                     pos++;
-                    if (top.array != null)
-                        top.array.add(Special.BREAK);
                     item = close(top);
                     top = top.parent;
                 } else {

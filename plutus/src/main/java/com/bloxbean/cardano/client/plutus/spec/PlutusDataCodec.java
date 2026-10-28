@@ -58,10 +58,10 @@ final class PlutusDataCodec {
      * Decodes an array as a list, ignoring any tag on it.
      */
     static ListPlutusData decodeList(Array array) throws CborDeserializationException {
-        PlutusData shallow = decodeShallowList(array.getDataItems(), null, SHALLOW_DEPTH);
+        PlutusData shallow = decodeShallowList(array, null, SHALLOW_DEPTH);
         if (shallow != null)
             return (ListPlutusData) shallow;
-        return (ListPlutusData) run(new ListFrame(null, array.getDataItems(), null));
+        return (ListPlutusData) run(new ListFrame(null, array, null));
     }
 
     /**
@@ -81,11 +81,11 @@ final class PlutusDataCodec {
             if (depth == 0)
                 return null;
             Tag tag = item.getTag();
-            List<DataItem> items = ((Array) item).getDataItems();
+            Array array = (Array) item;
             if (tag == null)
-                return decodeShallowList(items, null, depth - 1);
-            long alternative = constrAlternative(tag, items);
-            return decodeShallowList(constrFields(tag, items), alternative, depth - 1);
+                return decodeShallowList(array, null, depth - 1);
+            long alternative = constrAlternative(tag, array.getDataItems());
+            return decodeShallowList(constrFields(tag, array), alternative, depth - 1);
         }
         if (item instanceof Map) {
             if (depth == 0)
@@ -104,23 +104,22 @@ final class PlutusDataCodec {
         return leaf(item);
     }
 
-    // A list, or a constructor's fields when alternative is set; a BREAK ends an indefinite list and marks it chunked.
-    private static PlutusData decodeShallowList(List<DataItem> items, Long alternative, int depth)
+    // A list, or a constructor's fields when alternative is set; an indefinite list is chunked. A BREAK item (which
+    // cbor-java's decoder ends an indefinite array with) ends the list.
+    private static PlutusData decodeShallowList(Array array, Long alternative, int depth)
             throws CborDeserializationException {
+        List<DataItem> items = array.getDataItems();
         List<PlutusData> list = new ArrayList<>(items.size());
-        boolean chunked = false;
         for (int i = 0, size = items.size(); i < size; i++) {
             DataItem child = items.get(i);
-            if (child == Special.BREAK) {
-                chunked = true;
+            if (child == Special.BREAK)
                 break;
-            }
             PlutusData data = decodeShallow(child, depth);
             if (data == null)
                 return null;
             list.add(data);
         }
-        ListPlutusData fields = new ListPlutusData(list, chunked);
+        ListPlutusData fields = new ListPlutusData(list, array.isChunked());
         return alternative == null ? fields : new ConstrPlutusData(alternative, fields);
     }
 
@@ -147,7 +146,7 @@ final class PlutusDataCodec {
     private static DecodeFrame open(DataItem item, DecodeFrame parent) throws CborDeserializationException {
         if (item instanceof Array) {
             if (item.getTag() == null)
-                return new ListFrame(parent, ((Array) item).getDataItems(), null);
+                return new ListFrame(parent, (Array) item, null);
             return openConstr(item, parent);
         }
         if (item instanceof Map)
@@ -157,9 +156,9 @@ final class PlutusDataCodec {
 
     private static DecodeFrame openConstr(DataItem item, DecodeFrame parent) throws CborDeserializationException {
         Tag tag = item.getTag();
-        List<DataItem> items = ((Array) item).getDataItems();
-        long alternative = constrAlternative(tag, items);
-        return new ListFrame(parent, constrFields(tag, items), alternative);
+        Array array = (Array) item;
+        long alternative = constrAlternative(tag, array.getDataItems());
+        return new ListFrame(parent, constrFields(tag, array), alternative);
     }
 
     // A constructor is 121-127 or 1280-1400 [fields], or 102 [alternative, [fields]], whose outer array may be
@@ -179,8 +178,8 @@ final class PlutusDataCodec {
         return alternative;
     }
 
-    private static List<DataItem> constrFields(Tag tag, List<DataItem> items) {
-        return tag.getValue() == GENERAL_FORM_TAG ? ((Array) items.get(1)).getDataItems() : items;
+    private static Array constrFields(Tag tag, Array array) {
+        return tag.getValue() == GENERAL_FORM_TAG ? (Array) array.getDataItems().get(1) : array;
     }
 
     private static PlutusData leaf(DataItem item) throws CborDeserializationException {
@@ -215,30 +214,26 @@ final class PlutusDataCodec {
         abstract PlutusData result();
     }
 
-    // A list, or a constructor's fields when alternative is set. A BREAK ends an indefinite list and marks it chunked.
+    // A list, or a constructor's fields when alternative is set; an indefinite list is chunked. A BREAK item (which
+    // cbor-java's decoder ends an indefinite array with) ends the list.
     private static final class ListFrame extends DecodeFrame {
         private final List<DataItem> items;
+        private final boolean chunked;
         private final Long alternative;
         private final List<PlutusData> list;
         private int index;
-        private boolean chunked;
 
-        ListFrame(DecodeFrame parent, List<DataItem> items, Long alternative) {
+        ListFrame(DecodeFrame parent, Array array, Long alternative) {
             super(parent);
-            this.items = items;
+            this.items = array.getDataItems();
+            this.chunked = array.isChunked();
             this.alternative = alternative;
             this.list = new ArrayList<>(items.size());
         }
 
         @Override
         boolean hasNext() {
-            if (chunked || index == items.size())
-                return false;
-            if (items.get(index) == Special.BREAK) {
-                chunked = true;
-                return false;
-            }
-            return true;
+            return index < items.size() && items.get(index) != Special.BREAK;
         }
 
         @Override

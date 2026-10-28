@@ -676,6 +676,10 @@
           "parameterTypes": []
         },
         {
+          "name": "getUnknownCostModels",
+          "parameterTypes": []
+        },
+        {
           "name": "isEmpty",
           "parameterTypes": []
         }

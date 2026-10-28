@@ -7,21 +7,26 @@ import co.nstant.in.cbor.model.*;
 import com.google.common.primitives.UnsignedBytes;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collection;
+import java.util.List;
 import java.util.TreeMap;
 
 /**
  * The recursive encoder that {@link CustomCborEncoder} was before it became iterative (with the CustomMapEncoder it
- * used), kept as a test oracle: the iterative encoder must produce the same bytes.
+ * used), kept as a test oracle: the iterative encoder must produce the same bytes. Like it, it closes an indefinite
+ * array that does not end with a BREAK item (as CborSerializationUtil.deserialize gives one) with a BREAK.
  */
 @SuppressWarnings("deprecation")
 public class LegacyCborEncoder extends CborEncoder {
+    private final OutputStream outputStream;
     private final LegacyMapEncoder mapEncoder;
     private final CustomByteStringEncoder byteStringEncoder;
 
     public LegacyCborEncoder(OutputStream outputStream) {
         super(outputStream);
+        this.outputStream = outputStream;
         this.mapEncoder = new LegacyMapEncoder(this, outputStream);
         this.byteStringEncoder = new CustomByteStringEncoder(this, outputStream);
     }
@@ -50,9 +55,27 @@ public class LegacyCborEncoder extends CborEncoder {
                 encode(dataItem.getTag());
             }
             byteStringEncoder.encode((ByteString) dataItem);
+        } else if (dataItem instanceof Array && ((Array) dataItem).isChunked() && !endsWithBreak((Array) dataItem)) {
+            if (dataItem.hasTag()) {
+                encode(dataItem.getTag());
+            }
+            try {
+                outputStream.write(MajorType.ARRAY.getValue() << 5 | 31);
+            } catch (IOException e) {
+                throw new CborException(e);
+            }
+            for (DataItem item : ((Array) dataItem).getDataItems()) {
+                encode(item);
+            }
+            encode(Special.BREAK);
         } else {
             super.encode(dataItem);
         }
+    }
+
+    private static boolean endsWithBreak(Array array) {
+        List<DataItem> items = array.getDataItems();
+        return !items.isEmpty() && items.get(items.size() - 1) == Special.BREAK;
     }
 
     private static class LegacyMapEncoder extends MapEncoder {

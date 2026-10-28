@@ -23,7 +23,7 @@ public class SingleHostName implements Relay {
         else
             array.add(SimpleValue.NULL);
 
-        if (dnsName != null && !dnsName.isEmpty())
+        if (dnsName != null) // cardano-ledger's DnsName may be empty (textToDns 64)
             array.add(new UnicodeString(dnsName));
         else
             throw new CborSerializationException("Serialization failed. DNS name can't be null for SingleHostName relay");
