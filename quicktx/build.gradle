@@ -21,6 +21,22 @@ dependencies {
     testImplementation(project(':test-support')) {
         exclude group: 'net.jqwik'
     }
+    // Keep tests on the Jackson the library ships: the validator would otherwise pull a newer one onto the test classpath.
+    testImplementation(libs.networknt.json.schema.validator) {
+        exclude group: 'com.fasterxml.jackson.core'
+        exclude group: 'com.fasterxml.jackson.dataformat'
+    }
+    testImplementation(libs.jazzer.junit)
+}
+
+// Regenerates the intent part of the TxPlan schema from the Jackson model.
+// TxPlanSchemaTest fails until this is run after an intent is added or changed.
+tasks.register('generateTxPlanSchema', JavaExec) {
+    group = 'build'
+    description = 'Regenerates the generated intent definitions in txplan-v1alpha1.schema.json'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.bloxbean.cardano.client.quicktx.serialization.TxPlanSchemaGenerator'
+    args = [file('src/main/resources/schema/txplan-v1alpha1.schema.json').absolutePath]
 }
 
 publishing {

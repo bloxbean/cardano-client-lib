@@ -159,7 +159,7 @@ public final class TxFlowCompiler {
                     TxPlan source = step.getTxPlan();
                     target.withTxPlan(source.hasExtensions()
                             ? extensions.copy(source)
-                            : TxPlan.from(source.toYaml()));
+                            : TxPlan.fromSnapshot(source.toYaml()));
                 } else continue; // Shared portability validation already reported this path.
                 compiled.addStep(target.build());
             }

@@ -20,6 +20,13 @@ dependencies {
 
     testFixturesImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
 
+    // Validates embedded transactions against the QuickTx schema
+    // Keep tests on the Jackson the library ships: the validator would otherwise pull a newer one onto the test classpath.
+    testImplementation(libs.networknt.json.schema.validator) {
+        exclude group: 'com.fasterxml.jackson.core'
+        exclude group: 'com.fasterxml.jackson.dataformat'
+    }
+
     // Integration test dependencies
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':cip:cip20')

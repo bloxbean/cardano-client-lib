@@ -82,8 +82,11 @@ transaction:
 
 ### Variables
 
-The `variables` section defines key-value pairs that can be referenced anywhere in the YAML using `${variable_name}`
-syntax. Variables are resolved before deserialization.
+The `variables` section defines key-value pairs that can be referenced in any value in the YAML using `${variable_name}`
+syntax (not in keys). Variables are resolved before deserialization.
+
+Decimal variable values retain their precision and scale in both strict and lenient readers, including codec snapshots.
+For example, `1.23456789012345678900` remains an exact `BigDecimal` rather than being rounded to a `double`.
 
 ```yaml
 variables:
@@ -121,6 +124,43 @@ Each entry in the `transaction` list contains a `tx` block with:
 - `inputs` — script UTXO inputs with redeemers
 - `intents` — transaction intents (payments, minting, staking, etc.)
 - `scripts` — validator attachments
+
+### Strict Reading
+
+`TxPlan.from(yaml)` and `TxPlanCodec` read documents strictly. A mistake fails with an error that names it, instead of being dropped or silently changed:
+
+- an unknown or misspelled intent field, e.g. `donation_amout` or `to:` instead of `address:`
+- one property given twice under different names, e.g. both `utxo_refs` and `refs`
+- a fractional number for an integer field, e.g. `quantity: 2.5` (a whole number written as `2000000.0` is fine in a TxPlan file; TxFlow templates take integers only)
+- an intent written as a list (`[payment, {...}]`) instead of a mapping with `type`
+- a second YAML document after `---` (an empty one at the end is fine)
+- a number for an enum (`role: 0` instead of `role: spend`), or for a boolean
+- an empty string for a number, boolean or enum
+- an explicit `null` or an empty value (`address:` with nothing after it), or a `null` element in a list
+- a UTxO reference with extra or missing keys; a reference is `{tx_hash, output_index}` or `{flow_output: {step, output}}`, and `output_index` is a non-negative integer or a `${...}` placeholder
+- a YAML alias (`*name`), including in `variables`
+- a placeholder used as a key (`'${field}': 5`); placeholders are values
+- an unquoted number not written in plain decimal, such as `010` (YAML reads it as octal 8), `0x10`, `1_000` or `1e3`. Quote such values to keep the text: an unquoted `datum_hex: 0102` would otherwise be read as the number 66. The same applies to values in `variables`, where a decimal such as `1.50` keeps its written form.
+
+These rules apply to the whole document, including extension intents (which keep only their own handling of unknown fields). Unknown keys at the document root, in `context` and in `tx` are always rejected.
+
+To read an older document leniently, build the codec with `TxPlanCodec.builder().strictReading(false)`. It reads the way `TxPlanCodec` did before strict reading, which differs slightly from the old `TxPlan.from`: it resolves `${var}` structurally and rejects a placeholder that has no variable. TxFlow binds embedded transactions with the same strict mapping rules; the two YAML-text checks (aliases and number forms) apply to TxPlan files, not yet to TxFlow YAML.
+
+Write booleans as `true`/`false`: YAML 1.1 readers such as this library also accept `yes`/`no`, but YAML 1.2 tools read those as strings. For the same reason, quote a text value that is one of these words: an unquoted `yes` in a text field is read as `"true"`.
+
+### Validating Your YAML
+
+The TxPlan format is described by a JSON Schema (Draft 2020-12), `txplan-v1alpha1.schema.json`. It lists every intent type and its fields, so an editor can complete and check a document as you write it. The schema ships in the `cardano-client-quicktx` jar under `schema/` and in the repository at `quicktx/src/main/resources/schema/`. Its `$id` (`https://cardano-client.dev/schemas/txplan/v1alpha1`) is an identifier only; nothing is served at that address, so point tools at a copy of the file.
+
+For VS Code with the YAML extension, add a modeline to the document, pinning the URL to the release you use:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bloxbean/cardano-client-lib/<release-tag>/quicktx/src/main/resources/schema/txplan-v1alpha1.schema.json
+```
+
+In CI, any JSON Schema validator works, for example `check-jsonschema --schemafile txplan-v1alpha1.schema.json plan.yaml`.
+
+The schema accepts `${var}` and `${{ inputs.x }}` placeholders wherever a value is expected, because they are resolved before the document is read. It checks names, types and placement; the runtime still validates values (addresses, hashes, bounds) and the rules of each intent.
 
 ## QuickTxBuilder Integration
 
