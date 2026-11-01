@@ -69,7 +69,8 @@ export default defineConfig({
             { label: '4. Multi-sig transfers', slug: 'learn/multisig' },
             { label: '5. Calling a Plutus script', slug: 'learn/plutus-scripts' },
             { label: '6. Staking & delegation', slug: 'learn/staking-and-delegation' },
-            { label: "7. What's next", slug: 'learn/whats-next' },
+            { label: '7. CIP-113 programmable tokens', slug: 'learn/cip113-programmable-tokens' },
+            { label: "8. What's next", slug: 'learn/whats-next' },
           ],
         },
         {

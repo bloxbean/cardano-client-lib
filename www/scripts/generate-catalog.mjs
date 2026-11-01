@@ -145,6 +145,12 @@ const MODULE_INFO = {
     tier: 'preview',
     artifact: 'cardano-client-jellyfish-merkle-rdbms',
   },
+  'programmable-token': {
+    purpose: 'Programmable tokens as QuickTx intents, with a CIP-113 adapter: register, mint, transfer, burn and seize.',
+    entry: 'com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTokenService',
+    tier: 'preview',
+    artifact: 'cardano-client-programmable-token',
+  },
   quicktx: {
     purpose: 'Declarative transaction builder. The default way to build any transaction.',
     entry: 'com.bloxbean.cardano.client.quicktx.QuickTxBuilder',

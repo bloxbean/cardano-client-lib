@@ -47,6 +47,8 @@ const MAP = {
   'tutorials/nft-minting': 'learn/minting-an-nft',
   'gettingstarted/multisig-quickstart': 'learn/multisig',
   'tutorials/smart-contract-calls': 'learn/plutus-scripts',
+  // Maintained directly in both sites, so the migration must not touch it.
+  'tutorials/cip113-programmable-tokens': null,
 
   // Legacy tutorials all use TxBuilder/SignerProviders (the `function` module),
   // which contradicts "QuickTx is recommended". Dropped — see plan D2.

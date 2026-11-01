@@ -169,4 +169,5 @@ voting power to a DRep does not change which pool you stake with. See
 
 - [Calling a Plutus script](/learn/plutus-scripts/) — the previous step, if you skipped it
 - [Governance API](/governance/overview/) — DReps, voting and proposals
+- [CIP-113 programmable tokens](/learn/cip113-programmable-tokens/) — build a token with its own transfer rules
 - [What's next](/learn/whats-next/) — where to go after the guided path
