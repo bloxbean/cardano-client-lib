@@ -1833,7 +1833,7 @@ final class EngineTxFlowStream implements TxFlowStream {
     /** The single {@link Tx} of a plan, or {@code null} when it is not exactly one Tx. */
     /** Deep copy; a plan using extensions is copied literally through the registered extensions. */
     private TxPlan copyPlan(TxPlan plan) {
-        return plan.hasExtensions() ? extensions.copy(plan) : TxPlan.from(plan.toYaml());
+        return plan.hasExtensions() ? extensions.copy(plan) : TxPlan.fromSnapshot(plan.toYaml());
     }
 
     private static Tx singleTx(TxPlan plan) {

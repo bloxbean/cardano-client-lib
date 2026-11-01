@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.quicktx.intent;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
-import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
@@ -386,16 +385,16 @@ public class MintingIntent implements TxIntent {
 
         switch (type) {
             case 0: // NativeScript
-                var array = (Array) CborSerializationUtil.deserialize(scriptBytes);
+                var array = CborItems.decode(scriptBytes, Array.class, "script_hex");
                 return NativeScript.deserialize(array);
             case 1: // PlutusV1Script
-                var byteString1 = (ByteString) CborSerializationUtil.deserialize(scriptBytes);
+                var byteString1 = CborItems.decode(scriptBytes, ByteString.class, "script_hex");
                 return PlutusV1Script.deserialize(byteString1);
             case 2: // PlutusV2Script
-                var byteString2 = (ByteString) CborSerializationUtil.deserialize(scriptBytes);
+                var byteString2 = CborItems.decode(scriptBytes, ByteString.class, "script_hex");
                 return PlutusV2Script.deserialize(byteString2);
             case 3: // PlutusV3Script
-                var byteString3 = (ByteString) CborSerializationUtil.deserialize(scriptBytes);
+                var byteString3 = CborItems.decode(scriptBytes, ByteString.class, "script_hex");
                 return PlutusV3Script.deserialize(byteString3);
             default:
                 throw new TxBuildException("Invalid script type for minting: " + type);

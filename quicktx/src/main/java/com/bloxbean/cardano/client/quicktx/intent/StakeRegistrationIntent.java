@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * Intention for registering a stake address.
@@ -61,7 +62,7 @@ public class StakeRegistrationIntent implements TxIntent {
 
         String resolvedStakeAddress = VariableResolver.resolve(stakeAddress, variables);
 
-        if (!resolvedStakeAddress.equals(stakeAddress)) {
+        if (!Objects.equals(resolvedStakeAddress, stakeAddress)) {
             return this.toBuilder()
                 .stakeAddress(resolvedStakeAddress)
                 .build();

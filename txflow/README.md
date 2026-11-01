@@ -107,7 +107,7 @@ spec:
 earlier step, name the output and consume it with `flow_output`; ordering alone does not select a
 UTxO.
 
-The published `quicktx-transaction-v1alpha1.schema.json` describes the embedded projection backed
+The published `txplan-v1alpha1.schema.json` describes the embedded projection backed
 by `TransactionDocument.TxContent` and `TransactionDocument.TxContext`. It should not be described
 as a full schema for every programmatic `TxIntent`: some intent implementations do not yet have
 portable JSON/YAML entries. Treat the portable schema and codec as the source of truth for what can

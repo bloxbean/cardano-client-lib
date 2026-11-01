@@ -263,7 +263,7 @@ public class GovernanceProposalIntent implements TxIntent {
             try {
                 GovAction action = govAction;
                 if (action == null && govActionHex != null && !govActionHex.isEmpty()) {
-                    Array arr = (Array) CborSerializationUtil.deserialize(HexUtil.decodeHexString(govActionHex));
+                    Array arr = CborItems.decode(HexUtil.decodeHexString(govActionHex), Array.class, "gov_action_hex");
                     action = GovAction.deserialize(arr);
                 }
                 if (action == null)

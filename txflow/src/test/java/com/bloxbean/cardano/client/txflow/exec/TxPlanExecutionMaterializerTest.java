@@ -37,4 +37,17 @@ class TxPlanExecutionMaterializerTest {
 
         assertEquals(2, materialized.getAdditionalSignersCount());
     }
+
+    @Test
+    void javaBuiltPlanIsCopiedWithoutTheYamlAuthoringRules() {
+        // TxPlan.from(String) rejects a variable whose value is a template; a plan built in Java copies as before.
+        TxPlan source = TxPlan.from(new Tx().payToAddress("addr_test1receiver", Amount.ada(1)).from("addr_test1sender"))
+                .addVariable("receiver", "addr_test1receiver")
+                .addVariable("note", "${receiver}");
+
+        TxPlan materialized = new TxPlanExecutionMaterializer()
+                .materialize(source, Map.of(), new FlowExecutionContext("flow", Map.of()));
+
+        assertEquals("addr_test1receiver", materialized.getVariables().get("note"));
+    }
 }

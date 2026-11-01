@@ -76,10 +76,10 @@ class TxPlanRealQuickTxBuilderTest {
                       from: addr1_sender
                       intents:
                         - type: payment
-                          to: addr1_receiver
-                          amount:
-                            unit: lovelace
-                            quantity: 5000000
+                          address: addr1_receiver
+                          amounts:
+                            - unit: lovelace
+                              quantity: 5000000
                 """;
 
         BackendService mockBackend = Mockito.mock(BackendService.class);

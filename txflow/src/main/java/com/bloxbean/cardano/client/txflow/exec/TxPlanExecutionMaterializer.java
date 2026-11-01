@@ -64,7 +64,7 @@ final class TxPlanExecutionMaterializer {
         if (source.hasExtensions()) {
             copy = extensions.readLiteral(context.snapshotPlan(source, extensions::write));
         } else {
-            copy = TxPlan.from(context.snapshotPlan(source));
+            copy = TxPlan.fromSnapshot(context.snapshotPlan(source));
             for (Map.Entry<String, Object> entry : flowVariables.entrySet()) {
                 if (!copy.getVariables().containsKey(entry.getKey())) {
                     copy.addVariable(entry.getKey(), entry.getValue());

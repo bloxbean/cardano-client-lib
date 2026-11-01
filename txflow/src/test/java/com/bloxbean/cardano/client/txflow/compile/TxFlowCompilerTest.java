@@ -651,6 +651,82 @@ class TxFlowCompilerTest {
         }
     }
 
+    @Test
+    void numericStepAndOutputNamesSurviveTheStrictReread() {
+        String yaml = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: numeric-ids}
+                spec:
+                  steps:
+                    - id: '1'
+                      outputs:
+                        '0':
+                          select: {output_index: 0}
+                          expect: exactly_one
+                      transaction:
+                        tx:
+                          from_ref: account://sender
+                          intents: []
+                    - id: '2'
+                      needs: ['1']
+                      transaction:
+                        tx:
+                          inputs:
+                            - type: collect_from
+                              refs:
+                                - flow_output: {step: '1', output: '0'}
+                          intents: []
+                """;
+        TxFlow flow = TxFlowCodec.standard().parse(yaml, FlowParseOptions.serverDefaults()).requireFlow();
+
+        FlowCompilationResult result = compiler.compile(FlowCompilationRequest.of(flow, FlowBindings.empty()));
+
+        assertFalse(result.hasErrors(), result.getDiagnostics().toString());
+    }
+
+    @ParameterizedTest(name = "unknown field in {0}")
+    @ValueSource(strings = {
+            "{\"type\":\"payment\",\"address\":\"addr_test1q\",\"surprise\":1}",
+            "{\"type\":\"donation\",\"current_treasury_value\":\"1\",\"donation_amount\":\"1\",\"surprise\":1}",
+            "{\"type\":\"stake_registration\",\"stake_address\":\"stake_test1u\",\"surprise\":1}",
+            "{\"type\":\"voting_delegation\",\"address\":\"addr_test1q\",\"drep_type\":\"abstain\",\"surprise\":1}",
+            "{\"type\":\"pool_retirement\",\"pool_id\":\"pool1x\",\"retirement_epoch\":1,\"surprise\":1}"})
+    void compilerRejectsUnknownFieldsInCoreIntents(String intent) {
+        FlowCompilationResult result = compileIntent("intents", intent);
+
+        assertTrue(result.hasErrors(), result.getDiagnostics().toString());
+        assertTrue(result.getDiagnostics().stream().anyMatch(diagnostic ->
+                        diagnostic.code().equals("TXFLOW_TRANSACTION_FIELD_UNKNOWN")
+                                && diagnostic.message().contains("surprise")),
+                result.getDiagnostics().toString());
+    }
+
+    @Test
+    void poolTypeContradictingItsUpdateFlagIsRejectedBeforeBinding() {
+        FlowCompilationResult result = compileIntent("intents", "{\"type\":\"pool_update\",\"update\":false}");
+
+        assertTrue(result.hasErrors(), result.getDiagnostics().toString());
+        assertTrue(result.getDiagnostics().stream().anyMatch(diagnostic ->
+                        diagnostic.code().equals("TXFLOW_TRANSACTION_INVALID") && diagnostic.message().contains("contradicts")),
+                result.getDiagnostics().toString());
+    }
+
+    @ParameterizedTest(name = "no coercion before the strict check: {0}")
+    // TxFlow reads floats as double, which may already have lost digits, so it rejects every float for an integer.
+    @ValueSource(strings = {"quantity: 2000000.5", "quantity: null", "quantity: ''", "quantity: 2000000.0",
+            "quantity: 9007199254740993.0", "quantity: 1000000.00000000001"})
+    void compilerRejectsCoercedValuesInEmbeddedIntents(String quantity) {
+        FlowCompilationResult result = compileTransaction("{\"tx\":{\"intents\":[{\"type\":\"payment\","
+                + "\"address\":\"addr_test1q\",\"amounts\":[{\"unit\":\"lovelace\",\"quantity\":"
+                + quantity.substring("quantity: ".length()).replace("''", "\"\"") + "}]}]}}");
+
+        assertTrue(result.hasErrors(), result.getDiagnostics().toString());
+        assertTrue(result.getDiagnostics().stream().anyMatch(diagnostic ->
+                        diagnostic.code().equals("TXFLOW_TRANSACTION_INVALID")),
+                result.getDiagnostics().toString());
+    }
+
     @ParameterizedTest(name = "invalid additional_signers_count: {0}")
     @ValueSource(strings = {"1001", "2147483647", "-1", "-0.5", "2.9"})
     void compilerRejectsInvalidAdditionalSignersCount(String value) {

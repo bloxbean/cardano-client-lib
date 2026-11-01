@@ -35,6 +35,9 @@ apache-common-text="org.apache.commons:commons-text:1.15.0"
 jqwik = "net.jqwik:jqwik:1.9.3"
 jazzer-junit = "com.code-intelligence:jazzer-junit:0.30.0"
 
+# JSON Schema validation (test scope)
+networknt-json-schema-validator = "com.networknt:json-schema-validator:2.0.8"
+
 # JMH (Java Microbenchmark Harness) for performance testing
 jmh-core = "org.openjdk.jmh:jmh-core:1.37"
 jmh-generator-annprocess = "org.openjdk.jmh:jmh-generator-annprocess:1.37"

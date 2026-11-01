@@ -165,6 +165,27 @@ class FlowYamlSerializationTest {
     }
 
     @Test
+    void fromYaml_keepsQuotedNumberLikeStrings() {
+        String yaml = "version: \"1.0\"\n" +
+                "flow:\n" +
+                "  id: quoted\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1_sender\n" +
+                "          intents:\n" +
+                "            - type: payment\n" +
+                "              address: \"0xabc\"\n";
+
+        TxFlow flow = TxFlow.fromYaml(yaml);
+
+        var payment = (com.bloxbean.cardano.client.quicktx.intent.PaymentIntent)
+                flow.getStep("step1").get().getTxPlan().getTxs().get(0).getIntentions().get(0);
+        assertThat(payment.getAddress()).isEqualTo("0xabc");
+    }
+
+    @Test
     void fromYaml_shouldParseFlowWithDependencies() {
         // Given
         String yaml = "version: \"1.0\"\n" +

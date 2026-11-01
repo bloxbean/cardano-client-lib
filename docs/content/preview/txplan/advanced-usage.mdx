@@ -129,8 +129,10 @@ transaction:
       from: addr_test1_sender
       change_address: addr_test1_change
       inputs:
-        - type: script_collect
-          utxo_ref: "tx_hash#0"
+        - type: script_collect_from
+          utxo_refs:
+            - tx_hash: 12745f09b138d4d0a11a560b4591ebb830cf12336347606d2edbbf1893d395c6
+              output_index: 0
           redeemer:
             constructor: 0
             fields: []
@@ -141,9 +143,10 @@ transaction:
             - unit: lovelace
               quantity: '10000000'
       scripts:
-        - type: spending_validator
-          script_hex: "590a01..."
-          plutus_version: v2
+        - type: validator
+          role: spend
+          cbor_hex: '49480100002221200101'
+          version: v2
 ```
 
 ### Change Address with Datum

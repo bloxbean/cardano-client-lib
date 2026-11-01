@@ -6,27 +6,20 @@ import com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntent;
 import com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.intent.UtxoRef;
+import com.bloxbean.cardano.client.quicktx.serialization.StrictReading;
 import com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.cfg.MapperConfig;
-import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler;
 import com.fasterxml.jackson.databind.exc.IgnoredPropertyException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
-import com.fasterxml.jackson.databind.introspect.Annotated;
-import com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -67,6 +60,16 @@ final class QuickTxTemplateMaterializer {
         validateProjectionConflicts(txNode, path + ".tx");
         validateKnownIntentChoices(txNode, path + ".tx");
         validateUtxoReferenceShapes(txNode, path + ".tx");
+
+        // Conflicts that binding would resolve silently (a pool type against its update flag, a property under two
+        // names) are checked on the template as written, before the first binding.
+        try {
+            ObjectNode wrapper = JsonNodeFactory.instance.objectNode();
+            wrapper.putArray("transaction").addObject().set("tx", txNode);
+            StrictReading.checkDocument(wrapper);
+        } catch (IllegalArgumentException conflict) {
+            throw invalid(conflict.getMessage(), path + ".tx");
+        }
 
         TransactionDocument document = new TransactionDocument();
         document.setVersion("1.0");
@@ -447,36 +450,12 @@ final class QuickTxTemplateMaterializer {
         return new MaterializationException(INVALID_TRANSACTION, message, path);
     }
 
+    /**
+     * The same strict reading as the standalone TxPlan readers (unknown or ignored fields, scalar coercion, explicit
+     * nulls, UTxO reference shapes), so a value is never coerced before the strict check sees it.
+     */
     private static ObjectMapper strictMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-        mapper.enable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES);
-        mapper.setAnnotationIntrospector(new JacksonAnnotationIntrospector() {
-            @Override
-            public JsonIgnoreProperties.Value findPropertyIgnoralByName(
-                    MapperConfig<?> config, Annotated annotated) {
-                JsonIgnoreProperties.Value value =
-                        super.findPropertyIgnoralByName(config, annotated);
-                return value == null ? JsonIgnoreProperties.Value.empty()
-                        : value.withoutIgnoreUnknown();
-            }
-        });
-        mapper.addHandler(new DeserializationProblemHandler() {
-            @Override
-            public boolean handleUnknownProperty(
-                    DeserializationContext context, JsonParser parser,
-                    JsonDeserializer<?> deserializer, Object beanOrClass,
-                    String propertyName) throws IOException {
-                // EXISTING_PROPERTY exposes the already-resolved discriminator to
-                // the subtype. Most intents compute getType() and have no setter.
-                if ("type".equals(propertyName) && beanOrClass instanceof TxIntent) {
-                    parser.skipChildren();
-                    return true;
-                }
-                return false;
-            }
-        });
-        return mapper;
+        return StrictReading.apply(new ObjectMapper());
     }
 
     /** Stable compiler failure returned as a path-specific flow diagnostic. */
