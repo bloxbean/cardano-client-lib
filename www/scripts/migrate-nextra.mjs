@@ -35,18 +35,18 @@ const MAP = {
   // Rewritten as the site entry point in src/content/docs/start-here/why-ccl.md.
   // The Nextra original was a feature list without a description or a reading path.
   'index': null,
-  'gettingstarted/dependencies': 'start-here/installation',
+  'gettingstarted/dependencies': null,
   'gettingstarted/build': 'start-here/build-from-source',
-  'gettingstarted/account-setup': 'start-here/accounts-and-addresses',
+  'gettingstarted/account-setup': null,
   'gettingstarted/concepts': 'start-here/core-concepts',
   'gettingstarted/key-apis': 'start-here/key-apis',
 
   // ── Learn (beginner path) ───────────────────────────────────────────────
-  'gettingstarted/simple-transfer': 'learn/simple-transfer',
-  'gettingstarted/tokens-distribution': 'learn/native-tokens',
-  'tutorials/nft-minting': 'learn/minting-an-nft',
-  'gettingstarted/multisig-quickstart': 'learn/multisig',
-  'tutorials/smart-contract-calls': 'learn/plutus-scripts',
+  'gettingstarted/simple-transfer': null,
+  'gettingstarted/tokens-distribution': null,
+  'tutorials/nft-minting': null,
+  'gettingstarted/multisig-quickstart': null,
+  'tutorials/smart-contract-calls': null,
   // Maintained directly in both sites, so the migration must not touch it.
   'tutorials/cip113-programmable-tokens': null,
 
@@ -57,21 +57,21 @@ const MAP = {
   'tutorials/legacy-tutorials/multisig-quickstart': null,
 
   // ── QuickTx ─────────────────────────────────────────────────────────────
-  'apis/transaction/quicktx-api': 'quicktx/overview',
-  'preview/unified-tx': 'quicktx/unified-tx',
+  'apis/transaction/quicktx-api': null,
+  'preview/unified-tx': null,
 
   // ── TxPlan ──────────────────────────────────────────────────────────────
-  'preview/txplan/overview': 'txplan/overview',
-  'preview/txplan/advanced-usage': 'txplan/advanced-usage',
+  'preview/txplan/overview': null,
+  'preview/txplan/advanced-usage': null,
 
   // ── TxFlow (current FlowEngine/FlowRuntime API only) ────────────────────
-  'preview/txflow/overview': 'txflow/overview',
-  'preview/txflow/getting-started': 'txflow/getting-started',
-  'preview/txflow/portable-authoring': 'txflow/portable-authoring',
-  'preview/txflow/execution-engine': 'txflow/execution-engine',
-  'preview/txflow/policies-results-observability': 'txflow/policies-results-observability',
-  'preview/txflow/durable-runtime': 'txflow/durable-runtime',
-  'preview/txflow/operations-testing': 'txflow/operations-testing',
+  'preview/txflow/overview': null,
+  'preview/txflow/getting-started': null,
+  'preview/txflow/portable-authoring': null,
+  'preview/txflow/execution-engine': null,
+  'preview/txflow/policies-results-observability': null,
+  'preview/txflow/durable-runtime': null,
+  'preview/txflow/operations-testing': null,
 
   // Legacy FlowExecutor compatibility API — dropped per plan D2.
   'preview/txflow/legacy-flowexecutor': null,
@@ -82,10 +82,10 @@ const MAP = {
   'preview/txflow/advanced': null,
 
   // ── TxStream ────────────────────────────────────────────────────────────
-  'preview/txflow/txstream-getting-started': 'txstream/getting-started',
-  'preview/txflow/txstream-durability': 'txstream/durability',
-  'preview/txflow/txstream-throughput': 'txstream/throughput',
-  'preview/txflow/txstream-contracts': 'txstream/smart-contracts',
+  'preview/txflow/txstream-getting-started': null,
+  'preview/txflow/txstream-durability': null,
+  'preview/txflow/txstream-throughput': null,
+  'preview/txflow/txstream-contracts': null,
 
   // ── Governance ──────────────────────────────────────────────────────────
   'apis/governance/governance-api': 'governance/overview',
@@ -95,13 +95,13 @@ const MAP = {
   'annotations/plutus-blueprint-code-generation': 'smart-contracts/blueprint-codegen',
   'annotations/plutus-data-annotations': 'smart-contracts/plutusdata-annotations',
   'annotations/dependencies': 'smart-contracts/annotation-processor-setup',
-  'integrations/aiken-integration-api': 'smart-contracts/aiken',
-  'integrations/scalus-integration-api': 'smart-contracts/scalus',
+  'integrations/aiken-integration-api': null,
+  'integrations/scalus-integration-api': null,
 
   // ── Verified structures ─────────────────────────────────────────────────
-  'preview/mpftrie/overview': 'verified-structures/overview',
-  'preview/mpftrie/production-guide': 'verified-structures/production-guide',
-  'preview/mpftrie/multi-version-gc': 'verified-structures/multi-version-gc',
+  'preview/mpftrie/overview': null,
+  'preview/mpftrie/production-guide': null,
+  'preview/mpftrie/multi-version-gc': null,
 
   // ── Standards (CIPs) ────────────────────────────────────────────────────
   'apis/standards/cip8-api': 'standards/cip8',
@@ -113,21 +113,21 @@ const MAP = {
   'apis/standards/cip68-api': 'standards/cip68',
 
   // ── Reference ───────────────────────────────────────────────────────────
-  'gettingstarted/modules': 'reference/modules',
+  'gettingstarted/modules': null,
   'apis/core/account-api': 'reference/account-api',
   'apis/core/address-api': 'reference/address-api',
   'apis/core/hd-wallet-api': 'reference/hd-wallet-api',
   'apis/core/metadata-api': 'reference/metadata-api',
-  'apis/providers/backend-services-api': 'reference/backend-services',
+  'apis/providers/backend-services-api': null,
   'apis/providers/supplier-interfaces-api': 'reference/supplier-interfaces',
   'apis/utility/coin-selection-api': 'reference/coin-selection',
   'apis/utility/crypto-api': 'reference/crypto-api',
   'apis/transaction/composable-functions-api': 'reference/composable-functions',
 
   // ── Project ─────────────────────────────────────────────────────────────
-  'preview/index': 'project/whats-new',
-  'showcase': 'project/showcase',
-  'support-this-project': 'project/support',
+  'preview/index': null,
+  'showcase': null,
+  'support-this-project': null,
   // Rewritten for Astro/Starlight in src/content/docs/project/contributing-to-docs.md.
   // The Nextra original documents _meta.js and a workflow that no longer exists.
   'contributing-to-docs': null,
@@ -217,21 +217,21 @@ const POST_EDITS = {
  * stand on their own.
  */
 const TITLE_OVERRIDES = {
-  'gettingstarted/dependencies': 'Installation',
+  'gettingstarted/dependencies': null,
   'gettingstarted/build': 'Build from source',
-  'gettingstarted/account-setup': 'Accounts & addresses',
+  'gettingstarted/account-setup': null,
   'gettingstarted/concepts': 'Core concepts',
   'gettingstarted/key-apis': 'Key APIs at a glance',
-  'gettingstarted/modules': 'Modules & artifacts',
-  'gettingstarted/simple-transfer': 'Your first transaction',
-  'gettingstarted/tokens-distribution': 'Native tokens',
-  'gettingstarted/multisig-quickstart': 'Multi-sig transfers',
-  'tutorials/nft-minting': 'Minting an NFT',
-  'tutorials/smart-contract-calls': 'Calling a Plutus script',
+  'gettingstarted/modules': null,
+  'gettingstarted/simple-transfer': null,
+  'gettingstarted/tokens-distribution': null,
+  'gettingstarted/multisig-quickstart': null,
+  'tutorials/nft-minting': null,
+  'tutorials/smart-contract-calls': null,
   'annotations/dependencies': 'Annotation processor setup',
   'annotations/plutus-data-annotations': 'PlutusData annotations',
   'annotations/plutus-blueprint-code-generation': 'Blueprint code generation',
-  'integrations/aiken-integration-api': 'Aiken integration',
+  'integrations/aiken-integration-api': null,
   'apis/standards/cip8-api': 'CIP-8 — Message signing',
   'apis/standards/cip20-api': 'CIP-20 — Transaction messages',
   'apis/standards/cip25-api': 'CIP-25 — NFT metadata',
@@ -239,7 +239,7 @@ const TITLE_OVERRIDES = {
   'apis/standards/cip30-api': 'CIP-30 — Wallet bridge',
   'apis/standards/cip67-api': 'CIP-67 — Asset name labels',
   'apis/standards/cip68-api': 'CIP-68 — Datum metadata',
-  'support-this-project': 'Support this project',
+  'support-this-project': null,
   'preview/index': "What's new in 0.8.0",
 };
 
@@ -255,8 +255,8 @@ const TITLE_OVERRIDES = {
  * summary, so every page needs one.
  */
 const DESCRIPTIONS = {
-  'showcase': 'Projects and products built with Cardano Client Lib.',
-  'support-this-project': 'Ways to support continued development of Cardano Client Lib.',
+  'showcase': null,
+  'support-this-project': null,
 };
 
 const STALE_VERSION = /0\.8\.0-preview1/g;
