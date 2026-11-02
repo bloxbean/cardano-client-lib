@@ -92,7 +92,7 @@ function buildLlmsTxt(pages, catalog) {
   L.push(
     '> A Java library for building, signing and submitting Cardano transactions. ' +
       `Latest preview ${catalog.version}, ${catalog.ledgerEra} era, Java ${catalog.javaBaseline}+. ` +
-      `Latest stable ${catalog.stableVersion}, which doesn't include preview features.`,
+      `Latest stable ${catalog.stableVersion}, Java ${catalog.stableJavaBaseline}+, which doesn't include preview features.`,
   );
   L.push('');
   L.push('## Pick the right API first');
@@ -152,7 +152,7 @@ function buildLlmsFull(pages, catalog) {
   const L = [
     '# Cardano Client Lib — complete documentation',
     '',
-    `Version ${catalog.version} · ${catalog.ledgerEra} era · generated ${catalog.generatedAt}`,
+    `Latest preview ${catalog.version} (Java ${catalog.javaBaseline}+) · Latest stable ${catalog.stableVersion} (Java ${catalog.stableJavaBaseline}+) · ${catalog.ledgerEra} era · generated ${catalog.generatedAt}`,
     `Source: ${SITE}`,
     '',
     '---',

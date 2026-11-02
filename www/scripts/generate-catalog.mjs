@@ -359,6 +359,7 @@ export async function generateCatalog({ logger } = {}) {
     stableVersion,
     group,
     javaBaseline: 17,
+    stableJavaBaseline: 11,
     ledgerEra: 'Conway',
     canonical: {
       singleTransaction: 'com.bloxbean.cardano.client.quicktx.QuickTxBuilder',
