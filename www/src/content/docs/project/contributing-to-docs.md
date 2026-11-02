@@ -12,7 +12,7 @@ typo or a small correction, that is the whole workflow.
 
 ## Run it locally
 
-Requires Node.js 20 or later.
+Requires Node.js 22.12 or later.
 
 ```bash
 cd www
@@ -114,14 +114,13 @@ Do not hand-edit these — regenerate them by changing their source:
 
 | Output | Source |
 |---|---|
-| `/ai/catalog.json` | `settings.gradle` and `gradle.properties` |
+| `/ai/catalog.json` | `settings.gradle`, `gradle.properties` and the [Versions](/start-here/installation/#versions) list |
 | `/llms.txt`, `/llms-full.txt` | every page under `src/content/docs/` |
-| Landing-page module and version counts | `/ai/catalog.json` |
+| Versions on the landing page | The [Versions](/start-here/installation/#versions) list |
 
-This is deliberate: the version and module count on the landing page cannot drift from what the
-repository actually builds. If you add a module to `settings.gradle`, describe it in
-`MODULE_INFO` inside `scripts/generate-catalog.mjs` — the generator fails loudly on a module it
-cannot describe.
+The Versions list holds the latest stable and preview versions, so a release edits only that list.
+If you add a module to `settings.gradle`, describe it in `MODULE_INFO` inside
+`scripts/generate-catalog.mjs`. Otherwise its catalog entry has an empty description.
 
 ## Writing guidance
 

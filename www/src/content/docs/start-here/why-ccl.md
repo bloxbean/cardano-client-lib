@@ -63,7 +63,7 @@ See [Versions](/start-here/installation/#versions) for the latest stable and pre
 [what's new](/project/whats-new/) for the Unified Tx API, TxFlow, TxStream, TxPlan, programmable tokens
 and verified data structures.
 
-Java 17 or later is required.
+The stable release needs Java 11 or later, and previews need Java 17 or later.
 
 ## Reading and watching
 

@@ -5,13 +5,17 @@ import CodeShowcase from '../components/landing/CodeShowcase.astro';
 import { highlightJava } from '../components/landing/highlight.mjs';
 import { generateCatalog } from '../../scripts/generate-catalog.mjs';
 
-/* The version comes from one line on the installation page; see generate-catalog.mjs. */
-const { version } = await generateCatalog({ logger: { info: () => {} } });
+/* The versions come from the installation page; see generate-catalog.mjs. */
+const { version, stableVersion } = await generateCatalog({ logger: { info: () => {} } });
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p) => `${base}${p}`;
 
-const install = `implementation "com.bloxbean.cardano:cardano-client-lib:${version}"`;
+const coordinates = (v) => `com.bloxbean.cardano:cardano-client-lib:${v}`;
+const installs = [
+  { label: 'Stable', version: stableVersion },
+  { label: 'Preview', version },
+];
 
 const heroCode = `Tx tx = new Tx()
         .payToAddress(receiver, Amount.ada(10))
@@ -95,7 +99,7 @@ const ribbon = [
         <div class="wrap hero-inner">
           <div class="hero-copy">
             <a class="eyebrow" href={href('/project/whats-new/')}>
-              <span class="dot"></span> v{version} preview · Conway era · Java 17+
+              <span class="dot"></span> Stable {stableVersion} · Preview {version} · Conway era
             </a>
             <h1>
               Build
@@ -119,10 +123,21 @@ const ribbon = [
               </a>
               <a class="btn btn-ghost" href={href('/start-here/installation/')}>Installation</a>
             </div>
-            <div class="install">
-              <code>{install}</code>
-              <button type="button" class="copy" data-copy={install} aria-label="Copy dependency">Copy</button>
+            <div class="install-list">
+              {installs.map((i) => (
+                <div class="install">
+                  <span class="install-tag">{i.label}</span>
+                  <code>cardano-client-lib:{i.version}</code>
+                  <button
+                    type="button"
+                    class="copy"
+                    data-copy={`implementation "${coordinates(i.version)}"`}
+                    aria-label={`Copy Gradle dependency for ${i.label} ${i.version}`}
+                  >Copy Gradle</button>
+                </div>
+              ))}
             </div>
+            <p class="install-note">Stable needs Java 11 or later, and the preview needs Java 17 or later.</p>
           </div>
 
           <div class="window" data-tilt>
@@ -283,13 +298,14 @@ const ribbon = [
 
         // Copy the dependency line.
         document.querySelectorAll('[data-copy]').forEach((button) => {
+          const label = button.textContent;
           button.addEventListener('click', async () => {
             try {
               await navigator.clipboard.writeText(button.dataset.copy);
               button.textContent = 'Copied';
-              setTimeout(() => (button.textContent = 'Copy'), 1600);
+              setTimeout(() => (button.textContent = label), 1600);
             } catch {
-              button.textContent = 'Press ⌘C';
+              button.textContent = 'Copy failed';
             }
           });
         });

@@ -18,14 +18,14 @@
   <svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="pipe-stroke" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="#a78bfa" />
-        <stop offset="50%" stop-color="#7045af" />
-        <stop offset="100%" stop-color="#22d3ee" />
+        <stop offset="0%" stop-color="#fabf8b" />
+        <stop offset="50%" stop-color="#ea580c" />
+        <stop offset="100%" stop-color="#eeb122" />
       </linearGradient>
 
       <linearGradient id="node-fill" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(167,139,250,.16)" />
-        <stop offset="100%" stop-color="rgba(91,108,255,.06)" />
+        <stop offset="0%" stop-color="rgba(250, 191, 139,.16)" />
+        <stop offset="100%" stop-color="rgba(255, 168, 91,.06)" />
       </linearGradient>
 
       <filter id="node-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -35,7 +35,7 @@
 
       <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
               markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b7ac8" />
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#a3a19f" />
       </marker>
 
       <!-- Connector geometry, referenced by both the visible stroke and the dots. -->
@@ -97,7 +97,7 @@
     <text x="196" y="221" class="tag">output → input</text>
 
     <!-- Travelling packets -->
-    <g class="packets" fill="#22d3ee">
+    <g class="packets" fill="#eeb122">
       <circle r="3.5">
         <animateMotion dur="3.2s" repeatCount="indefinite" begin="0s"><mpath href="#c1" /></animateMotion>
       </circle>
@@ -107,7 +107,7 @@
       <circle r="3.5">
         <animateMotion dur="3.2s" repeatCount="indefinite" begin="1.1s"><mpath href="#c3" /></animateMotion>
       </circle>
-      <circle r="3.5" fill="#a78bfa">
+      <circle r="3.5" fill="#fabf8b">
         <animateMotion dur="3.2s" repeatCount="indefinite" begin="1.65s"><mpath href="#chain" /></animateMotion>
       </circle>
       <circle r="3.5">
@@ -132,14 +132,14 @@
 
   .node rect {
     fill: url(#node-fill);
-    stroke: rgba(167, 139, 250, 0.45);
+    stroke: rgba(250, 191, 139, 0.45);
     stroke-width: 1.25;
     animation: node-in 0.5s ease-out backwards;
     animation-delay: calc(var(--i) * 0.12s);
   }
 
   .node.done rect {
-    stroke: rgba(34, 211, 238, 0.6);
+    stroke: rgba(238, 177, 34, 0.6);
     filter: url(#node-glow);
   }
 
@@ -148,19 +148,19 @@
   }
 
   .node text {
-    fill: #ede9fb;
+    fill: #f3f2f1;
     font: 600 13px/1 var(--sl-font-system, Inter, system-ui, sans-serif);
     text-anchor: middle;
   }
 
   .node text.sub {
-    fill: #9d93c4;
+    fill: #adacaa;
     font-size: 10px;
     font-weight: 400;
   }
 
   text.tag {
-    fill: #7c6fb0;
+    fill: #91908e;
     font: 500 10.5px/1 var(--sl-font-system, Inter, system-ui, sans-serif);
     text-anchor: middle;
     letter-spacing: 0.03em;
@@ -180,9 +180,9 @@
   }
 
   /* Light theme: the same diagram on a pale ground needs darker ink. */
-  :global([data-theme='light']) .node text { fill: #241b45; }
-  :global([data-theme='light']) .node text.sub { fill: #6d6494; }
-  :global([data-theme='light']) text.tag { fill: #7a6fb0; }
+  :global([data-theme='light']) .node text { fill: #31302f; }
+  :global([data-theme='light']) .node text.sub { fill: #6a6968; }
+  :global([data-theme='light']) text.tag { fill: #6f6e6d; }
 
   @media (prefers-reduced-motion: reduce) {
     .node rect,

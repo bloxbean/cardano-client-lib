@@ -303,7 +303,9 @@ async function readVersion() {
   );
   const version = page.match(/^- \*\*Latest preview:\*\* (\S+)\s*$/m)?.[1];
   if (!version) throw new Error('could not read "Latest preview" from start-here/installation.md');
-  return { version, group: group ?? 'com.bloxbean.cardano' };
+  const stableVersion = page.match(/^- \*\*Latest stable:\*\* (\S+)\s*$/m)?.[1];
+  if (!stableVersion) throw new Error('could not read "Latest stable" from start-here/installation.md');
+  return { version, stableVersion, group: group ?? 'com.bloxbean.cardano' };
 }
 
 async function readModules() {
@@ -322,7 +324,7 @@ async function readModules() {
 
 export async function generateCatalog({ logger } = {}) {
   const log = logger ?? console;
-  const { version, group } = await readVersion();
+  const { version, stableVersion, group } = await readVersion();
   const moduleNames = await readModules();
 
   const modules = moduleNames.map((name) => {
@@ -354,6 +356,7 @@ export async function generateCatalog({ logger } = {}) {
     repository: 'https://github.com/bloxbean/cardano-client-lib',
     docs: 'https://cardano-client.dev',
     version,
+    stableVersion,
     group,
     javaBaseline: 17,
     ledgerEra: 'Conway',

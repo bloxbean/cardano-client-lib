@@ -10,7 +10,7 @@ description: Maven and Gradle dependencies
 
 Previews contain the newest features, such as TxFlow, TxStream, TxPlan and verified data structures, and their APIs may change before the stable release. See [what's new](/project/whats-new/) and the [release notes](https://github.com/bloxbean/cardano-client-lib/releases).
 
-Java 17 or later is required.
+The stable release needs Java 11 or later, and previews need Java 17 or later.
 
 Throughout this site, replace `<version>` or `{version}` in a dependency with the version you're using. Pages for preview features need the latest preview.
 

@@ -1,23 +1,16 @@
 /*
  * Cardano Client Lib brand overrides for Starlight.
  *
- * The palette is anchored on the logo mark's purple (#7045AF), extended into a
- * violet -> indigo -> cyan gradient used for the header rule and landing accents.
+ * Graphite neutrals with one warm accent. The same gradient colors the logo, the
+ * header rule and the landing page.
  */
 
 :root {
-  --ccl-purple: #7045af;
-  --ccl-violet: #a78bfa;
-  --ccl-indigo: #5b6cff;
-  --ccl-cyan: #22d3ee;
+  --ccl-brand: linear-gradient(100deg, #fdba74, #fb923c, #f59e0b);
 
-  --ccl-brand: linear-gradient(
-    100deg,
-    var(--ccl-violet),
-    var(--ccl-purple),
-    var(--ccl-indigo),
-    var(--ccl-cyan)
-  );
+  /* Asides: the accent is orange, so caution moves to yellow and tip to teal. */
+  --sl-hue-orange: 50;
+  --sl-hue-purple: 172;
 
   --sl-font-system: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -38,35 +31,38 @@
 /* Dark — Starlight's default when no explicit light choice is stored. */
 :root,
 ::backdrop {
-  --sl-color-accent-low: #211842;
-  --sl-color-accent: #8b5cf6;
-  --sl-color-accent-high: #d3c4ff;
+  --sl-color-accent-low: #3a2112;
+  --sl-color-accent: #fb923c;
+  --sl-color-accent-high: #fed7aa;
 
   --sl-color-white: #ffffff;
-  --sl-color-gray-1: #ece9f7;
-  --sl-color-gray-2: #c5bede;
-  --sl-color-gray-3: #8f86b6;
-  --sl-color-gray-4: #58507b;
-  --sl-color-gray-5: #37305c;
-  --sl-color-gray-6: #231d44;
-  --sl-color-black: #0c0919;
+  --sl-color-gray-1: #f0f0f0;
+  --sl-color-gray-2: #cfcecd;
+  --sl-color-gray-3: #9f9e9d;
+  --sl-color-gray-4: #676664;
+  --sl-color-gray-5: #3a3938;
+  --sl-color-gray-6: #1f1e1d;
+  --sl-color-black: #111111;
 }
 
 /* Light — inverted scale, mirroring Starlight's own light ramp. */
 :root[data-theme='light'],
 [data-theme='light'] ::backdrop {
-  --sl-color-accent-low: #e9e2ff;
-  --sl-color-accent: #6d28d9;
-  --sl-color-accent-high: #3b1f8f;
+  --sl-color-accent-low: #ffedd5;
+  --sl-color-accent: #c2410c;
+  --sl-color-accent-high: #7c2d12;
 
-  --sl-color-white: #16112c;
-  --sl-color-gray-1: #231d44;
-  --sl-color-gray-2: #37305c;
-  --sl-color-gray-3: #6d6494;
-  --sl-color-gray-4: #9a91bc;
-  --sl-color-gray-5: #d0cae5;
-  --sl-color-gray-6: #ece8f8;
-  --sl-color-gray-7: #f7f5fd;
+  /* Teal is lighter than the purple it replaces, so its dark shade goes darker. */
+  --sl-color-purple-high: hsl(var(--sl-hue-purple), 90%, 20%);
+
+  --sl-color-white: #1f1e1e;
+  --sl-color-gray-1: #32302f;
+  --sl-color-gray-2: #474645;
+  --sl-color-gray-3: #6f6e6d;
+  --sl-color-gray-4: #a8a6a5;
+  --sl-color-gray-5: #d8d8d7;
+  --sl-color-gray-6: #f0f0f0;
+  --sl-color-gray-7: #f9f9f9;
   --sl-color-black: #ffffff;
 }
 
@@ -132,7 +128,7 @@
 
 .hero > img,
 .hero > .hero-html {
-  filter: drop-shadow(0 12px 40px rgb(112 69 175 / 35%));
+  filter: drop-shadow(0 12px 40px rgb(234 88 12 / 35%));
 }
 
 /* The site title follows the text color, as on the landing page, rather than the accent. */

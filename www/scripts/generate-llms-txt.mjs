@@ -91,7 +91,8 @@ function buildLlmsTxt(pages, catalog) {
   L.push('');
   L.push(
     '> A Java library for building, signing and submitting Cardano transactions. ' +
-      `Version ${catalog.version}, ${catalog.ledgerEra} era, Java ${catalog.javaBaseline}+.`,
+      `Latest preview ${catalog.version}, ${catalog.ledgerEra} era, Java ${catalog.javaBaseline}+. ` +
+      `Latest stable ${catalog.stableVersion}, which doesn't include preview features.`,
   );
   L.push('');
   L.push('## Pick the right API first');
