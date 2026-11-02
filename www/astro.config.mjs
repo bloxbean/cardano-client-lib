@@ -14,6 +14,8 @@ const preview = /** @type {const} */ ({ text: 'Preview', variant: 'tip' });
 const experimental = /** @type {const} */ ({ text: 'Experimental', variant: 'caution' });
 
 export default defineConfig({
+  // Astro 6 leaves this unset, which the MDX integration reads as off. Plain .md pages default to on.
+  markdown: { gfm: true },
   site: 'https://cardano-client.dev',
   base,
   integrations: [

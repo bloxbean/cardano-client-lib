@@ -3,6 +3,8 @@ title: "Test locally with Yaci DevKit"
 description: "Run a local Cardano devnet, fund accounts instantly, and move the same code to a public testnet when you're ready."
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 You can run every tutorial on this site in one of two places: a devnet on your own machine, or a public test network. Both use the same code, and only the backend line changes.
 
 | | Yaci DevKit (local) | Preview or Preprod (public) |
@@ -18,18 +20,70 @@ Use DevKit while you're developing, because the feedback is fast and mistakes co
 
 ## Start a devnet
 
-Follow [Get started with Yaci DevKit](https://devkit.yaci.xyz/#get-started). It covers Homebrew, npm, Docker and Zip. With Homebrew on macOS 15+ or Linux, it's two commands:
+Pick the setup that suits your machine. [Get started with Yaci DevKit](https://devkit.yaci.xyz/#get-started) has these and the other options, npm and Zip.
+
+<Tabs>
+<TabItem label="Homebrew">
+
+The native CLI, for macOS 15+ or Linux. You don't need Docker.
 
 ```bash
 brew install bloxbean/tap/yaci-devkit
-yaci-devkit up --enable-yaci-store
+yaci-devkit up --enable-yaci-store --interactive
 ```
 
-Keep that terminal open, because its prompt is where you'll type DevKit commands. In another terminal, check that the devnet's API is answering:
+[Yaci Viewer](#see-your-transactions-in-yaci-viewer) isn't included with this setup. To add it, run these in another terminal:
+
+```bash
+npm install -g @bloxbean/yaci-viewer
+yaci-viewer
+```
+
+It opens at http://localhost:3000.
+
+</TabItem>
+<TabItem label="Docker">
+
+The whole stack in containers, including [Yaci Viewer](#see-your-transactions-in-yaci-viewer). Docker must be running.
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://devkit.yaci.xyz/install.sh | bash
+devkit start
+```
+
+This opens the Yaci CLI prompt. Create and start a devnet there. The `-o` option overwrites any devnet you already have.
+
+```text
+yaci-cli:> create-node -o --start
+```
+
+Yaci Viewer opens at http://localhost:5173.
+
+</TabItem>
+</Tabs>
+
+In another terminal, check that the devnet's API is answering:
 
 ```bash
 curl http://localhost:8080/api/v1/epochs/latest
 ```
+
+### Use the Yaci CLI prompt
+
+Both setups leave you at an interactive prompt, `devnet:default>`, where you can manage the devnet. Keep that terminal open while you work.
+
+```text
+devnet:default> topup <address> 100     # send 100 ada to an address
+devnet:default> utxos <address>         # list an address's UTxOs
+devnet:default> info                    # show the devnet's settings
+devnet:default> reset                   # delete all data and restart
+```
+
+The [command reference](https://devkit.yaci.xyz/commands) lists the rest. For a test pipeline that doesn't need a prompt, leave out `--interactive` and [fund accounts over HTTP](#fund-an-account).
+
+### See your transactions in Yaci Viewer
+
+Yaci Viewer is a block explorer for your devnet, in your browser. Use it to look up the blocks, transactions and addresses that your code creates.
 
 ## Connect from Java
 
@@ -53,10 +107,10 @@ Account sender = Account.createFromMnemonic(Networks.testnet(), mnemonic);
 Everyone knows this mnemonic. Never send real funds to its addresses.
 :::
 
-To fund any other address, use `topup` at the DevKit prompt. This sends it 100 ada:
+To fund any other address, use `topup` at the [Yaci CLI prompt](#use-the-yaci-cli-prompt). This sends it 100 ada:
 
-```bash
-topup <address> 100
+```text
+devnet:default> topup <address> 100
 ```
 
 Tests can do the same over HTTP:
@@ -106,7 +160,7 @@ public class LocalTransfer {
 }
 ```
 
-It prints `CONFIRMED` and the transaction hash within a few seconds.
+It prints `CONFIRMED` and the transaction hash within a few seconds. Paste the hash into Yaci Viewer to see the transaction.
 
 ## Move to a public network
 
@@ -125,7 +179,7 @@ Expect two differences:
 ## Going further
 
 - **Staking and governance.** The [staking](/learn/staking-and-delegation/) lifecycle spans several epochs, which takes minutes on a devnet instead of days. The `--epoch-length` option of [`create-node`](https://devkit.yaci.xyz/commands) makes them shorter.
-- **Starting over.** `reset` at the DevKit prompt deletes the devnet's data and restarts it.
+- **Starting over.** `reset` at the Yaci CLI prompt deletes the devnet's data and restarts it.
 - **Rollbacks.** DevKit can also [simulate rollbacks](https://devkit.yaci.xyz/rollback-testing), which is useful for testing [TxFlow](/txflow/overview/).
 - **Other commands.** See the [command reference](https://devkit.yaci.xyz/commands) and the [services DevKit can run](https://devkit.yaci.xyz/services).
 

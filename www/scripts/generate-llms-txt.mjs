@@ -71,7 +71,12 @@ async function loadPages() {
       url: `${SITE}/${slug}/`,
       title: data.title ?? slug,
       description: data.description ?? '',
-      body: body.trim(),
+      // MDX pages: keep the text of tabs, without the component syntax.
+      body: body
+        .replace(/^import .* from '@astrojs\/starlight\/components';\n/m, '')
+        .replace(/<TabItem label="([^"]+)">/g, '**$1**')
+        .replace(/<\/?(?:Tabs|TabItem)>\n?/g, '')
+        .trim(),
       section: slug.split('/')[0],
     });
   }
