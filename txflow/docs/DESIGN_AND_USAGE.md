@@ -2,8 +2,8 @@
 
 > **Compatibility reference:** Most of this document describes the preview `FlowExecutor`,
 > `FlowHandle`, and `FlowStateStore` API. New integrations should begin with
-> [`txflow/README.md`](../README.md) and the current public guide under
-> `docs/content/preview/txflow`. Use this document when maintaining or migrating an existing
+> [`txflow/README.md`](../README.md) and the current
+> [TxFlow guide](https://cardano-client.dev/txflow/overview/). Use this document when maintaining or migrating an existing
 > preview integration.
 
 TxFlow orchestrates multi-step Cardano transaction flows with automatic UTXO dependency management, confirmation tracking, rollback recovery, and retry policies.

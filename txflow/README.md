@@ -363,13 +363,13 @@ merging), partitioned fan-out lanes, a durable stream store (`RdbmsTxStreamState
 restart re-attach, and active/standby ownership for HA. The multi-item planners give flow-level
 dedup only — read the durability guide before pairing them with a redelivering source. Guides:
 
-- [TxStream Getting Started](../docs/content/preview/txflow/txstream-getting-started.mdx)
-- [TxStream: Durability & Exactly-Once](../docs/content/preview/txflow/txstream-durability.mdx)
-- [TxStream: Lanes, Batching & Throughput](../docs/content/preview/txflow/txstream-throughput.mdx)
+- [TxStream Getting Started](https://cardano-client.dev/txstream/getting-started/)
+- [TxStream: Durability & Exactly-Once](https://cardano-client.dev/txstream/durability/)
+- [TxStream: Lanes, Batching & Throughput](https://cardano-client.dev/txstream/throughput/)
 
 ## Documentation map
 
-- [Current public guide](../docs/content/preview/txflow/overview.mdx)
+- [Current public guide](https://cardano-client.dev/txflow/overview/)
 - [Portable authoring migration](docs/PORTABLE_TXFLOW_MIGRATION.md)
 - [Durable runtime contract](docs/DURABLE_RUNTIME.md)
 - [Detailed design and compatibility reference](docs/DESIGN_AND_USAGE.md)
