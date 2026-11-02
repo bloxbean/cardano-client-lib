@@ -1,0 +1,196 @@
+# Cardano Client Lib
+
+> A Java library for building, signing and submitting Cardano transactions. Latest preview 0.8.0-pre7, Conway era, Java 17+. Latest stable 0.7.3, Java 11+, which doesn't include preview features.
+
+## Pick the right API first
+
+| Task | Use | Notes |
+|---|---|---|
+| One transaction (send, mint, delegate, vote) | `com.bloxbean.cardano.client.quicktx.QuickTxBuilder` | Default choice. |
+| A plan expressed as config rather than code | `com.bloxbean.cardano.client.quicktx.serialization.TxPlan` | YAML/JSON deserializable. |
+| Several dependent transactions in order | `com.bloxbean.cardano.client.txflow.exec.FlowEngine` | Handles UTXO chaining and rollback. |
+| Continuous submission over time | `com.bloxbean.cardano.client.txflow.stream.TxFlowStream` | Exactly-once, durable restart. |
+| Proof an Aiken validator can verify | `com.bloxbean.cardano.vds.mpf.MpfTrie (MPF mode)` | MPF mode only. |
+
+Do NOT generate code against these:
+
+- com.bloxbean.cardano.client.function.* — internal implementation layer
+- WatchableQuickTxBuilder — does not exist; superseded by TxFlow
+
+Read https://cardano-client.dev/ai/starter-pack/ before generating code — it lists the mistakes agents
+most often make with this library and how to avoid them.
+
+## Start here
+
+- [Accounts & addresses](https://cardano-client.dev/start-here/accounts-and-addresses/): Account & Backend Provider Setup
+- [Build from source](https://cardano-client.dev/start-here/build-from-source/): How to build from source ?
+- [Core concepts](https://cardano-client.dev/start-here/core-concepts/): Key Concepts in Cardano Client Lib
+- [Installation](https://cardano-client.dev/start-here/installation/): Maven and Gradle dependencies
+- [Key APIs at a glance](https://cardano-client.dev/start-here/key-apis/): Key apis of Cardano Client Lib
+- [Why Cardano Client Lib](https://cardano-client.dev/start-here/why-ccl/): A Java library for building, signing and submitting Cardano transactions — what it covers, who it is for, and where to start.
+
+## Learn: a guided path
+
+- [Programmable Tokens with CIP-113](https://cardano-client.dev/learn/cip113-programmable-tokens/): Build a token that can't move without its issuer's approval: register, mint, transfer, seize and burn it on Preview.
+- [Minting an NFT](https://cardano-client.dev/learn/minting-an-nft/): Mint a one-of-a-kind token with CIP-25 metadata and a time-locked policy, using QuickTx.
+- [Multi-sig transfers](https://cardano-client.dev/learn/multisig/): Example - Multi-signature transfer with native script
+- [Native tokens](https://cardano-client.dev/learn/native-tokens/): Create your own token with a native script policy, then send it to several receivers in one transaction.
+- [Calling a Plutus script](https://cardano-client.dev/learn/plutus-scripts/): Lock ADA at a Plutus script and unlock it with a redeemer, using QuickTx.
+- [Your first transaction](https://cardano-client.dev/learn/simple-transfer/): A simple ada transfer example.
+- [Staking & delegation](https://cardano-client.dev/learn/staking-and-delegation/): Register a stake address, delegate to a pool, withdraw rewards and deregister — the full staking lifecycle with QuickTx.
+- [Test locally with Yaci DevKit](https://cardano-client.dev/learn/test-with-yaci-devkit/): Run a local Cardano devnet, fund accounts instantly, and move the same code to a public testnet when you're ready.
+- [What's next](https://cardano-client.dev/learn/whats-next/): You've finished the guided path. Here's how to choose what to read next based on what you're actually building.
+
+## QuickTx (recommended for single transactions)
+
+- [QuickTx API](https://cardano-client.dev/quicktx/overview/): Declarative transaction building API
+- [Unified Tx API](https://cardano-client.dev/quicktx/unified-tx/): ScriptTx merged into Tx — one class for all transaction types
+
+## TxPlan (declarative YAML/JSON plans, preview)
+
+- [TxPlan Advanced Usage](https://cardano-client.dev/txplan/advanced-usage/): Signer Registry, script transactions, multi-tx plans, and dynamic configuration
+- [TxPlan: Getting Started](https://cardano-client.dev/txplan/getting-started/): Move a transaction out of Java and into a YAML file you can version, review and reuse — in about ten minutes.
+- [TxPlan Overview](https://cardano-client.dev/txplan/overview/): YAML-based transaction definitions with variable substitution
+
+## TxFlow (multi-step workflows, preview)
+
+- [Durable Runtime](https://cardano-client.dev/txflow/durable-runtime/): Persist TxFlow attempts with H2 or PostgreSQL, fenced leases, and explicit recovery
+- [Executing Portable Flows](https://cardano-client.dev/txflow/execution-engine/): Parse, preflight, and run portable TxFlow definitions with FlowEngine
+- [TxFlow Getting Started](https://cardano-client.dev/txflow/getting-started/): Parse, preflight, and execute a portable TxFlow definition with Java 17
+- [Operations and Testing](https://cardano-client.dev/txflow/operations-testing/): Operate, monitor, back up, restore, and verify the durable TxFlow runtime
+- [TxFlow Overview](https://cardano-client.dev/txflow/overview/): Portable, policy-controlled Cardano transaction workflow execution
+- [Policies, Results, and Observability](https://cardano-client.dev/txflow/policies-results-observability/): Retry, confirmation, rollback, results, cancellation, recovery, and diagnostics for FlowEngine
+- [Portable TxFlow Authoring](https://cardano-client.dev/txflow/portable-authoring/): Author safe, reusable TxFlow v1alpha1 YAML and JSON definitions
+- [Your first flow](https://cardano-client.dev/txflow/your-first-flow/): Chain two transactions where the second spends what the first produced — the smallest TxFlow that does something you cannot do with QuickTx alone.
+
+## TxStream (continuous submission, preview)
+
+- [TxStream: Durability & Exactly-Once](https://cardano-client.dev/txstream/durability/): Durable store pairing, restart re-attach, dedup scopes, secrets policy, and active/standby HA
+- [TxStream Getting Started](https://cardano-client.dev/txstream/getting-started/): Continuous, idempotent transaction submission on the FlowEngine runtime
+- [TxStream: Smart Contracts](https://cardano-client.dev/txstream/smart-contracts/): Order-escrow settlement with a real Aiken vault: locking and claiming contract UTXOs through the stream, idempotently, with contract contention serialized on one lane
+- [TxStream: Lanes, Batching & Throughput](https://cardano-client.dev/txstream/throughput/): The UTXO concurrency model: lane policies, windows, planners, partitioned fan-out, and honest throughput expectations
+
+## Governance (Conway era)
+
+- [Governance API](https://cardano-client.dev/governance/overview/): APIs for Cardano governance operations (DRep, Voting, Proposals)
+
+## Smart contracts
+
+- [Aiken integration](https://cardano-client.dev/smart-contracts/aiken/): Aiken Integration Apis
+- [Annotation processor setup](https://cardano-client.dev/smart-contracts/annotation-processor-setup/): Annotation Processor Dependency
+- [Blueprint code generation](https://cardano-client.dev/smart-contracts/blueprint-codegen/): Plutus Blueprint Code Generation
+- [Plutus API](https://cardano-client.dev/smart-contracts/plutus-api/): Smart contract interaction with PlutusData, scripts, and blueprints
+- [PlutusData annotations](https://cardano-client.dev/smart-contracts/plutusdata-annotations/): Plutus Data Annotations
+- [Scalus Integration](https://cardano-client.dev/smart-contracts/scalus/): Evaluate script costs locally and apply script parameters with Scalus.
+
+## Verified structures (preview)
+
+- [Jellyfish Merkle Tree](https://cardano-client.dev/verified-structures/jmt/): Versioned, authenticated off-chain state with inclusion and absence proofs.
+- [MpfTrie](https://cardano-client.dev/verified-structures/mpf/): Merkle Patricia Forestry on RocksDB, with proofs that Aiken validators can verify.
+- [MPF versions and garbage collection](https://cardano-client.dev/verified-structures/multi-version-gc/): Record versions of an MpfTrie on RocksDB, read old versions and reclaim space.
+- [Overview](https://cardano-client.dev/verified-structures/overview/): Merkle Patricia Forestry and Jellyfish Merkle Tree: authenticated data structures for Cardano applications.
+- [MPF production guide](https://cardano-client.dev/verified-structures/production-guide/): Atomic writes, RocksDB tuning, thread safety, backup and shutdown for MpfTrie.
+
+## Standards (CIPs)
+
+- [CIP-20 — Transaction messages](https://cardano-client.dev/standards/cip20/): Transaction Message/Comment Metadata implementation
+- [CIP-25 — NFT metadata](https://cardano-client.dev/standards/cip25/): NFT Metadata Standard implementation
+- [CIP-27 — Royalties](https://cardano-client.dev/standards/cip27/): CNFT Community Royalties Standard implementation
+- [CIP-30 — Wallet bridge](https://cardano-client.dev/standards/cip30/): dApp Connector and Data Signing implementation
+- [CIP-67 — Asset name labels](https://cardano-client.dev/standards/cip67/): Asset Name Label Registry implementation
+- [CIP-68 — Datum metadata](https://cardano-client.dev/standards/cip68/): CIP68 Datum Metadata Api
+- [CIP-8 — Message signing](https://cardano-client.dev/standards/cip8/): Message Signing with COSE Signatures implementation
+
+## Reference
+
+- [Account API](https://cardano-client.dev/reference/account-api/): Account management and key derivation APIs
+- [Address API](https://cardano-client.dev/reference/address-api/): Address generation, validation, and conversion utilities
+- [Backend Services API](https://cardano-client.dev/reference/backend-services/): APIs for integrating with Cardano backend services
+- [Coin Selection API](https://cardano-client.dev/reference/coin-selection/): UTXO selection strategies for transaction building
+- [Composable Functions API](https://cardano-client.dev/reference/composable-functions/): Flexible transaction building using composable functions
+- [Crypto API](https://cardano-client.dev/reference/crypto-api/): Key generation, signing, hashing, and HD derivation utilities
+- [HD Wallet API](https://cardano-client.dev/reference/hd-wallet-api/): Hierarchical deterministic wallet management with BIP32/CIP1852 support
+- [Metadata API](https://cardano-client.dev/reference/metadata-api/): Transaction metadata creation, management, and serialization
+- [Modules & artifacts](https://cardano-client.dev/reference/modules/): Modules and Dependencies
+- [Supplier Interfaces API](https://cardano-client.dev/reference/supplier-interfaces/): Extensible interfaces for custom backend data providers
+
+## AI agents
+
+- [Using Cardano Client Lib with AI](https://cardano-client.dev/ai/): Machine-readable artifacts, agent rules, and the fastest way to get an AI coding agent writing correct CCL code.
+- [AI Starter Pack](https://cardano-client.dev/ai/starter-pack/): Everything an AI agent needs to write correct cardano-client-lib code on the first try. Ingest this before generating any CCL code.
+
+## Project
+
+- [Contributing to docs](https://cardano-client.dev/project/contributing-to-docs/): How this documentation site is built, and how to add or edit a page.
+- [Known issues](https://cardano-client.dev/project/known-issues/): Known gaps in the latest preview, and how to work around them.
+- [Showcase](https://cardano-client.dev/project/showcase/): Projects and products built with Cardano Client Lib.
+- [Support this project](https://cardano-client.dev/project/support/): Ways to support continued development of Cardano Client Lib.
+- [What's new in 0.8.0](https://cardano-client.dev/project/whats-new/): New features in the Cardano Client Lib 0.8.0 preview releases.
+
+## Modules
+
+All artifacts use group `com.bloxbean.cardano` and version `0.8.0-pre7`.
+
+### recommended
+
+- `cardano-client-address` — Cardano address construction, parsing and derivation. Entry point: `com.bloxbean.cardano.client.address.AddressProvider`
+- `cardano-client-metadata` — Transaction auxiliary data and metadata construction. Entry point: `com.bloxbean.cardano.client.metadata.MetadataBuilder`
+- `cardano-client-plutus` — Plutus script types, PlutusData encoding and CIP-57 blueprint loading. Entry point: `com.bloxbean.cardano.client.plutus.spec.PlutusData`
+- `cardano-client-core` — Account handling and the high-level transaction APIs QuickTx builds on. Entry point: `com.bloxbean.cardano.client.account.Account`
+- `cardano-client-quicktx` — Declarative transaction builder. The default way to build any transaction. Entry point: `com.bloxbean.cardano.client.quicktx.QuickTxBuilder`
+- `cardano-client-annotation-processor` — Compile-time codegen for PlutusData converters and CIP-57 blueprints. Entry point: `@Constr / @Blueprint annotations`
+- `cardano-client-hd-wallet` — HD wallet account and address enumeration over a derivation path. Entry point: `com.bloxbean.cardano.client.wallet.Wallet`
+- `cardano-client-governance` — Conway-era governance: DRep registration, voting, committee and treasury actions. Entry point: `com.bloxbean.cardano.client.governance`
+- `cardano-client-cip20` — CIP-20 — Transaction message / comment metadata. Entry point: `com.bloxbean.cardano.client.cip.cip20`
+- `cardano-client-cip25` — CIP-25 — NFT metadata standard. Entry point: `com.bloxbean.cardano.client.cip.cip25`
+- `cardano-client-cip8` — CIP-8 — Message signing (COSE_Sign1). Entry point: `com.bloxbean.cardano.client.cip.cip8`
+- `cardano-client-cip27` — CIP-27 — CNFT community royalties. Entry point: `com.bloxbean.cardano.client.cip.cip27`
+- `cardano-client-cip30` — CIP-30 — dApp-wallet web bridge data structures. Entry point: `com.bloxbean.cardano.client.cip.cip30`
+- `cardano-client-cip67` — CIP-67 — Asset name label prefixes. Entry point: `com.bloxbean.cardano.client.cip.cip67`
+- `cardano-client-cip68` — CIP-68 — Datum metadata standard. Entry point: `com.bloxbean.cardano.client.cip.cip68`
+- `cardano-client-cip102` — CIP-102 — Royalty datum standard. Entry point: `com.bloxbean.cardano.client.cip.cip102`
+- `cardano-client-backend-blockfrost` — Blockfrost backend implementation. Entry point: `com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService`
+- `cardano-client-backend-koios` — Koios backend implementation. Entry point: `com.bloxbean.cardano.client.backend.koios.KoiosBackendService`
+- `cardano-client-backend-ogmios` — Ogmios/Kupo backend implementation. Entry point: `com.bloxbean.cardano.client.backend.ogmios.OgmiosBackendService`
+- `cardano-client-backend-nexus` — Nexus backend implementation. Entry point: `com.bloxbean.cardano.client.backend.nexus`
+- `cardano-client-plutus-aiken` — Aiken interop: load Aiken blueprints and apply parameters to Aiken-built validators. Entry point: `com.bloxbean.cardano.client.plutus.aiken`
+
+### preview
+
+- `cardano-client-txflow` — Multi-step transaction workflows with dependency tracking, rollback handling and durable restart. Also hosts TxStream for continuous submission. Entry point: `com.bloxbean.cardano.client.txflow.exec.FlowEngine`
+- `cardano-client-txflow-store-rdbms` — Relational durable store for TxFlow/TxStream restart recovery. Entry point: `com.bloxbean.cardano.client.txflow.store.rdbms`
+- `cardano-client-programmable-token` — Programmable tokens as QuickTx intents, with a CIP-113 adapter: register, mint, transfer, burn and seize. Entry point: `com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTokenService`
+- `cardano-client-merkle-patricia-forestry` — Merkle Patricia Forestry trie. In MPF mode this is the Aiken-compatible structure for on-chain proof verification. Entry point: `com.bloxbean.cardano.vds.mpf.MpfTrie`
+- `cardano-client-jellyfish-merkle` — Jellyfish Merkle Tree for off-chain authenticated state. NOT Aiken-compatible — do not use it for on-chain proof verification. Entry point: `com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree`
+- `cardano-client-merkle-patricia-forestry-rocksdb` — Embedded RocksDB storage for MpfTrie. Single-process. Entry point: `com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore`
+- `cardano-client-jellyfish-merkle-rocksdb` — Embedded RocksDB storage for the Jellyfish Merkle Tree. Entry point: `com.bloxbean.cardano.vds.jmt.rocksdb`
+- `cardano-client-merkle-patricia-forestry-rdbms` — Relational storage for MpfTrie (PostgreSQL/H2/SQLite). Multi-process. Entry point: `com.bloxbean.cardano.vds.mpf.rdbms`
+- `cardano-client-jellyfish-merkle-rdbms` — Relational storage for the Jellyfish Merkle Tree. Entry point: `com.bloxbean.cardano.vds.jmt.rdbms`
+
+### advanced
+
+- `cardano-client-function` — Composable TxBuilder primitives. This is the internal implementation layer under QuickTx — use QuickTx unless it genuinely cannot express what you need. Entry point: `com.bloxbean.cardano.client.function.TxBuilder`
+
+### support
+
+- `cardano-client-common` — Shared utilities, network definitions (Networks.mainnet/preprod/preview) and ADA conversion. Entry point: `com.bloxbean.cardano.client.common.model.Networks`
+- `cardano-client-crypto` — BIP32-Ed25519, BIP39 mnemonics and CIP-1852 key derivation. Entry point: `com.bloxbean.cardano.client.crypto`
+- `cardano-client-common-spec` — Shared CBOR spec types used across transaction and ledger modules. Entry point: `com.bloxbean.cardano.client.spec`
+- `cardano-client-transaction-spec` — CDDL-faithful transaction types and CBOR serialization. Entry point: `com.bloxbean.cardano.client.transaction.spec.Transaction`
+- `cardano-client-core-api` — Core abstractions: UtxoSupplier, ProtocolParamsSupplier, TransactionProcessor. Entry point: `com.bloxbean.cardano.client.api.UtxoSupplier`
+- `cardano-client-coinselection` — UTXO selection strategies. Note the default filters UTXOs carrying a datum hash — that matters when spending script outputs. Entry point: `com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy`
+- `cardano-client-crypto-ext` — Extended cryptographic primitives (BLS12-381, additional hashes). Entry point: `com.bloxbean.cardano.client.crypto.bls`
+- `cardano-client-backend` — Backend service abstraction (UTXO, transaction, epoch, network queries). Entry point: `com.bloxbean.cardano.client.backend.api.BackendService`
+- `cardano-client-supplier-ogmios-supplier` — UtxoSupplier/ProtocolParamsSupplier backed by Ogmios, usable without a full backend. Entry point: `com.bloxbean.cardano.client.supplier.ogmios`
+- `cardano-client-supplier-kupo-supplier` — UtxoSupplier backed by Kupo. Entry point: `com.bloxbean.cardano.client.supplier.kupo`
+- `cardano-client-verified-structures-core` — Shared node-store and proof abstractions for the verified data structures. Entry point: `com.bloxbean.cardano.vds.core`
+- `cardano-client-rocksdb-core` — RocksDB node-store shared by the embedded trie backends. Entry point: `com.bloxbean.cardano.vds.rocksdb`
+- `cardano-client-rdbms-core` — JDBC node-store shared by the relational trie backends. Entry point: `com.bloxbean.cardano.vds.rdbms`
+
+## Optional
+
+- [Full documentation as one file](https://cardano-client.dev/llms-full.txt)
+- [Machine-readable module catalog](https://cardano-client.dev/ai/catalog.json)
+- [Source repository](https://github.com/bloxbean/cardano-client-lib)
+- [Examples repository](https://github.com/bloxbean/cardano-client-examples)
+

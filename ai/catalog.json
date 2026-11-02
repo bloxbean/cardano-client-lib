@@ -1,0 +1,338 @@
+{
+  "generatedAt": "2026-11-02",
+  "library": "cardano-client-lib",
+  "repository": "https://github.com/bloxbean/cardano-client-lib",
+  "docs": "https://cardano-client.dev",
+  "version": "0.8.0-pre7",
+  "stableVersion": "0.7.3",
+  "group": "com.bloxbean.cardano",
+  "javaBaseline": 17,
+  "stableJavaBaseline": 11,
+  "ledgerEra": "Conway",
+  "canonical": {
+    "singleTransaction": "com.bloxbean.cardano.client.quicktx.QuickTxBuilder",
+    "declarativePlan": "com.bloxbean.cardano.client.quicktx.serialization.TxPlan",
+    "multiStepWorkflow": "com.bloxbean.cardano.client.txflow.exec.FlowEngine",
+    "continuousSubmission": "com.bloxbean.cardano.client.txflow.stream.TxFlowStream",
+    "onChainProof": "com.bloxbean.cardano.vds.mpf.MpfTrie (MPF mode)",
+    "notRecommendedForGeneratedCode": [
+      "com.bloxbean.cardano.client.function.* — internal implementation layer",
+      "WatchableQuickTxBuilder — does not exist; superseded by TxFlow"
+    ]
+  },
+  "modules": [
+    {
+      "name": "common",
+      "purpose": "Shared utilities, network definitions (Networks.mainnet/preprod/preview) and ADA conversion.",
+      "entry": "com.bloxbean.cardano.client.common.model.Networks",
+      "tier": "support",
+      "artifact": "cardano-client-common"
+    },
+    {
+      "name": "crypto",
+      "purpose": "BIP32-Ed25519, BIP39 mnemonics and CIP-1852 key derivation.",
+      "entry": "com.bloxbean.cardano.client.crypto",
+      "tier": "support",
+      "artifact": "cardano-client-crypto"
+    },
+    {
+      "name": "common-spec",
+      "purpose": "Shared CBOR spec types used across transaction and ledger modules.",
+      "entry": "com.bloxbean.cardano.client.spec",
+      "tier": "support",
+      "artifact": "cardano-client-common-spec"
+    },
+    {
+      "name": "address",
+      "purpose": "Cardano address construction, parsing and derivation.",
+      "entry": "com.bloxbean.cardano.client.address.AddressProvider",
+      "tier": "recommended",
+      "artifact": "cardano-client-address"
+    },
+    {
+      "name": "metadata",
+      "purpose": "Transaction auxiliary data and metadata construction.",
+      "entry": "com.bloxbean.cardano.client.metadata.MetadataBuilder",
+      "tier": "recommended",
+      "artifact": "cardano-client-metadata"
+    },
+    {
+      "name": "transaction-spec",
+      "purpose": "CDDL-faithful transaction types and CBOR serialization.",
+      "entry": "com.bloxbean.cardano.client.transaction.spec.Transaction",
+      "tier": "support",
+      "artifact": "cardano-client-transaction-spec"
+    },
+    {
+      "name": "core-api",
+      "purpose": "Core abstractions: UtxoSupplier, ProtocolParamsSupplier, TransactionProcessor.",
+      "entry": "com.bloxbean.cardano.client.api.UtxoSupplier",
+      "tier": "support",
+      "artifact": "cardano-client-core-api"
+    },
+    {
+      "name": "plutus",
+      "purpose": "Plutus script types, PlutusData encoding and CIP-57 blueprint loading.",
+      "entry": "com.bloxbean.cardano.client.plutus.spec.PlutusData",
+      "tier": "recommended",
+      "artifact": "cardano-client-plutus"
+    },
+    {
+      "name": "coinselection",
+      "purpose": "UTXO selection strategies. Note the default filters UTXOs carrying a datum hash — that matters when spending script outputs.",
+      "entry": "com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy",
+      "tier": "support",
+      "artifact": "cardano-client-coinselection"
+    },
+    {
+      "name": "core",
+      "purpose": "Account handling and the high-level transaction APIs QuickTx builds on.",
+      "entry": "com.bloxbean.cardano.client.account.Account",
+      "tier": "recommended",
+      "artifact": "cardano-client-core"
+    },
+    {
+      "name": "function",
+      "purpose": "Composable TxBuilder primitives. This is the internal implementation layer under QuickTx — use QuickTx unless it genuinely cannot express what you need.",
+      "entry": "com.bloxbean.cardano.client.function.TxBuilder",
+      "tier": "advanced",
+      "artifact": "cardano-client-function"
+    },
+    {
+      "name": "quicktx",
+      "purpose": "Declarative transaction builder. The default way to build any transaction.",
+      "entry": "com.bloxbean.cardano.client.quicktx.QuickTxBuilder",
+      "tier": "recommended",
+      "artifact": "cardano-client-quicktx"
+    },
+    {
+      "name": "txflow",
+      "purpose": "Multi-step transaction workflows with dependency tracking, rollback handling and durable restart. Also hosts TxStream for continuous submission.",
+      "entry": "com.bloxbean.cardano.client.txflow.exec.FlowEngine",
+      "tier": "preview",
+      "artifact": "cardano-client-txflow"
+    },
+    {
+      "name": "txflow-extensions:txflow-store-rdbms",
+      "purpose": "Relational durable store for TxFlow/TxStream restart recovery.",
+      "entry": "com.bloxbean.cardano.client.txflow.store.rdbms",
+      "tier": "preview",
+      "artifact": "cardano-client-txflow-store-rdbms"
+    },
+    {
+      "name": "annotation-processor",
+      "purpose": "Compile-time codegen for PlutusData converters and CIP-57 blueprints.",
+      "entry": "@Constr / @Blueprint annotations",
+      "tier": "recommended",
+      "artifact": "cardano-client-annotation-processor"
+    },
+    {
+      "name": "hd-wallet",
+      "purpose": "HD wallet account and address enumeration over a derivation path.",
+      "entry": "com.bloxbean.cardano.client.wallet.Wallet",
+      "tier": "recommended",
+      "artifact": "cardano-client-hd-wallet"
+    },
+    {
+      "name": "governance",
+      "purpose": "Conway-era governance: DRep registration, voting, committee and treasury actions.",
+      "entry": "com.bloxbean.cardano.client.governance",
+      "tier": "recommended",
+      "artifact": "cardano-client-governance"
+    },
+    {
+      "name": "crypto-ext",
+      "purpose": "Extended cryptographic primitives (BLS12-381, additional hashes).",
+      "entry": "com.bloxbean.cardano.client.crypto.bls",
+      "tier": "support",
+      "artifact": "cardano-client-crypto-ext"
+    },
+    {
+      "name": "cip:cip20",
+      "purpose": "CIP-20 — Transaction message / comment metadata.",
+      "entry": "com.bloxbean.cardano.client.cip.cip20",
+      "tier": "recommended",
+      "artifact": "cardano-client-cip20"
+    },
+    {
+      "name": "cip:cip25",
+      "purpose": "CIP-25 — NFT metadata standard.",
+      "entry": "com.bloxbean.cardano.client.cip.cip25",
+      "tier": "recommended",
+      "artifact": "cardano-client-cip25"
+    },
+    {
+      "name": "cip:cip8",
+      "purpose": "CIP-8 — Message signing (COSE_Sign1).",
+      "entry": "com.bloxbean.cardano.client.cip.cip8",
+      "tier": "recommended",
+      "artifact": "cardano-client-cip8"
+    },
+    {
+      "name": "cip:cip27",
+      "purpose": "CIP-27 — CNFT community royalties.",
+      "entry": "com.bloxbean.cardano.client.cip.cip27",
+      "tier": "recommended",
+      "artifact": "cardano-client-cip27"
+    },
+    {
+      "name": "cip:cip30",
+      "purpose": "CIP-30 — dApp-wallet web bridge data structures.",
+      "entry": "com.bloxbean.cardano.client.cip.cip30",
+      "tier": "recommended",
+      "artifact": "cardano-client-cip30"
+    },
+    {
+      "name": "cip:cip67",
+      "purpose": "CIP-67 — Asset name label prefixes.",
+      "entry": "com.bloxbean.cardano.client.cip.cip67",
+      "tier": "recommended",
+      "artifact": "cardano-client-cip67"
+    },
+    {
+      "name": "cip:cip68",
+      "purpose": "CIP-68 — Datum metadata standard.",
+      "entry": "com.bloxbean.cardano.client.cip.cip68",
+      "tier": "recommended",
+      "artifact": "cardano-client-cip68"
+    },
+    {
+      "name": "cip:cip102",
+      "purpose": "CIP-102 — Royalty datum standard.",
+      "entry": "com.bloxbean.cardano.client.cip.cip102",
+      "tier": "recommended",
+      "artifact": "cardano-client-cip102"
+    },
+    {
+      "name": "programmable-token",
+      "purpose": "Programmable tokens as QuickTx intents, with a CIP-113 adapter: register, mint, transfer, burn and seize.",
+      "entry": "com.bloxbean.cardano.client.programmabletoken.cip113.Cip113ProgrammableTokenService",
+      "tier": "preview",
+      "artifact": "cardano-client-programmable-token"
+    },
+    {
+      "name": "backend",
+      "purpose": "Backend service abstraction (UTXO, transaction, epoch, network queries).",
+      "entry": "com.bloxbean.cardano.client.backend.api.BackendService",
+      "tier": "support",
+      "artifact": "cardano-client-backend"
+    },
+    {
+      "name": "backend-modules:blockfrost",
+      "purpose": "Blockfrost backend implementation.",
+      "entry": "com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService",
+      "tier": "recommended",
+      "artifact": "cardano-client-backend-blockfrost"
+    },
+    {
+      "name": "backend-modules:koios",
+      "purpose": "Koios backend implementation.",
+      "entry": "com.bloxbean.cardano.client.backend.koios.KoiosBackendService",
+      "tier": "recommended",
+      "artifact": "cardano-client-backend-koios"
+    },
+    {
+      "name": "backend-modules:ogmios",
+      "purpose": "Ogmios/Kupo backend implementation.",
+      "entry": "com.bloxbean.cardano.client.backend.ogmios.OgmiosBackendService",
+      "tier": "recommended",
+      "artifact": "cardano-client-backend-ogmios"
+    },
+    {
+      "name": "backend-modules:nexus",
+      "purpose": "Nexus backend implementation.",
+      "entry": "com.bloxbean.cardano.client.backend.nexus",
+      "tier": "recommended",
+      "artifact": "cardano-client-backend-nexus"
+    },
+    {
+      "name": "supplier:ogmios-supplier",
+      "purpose": "UtxoSupplier/ProtocolParamsSupplier backed by Ogmios, usable without a full backend.",
+      "entry": "com.bloxbean.cardano.client.supplier.ogmios",
+      "tier": "support",
+      "artifact": "cardano-client-supplier-ogmios-supplier"
+    },
+    {
+      "name": "supplier:kupo-supplier",
+      "purpose": "UtxoSupplier backed by Kupo.",
+      "entry": "com.bloxbean.cardano.client.supplier.kupo",
+      "tier": "support",
+      "artifact": "cardano-client-supplier-kupo-supplier"
+    },
+    {
+      "name": "verified-structures:verified-structures-core",
+      "purpose": "Shared node-store and proof abstractions for the verified data structures.",
+      "entry": "com.bloxbean.cardano.vds.core",
+      "tier": "support",
+      "artifact": "cardano-client-verified-structures-core"
+    },
+    {
+      "name": "verified-structures:merkle-patricia-forestry",
+      "purpose": "Merkle Patricia Forestry trie. In MPF mode this is the Aiken-compatible structure for on-chain proof verification.",
+      "entry": "com.bloxbean.cardano.vds.mpf.MpfTrie",
+      "tier": "preview",
+      "artifact": "cardano-client-merkle-patricia-forestry"
+    },
+    {
+      "name": "verified-structures:jellyfish-merkle",
+      "purpose": "Jellyfish Merkle Tree for off-chain authenticated state. NOT Aiken-compatible — do not use it for on-chain proof verification.",
+      "entry": "com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree",
+      "tier": "preview",
+      "artifact": "cardano-client-jellyfish-merkle"
+    },
+    {
+      "name": "verified-structures:rocksdb-core",
+      "purpose": "RocksDB node-store shared by the embedded trie backends.",
+      "entry": "com.bloxbean.cardano.vds.rocksdb",
+      "tier": "support",
+      "artifact": "cardano-client-rocksdb-core"
+    },
+    {
+      "name": "verified-structures:merkle-patricia-forestry-rocksdb",
+      "purpose": "Embedded RocksDB storage for MpfTrie. Single-process.",
+      "entry": "com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore",
+      "tier": "preview",
+      "artifact": "cardano-client-merkle-patricia-forestry-rocksdb"
+    },
+    {
+      "name": "verified-structures:jellyfish-merkle-rocksdb",
+      "purpose": "Embedded RocksDB storage for the Jellyfish Merkle Tree.",
+      "entry": "com.bloxbean.cardano.vds.jmt.rocksdb",
+      "tier": "preview",
+      "artifact": "cardano-client-jellyfish-merkle-rocksdb"
+    },
+    {
+      "name": "verified-structures:rdbms-core",
+      "purpose": "JDBC node-store shared by the relational trie backends.",
+      "entry": "com.bloxbean.cardano.vds.rdbms",
+      "tier": "support",
+      "artifact": "cardano-client-rdbms-core"
+    },
+    {
+      "name": "verified-structures:merkle-patricia-forestry-rdbms",
+      "purpose": "Relational storage for MpfTrie (PostgreSQL/H2/SQLite). Multi-process.",
+      "entry": "com.bloxbean.cardano.vds.mpf.rdbms",
+      "tier": "preview",
+      "artifact": "cardano-client-merkle-patricia-forestry-rdbms"
+    },
+    {
+      "name": "verified-structures:jellyfish-merkle-rdbms",
+      "purpose": "Relational storage for the Jellyfish Merkle Tree.",
+      "entry": "com.bloxbean.cardano.vds.jmt.rdbms",
+      "tier": "preview",
+      "artifact": "cardano-client-jellyfish-merkle-rdbms"
+    },
+    {
+      "name": "plutus-aiken",
+      "purpose": "Aiken interop: load Aiken blueprints and apply parameters to Aiken-built validators.",
+      "entry": "com.bloxbean.cardano.client.plutus.aiken",
+      "tier": "recommended",
+      "artifact": "cardano-client-plutus-aiken"
+    }
+  ],
+  "counts": {
+    "modules": 44,
+    "cips": 8,
+    "backends": 4
+  }
+}
