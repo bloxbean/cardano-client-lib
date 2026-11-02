@@ -15,7 +15,7 @@ In this tutorial you'll create a token that can't move without its issuer's sign
 You finish with Alice holding 900 tokens, Bob holding 60, and a total supply of 960.
 
 :::note[Version]
-Programmable token support is available from **0.8.0-pre7**, and this tutorial was tested on that release. If the code doesn't compile on a newer release, check the module's [release notes](https://github.com/bloxbean/cardano-client-lib/blob/master/programmable-token/RELEASE_NOTES.md).
+Programmable token support is available from **0.8.0-pre7**, and this tutorial was tested on that release. If the code doesn't compile on a newer release, check the programmable-token [release notes](https://github.com/bloxbean/cardano-client-lib/blob/master/programmable-token/RELEASE_NOTES.md).
 :::
 
 **You need:** Java 17+, and some experience with [QuickTx](/quicktx/overview/). If you haven't built a transaction with this library yet, start with [your first transaction](/learn/simple-transfer/).
@@ -28,7 +28,7 @@ Four ideas explain most of what follows.
 
 **Registry.** A shared on-chain linked list with one node per token. Each node records the scripts that govern that token, and anyone can add a node.
 
-**Substandard.** Those scripts are the token's rules, and you write them. The CIP calls a token's set of rules a substandard, and the reference implementation calls it a *module*:
+**Module.** Those scripts are the token's rules, and you write them. Together they form the token's module, which the CIP calls a *substandard*. The two terms mean the same thing.
 
 | Script | Field in CCL | Runs when |
 |---|---|---|
@@ -64,7 +64,7 @@ The CIP lets an application key smart wallets by the owner's payment or stake cr
 
 ## Set up your project
 
-Add these dependencies, replacing `<version>` with the release you're using. The programmable-token module isn't part of the `cardano-client-lib` aggregate, so it has to be listed on its own.
+Add these dependencies, replacing `<version>` with the release you're using. `cardano-client-programmable-token` isn't part of the `cardano-client-lib` aggregate, so it has to be listed on its own.
 
 ```gradle
 def cclVersion = '<version>'
@@ -840,11 +840,11 @@ The "issuer" requirement comes from your script, not from the protocol. A differ
 - **A third-party transaction acts on one policy,** and owner transfers and burns can't share it.
 - **One `Tx` per transaction.** Write all programmable-token operations of a transaction in a single `Tx`, because splitting them across `compose(tx1, tx2)` is refused.
 - **Each programmable output holds one policy,** and inline datums are limited by the deployment's `max_inline_datum_bytes`.
-- **Protocol upgrades and authority changes** aren't authored by this module.
+- **Protocol upgrades and authority changes** aren't authored by this library.
 
 ## Next steps
 
 - Give each role its own script. For example, keep transfers open and add a denylist using `globalStateCs` on `RegistryNodeSpec`.
-- Read the [module README](https://github.com/bloxbean/cardano-client-lib/blob/master/programmable-token/README.md) for `thirdPartyBurn`, `updateRegistry`, inline datums and custom deployments.
+- Read the [programmable-token README](https://github.com/bloxbean/cardano-client-lib/blob/master/programmable-token/README.md) for `thirdPartyBurn`, `updateRegistry`, inline datums and custom deployments.
 - Store these transactions as YAML with [TxPlan](/txplan/overview/). Programmable-token plans go through `tokens.txPlanCodec()`, not plain `TxPlan.toYaml()`.
 - Run several steps in sequence with [TxFlow](/txflow/overview/), registering the extension on the runtime.
