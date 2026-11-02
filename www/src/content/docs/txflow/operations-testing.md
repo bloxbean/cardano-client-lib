@@ -191,9 +191,9 @@ own the TxFlow objects so later migrations can alter them. Use a narrower role f
 ```sql
 GRANT USAGE ON SCHEMA application_schema TO txflow_runtime;
 
-GRANT SELECT, INSERT, UPDATE
+GRANT SELECT, INSERT, UPDATE, DELETE
     ON application_schema.txflow_execution TO txflow_runtime;
-GRANT SELECT, INSERT
+GRANT SELECT, INSERT, DELETE
     ON application_schema.txflow_idempotency TO txflow_runtime;
 GRANT SELECT, INSERT, DELETE
     ON application_schema.txflow_event TO txflow_runtime;
@@ -311,7 +311,7 @@ than replaces the RDBMS crash, migration, and concurrency suites.
 adapter's test configuration:
 
 ```gradle
-def cclVersion = "0.8.0-pre5-SNAPSHOT"
+def cclVersion = '<version>'
 
 dependencies {
     testImplementation(testFixtures(

@@ -132,8 +132,8 @@ reference, a value fingerprint, and a redacted display rather than the raw value
 
 ## Steps and `needs`
 
-Each step has an ID, an optional description, optional `needs`, optional named outputs, and exactly
-one `transaction`:
+Each step has an ID, an optional description, optional `needs`, optional `funding_from`, optional
+named outputs, and exactly one `transaction`:
 
 ```yaml
 steps:
@@ -192,7 +192,8 @@ The ownership boundary is concrete:
 The initial QuickTx schema retains the historical `tx.from_wallet` field, but the current `TxPlan`
 projection cannot materialize a wallet name safely. Compilation therefore rejects that field with
 `TXFLOW_TRANSACTION_FROM_WALLET_UNSUPPORTED` before producing an execution fingerprint. Use a
-logical `from_ref` and resolve it through the application's TxFlow resource catalog instead.
+logical `from_ref` instead, resolved through QuickTx's `SignerRegistry` or the `.account(...)` builder
+call. The TxFlow catalog can describe it, but doesn't resolve it.
 
 Compilation also materializes the embedded QuickTx model with a compiler-local strict mapper.
 Fields unknown to the concrete transaction or intent type fail with
@@ -258,6 +259,7 @@ A later step explicitly consumes it through QuickTx's input-reference model:
   needs: [fund]
   transaction:
     tx:
+      from_ref: account://staging
       inputs:
         - type: collect_from
           refs:
@@ -271,11 +273,14 @@ A later step explicitly consumes it through QuickTx's input-reference model:
             - unit: lovelace
               quantity: 3000000
     context:
-      fee_payer_ref: account://treasury
+      fee_payer_ref: account://staging
       signers:
-        - ref: account://treasury
+        - ref: account://staging
           scope: payment
 ```
+
+The consuming step must set `from_ref` and sign with the output's payment key. Compilation doesn't
+check this, so a mistake surfaces only when the step runs.
 
 The compiler verifies that `fund` exists, precedes `forward`, and publishes `staging`. At each
 execution attempt, TxFlow replaces the logical reference with the concrete transaction hash and
@@ -285,6 +290,27 @@ output index captured from that run. The reusable definition is left unchanged.
 ordinary collection, script collection, and reference inputs. It is the consumption edge;
 `needs: [fund]` is still useful to state the ordering/business dependency explicitly but is not a
 substitute for it.
+
+## QuickTx extensions
+
+*Experimental: follows the experimental QuickTx extension SPI. Available from 0.8.0-pre7.*
+
+TxFlow runs steps that use extension intents, such as [programmable tokens](/learn/cip113-programmable-tokens/), once the operator registers the extension:
+
+```java
+FlowRuntime runtime = FlowRuntime.builder(backendService)
+        .extension(programmableTokens)   // or FlowEngine.Builder.extension(...)
+        .build();
+```
+
+- A document declares its binding in `spec.extensions` and uses intents as `<namespace>:<operation>`, only in `tx.intents`. A document can select and assert a binding, but can't construct or configure an extension.
+- A step needing an unregistered extension is rejected before submission (`TXFLOW_EXTENSION_UNREGISTERED`), and so is a binding no intent uses (`TXFLOW_EXTENSION_BINDING_UNUSED`).
+- Intents must round-trip through the extension (`TXFLOW_EXTENSION_INTENT_LOSSY`), and `flow_output` inside them is rejected (`TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED`).
+- `TxFlowCodec.standard()` can parse these documents. Writing them needs `TxFlowCodec.withExtensions(List.of(extension))`.
+- For Java `TxPlan` steps, bind with `extension.configure(plan)`. The portable path rejects a plan that still carries variables; clear them with `plan.setVariables(Map.of())`.
+- Under `PIPELINED`, an extension's address scan sees an earlier step's pending outputs only with `funding_from`, and Plutus steps need a [local evaluator](/txflow/execution-engine/#chaining-modes).
+
+See [ADR 0008](https://github.com/bloxbean/cardano-client-lib/blob/master/txflow/adr/0008-generic-quicktx-extensions-in-txflow.md).
 
 ## Transaction context and logical resources
 

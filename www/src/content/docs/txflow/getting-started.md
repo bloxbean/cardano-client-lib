@@ -21,7 +21,7 @@ The published module name includes the repository-wide `cardano-client-` prefix.
 development line:
 
 ```gradle
-def cclVersion = "0.8.0-pre5-SNAPSHOT"
+def cclVersion = '<version>'
 
 repositories {
     mavenCentral()
@@ -42,29 +42,15 @@ The equivalent Maven coordinates are:
 <dependency>
   <groupId>com.bloxbean.cardano</groupId>
   <artifactId>cardano-client-txflow</artifactId>
-  <version>0.8.0-pre5-SNAPSHOT</version>
+  <version>{version}</version>
 </dependency>
 <dependency>
   <groupId>com.bloxbean.cardano</groupId>
   <artifactId>cardano-client-backend-blockfrost</artifactId>
-  <version>0.8.0-pre5-SNAPSHOT</version>
+  <version>{version}</version>
 </dependency>
 ```
 
-For a snapshot Maven build, also enable the snapshot repository:
-
-```xml
-<repositories>
-  <repository>
-    <id>central-snapshots</id>
-    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
-    <releases><enabled>false</enabled></releases>
-    <snapshots><enabled>true</enabled></snapshots>
-  </repository>
-</repositories>
-```
-
-Use the matching release version and omit the snapshot repository when consuming a release.
 `cardano-client-txflow` already exposes its required CCL modules, including QuickTx and the backend
 interfaces; the second dependency selects one concrete backend provider.
 
@@ -181,6 +167,10 @@ TransactionProcessor transactionProcessor =
 ChainDataSupplier chainDataSupplier = new DefaultChainDataSupplier(backendService);
 ```
 
+`FlowEngine.builder(backendService)` builds the same four adapters for you, and also enables backend
+script lookup. `.account(ref, account)` can replace an explicit signer registry, but the two signer
+styles can't be combined.
+
 The YAML names `account://sender`; it does not contain a key. Register private signing material in
 QuickTx's signer registry and public preflight metadata in the TxFlow resource catalog. In this
 snippet, `senderAccount` is an `Account` loaded through your application's secret-management path:
@@ -259,6 +249,9 @@ previous preflight result still represents the submitted request.
 Without a `FlowExecutionStore`, idempotency and active-execution tracking are process-local. For
 restart recovery or multiple application instances, configure the RDBMS store and a separately
 provisioned maintenance executor. See [Durable runtime](/txflow/durable-runtime/).
+
+`RECOVERY_REQUIRED` isn't a failure. A confirmation timeout ends this way because the transaction may
+still land. Don't resubmit under a new execution ID or idempotency key; check the transaction hash first.
 
 On Java 21, the same builder accepts a virtual-thread executor created and closed by the
 application. TxFlow depends only on `Executor` and never detects, creates, or shuts down a thread

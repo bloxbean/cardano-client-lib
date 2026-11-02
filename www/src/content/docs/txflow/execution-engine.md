@@ -152,6 +152,10 @@ deny-all. Set explicit allow-lists at a multi-tenant or untrusted-input boundary
 
 ## 3. Build the engine
 
+`FlowEngine.builder(BackendService)` builds the four adapters for you, and also enables backend script
+lookup and TxStream's backend-visibility check. The four-supplier form below has neither by default, so
+a flow using reference scripts then needs `scriptSupplier(...)`.
+
 The four required backend interfaces are deliberately independent of a particular backend module:
 
 - `UtxoSupplier` supplies address and transaction UTxOs.
@@ -319,6 +323,35 @@ if (!result.isSuccessful()) {
 }
 ```
 
+## Chaining modes
+
+`spec.execution.mode` is `SEQUENTIAL` when absent. Server policy can restrict it with `allowedModes`.
+
+| Mode | Behaviour |
+|---|---|
+| `SEQUENTIAL` | Each step is built, submitted and confirmed before the next starts |
+| `PIPELINED` | Each step is built and submitted without waiting; confirmations are awaited after the last submission |
+| `BATCH` | All steps are built and signed, then submitted in quick succession, then confirmed |
+
+A later step sees an earlier step's unconfirmed outputs only through a declared edge:
+
+- `flow_output` spends one exact output.
+- `funding_from: [step]` lets address-based selection use that step's outputs at the address being funded.
+- `needs` alone exposes nothing.
+
+Plutus steps that spend or reference pending outputs need a local script evaluator, because the backend evaluator knows only confirmed UTxOs. Add [Aiken Java Binding](/smart-contracts/aiken/), then:
+
+```java
+ScriptSupplier scripts = new DefaultScriptSupplier(backendService.getScriptService());
+
+FlowEngine engine = FlowEngine.builder(backendService)
+        .executor(flowTasks)
+        .txEvaluator((utxos, params) -> new AikenTransactionEvaluator(utxos, params, scripts))
+        .build();
+```
+
+`FlowRuntime.Builder.txEvaluator(...)` is equivalent.
+
 ## Java 21 virtual threads
 
 TxFlow itself is built for Java 17 and refers only to `Executor`. An application running on Java
@@ -362,6 +395,11 @@ Beyond the required backend services, `FlowEngine.Builder` supports:
 | `resources(FlowResourceCatalog)` | Compile-time resource metadata |
 | `policy(FlowExecutionPolicy)` | Server-owned limits and authorization |
 | `signerRegistry(SignerRegistry)` | Runtime signer-reference resolution |
+| `account(ref, Account)` / `wallet(ref, Wallet)` | Convenience signer registration; can't be combined with `signerRegistry(...)` |
+| `scriptSupplier(ScriptSupplier)` | Reference-script lookup during builds |
+| `txEvaluator(BiFunction)` | Per-step script-cost evaluator; see [Chaining modes](#chaining-modes) |
+| `extension(QuickTxExtension)` | Registers a QuickTx extension (experimental) |
+| `backendVisibilityChecks(boolean)` | TxStream's between-execution indexing check |
 | `scriptRegistry(ScriptRegistry)` | Runtime script-reference resolution |
 | `store(FlowExecutionStore)` | Durable snapshots, journal, idempotency, and leases |
 | `leaseDuration(Duration)` | Positive lease lifetime; default 30 seconds |

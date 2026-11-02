@@ -33,9 +33,11 @@ portable YAML or JSON
 - Java 17 is the build and runtime baseline.
 - `txflow.cardano-client.dev/v1alpha1` is the current portable document contract.
 - `TxFlowCodec`, `FlowExecutionRequest`, and `FlowEngine` are the canonical APIs for new code.
+  `FlowRuntime` wraps an ordinary `FlowEngine`, with no store, policy, or catalog.
 - `FlowExecutor` and the preview `version: "1.0"` document remain compatibility APIs.
-- Applications provide and own executors. Java 21 applications may pass a virtual-thread
-  executor without changing the TxFlow API.
+- With `FlowEngine`, applications provide and own executors, and Java 21 applications may pass a
+  virtual-thread executor without changing the API. `FlowRuntime` is the managed front door for
+  scripts and small applications: it creates and shuts down its own executors.
 
 The portable contract is still alpha and can evolve before a stable schema version. Persisted
 execution behavior is nevertheless conservative: an uncertain submission or chain observation
@@ -96,6 +98,7 @@ profile; PostgreSQL users provide a driver and normally an application-managed `
 
 Follow these pages in order for a new integration:
 
+1. [Your first flow](/txflow/your-first-flow/) — the smallest useful chained flow, using `FlowRuntime`.
 1. [Getting Started](/txflow/getting-started/) — dependencies, a portable flow, backend adapters, and the
    first execution.
 2. [Portable Authoring](/txflow/portable-authoring/) — parameters, expressions, resources, step outputs,

@@ -41,6 +41,10 @@ spec:
       resubmit_safety_margin: 60
 ```
 
+`validity` is carried, fingerprinted and policy-capped, but in this preview the engine doesn't use it
+to set a transaction's validity interval or a recovery margin. Set `transaction.context.valid_from_slot`
+and `valid_to_slot`, and pass `resubmitSafetyMargin` on `FlowRecoveryRequest`.
+
 The engine does not blindly trust these values. Configure a policy at the service boundary:
 
 ```java
@@ -149,16 +153,32 @@ ConfirmationConfig confirmation = ConfirmationConfig.builder()
 
 The production-oriented defaults are depth 10, five-second polling, a 30-minute timeout, and two
 consecutive authoritative absences before rollback. `testnet()`, `devnet()`, and `quick()` are
-convenience presets; verify them against the risk and block cadence of your deployment.
+convenience presets; verify them against the risk and block cadence of your deployment. On a
+Java-built `TxFlow` run through `FlowEngine`, `ConfirmationConfig.devnet()` and `quick()` are rejected
+because they carry legacy backend-wait fields. Use `preset: devnet` or `preset: quick` in the document.
 
-If a portable definition has no confirmation configuration, the legacy execution core used by
-the engine falls back to simple on-chain polling rather than confirmation-depth tracking. Configure
-confirmation explicitly whenever rollback handling or a defined safety depth is required.
+If a portable definition has neither `confirmation` nor `rollback`, the engine uses simple on-chain
+polling with no depth tracking. If it has `rollback` but no `confirmation`, it uses
+`ConfirmationConfig.defaults()`: depth 10, five-second polling and a 30-minute timeout. Set
+`confirmation` explicitly.
 
 An observation adapter controls whether absence is authoritative. A transaction that disappears
 from an indexer is only *suspected* rolled back when the backend cannot prove absence. Ambiguous
 observations remain pending and eventually become `RECOVERY_REQUIRED`; they are never treated as
 permission to rebuild.
+
+`DefaultChainDataSupplier` doesn't declare authoritative absence, and neither
+`FlowEngine.builder(BackendService)` nor `FlowRuntime` adds it. With that wiring no rollback is ever
+established and `RollbackAction` isn't applied: the transaction times out and the execution ends
+`RECOVERY_REQUIRED`. To opt in, use the four-supplier builder:
+
+```java
+ChainDataSupplier chain = ObservationCapabilities.withAuthoritativeAbsence(
+        new DefaultChainDataSupplier(backendService));
+```
+
+Declare this only if the index is consistent with its reported tip; otherwise a slow index looks like
+a rollback.
 
 ## Rollback policy
 
@@ -167,7 +187,7 @@ the configured consecutive-absence threshold.
 
 | `RollbackAction` | Behavior |
 |---|---|
-| `FAIL` | End with a rollback-specific failure |
+| `FAIL` | End as `FAILED` or `PARTIALLY_COMPLETED`, with `error().category() == ROLLBACK` |
 | `WAIT_FOR_REINCLUSION` | Keep the same transaction hash and wait within `reinclusionWindow` |
 | `RECONCILE_AND_REBUILD` | Reconcile first, then rebuild only work proven invalid |
 | `PAUSE_FOR_RECOVERY` | Stop automated progress and return `RECOVERY_REQUIRED` |
@@ -226,8 +246,8 @@ recovery.
 |---|---|
 | `COMPLETED` | Every required step completed successfully |
 | `PARTIALLY_COMPLETED` | At least one step reached the effective confirmation policy before a later conclusive failure |
-| `FAILED` | Execution ended with a conclusive failure |
-| `ROLLED_BACK` | Execution ended after an authoritative rollback outcome |
+| `FAILED` | Execution ended with a failure. In `PIPELINED` and `BATCH`, earlier steps may already be submitted and can still land; check `steps()` for `IN_PROGRESS` entries with a transaction hash |
+| `ROLLED_BACK` | Reserved; a `FlowEngine` run doesn't currently produce it. Detect rollback through `FlowErrorCategory.ROLLBACK` |
 | `CANCELLED` | Cooperative cancellation reached a safe boundary |
 | `RECOVERY_REQUIRED` | State is uncertain; reconcile before retry or rebuild |
 

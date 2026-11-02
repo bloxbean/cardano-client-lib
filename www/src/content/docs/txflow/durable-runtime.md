@@ -25,7 +25,7 @@ The relational store is an optional module and does not add database dependencie
 `cardano-client-txflow` artifact:
 
 ```gradle
-def cclVersion = "0.8.0-pre5-SNAPSHOT"
+def cclVersion = '<version>'
 
 dependencies {
     implementation "com.bloxbean.cardano:cardano-client-txflow-store-rdbms:${cclVersion}"
@@ -38,7 +38,7 @@ Maven:
 <dependency>
   <groupId>com.bloxbean.cardano</groupId>
   <artifactId>cardano-client-txflow-store-rdbms</artifactId>
-  <version>0.8.0-pre5-SNAPSHOT</version>
+  <version>{version}</version>
 </dependency>
 ```
 
@@ -224,7 +224,10 @@ Durable mode coordinates four related concerns:
 1. **Idempotency.** `createOrGet` atomically claims a namespace/key. Reusing it with the same
    definition and execution-request fingerprints returns the existing logical execution; a
    mismatch fails with `TXFLOW_IDEMPOTENCY_CONFLICT`. Execution IDs are independently checked and
-   cannot be attached to different fingerprints.
+   cannot be attached to different fingerprints. A replay reads the stored snapshot and doesn't resume
+   work: a stored `COMPLETED` execution returns `COMPLETED` with empty `steps()`, other terminal states
+   report `TXFLOW_STORED_EXECUTION_TERMINAL`, and a non-terminal execution returns `RECOVERY_REQUIRED`.
+   Read transaction details with `engine.executionSnapshot(executionId)`.
 2. **Atomic journals and snapshots.** A revision compare-and-set, ordered event append, lease
    validation, and snapshot replacement commit in one store transaction.
 3. **Execution leases.** Only the current owner and fencing epoch may mutate an execution. Renewal
@@ -285,6 +288,11 @@ hash after loading the bytes.
 transaction, or resume the whole business flow. The application must interpret the result and
 invoke its higher-level continuation or operator workflow explicitly. An inconclusive result
 remains `RECOVERY_REQUIRED` with its history preserved.
+
+`recover(...)` never finishes the execution: after a conclusive result the stored state is `RUNNING`,
+and replaying the same request returns `RECOVERY_REQUIRED`. Record the business outcome in your
+application. Don't call `recover(...)` on an execution that's already terminal, because it moves it
+back to `RUNNING`.
 
 ## Fencing limitation
 
