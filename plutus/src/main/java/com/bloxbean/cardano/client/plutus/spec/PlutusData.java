@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
-import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
@@ -42,45 +41,33 @@ public interface PlutusData {
 
     DataItem serialize() throws CborSerializationException;
 
+    /**
+     * Converts a CBOR data item to Plutus data. Conversion is iterative, so data of any nesting depth converts on any
+     * thread.
+     * <p>
+     * A Plutus data map keeps one entry per key (the first position, the last value), while on chain a map is a list of
+     * pairs that may repeat keys; read the original bytes where every entry matters.
+     */
     static PlutusData deserialize(DataItem dataItem) throws CborDeserializationException {
-        if (dataItem == null)
-            return null;
-
-        if (dataItem instanceof Number) {
-            return BigIntPlutusData.deserialize((Number) dataItem);
-        } else if (dataItem instanceof ByteString) {
-            var tag = dataItem.getTag();
-            if (tag != null &&
-                    (tag.getValue() == BIG_UINT_TAG || tag.getValue() == BIG_NINT_TAG)){
-                return BigIntPlutusData.deserialize((ByteString) dataItem);
-            } else {
-                return BytesPlutusData.deserialize((ByteString) dataItem);
-            }
-        }  else if (dataItem instanceof UnicodeString) {
-            return BytesPlutusData.deserialize(((UnicodeString) dataItem));
-        } else if (dataItem instanceof Array) {
-            if (dataItem.getTag() == null) {
-                return ListPlutusData.deserialize((Array) dataItem);
-            } else { //Tag found .. try Constr
-                return ConstrPlutusData.deserialize(dataItem);
-            }
-        } else if (dataItem instanceof Map) {
-            return MapPlutusData.deserialize((Map) dataItem);
-        } else
-            throw new CborDeserializationException("Cbor deserialization failed. Invalid type. " + dataItem);
+        return PlutusDataCodec.decode(dataItem);
     }
 
     static PlutusData deserialize(@NonNull byte[] serializedBytes) throws CborDeserializationException {
         try {
-            DataItem dataItem = CborDecoder.decode(serializedBytes).get(0);
+            DataItem dataItem = CborSerializationUtil.deserialize(serializedBytes);
             return deserialize(dataItem);
-        } catch (CborException | CborDeserializationException e) {
+        } catch (CborRuntimeException | CborDeserializationException e) {
             throw new CborDeserializationException("Cbor de-serialization error", e);
         }
     }
 
     /**
      * Returns the datum hash as hex string
+     * <p>
+     * This hashes the re-encoded model, which is right for data built with CCL. For data received in a transaction, the
+     * model may re-encode to other bytes (map entries, chunking, non-canonical heads, an integer inside ±2^64 written as
+     * a bignum); take the hash from the original
+     * bytes with {@code RawDatum.hash()} (transaction-spec, {@code RawTx}).
      * @return datum hash as hex string
      * @throws CborRuntimeException
      */
@@ -91,6 +78,11 @@ public interface PlutusData {
 
     /**
      * Returns the datum hash as byte array
+     * <p>
+     * This hashes the re-encoded model, which is right for data built with CCL. For data received in a transaction, the
+     * model may re-encode to other bytes (map entries, chunking, non-canonical heads, an integer inside ±2^64 written as
+     * a bignum); take the hash from the original
+     * bytes with {@code RawDatum.hash()} (transaction-spec, {@code RawTx}).
      * @return datum hash as byte array
      * @throws CborRuntimeException
      */

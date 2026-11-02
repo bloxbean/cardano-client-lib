@@ -88,8 +88,9 @@ class MpfProofTest {
         tampered[0] ^= 0x01;
 
         assertTrue(trie.verifyProofWire(trie.getRootHash(), key, value, true, wire));
-        assertThrows(IllegalArgumentException.class,
-                () -> ProofVerifier.verify(trie.getRootHash(), key, value, true, tampered, hashFn, new MpfCommitmentScheme(hashFn)));
+        // Malformed proofs are rejected, never thrown.
+        assertFalse(ProofVerifier.verify(trie.getRootHash(), key, value, true, tampered, hashFn, new MpfCommitmentScheme(hashFn)));
+        assertFalse(trie.verifyProofWire(trie.getRootHash(), key, value, true, tampered));
     }
 
     private static byte[] hex(String hex) {

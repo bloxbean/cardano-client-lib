@@ -43,7 +43,7 @@ class RdbmsMptPropertyTest {
     @BeforeEach
     void setUp() throws Exception {
         // Use H2 in-memory database for testing
-        jdbcUrl = "jdbc:h2:mem:test_mpt_property_" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1";
+        jdbcUrl = "jdbc:h2:mem:test_mpt_property_" + UUID.randomUUID().toString().replace('-', '_') + ";DB_CLOSE_DELAY=-1";
         dbConfig = DbConfig.builder()
             .simpleJdbcUrl(jdbcUrl)
             .build();

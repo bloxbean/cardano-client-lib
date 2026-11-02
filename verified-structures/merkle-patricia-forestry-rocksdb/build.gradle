@@ -5,11 +5,12 @@ plugins {
 dependencies {
     api project(':verified-structures:merkle-patricia-forestry')
     api project(':verified-structures:rocksdb-core')
-    implementation(libs.rocksdbjni)
+    api(libs.rocksdbjni)
     implementation(libs.slf4j.api)
 
     testImplementation project(':test-support')
     testImplementation(libs.slf4j.reload4j)
+    testImplementation(libs.jackson.databind)
 }
 
 publishing {

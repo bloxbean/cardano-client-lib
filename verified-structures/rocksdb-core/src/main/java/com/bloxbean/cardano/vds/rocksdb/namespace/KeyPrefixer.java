@@ -71,11 +71,50 @@ public final class KeyPrefixer {
      * <p><b>Important:</b> Column families must be configured with
      * {@code useFixedLengthPrefixExtractor(1)} for this to work efficiently.</p>
      *
+     * <p><b>Do not use these options to scan a whole namespace with {@code seekToFirst()}:</b> a
+     * prefix-same-as-start iterator binds to the prefix group of the first key it lands on, which is the
+     * lowest namespace in the column family, not necessarily this one. Use
+     * {@link #createNamespaceScanReadOptions()} with {@code seek(namespaceStart())} instead.</p>
+     *
      * @return ReadOptions with prefix_same_as_start enabled
      */
     public ReadOptions createPrefixReadOptions() {
         ReadOptions opts = new ReadOptions();
         opts.setPrefixSameAsStart(true);
+        return opts;
+    }
+
+    /**
+     * Returns the smallest key of this namespace (the namespace byte alone). Seek to it to start a scan of
+     * this namespace.
+     *
+     * @return a one-byte array holding the namespace ID
+     */
+    public byte[] namespaceStart() {
+        return new byte[]{namespaceId};
+    }
+
+    /**
+     * Creates ReadOptions for scanning every key of this namespace.
+     *
+     * <p>The options use total-order seek, so they work whether or not the column family has a prefix
+     * extractor. Scan with {@code seek(namespaceStart())} and stop at the first key for which
+     * {@link #hasCorrectPrefix(byte[])} is false:</p>
+     * <pre>{@code
+     * try (ReadOptions ro = prefixer.createNamespaceScanReadOptions();
+     *      RocksIterator it = db.newIterator(cf, ro)) {
+     *     for (it.seek(prefixer.namespaceStart()); it.isValid(); it.next()) {
+     *         if (!prefixer.hasCorrectPrefix(it.key())) break;
+     *         ...
+     *     }
+     * }
+     * }</pre>
+     *
+     * @return ReadOptions with total-order seek enabled; the caller closes them
+     */
+    public ReadOptions createNamespaceScanReadOptions() {
+        ReadOptions opts = new ReadOptions();
+        opts.setTotalOrderSeek(true);
         return opts;
     }
 

@@ -138,7 +138,7 @@ class JellyfishMerkleTreeRocksDbTest {
     }
 
     // Delete operation removed - V2 follows Diem-compatible architecture (no delete support)
-    // See ADR-0012 for reorg/rollback handling using version-based state
+    // Reorgs/rollbacks use version-based state (JmtStore.truncateAfter)
 
     @Test
     void testLargerBatch_WithRocksDb() {

@@ -14,6 +14,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Collections;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -28,7 +29,7 @@ class RdbmsMarkSweepGcTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        String jdbcUrl = "jdbc:h2:mem:test_gc_" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1";
+        String jdbcUrl = "jdbc:h2:mem:test_gc_" + UUID.randomUUID().toString().replace('-', '_') + ";DB_CLOSE_DELAY=-1";
         dbConfig = DbConfig.builder()
             .simpleJdbcUrl(jdbcUrl)
             .build();

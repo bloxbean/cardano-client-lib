@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.transaction.util;
 
+import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -8,7 +10,10 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.util.HexUtil.decodeHexString;
+import static com.bloxbean.cardano.client.util.HexUtil.encodeHexString;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TransactionUtilTest {
     final String address = "addr_test1vrw6vsvwwe9vwupyfkkeweh23ztd6n0vfydwk823esdz6pc4xqcd5";
@@ -88,5 +93,30 @@ public class TransactionUtilTest {
         var txBodyHex = HexUtil.encodeHexString(TransactionUtil.extractTransactionBodyFromTx(HexUtil.decodeHexString(cbor)));
 
         assertThat(txBodyHex).isEqualTo("a8008482582003c5d1951fa6e1aa9f6d41dcee053d9e031487f1156eabb1ebb99166cd80394a0382582011b3580807caf5b789224b38bfb7704c38584c91a9cd2a3ee5fb4aad84148f1b01825820607ba18208c53d0690011b1b1644ab580d5bf5e93bf5c88b759310b00e13595d00825820d82d8cef79de4d74bb501a4012b13c383184f3180f0e5ad67336a8cc9600ad12000d81825820d82d8cef79de4d74bb501a4012b13c383184f3180f0e5ad67336a8cc9600ad12000184a2005839012ebacbaf16275a0184357de07c81d4a895f29343c235974f3b4c1d7d52563c5410bff6a0d43ccebb7c37e1f69f5eb260552521adff33b9c2011a2801d0a9a2005839012ebacbaf16275a0184357de07c81d4a895f29343c235974f3b4c1d7d52563c5410bff6a0d43ccebb7c37e1f69f5eb260552521adff33b9c201821a00150bd0a1581c2f2e0404310c106e2a260e8eb5a7e43f00cff42c667489d30e179816a14d3136373636313732303030303001a2005839015ac57ec245efd3a54062b66ae2802ed793d2cb721699336bf516fd1bf1951f8e9787a867101875cb2b61de18759705646c4924faa784e95c01821a001e8480a1581cb6a7467ea1deb012808ef4e87b5ff371e85f7142d7b356a40d9b42a0a1581e436f726e75636f70696173205b76696120436861696e506f72742e696f5d1b00000009a9171c1da300583911e1317b152faac13426e6a83e06ff88a4d62cce3c1634ab0a5ec1330952563c5410bff6a0d43ccebb7c37e1f69f5eb260552521adff33b9c201821b000000c5a466e6eca4581c0be55d262b29f564998ff81efe21bdc0022621c12f15af08d0f2ddb1a158207925263b1aff069a191db67d5ac185c029f7f43e084a4ef6e5fa2848a56e2aa601581c13aa2accf2e1561723aa26871e071fdf32c867cff7e7d50ad470d62fa1474d494e5357415001581cb6a7467ea1deb012808ef4e87b5ff371e85f7142d7b356a40d9b42a0a1581e436f726e75636f70696173205b76696120436861696e506f72742e696f5d1b00000dee7794ef24581ce4214b7cce62ac6fbba385d164df48e157eae5863521b4b67ca71d86a158207925263b1aff069a191db67d5ac185c029f7f43e084a4ef6e5fa2848a56e2aa61a0007b8e20282005820ad77163016f2faed4986cee4e5f502d4654504e03d238e3dd61c1cb8ac1d4d84021a000cba2a031a04d869f80e81581c2ebacbaf16275a0184357de07c81d4a895f29343c235974f3b4c1d7d0b5820454e293e6377f99c08344ea89480b7a6f70467aa12abb61e4482776e52e96b89075820b65e7e140dac503acf0a05a473d8a1c56b804d5876c6279ea4f4f22f213b00e2");
+    }
+    @Test
+    void extractBodyWithNonMinimalArrayHeader() {
+        // 98 04 is a non-minimal header for a 4-element array; the old code returned "04" as the body
+        byte[] tx = decodeHexString("9804" + "a10080" + "a0" + "f5" + "f6");
+        assertThat(encodeHexString(TransactionUtil.extractTransactionBodyFromTx(tx))).isEqualTo("a10080");
+        assertThat(encodeHexString(TransactionUtil.extractTransactionBodyFromTx(decodeHexString("9fa10080a0f5f6ff"))))
+                .isEqualTo("a10080");
+    }
+
+    @Test
+    void getTxHashRejectsMalformedLaterElements() {
+        RealCborFixtures.Tx tx = RealCborFixtures.txs().get(50);
+        byte[] body = new TransactionBytes(tx.cbor()).getTxBodyBytes();
+        // a malformed witness set (integer chunk in an indefinite byte string) after a valid body
+        byte[] malformed = BytesUtil.merge(decodeHexString("84"), body, decodeHexString("a1005f01ff" + "f5" + "f6"));
+        assertThatThrownBy(() -> TransactionUtil.getTxHash(malformed))
+                .isInstanceOf(RuntimeException.class)
+                .hasCauseInstanceOf(CborRuntimeException.class);
+    }
+
+    @Test
+    void getTxHashOfDeeplyNestedTriggerTransaction() {
+        RealCborFixtures.Tx trigger = RealCborFixtures.trigger();
+        assertThat(TransactionUtil.getTxHash(trigger.cbor())).isEqualTo(trigger.txHash());
     }
 }

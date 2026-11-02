@@ -42,9 +42,8 @@ import com.bloxbean.cardano.vds.tools.mpf.RdbmsMptLoadTester;
  * java -jar cardano-client-vds-load-tools.jar mpt --records=100000 --batch=1000 \
  *     --rocksdb=/tmp/mpt --delete-ratio=0.1
  *
- * # MPT garbage collection
- * java -jar cardano-client-vds-load-tools.jar gc --db=/tmp/mpt-rocksdb \
- *     --gc-type=refcount --version=10000
+ * # MPT garbage collection (positional arguments)
+ * java -jar cardano-client-vds-load-tools.jar gc gc-refcount /tmp/mpt-rocksdb keep-latest 1
  * </pre>
  */
 public final class Tools {
@@ -140,23 +139,22 @@ public final class Tools {
         System.out.println("  # MPT with RocksDB and deletes");
         System.out.println("  java -jar cardano-client-vds-load-tools.jar mpt \\");
         System.out.println("      --records=100000 --batch=1000 --rocksdb=/tmp/mpt \\");
-        System.out.println("      --delete-ratio=0.1 --secure");
+        System.out.println("      --delete-ratio=0.1");
         System.out.println();
         System.out.println("  # MPT with H2 database");
         System.out.println("  java -jar cardano-client-vds-load-tools.jar mpt-rdbms \\");
         System.out.println("      --records=100000 --batch=1000 --db=h2 --path=/tmp/mpt-h2");
         System.out.println();
-        System.out.println("  # JMT concurrent testing with 8 threads");
+        System.out.println("  # JMT: one writer, 8 concurrent proof readers, 10 minutes");
         System.out.println("  java -jar cardano-client-vds-load-tools.jar jmt-concurrent \\");
-        System.out.println("      --threads=8 --records=1000000 --batch=1000 --rocksdb=/tmp/jmt-concurrent");
+        System.out.println("      --duration=600 --write-threads=1 --read-threads=8 --rocksdb=/tmp/jmt-concurrent");
         System.out.println();
         System.out.println("  # Full integrity check of a production RocksDB JMT");
         System.out.println("  java -jar cardano-client-vds-load-tools.jar jmt-integrity \\");
         System.out.println("      --rocksdb=/var/lib/cardano/jmt --mode=full --all-versions");
         System.out.println();
         System.out.println("  # Run garbage collection on MPT");
-        System.out.println("  java -jar cardano-client-vds-load-tools.jar gc \\");
-        System.out.println("      --db=/tmp/mpt-rocksdb --gc-type=refcount --version=10000");
+        System.out.println("  java -jar cardano-client-vds-load-tools.jar gc gc-refcount /tmp/mpt-rocksdb keep-latest 1");
         System.out.println();
         System.out.println("Getting Tool-Specific Help:");
         System.out.println("  Add --help after the tool name for detailed options:");

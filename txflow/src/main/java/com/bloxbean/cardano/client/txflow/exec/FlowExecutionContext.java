@@ -58,8 +58,12 @@ public class FlowExecutionContext {
     }
 
     String snapshotPlan(TxPlan plan) {
+        return snapshotPlan(plan, TxPlan::toYaml);
+    }
+
+    String snapshotPlan(TxPlan plan, java.util.function.Function<TxPlan, String> writer) {
         Objects.requireNonNull(plan, "plan");
-        return planSnapshots.computeIfAbsent(plan, TxPlan::toYaml);
+        return planSnapshots.computeIfAbsent(plan, writer);
     }
 
     /**

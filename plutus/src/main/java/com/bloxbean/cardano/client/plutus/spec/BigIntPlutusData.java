@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 
 import static com.bloxbean.cardano.client.plutus.util.Bytes.getChunks;
 
@@ -63,6 +64,12 @@ public class BigIntPlutusData implements PlutusData {
         return new BigIntPlutusData(b);
     }
 
+    /**
+     * Serializes as plutus-core {@code encodeData} does (plutus 1.65.0.0 {@code PlutusCore/Data.hs}
+     * {@code encodeInteger}, {@code encodeBs}): an integer from -2^64 to 2^64-1 as a CBOR integer; any other as tag 2 over
+     * n, or tag 3 over -1 - n, in minimal big-endian bytes, which are one byte string up to 64 bytes and an indefinite
+     * byte string of 64-byte chunks above.
+     */
     @Override
     public DataItem serialize() throws CborSerializationException {
         DataItem di = null;
@@ -74,26 +81,21 @@ public class BigIntPlutusData implements PlutusData {
                     di = new NegativeInteger(value);
                 }
             } else {
-                byte[] bytes = value.toByteArray();
-                if (value.signum() < 0) {
-                    bytes = negateBytes(bytes);
-                    di = new ChunkedByteString(getChunks(bytes, BYTES_LIMIT));
-                    di.setTag(BIG_NINT_TAG);
-                } else {
-                    di = new ChunkedByteString(getChunks(bytes, BYTES_LIMIT));
-                    di.setTag(BIG_UINT_TAG);
-                }
+                boolean negative = value.signum() < 0;
+                byte[] bytes = magnitudeBytes(negative ? MINUS_ONE.subtract(value) : value);
+                di = bytes.length <= BYTES_LIMIT
+                        ? new ByteString(bytes) : new ChunkedByteString(getChunks(bytes, BYTES_LIMIT));
+                di.setTag(negative ? BIG_NINT_TAG : BIG_UINT_TAG);
             }
         }
 
         return di;
     }
 
-    private byte[] negateBytes(byte[] bytes) {
-        for (int i = 0; i < bytes.length; i++) {
-            bytes[i] = (byte) ~bytes[i];
-        }
-        return bytes;
+    // Big-endian bytes of a positive number without the sign byte BigInteger.toByteArray adds when the top bit is set.
+    private static byte[] magnitudeBytes(BigInteger positive) {
+        byte[] bytes = positive.toByteArray();
+        return bytes[0] == 0 ? Arrays.copyOfRange(bytes, 1, bytes.length) : bytes;
     }
 
 }

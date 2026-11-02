@@ -1,0 +1,36 @@
+plugins {
+    id 'org.graalvm.buildtools.native' version '1.1.12'
+}
+
+// Runs the tests below as a GraalVM Native Image, against only the reachability metadata the CCL jars ship
+// (META-INF/native-image/com.bloxbean.cardano/*). `test` runs them on the JVM with the regular build (JDK 17);
+// `nativeTest` needs GraalVM for JDK 23+ (it reads the unified reachability-metadata.json) and runs in the
+// native-image workflow:
+//   GRAALVM_HOME=<graalvm-25> ./gradlew :native-image-test:nativeTest
+// Gradle itself keeps running on JDK 17; the plugin takes native-image from GRAALVM_HOME.
+dependencies {
+    testImplementation project(':core')
+    testImplementation project(':quicktx')
+}
+
+configurations.testRuntimeClasspath {
+    // log4j 1.x configures itself reflectively; logging is not under test here.
+    exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+}
+
+graalvmNative {
+    toolchainDetection = false
+    // Only the metadata the CCL jars ship: no metadata from the GraalVM reachability metadata repository
+    // and no tracing agent, so a missing CCL registration fails a test instead of being filled in.
+    metadataRepository {
+        enabled = false
+    }
+    agent {
+        enabled = false
+    }
+    binaries {
+        test {
+            quickBuild = true
+        }
+    }
+}

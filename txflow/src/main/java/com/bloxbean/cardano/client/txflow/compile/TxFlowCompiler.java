@@ -1,9 +1,11 @@
 package com.bloxbean.cardano.client.txflow.compile;
 
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionPolicy;
+import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import com.bloxbean.cardano.client.txflow.codec.FlowDiagnostic;
 import com.bloxbean.cardano.client.txflow.codec.FlowFormat;
 import com.bloxbean.cardano.client.txflow.codec.FlowSchemaVersion;
@@ -24,10 +26,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -52,6 +56,42 @@ public final class TxFlowCompiler {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final QuickTxTemplateMaterializer QUICK_TX_MATERIALIZER =
             new QuickTxTemplateMaterializer();
+    private static final ExtensionTemplateMaterializer EXTENSION_MATERIALIZER =
+            new ExtensionTemplateMaterializer(QUICK_TX_MATERIALIZER);
+
+    private final FlowExtensions extensions;
+    private final TxFlowCodec codec;
+
+    /** Creates a compiler that knows no QuickTx extension. */
+    public TxFlowCompiler() {
+        this(FlowExtensions.NONE);
+    }
+
+    /**
+     * Creates a compiler for flows whose steps use the given QuickTx extensions.
+     *
+     * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
+     *
+     * @param extensions extensions registered by the operator
+     */
+    public TxFlowCompiler(Collection<? extends QuickTxExtension> extensions) {
+        this(FlowExtensions.of(extensions));
+    }
+
+    private TxFlowCompiler(FlowExtensions extensions) {
+        this.extensions = Objects.requireNonNull(extensions, "extensions");
+        this.codec = TxFlowCodec.of(extensions);
+    }
+
+    /**
+     * Creates a compiler bound to a frozen registration set; used by {@code FlowEngine}.
+     *
+     * @param extensions registered QuickTx extensions
+     * @return compiler
+     */
+    public static TxFlowCompiler of(FlowExtensions extensions) {
+        return new TxFlowCompiler(extensions);
+    }
 
     /**
      * Binds, validates, and preflights a reusable definition.
@@ -73,7 +113,7 @@ public final class TxFlowCompiler {
                 FlowDiagnostic.error("TXFLOW_GRAPH_INVALID", error, "$.spec.steps")));
         validateFlowOutputReferences(definition, diagnostics);
         validateExecutableTransactionProjection(definition, diagnostics);
-        diagnostics.addAll(PortableFlowValidator.validate(definition));
+        diagnostics.addAll(PortableFlowValidator.validate(definition, extensions));
 
         Map<String, Object> values = validateBindings(
                 definition.getParameters(), request.bindings(), diagnostics);
@@ -88,6 +128,7 @@ public final class TxFlowCompiler {
                     .withExecutionSettings(policyEvaluation.effectiveSettings());
             definition.getAnnotations().forEach(compiled::addAnnotation);
             definition.getParameters().values().forEach(compiled::addParameter);
+            definition.getExtensions().forEach(compiled::withExtension);
 
             for (int stepIndex = 0; stepIndex < definition.getSteps().size(); stepIndex++) {
                 FlowStep step = definition.getSteps().get(stepIndex);
@@ -105,21 +146,26 @@ public final class TxFlowCompiler {
                             spendingResources, stepPath + ".transaction");
                     if (hasErrors(diagnostics)) continue;
                     try {
-                        target.withTxPlan(QUICK_TX_MATERIALIZER.materialize(
-                                bound, stepPath + ".transaction"));
+                        target.withTxPlan(ExtensionTemplateMaterializer.usesExtensions(bound)
+                                ? EXTENSION_MATERIALIZER.materialize(bound, definition.getExtensions(),
+                                        extensions, stepPath + ".transaction")
+                                : QUICK_TX_MATERIALIZER.materialize(bound, stepPath + ".transaction"));
                     } catch (QuickTxTemplateMaterializer.MaterializationException failure) {
                         diagnostics.add(FlowDiagnostic.error(failure.code(),
                                 failure.getMessage(), failure.documentPath()));
                         continue;
                     }
                 } else if (step.hasTxPlan()) {
-                    target.withTxPlan(TxPlan.from(step.getTxPlan().toYaml()));
+                    TxPlan source = step.getTxPlan();
+                    target.withTxPlan(source.hasExtensions()
+                            ? extensions.copy(source)
+                            : TxPlan.from(source.toYaml()));
                 } else continue; // Shared portability validation already reported this path.
                 compiled.addStep(target.build());
             }
             if (hasErrors(diagnostics)) return new FlowCompilationResult(null, diagnostics);
             TxFlow plan = compiled.build();
-            String canonical = TxFlowCodec.standard().write(plan,
+            String canonical = codec.write(plan,
                     FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
             return new FlowCompilationResult(new CompiledTxFlow(
                     plan, SignedPayloadVerifier.sha256(FINGERPRINT_FORMAT + canonical), spendingResources,

@@ -81,6 +81,7 @@
             }
           }
         },
+        "additional_signers_count": { "type": "integer", "minimum": 0, "maximum": 1000 },
         "deposit_payer": { "type": "string" },
         "deposit_mode": { "type": "string" }
       }

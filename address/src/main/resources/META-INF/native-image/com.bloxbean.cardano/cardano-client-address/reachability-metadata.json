@@ -1,0 +1,31 @@
+{
+  "comment": "GraalVM Native Image / Web Image reachability metadata for cardano-client-address. Credential is reached by Jackson through transaction-spec certificates and governance types (e.g. Transaction.toJson()); registered once ObjectMapper is reached. Methods: bean accessors and Jackson-annotated methods declared by each type.",
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.address.Credential",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "getType",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.address.CredentialType",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true
+    }
+  ]
+}

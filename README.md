@@ -4,16 +4,17 @@
 [![Clean, Build](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml)
 [![CodeQL](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml)
 [![License](https://img.shields.io:/github/license/bloxbean/cardano-client-lib?color=blue&label=license)](https://github.com/bloxbean/cardano-client-lib/blob/master/LICENSE)
+[![snapshot](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Frepo.bloxbean.org%2Fmaven%2Fsnapshots%2Fcom%2Fbloxbean%2Fcardano%2Fcardano-client-lib%2Fmaven-metadata.xml&strategy=latestProperty&label=snapshot)](#for-snapshot-binaries)
 
 </div>
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
 ### **Latest Stable Version**
-[0.7.2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.2)
+[0.7.3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.3)
 
 ### **Preview Release**
-[0.8.0-pre4](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.8.0-pre4) — [Preview Documentation](https://cardano-client.dev/docs/preview)
+[0.8.0-pre7](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.8.0-pre7) — [Preview Documentation](https://cardano-client.dev/docs/preview)
 
 ## Contributing - Branch Guidelines
 
@@ -122,7 +123,7 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.7.1</version>
+            <version>0.7.3</version>
         </dependency>
 ```
 - Backend modules
@@ -133,21 +134,21 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.7.1</version>
+            <version>0.7.3</version>
         </dependency>
         
          <!-- For Koios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
-            <version>0.7.1</version>
+            <version>0.7.3</version>
         </dependency>
         
          <!-- For Ogmios / Kupo backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>
-            <version>0.7.1</version>
+            <version>0.7.3</version>
         </dependency>
 ```
 
@@ -155,27 +156,33 @@ For fine-grained dependency management, add one or more below modules as require
 
 - Core Module
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.7.1'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.7.3'
 ```
 - Backend modules
     - For backend support, use one of the following supported backend module
 
 ```groovy
 //For Blockfrost
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.7.1'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.7.3'
 
 //For Koios
-implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.7.1'
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.7.3'
 
 //For Ogmios / Kupo
-implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.7.1'
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.7.3'
 
 ```
 
+From 0.8.0-pre7 on, releases from master are also in the BloxBean Maven repository,
+`https://repo.bloxbean.org/maven/releases`, with the same files as on Maven Central.
 
 ### For snapshot binaries
 
-**SNAPSHOT_VERSION :** 0.8.0-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
+Development snapshots are in the BloxBean Maven repository, `https://repo.bloxbean.org/maven/snapshots`. They use
+master's snapshot version (the `version` in [gradle.properties](gradle.properties)); each publication adds a newer
+timestamped build of that version, which Maven and Gradle resolve.
+
+**SNAPSHOT_VERSION :** the version on the snapshot badge at the top (master's `version` in gradle.properties)
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```
@@ -194,8 +201,8 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.7.1'
     
     <repositories>
         <repository>
-            <id>snapshots-repo</id>
-            <url>https://central.sonatype.com/repository/maven-snapshots</url>
+            <id>bloxbean-snapshots</id>
+            <url>https://repo.bloxbean.org/maven/snapshots</url>
             <releases>
                 <enabled>false</enabled>
             </releases>
@@ -207,16 +214,19 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.7.1'
 ```
 - For Gradle, add the following dependencies and repository to build.gradle
 
-```
+```gradle
 repositories {
-    ...
+    mavenCentral()
     maven {
-        url "https://central.sonatype.com/repository/maven-snapshots"
+        url = uri('https://repo.bloxbean.org/maven/snapshots')
+        mavenContent { snapshotsOnly() }
     }
 }
 
-implementation 'com.bloxbean.cardano:cardano-client-lib:{SNAPSHOT_VERSION}'
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:{SNAPSHOT_VERSION}'
+dependencies {
+    implementation 'com.bloxbean.cardano:cardano-client-lib:{SNAPSHOT_VERSION}'
+    implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:{SNAPSHOT_VERSION}'
+}
 ```
 
 ### Usages
@@ -457,3 +467,6 @@ for monitoring and profiling Java and .NET applications.
 YourKit is the creator of <a href="https://www.yourkit.com/java/profiler/">YourKit Java Profiler</a>,
 <a href="https://www.yourkit.com/.net/profiler/">YourKit .NET Profiler</a>,
 and <a href="https://www.yourkit.com/youmonitor/">YourKit YouMonitor</a>.
+
+<!-- Scarf pixel: cookie-free traffic analytics for this page (https://docs.scarf.sh/web-traffic/) -->
+<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=228307f6-d0ce-4c76-9eab-6f5d619d12c1&page=README.md" alt="" width="1" height="1" />

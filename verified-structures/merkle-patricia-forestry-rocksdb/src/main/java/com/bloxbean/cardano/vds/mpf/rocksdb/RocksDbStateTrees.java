@@ -6,7 +6,8 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcReport;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.RetentionPolicy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
-import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.RefcountGcStrategy;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.DiskMarkSet;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.RefcountLedger;
 import com.bloxbean.cardano.vds.rocksdb.RocksDbConfig;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
@@ -15,6 +16,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Unified RocksDB manager providing both NodeStore and RootsIndex from a single database.
@@ -186,11 +190,11 @@ public final class RocksDbStateTrees implements StateTrees {
         Filter localFilterPolicy = null;
         DBOptions localDbOptions = null;
         RocksDB localDb = null;
-        java.util.List<ColumnFamilyHandle> cfHandles = new java.util.ArrayList<>();
+        List<ColumnFamilyHandle> cfHandles = new ArrayList<>();
         boolean success = false;
         try {
             // List existing CFs and open them all; also ensure nodes and roots exist
-            java.util.List<byte[]> existingCfNames;
+            List<byte[]> existingCfNames;
             try (org.rocksdb.Options tempOpts = new org.rocksdb.Options().setCreateIfMissing(true)) {
                 existingCfNames = RocksDB.listColumnFamilies(tempOpts, dbPath);
             }
@@ -202,19 +206,19 @@ public final class RocksDbStateTrees implements StateTrees {
             BlockBasedTableConfig tableConfig = config.applyToCfOptions(localCfOptions, localBlockCache);
             localFilterPolicy = tableConfig == null ? null : tableConfig.filterPolicy();
 
-            java.util.List<ColumnFamilyDescriptor> cfDescriptors = new java.util.ArrayList<>();
+            List<ColumnFamilyDescriptor> cfDescriptors = new ArrayList<>();
             int nodesColumnFamilyIndex = -1, rootsColumnFamilyIndex = -1;
             for (byte[] cfName : existingCfNames) {
                 cfDescriptors.add(new ColumnFamilyDescriptor(cfName, localCfOptions));
-                if (java.util.Arrays.equals(cfName, schema.nodes().getBytes()))
+                if (Arrays.equals(cfName, schema.nodes().getBytes()))
                     nodesColumnFamilyIndex = cfDescriptors.size() - 1;
-                if (java.util.Arrays.equals(cfName, schema.roots().getBytes()))
+                if (Arrays.equals(cfName, schema.roots().getBytes()))
                     rootsColumnFamilyIndex = cfDescriptors.size() - 1;
             }
             // Ensure default CF present
             boolean hasDefaultCf = false;
             for (byte[] cfName : existingCfNames)
-                if (java.util.Arrays.equals(cfName, RocksDB.DEFAULT_COLUMN_FAMILY)) {
+                if (Arrays.equals(cfName, RocksDB.DEFAULT_COLUMN_FAMILY)) {
                     hasDefaultCf = true;
                     break;
                 }
@@ -241,6 +245,7 @@ public final class RocksDbStateTrees implements StateTrees {
             this.db = localDb;
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
+            DiskMarkSet.dropStale(localDb, cfHandles, List.of(cfNodes, cfRoots)); // GC leftovers of a crashed run
 
             this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.nodeStore = new RocksDbNodeStore(db, cfNodes, keyPrefixer);
@@ -369,6 +374,31 @@ public final class RocksDbStateTrees implements StateTrees {
      * for every node reachable from the provided root. Both actions occur within a single RocksDB
      * WriteBatch for atomicity.</p>
      *
+     * <p>The trie nodes must be visible: either already committed, or staged in a batch that is open on this
+     * thread through {@code nodeStore().withBatch(...)} / {@link RocksDbMptSession#write} (also when that batch was
+     * opened on another {@link RocksDbNodeStore} instance of the same database, column family and namespace). In
+     * the second case the root, the version entry and the refcounts are written into that open batch, so they
+     * commit together with the nodes, and several calls in one batch see each other's counts and versions. What is
+     * staged is what the batch holds: nodes discarded by {@code clear()} or {@code rollbackToSavePoint()} are not
+     * staged any more. If a batch of a store on another namespace is open on this thread, this throws
+     * {@link IllegalStateException}.</p>
+     *
+     * <p>Inside such a session, write to the batch only through the store APIs ({@code clear()} and
+     * {@code rollbackToSavePoint()} are allowed). Raw writes on the {@code WriteBatch} that refill a cleared or
+     * rolled-back batch to exactly the record count and data size the session last saw are not noticed, and the
+     * versions and counts staged here would then be based on contents the batch no longer holds (see
+     * {@code docs/gc.md} §4).</p>
+     *
+     * <p>Every node reachable from {@code root} must be readable. Otherwise this throws
+     * {@link IllegalStateException} and records nothing: inside an open batch, everything it staged is rolled
+     * back.</p>
+     *
+     * <p>Use this for every version of a namespace that is collected with {@code RefcountGcStrategy}.</p>
+     *
+     * <p><b>Single writer:</b> this method reads the next version and the current counts, then writes the new
+     * values, without locking. Call it from one writer per namespace at a time; concurrent calls can assign the
+     * same version (one root replacing the other) or lose an increment.</p>
+     *
      * <p><b>Note:</b> This method is only valid for {@link StorageMode#MULTI_VERSION} mode.</p>
      *
      * <p>Usage:</p>
@@ -378,7 +408,7 @@ public final class RocksDbStateTrees implements StateTrees {
      *
      * @param root the trie root commitment to record
      * @return the assigned version number
-     * @throws IllegalStateException if called in SINGLE_VERSION mode
+     * @throws IllegalStateException if called in SINGLE_VERSION mode, or if a node of the root is missing
      * @throws RuntimeException if a RocksDB error occurs
      */
     public long putRootWithRefcount(byte[] root) {
@@ -386,7 +416,46 @@ public final class RocksDbStateTrees implements StateTrees {
             throw new IllegalStateException("putRootWithRefcount() requires MULTI_VERSION mode. Use putRootSnapshot() for SINGLE_VERSION mode.");
         }
         if (root == null || root.length == 0) throw new IllegalArgumentException("root cannot be null/empty");
+        WriteBatch activeBatch = nodeStore.activeBatch();
+        RefcountLedger.NodeReader committed = h -> db.get(nodeStore.nodesHandle(), nodeStore.keyPrefixer().prefix(h));
+        if (activeBatch != null) {
+            // Inside nodeStore.withBatch(...): stage everything in the open batch. Staged nodes, counts and versions
+            // come from the session view of the batch (replayed whenever the batch changed behind it); other nodes
+            // are read from committed storage only.
+            RefcountLedger.BatchView view = nodeStore.activeBatchView();
+            activeBatch.setSavePoint();
+            try {
+                view.ensureCurrent(activeBatch, nodeStore.keyPrefixer());
+                // The batch may already stage versions (earlier sessions on the same batch, direct roots index
+                // writes); take the highest of those and the committed one.
+                Long staged = view.stagedLastVersion(cfRoots.getID());
+                long committedLast = rootsIndex.lastVersion();
+                long ver = (staged != null ? Math.max(staged, committedLast) : committedLast) + 1;
+                new RefcountLedger(db, nodeStore.nodesHandle(), nodeStore.keyPrefixer(), activeBatch, null,
+                        committed, view).increment(root, true);
+                rootsIndex.withBatch(activeBatch, () -> {
+                    rootsIndex.put(ver, root);
+                    return null;
+                });
+                activeBatch.popSavePoint();
+                // The roots index marked the view stale. Its writes go to the roots CF and only change the staged
+                // version, which is recorded here; if both CFs are the same, leave the view stale (replayed next use).
+                if (cfRoots.getID() != nodeStore.nodesHandle().getID()) {
+                    view.recordLastVersion(cfRoots.getID(), ver);
+                    view.resume(activeBatch);
+                }
+                return ver;
+            } catch (RocksDBException e) {
+                rollBack(activeBatch, view);
+                throw new RuntimeException("Failed to stage refcounts", e);
+            } catch (RuntimeException e) {
+                rollBack(activeBatch, view); // nothing of a rejected root stays in the batch
+                throw e;
+            }
+        }
         try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            new RefcountLedger(db, nodeStore.nodesHandle(), nodeStore.keyPrefixer(), wb, null, committed)
+                    .increment(root, true);
             final long[] verHolder = new long[1];
             rootsIndex.withBatch(wb, () -> {
                 long ver = rootsIndex.nextVersion();
@@ -394,11 +463,19 @@ public final class RocksDbStateTrees implements StateTrees {
                 verHolder[0] = ver;
                 return null;
             });
-            RefcountGcStrategy.incrementAll(db, nodeStore.nodesHandle(), nodeStore.nodesHandle(), root, wb, nodeStore.keyPrefixer());
             db.write(wo, wb);
             return verHolder[0];
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to write root + refcounts atomically", e);
+        }
+    }
+
+    private static void rollBack(WriteBatch batch, RefcountLedger.BatchView view) {
+        view.markStale();
+        try {
+            batch.rollbackToSavePoint();
+        } catch (RocksDBException e) {
+            throw new RuntimeException("Failed to roll back the batch after a rejected root", e);
         }
     }
 

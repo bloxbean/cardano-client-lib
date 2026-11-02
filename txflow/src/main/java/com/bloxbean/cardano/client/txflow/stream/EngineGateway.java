@@ -1,11 +1,13 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.txflow.exec.ExecutionEventView;
 import com.bloxbean.cardano.client.txflow.exec.FlowEvent;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionRequest;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
@@ -29,6 +31,11 @@ interface EngineGateway {
      * @return handle view for completion, events, and cooperative cancellation
      */
     ExecutionHandle start(FlowExecutionRequest request);
+
+    /** QuickTx extensions the engine is registered with; the stream validates and copies with them. */
+    default Collection<QuickTxExtension> extensions() {
+        return List.of();
+    }
 
     /**
      * Reports whether the underlying engine durably persists executions

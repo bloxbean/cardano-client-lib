@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * RDBMS implementation of {@link JmtStore}.
@@ -576,10 +577,14 @@ public class RdbmsJmtStore implements JmtStore {
                 conn.setAutoCommit(false);
                 int nodesPruned = pruneStaleNodes(conn, versionInclusive);
                 int valuesPruned = pruneStaleValues(conn, versionInclusive);
-                int rootsPruned = pruneOldRoots(conn, versionInclusive);
+                // Keep the root the horizon's state is read from: with no commit in (floorRoot, horizon], pruning
+                // up to the horizon removes exactly what pruning up to floorRoot removes.
+                long floorRoot = floorRootVersion(conn, versionInclusive);
+                long effectiveHorizon = floorRoot >= 0 ? floorRoot : versionInclusive;
+                int rootsPruned = pruneOldRoots(conn, effectiveHorizon);
                 int recordsPruned = nodesPruned + valuesPruned + rootsPruned;
                 if (recordsPruned > 0) {
-                    advancePruneWatermark(conn, versionInclusive);
+                    advancePruneWatermark(conn, effectiveHorizon);
                 }
 
                 conn.commit();
@@ -646,6 +651,20 @@ public class RdbmsJmtStore implements JmtStore {
         }
     }
 
+    private long floorRootVersion(Connection conn, long versionInclusive) throws SQLException {
+        String sql = "SELECT MAX(version) AS floor_version FROM " + schema.rootsTable()
+                + " WHERE namespace = ? AND version <= ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) { // NOSONAR java:S2077 - only the validated table name is concatenated; values are bound
+            stmt.setInt(1, keyPrefix & 0xFF);
+            stmt.setLong(2, versionInclusive);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) return -1;
+                long floor = rs.getLong("floor_version");
+                return rs.wasNull() ? -1 : floor;
+            }
+        }
+    }
+
     private int pruneOldRoots(Connection conn, long versionExclusive) throws SQLException {
         String sql = "DELETE FROM " + schema.rootsTable()
                 + " WHERE namespace = ? AND version < ?";
@@ -653,6 +672,23 @@ public class RdbmsJmtStore implements JmtStore {
             stmt.setInt(1, keyPrefix & 0xFF);
             stmt.setLong(2, versionExclusive);
             return stmt.executeUpdate();
+        }
+    }
+
+    @Override
+    public OptionalLong pruneWatermark() {
+        String sql = "SELECT prune_watermark FROM " + schema.metadataTable() + " WHERE namespace = ?";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) { // NOSONAR java:S2077 - only the validated table name is concatenated; values are bound
+            stmt.setInt(1, keyPrefix & 0xFF);
+            try (ResultSet rs = stmt.executeQuery()) {
+                // No metadata row yet (format not installed): nothing was ever pruned.
+                if (!rs.next()) return OptionalLong.empty();
+                long watermark = rs.getLong("prune_watermark");
+                return rs.wasNull() || watermark < 0 ? OptionalLong.empty() : OptionalLong.of(watermark);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read JMT prune watermark", e);
         }
     }
 
@@ -731,6 +767,11 @@ public class RdbmsJmtStore implements JmtStore {
                     }
                 }
 
+                if (survivingVersion == null && pruneWatermark >= 0) {
+                    // Rolled back below: the state as of this version is retained only as pruned history, so
+                    // there would be no latest root.
+                    throw new IllegalStateException("Cannot truncate to version " + versionExclusive + ": no root at or below it survives pruning up to watermark " + pruneWatermark);
+                }
                 if (survivingVersion != null) {
                     String upsertSql = dialect.upsertLatestSql(schema.latestTable());
                     try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {

@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.NavigableMap;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -23,7 +24,7 @@ class RdbmsRootsIndexTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        String jdbcUrl = "jdbc:h2:mem:test_roots_" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1";
+        String jdbcUrl = "jdbc:h2:mem:test_roots_" + UUID.randomUUID().toString().replace('-', '_') + ";DB_CLOSE_DELAY=-1";
         dbConfig = DbConfig.builder()
             .simpleJdbcUrl(jdbcUrl)
             .build();

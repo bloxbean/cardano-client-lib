@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
 import com.bloxbean.cardano.client.txflow.exec.ExecutionEventView;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
 import com.bloxbean.cardano.client.txflow.exec.FlowEvent;
@@ -8,6 +9,7 @@ import com.bloxbean.cardano.client.txflow.exec.FlowExecutionRequest;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -29,6 +31,11 @@ final class FlowEngineGateway implements EngineGateway {
     @Override
     public ExecutionHandle start(FlowExecutionRequest request) {
         return new HandleView(engine.start(request));
+    }
+
+    @Override
+    public Collection<QuickTxExtension> extensions() {
+        return engine.extensions();
     }
 
     @Override

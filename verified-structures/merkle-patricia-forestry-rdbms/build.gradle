@@ -13,6 +13,7 @@ dependencies {
     testImplementation(libs.h2database)
     testImplementation(libs.sqlite.jdbc)
     testImplementation(libs.slf4j.reload4j)
+    testImplementation(libs.jackson.databind)
 }
 
 publishing {

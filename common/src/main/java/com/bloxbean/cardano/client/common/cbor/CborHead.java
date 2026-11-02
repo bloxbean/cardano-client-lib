@@ -1,0 +1,125 @@
+package com.bloxbean.cardano.client.common.cbor;
+
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+
+import java.io.ByteArrayOutputStream;
+
+/**
+ * The head of one CBOR data item: major type, additional information, argument and where it ends. One place for the
+ * RFC 8949 section 5.3 head rules, shared by the {@link CborSpan} walker and the {@link DataItemDecoder}, and for
+ * writing a head ({@link #write}). BREAK ({@code ff}) is handled by callers.
+ */
+public final class CborHead {
+    static final int INDEFINITE = -1;
+
+    private static final int MAJOR_BYTES = 2;
+    private static final int MAJOR_MAP = 5;
+    private static final int MAJOR_SIMPLE = 7;
+
+    int start;
+    int major;
+    int info;
+    long argument; // value, length, count, tag number, or simple/float bits; unsigned 64-bit
+    boolean indefinite;
+    int end;
+
+    CborHead() {
+    }
+
+    /**
+     * Writes the shortest head of a data item of major type 0 to 6 (RFC 8949 section 3). Major type 7 (simple values
+     * and floats) gives its additional information other meanings (section 3.3) and is not written here.
+     *
+     * @param out      where to write
+     * @param major    the major type, 0 to 6
+     * @param argument the value, length, count or tag number, unsigned 64-bit
+     * @throws IllegalArgumentException if the major type is not 0 to 6
+     */
+    public static void write(ByteArrayOutputStream out, int major, long argument) {
+        if (major < 0 || major > 6)
+            throw new IllegalArgumentException("Writes the head of major type 0 to 6, found " + major);
+        int type = major << 5;
+        if (Long.compareUnsigned(argument, 24) < 0) {
+            out.write(type | (int) argument);
+        } else if (Long.compareUnsigned(argument, 0x100) < 0) {
+            out.write(type | 24);
+            out.write((int) argument);
+        } else if (Long.compareUnsigned(argument, 0x10000) < 0) {
+            out.write(type | 25);
+            writeBigEndian(out, argument, 2);
+        } else if (Long.compareUnsigned(argument, 0x1_0000_0000L) < 0) {
+            out.write(type | 26);
+            writeBigEndian(out, argument, 4);
+        } else {
+            out.write(type | 27);
+            writeBigEndian(out, argument, 8);
+        }
+    }
+
+    private static void writeBigEndian(ByteArrayOutputStream out, long value, int bytes) {
+        for (int shift = (bytes - 1) * 8; shift >= 0; shift -= 8)
+            out.write((int) (value >>> shift));
+    }
+
+    void read(byte[] buffer, int pos, int limit) {
+        if (pos >= limit)
+            throw error("truncated CBOR: missing header", pos);
+        start = pos;
+        int initial = buffer[pos++] & 0xff;
+        major = initial >>> 5;
+        info = initial & 0x1f;
+        indefinite = false;
+        if (info < 24) {
+            argument = info;
+        } else if (info <= 27) {
+            int size = 1 << (info - 24);
+            if (size > limit - pos)
+                throw error("truncated CBOR header argument", start);
+            long value = 0;
+            for (int i = 0; i < size; i++)
+                value = (value << 8) | (buffer[pos++] & 0xff);
+            argument = value;
+            // RFC 8949 section 3.3: simple values below 32 have a one-byte encoding only; f8 00 to f8 1f are not
+            // well-formed
+            if (major == MAJOR_SIMPLE && info == 24 && value < 32)
+                throw error("two-byte simple value below 32", start);
+        } else if (info == 31 && major >= MAJOR_BYTES && major <= MAJOR_MAP) {
+            indefinite = true;
+            argument = INDEFINITE;
+        } else if (info == 31) {
+            throw error(major == MAJOR_SIMPLE ? "unexpected BREAK"
+                    : "indefinite length is not allowed for major type " + major, start);
+        } else {
+            throw error("reserved CBOR additional information " + info, start);
+        }
+        end = pos;
+    }
+
+    /**
+     * @return the end of a definite string whose head this is; the declared length must fit the remaining input
+     */
+    static int checkedStringEnd(CborHead head, int pos, int limit) {
+        if (head.argument < 0 || head.argument > limit - pos)
+            throw error("truncated CBOR string: declared length " + Long.toUnsignedString(head.argument)
+                    + " exceeds the remaining " + (limit - pos) + " bytes", head.start);
+        return pos + (int) head.argument;
+    }
+
+    /**
+     * Every item takes at least one byte, so a count larger than the remaining input is rejected before anything is
+     * allocated for it.
+     *
+     * @return the number of items (map pairs count twice)
+     */
+    static int checkedCount(CborHead head, int itemsPerEntry, int pos, int limit) {
+        if (head.argument < 0 || head.argument > (limit - pos) / itemsPerEntry)
+            throw error("declared CBOR " + (itemsPerEntry == 1 ? "array" : "map") + " size "
+                    + Long.toUnsignedString(head.argument) + " exceeds the remaining " + (limit - pos) + " bytes",
+                    head.start);
+        return (int) head.argument * itemsPerEntry;
+    }
+
+    static CborRuntimeException error(String reason, int offset) {
+        return new CborRuntimeException(reason + " at offset " + offset);
+    }
+}

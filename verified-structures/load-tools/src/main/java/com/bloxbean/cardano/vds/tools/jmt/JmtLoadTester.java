@@ -121,7 +121,7 @@ public final class JmtLoadTester {
                     options.pruneEvery, options.keepLatest);
         }
         System.out.println();
-        System.out.println("Expected Performance (ADR-0015 Phase 2):");
+        System.out.println("Expected Performance (tuned RocksDB config):");
         System.out.println("  - Throughput: 10-13k ops/s sustained (vs 2.6k baseline)");
         System.out.println("  - Write amplification: ~15x (vs 50x baseline)");
         System.out.println("  - Write stalls: <5% (vs 40-60% baseline)");
@@ -241,7 +241,7 @@ public final class JmtLoadTester {
                         totalInserts,
                         totalUpdates);
 
-                // RocksDB monitoring (ADR-0015 Phase 5 - diagnose performance degradation)
+                // RocksDB monitoring (diagnose performance degradation)
                 if (store instanceof RocksDbJmtStore) {
                     try {
                         RocksDbJmtStore rocksStore = (RocksDbJmtStore) store;

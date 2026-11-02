@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.TreeMap;
 
 /**
@@ -245,14 +246,22 @@ public final class InMemoryJmtStore implements JmtStore {
                     pruned += deletions.size();
                 }
             }
-            List<Long> oldRoots = new ArrayList<>(roots.headMap(versionInclusive, false).keySet());
+            // Keep the root the horizon's state is read from (see RocksDbJmtStore#pruneUpTo).
+            Long floorRoot = roots.floorKey(versionInclusive);
+            long effectiveHorizon = floorRoot != null ? floorRoot : versionInclusive;
+            List<Long> oldRoots = new ArrayList<>(roots.headMap(effectiveHorizon, false).keySet());
             oldRoots.forEach(roots::remove);
             pruned += oldRoots.size();
             if (pruned > 0) {
-                pruneWatermark = Math.max(pruneWatermark, versionInclusive);
+                pruneWatermark = Math.max(pruneWatermark, effectiveHorizon);
             }
             return pruned;
         }
+    }
+
+    @Override
+    public synchronized OptionalLong pruneWatermark() {
+        return pruneWatermark < 0 ? OptionalLong.empty() : OptionalLong.of(pruneWatermark);
     }
 
     @Override
@@ -265,6 +274,10 @@ public final class InMemoryJmtStore implements JmtStore {
             if (version < pruneWatermark) {
                 throw new IllegalStateException("Cannot truncate to version " + version
                         + " below prune watermark " + pruneWatermark);
+            }
+            if (pruneWatermark >= 0 && roots.floorKey(version) == null) {
+                // The state as of this version is retained only as pruned history: there would be no latest root.
+                throw new IllegalStateException("Cannot truncate to version " + version + ": no root at or below it survives pruning up to watermark " + pruneWatermark);
             }
             // Remove nodes with version > target
             java.util.Iterator<NodeKey> nodeIterator = nodes.keySet().iterator();

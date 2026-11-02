@@ -8,4 +8,8 @@ public final class JmtWriteConflictException extends IllegalStateException {
     public JmtWriteConflictException(String message) {
         super(message);
     }
+
+    public JmtWriteConflictException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

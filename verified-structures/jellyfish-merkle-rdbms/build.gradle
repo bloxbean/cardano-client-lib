@@ -16,6 +16,9 @@ dependencies {
 
     // For RocksDB vs RDBMS comparison tests
     testImplementation project(':verified-structures:jellyfish-merkle-rocksdb')
+
+    // Coverage-guided differential traces across backends
+    testImplementation(libs.jazzer.junit)
 }
 
 publishing {

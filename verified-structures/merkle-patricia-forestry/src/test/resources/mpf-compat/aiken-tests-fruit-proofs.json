@@ -1,0 +1,585 @@
+{
+ "source": "aiken-lang/merkle-patricia-forestry 2.1.0, lib/aiken/merkle-patricia-forestry.tests.ak (MPL-2.0): proof_<fruit> and without_<fruit> constants for the fruits trie",
+ "root": "4acd78f345a686361df77541b2e0b533f53362e36620a1fdd3a13e0b61a3b078",
+ "proofs": [
+  {
+   "key": "apricot[uid: 0]",
+   "withoutRoot": "c08452d768160cd0fcdf5cad3d181cd36055eaf364d0eb7c49a01936bacf7b1f",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbe280ada5ef30d55433934bbc73c89d550ee916f62822c34645e04bb66540c120f965c07fa815b86794e8703cee7e8f626c88d7da639258d2466aae67d5d041c5a117abf0e19fb78e0535891d82e5ece1310a1cf11674587dbba304c395769a988"
+    }
+   ]
+  },
+  {
+   "key": "raspberry[uid: 0]",
+   "withoutRoot": "4c9d89603cb1a25361777b8ed7f7c80f71b1dea66603872feea2b34a83d34453",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039cc9e7ff03faba170e98cd3c24338b95b1ce1b8a621d1016418f1494bbeb9e4a4a0000000000000000000000000000000000000000000000000000000000000000"
+    }
+   ]
+  },
+  {
+   "key": "tangerine[uid: 11]",
+   "withoutRoot": "826a0c030ad675740b83a33653fd3fc32b1021233f709759292151abdcd37f8d",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbefa63eb4576001d8658219f928172eccb5448b4d7d62cd6d95228e13ebcbd5350c1e96bcc431893eef34e03989814375d439faa592edf75c9e5dc10b3c30766700000000000000000000000000000000000000000000000000000000000000000"
+    }
+   ]
+  },
+  {
+   "key": "banana[uid: 218]",
+   "withoutRoot": "557990b1257679f2b8e09c507f2582b0566579a2fc26d0d8a6b59a4a88ef16db",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5fcf22cbaac4ab605dd13dbde57080661b53d8a7e23534c733acf50125cf0e5bcac9431d708d20021f1fa3f4f03468b8de194398072a402e7877376d06f747575a"
+    },
+    {
+     "type": "leaf",
+     "skip": 1,
+     "neighbor": {
+      "key": "3ed002d6885ab5d92e1307fccd1d021c32ec429192aea10cb2fd688b92aef3ac",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    }
+   ]
+  },
+  {
+   "key": "blueberry[uid: 0]",
+   "withoutRoot": "e2025bb26dae9291d4eeb58817b5c7eb84ab2e47a27c994cc04369fffe8bc842",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbefa63eb4576001d8658219f928172eccb5448b4d7d62cd6d95228e13ebcbd5350be527bcfc7febe3c560057d97f4190bd24b537a322315f84daafab3ada562b50c2f2115774c117f184b58dba7a23d2c93968aa40387ceb0c9a9f53e4f594e881"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "b67e71b092e6a54576fa23b0eb48c5e5794a3fb5480983e48b40e453596cc48b",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    }
+   ]
+  },
+  {
+   "key": "cherry[uid: 0]",
+   "withoutRoot": "968b14e351704108f00325985ab0cd81af8617bb131e31607b6bcd3f96d7c4c2",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5f1508f13471a031a21277db8817615e62a50a7427d5f8be572746aa5f0d498417520a7f805c5f674e2deca5230b6942bbc71586dc94a783eebe1ed58c9a864e53"
+    },
+    {
+     "type": "branch",
+     "skip": 3,
+     "neighbors": "2549707d84ecc2fa100fd85bf15f2ec99da70d4b3a39588c1138331eb0e00d3e85c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000"
+    }
+   ]
+  },
+  {
+   "key": "coconut[uid: 0]",
+   "withoutRoot": "4888f3b72e475510bc0bb78c5f3706c0520a4294a41f8c05b5561776369d9d5d",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbe280ada5ef30d55433934bbc73c89d550ee916f62822c34645e04bb66540c120f323def78732eace937391fc626efcd062552ebcf5e93f00352b86cb0f89daca0a22a7b4d767ada48673a4a9313a02a35ff47d2f55bcf10ae294127f590a4327c"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "df779e7f171b7299c2cede28bb898c1ee3456d98657b95e8082cd375704b678a",
+      "value": "9e3d695f13a7292b8859d2ba0113e305825a8af8ba886d2ae73e73f2d35c6afe"
+     }
+    }
+   ]
+  },
+  {
+   "key": "cranberry[uid: 0]",
+   "withoutRoot": "c80ac1ba6f8a6437562b25fe4a110f1c0013f26c7209f699df46493ce85e0081",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbe280ada5ef30d55433934bbc73c89d550ee916f62822c34645e04bb66540c120f323def78732eace937391fc626efcd062552ebcf5e93f00352b86cb0f89daca00a747d583e2e3db49524add1eea3063421fc04547e19c4e807810a537a63b379"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "c8cac1a325376bbc49936988b4c720d7806e99c878bc645ad90cebb98302c3ca",
+      "value": "ccfd71674a4dca5f252690588b24bebffa36068206414b1575c0f7f7f8103839"
+     }
+    }
+   ]
+  },
+  {
+   "key": "grapefruit[uid: 0]",
+   "withoutRoot": "68125b51606cc784d3ed2010a2bc297776ce7442669a5072220f5e6911e5be84",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbefa63eb4576001d8658219f928172eccb5448b4d7d62cd6d95228e13ebcbd5350be527bcfc7febe3c560057d97f4190bd24b537a322315f84daafab3ada562b50c2f2115774c117f184b58dba7a23d2c93968aa40387ceb0c9a9f53e4f594e881"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "b88701c48c6abd03dfc5f4538bb585102ddc2e4640c55c8c3c9bb7e0093d949e",
+      "value": "6d96ccb103b14005c17b3c17d45e0df0bab5dd1fb2276197a89ed1aeedaad7a0"
+     }
+    }
+   ]
+  },
+  {
+   "key": "grapes[uid: 0]",
+   "withoutRoot": "a5a405950c2aaf7da30abbfa969fdecccd4ed19077f751b1de641b2bfc2df957",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbe280ada5ef30d55433934bbc73c89d550ee916f62822c34645e04bb66540c120f965c07fa815b86794e8703cee7e8f626c88d7da639258d2466aae67d5d041c5ada1771d107c86c8e68da458063a47f9cdb63ddb9e922ab6ccb18d9e6d4b7aaf9"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "f63c88d1bc9695dfc39eaf90a11248964311383a95345e5b04d6d8f25d5121ca",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    }
+   ]
+  },
+  {
+   "key": "kumquat[uid: 0]",
+   "withoutRoot": "4dd6d57ca8cb7ac8c3b219366754a392ba9e4e43b6b3ae59d89be3f878ba8fb6",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d08434fd717aea47d156185d589f44a59fc2e0158eab7ff035083a2a66cd3e15b"
+    },
+    {
+     "type": "fork",
+     "skip": 0,
+     "neighbor": {
+      "nibble": 0,
+      "prefix": "07",
+      "root": "a1ffbc0e72342b41129e2d01d289809079b002e54b123860077d2d66added281"
+     }
+    }
+   ]
+  },
+  {
+   "key": "lemon[uid: 0]",
+   "withoutRoot": "6a7c7950e3718263c3f6d0b5cec7d7724c2394d62053692132c2ffebf8b8e4bd",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5f1508f13471a031a21277db8817615e62a50a7427d5f8be572746aa5f0d49841758c5e4a29601399a5bd916e5f3b34c38e13253f4de2a3477114f1b2b8f9f2f4d"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "0389fd2d655e31dac50b00f3113aa327e36680e9df509d48eb255446d4891abc",
+      "value": "001fb475e73fee4611a4350ae793d7dca387bcc1e199eabf498002a173378cc5"
+     }
+    }
+   ]
+  },
+  {
+   "key": "lime[uid: 0]",
+   "withoutRoot": "cc11203c785e808fc0555562dd9fef4b9c161d2ed64ff16df47080325862f4a7",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5fcf22cbaac4ab605dd13dbde57080661b53d8a7e23534c733acf50125cf0e5bcac9431d708d20021f1fa3f4f03468b8de194398072a402e7877376d06f747575a"
+    },
+    {
+     "type": "leaf",
+     "skip": 1,
+     "neighbor": {
+      "key": "3ee659e1fddc70f61cc65eb61478cd92a09fd7787ea4f913047469339f26b3b9",
+      "value": "356a8eb7e12e71400ef0f2e305a89c643ec8cad60506ca9057201a5e36fb01ab"
+     }
+    }
+   ]
+  },
+  {
+   "key": "mango[uid: 0]",
+   "withoutRoot": "c683f99382df709f322b957c3ff828ab10cb2b6a855458e4b3d23fbea83e7a0e",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5f1508f13471a031a21277db8817615e62a50a7427d5f8be572746aa5f0d49841758c5e4a29601399a5bd916e5f3b34c38e13253f4de2a3477114f1b2b8f9f2f4d"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "09d23032e6edc0522c00bc9b74edd3af226d1204a079640a367da94c84b69ecc",
+      "value": "c29c35ad67a5a55558084e634ab0d98f7dd1f60070b9ce2a53f9f305fd9d9795"
+     }
+    }
+   ]
+  },
+  {
+   "key": "orange[uid: 0]",
+   "withoutRoot": "59854171e5e36247499d82747754ca56eb7ced82fa27edc95f7c102fbcbee3f0",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbe280ada5ef30d55433934bbc73c89d550ee916f62822c34645e04bb66540c120f323def78732eace937391fc626efcd062552ebcf5e93f00352b86cb0f89daca00a747d583e2e3db49524add1eea3063421fc04547e19c4e807810a537a63b379"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "c5dc3c068b45ce9dbf42d07fd86fc2dac165fd1b81ce73267b2aee242afba3f3",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    }
+   ]
+  },
+  {
+   "key": "papaya[uid: 0]",
+   "withoutRoot": "97a6f166b2c5f5a46776e1b471d7855a3e876e95d1eff34c5df3734e70d3fcf5",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbe280ada5ef30d55433934bbc73c89d550ee916f62822c34645e04bb66540c120f965c07fa815b86794e8703cee7e8f626c88d7da639258d2466aae67d5d041c5ada1771d107c86c8e68da458063a47f9cdb63ddb9e922ab6ccb18d9e6d4b7aaf9"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "fb69c0d60ec9bfb6cafa5cf54675edfbb0017b873ee92a5dbb6bdabcfb352145",
+      "value": "b5898c51c32083e91b8c18c735d0ba74e08f964a20b1639c189d1e8704b78a09"
+     }
+    }
+   ]
+  },
+  {
+   "key": "peach[uid: 0]",
+   "withoutRoot": "5d4bfc2613624f54751303e605568337f6f8eb7bd63369d9f780c5be839dbdd1",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbefa63eb4576001d8658219f928172eccb5448b4d7d62cd6d95228e13ebcbd5350be527bcfc7febe3c560057d97f4190bd24b537a322315f84daafab3ada562b50da0bdb30bf45c76153418a634f1bcecba8c601ca985fbca14b57582920d82acb"
+    },
+    {
+     "type": "fork",
+     "skip": 0,
+     "neighbor": {
+      "nibble": 15,
+      "prefix": "0102",
+      "root": "2f6b320212dd98c38a7cd074886d942d9577cdad5ef1c72d32a01df1a63ed88f"
+     }
+    }
+   ]
+  },
+  {
+   "key": "pear[uid: 0]",
+   "withoutRoot": "8f2da0fcfeab12df8b53dd6ea4fe6ff8fbd6f954f1ead8d40b298b86c3716510",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbe280ada5ef30d55433934bbc73c89d550ee916f62822c34645e04bb66540c120f323def78732eace937391fc626efcd062552ebcf5e93f00352b86cb0f89daca0a22a7b4d767ada48673a4a9313a02a35ff47d2f55bcf10ae294127f590a4327c"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "db30478ecc78451d06c1dfe24a35233a6d448fafa17af644fac693a4ca3f502a",
+      "value": "1c8ca3866d1b2ab614bf085c95381adbf7be2c6e8fa628034932fe4a4f54e1c3"
+     }
+    }
+   ]
+  },
+  {
+   "key": "pineapple[uid: 12577]",
+   "withoutRoot": "dcb9a2b6aae1477da4409ce8a62235d87a006011bf1dc893948fad9c5be955f7",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5fcf22cbaac4ab605dd13dbde57080661b53d8a7e23534c733acf50125cf0e5bca070a12b8b34948fc52296522a0b1816849392f7c2a73b8a25538ccebed176c9f"
+    },
+    {
+     "type": "branch",
+     "skip": 2,
+     "neighbors": "4e1fa8ba9cc8e18bbf0194b41e5fac140d0e58758706545f2354f2e42f7b4b0685c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000"
+    }
+   ]
+  },
+  {
+   "key": "plum[uid: 15492]",
+   "withoutRoot": "fc7494dec21f1533d8f97677b890ebf3a7954c0b8110895d663a5c78d15daf92",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5f1508f13471a031a21277db8817615e62a50a7427d5f8be572746aa5f0d498417520a7f805c5f674e2deca5230b6942bbc71586dc94a783eebe1ed58c9a864e53"
+    },
+    {
+     "type": "branch",
+     "skip": 3,
+     "neighbors": "1955c87798c9f03af2f38429ebdeeefe0a0c84db8e583df37561abf0c64f46ca85c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b1f34025c0e276d328068b15d428480914fd73946ae94a5f45c3530e3decdeefdf0000000000000000000000000000000000000000000000000000000000000000"
+    }
+   ]
+  },
+  {
+   "key": "pomegranate[uid: 0]",
+   "withoutRoot": "7267243f71e63165e8a697c1282d205352b9534db9902d97eb90b3bd89431ddb",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5fcf22cbaac4ab605dd13dbde57080661b53d8a7e23534c733acf50125cf0e5bca070a12b8b34948fc52296522a0b1816849392f7c2a73b8a25538ccebed176c9f"
+    },
+    {
+     "type": "branch",
+     "skip": 2,
+     "neighbors": "03c59510714326934442799b6960ed35c11bb26ea47746839d9ab0635887aa13b60d6d31fb16509758290f509e419f55abb79ba2ca63c9b329f97f69f9e5b4f90eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000"
+    }
+   ]
+  },
+  {
+   "key": "strawberry[uid: 2532]",
+   "withoutRoot": "c5890dfafc0c0b66d3af7775ae9c5bac6974ec0b38b5a9a635299a9eae7c8823",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5fcf22cbaac4ab605dd13dbde57080661b53d8a7e23534c733acf50125cf0e5bca070a12b8b34948fc52296522a0b1816849392f7c2a73b8a25538ccebed176c9f"
+    },
+    {
+     "type": "branch",
+     "skip": 2,
+     "neighbors": "03c59510714326934442799b6960ed35c11bb26ea47746839d9ab0635887aa13eaf6d47da35b10a0585256dfdb4e5a8456e02d276a6c554842bf3e4148160ba70eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000"
+    }
+   ]
+  },
+  {
+   "key": "tomato[uid: 83468]",
+   "withoutRoot": "8329dfa8be59c7e677966a62d3de98944f231c02cc8e97ec049fd1a8e5898474",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb45fdf82687b1ab133324cebaf46d99d49f92720c5ded08d5b02f57530f2cc5a5f1508f13471a031a21277db8817615e62a50a7427d5f8be572746aa5f0d498417520a7f805c5f674e2deca5230b6942bbc71586dc94a783eebe1ed58c9a864e53"
+    },
+    {
+     "type": "branch",
+     "skip": 3,
+     "neighbors": "1955c87798c9f03af2f38429ebdeeefe0a0c84db8e583df37561abf0c64f46ca85c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b1a93bd84b815df138ab148bfdc2c3ee94f0cdbbb6ab8a38d429a7a8895c470ce70000000000000000000000000000000000000000000000000000000000000000"
+    }
+   ]
+  },
+  {
+   "key": "watermelon[uid: 0]",
+   "withoutRoot": "e69c446638ad9ae9654e4e6699954996da1f1256d6df711bcb6a740659dfe470",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d79519b8cdfbd053e5a86cf28a781debae71638cd77f85aad4b88869373d9dcfd"
+    },
+    {
+     "type": "fork",
+     "skip": 0,
+     "neighbor": {
+      "nibble": 14,
+      "prefix": "",
+      "root": "995afcfa89b7430348dbfb6171b944794119ffc0dd003edc18e2fa8d6d6d48bf"
+     }
+    }
+   ]
+  },
+  {
+   "key": "apple[uid: 58]",
+   "withoutRoot": "cb7812785c2f6b56e3dba69923e37625e94953257915d25f1041f43cefd5cb62",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d79519b8cdfbd053e5a86cf28a781debae71638cd77f85aad4b88869373d9dcfd"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "5cddcd30a0a388cf6feb3fd6e112c96e9daf23e3a9c8a334e7044650471aaa9e",
+      "value": "f429821ddf89c9df3c7fbb5aa6fadb6c246d75ceede53173ce59d70dde375d14"
+     }
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "5e7ccfedd44c90423b191ecca1eb21dfbac865d561bace8c0f3e94ae7edf4440",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    }
+   ]
+  },
+  {
+   "key": "fig[uid: 68267]",
+   "withoutRoot": "fde975ef370e50b0d93fd3a766d85e502160b9231e6c4887616459f27e786693",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbefa63eb4576001d8658219f928172eccb5448b4d7d62cd6d95228e13ebcbd5350be527bcfc7febe3c560057d97f4190bd24b537a322315f84daafab3ada562b50da0bdb30bf45c76153418a634f1bcecba8c601ca985fbca14b57582920d82acb"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "a4b927e3735c7dbf9f1846844aad53e82362e47e32223d559333f4d154483c69",
+      "value": "5ee6f548bba6d9da3313a23b395efb48b440063a592d8592e73d87b79d1d887a"
+     }
+    },
+    {
+     "type": "leaf",
+     "skip": 2,
+     "neighbor": {
+      "key": "af12ec41241cb0a5cae2a4a1232a64f3ca68f65342cf2a2f98cd6a00cf7971fe",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    }
+   ]
+  },
+  {
+   "key": "guava[uid: 344]",
+   "withoutRoot": "aae08af9abdf11e286ae91c430b81cb306d1f43dcec58ab2f59fe024412e54e2",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d08434fd717aea47d156185d589f44a59fc2e0158eab7ff035083a2a66cd3e15b"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "4a522f84bcda4bebb725d5f2b92af615b57cc1777bb0d8b2c6c18c3e3e6520cd",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    },
+    {
+     "type": "leaf",
+     "skip": 1,
+     "neighbor": {
+      "key": "407c58473af4b3e5b24e65481294b0772ed6a7dd793937c6c90179960d154a22",
+      "value": "05f6a1db018258657194e930ed49e86cbc3622aeae1c13e92110e28d3635fdca"
+     }
+    }
+   ]
+  },
+  {
+   "key": "kiwi[uid: 0]",
+   "withoutRoot": "621815dfdfca61bca13341df5aa32f4133225b5e3b5d9c030001b2298132a0fa",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d08434fd717aea47d156185d589f44a59fc2e0158eab7ff035083a2a66cd3e15b"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "4a522f84bcda4bebb725d5f2b92af615b57cc1777bb0d8b2c6c18c3e3e6520cd",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    },
+    {
+     "type": "leaf",
+     "skip": 1,
+     "neighbor": {
+      "key": "4076d8ab234597ab6a35c03c805381bbc016025b36ff1f7df9c5009e1a8b73ef",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    }
+   ]
+  },
+  {
+   "key": "passionfruit[uid: 0]",
+   "withoutRoot": "2e45678664ccbcad82eb24e7a77cb199593b47f07feafaa205b089a8dc48461e",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "4be28f4839135e1f8f5372a90b54bb7bfaf997a5d13711bb4d7d93f9d4e04fbefa63eb4576001d8658219f928172eccb5448b4d7d62cd6d95228e13ebcbd5350be527bcfc7febe3c560057d97f4190bd24b537a322315f84daafab3ada562b50da0bdb30bf45c76153418a634f1bcecba8c601ca985fbca14b57582920d82acb"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "a4b927e3735c7dbf9f1846844aad53e82362e47e32223d559333f4d154483c69",
+      "value": "5ee6f548bba6d9da3313a23b395efb48b440063a592d8592e73d87b79d1d887a"
+     }
+    },
+    {
+     "type": "leaf",
+     "skip": 2,
+     "neighbor": {
+      "key": "af12a10176ecbb08fc16658069ac132455796c5b62a5ef8985933c76652f50e7",
+      "value": "7c3715aba2db74d565a6ce6cc72f20d9cb4652ddb29efe6268be15b105e40911"
+     }
+    }
+   ]
+  },
+  {
+   "key": "yuzu[uid: 0]",
+   "withoutRoot": "366a84bbb2274658080acb85026bba389054782b4681f4cf9e29141ac98de253",
+   "proof": [
+    {
+     "type": "branch",
+     "skip": 0,
+     "neighbors": "c7bfa4472f3a98ebe0421e8f3f03adf0f7c4340dec65b4b92b1c9f0bed209eb47238ba5d16031b6bace4aee22156f5028b0ca56dc24f7247d6435292e82c039c3490a825d2e8deddf8679ce2f95f7e3a59d9c3e1af4a49b410266d21c9344d6d79519b8cdfbd053e5a86cf28a781debae71638cd77f85aad4b88869373d9dcfd"
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "5cddcd30a0a388cf6feb3fd6e112c96e9daf23e3a9c8a334e7044650471aaa9e",
+      "value": "f429821ddf89c9df3c7fbb5aa6fadb6c246d75ceede53173ce59d70dde375d14"
+     }
+    },
+    {
+     "type": "leaf",
+     "skip": 0,
+     "neighbor": {
+      "key": "5ed71f91166242e8477758810ad103aff35313b175b1762b0efe800fa9a126d2",
+      "value": "09d504e02c4e6fa7b66303a456bc8786da3f51e8bf2834eeb9c95ec479f3681a"
+     }
+    }
+   ]
+  }
+ ]
+}

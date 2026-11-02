@@ -1,9 +1,7 @@
 package com.bloxbean.cardano.client.plutus.util;
 
-import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -14,7 +12,6 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.util.HexUtil;
 
-import java.io.ByteArrayInputStream;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -35,14 +32,7 @@ public class PlutusUtil {
 
         //Try to decode again
         try {
-            ByteArrayInputStream bais = new ByteArrayInputStream(bs.getBytes());
-            CborDecoder decoder = new CborDecoder(bais);
-            DataItem di = decoder.decodeNext();
-            if (di instanceof ByteString) {
-                return true;
-            } else {
-                return false;
-            }
+            return CborSerializationUtil.deserialize(bs.getBytes()) instanceof ByteString;
         } catch (Exception e) {
             return false;
         }

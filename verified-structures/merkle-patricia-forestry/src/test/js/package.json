@@ -1,0 +1,12 @@
+{
+  "name": "ccl-mpf-js-vectors",
+  "private": true,
+  "description": "Generates MPF golden vectors with the official aiken-lang off-chain library (test fixture only).",
+  "type": "module",
+  "scripts": {
+    "generate": "node generate-vectors.mjs ../resources/mpf-compat/js-vectors-v1.json"
+  },
+  "dependencies": {
+    "@aiken-lang/merkle-patricia-forestry": "1.3.1"
+  }
+}

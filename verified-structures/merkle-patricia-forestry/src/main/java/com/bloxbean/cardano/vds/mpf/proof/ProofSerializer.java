@@ -58,6 +58,9 @@ public final class ProofSerializer {
             } else if (step instanceof TraversalProof.ForkStep) {
                 TraversalProof.ForkStep fork = (TraversalProof.ForkStep) step;
                 steps.add(encodeForkStep(fork, commitments));
+            } else if (step instanceof TraversalProof.LeafStep) {
+                TraversalProof.LeafStep leaf = (TraversalProof.LeafStep) step;
+                steps.add(new WireProof.LeafStep(leaf.skip(), leaf.neighborKeyHash(), leaf.neighborValueHash()));
             } else {
                 throw new IllegalStateException("Unsupported proof step " + step.getClass());
             }

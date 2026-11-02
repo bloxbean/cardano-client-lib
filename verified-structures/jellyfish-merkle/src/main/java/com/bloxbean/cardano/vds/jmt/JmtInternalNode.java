@@ -11,7 +11,7 @@ import java.math.BigInteger;
 import java.util.Arrays;
 
 /**
- * Radix-16 internal node following ADR-0004 encoding.
+ * Radix-16 internal node: a 16-bit child bitmap and the commitments of the present children.
  */
 public final class JmtInternalNode implements JmtNode {
 

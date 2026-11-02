@@ -8,6 +8,7 @@ import com.bloxbean.cardano.vds.jmt.JmtProof;
 import com.bloxbean.cardano.vds.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.vds.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,7 @@ import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,7 +34,7 @@ class RdbmsJmtDebugTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        String jdbcUrl = "jdbc:h2:mem:test_jmt_debug_" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1";
+        String jdbcUrl = "jdbc:h2:mem:test_jmt_debug_" + UUID.randomUUID().toString().replace('-', '_') + ";DB_CLOSE_DELAY=-1";
         dbConfig = DbConfig.builder()
             .simpleJdbcUrl(jdbcUrl)
             .build();
@@ -46,6 +48,11 @@ class RdbmsJmtDebugTest {
             );
             stmt.execute(schema);
         }
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (dbConfig != null) dbConfig.close();
     }
 
     @Test

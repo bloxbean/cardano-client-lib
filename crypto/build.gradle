@@ -4,6 +4,9 @@ dependencies {
     implementation(libs.bouncycastle.bcprov)
     implementation(libs.i2p.crypto.eddsa)
     implementation(libs.guava)
+    testImplementation(project(':test-support')) {
+        exclude group: 'net.jqwik'
+    }
 }
 
 publishing {

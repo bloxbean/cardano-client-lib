@@ -4,10 +4,20 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.mpf.internal.NodeRefParser;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbRootsIndex;
+import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import org.rocksdb.*;
 
 import java.util.*;
 
+/**
+ * In-memory mark-and-sweep helpers (internal API; prefer {@code GcManager} with
+ * {@code OnDiskMarkSweepStrategy}).
+ *
+ * <p>The sweep only visits the node keys of the store's own namespace, compares them with the reachable set by
+ * node hash, deletes unreachable nodes together with their refcount entries, and leaves every other key alone.
+ * {@link #gcKeepLatest} and {@link #gcKeepVersions} always keep the LATEST root and the root at the last
+ * version.</p>
+ */
 public final class RocksDbGc {
     public static final class Options {
         public boolean dryRun = false;
@@ -23,12 +33,16 @@ public final class RocksDbGc {
 
     /**
      * Marks reachable nodes starting from the given roots.
+     *
+     * @param store      the node store
+     * @param rootHashes the roots to start from
+     * @return hex-encoded hashes (without namespace prefix) of every reachable node
      */
     public static Set<String> markReachable(RocksDbNodeStore store, Collection<byte[]> rootHashes) {
         Deque<byte[]> q = new ArrayDeque<>();
         Set<String> seen = new HashSet<>();
         for (byte[] r : rootHashes)
-            if (r != null && r.length == 32) {
+            if (r != null && r.length > 0) {
                 q.add(r);
                 seen.add(key(r));
             }
@@ -45,21 +59,34 @@ public final class RocksDbGc {
     }
 
     /**
-     * Sweeps unreachable nodes from the nodes CF using a RocksDB WriteBatch for efficiency.
+     * Deletes every node of the store's namespace whose hash is not in {@code reachable}.
+     *
+     * @param store     the node store
+     * @param reachable hex-encoded reachable node hashes, as returned by {@link #markReachable}
+     * @param opts      options
+     * @return the report
      */
     public static Report sweepUnreachable(RocksDbNodeStore store, Set<String> reachable, Options opts) {
         Report report = new Report();
-        try (ReadOptions ro = new ReadOptions();
+        KeyPrefixer keyPrefixer = store.keyPrefixer();
+        int nodeKeyLength = 1 + digestLength(reachable);
+        try (ReadOptions ro = keyPrefixer.createNamespaceScanReadOptions();
              RocksIterator it = store.db().newIterator(store.nodesHandle(), ro);
              WriteOptions wopts = new WriteOptions()) {
             WriteBatch wb = new WriteBatch();
             try {
                 long deleted = 0, total = 0;
-                for (it.seekToFirst(); it.isValid(); it.next()) {
-                    total++;
+                for (it.seek(keyPrefixer.namespaceStart()); it.isValid(); it.next()) {
                     byte[] k = it.key();
-                    if (!reachable.contains(key(k))) {
-                        if (!opts.dryRun) wb.delete(store.nodesHandle(), k);
+                    if (!keyPrefixer.hasCorrectPrefix(k)) break;
+                    if (k.length != nodeKeyLength) continue; // refcount or other entry
+                    total++;
+                    byte[] nodeHash = keyPrefixer.unprefix(k);
+                    if (!reachable.contains(key(nodeHash))) {
+                        if (!opts.dryRun) {
+                            wb.delete(store.nodesHandle(), k);
+                            wb.delete(store.nodesHandle(), keyPrefixer.prefix(RefcountLedger.refKey(nodeHash)));
+                        }
                         deleted++;
                         if (!opts.dryRun && deleted % opts.deleteBatchSize == 0) {
                             store.db().write(wopts, wb);
@@ -84,22 +111,16 @@ public final class RocksDbGc {
         }
     }
 
-    /**
-     * GCs nodes, keeping exactly the specified versions. Use with care; ensure these versions cover all data you want to retain.
-     */
     public static Report gcKeepVersions(RocksDbNodeStore store, RocksDbRootsIndex index, Collection<Long> versions, Options opts) {
-        java.util.List<byte[]> roots = new ArrayList<>();
+        List<byte[]> roots = new ArrayList<>();
         for (Long v : versions) {
             byte[] r = index.get(v);
             if (r != null) roots.add(r);
         }
-        Set<String> reachable = markReachable(store, roots);
+        Set<String> reachable = markReachable(store, GcRoots.retainedRoots(index, idx -> roots));
         return sweepUnreachable(store, reachable, opts);
     }
 
-    /**
-     * Keeps the latest N versions (by version number).
-     */
     public static Report gcKeepLatest(RocksDbNodeStore store, RocksDbRootsIndex index, int latestCount, Options opts) {
         NavigableMap<Long, byte[]> all = index.listAll();
         if (all.isEmpty()) return new Report();
@@ -109,13 +130,10 @@ public final class RocksDbGc {
             keep.add(e.getValue());
             if (++kept >= latestCount) break;
         }
-        Set<String> reachable = markReachable(store, keep);
+        Set<String> reachable = markReachable(store, GcRoots.retainedRoots(index, idx -> keep));
         return sweepUnreachable(store, reachable, opts);
     }
 
-    /**
-     * Starts GC in a background thread; returns the thread for optional join/cancel.
-     */
     public static Thread startGcAsync(Runnable r) {
         Thread t = new Thread(r, "rocksdb-mpt-gc");
         t.setDaemon(true);
@@ -123,8 +141,19 @@ public final class RocksDbGc {
         return t;
     }
 
+    private static int digestLength(Set<String> reachable) {
+        int len = -1;
+        for (String h : reachable) {
+            int l = h.length() / 2;
+            if (len < 0) len = l;
+            else if (len != l) {
+                throw new IllegalStateException("Reachable node hashes have different lengths; a namespace must use a single hash function");
+            }
+        }
+        return len < 0 ? 32 : len;
+    }
+
     private static String key(byte[] h) {
         return HexUtil.encodeHexString(h);
     }
 }
-

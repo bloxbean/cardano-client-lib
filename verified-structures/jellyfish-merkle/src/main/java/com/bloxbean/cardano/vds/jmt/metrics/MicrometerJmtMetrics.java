@@ -10,11 +10,8 @@ import io.micrometer.core.instrument.*;
  *
  * <p><b>Gradle Setup:</b>
  * <pre>
- * // Core JMT (no metrics dependency)
- * implementation 'com.bloxbean.cardano:state-trees:version'
- *
- * // Optional: Add metrics support
- * implementation 'com.bloxbean.cardano:state-trees-metrics:version'
+ * // Core JMT; Micrometer is an optional (compileOnly) dependency of this module
+ * implementation 'com.bloxbean.cardano:cardano-client-jellyfish-merkle:version'
  *
  * // Application provides Micrometer version
  * implementation 'io.micrometer:micrometer-core:1.15.4'
@@ -27,8 +24,8 @@ import io.micrometer.core.instrument.*;
  * MeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
  * JmtMetrics metrics = new MicrometerJmtMetrics(registry, "jmt");
  *
- * // Use in application wrapper
- * MetricsAwareJmtWrapper wrapper = new MetricsAwareJmtWrapper(tree, metrics);
+ * // Pass it to the tree
+ * JellyfishMerkleTree tree = new JellyfishMerkleTree(store, JmtProfile.classicBlake2b256V1(), metrics);
  * </pre>
  *
  * <p><b>Exposed Metrics:</b>
@@ -40,9 +37,10 @@ import io.micrometer.core.instrument.*;
  *   <li>{@code jmt.proof.duration} - Timer (p50/p95/p99)</li>
  *   <li>{@code jmt.read.duration} - Timer (p50/p95/p99)</li>
  *   <li>{@code jmt.cache.hits/misses} - Counters</li>
- *   <li>{@code jmt.prune.duration} - Timer</li>
+ *   <li>{@code jmt.prune.duration} - Timer; {@code jmt.prune.nodes}/{@code jmt.prune.values} - Counters
+ *   (recorded by {@code JellyfishMerkleTree.pruneUpTo})</li>
  *   <li>{@code jmt.storage.version} - Gauge</li>
- *   <li>{@code jmt.rocksdb.*} - RocksDB health gauges</li>
+ *   <li>{@code jmt.rocksdb.*} - RocksDB health gauges (published by {@code RocksDbJmtStore.recordStats})</li>
  * </ul>
  */
 public final class MicrometerJmtMetrics implements JmtMetrics {

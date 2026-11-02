@@ -17,7 +17,8 @@ import java.util.Arrays;
  * proof format are custom and are not compatible with Diem/Aptos JMT. Committing only to a path suffix
  * would leave the leaf unbound to its key and make inclusion/non-inclusion proofs forgeable.
  * <p>
- * Extension nodes (if any) are handled by the Classic proof codec during verification.
+ * The tree never creates extension nodes (internal nodes have no compressed path), and the Classic proof
+ * codec rejects proofs that contain them.
  */
 public final class ClassicJmtCommitmentScheme implements CommitmentScheme {
 
