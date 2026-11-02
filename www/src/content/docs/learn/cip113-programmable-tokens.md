@@ -52,7 +52,7 @@ The CIP calls the minting logic `issuanceLogicScript`. A fourth script, `unfrack
    (base script + Alice's key)           (base script + Bob's key)
 ```
 
-You don't deploy any of this. The library ships descriptions of the public deployments as `Cip113Deployments.PREVIEW`, `PREPROD` and `MAINNET`. This tutorial uses Preview because a local Yaci DevKit has no CIP-113 deployment, and the library has no public API for creating one.
+You don't deploy any of this. The library ships descriptions of the public deployments as `Cip113Deployments.PREVIEW`, `PREPROD` and `MAINNET`. This tutorial uses Preview because that deployment already exists. A new Yaci DevKit devnet doesn't have one. You can deploy the protocol there yourself and pass its description to `Cip113ProgrammableTokenService.create`, which is how the library's integration tests run, but the library has no public API for the deployment itself.
 
 When you build a transaction, the library finds the registry node, adds the protocol's reference inputs, writes its redeemers and sizes the min-ADA on each output. You only state what you want to happen.
 
@@ -169,18 +169,25 @@ public class IssuerApprovedToken {
     }
 
     public void run() throws Exception {
-        prepareLogicScript();
+        prepareLogicScript(); // Needed on every run. It submits nothing.
+
+        // Run 1: fund Alice, register the token and mint.
+        // These work once per wallet, so comment them out before run 2.
         fundAlice();
         registerRewardAccount();
         registerAndMint();
         printBalances("after mint");
-        transferWithoutApproval();
-        transfer();
-        printBalances("after transfer");
-        seize();
-        printBalances("after seizure");
-        burn();
-        printBalances("final");
+
+        // Run 2: uncomment to try a transfer.
+        // transferWithoutApproval();
+        // transfer();
+        // printBalances("after transfer");
+
+        // Run 3: uncomment to seize and burn, after commenting out run 2.
+        // seize();
+        // printBalances("after seizure");
+        // burn();
+        // printBalances("final");
     }
 
     // The methods below go here.
@@ -487,9 +494,13 @@ final           alice=900 bob=60 issuer=0
 
 ## Run it
 
-Here is the complete class:
+Here is the complete class, ready to copy. It runs in stages, so that you can try your first mint before going further:
 
-<details>
+1. **Run it as it is** to register the token and mint 1,000 units to Alice.
+2. **In `run()`, comment out the run 1 lines and uncomment the run 2 lines**, then run it again to transfer to Bob. Run 2 also shows a transfer being rejected without the issuer's approval.
+3. **Comment out the run 2 lines and uncomment the run 3 lines**, then run it again to seize and burn.
+
+<details open>
 <summary>IssuerApprovedToken.java</summary>
 
 ```java
@@ -598,18 +609,25 @@ public class IssuerApprovedToken {
     }
 
     public void run() throws Exception {
-        prepareLogicScript();
+        prepareLogicScript(); // Needed on every run. It submits nothing.
+
+        // Run 1: fund Alice, register the token and mint.
+        // These work once per wallet, so comment them out before run 2.
         fundAlice();
         registerRewardAccount();
         registerAndMint();
         printBalances("after mint");
-        transferWithoutApproval();
-        transfer();
-        printBalances("after transfer");
-        seize();
-        printBalances("after seizure");
-        burn();
-        printBalances("final");
+
+        // Run 2: uncomment to try a transfer.
+        // transferWithoutApproval();
+        // transfer();
+        // printBalances("after transfer");
+
+        // Run 3: uncomment to seize and burn, after commenting out run 2.
+        // seize();
+        // printBalances("after seizure");
+        // burn();
+        // printBalances("final");
     }
 
     // -- Step: the token's logic script
@@ -784,7 +802,7 @@ public class IssuerApprovedToken {
 
 </details>
 
-Running it on Preview prints something like this, with your own hashes:
+On Preview, the three runs print something like this, with your own hashes. Each run starts with the `Logic script` and `Policy id` lines, which are the same every time.
 
 ```text
 Logic script : 88b22cd904b2aee70c4401e1946d7f9dc64f994f2cd78d63506659e7
@@ -793,9 +811,11 @@ Fund alice   : 31035ba6028e7503a46855b76ee670cb40e9e250d245156c6bfc9dc305363c4c
 Reward acct  : d1eb35c75cea0267263af683b753e9f259a2b0278edc45af4baddcdcb5dfff26
 Register     : 1888b7ded91938a781bdaf2b190d0b0d2a7209c6c7266620c35da43276019a76
 after mint      alice=1000 bob=0 issuer=0
+
 Rejected     : Error while evaluating script cost
 Transfer     : dd17f6d0ab4bd396d0e813f2266681b974ca3f97204c84ad37b34047fc11bcc4
 after transfer  alice=900 bob=100 issuer=0
+
 Seize        : bffa140c42094db1409d568f1bcb8f5fe56c68b4046b05a1dc155f0055d34db9
 after seizure   alice=900 bob=60 issuer=40
 Burn         : 2b93d79a3a754975507ded23ff6763bd9ef94af5ec440660722c8c3291957b25
@@ -806,7 +826,7 @@ The whole run cost about 7 tADA from the issuer and 1.6 tADA from Alice, on top 
 
 You can look up each transaction hash in a [Preview explorer](https://preview.cardanoscan.io).
 
-This story runs once per mnemonic, because the token stays registered. To run it from the start again, create a new wallet. With the pauses, our Preview run took about ten minutes.
+Run 1 works once per mnemonic, because the token stays registered. To start again from run 1, create a new wallet. With the pauses, our Preview run took about ten minutes.
 
 ## Use Scalus instead of Aiken
 
@@ -847,6 +867,7 @@ The "issuer" requirement comes from your script, not from the protocol. A differ
 |---|---|---|
 | `All inputs are spent. Transaction has probably already been included` | The backend returned a UTxO that a confirmed transaction had already spent | Wait and retry, or increase `SETTLE_TIME` |
 | `... not confirmed (TIMEOUT): <hash>` | The transaction didn't land within `CONFIRM_TIMEOUT`, and it may still land | Look up the hash in an explorer. Run again once it has landed, using a new wallet if the token is already registered, and increase `CONFIRM_TIMEOUT` |
+| `No covering registry node for policy ...` | The token is already registered, so `registerAndMint()` can't run again on this wallet. Comment out the run 1 lines, or create a new wallet. |
 | `Could not resolve the minting logic script ...` | The chain hasn't revealed your script, and you didn't hand it over | Call `protocol.scripts().register(script)` before building |
 | `ConwayWithdrawalsMissingAccounts` in the submit response | The script's reward account isn't registered | Run [Step 3](#step-3-fund-alice-and-register-the-reward-account) |
 | `No covering registry node for policy ...` | That policy is already registered, usually because you ran the story twice | Skip `register`, or create a new wallet |
