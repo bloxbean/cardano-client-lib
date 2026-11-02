@@ -23,25 +23,6 @@ Use DevKit while you're developing, because the feedback is fast and mistakes co
 Pick the setup that suits your machine. [Get started with Yaci DevKit](https://devkit.yaci.xyz/#get-started) has these and the other options, npm and Zip.
 
 <Tabs>
-<TabItem label="Homebrew">
-
-The native CLI, for macOS 15+ or Linux. You don't need Docker.
-
-```bash
-brew install bloxbean/tap/yaci-devkit
-yaci-devkit up --enable-yaci-store --interactive
-```
-
-[Yaci Viewer](#see-your-transactions-in-yaci-viewer) isn't included with this setup. To add it, run these in another terminal:
-
-```bash
-npm install -g @bloxbean/yaci-viewer
-yaci-viewer
-```
-
-It opens at http://localhost:3000.
-
-</TabItem>
 <TabItem label="Docker">
 
 The whole stack in containers, including [Yaci Viewer](#see-your-transactions-in-yaci-viewer). Docker must be running.
@@ -58,6 +39,25 @@ yaci-cli:> create-node -o --start
 ```
 
 Yaci Viewer opens at http://localhost:5173.
+
+</TabItem>
+<TabItem label="Homebrew (Non Docker)">
+
+The native CLI, for macOS 15+ or Linux. You don't need Docker.
+
+```bash
+brew install bloxbean/tap/yaci-devkit
+yaci-devkit up --enable-yaci-store --interactive
+```
+
+[Yaci Viewer](#see-your-transactions-in-yaci-viewer) isn't included with this setup. To add it, run these in another terminal:
+
+```bash
+npm install -g @bloxbean/yaci-viewer
+yaci-viewer
+```
+
+It opens at http://localhost:3000.
 
 </TabItem>
 </Tabs>
