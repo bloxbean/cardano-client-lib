@@ -38,7 +38,8 @@ www/
 │   ├── generate-llms-txt.mjs   /llms.txt and /llms-full.txt
 │   ├── llms-integration.mjs    serves those in dev, writes them at build
 │   ├── check-links.mjs         internal-link gate, part of `npm run build`
-│   └── migrate-nextra.mjs      one-shot import from the old site (historical)
+│   ├── legacy-redirects.mjs    old /docs/ URLs and the pages they forward to
+│   └── check-redirects.mjs     fails the build if a redirect target is missing
 └── public/                 logo, favicon
 ```
 
@@ -139,6 +140,3 @@ cannot describe.
 
 Fork, branch, commit, and open a pull request against `master`. Run `npm run build` first — it is
 the same check CI runs, and it catches broken links and missing sidebar entries.
-
-The previous documentation site (Next.js and Nextra) is still in `docs/` and is no longer the
-place to make changes.

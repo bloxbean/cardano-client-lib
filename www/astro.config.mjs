@@ -2,11 +2,11 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import llmsIntegration from './scripts/llms-integration.mjs';
+import { legacyRedirects } from './scripts/legacy-redirects.mjs';
 
 /*
- * BASE_PATH lets the same build serve from a subdirectory during preview
- * (`/next/` on GitHub Pages) and from the domain root once it goes live —
- * mirroring the trick the previous Next.js site used in next.config.mjs.
+ * The site is published at the domain root, so BASE_PATH is normally unset. If you do set it, links
+ * written inside page content don't get the prefix.
  */
 const base = process.env.BASE_PATH || undefined;
 
@@ -18,6 +18,7 @@ export default defineConfig({
   markdown: { gfm: true },
   site: 'https://cardano-client.dev',
   base,
+  redirects: legacyRedirects,
   integrations: [
     starlight({
       title: 'Cardano Client Lib',

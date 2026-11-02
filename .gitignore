@@ -166,7 +166,6 @@ rust/jniLibs
 .gradle-user
 .gradle-user-home
 /.claude/
-/docs/public/_pagefind
 .jqwik-database
 **/.jqwik-database
 **/.cifuzz-corpus/
