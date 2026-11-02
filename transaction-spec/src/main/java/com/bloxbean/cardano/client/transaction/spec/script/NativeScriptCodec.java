@@ -17,7 +17,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 
-import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
 
 /**
  * Converts native scripts between {@link DataItem} trees and models, and compares, hashes and prints the models, without

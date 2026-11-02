@@ -21,6 +21,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.TreeMap;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
+
 /**
  * Converts between {@link DataItem} trees and {@link PlutusData} models, and compares and hashes models, without
  * recursion: lists, maps and constructors are frames on an explicit stack, so data of any nesting depth (up to what fits
@@ -165,7 +167,7 @@ final class PlutusDataCodec {
     // indefinite (plutus-core decodeConstrExtended reads it with decodeListLenOrIndef).
     private static long constrAlternative(Tag tag, List<DataItem> items) throws CborDeserializationException {
         if (tag.getValue() == GENERAL_FORM_TAG) {
-            int size = items.size() > 0 && items.get(items.size() - 1) == Special.BREAK ? items.size() - 1 : items.size();
+            int size = withoutBreak(items).size();
             if (size != 2)
                 throw new CborDeserializationException("Cbor deserialization failed. Expected 2 DataItem, found : " + size);
             if (!(items.get(0) instanceof UnsignedInteger) || !(items.get(1) instanceof Array))

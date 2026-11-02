@@ -13,7 +13,7 @@ import java.util.*;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
-import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
 
 /**
  * {@literal

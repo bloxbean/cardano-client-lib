@@ -23,8 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CostMdlsTest {
 
     /**
-     * An indefinite cost array holds no BREAK in a tree from {@link CborSerializationUtil#deserialize(byte[])}, but ends
-     * with one in a tree from cbor-java's own decoder, as callers may pass.
+     * An indefinite cost array holds no BREAK in a tree from {@link CborSerializationUtil#deserialize(byte[])}, but
+     * ends with one in a tree from cbor-java's own decoder, as callers may pass.
      */
     @ParameterizedTest
     @ValueSource(strings = {"a1009f0102ff", "a1009f01ff", "a1009fff", "a100820102"})

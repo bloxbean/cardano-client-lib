@@ -9,6 +9,7 @@ import java.util.List;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
 
 @Getter
 @AllArgsConstructor
@@ -30,7 +31,7 @@ public class ProtocolVersion {
     }
 
     public static ProtocolVersion deserialize(Array array) {
-        List<DataItem> protocolVerDIList = array.getDataItems();
+        List<DataItem> protocolVerDIList = withoutBreak(array.getDataItems());
         if (protocolVerDIList.size() != 2)
             throw new IllegalArgumentException("Invalid protocol version array. Expected 2 items. Found : "
                     + protocolVerDIList.size());

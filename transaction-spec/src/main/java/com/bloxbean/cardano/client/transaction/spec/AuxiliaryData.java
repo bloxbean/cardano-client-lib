@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
-import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
 
 @Data
 @AllArgsConstructor
