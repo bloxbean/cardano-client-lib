@@ -52,7 +52,7 @@ The CIP calls the minting logic `issuanceLogicScript`. A fourth script, `unfrack
    (base script + Alice's key)           (base script + Bob's key)
 ```
 
-You don't deploy any of this. The library ships descriptions of the public deployments as `Cip113Deployments.PREVIEW`, `PREPROD` and `MAINNET`. This tutorial uses Preview because that deployment already exists. A new Yaci DevKit devnet doesn't have one. You can deploy the protocol there yourself and pass its description to `Cip113ProgrammableTokenService.create`, which is how the library's integration tests run, but the library has no public API for the deployment itself.
+You don't deploy any of this. The library ships descriptions of the public deployments as `Cip113Deployments.PREVIEW`, `PREPROD` and `MAINNET`. This tutorial uses Preview because that deployment already exists. A new Yaci DevKit devnet doesn't have one. You can deploy the protocol there with ordinary QuickTx transactions, but the library has no shortcut for it. If you really want to do that, see how [the library's end-to-end tests deploy it](https://github.com/bloxbean/cardano-client-lib/blob/master/programmable-token/src/it/java/com/bloxbean/cardano/client/programmabletoken/cip113/tx/Cip113Bootstrap.java), and pass the resulting description to `Cip113ProgrammableTokenService.create`.
 
 When you build a transaction, the library finds the registry node, adds the protocol's reference inputs, writes its redeemers and sizes the min-ADA on each output. You only state what you want to happen.
 
