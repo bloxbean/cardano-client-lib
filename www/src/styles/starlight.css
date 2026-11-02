@@ -134,3 +134,8 @@
 .hero > .hero-html {
   filter: drop-shadow(0 12px 40px rgb(112 69 175 / 35%));
 }
+
+/* The site title follows the text color, as on the landing page, rather than the accent. */
+.site-title {
+  color: var(--sl-color-white);
+}
