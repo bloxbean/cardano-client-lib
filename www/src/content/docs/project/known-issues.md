@@ -25,9 +25,12 @@ These also affect TxStream, which runs on the same engine.
 | Rollback actions with the default wiring | `DefaultChainDataSupplier` doesn't declare authoritative absence, so `RollbackAction` isn't applied, and a vanished transaction ends `RECOVERY_REQUIRED`. `FlowRuntime` can't supply another adapter | With `FlowEngine`, [opt in](/txflow/policies-results-observability/#submission-and-confirmation-are-separate) with `ObservationCapabilities.withAuthoritativeAbsence(...)` |
 | `FlowExecutionState.ROLLED_BACK` | A run never produces it | Detect a rollback through `FlowErrorCategory.ROLLBACK` |
 
-## Standards
+## Standards and wallets
+
+Follow progress on these in [issue #739](https://github.com/bloxbean/cardano-client-lib/issues/739).
 
 | Issue | What happens | What to do |
 |---|---|---|
 | `CIP67AssetNameUtil.isValidAssetName` | It doesn't check every padding bit, so a bad prefix such as `000de144` is reported as valid | Compare the prefix with `labelToPrefix(label)` |
 | `NFTMetadata.create(byte[])` | Calling `getNFT` or `addNFT` on the result throws `NullPointerException` | Read the values through `getData()` |
+| `DefaultWallet.setAccountNo` | The wallet keeps the stake address of its previous account | Create a new wallet for each account, and set the account before asking for the stake address |

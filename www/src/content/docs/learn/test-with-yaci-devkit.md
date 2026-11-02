@@ -10,7 +10,7 @@ You can run every tutorial on this site in one of two places: a devnet on your o
 | **Setup** | Install and start it once | Nothing to install. Blockfrost needs a free project id; Koios doesn't |
 | **Test ada** | Funded accounts, plus a top-up command | A [faucet](https://docs.cardano.org/cardano-testnets/tools/faucet) |
 | **Block time** | 1 second by default | About 20 seconds on average |
-| **Epoch length** | 500 slots by default, and you can change it | 1 day on Preview, 5 days on Preprod |
+| **Epoch length** | 600 slots by default, and you can change it | 1 day on Preview, 5 days on Preprod |
 | **Who sees it** | Only you | Everyone, permanently |
 | **Start over** | Reset whenever you like | Not possible |
 
