@@ -177,4 +177,4 @@ public static CIP68File create(MapPlutusData map)
 3. Validate URLs and sizes before serialization.
 4. Ensure asset names (prefix + name) stay within 32 bytes (`getAsset` enforces this).
 
-For more information about CIP68, refer to the [official CIP68 specification](https://developers.cardano.org/docs/governance/cardano-improvement-proposals/cip-0068/).
+For more information about CIP68, refer to the [official CIP68 specification](https://cips.cardano.org/cip/CIP-0068).

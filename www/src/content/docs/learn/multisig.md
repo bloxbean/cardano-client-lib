@@ -63,8 +63,6 @@ corresponding **type** in json file.
      This condition guarantees that the actual slot number in which the transaction is included is greater than or equal to slot number X.
      **Type:** "after"
 
-You can find more info about native script [here](https://github.com/input-output-hk/cardano-node/blob/master/doc/reference/simple-scripts.md)
-
 >
 > **Cardano Client Lib** provides apis and helpers to create and manage native scripts in Java.
 
@@ -90,7 +88,7 @@ To spend fund from our multi-sig script address, we need to sign the transaction
 - Sign with 1 regular account and payment secret key
 - Sign with 2 regular account and payment secret key
 
-To create two new regular accounts, check [here](account-setup#create-accounts).
+To create two new regular accounts, check [here](/learn/simple-transfer/#create-sender-and-receiver-accounts).
 
 1. Create **account-1** and **account-2** from existing mnemonics
 
@@ -189,7 +187,7 @@ https://docs.cardano.org/cardano-testnet/tools/faucet
 
 ## Create a Backend Service
 
-Please check [here](account-setup#create-backend-service) to create a ``BackendService`` instance.
+Please check [here](/learn/simple-transfer/#create-backend-service) to create a ``BackendService`` instance.
 
 ## Claim fund from script address - Using QuickTx API
 

@@ -122,7 +122,21 @@ async function main() {
     const html = await fs.readFile(file, 'utf8');
     const page = `/${path.relative(DIST, file).replace(/index\.html$/, '')}`;
 
+    // JSX written in a .md page isn't evaluated, so it prints as text.
+    if (html.includes('style={{')) {
+      const marker = 'raw JSX in Markdown (style={{...}})';
+      if (!broken.has(marker)) broken.set(marker, new Set());
+      broken.get(marker).add(page);
+    }
+
     for (const [, href] of html.matchAll(hrefPattern)) {
+      // A relative link resolves against whichever URL the page is served from, so
+      // it is almost always a leftover from the old site. Treat it as broken.
+      if (!href.startsWith('/') && !/^([a-z][a-z0-9+.-]*:|#|\/\/|\.?\/?_astro|\?)/i.test(href)) {
+        if (!broken.has(href)) broken.set(href, new Set());
+        broken.get(href).add(page);
+        continue;
+      }
       if (!href.startsWith('/') || href.startsWith('//')) continue;
       if (IGNORED.has(href)) continue;
       occurrences += 1;

@@ -19,7 +19,7 @@ First we need to select a network for our transaction. You can choose one of the
 Similarly, choose a backend provider to interact with Cardano blockchain. You can select either Koios or Blockfrost as
 backend provider.
 
-Please check [dependencies](dependencies) page to find the required dependency for your selected backend provider.
+Please check [dependencies](/start-here/installation/) page to find the required dependency for your selected backend provider.
 
 >
 > For **Blockfrost** as backend provider, you need to first create an account on [blockfrost.io](https://blockfrost.io) and get

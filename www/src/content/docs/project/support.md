@@ -3,102 +3,25 @@ title: "Support this project"
 description: "Ways to support continued development of Cardano Client Lib."
 ---
 
-&nbsp;
-
-# Support This Project
-
 If this project helps you reduce time to develop on Cardano or if you just want to support this project, there are several ways to contribute!
 
 ---
 
-<div style={{
-  display: 'grid',
-  gridTemplateColumns: 'repeat(3, 1fr)',
-  gap: '1rem',
-  marginTop: '2rem'
-}}>
-
-<div style={{
-  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(168, 85, 247, 0.1) 100%)',
-  border: '1px solid rgba(139, 92, 246, 0.3)',
-  borderRadius: '12px',
-  padding: '1.25rem',
-  textAlign: 'center',
-  fontSize: '0.85rem'
-}}>
-
 ### Donate ADA
 
-<div style={{ marginTop: '0.75rem' }}><span style={{ fontSize: '0.8rem' }}>💳 Send ADA directly to support development</span></div>
-
-<div style={{
-  marginTop: '0.75rem',
-  padding: '0.5rem',
-  background: 'rgba(0, 0, 0, 0.2)',
-  borderRadius: '8px',
-  fontSize: '0.75rem'
-}}>
+💳 Send ADA directly to support development
 
 **$handle:** `$bloxbean`
 
-</div>
-
-<div style={{
-  marginTop: '0.5rem',
-  padding: '0.5rem',
-  background: 'rgba(0, 0, 0, 0.15)',
-  borderRadius: '8px',
-  fontSize: '0.55rem',
-  wordBreak: 'break-all',
-  fontFamily: 'monospace'
-}}>
-
 addr1qxgka3548k6wmmnelvcd7vgekf6ecplxen8j00c7h8ughyhuteckwgf7pfjzglgw8zr7lk9xkmnfpqeun60zjn7a5nnsl3mys0
 
-</div>
-
-<a href="https://cardanoscan.io/address/01916ec6953db4edee79fb30df3119b2759c07e6cccf27bf1eb9f88b92fc5e7167213e0a64247d0e3887efd8a6b6e690833c9e9e294fdda4e7" style={{
-  display: 'inline-block',
-  marginTop: '0.75rem',
-  padding: '0.5rem 1rem',
-  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-  color: 'white',
-  borderRadius: '8px',
-  textDecoration: 'none',
-  fontWeight: '600',
-  fontSize: '0.8rem'
-}}>View on Cardanoscan</a>
-
-</div>
-
-<div style={{
-  background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(22, 163, 74, 0.1) 100%)',
-  border: '1px solid rgba(34, 197, 94, 0.3)',
-  borderRadius: '12px',
-  padding: '1.25rem',
-  textAlign: 'center',
-  fontSize: '0.85rem'
-}}>
+[View on Cardanoscan](https://cardanoscan.io/address/01916ec6953db4edee79fb30df3119b2759c07e6cccf27bf1eb9f88b92fc5e7167213e0a64247d0e3887efd8a6b6e690833c9e9e294fdda4e7)
 
 ### Star the Repo
 
-<div style={{ marginTop: '0.75rem' }}><span style={{ fontSize: '0.8rem' }}>🌟 Show your support by starring the repository</span></div>
+🌟 Show your support by starring the repository
 
-<a href="https://github.com/bloxbean/cardano-client-lib" style={{
-  display: 'inline-block',
-  marginTop: '0.75rem',
-  padding: '0.5rem 1rem',
-  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-  color: 'white',
-  borderRadius: '8px',
-  textDecoration: 'none',
-  fontWeight: '600',
-  fontSize: '0.8rem'
-}}>Star on GitHub</a>
-
-</div>
-
-</div>
+[Star on GitHub](https://github.com/bloxbean/cardano-client-lib)
 
 ---
 
@@ -106,67 +29,13 @@ addr1qxgka3548k6wmmnelvcd7vgekf6ecplxen8j00c7h8ughyhuteckwgf7pfjzglgw8zr7lk9xkmn
 
 A huge thank you to our generous sponsors who have supported this project!
 
-<div style={{
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: '1rem',
-  marginTop: '1.5rem'
-}}>
+[🏢 Blockfrost](https://github.com/blockfrost)
 
-<a href="https://github.com/blockfrost" style={{
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-  padding: '0.75rem 1.25rem',
-  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
-  border: '1px solid rgba(59, 130, 246, 0.2)',
-  borderRadius: '10px',
-  textDecoration: 'none',
-  color: 'inherit',
-  fontWeight: '500',
-  transition: 'transform 0.2s ease'
-}}>🏢 Blockfrost</a>
+[👨‍💻 KtorZ](https://github.com/KtorZ)
 
-<a href="https://github.com/KtorZ" style={{
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-  padding: '0.75rem 1.25rem',
-  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
-  border: '1px solid rgba(168, 85, 247, 0.2)',
-  borderRadius: '10px',
-  textDecoration: 'none',
-  color: 'inherit',
-  fontWeight: '500',
-  transition: 'transform 0.2s ease'
-}}>👨‍💻 KtorZ</a>
-
-<a href="https://github.com/djcyr" style={{
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-  padding: '0.75rem 1.25rem',
-  background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(22, 163, 74, 0.1) 100%)',
-  border: '1px solid rgba(34, 197, 94, 0.2)',
-  borderRadius: '10px',
-  textDecoration: 'none',
-  color: 'inherit',
-  fontWeight: '500',
-  transition: 'transform 0.2s ease'
-}}>👨‍💻 djcyr</a>
-
-</div>
+[👨‍💻 djcyr](https://github.com/djcyr)
 
 ---
-
-<div style={{
-  marginTop: '2rem',
-  padding: '1.5rem',
-  background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.1) 100%)',
-  border: '1px solid rgba(251, 191, 36, 0.3)',
-  borderRadius: '12px',
-  textAlign: 'center'
-}}>
 
 ### 💡 Other Ways to Contribute
 
@@ -178,4 +47,3 @@ A huge thank you to our generous sponsors who have supported this project!
 
 **Write tutorials** or documentation improvements
 
-</div>

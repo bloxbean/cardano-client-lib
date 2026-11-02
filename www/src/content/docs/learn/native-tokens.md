@@ -10,11 +10,11 @@ sender account to 5 receiver addresses.
 
 ## Select a Network and Provider
 
-[Check here](account-setup#select-a-network-and-provider) to select a network and provider.
+[Check here](/learn/simple-transfer/#select-a-network-and-provider) to select a network and provider.
 
 ## Create a Sender account
 
-[Check here](account-setup#create-accounts) to setup an account.
+[Check here](/learn/simple-transfer/#create-sender-and-receiver-accounts) to setup an account.
 
 The Account created need to have some Fungible Tokens so we can distribute them to other addresses.
 In This Example let's assume we have some Charlie3 Tokens already in possession in our Sender Account Base Address.
@@ -31,7 +31,7 @@ addr_test1q9hp9mja7fjyh9hy8mkstn6uuxtn98z3fgryy75qh8hpmhp3hdmcfrjy06m5f7ht8mecge
 
 ## Create Backend Service
 
-[Check here](account-setup#create-backend-service) to create a backend provider instance.
+[Check here](/learn/simple-transfer/#create-backend-service) to create a backend provider instance.
 
 ## Token Distribution Transaction - Using QuickTx API
 
