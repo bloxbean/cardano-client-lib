@@ -18,7 +18,7 @@ Account account = new Account(Networks.testnet());  //Create a Testnet account
 ```
 String baseAddress = account.baseAddress();  //Base address at index=0
 
-String enterpriseAddress = account.account.enterpriseAddress();  //Enterprise address at index = 0
+String enterpriseAddress = account.enterpriseAddress();  //Enterprise address at index = 0
 
 String mnemonic = account.mnemonic();  //Get Mnemonic
 ```
@@ -27,18 +27,17 @@ String mnemonic = account.mnemonic();  //Get Mnemonic
 
 ```
 String mnemonic = "...";
-Account account = new Account(mnemonic);  //Create a Mainnet account from Mnemonic
+Account account = Account.createFromMnemonic(Networks.mainnet(), mnemonic);  //Create a Mainnet account from Mnemonic
 
-Account account = new Account(Networks.testnet(), mnemonic); //Create a Testnet account from Mnemonic
+Account account = Account.createFromMnemonic(Networks.testnet(), mnemonic); //Create a Testnet account from Mnemonic
 ```
 
 ## Create Blockfrost Backend Service and get other services
 ```
 BackendService backendService =
-                new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, <BF_PROJECT_ID>);
+                new BFBackendService(Constants.BLOCKFROST_PREVIEW_URL, "<BF_PROJECT_ID>");
 
 FeeCalculationService feeCalculationService = backendService.getFeeCalculationService();
-TransactionHelperService transactionHelperService = backendService.getTransactionHelperService();
 TransactionService transactionService = backendService.getTransactionService();
 BlockService blockService = backendService.getBlockService();
 AssetService assetService = backendService.getAssetService();
@@ -71,41 +70,7 @@ Result<String> result = quickTxBuilder
 
 ```
 
-## Simple ADA Payment (Composable functions)
-```java
-//Define expected outputs
-Output output1 = Output.builder()
-        .address(receiverAddress1)
-        .assetName(LOVELACE)
-        .qty(adaToLovelace(10))
-        .build();
-
- Output output2 = Output.builder()
-        .address(receiverAddress2)
-        .assetName(LOVELACE)
-        .qty(adaToLovelace(20))
-        .build();
-
- // Create a CIP20 message metadata
- MessageMetadata metadata = MessageMetadata.create()
-                    .add("First transfer transaction");
-
- // Define TxBuilder
- TxBuilder txBuilder = output1.outputBuilder()
-        .and(output2.outputBuilder())
-        .buildInputs(createFromSender(senderAddress, senderAddress))
-        .andThen(metadataProvider(metadata))
-        .andThen(balanceTx(senderAddress, 1));
-
- UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
- ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
-
- //Build and sign the transaction
- Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier)
-                            .buildAndSign(txBuilder, signerFrom(senderAccount));
- //Submit the transaction
- Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
-```
+QuickTx is the recommended way to build transactions. The lower-level [composable functions](/reference/composable-functions/) API is the internal layer beneath it.
 
 ## ScriptHash
 ```
@@ -146,5 +111,5 @@ MetadataList tagList = MetadataBuilder.createList()
 
 Metadata metadata = MetadataBuilder.createMetadata()
                 .put(new BigInteger("670001"), productDetailsMap)
-                .put(new BigInteger("670001"), productDetailsMap);
+                .put(new BigInteger("670002"), tagList);
 ```

@@ -14,8 +14,8 @@ Use QuickTx when you want the happy path to be short and readable, but still nee
 - Compose multiple `Tx`/`ScriptTx` into one transaction
 - Per-tx overrides for UTXO selection, reference scripts, and verifiers
 
-> **Preview — Unified Tx API**: from 0.8.0-pre5, all `ScriptTx` operations are available directly on `Tx`.
-> `ScriptTx` is deprecated. See the [Unified Tx API](/quicktx/unified-tx/) documentation for details and migration guide.
+> **Preview — Unified Tx API**: in the 0.8.0 previews, all `ScriptTx` operations are also available on `Tx`, and
+> `ScriptTx` is deprecated there. It isn't deprecated in the stable 0.7.x releases. See the [Unified Tx API](/quicktx/unified-tx/) documentation for details and migration guide.
 
 > **Preview — YAML Transaction Plans**: Define transactions in YAML with variable substitution and execute them
 > through QuickTxBuilder. See the [TxPlan](/txplan/overview/) documentation.
@@ -24,7 +24,7 @@ Use QuickTx when you want the happy path to be short and readable, but still nee
 
 - **Group ID**: com.bloxbean.cardano
 - **Artifact ID**: cardano-client-quicktx
-- **Depends on**: core, core-api, backend
+- **Depends on**: core, function, backend, hd-wallet
 
 ## Constructing the Builder
 
@@ -87,10 +87,10 @@ Asset asset = Asset.builder()
         .build();
 
 ScriptTx tx = new ScriptTx()
-        .mintAsset(mintingScript, asset, PlutusData.unit(), receiverAddress)
-        .from(sender.baseAddress());
+        .mintAsset(mintingScript, asset, PlutusData.unit(), receiverAddress);
 
 TxResult result = quickTxBuilder.compose(tx)
+        .feePayer(sender.baseAddress())
         .withSigner(SignerProviders.signerFrom(sender))
         .complete();
 ```
@@ -98,15 +98,14 @@ TxResult result = quickTxBuilder.compose(tx)
 ### Staking
 
 ```java
-String stakeAddress = "..."; // base or reward address
 String poolId = "...";
 
 Tx delegateTx = new Tx()
-        .delegateTo(stakeAddress, poolId)
+        .delegateTo(sender.baseAddress(), poolId) // a base or reward address
         .from(sender.baseAddress());
 
 Tx withdrawTx = new Tx()
-        .withdraw(stakeAddress, BigInteger.valueOf(1_000_000)) // in lovelace
+        .withdraw(sender.stakeAddress(), BigInteger.valueOf(1_000_000)) // a reward address; the whole balance, in lovelace
         .from(sender.baseAddress());
 ```
 
@@ -158,9 +157,13 @@ TxContext ctx = quickTxBuilder.compose(tx1, tx2)
 
 Transaction unsigned = ctx.build();
 Transaction signed   = ctx.buildAndSign();
-TxResult submitted   = ctx.complete();
-TxResult confirmed   = ctx.completeAndWait(); // returns TxStatus (SUBMITTED/CONFIRMED/TIMEOUT/FAILED)
+TxResult submitted   = ctx.complete();        // submit, and don't wait
+TxResult waited      = ctx.completeAndWait(); // submit, and wait up to 60 seconds
 ```
+
+Call one of `complete` or `completeAndWait` once: each of them builds and submits a transaction.
+
+`isSuccessful()` on the result only means that the submission worked. After `completeAndWait`, check `getTxStatus()`, which is `CONFIRMED`, `PENDING`, `TIMEOUT` or `FAILED`. On `PENDING` or `TIMEOUT`, the transaction may still land.
 
 Execution flow:
 - Build one or more `Tx`/`ScriptTx` describing intent.

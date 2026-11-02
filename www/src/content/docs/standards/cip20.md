@@ -9,7 +9,7 @@ CIP20 (Cardano Improvement Proposal 20) defines a standard for adding messages, 
 
 - **Standard Compliance**: Full CIP20 specification support
 - **Message Metadata**: Add messages/comments to transactions
-- **Validation**: Built-in validation for message length (max 64 characters)
+- **Validation**: Built-in validation for message length (max 64 bytes)
 - **Multiple Messages**: Support for multiple messages in a single transaction
 - **Easy Integration**: Simple API for adding metadata to transactions
 
@@ -66,7 +66,7 @@ Result<String> result = quickTxBuilder.compose(tx)
 
 ### Working with Message Lists
 
-Retrieve the stored messages to display or process them after deserialization.
+Retrieve the stored messages to display or process them.
 
 The following example shows how to retrieve and work with messages from metadata.
 
@@ -177,18 +177,18 @@ public static MessageMetadata create()
 ##### add(String message)
 Adds a message to the metadata. Each message must be:
 - Non-null
-- Maximum 64 characters in UTF-8 encoding
+- Maximum 64 bytes in UTF-8 encoding
 
 ```java
 public MessageMetadata add(String message)
 ```
 
 **Parameters:**
-- `message` - The message to add (max 64 characters)
+- `message` - The message to add (max 64 UTF-8 bytes)
 
 **Returns:** The MessageMetadata instance for chaining
 
-**Throws:** `IllegalArgumentException` if message is null or exceeds 64 characters
+**Throws:** `IllegalArgumentException` if message is null or exceeds 64 bytes
 
 ##### getMessages()
 Retrieves all messages from the metadata.
@@ -228,13 +228,13 @@ Messages are stored as an array of strings under the "msg" key:
 ```
 
 ### Constraints
-- Each message must be a maximum of 64 characters when encoded in UTF-8
+- Each message must be at most 64 bytes when encoded in UTF-8
 - Messages cannot be null
 - Multiple messages are supported in a single transaction
 
 ## Best Practices
 
-1. **Keep messages concise** - The 64-character limit encourages brief, informative messages
+1. **Keep messages concise** - The 64-byte limit encourages brief, informative messages
 2. **Use meaningful content** - Include relevant information like invoice numbers, references, or confirmations
 3. **Validate input** - Always handle validation errors when adding messages
 4. **Consider privacy** - Remember that metadata is publicly visible on the blockchain
@@ -245,9 +245,12 @@ Messages are stored as an array of strings under the "msg" key:
 ### With CIP25 (NFT Metadata)
 ```java
 // Create CIP25 NFT metadata
-NFT nftMetadata = NFT.create()
+NFT nft = NFT.create()
+    .assetName("MyNFT")
     .name("My NFT")
+    .image("ipfs://...")
     .description("A sample NFT");
+NFTMetadata nftMetadata = NFTMetadata.create().addNFT(policyId, nft);
 
 // Create CIP20 message metadata
 MessageMetadata messageMetadata = MessageMetadata.create()

@@ -52,11 +52,16 @@ Pass the CBOR metadata into your transaction so wallets and indexers can read it
 Attach the CBOR metadata when building your transaction.
 
 ```java
+// mintingScript is your NativeScript policy, and policyId its getPolicyId()
+Asset nftAsset = new Asset("MyAwesomeNFT", BigInteger.ONE);
+
 Tx tx = new Tx()
-        .mintAssets(mintingScript, List.of(nftAsset))
+        .mintAssets(mintingScript, List.of(nftAsset), senderAddress)
         .attachMetadata(nftMetadata)
         .from(senderAddress);
 ```
+
+For a complete example, see [Minting an NFT](/learn/minting-an-nft/).
 
 ### Working with Files
 
@@ -114,7 +119,7 @@ public String getAssetName()
 public NFT name(String name)
 public String getName()
 
-public NFT image(String imageUri) // call multiple times to add more
+public NFT image(String imageUri) // a URI over 64 bytes is split into chunks
 public List<String> getImages()
 
 public NFT mediaType(String mediaType)
@@ -161,7 +166,7 @@ public NFTFile property(String name, List<String> values)
 
 1. Use HTTPS or IPFS links for images/files.
 2. Keep metadata concise to reduce transaction size.
-3. Store multi-value fields via repeated `image`, `description`, or `src` calls.
+3. Set one `image` per NFT: CIP-25 reads an `image` array as the chunks of one URI, so a second call would corrupt it. Use `addFile` for more files.
 4. Set `assetName` on the `NFT` before adding it to `NFTMetadata`.
 5. Validate URLs and lengths in your application code (no built-in validators are present).
 

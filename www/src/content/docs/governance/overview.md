@@ -43,9 +43,11 @@ Create QuickTxBuilder and Account instances for governance operations:
 ```java
 QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
 
-Account account = new Account(Networks.preprod(), "your mnemonic words");
+Account account = Account.createFromMnemonic(Networks.preprod(), "your mnemonic words");
 String address = account.baseAddress();
 ```
+
+In the examples below, `<anchor_datahash>` is a `byte[]`, the Blake2b-256 hash of the anchor document. If you have it as hex, use `HexUtil.decodeHexString(hash)`. Actions that follow an earlier action need `prevGovActionId` to be the last enacted action of that type on your network.
 
 ### DRep Management
 
@@ -90,7 +92,7 @@ Update DRep information (remove anchor):
 ```java
  Tx drepRegTx = new Tx()
         .updateDRep(account.drepCredential())
-        .from(senderAddr);
+        .from(address);
 
 Result<String> result = quickTxBuilder.compose(drepRegTx)
         .withSigner(SignerProviders.drepKeySignerFrom(account))
@@ -101,11 +103,11 @@ Result<String> result = quickTxBuilder.compose(drepRegTx)
 Update DRep information with a new anchor:
 
 ```java
-var newAnchor = new Anchor("<anchor_url>", "<anchor_datahash>");
+var newAnchor = new Anchor("<anchor_url>", <anchor_datahash>);
 
 Tx drepRegTx = new Tx()
         .updateDRep(account.drepCredential(), newAnchor)
-        .from(senderAddr);
+        .from(address);
 
 Result<String> result = quickTxBuilder.compose(drepRegTx)
         .withSigner(SignerProviders.drepKeySignerFrom(account))
@@ -277,10 +279,10 @@ Result<String> result = quickTxBuilder.compose(tx)
 Delegate voting power to a DRep:
 
 ```java
-DRep drep = DRepId.toDrep(drepId, DRepType.ADDR_KEYHASH);
+DRep drep = GovId.toDrep(drepId); // the DRep's drep1... id
 
 Tx tx = new Tx()
-        .delegateVotingPowerTo(account, drep)
+        .delegateVotingPowerTo(account.baseAddress(), drep)
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)

@@ -89,13 +89,13 @@ const MODULE_INFO = {
     purpose: 'UtxoSupplier/ProtocolParamsSupplier backed by Ogmios, usable without a full backend.',
     entry: 'com.bloxbean.cardano.client.supplier.ogmios',
     tier: 'support',
-    artifact: 'cardano-client-ogmios-supplier',
+    artifact: 'cardano-client-supplier-ogmios-supplier',
   },
   'supplier:kupo-supplier': {
     purpose: 'UtxoSupplier backed by Kupo.',
     entry: 'com.bloxbean.cardano.client.supplier.kupo',
     tier: 'support',
-    artifact: 'cardano-client-kupo-supplier',
+    artifact: 'cardano-client-supplier-kupo-supplier',
   },
   'plutus-aiken': {
     purpose: 'Aiken interop: load Aiken blueprints and apply parameters to Aiken-built validators.',
@@ -313,7 +313,7 @@ async function readModules() {
     .filter((name) => {
       // Aggregator/test-only projects are not something a user depends on.
       if (['cip', 'backend-modules', 'supplier', 'verified-structures', 'txflow-extensions'].includes(name)) return false;
-      if (['integration-test', 'it-support', 'test-support'].includes(name)) return false;
+      if (['integration-test', 'it-support', 'test-support', 'native-image-test'].includes(name)) return false;
       if (name.endsWith(':txflow-soak')) return false;
       if (name.endsWith(':load-tools')) return false;
       return true;

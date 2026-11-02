@@ -28,7 +28,7 @@ The main interface for all backend service implementations, providing access to 
 - `AddressService` - Address information and history
 - `AssetService` - Native token and NFT data
 - `BlockService` - Block information and navigation
-- `EpochService` - Epoch and staking information
+- `EpochService` - Epoch information and protocol parameters
 
 ## Supported Backend Services
 
@@ -67,9 +67,7 @@ Initialize Koios backend service for community-driven API:
 
 ```java
 // Initialize Koios service
-BackendService backendService = new KoiosBackendService(
-    "https://api.koios.rest/api/v1"
-);
+BackendService backendService = new KoiosBackendService(Constants.KOIOS_MAINNET_URL);
 
 // Access services
 TransactionService transactionService = backendService.getTransactionService();
@@ -77,8 +75,8 @@ UtxoService utxoService = backendService.getUtxoService();
 AddressService addressService = backendService.getAddressService();
 
 // Query address information
-List<AddressContent> addressInfo = addressService.getAddressInfo("addr1...");
-System.out.println("Address balance: " + addressInfo.get(0).getAmount());
+Result<AddressContent> addressInfo = addressService.getAddressInfo("addr1...");
+System.out.println("Address balance: " + addressInfo.getValue().getAmount());
 ```
 
 ### Ogmios Integration
@@ -115,7 +113,7 @@ BackendService backendService = new KupmiosBackendService(
     "http://localhost:1442"   // Kupo URL
 );
 
-// Now you have access to all services:
+// Only these services are available; the others throw UnsupportedOperationException:
 // - Kupo provides: UtxoService
 // - Ogmios provides: TransactionService, ProtocolParams
 TransactionService transactionService = backendService.getTransactionService();
@@ -185,7 +183,7 @@ BackendService bfService = new BFBackendService(
 
 // Koios
 BackendService koiosService = new KoiosBackendService(
-    "https://api.koios.rest/api/v1");
+    com.bloxbean.cardano.client.backend.koios.Constants.KOIOS_MAINNET_URL);
 
 // Kupmios (Ogmios + Kupo)
 BackendService kupmiosService = new KupmiosBackendService(
@@ -198,15 +196,15 @@ Query blockchain data using backend services:
 
 ```java
 // Get UTXO information
-List<Utxo> utxos = utxoService.getUtxos("addr1...", 50, 1);
-System.out.println("Found " + utxos.size() + " UTXOs");
+Result<List<Utxo>> utxos = utxoService.getUtxos("addr1...", 50, 1);
+System.out.println("Found " + utxos.getValue().size() + " UTXOs");
 
 // Get transaction details
-Transaction transaction = transactionService.getTransaction("tx_hash...");
-System.out.println("Transaction fee: " + transaction.getFee());
+Result<TransactionContent> transaction = transactionService.getTransaction("tx_hash...");
+System.out.println("Transaction fee: " + transaction.getValue().getFees());
 
 // Get address balance
-AddressContent addressInfo = addressService.getAddressInfo("addr1...").get(0);
+AddressContent addressInfo = addressService.getAddressInfo("addr1...").getValue();
 System.out.println("Address balance: " + addressInfo.getAmount());
 ```
 
@@ -215,12 +213,12 @@ System.out.println("Address balance: " + addressInfo.getAmount());
 | Service | Purpose | Key Methods |
 |---------|---------|-------------|
 | **TransactionService** | Transaction operations | `submitTransaction()`, `getTransaction()` |
-| **UtxoService** | UTXO management | `getUtxos()`, `getUtxoByTxnIdAndIndex()` |
-| **AddressService** | Address information | `getAddressInfo()`, `getAddressTransactions()` |
+| **UtxoService** | UTXO management | `getUtxos()`, `getTxOutput()` |
+| **AddressService** | Address information | `getAddressInfo()`, `getTransactions()` |
 | **AssetService** | Asset and token data | `getAsset()`, `getAssetAddresses()` |
 | **BlockService** | Block information | `getLatestBlock()`, `getBlockByHash()` |
-| **EpochService** | Epoch and staking data | `getLatestEpoch()`, `getEpochParameters()` |
-| **MetadataService** | Transaction metadata | `getTransactionMetadata()` |
+| **EpochService** | Epochs and protocol parameters | `getLatestEpoch()`, `getProtocolParameters()` |
+| **MetadataService** | Transaction metadata | `getJSONMetadataByTxnHash()`, `getCBORMetadataByTxnHash()` |
 | **FeeCalculationService** | Fee estimation | `calculateFee()` |
 
 The Backend Services API provides a flexible and robust foundation for Cardano blockchain integration across multiple provider ecosystems.

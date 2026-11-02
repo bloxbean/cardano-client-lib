@@ -5,7 +5,7 @@ description: "Mint a one-of-a-kind token with CIP-25 metadata and a time-locked 
 
 An NFT on Cardano is a native token with a quantity of 1, whose policy can't mint any more. In this tutorial you'll create that policy, describe the token with CIP-25 metadata, mint it on the Preview testnet and find it in your wallet.
 
-**Before you start**, follow [Your first transaction](/learn/simple-transfer/) to [create an account](/learn/simple-transfer/#create-sender-and-receiver-accounts), fund it from the [faucet](/learn/simple-transfer/#topup-sender-account-with-test-ada) and get a Blockfrost project id. The [dependencies](/start-here/installation/) are `cardano-client-lib` and `cardano-client-backend-blockfrost`.
+**Before you start**, follow [Your first transaction](/learn/simple-transfer/) to [create an account](/learn/simple-transfer/#create-sender-and-receiver-accounts), fund it from the [faucet](/learn/simple-transfer/#topup-sender-account-with-test-ada) and get a Blockfrost project id. To use a local network instead, see [Test locally with Yaci DevKit](/learn/test-with-yaci-devkit/). The [dependencies](/start-here/installation/) are `cardano-client-lib` and `cardano-client-backend-blockfrost`.
 
 The code reads your settings from the environment:
 
@@ -118,7 +118,7 @@ public class MintNft {
     public static void main(String[] args) throws Exception {
         BackendService backend = new BFBackendService(
                 Constants.BLOCKFROST_PREVIEW_URL, System.getenv("BF_PROJECT_ID"));
-        Account minter = new Account(Networks.preview(), System.getenv("TUTORIAL_MNEMONIC"));
+        Account minter = Account.createFromMnemonic(Networks.preview(), System.getenv("TUTORIAL_MNEMONIC"));
 
         mint(backend, minter);
     }
@@ -191,6 +191,6 @@ To see the metadata, look up your transaction hash in a [Preview explorer](https
 
 ## Next steps
 
-- [Native tokens](/learn/native-tokens/): send tokens to many receivers.
+- [Multi-sig transfers](/learn/multisig/): the next step in this path, with a script that needs several signatures.
 - [CIP-68](/standards/cip68/): NFTs whose metadata can be updated.
 - [cardano-client-examples](https://github.com/bloxbean/cardano-client-examples) has more minting samples, such as [minting with QuickTx](https://github.com/bloxbean/cardano-client-examples/blob/main/src/test/java/com/bloxbean/cardano/client/example/quicktx/Minting.java) and [minting with several scripts](https://github.com/bloxbean/cardano-client-examples/blob/main/src/test/java/com/bloxbean/cardano/client/example/quicktx/MultiScriptMinting.java). They aren't updated with every release.

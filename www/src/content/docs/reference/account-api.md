@@ -72,7 +72,7 @@ Create accounts using the recommended factory methods or constructors:
 // Recommended: Factory methods
 Account account = Account.createFromMnemonic(Networks.testnet(), mnemonic);
 
-// With specific account and address index (m/1852'/1815'/1/0/2)
+// With specific account and address index (m/1852'/1815'/1'/0/2)
 Account account = Account.createFromMnemonic(Networks.testnet(), mnemonic, 1, 2);
 
 // From root key (96 bytes: private key + chain code)
@@ -206,13 +206,7 @@ Credential ccHotCredential = account.committeeHotCredential();
 Sign transactions using the account's payment key:
 
 ```java
-// Create transaction signer from account
-TransactionSigner signer = SignerProviders.signerFrom(account);
-
-// Sign a transaction
-Transaction signedTransaction = signer.sign(transaction);
-
-// Alternative: Direct signing with account
+// Sign a transaction directly with the account
 Transaction signedTx = account.sign(transaction);
 ```
 
@@ -280,13 +274,13 @@ Manage multiple accounts for different purposes:
 
 ```java
 // Main spending account
-Account spendingAccount = new Account(Networks.mainnet(), spendingMnemonic);
+Account spendingAccount = Account.createFromMnemonic(Networks.mainnet(), spendingMnemonic);
 
 // Savings account
-Account savingsAccount = new Account(Networks.mainnet(), savingsMnemonic);
+Account savingsAccount = Account.createFromMnemonic(Networks.mainnet(), savingsMnemonic);
 
 // Business account
-Account businessAccount = new Account(Networks.mainnet(), businessMnemonic);
+Account businessAccount = Account.createFromMnemonic(Networks.mainnet(), businessMnemonic);
 
 // Get addresses for each account
 String spendingAddress = spendingAccount.baseAddress();

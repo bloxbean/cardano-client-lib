@@ -11,7 +11,7 @@ The 0.8.0 previews add several major features for building Cardano applications 
 
 ### [Unified Tx API](/quicktx/unified-tx/)
 
-`ScriptTx` is deprecated. All script operations, such as `collectFrom` with redeemers, Plutus minting, validator attachment, and script-protected staking and governance, are available directly on the `Tx` class. You no longer choose between `Tx` and `ScriptTx`, and you can mix script and non-script operations in one transaction.
+`ScriptTx` is deprecated in the 0.8.0 previews (not in stable 0.7.x). All script operations, such as `collectFrom` with redeemers, Plutus minting, validator attachment, and script-protected staking and governance, are available directly on the `Tx` class. You no longer choose between `Tx` and `ScriptTx`, and you can mix script and non-script operations in one transaction.
 
 ### [TxFlow: multi-step transactions](/txflow/overview/)
 

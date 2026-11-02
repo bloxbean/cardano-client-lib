@@ -139,7 +139,7 @@ String hex160 = HexUtil.encodeHexString(hash160);
 
 ```java
 // Bech32
-String bech32Key = Bech32.encode("addr_vk", publicKey.getBytes());
+String bech32Key = Bech32.encode(publicKey.getBytes(), "addr_vk");
 Bech32.Bech32Data decoded = Bech32.decode(bech32Key);
 
 // Hex

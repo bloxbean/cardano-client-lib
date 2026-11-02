@@ -11,7 +11,7 @@ The Metadata API provides comprehensive functionality for creating, managing, an
 - **JSON Conversion**: Convert between JSON and CBOR metadata formats
 - **Structured Data**: Support for maps, lists, and nested data structures
 - **Type Safety**: Strong typing for different metadata value types
-- **Validation**: Built-in validation for metadata structure and size limits
+- **Long strings**: Strings in metadata maps and lists are split into 64-byte chunks
 - **Builder Pattern**: Convenient builder pattern for metadata construction
 
 ## Core Classes
@@ -119,8 +119,7 @@ String jsonMetadata = """
     },
     "675": {
         "field1": "value1",
-        "field2": 42,
-        "field3": true
+        "field2": 42
     }
 }
 """;

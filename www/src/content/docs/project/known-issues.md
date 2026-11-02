@@ -1,6 +1,6 @@
 ---
 title: "Known issues"
-description: "Known gaps in TxFlow and TxStream in the latest preview, and how to work around them."
+description: "Known gaps in the latest preview, and how to work around them."
 ---
 
 These gaps are in the [latest preview](/start-here/installation/#versions), and we plan to fix them in a coming release. Follow progress in [issue #738](https://github.com/bloxbean/cardano-client-lib/issues/738).
@@ -24,3 +24,10 @@ These also affect TxStream, which runs on the same engine.
 | `spec.execution.validity` | It has no effect, so the transaction gets no validity interval from it | Set `valid_from_slot` and `valid_to_slot` in the transaction's `context` |
 | Rollback actions with the default wiring | `DefaultChainDataSupplier` doesn't declare authoritative absence, so `RollbackAction` isn't applied, and a vanished transaction ends `RECOVERY_REQUIRED`. `FlowRuntime` can't supply another adapter | With `FlowEngine`, [opt in](/txflow/policies-results-observability/#submission-and-confirmation-are-separate) with `ObservationCapabilities.withAuthoritativeAbsence(...)` |
 | `FlowExecutionState.ROLLED_BACK` | A run never produces it | Detect a rollback through `FlowErrorCategory.ROLLBACK` |
+
+## Standards
+
+| Issue | What happens | What to do |
+|---|---|---|
+| `CIP67AssetNameUtil.isValidAssetName` | It doesn't check every padding bit, so a bad prefix such as `000de144` is reported as valid | Compare the prefix with `labelToPrefix(label)` |
+| `NFTMetadata.create(byte[])` | Calling `getNFT` or `addNFT` on the result throws `NullPointerException` | Read the values through `getData()` |

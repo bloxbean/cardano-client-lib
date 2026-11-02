@@ -28,7 +28,7 @@ Sign arbitrary payload bytes together with the user's address (embedded in COSE 
 // Create account for signing
 Account signerAccount = Account.createFromMnemonic(Networks.testnet(), "your mnemonic words");
 
-byte[] addressBytes = signerAccount.baseAddress().getBytes();
+byte[] addressBytes = signerAccount.getBaseAddress().getBytes(); // raw address bytes, not the bech32 text
 byte[] payload = "Hello from dApp!".getBytes(StandardCharsets.UTF_8);
 
 DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
@@ -77,7 +77,7 @@ DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
 
 ### CIP-95: Signing with DRep / Governance Keys
 
-[CIP-95](https://cips.cardano.org/cips/cip95/) extends `signData` to governance keys (DRep, CC cold, CC hot). Per spec, the COSE `address` header is a **type-6 enterprise address** built from the credential hash — so no separate API is required: pass the enterprise address bytes to the existing `signData` / `verify` and the address-reconstruction check works as-is.
+[CIP-95](https://cips.cardano.org/cips/cip95/) extends `signData` to DRep keys. Per spec, the COSE `address` header is a **type-6 enterprise address** built from the credential hash — so no separate API is required: pass the enterprise address bytes to the existing `signData` / `verify` and the address-reconstruction check works as-is.
 
 ```java
 // Derive DRep keys from the account
@@ -93,7 +93,6 @@ DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
 boolean isValid = CIP30DataSigner.INSTANCE.verify(dataSignature);
 ```
 
-The same pattern applies to other governance credentials — build a type-6 enterprise address from the credential and sign with the matching key.
 
 ### UTXO Management (CIP30UtxoSupplier)
 
@@ -146,7 +145,9 @@ public Optional<Utxo> getTxOutput(String txHash, int outputIndex)
 public List<Utxo> getAll(String paymentAddress)
 ```
 
-### Constants (`CIP30Constant`)
+### COSE values
+
+The signer uses these values:
 
 - **ADDRESS_KEY**: "address" (stored in protected header other map)
 - **ALG_EdDSA**: -8

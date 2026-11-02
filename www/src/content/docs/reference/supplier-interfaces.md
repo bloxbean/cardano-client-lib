@@ -103,8 +103,8 @@ public class CustomProtocolParamsSupplier implements ProtocolParamsSupplier {
             .minFeeB(155381)
             .maxBlockSize(65536)
             .maxTxSize(16384)
-            .keyDeposit(BigInteger.valueOf(2000000))
-            .poolDeposit(BigInteger.valueOf(500000000))
+            .keyDeposit("2000000")
+            .poolDeposit("500000000")
             .build();
     }
 }

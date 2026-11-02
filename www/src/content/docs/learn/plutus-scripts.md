@@ -5,6 +5,8 @@ description: "Lock ADA at a Plutus script and unlock it with a redeemer, using Q
 
 A Plutus script can hold funds, and it runs when someone tries to spend them. In this tutorial you'll lock 5 tADA at a script on the Preview testnet, then unlock them.
 
+This code uses the [latest preview](/start-here/installation/#versions), where script operations are on `Tx`. On stable 0.7.3, use [`ScriptTx`](/quicktx/overview/#scripttx-plutus-aware) for the script transaction, with `.feePayer(...)` on the builder.
+
 **Before you start**, follow [Your first transaction](/learn/simple-transfer/) to [create an account](/learn/simple-transfer/#create-sender-and-receiver-accounts), fund it from the [faucet](/learn/simple-transfer/#topup-sender-account-with-test-ada) and get a Blockfrost project id. The [dependencies](/start-here/installation/) are `cardano-client-lib` and `cardano-client-backend-blockfrost`.
 
 The code reads your settings from the environment:
@@ -106,7 +108,7 @@ public class CallPlutusScript {
     public static void main(String[] args) throws Exception {
         BackendService backend = new BFBackendService(
                 Constants.BLOCKFROST_PREVIEW_URL, System.getenv("BF_PROJECT_ID"));
-        Account user = new Account(Networks.preview(), System.getenv("TUTORIAL_MNEMONIC"));
+        Account user = Account.createFromMnemonic(Networks.preview(), System.getenv("TUTORIAL_MNEMONIC"));
 
         run(backend, user);
     }

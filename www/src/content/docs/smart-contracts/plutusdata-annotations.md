@@ -6,7 +6,7 @@ description: Plutus Data Annotations
 This document provides an overview of the Plutus Data Annotations, which can be used to automatically generate serialization and deserialization code 
 for custom POJO classes that can be used as Datum and Redeemer in Plutus scripts.
 
-Code generation is performed by an annotation processor during compile time.
+Code generation is performed by an annotation processor during compile time. Add `com.bloxbean.cardano:cardano-client-annotation-processor` to your build as an `annotationProcessor` dependency.
 
 # Annotations
 

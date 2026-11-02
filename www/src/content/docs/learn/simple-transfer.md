@@ -80,7 +80,9 @@ String receiverAddress2 = "addr_test...";
 Based on your selected network, get some test Ada from one of the below faucet. You need to provide ``senderAddress``
 generated in the previous section to get some test Ada.
 
-https://docs.cardano.org/cardano-testnet/tools/faucet
+https://docs.cardano.org/cardano-testnets/tools/faucet
+
+On Yaci DevKit, [use its funded accounts or top-up command](/learn/test-with-yaci-devkit/#fund-an-account) instead.
 
 ## Create Backend Service
 
@@ -112,8 +114,8 @@ or,
 BackendService backendService =
         new BFBackendService("http://localhost:8080/api/v1/", "dummy-key");
 ```
-**Note:** Yaci DevKit provides a local Cardano devnet with a built-in faucet.
-You can top up test accounts through the Yaci DevKit CLI instead of using the public testnet faucet.
+**Note:** Yaci DevKit provides a local Cardano devnet with funded accounts and a top-up command, so you don't need the
+public faucet. See [Test locally with Yaci DevKit](/learn/test-with-yaci-devkit/).
 
 ## Simple Transfer - Using QuickTx API
 
@@ -153,22 +155,21 @@ Tx tx = new Tx()
 ### Build, Sign, and Submit
 
 Use ``QuickTxBuilder`` to compose the transaction, attach a signer, and submit it. The ``completeAndWait`` method
-builds, signs, submits, and waits for the transaction to be confirmed on-chain.
+builds, signs and submits the transaction, then waits for it to reach the chain.
 
 ```java
-Result<String> result = quickTxBuilder.compose(tx)
+TxResult result = quickTxBuilder.compose(tx)
         .withSigner(SignerProviders.signerFrom(senderAccount))
         .completeAndWait(System.out::println);
 ```
 
-If successful, ``result.isSuccessful()`` will return true and ``result.getValue()`` will contain the transaction hash.
+`completeAndWait` waits up to 60 seconds by default. `result.getTxStatus()` is `CONFIRMED` once the transaction is on-chain. It can also be `PENDING` or `TIMEOUT`, in which case the transaction may still land, so check the status. `result.getTxHash()` holds the transaction hash.
 
 ### Full Source Code
 
 ```java showLineNumbers
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
-import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
@@ -177,6 +178,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.TxResult;
 
 public class SimpleTransfer {
 
@@ -217,11 +219,11 @@ public class SimpleTransfer {
                 .from(senderAddress);
 
         // Build, sign, submit and wait for confirmation
-        Result<String> result = quickTxBuilder.compose(tx)
+        TxResult result = quickTxBuilder.compose(tx)
                 .withSigner(SignerProviders.signerFrom(senderAccount))
                 .completeAndWait(System.out::println);
 
-        System.out.println(result);
+        System.out.println(result.getTxStatus() + " " + result.getTxHash());
     }
 
     public static void main(String[] args) throws Exception {
@@ -236,3 +238,7 @@ QuickTx is the recommended way to build transactions. The lower-level
 [composable functions](/reference/composable-functions/) API can express the same transfer, but it
 is the internal implementation layer — reach for it only when QuickTx cannot serve your case.
 :::
+
+## Next
+
+[Test locally with Yaci DevKit](/learn/test-with-yaci-devkit/) gives you a local network with instant test funds, for the tutorials that follow.

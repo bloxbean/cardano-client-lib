@@ -25,7 +25,7 @@ CIP8 (Cardano Improvement Proposal 8) defines a standard for message signing usi
 ```java
 // Protected headers (algorithm + optional content type or key id)
 HeaderMap protectedHeaders = new HeaderMap()
-        .algorithmId(14) // EdDSA
+        .algorithmId(-8) // EdDSA
         .contentType(-1000); // Optional content type
 
 // Unprotected headers for custom values
@@ -41,6 +41,9 @@ byte[] payload = "Hello World".getBytes(StandardCharsets.UTF_8);
 COSESign1Builder builder = new COSESign1Builder(headers, payload, false)
         .hashed(true); // Blake2b-224 hashing of payload
 
+// For a 32-byte key. For an HD key's 64-byte extended key, use signExtended.
+SigningProvider signingProvider = CryptoConfiguration.INSTANCE.getSigningProvider();
+
 SigStructure sigStructure = builder.makeDataToSign();
 byte[] signature = signingProvider.sign(sigStructure.serializeAsBytes(), privateKeyBytes);
 
@@ -53,7 +56,7 @@ String hexSignature = HexUtil.encodeHexString(serialized);
 
 ```java
 Headers headers = new Headers()
-        ._protected(new ProtectedHeaderMap(new HeaderMap().algorithmId(14)))
+        ._protected(new ProtectedHeaderMap(new HeaderMap().algorithmId(-8)))
         .unprotected(new HeaderMap());
 
 byte[] payload = "Multi-signer message".getBytes(StandardCharsets.UTF_8);
@@ -65,7 +68,11 @@ SigStructure sigStructure = builder.makeDataToSign();
 List<COSESignature> signatures = new ArrayList<>();
 for (byte[] pvtKey : signerPrivateKeys) {
     byte[] sig = signingProvider.sign(sigStructure.serializeAsBytes(), pvtKey);
-    signatures.add(new COSESignature().signature(sig));
+    signatures.add(new COSESignature()
+            .headers(new Headers()
+                    ._protected(new ProtectedHeaderMap(new HeaderMap().algorithmId(-8)))
+                    .unprotected(new HeaderMap()))
+            .signature(sig));
 }
 
 COSESign coseSign = builder.build(signatures);
@@ -98,7 +105,7 @@ HeaderMap unprotectedHeaders = headers.unprotected();
 Object algorithmId = protectedHeaders.algorithmId();
 Object contentType = protectedHeaders.contentType();
 byte[] keyId = protectedHeaders.keyId();
-byte[] customValue = unprotectedHeaders.otherHeaderAsBytes(-100);
+String customValue = unprotectedHeaders.otherHeaderAsString(-100);
 ```
 
 ### Creating COSE Keys
@@ -108,7 +115,7 @@ byte[] customValue = unprotectedHeaders.otherHeaderAsBytes(-100);
 ```java
 COSEKey coseKey = new COSEKey()
         .keyType(1) // Octet Key Pair
-        .algorithmId(14) // EdDSA
+        .algorithmId(-8) // EdDSA
         .addOtherHeader(-1, new UnsignedInteger(6)) // crv (Ed25519)
         .addOtherHeader(-2, new ByteString(publicKeyBytes));
 
@@ -169,7 +176,7 @@ Manages individual header maps.
 HeaderMap algorithmId(long or String algorithmId)
 HeaderMap contentType(long or String contentType)
 HeaderMap keyId(byte[] keyId)
-HeaderMap addOtherHeader(long key, Object value) // Custom header
+HeaderMap addOtherHeader(long key, String value) // Custom header; also DataItem, BigInteger, long and byte[] values
 Object algorithmId()
 Object contentType()
 byte[] keyId()
@@ -211,7 +218,7 @@ Components describe exactly what is signed and carried in the CBOR array:
 
 ### Algorithm Identifiers
 
-- **14**: EdDSA (Edwards Curve Digital Signature Algorithm)
+- **-8**: EdDSA (Edwards Curve Digital Signature Algorithm), the COSE algorithm id
 - **1**: Octet Key Pair key type
 
 ## Advanced CIP8 Features
@@ -229,7 +236,5 @@ You construct the underlying `COSEEncrypt`/`COSEEncrypt0` yourself and then wrap
 ## Integration with Other CIPs
 
 - **CIP30**: Uses CIP8 for dApp wallet data signing
-- **CIP25**: Can include CIP8 signatures in NFT metadata
-- **CIP68**: Can include CIP8 signatures in datum metadata
 
 For more information about CIP8, refer to the [official CIP8 specification](https://cips.cardano.org/cips/cip8/).

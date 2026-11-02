@@ -96,7 +96,7 @@ UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
 List<Utxo> adaUtxos = utxoSelector.findAll(
         senderAddress,
-        utxo -> utxo.containsUnit("lovelace"));
+        utxo -> utxo.getAmount().stream().anyMatch(a -> "lovelace".equals(a.getUnit())));
 
 Optional<Utxo> firstScriptUtxo = utxoSelector.findFirst(
         scriptAddress,
@@ -114,26 +114,16 @@ utxoSupplier.setSearchByAddressVkh(true); // only if supported by your supplier/
 
 ### Multi-Address Selection
 
-To select UTXOs across multiple addresses, query each address individually:
-
-```java
-Set<Utxo> allSelected = new HashSet<>();
-for (String addr : List.of(addr1, addr2, addr3)) {
-    Set<Utxo> selected = strategy.select(
-            AddressIterators.of(addr),
-            List.of(Amount.ada(20)),
-            null, null,
-            allSelected, // exclude already-selected UTXOs
-            30);
-    allSelected.addAll(selected);
-}
-```
+`select` takes an `AddressIterator` and moves to the next address until the amount is covered. To search your own list of addresses, implement `AddressIterator`. For an HD wallet, use `Tx.from(wallet)`, which scans the wallet's addresses for you.
 
 ### Datum Requirements
 
 ```java
 String requiredDatumHash = "...";
-PlutusData requiredInlineDatum = PlutusData.of("hello");
+PlutusData requiredInlineDatum = BytesPlutusData.of("hello");
+
+// UTXOs with a datum hash are skipped by default, so turn that off to select by hash
+strategy.setIgnoreUtxosWithDatumHash(false);
 
 Set<Utxo> withHash = strategy.select(
         AddressIterators.of(contractAddress),
@@ -178,6 +168,10 @@ int current = CoinselectionConfig.INSTANCE.getCoinSelectionLimit();
 public class CustomUtxoSelectionStrategy implements UtxoSelectionStrategy {
     private final UtxoSupplier utxoSupplier;
     private boolean ignoreUtxosWithDatumHash = true;
+
+    public CustomUtxoSelectionStrategy(UtxoSupplier utxoSupplier) {
+        this.utxoSupplier = utxoSupplier;
+    }
 
     // implement select(...) using your own ordering/filtering
 

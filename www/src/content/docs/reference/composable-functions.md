@@ -30,8 +30,8 @@ Think of each function as a tiny, single-responsibility transformer. You wire th
 ## Dependencies
 
 - **Group ID**: com.bloxbean.cardano
-- **Artifact ID**: cardano-client-core
-- **Depends on**: core-api, backend
+- **Artifact ID**: cardano-client-function
+- **Depends on**: core, hd-wallet
 
 ## Usage Example (Simple Transfer Flow)
 
@@ -89,17 +89,16 @@ Because each step is a function, you can swap any link in the chain with a custo
 
 ### When to reach for composable functions
 
-- You need deterministic, ordered control over how inputs/outputs are shaped and balanced.
-- You want to reuse the same chain across multiple flows (e.g., embed in a service) with occasional custom swaps.
-- You plan to extend the library with custom builders (e.g., specialized fee calculator, metadata injector, or UTXO selection policy) without changing QuickTx.
+- You need ordered control over how inputs and outputs are shaped and balanced, and QuickTx can't express it.
+- You're extending the library with a custom builder, such as a specialized fee calculator or metadata injector.
 
 ## Helper Classes (selected)
 
 - `OutputBuilders`: `createFromOutput(Output output)` and more.
 - `InputBuilders`: `createFromSender(String sender, String changeAddress)`, HD wallet variants, datum/inline datum aware.
 - `AuxDataProviders`: metadata helpers (e.g., `metadataProvider`).
-- `FeeCalculators`, `MinFeeCalculators`, `ChangeOutputAdjustments`, `BalanceTxBuilders`: fee/min-ADA/change handling.
-- `TransactionSigners`: `signerFrom(Account account)` and combinators.
+- `FeeCalculators`, `MinAdaCheckers`, `ChangeOutputAdjustments`, `BalanceTxBuilders`: fee/min-ADA/change handling.
+- `SignerProviders`: `signerFrom(Account... signers)` and other signers.
 
 ## Context and Execution
 

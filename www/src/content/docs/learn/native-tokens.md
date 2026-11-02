@@ -1,170 +1,185 @@
 ---
 title: "Native tokens"
-description: Token Distribution example.
+description: "Create your own token with a native script policy, then send it to several receivers in one transaction."
 ---
 
-# Overview
+Cardano tracks tokens in the ledger itself, so you don't need a smart contract to hold or send them. In this tutorial you'll mint your own token and send it to three receivers in a single transaction.
 
-In this section, we will go through the steps required to do a simple token distribution from a
-sender account to 5 receiver addresses.
+**Before you start**, [start Yaci DevKit](/learn/test-with-yaci-devkit/) and fund an account, or use an account you funded on Preview. The [dependencies](/start-here/installation/) are `cardano-client-lib` and `cardano-client-backend-blockfrost`.
 
-## Select a Network and Provider
+## Step 1: Create the policy
 
-[Check here](/learn/simple-transfer/#select-a-network-and-provider) to select a network and provider.
-
-## Create a Sender account
-
-[Check here](/learn/simple-transfer/#create-sender-and-receiver-accounts) to setup an account.
-
-The Account created need to have some Fungible Tokens so we can distribute them to other addresses.
-In This Example let's assume we have some Charlie3 Tokens already in possession in our Sender Account Base Address.
-Unlike other account-based blockchains, Cardano supports multiple outputs in a single transaction.
-So let's define a csv file with our receiving addresses and amount of tokens per address.
-
-```csv
-addr_test1qxz3zrldxkkwlawrdx2w8ycsnz578r5nrrj96d7e2na9n32cd7gh928plcchqknd3duaxpl5zu86g5gqkd3npv58vvgs8tgtk0,114.0
-addr_test1q8ggrexl20slswsnlrct7wm4uhl48eu563rkl75sv3453murys96l34r0lvxd5576q7w806fd8qq3swv45hka0uehkls4vxjka,547.2
-addr_test1qyx6htpm9smwvg2w3f4eldtpq3p5ty38perhaafw86gfhgqa4dnr2pglwk0wgejy788uss82tkfxs78qnd0uleds7a9qkadf08,91.2
-addr_test1qxzgdkjhepeytjyls3u2ed2x9cfvd4pm40lwsjgk53hm0n7m9j088cqfhvm934lnlsprhwq2c3ha4hl72cs3ul057p2swdlz5u,15.2
-addr_test1q9hp9mja7fjyh9hy8mkstn6uuxtn98z3fgryy75qh8hpmhp3hdmcfrjy06m5f7ht8mecgegjt8jerm6l8jwdxcvjuxgsl907rj,15.2
-```
-
-## Create Backend Service
-
-[Check here](/learn/simple-transfer/#create-backend-service) to create a backend provider instance.
-
-## Token Distribution Transaction - Using QuickTx API
-
-The **QuickTx API** provides a simple and declarative way to build token distribution transactions.
-
-### Create QuickTxBuilder
+A token's identity has two parts: a policy id and an asset name. The policy is a script that decides who can mint. Its hash is the policy id.
 
 ```java
-QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+Keys policyKeys = KeyGenUtil.generateKey();
+ScriptPubkey policy = ScriptPubkey.create(policyKeys.getVkey());
+String policyId = policy.getPolicyId();
 ```
 
-### Define the Token
-
-Specify the policy ID and asset name for the token you want to distribute. The ``unit`` is the concatenation
-of policy ID and hex-encoded asset name.
+This policy has one rule: the new key must sign. Whoever holds the key can mint more of this token later, so save it if you want to do that:
 
 ```java
-String policyId = "8e51398904a5d3fc129fbf4f1589701de23c7824d5c90fdb9490e15a";
-String assetName = "434841524c4933";
-String unit = policyId + assetName;
+String policyKeyHex = policyKeys.getSkey().getCborHex();
 ```
 
-### Build Transaction with Token Outputs from CSV
+To cap the supply, add a deadline to the policy, as in [Minting an NFT](/learn/minting-an-nft/).
 
-Read the CSV file and add each receiver as a transaction output using ``payToAddress`` with ``Amount.asset``.
-
->
-> We multiply the quantity value by the number of decimals this specific token is registered under.
-> In this case, for Charlie3 Token it is 6 zeros after the decimal point, hence we multiply the quantity by a million.
+## Step 2: Mint
 
 ```java
-Tx tx = new Tx();
-Scanner scanner = new Scanner(getFileFromResource("file1.csv"));
-while (scanner.hasNextLine()) {
-    String line = scanner.nextLine();
-    String[] parts = line.split(",");
-    BigInteger qty = new BigDecimal(parts[1])
-            .multiply(BigDecimal.valueOf(1_000_000))
-            .toBigInteger();
-    tx.payToAddress(parts[0], Amount.asset(unit, qty));
-}
-tx.from(senderAddress);
-```
+Asset token = new Asset("TutorialToken", BigInteger.valueOf(1_000_000));
 
-### Build, Sign, and Submit
+Tx mint = new Tx()
+        .mintAssets(policy, token, sender.baseAddress())
+        .from(sender.baseAddress());
 
-```java
-Result<String> result = quickTxBuilder.compose(tx)
+TxResult minted = new QuickTxBuilder(backend)
+        .compose(mint)
         .withSigner(SignerProviders.signerFrom(sender))
-        .completeAndWait(System.out::println);
+        .withSigner(SignerProviders.signerFrom(policyKeys.getSkey()))
+        .completeAndWait(Duration.ofMinutes(5));
 ```
 
-If successful, ``result.isSuccessful()`` will return true and ``result.getValue()`` will contain the transaction hash.
+There are two signers: your account pays the fee, and the policy key authorizes the mint.
 
-### Full Source Code
+Quantities on-chain are whole numbers. A token with "6 decimals" is a display choice: 1,500,000 units appear as 1.5 in wallets that know about the decimals.
 
-```java showLineNumbers
+## Step 3: Send it to several receivers
+
+One Cardano transaction can have many outputs, so this costs one fee and either all of it happens or none does. A token's unit is its policy id followed by its hex-encoded name.
+
+```java
+String unit = AssetUtil.getUnit(policyId, token);
+
+Tx distribute = new Tx()
+        .payToAddress(receiver1, Amount.asset(unit, 100))
+        .payToAddress(receiver2, Amount.asset(unit, 250))
+        .payToAddress(receiver3, Amount.asset(unit, 50))
+        .from(sender.baseAddress());
+
+TxResult sent = new QuickTxBuilder(backend)
+        .compose(distribute)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait(Duration.ofMinutes(5));
+```
+
+Every output on Cardano must carry a minimum amount of ada. You don't need to work this out: QuickTx adds it to each output, paid by the sender.
+
+For a long list of receivers, call `payToAddress` in a loop. A transaction has a size limit (16 KB on current networks), so split very long lists across several transactions.
+
+## Run it
+
+<details>
+<summary>TokenDistribution.java</summary>
+
+```java
+package tutorial;
+
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
-import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.koios.Constants;
-import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
+import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.Keys;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.TxResult;
+import com.bloxbean.cardano.client.quicktx.TxStatus;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 
-import java.io.File;
-import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.util.Scanner;
+import java.time.Duration;
+import java.util.List;
 
 public class TokenDistribution {
-    private final BackendService backendService;
-
-    public TokenDistribution() {
-        backendService = new KoiosBackendService(Constants.KOIOS_PREPROD_URL);
-    }
-
-    public void distribute() throws Exception {
-        String senderMnemonic = "<mnemonic>"; //TODO Seed Phrase
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddress = sender.baseAddress();
-
-        String policyId = "8e51398904a5d3fc129fbf4f1589701de23c7824d5c90fdb9490e15a";
-        String assetName = "434841524c4933";
-        String unit = policyId + assetName;
-
-        // Create QuickTxBuilder
-        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
-
-        // Build transaction from CSV
-        Tx tx = new Tx();
-        Scanner scanner = new Scanner(getFileFromResource("file1.csv"));
-        while (scanner.hasNextLine()) {
-            String line = scanner.nextLine();
-            String[] parts = line.split(",");
-            BigInteger qty = new BigDecimal(parts[1])
-                    .multiply(BigDecimal.valueOf(1_000_000))
-                    .toBigInteger();
-            tx.payToAddress(parts[0], Amount.asset(unit, qty));
-        }
-        tx.from(senderAddress);
-
-        // Build, sign, submit and wait for confirmation
-        Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(sender))
-                .completeAndWait(System.out::println);
-
-        System.out.println(result);
-    }
-
-    private File getFileFromResource(String fileName) throws URISyntaxException {
-        ClassLoader classLoader = getClass().getClassLoader();
-        URL resource = classLoader.getResource(fileName);
-        if (resource == null) {
-            throw new IllegalArgumentException("file not found! " + fileName);
-        } else {
-            return new File(resource.toURI());
-        }
-    }
 
     public static void main(String[] args) throws Exception {
-        new TokenDistribution().distribute();
+        // Yaci DevKit. For Preview, see "Move to a public network" on the DevKit page.
+        BackendService backend = new BFBackendService("http://localhost:8080/api/v1/", "dummy-key");
+        Account sender = Account.createFromMnemonic(Networks.testnet(), System.getenv("TUTORIAL_MNEMONIC"));
+
+        String receiver1 = new Account(Networks.testnet()).baseAddress();
+        String receiver2 = new Account(Networks.testnet()).baseAddress();
+        String receiver3 = new Account(Networks.testnet()).baseAddress();
+
+        // 1. The policy: this key must sign
+        Keys policyKeys = KeyGenUtil.generateKey();
+        ScriptPubkey policy = ScriptPubkey.create(policyKeys.getVkey());
+        String policyId = policy.getPolicyId();
+
+        // 2. Mint to the sender
+        Asset token = new Asset("TutorialToken", BigInteger.valueOf(1_000_000));
+        Tx mint = new Tx()
+                .mintAssets(policy, token, sender.baseAddress())
+                .from(sender.baseAddress());
+
+        TxResult minted = new QuickTxBuilder(backend)
+                .compose(mint)
+                .withSigner(SignerProviders.signerFrom(sender))
+                .withSigner(SignerProviders.signerFrom(policyKeys.getSkey()))
+                .completeAndWait(Duration.ofMinutes(5));
+        check("Mint", minted);
+
+        // A backend's UTxO view can lag behind a confirmed transaction
+        String unit = AssetUtil.getUnit(policyId, token);
+        waitForToken(backend, sender.baseAddress(), unit);
+
+        // 3. Send to three receivers in one transaction
+        Tx distribute = new Tx()
+                .payToAddress(receiver1, Amount.asset(unit, 100))
+                .payToAddress(receiver2, Amount.asset(unit, 250))
+                .payToAddress(receiver3, Amount.asset(unit, 50))
+                .from(sender.baseAddress());
+
+        TxResult sent = new QuickTxBuilder(backend)
+                .compose(distribute)
+                .withSigner(SignerProviders.signerFrom(sender))
+                .completeAndWait(Duration.ofMinutes(5));
+        check("Distribute", sent);
+
+        System.out.println("Unit: " + unit);
+        System.out.println("Receiver 2 holds: " + waitForToken(backend, receiver2, unit));
+    }
+
+    static void check(String step, TxResult result) {
+        if (result.getTxStatus() != TxStatus.CONFIRMED)
+            throw new IllegalStateException(step + " not confirmed (" + result.getTxStatus() + "): " + result.getResponse());
+        System.out.println(step + ": " + result.getTxHash());
+    }
+
+    static BigInteger waitForToken(BackendService backend, String address, String unit) throws Exception {
+        for (int attempt = 0; attempt < 12; attempt++) {
+            List<Utxo> holding = backend.getUtxoService().getUtxos(address, unit, 1, 1).getValue();
+            if (holding != null && !holding.isEmpty())
+                return holding.get(0).getAmount().stream()
+                        .filter(amount -> unit.equals(amount.getUnit()))
+                        .map(Amount::getQuantity)
+                        .findFirst().orElseThrow();
+            Thread.sleep(5_000);
+        }
+        throw new IllegalStateException("Token not found yet: " + unit);
     }
 }
 ```
 
-:::tip[Why QuickTx?]
-QuickTx is the recommended way to build transactions. The lower-level
-[composable functions](/reference/composable-functions/) API can express the same distribution, but
-it is the internal implementation layer — reach for it only when QuickTx cannot serve your case.
-:::
+</details>
+
+Set `TUTORIAL_MNEMONIC` to the words of a funded account. On DevKit, you can use the [default mnemonic](/learn/test-with-yaci-devkit/#fund-an-account). The output has this shape, with your own values:
+
+```text
+Mint: <transaction hash>
+Distribute: <transaction hash>
+Unit: <policy id>5475746f7269616c546f6b656e
+Receiver 2 holds: 250
+```
+
+## Next
+
+- [Minting an NFT](/learn/minting-an-nft/): a token with a quantity of 1, a time-locked policy and metadata.
+- [CIP-25](/standards/cip25/) and [CIP-68](/standards/cip68/): the token metadata standards.

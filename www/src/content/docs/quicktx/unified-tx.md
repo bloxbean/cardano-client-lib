@@ -3,7 +3,7 @@ title: "Unified Tx API"
 description: "ScriptTx merged into Tx — one class for all transaction types"
 ---
 
-> **Preview feature**: available from 0.8.0-pre5. See the [latest preview](/start-here/installation/#versions). APIs may change before the stable release.
+> **Preview feature**: available in 0.8.0 previews. See the [latest preview](/start-here/installation/#versions). APIs may change before the stable release.
 
 ## What Changed
 
@@ -12,14 +12,14 @@ In previous versions, building transactions required choosing between two classe
 - **`Tx`** — for regular payments, native token minting, staking, and governance
 - **`ScriptTx`** — for Plutus script inputs, Plutus minting, and validator attachment
 
-Starting in 0.8.0, **all `ScriptTx` operations are now available directly on `Tx`**. The `ScriptTx` class is deprecated
-and will be removed in a future release.
+In the 0.8.0 previews, **all `ScriptTx` operations are also available directly on `Tx`**, and `ScriptTx` is deprecated.
+It isn't deprecated in the stable 0.7.x releases, where it's still how you build script transactions, and it still works in the previews.
 
 ## Why
 
 - **No more class-choice burden** — you don't need to decide upfront whether your transaction involves scripts
 - **Mix operations freely** — combine script inputs, Plutus minting, native payments, and staking in a single `Tx`
-- **Drop-in migration** — replace `new ScriptTx()` with `new Tx()` and everything works
+- **Simple migration** — replace `new ScriptTx()` with `new Tx()` and set the fee payer
 
 ## New Methods on Tx
 
@@ -33,7 +33,7 @@ tx.collectFrom(utxo, redeemer)
 tx.collectFrom(utxoList, redeemer)
 
 // Predicate-based script UTXO selection
-tx.collectFrom(scriptAddress, utxo -> utxo.getAmount().contains("token"), redeemer, datum)
+tx.collectFrom(scriptAddress, utxo -> utxo.getAmount().stream().anyMatch(a -> a.getUnit().equals(tokenUnit)), redeemer, datum)
 
 // Filter-based script UTXO selection
 tx.collectFrom(scriptAddress, filterSpec, redeemer, datum)
@@ -163,7 +163,7 @@ Tx tx = new Tx()
 
 ## Migration Guide
 
-Replacing `ScriptTx` with `Tx` is a drop-in change. The method names and signatures are identical.
+Replace `new ScriptTx()` with `new Tx()`. Calls with a redeemer keep the same names and arguments. Calls to `collectFrom` without a redeemer are different: `Tx` has no `collectFrom(Utxo)`, and `Tx.collectFrom(List<Utxo>)` adds regular inputs rather than script inputs, so pass a redeemer when you spend from a script.
 
 ### Before (0.7.x)
 
@@ -174,6 +174,7 @@ ScriptTx scriptTx = new ScriptTx()
         .attachSpendingValidator(validator);
 
 quickTxBuilder.compose(scriptTx)
+        .feePayer(senderAddress)
         .withSigner(SignerProviders.signerFrom(sender))
         .completeAndWait();
 ```
@@ -192,14 +193,13 @@ quickTxBuilder.compose(tx)
         .completeAndWait();
 ```
 
-The only required addition is `.from(senderAddress)` to set the fee payer, which `ScriptTx` handled differently
-(via package-private methods).
+`.from(senderAddress)` sets the sender, who also pays the fee. You can also keep `.feePayer(senderAddress)` on the builder, which still works for a script transaction.
 
 ## How Detection Works
 
 You don't need to configure anything. When `QuickTxBuilder` processes a `Tx`, it automatically detects whether the
 transaction involves scripts by checking `hasScriptIntents()` — a data-driven inspection of the transaction's
-intentions list. If any script-related intents are present (script inputs, Plutus minting, or validator attachments),
+intentions list. If any script-related intents are present (script inputs, Plutus minting, or any operation with a redeemer),
 the builder applies script-specific processing (collateral selection, execution unit evaluation, etc.) automatically.
 
 ## Comparison

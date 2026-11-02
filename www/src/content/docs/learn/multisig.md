@@ -183,7 +183,9 @@ String scriptAddress = AddressProvider.getEntAddress(scriptAtLeast, Networks.tes
 Based on your selected network (**preprod** / **preview**), get some test Ada from the below faucet. You need to provide ``scriptAddress``
 generated in the previous section to get some test Ada.
 
-https://docs.cardano.org/cardano-testnet/tools/faucet
+https://docs.cardano.org/cardano-testnets/tools/faucet
+
+On [Yaci DevKit](/learn/test-with-yaci-devkit/#fund-an-account), use `topup <scriptAddress> 100` instead.
 
 ## Create a Backend Service
 
@@ -224,7 +226,7 @@ Sign the transaction with at least 2 keys as required by the multi-sig script. I
 ``account1`` and ``secretKey`` (the third key).
 
 ```java
-Result<String> result = quickTxBuilder.compose(tx)
+TxResult result = quickTxBuilder.compose(tx)
         .withSigner(SignerProviders.signerFrom(account1))
         .withSigner(SignerProviders.signerFrom(secretKey))
         .completeAndWait(System.out::println);
@@ -232,11 +234,9 @@ Result<String> result = quickTxBuilder.compose(tx)
 
 > Alternatively, you can sign with ``account1`` and ``account2``, or with all three keys.
 
-If successful, ``result.isSuccessful()`` will return true and ``result.getValue()`` will contain the transaction hash.
+`completeAndWait` waits up to 60 seconds by default. `result.getTxStatus()` is `CONFIRMED` once the transaction is on-chain. It can also be `PENDING` or `TIMEOUT`, in which case the transaction may still land, so check the status. `result.getTxHash()` holds the transaction hash.
 
-Now copy the transaction id from the output and then go to a
-Cardano explorer, [Cardanoscan](https://cardanoscan.io) or [Cardano Explorer](https://cexplorer.io), to check the transaction
-details. You may need to wait for few secs to a min depending on the blockchain load.
+To check the details on a public network, look the hash up in an explorer for [Preview](https://preview.cardanoscan.io) or [Preprod](https://preprod.cardanoscan.io).
 
 ### Full Source Code
 
@@ -244,7 +244,6 @@ details. You may need to wait for few secs to a min depending on the blockchain 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.model.Amount;
-import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
@@ -255,6 +254,7 @@ import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.TxResult;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptAtLeast;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 
@@ -312,12 +312,12 @@ public class MultiSigTransfer {
                 .from(scriptAddress);
 
         // Build, sign, submit and wait for confirmation
-        Result<String> result = quickTxBuilder.compose(tx)
+        TxResult result = quickTxBuilder.compose(tx)
                 .withSigner(SignerProviders.signerFrom(account1))
                 .withSigner(SignerProviders.signerFrom(secretKey))
                 .completeAndWait(System.out::println);
 
-        System.out.println(result);
+        System.out.println(result.getTxStatus() + " " + result.getTxHash());
     }
 
     public static void main(String[] args) throws Exception {

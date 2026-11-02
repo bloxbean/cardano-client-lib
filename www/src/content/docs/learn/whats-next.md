@@ -49,17 +49,17 @@ They work and are documented in full, but their surfaces may shift before the st
 ## Test against a local devnet
 
 The single biggest speed-up when learning this library is not reading — it is a fast feedback
-loop. [Yaci DevKit](https://devkit.yaci.xyz/#get-started) runs a local Cardano devnet with
-pre-funded accounts and near-instant blocks:
+loop. [Yaci DevKit](/learn/test-with-yaci-devkit/) runs a local Cardano devnet with
+pre-funded accounts and one-second blocks:
 
 ```java
 BackendService backend = new BFBackendService("http://localhost:8080/api/v1/", "dummy-key");
-Account sender = new Account(Networks.testnet(), devkitMnemonic);
+Account sender = Account.createFromMnemonic(Networks.testnet(), devkitMnemonic); // see the DevKit page
 ```
 
-No API key, no faucet, no waiting on epoch boundaries. Because you can advance epochs in seconds,
-it is the only practical way to test a full staking or governance lifecycle. The same code runs
-against preview with the URL and network swapped.
+No API key, no faucet, and epochs that last minutes rather than days, so it's the practical way to
+test a full staking or governance lifecycle. The same code runs against Preview with the backend
+swapped.
 
 ## Understanding what the library did
 

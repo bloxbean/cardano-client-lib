@@ -78,20 +78,25 @@ CIP68RFT rft = CIP68RFT.create()
 
 Reference tokens carry the datum; user tokens carry value. Include both mints in the same script transaction.
 
-:::note[`ScriptTx` is deprecated in 0.8.0]
-Every `ScriptTx` operation is now available on `Tx`, and `ScriptTx` will be removed in a future
-release. The examples below still work; for new code, replace `new ScriptTx()` with `new Tx()`
-and add `.from(senderAddress)` instead of the builder's `.feePayer(...)`. See
-[Unified Tx API](/quicktx/unified-tx/).
+:::note[`ScriptTx` in 0.7.x and the 0.8.0 previews]
+`ScriptTx` is the API for script transactions in the stable 0.7.x releases, where it isn't deprecated. In the
+0.8.0 previews it's deprecated, because every operation is also available on `Tx`. On a preview, you can replace
+`new ScriptTx()` with `new Tx()` and add `.from(senderAddress)`. See [Unified Tx API](/quicktx/unified-tx/).
 :::
 
 ```java
+// mintingScript is your PlutusScript minting policy; userTokenReceiver is the buyer's address
 PlutusData datum = referenceToken.getDatumAsPlutusData();
 String referenceTokenReceiver = AddressProvider.getEntAddress(mintingScript, Networks.preprod()).toBech32();
 
 ScriptTx scriptTx = new ScriptTx()
         .mintAsset(mintingScript, List.of(referenceAsset), PlutusData.unit(), referenceTokenReceiver, datum)
         .mintAsset(mintingScript, List.of(userAsset), PlutusData.unit(), userTokenReceiver);
+
+quickTxBuilder.compose(scriptTx)
+        .feePayer(senderAddress)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait();
 ```
 
 ## API Reference

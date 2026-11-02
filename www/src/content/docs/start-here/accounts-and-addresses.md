@@ -58,7 +58,7 @@ Account account = Account.createFromMnemonic(Networks.testnet(), mnemonic);
 Based on your selected network, get some test Ada from one of the below faucet. You need to provide an ``address``
 generated in the previous section to get some test Ada.
 
-https://docs.cardano.org/cardano-testnet/tools/faucet
+https://docs.cardano.org/cardano-testnets/tools/faucet
 
 ## Create Backend Service
 

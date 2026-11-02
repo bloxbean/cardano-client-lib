@@ -8,7 +8,7 @@ The HD Wallet API provides hierarchical deterministic wallet functionality, allo
 ## Key Features
 
 - **Hierarchical Key Derivation**: Generate multiple keys from a single master key
-- **Address Privacy**: Generate new addresses for each transaction
+- **Separate Addresses**: Use a new address for each payment. Addresses in one account share a stake key, so they can be linked on-chain
 - **BIP32/CIP1852 Compliance**: Follow industry standards for key derivation
 - **Multi-Account Support**: Manage multiple accounts within a single wallet
 - **Deterministic Generation**: Same mnemonic always generates same addresses
@@ -21,9 +21,9 @@ The main interface for HD wallet operations, providing methods for address gener
 ### DefaultWallet Class
 The default implementation of the Wallet interface, supporting standard HD wallet functionality.
 
+Create one with the static methods on `Wallet`: `Wallet.create(network)` for a new mnemonic, or `Wallet.createFromMnemonic(network, mnemonic)` to restore one.
+
 **Key Methods:**
-- `create()` - Create new wallet with generated mnemonic
-- `createFromMnemonic()` - Restore wallet from existing mnemonic
 - `getBaseAddress()` - Get base address at specific index
 - `getEntAddress()` - Get enterprise address at specific index
 - `sign()` - Sign transactions with wallet keys
@@ -123,9 +123,9 @@ Transaction signedTx = account0.sign(transaction);
 
 ## Advanced Usage
 
-### Privacy-Enhanced Address Generation
+### A New Address for Each Payment
 
-HD wallets naturally support enhanced privacy by generating a new address for each transaction. Simply increment the address index when requesting a new receiving address:
+To give each payment its own address, increment the address index. This separates payment credentials, but base addresses in one account share a stake key, so anyone can link them on-chain:
 
 ```java
 // Generate a fresh address for each transaction
@@ -197,11 +197,23 @@ System.out.println("Stake Address: " + stakeAddress);
 
 ### Transaction Signing
 
-Sign transactions with wallet UTXOs:
+With QuickTx, use the wallet as the sender and the signer. It selects the wallet's UTXOs and signs with the right keys:
 
 ```java
-// Sign transaction with specific UTXOs
-Set<WalletUtxo> walletUtxos = getWalletUtxos(); // Your UTXO collection logic
+Tx tx = new Tx()
+        .payToAddress(receiverAddress, Amount.ada(10))
+        .from(wallet);
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(wallet))
+        .completeAndWait();
+```
+
+To sign a transaction you built yourself, pass the `WalletUtxo`s it spends. Each one needs its derivation path, which the wallet's UTXO selection sets; without paths, signing fails with "No signers found!":
+
+```java
+Set<WalletUtxo> walletUtxos = ...; // the wallet UTXOs this transaction spends
 Transaction signedTx = wallet.sign(transaction, walletUtxos);
 
 // Sign with stake key
@@ -233,14 +245,14 @@ Wallet restoredWallet = Wallet.createFromMnemonic(Networks.mainnet(), mnemonic);
 
 ### Address Management Strategy
 
-Use different account numbers to organize addresses by purpose:
+Use different account numbers to organize addresses by purpose. Each account has its own stake key:
 
 ```java
-// Receiving addresses (account 0)
-Address receivingAddr = wallet.getBaseAddress(0, 0);
+// Personal addresses (account 0)
+Address personalAddr = wallet.getBaseAddress(0, 0);
 
-// Change addresses (account 1)
-Address changeAddr = wallet.getBaseAddress(1, 0);
+// Savings addresses (account 1)
+Address savingsAddr = wallet.getBaseAddress(1, 0);
 
 // Business addresses (account 2)
 Address businessAddr = wallet.getBaseAddress(2, 0);
@@ -252,8 +264,8 @@ Address businessAddr = wallet.getBaseAddress(2, 0);
 |---------|---------------|-------------|
 | **Key Management** | Hierarchical key derivation | Single key pair |
 | **Address Generation** | Multiple derived addresses | Fixed addresses |
-| **Privacy** | High (new address per transaction) | Limited |
-| **Use Case** | Privacy-focused applications | Simple applications |
+| **Addresses per payment** | A new one each time, linkable through the stake key | One per account instance |
+| **Use Case** | Applications managing many addresses | Simple applications |
 | **Complexity** | Medium to High | Low |
 | **Multi-Account** | Native support | Manual management |
 

@@ -17,7 +17,7 @@ if you are using Aiken for smart contract development, the `plutus.json` file is
 
 Two main annotations can be used to generate code from the Plutus Blueprint JSON file:
 
-- **`@PlutusBlueprint`**: Specifies the path to the Plutus Blueprint JSON file. This annotation should be used at the interface level.
+- **`@Blueprint`**: Specifies the path to the Plutus Blueprint JSON file. This annotation should be used at the interface level.
 - **`@ExtendWith`**: Adds additional functionalities to the generated validator class through Extender interfaces.
 
 For more information about Extender interfaces, refer to the [Extender Interfaces](#extend-validator-class-with-custom-extender-interfaces) section.
@@ -25,7 +25,22 @@ For more information about Extender interfaces, refer to the [Extender Interface
 
 ## How to Use
 
-Before using the annotations, copy the Plutus Blueprint JSON file to the resources folder of your project. 
+Add the annotation processor to your build. With Gradle, also put your resources on the compile classpath, because that's where the processor looks for the blueprint:
+
+```groovy
+dependencies {
+    implementation 'com.bloxbean.cardano:cardano-client-lib:<version>'
+    annotationProcessor 'com.bloxbean.cardano:cardano-client-annotation-processor:<version>'
+}
+
+tasks.named('compileJava') {
+    classpath += files(sourceSets.main.resources.srcDirs)
+}
+```
+
+With Maven, add `cardano-client-annotation-processor` as a dependency or under the compiler plugin's `annotationProcessorPaths`.
+
+Then copy the Plutus Blueprint JSON file to the resources folder of your project. 
 You can name the Plutus JSON file as you prefer, or use `plutus.json` if you only have one blueprint file in the project.
 
 ## Example Directory Structure
@@ -149,7 +164,7 @@ validator {
 
 ## Define the Plutus Blueprint Interface
 
-You can now create the Plutus Blueprint interface in your project and annotate it with the `@PlutusBlueprint` annotation.
+You can now create the Plutus Blueprint interface in your project and annotate it with the `@Blueprint` annotation.
 
 ```java
 @Blueprint(fileInResources = "hello_world_plutus.json", packageName = "com.example.helloworld")
@@ -178,11 +193,11 @@ target
       |- com
           |- example
               |- helloworld
-                 |- hello_world
+                 |- helloworld
                     |- model
                         |- converter
-                            |- DatumDataConverter.java
-                            |- RedeemerDataConverter.java
+                            |- DatumConverter.java
+                            |- RedeemerConverter.java
                         |- impl
                             |- DatumData.java
                             |- RedeemerData.java
@@ -323,8 +338,8 @@ A `DatumData` class is generated for each Datum class. This class extends the ab
 ```java
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
-import com.example.helloworld.hello_world.model.Datum;
-import com.example.helloworld.hello_world.model.converter.DatumConverter;
+import com.example.helloworld.helloworld.model.Datum;
+import com.example.helloworld.helloworld.model.converter.DatumConverter;
 import java.lang.Override;
 import java.lang.String;
 
@@ -369,8 +384,8 @@ A `RedeemerData` class is generated for each Redeemer class. This class extends 
 ```java
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
-import com.example.helloworld.hello_world.model.Redeemer;
-import com.example.helloworld.hello_world.model.converter.RedeemerConverter;
+import com.example.helloworld.helloworld.model.Redeemer;
+import com.example.helloworld.helloworld.model.converter.RedeemerConverter;
 import java.lang.Override;
 import java.lang.String;
 
@@ -420,8 +435,8 @@ import com.bloxbean.cardano.client.plutus.annotation.BasePlutusDataConverter;
 import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import com.bloxbean.cardano.client.util.HexUtil;
-import com.example.helloworld.hello_world.model.Datum;
-import com.example.helloworld.hello_world.model.impl.DatumData;
+import com.example.helloworld.helloworld.model.Datum;
+import com.example.helloworld.helloworld.model.impl.DatumData;
 import java.lang.Exception;
 import java.lang.String;
 import java.util.Objects;
@@ -502,8 +517,8 @@ import com.bloxbean.cardano.client.plutus.annotation.BasePlutusDataConverter;
 import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import com.bloxbean.cardano.client.util.HexUtil;
-import com.example.helloworld.hello_world.model.Redeemer;
-import com.example.helloworld.hello_world.model.impl.RedeemerData;
+import com.example.helloworld.helloworld.model.Redeemer;
+import com.example.helloworld.helloworld.model.impl.RedeemerData;
 import java.lang.Exception;
 import java.lang.String;
 import java.util.Objects;
@@ -575,7 +590,7 @@ You can instantiate Datum and Redeemer objects using the generated Data (impleme
 
 Use the `DatumData.toPlutusData` or `DatumData.fromPlutusData` methods to convert the Data object to a PlutusData object and vice versa.
 
-Use the `DatumData.serialize` or `DatumData.deserialize` methods to serialize and deserialize the data.
+Use the `DatumData.deserialize` method to read a datum from CBOR, or the `DatumConverter` class to serialize and deserialize it.
 
 
 ```java
@@ -635,14 +650,14 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
-import com.example.helloworld.hello_world.HelloWorldValidator;
-import com.example.helloworld.hello_world.model.Datum;
-import com.example.helloworld.hello_world.model.impl.DatumData;
-import com.example.helloworld.hello_world.model.impl.RedeemerData;
+import com.example.helloworld.helloworld.HelloWorldValidator;
+import com.example.helloworld.helloworld.model.Datum;
+import com.example.helloworld.helloworld.model.impl.DatumData;
+import com.example.helloworld.helloworld.model.impl.RedeemerData;
 
 public class HelloWorldTest {
     private static String mnemonic = "test test test test test test test test test test test test test test test test test test test test test test test sauce";
-    private static Account account = new Account(Networks.testnet(), mnemonic);
+    private static Account account = Account.createFromMnemonic(Networks.testnet(), mnemonic);
     private static BFBackendService backendService = new BFBackendService("http://localhost:8080/api/v1/", "");
 
     private HelloWorldValidator helloWorldValidator;
@@ -714,7 +729,7 @@ public class HelloWorldTest {
 If you want to compose the validator transaction described above with other transactions, the out-of-box extenders provide
 additional methods that return a `ScriptTx` or `Tx` object. These `ScriptTx` or `Tx` objects can then be composed with other transactions (Tx) or script transactions (ScriptTx).
 
-Typically, these methods have names that end with "Tx". For example, in `LockUnlockExtender.java`, here are a few methods that return a `Tx` or `ScriptTx` object:
+Typically, these methods have names that end with "Tx". For example, in `LockUnlockValidatorExtender.java`, here are a few methods that return a `Tx` or `ScriptTx` object:
 
 - `Tx lockTx(String fromAddress, Amount amount, Data datum)`
 - `ScriptTx unlockToAddressTx(Data inputDatum, Data redeemer, String receiver)`

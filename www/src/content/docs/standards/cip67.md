@@ -51,7 +51,7 @@ System.out.println("Prefix 000de140 -> Label: " + extractedLabel);
 
 ### Validating CIP67 Asset Names
 
-Check both padding and checksum to confirm an asset name prefix is CIP67-compliant before using it.
+`isValidAssetName` checks the padding and the checksum. It doesn't check every padding bit (see [known issues](/project/known-issues/)), so treat it as a sanity check rather than proof of a well-formed name.
 
 ```java
 // Validate asset name from bytes
@@ -86,7 +86,7 @@ System.arraycopy(uniqueSuffix, 0, fullAssetName, labelPrefix.length, uniqueSuffi
 
 // Create asset with CIP67-compliant name
 Asset nftAsset = Asset.builder()
-    .name(HexUtil.encodeHexString(fullAssetName))
+    .name("0x" + HexUtil.encodeHexString(fullAssetName)) // without 0x, the text is read as UTF-8
     .value(BigInteger.ONE)
     .build();
 ```
@@ -100,7 +100,7 @@ Run validations over multiple asset names and extract labels where valid.
 List<String> assetNameHexes = Arrays.asList(
     "000de140", // Valid CIP67 asset name
     "000de141", // Invalid padding
-    "100de140", // Invalid padding
+    "100de140", // Invalid checksum
     "000de130"  // Invalid checksum
 );
 
@@ -198,29 +198,25 @@ public static boolean isValidAssetName(byte[] assetName)
 ## CIP67 Specification Details
 
 ### Asset Name Structure
-CIP67 asset names have the following structure:
-- **Bits 0-3**: Reserved (must be 0000)
-- **Bits 4-11**: CRC8 checksum
-- **Bits 12-31**: Label (20 bits, range 0-1048575, but typically 0-65535)
-- **Bits 32+**: Asset-specific data
+A CIP-67 prefix is 4 bytes, `[0000 | 16-bit label | 8-bit CRC8 checksum | 0000]`, followed by the rest of the asset name.
 
 ### Label Constraints
-- **Range**: 0 to 65535 (16-bit range commonly used)
+- **Range**: 0 to 65535
 - **Encoding**: Big-endian format
 - **Checksum**: CRC8 validation required
 
 ### Validation Rules
-1. **Padding Check**: Bits 0-3 must be 0000
-2. **Checksum Verification**: CRC8 checksum must match calculated value
-3. **Label Range**: Label must be within valid range
+1. **Padding Check**: The first and last 4 bits must be 0000
+2. **Checksum Verification**: The CRC8 checksum must match the label
 
 ## Common Label Registry
 
 | Label | Description | Prefix (Hex) |
 |-------|-------------|--------------|
-| 222 | NFT Standard | 000de140 |
-| 333 | Fungible Token Standard | 0014d140 |
-| 444 | Rich Fungible Token Standard | 001bc140 |
+| 100 | CIP-68 reference token | 000643b0 |
+| 222 | CIP-68 NFT | 000de140 |
+| 333 | CIP-68 fungible token | 0014df10 |
+| 444 | CIP-68 rich fungible token | 001bc280 |
 
 ## Best Practices
 
@@ -238,25 +234,9 @@ CIP67 asset names have the following structure:
 int label = 222; // NFT label for CIP68
 byte[] labelPrefix = CIP67AssetNameUtil.labelToPrefix(label);
 
-// Combine with asset-specific data
-String assetName = HexUtil.encodeHexString(labelPrefix) + "MyUniqueNFT";
-```
-
-### With CIP25 (NFT Metadata)
-```java
-// Create CIP25 NFT with CIP67-compliant name
-int label = 222;
-byte[] labelPrefix = CIP67AssetNameUtil.labelToPrefix(label);
-String assetName = HexUtil.encodeHexString(labelPrefix) + "MyNFT";
-
-CIP25NFT nft = CIP25NFT.create()
-    .name("My CIP67 NFT")
-    .image("https://example.com/image.png");
-
-Asset nftAsset = Asset.builder()
-    .name(assetName)
-    .value(BigInteger.ONE)
-    .build();
+// Combine with asset-specific data, in hex with a 0x prefix
+String assetName = "0x" + HexUtil.encodeHexString(labelPrefix)
+        + HexUtil.encodeHexString("MyUniqueNFT".getBytes(StandardCharsets.UTF_8));
 ```
 
 For more information about CIP67, refer to the [official CIP67 specification](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0067).

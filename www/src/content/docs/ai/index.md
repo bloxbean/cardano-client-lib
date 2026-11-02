@@ -70,5 +70,5 @@ works locally, so an agent can execute what it wrote and read a real transaction
 ## Related
 
 - [AI Starter Pack](/ai/starter-pack/) — the rules themselves
-- [Key APIs at a glance](/start-here/key-apis/) — the human version of the same decision table
+- [Key APIs at a glance](/start-here/key-apis/) — a quick tour of the main APIs
 - [Modules & artifacts](/reference/modules/) — full dependency reference

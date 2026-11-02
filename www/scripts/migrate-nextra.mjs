@@ -36,10 +36,10 @@ const MAP = {
   // The Nextra original was a feature list without a description or a reading path.
   'index': null,
   'gettingstarted/dependencies': null,
-  'gettingstarted/build': 'start-here/build-from-source',
+  'gettingstarted/build': null,
   'gettingstarted/account-setup': null,
-  'gettingstarted/concepts': 'start-here/core-concepts',
-  'gettingstarted/key-apis': 'start-here/key-apis',
+  'gettingstarted/concepts': null,
+  'gettingstarted/key-apis': null,
 
   // ── Learn (beginner path) ───────────────────────────────────────────────
   'gettingstarted/simple-transfer': null,
@@ -88,12 +88,12 @@ const MAP = {
   'preview/txflow/txstream-contracts': null,
 
   // ── Governance ──────────────────────────────────────────────────────────
-  'apis/governance/governance-api': 'governance/overview',
+  'apis/governance/governance-api': null,
 
   // ── Smart contracts ─────────────────────────────────────────────────────
-  'apis/core/plutus-api': 'smart-contracts/plutus-api',
-  'annotations/plutus-blueprint-code-generation': 'smart-contracts/blueprint-codegen',
-  'annotations/plutus-data-annotations': 'smart-contracts/plutusdata-annotations',
+  'apis/core/plutus-api': null,
+  'annotations/plutus-blueprint-code-generation': null,
+  'annotations/plutus-data-annotations': null,
   'annotations/dependencies': 'smart-contracts/annotation-processor-setup',
   'integrations/aiken-integration-api': null,
   'integrations/scalus-integration-api': null,
@@ -104,25 +104,25 @@ const MAP = {
   'preview/mpftrie/multi-version-gc': null,
 
   // ── Standards (CIPs) ────────────────────────────────────────────────────
-  'apis/standards/cip8-api': 'standards/cip8',
-  'apis/standards/cip20-api': 'standards/cip20',
-  'apis/standards/cip25-api': 'standards/cip25',
-  'apis/standards/cip27-api': 'standards/cip27',
-  'apis/standards/cip30-api': 'standards/cip30',
-  'apis/standards/cip67-api': 'standards/cip67',
-  'apis/standards/cip68-api': 'standards/cip68',
+  'apis/standards/cip8-api': null,
+  'apis/standards/cip20-api': null,
+  'apis/standards/cip25-api': null,
+  'apis/standards/cip27-api': null,
+  'apis/standards/cip30-api': null,
+  'apis/standards/cip67-api': null,
+  'apis/standards/cip68-api': null,
 
   // ── Reference ───────────────────────────────────────────────────────────
   'gettingstarted/modules': null,
-  'apis/core/account-api': 'reference/account-api',
-  'apis/core/address-api': 'reference/address-api',
-  'apis/core/hd-wallet-api': 'reference/hd-wallet-api',
-  'apis/core/metadata-api': 'reference/metadata-api',
+  'apis/core/account-api': null,
+  'apis/core/address-api': null,
+  'apis/core/hd-wallet-api': null,
+  'apis/core/metadata-api': null,
   'apis/providers/backend-services-api': null,
-  'apis/providers/supplier-interfaces-api': 'reference/supplier-interfaces',
-  'apis/utility/coin-selection-api': 'reference/coin-selection',
-  'apis/utility/crypto-api': 'reference/crypto-api',
-  'apis/transaction/composable-functions-api': 'reference/composable-functions',
+  'apis/providers/supplier-interfaces-api': null,
+  'apis/utility/coin-selection-api': null,
+  'apis/utility/crypto-api': null,
+  'apis/transaction/composable-functions-api': null,
 
   // ── Project ─────────────────────────────────────────────────────────────
   'preview/index': null,
@@ -135,10 +135,10 @@ const MAP = {
 
 // Old section-index URLs that had no backing .mdx of their own.
 const SECTION_ALIASES = {
-  'preview': 'project/whats-new',
+  'preview': null,
   'gettingstarted': 'start-here/installation',
-  'tutorials': 'learn/simple-transfer',
-  'apis': 'reference/modules',
+  'tutorials': null,
+  'apis': null,
 };
 
 

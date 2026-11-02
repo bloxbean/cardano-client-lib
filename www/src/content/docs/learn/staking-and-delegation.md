@@ -12,7 +12,8 @@ By the end of this page you will have registered a stake address, delegated it t
 withdrawn rewards, and deregistered it to reclaim the deposit.
 
 **Before you start**: finish [Your first transaction](/learn/simple-transfer/). You need a funded
-account on preview or a local devnet.
+account on Preview or a [local devnet](/learn/test-with-yaci-devkit/). On a default Yaci DevKit devnet, you can delegate to
+its pool, `pool1wvqhvyrgwch4jq9aa84hc8q4kzvyq2z3xr6mpafkqmx9wce39zy`.
 
 ## The staking lifecycle
 
@@ -20,7 +21,7 @@ Four operations, in order:
 
 1. **Register** the stake address — pays a refundable deposit (2 ADA on mainnet)
 2. **Delegate** it to a stake pool — takes effect two epochs later
-3. **Withdraw** rewards as they accumulate
+3. **Withdraw** rewards as they accumulate, which also needs a vote delegation
 4. **Deregister** when you are done — refunds the deposit
 
 Steps 1 and 2 are usually done in a single transaction.
@@ -30,7 +31,7 @@ Steps 1 and 2 are usually done in a single transaction.
 Every `Account` carries both a payment and a staking credential:
 
 ```java
-Account account = new Account(Networks.preview(), mnemonic);
+Account account = Account.createFromMnemonic(Networks.preview(), mnemonic);
 
 account.baseAddress();     // addr_test1... — holds funds, pays fees
 account.stakeAddress();    // stake_test1... — accrues rewards, delegates
@@ -75,6 +76,7 @@ only the payment key that pays the deposit. Deregistration and withdrawal do nee
 |---|---|---|
 | `registerStakeAddress` | Yes | No |
 | `delegateTo` | Yes (fees) | **Yes** |
+| `delegateVotingPowerTo` | Yes (fees) | **Yes** |
 | `withdraw` | Yes (fees) | **Yes** |
 | `deregisterStakeAddress` | Yes (fees) | **Yes** |
 
@@ -89,13 +91,30 @@ Delegation is not immediate, and this surprises people:
 | `n` | You submit the delegation certificate |
 | `n + 1` | Stake snapshot is taken |
 | `n + 2` | Your stake is active for the pool |
-| `n + 3` | First rewards for that stake appear |
+| `n + 4` | First rewards for that stake appear, at the start of the epoch |
 
-So roughly **15–20 days on mainnet** before the first reward. On preview, epochs are shorter,
-and on a local devnet you can move through epochs in seconds — which is why devnet is the right
-place to test a staking flow end to end.
+So roughly **15–20 days on mainnet** before the first reward. Preview's epochs last one day. On a
+[local devnet](/learn/test-with-yaci-devkit/) they take minutes, or less if you set a shorter epoch
+length, which is why a devnet is the right place to test a staking flow end to end.
 
 ## 3. Withdraw rewards
+
+The ledger won't let a key-based stake address withdraw until it has delegated its voting power. It
+rejects the transaction with `ConwayWdrlNotDelegatedToDRep`, even when the amount is zero. If you
+don't want to choose a DRep, delegate to the built-in "always abstain" option. You only need to do
+this once:
+
+```java
+Tx voteDelegation = new Tx()
+        .delegateVotingPowerTo(account.baseAddress(), DRep.abstain())
+        .from(account.baseAddress());
+
+new QuickTxBuilder(backendService)
+        .compose(voteDelegation)
+        .withSigner(SignerProviders.signerFrom(account))
+        .withSigner(SignerProviders.stakeKeySignerFrom(account))
+        .completeAndWait();
+```
 
 Withdrawals must take the **entire** reward balance — the ledger has no partial withdrawal:
 
@@ -151,8 +170,9 @@ In the Conway era a stake address has *two* independent delegations:
 - **`delegateTo(address, poolId)`** — block-production stake, earns rewards
 - **`delegateVotingPowerTo(address, drep)`** — governance voting power
 
-They are unrelated. Delegating to a pool does not give your voting power to anyone, and delegating
-voting power to a DRep does not change which pool you stake with. See
+Delegating to a pool does not give your voting power to anyone, and delegating voting power to a
+DRep does not change which pool you stake with. The one link is that withdrawing rewards
+[needs a vote delegation](#3-withdraw-rewards). See
 [Governance API](/governance/overview/) for the voting side.
 
 ## Troubleshooting
@@ -160,10 +180,11 @@ voting power to a DRep does not change which pool you stake with. See
 | Symptom | Cause |
 |---|---|
 | Missing witness / `MissingVKeyWitnessesUTXOW` | No `stakeKeySignerFrom(...)` on a certificate that needs it |
-| `StakeKeyAlreadyRegisteredDELEG` | Address already registered — skip registration and just delegate |
+| `StakeKeyRegisteredDELEG` | Address already registered — skip registration and just delegate |
 | `StakeKeyNotRegisteredDELEG` | Delegating before registering, or after deregistering |
-| Withdrawal rejected | Amount does not exactly equal the current reward balance |
-| Delegated but no rewards | Fewer than 3 epochs have passed, or the pool produced no blocks |
+| `ConwayWdrlNotDelegatedToDRep` | The stake address hasn't delegated its voting power; see [Withdraw rewards](#3-withdraw-rewards) |
+| `ConwayIncompleteWithdrawals` | Amount does not exactly equal the current reward balance |
+| Delegated but no rewards | Fewer than 4 epochs have passed, or the pool produced no blocks |
 
 ## Next
 

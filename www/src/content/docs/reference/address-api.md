@@ -38,7 +38,7 @@ The main class for Shelley address operations, supporting Bech32 encoded address
 
 **Other Methods:**
 - `toBech32()` / `getAddress()` — Convert to Bech32 format
-- `getAddressType()` — Get the address type (Base, Enterprise, Pointer, Reward)
+- `getAddressType()` — Get the address type (`Base`, `Enterprise`, `Ptr`, `Reward`)
 - `getNetwork()` — Get the network (mainnet/testnet)
 - `getPrefix()` — Get the address prefix
 - `getBytes()` — Get raw address bytes
@@ -343,7 +343,7 @@ ScriptPubkey scriptPubkey2 = ScriptPubkey.create(key2.getVkey());
 ScriptPubkey scriptPubkey3 = ScriptPubkey.create(key3.getVkey());
 
 // Create multi-sig script (2 of 3)
-ScriptAtLeast multiSigScript = ScriptAtLeast.create(2)
+ScriptAtLeast multiSigScript = new ScriptAtLeast(2)
     .addScript(scriptPubkey1)
     .addScript(scriptPubkey2)
     .addScript(scriptPubkey3);

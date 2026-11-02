@@ -23,8 +23,7 @@ library will notice many similarities.
 
 ### Composable Functions API
 
-These apis provide a balance between simple interface and flexibility. Using out-of-box composable functions, you can achieve any
-complexity and at the same time, you can write your own composable functions to customize the behavior during transaction building.
+This is the internal layer beneath QuickTx, for the rare case QuickTx can't express what you need. See [Composable functions](/reference/composable-functions/).
 
 ### High-Level Api (Deprecated)
 Provides simple interfaces to do transfer and token minting transaction. These apis are beginner friendly, but some complex transactions
@@ -42,7 +41,7 @@ in a transaction are fetched from the Cardano blockchain. Similarly, few protoco
 The library provides simple supplier interfaces which can be implemented to provide required on-chain data during transaction
 building. These apis remove direct dependency with on-chain data provider in core library.
 
-**1. ProtocolParameterSupplier** :- Implement this functional interface to provide current protocol parameters.
+**1. ProtocolParamsSupplier** :- Implement this functional interface to provide current protocol parameters.
 Protocol parameters are required to build the transaction.
 
 ```java
@@ -51,23 +50,25 @@ public interface ProtocolParamsSupplier {
 }
 ```
 
-**2. UtxoSupplier**:- This interface has only one method. Implement this interface to provide utxos which are required during
+**2. UtxoSupplier**:- Implement this interface to provide the utxos which are required during
 transaction building.
 
 ```java
 public interface UtxoSupplier {
     ...
     List<Utxo> getPage(String address, Integer nrOfItems, Integer page, OrderEnum order);
+    Optional<Utxo> getTxOutput(String txHash, int outputIndex);
     ...
 }
 ```
 
-**3. TransactionProcessor** :- Implement this interface to submit transactions to the Cardano blockchain. This is an optional
+**3. TransactionProcessor** :- Implement this interface to submit transactions to the Cardano blockchain and evaluate script costs. This is an optional
 interface.
 
 ```java
-public interface TransactionProcessor {
+public interface TransactionProcessor extends TransactionEvaluator {
     Result<String> submitTransaction(byte[] cborData) throws ApiException;
+    // evaluateTx(...) comes from TransactionEvaluator
 }
 ```
 
@@ -98,6 +99,7 @@ Out of box, the library currently supports integration with following providers 
 - Blockfrost
 - Koios
 - Ogmios (Supports submitTransaction, evaluateTx and UtxoService through Kupo)
+- Nexus
 
 ## Utxo Selection Strategy
 The library provides different utxo selection strategy implementations. The utxo selection strategy can be

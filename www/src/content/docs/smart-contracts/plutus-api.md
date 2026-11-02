@@ -107,11 +107,10 @@ PlutusScript plutusScript = blueprint.getPlutusScript("hello_world.spend");
 
 #### Using the loaded script with QuickTx
 
-:::note[`ScriptTx` is deprecated in 0.8.0]
-Every `ScriptTx` operation is now available on `Tx`, and `ScriptTx` will be removed in a future
-release. The examples below still work; for new code, replace `new ScriptTx()` with `new Tx()`
-and add `.from(senderAddress)` instead of the builder's `.feePayer(...)`. See
-[Unified Tx API](/quicktx/unified-tx/).
+:::note[`ScriptTx` in 0.7.x and the 0.8.0 previews]
+`ScriptTx` is the API for script transactions in the stable 0.7.x releases, where it isn't deprecated. In the
+0.8.0 previews it's deprecated, because every operation is also available on `Tx`. On a preview, you can replace
+`new ScriptTx()` with `new Tx()` and add `.from(senderAddress)`. See [Unified Tx API](/quicktx/unified-tx/).
 :::
 
 Once you have a `PlutusScript`, use it with `ScriptTx` the same way as a manually created script:
@@ -149,7 +148,7 @@ PlutusData stringData = BytesPlutusData.of("Hello Cardano".getBytes());
 // Create list data (varargs)
 PlutusData listData = ListPlutusData.of(intData, stringData);
 
-// Create map data (use builder pattern)
+// Create map data
 MapPlutusData mapData = new MapPlutusData();
 mapData.put(BytesPlutusData.of("key".getBytes()), intData);
 

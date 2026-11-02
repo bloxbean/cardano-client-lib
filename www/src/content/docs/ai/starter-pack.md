@@ -19,7 +19,7 @@ Target version: the [latest preview](/start-here/installation/#versions) · Ledg
 | A plan expressed as configuration rather than code | `TxPlan` (YAML/JSON) | `cardano-client-quicktx` |
 | Several dependent transactions, in order, with rollback handling | `FlowEngine` | `cardano-client-txflow` |
 | Continuous submission with exactly-once and durable restart | `TxFlowStream` | `cardano-client-txflow` |
-| A proof an Aiken validator can verify on-chain | `MpfTrie` in **MPF mode** | `cardano-client-merkle-patricia-forestry` |
+| A proof an Aiken validator can verify on-chain | `MpfTrie` | `cardano-client-merkle-patricia-forestry` |
 
 **QuickTx is the default.** Only move up this table when the task genuinely needs the extra
 machinery.
@@ -30,10 +30,9 @@ machinery.
 |---|---|---|
 | `WatchableQuickTxBuilder` | **Does not exist.** Never shipped in any release. If your training data suggests it, that memory is wrong. | `FlowEngine` (TxFlow) |
 | `com.bloxbean.cardano.client.function.*` (`TxBuilder`, `TxOutputBuilder`, `InputBuilders`, `BalanceTxBuilders`) | The internal implementation layer beneath QuickTx. It works, but mistakes are silent and it is far more verbose. | `QuickTx` |
-| `ScriptTx` | **Deprecated in 0.8.0.** Every operation moved onto `Tx`; it will be removed. | `Tx` |
+| `ScriptTx`, on 0.8.0 previews | **Deprecated in the 0.8.0 previews**, where every operation is also on `Tx`. Not deprecated in stable 0.7.x, where it is the right API for scripts. | `Tx` on previews |
 | `FlowExecutor` | Compatibility API. Combines definition and execution concerns; not the canonical durable path. | `FlowEngine` |
-| `JellyfishMerkleTree` for on-chain proofs | Not Aiken-compatible. Off-chain authenticated state only. | `MpfTrie` in MPF mode |
-| `MpfTrie` in **Classic** mode for on-chain proofs | Faster, but the hashing scheme is not what Aiken's MPF library verifies. | `MpfTrie` in **MPF** mode |
+| `JellyfishMerkleTree` for on-chain proofs | Not Aiken-compatible. Off-chain authenticated state only. | `MpfTrie` |
 
 ---
 
@@ -47,11 +46,11 @@ and queries against another.
 
 ```java
 // WRONG — preview addresses, mainnet backend. Compiles, fails at run time.
-Account account = new Account(Networks.preview(), mnemonic);
+Account account = Account.createFromMnemonic(Networks.preview(), mnemonic);
 BackendService backend = new BFBackendService(Constants.BLOCKFROST_MAINNET_URL, projectId);
 
 // RIGHT — both preview.
-Account account = new Account(Networks.preview(), mnemonic);
+Account account = Account.createFromMnemonic(Networks.preview(), mnemonic);
 BackendService backend = new BFBackendService(Constants.BLOCKFROST_PREVIEW_URL, projectId);
 ```
 
@@ -65,8 +64,7 @@ Matched pairs — `Constants` here is
 | Preview | `Networks.preview()` | `BLOCKFROST_PREVIEW_URL` |
 | Local devnet (Yaci DevKit) | `Networks.testnet()` | `http://localhost:8080/api/v1/` |
 
-`Networks.testnet()` is the generic testnet magic — use it for a local devnet, not for preview or
-preprod.
+All test networks use network id 0, so `Networks.testnet()`, `Networks.preview()` and `Networks.preprod()` give the same addresses. Use the constant that names your network when you know it.
 
 ### 2.2 Treating `complete()` as confirmation
 
@@ -173,7 +171,7 @@ import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.TxResult;
 import com.bloxbean.cardano.client.quicktx.TxStatus;
 
-Account sender = new Account(Networks.preview(), senderMnemonic);
+Account sender = Account.createFromMnemonic(Networks.preview(), senderMnemonic);
 BackendService backend =
         new BFBackendService(Constants.BLOCKFROST_PREVIEW_URL, projectId);
 
@@ -211,7 +209,7 @@ Minting needs **two** signers: the funding account and the policy key.
 
 ### 3.3 Call a Plutus script
 
-Use `Tx` — **not** `ScriptTx`:
+On the 0.8.0 previews, use `Tx` rather than `ScriptTx`. On stable 0.7.x, use `ScriptTx` with `.feePayer(...)`:
 
 ```java
 Tx tx = new Tx()
@@ -226,14 +224,15 @@ TxResult result = new QuickTxBuilder(backend)
         .completeAndWait();
 ```
 
-:::caution[`ScriptTx` is deprecated as of 0.8.0]
-Every `ScriptTx` operation now lives on `Tx` — script inputs, validator attachment, Plutus
-minting, script-protected certificates and governance. `ScriptTx` still compiles but will be
-removed. If your training data says "use `ScriptTx` for scripts", that is pre-0.8.0.
+:::caution[`ScriptTx` is deprecated in the 0.8.0 previews only]
+In the previews, every `ScriptTx` operation is also on `Tx` — script inputs, validator attachment, Plutus
+minting, script-protected certificates and governance. `ScriptTx` still works there. In stable 0.7.x it
+isn't deprecated, and `Tx` has none of these script operations, so check which version the project uses.
 
-Migration is a rename: `new ScriptTx()` becomes `new Tx()`. Because `Tx` has `.from(...)`, the
+To migrate, replace `new ScriptTx()` with `new Tx()`. Because `Tx` has `.from(...)`, the
 separate `.feePayer(...)` step that `ScriptTx` required is no longer needed for the common case.
-See [Unified Tx API](/quicktx/unified-tx/).
+`Tx` has no `collectFrom(Utxo)`, and `Tx.collectFrom(List<Utxo>)` adds regular inputs, so always pass a
+redeemer when spending from a script. See [Unified Tx API](/quicktx/unified-tx/).
 :::
 
 One naming trap: **native-script** minting is `mintAssets` (plural), **Plutus** minting is
@@ -254,7 +253,7 @@ TxResult result = new QuickTxBuilder(backend)
         .completeAndWait();
 ```
 
-Certificate operations need the **stake key** signature in addition to the payment key.
+Delegation, deregistration and withdrawal need the **stake key** signature in addition to the payment key. Registration alone doesn't. A withdrawal also needs the stake address to have delegated its vote, for example `.delegateVotingPowerTo(address, DRep.abstain())`.
 
 ---
 
@@ -264,7 +263,7 @@ Certificate operations need the **stake key** signature in addition to the payme
 |---|---|
 | `SignerProviders.signerFrom(account)` | Payment key. Almost every transaction. |
 | `SignerProviders.signerFrom(policy)` | Native-script policy key, when minting or burning. |
-| `SignerProviders.stakeKeySignerFrom(account)` | Stake registration, delegation, withdrawal. |
+| `SignerProviders.stakeKeySignerFrom(account)` | Delegation, vote delegation, deregistration, withdrawal. |
 | `SignerProviders.drepKeySignerFrom(account)` | Conway DRep operations. |
 | `SignerProviders.committeeHotKeySignerFrom(account)` | Conway committee hot-key votes. |
 | `SignerProviders.committeeColdKeySignerFrom(account)` | Conway committee cold-key operations. |
@@ -303,11 +302,8 @@ The full generated list of modules, artifact ids and entry points is at
 Answer in this order.
 
 1. **Must an on-chain Aiken validator verify the proof?**
-   Yes → `MpfTrie`. No → `JellyfishMerkleTree` is fine and is faster for pure off-chain state.
-2. **Which `MpfTrie` mode?**
-   `MPF` mode for anything on-chain. `Classic` mode is faster but its hashing does not match what
-   Aiken's MPF library verifies. This is the single most common mistake in this area.
-3. **Which storage backend?**
+   Yes → `MpfTrie`. No → `JellyfishMerkleTree` also works, for off-chain state only.
+2. **Which storage backend?**
    `merkle-patricia-forestry-rocksdb` for embedded single-process.
    `merkle-patricia-forestry-rdbms` for shared multi-process (PostgreSQL, H2, SQLite).
 
@@ -318,11 +314,11 @@ See [Verified structures](/verified-structures/overview/).
 ## 7. Testing generated code
 
 Do not hand back transaction code you have not run. [Yaci DevKit](https://devkit.yaci.xyz/#get-started)
-gives a local devnet with pre-funded accounts and instant blocks:
+gives a local devnet with pre-funded accounts and one-second blocks. `devkitMnemonic` is the [default devnet mnemonic](/learn/test-with-yaci-devkit/#fund-an-account):
 
 ```java
 BackendService backend = new BFBackendService("http://localhost:8080/api/v1/", "dummy-key");
-Account sender = new Account(Networks.testnet(), devkitMnemonic);
+Account sender = Account.createFromMnemonic(Networks.testnet(), devkitMnemonic);
 ```
 
 No API key, no faucet, no testnet wait. If the code produces a confirmed transaction hash there,

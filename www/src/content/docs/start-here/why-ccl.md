@@ -21,8 +21,8 @@ TxResult result = new QuickTxBuilder(backendService)
         .completeAndWait();
 ```
 
-That is a complete, confirmed payment. UTXO selection, balancing, fee calculation, change and
-confirmation tracking are handled.
+That is a complete payment. UTXO selection, balancing, fee calculation, change and
+confirmation tracking are handled. `result.getTxStatus()` tells you whether it was confirmed.
 
 ## What it covers
 
@@ -68,7 +68,6 @@ Java 17 or later is required.
 ## Reading and watching
 
 - [Introducing the QuickTx API](https://satran004.medium.com/introducing-new-quicktx-api-in-cardano-client-lib-0-5-0-beta1-5beb491282ce)
-- [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
 - [Testing an Aiken contract from Java with Yaci DevKit](https://youtu.be/PTnSc85t0Nk?si=44uK6KFrTIH3m06A)
 - [Example projects](https://github.com/bloxbean/cardano-client-examples) — runnable samples
 - [Showcase](/project/showcase/) — projects built with CCL
