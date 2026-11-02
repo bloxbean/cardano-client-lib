@@ -14,8 +14,12 @@ In this tutorial you'll create a token that can't move without its issuer's sign
 
 You finish with Alice holding 900 tokens, Bob holding 60, and a total supply of 960.
 
+:::note[Version]
+Programmable token support is available from **0.8.0-pre7**, and this tutorial was tested on that release.
+:::
+
 :::caution[Experimental]
-CIP-113 has the status **Proposed**, and `cardano-client-programmable-token` is experimental, so its public types may change before the module reaches beta. Use this on testnets for now.
+CIP-113 has the status **Proposed**, and `cardano-client-programmable-token` is experimental, so its public types may change before the module reaches beta. If the code doesn't compile on a newer release, check the module's [release notes](https://github.com/bloxbean/cardano-client-lib/blob/master/programmable-token/RELEASE_NOTES.md). Use this on testnets for now.
 :::
 
 **You need:** Java 17+, and some experience with [QuickTx](/quicktx/overview/). If you haven't built a transaction with this library yet, start with [your first transaction](/learn/simple-transfer/).
@@ -64,13 +68,15 @@ The CIP lets an application key smart wallets by the owner's payment or stake cr
 
 ## Set up your project
 
-Add these dependencies. The programmable-token module isn't part of the `cardano-client-lib` aggregate, so it has to be listed on its own.
+Add these dependencies, replacing `<version>` with the release you're using. The programmable-token module isn't part of the `cardano-client-lib` aggregate, so it has to be listed on its own.
 
 ```gradle
+def cclVersion = '<version>'
+
 dependencies {
-    implementation 'com.bloxbean.cardano:cardano-client-lib:0.8.0-pre7'
-    implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.8.0-pre7'
-    implementation 'com.bloxbean.cardano:cardano-client-programmable-token:0.8.0-pre7'
+    implementation "com.bloxbean.cardano:cardano-client-lib:$cclVersion"
+    implementation "com.bloxbean.cardano:cardano-client-backend-blockfrost:$cclVersion"
+    implementation "com.bloxbean.cardano:cardano-client-programmable-token:$cclVersion"
     implementation 'com.bloxbean.cardano:aiken-java-binding:0.1.0'
 }
 ```
@@ -115,6 +121,9 @@ public class IssuerApprovedToken {
             + "02002300d0014020805a2c8030c020004c020c024004c020004c010dd5004452689b2b200401";
 
     private static final String ASSET_NAME = "TutorialToken";
+
+    /** How long to wait for a submitted transaction to land in a block. */
+    private static final Duration CONFIRM_TIMEOUT = Duration.ofMinutes(5);
 
     /** How long to let the backend's UTxO view catch up after a confirmed transaction. */
     private static final Duration SETTLE_TIME = Duration.ofSeconds(60);
@@ -247,16 +256,18 @@ private void fundAlice() {
     check("Fund alice", new QuickTxBuilder(backend)
             .compose(tx)
             .withSigner(SignerProviders.signerFrom(issuer))
-            .completeAndWait());
+            .completeAndWait(CONFIRM_TIMEOUT));
 }
 ```
 
-Every submission in this tutorial goes through `check`, which stops on failure and then pauses:
+Every submission in this tutorial goes through `check`, which stops unless the transaction is confirmed and then pauses:
 
 ```java
-private static void check(String step, Result<String> result) {
+private static void check(String step, TxResult result) {
     if (!result.isSuccessful())
         throw new IllegalStateException(step + " failed: " + result.getResponse());
+    if (result.getTxStatus() != TxStatus.CONFIRMED)
+        throw new IllegalStateException(step + " not confirmed (" + result.getTxStatus() + "): " + result.getValue());
     System.out.printf("%-12s : %s%n", step, result.getValue());
     settle();
 }
@@ -271,7 +282,12 @@ private static void settle() {
 }
 ```
 
-The pause matters on a public network. `completeAndWait()` returns once the transaction is confirmed, but Blockfrost's UTxO queries can lag behind that: we measured anywhere from 1 to 37 seconds on Preview. Without the pause, the next transaction can pick a UTxO that was just spent. A pause keeps this tutorial simple, but a production application should chain transactions properly, for example with [TxFlow](/txflow/overview/).
+Both checks matter on a public network:
+
+- **Confirmation.** `completeAndWait()` waits 60 seconds by default. If the transaction hasn't landed by then, the result still reports `isSuccessful()`, with the status `TIMEOUT`. Blocks can be slow on Preview, where one of our test transactions took about two minutes, so this code waits up to five minutes and accepts only `CONFIRMED`.
+- **The pause.** Blockfrost's UTxO queries can lag behind a confirmed transaction: we measured anywhere from 1 to 37 seconds on Preview. Without the pause, the next transaction can pick a UTxO that was just spent.
+
+This keeps the tutorial simple, but a production application should chain transactions properly, for example with [TxFlow](/txflow/overview/).
 
 Next, register the script's reward account so that withdraw-zero can run it. This needs no script witness. The check for `StakeKeyRegistered` lets you run this step again safely.
 
@@ -279,12 +295,12 @@ Next, register the script's reward account so that withdraw-zero can run it. Thi
 private void registerRewardAccount() {
     String rewardAddress = AddressProvider.getRewardAddress(logic, network).toBech32();
 
-    Result<String> result = new QuickTxBuilder(backend)
+    TxResult result = new QuickTxBuilder(backend)
             .compose(new Tx()
                     .registerStakeAddress(rewardAddress)
                     .from(issuer.baseAddress()))
             .withSigner(SignerProviders.signerFrom(issuer))
-            .completeAndWait();
+            .completeAndWait(CONFIRM_TIMEOUT);
 
     if (!result.isSuccessful() && result.getResponse().contains("StakeKeyRegistered")) {
         System.out.println("Reward account already registered");
@@ -329,7 +345,7 @@ private void registerAndMint() {
 
     check("Register", builder(tx, issuer)
             .withRequiredSigners(issuerAddress)
-            .completeAndWait());
+            .completeAndWait(CONFIRM_TIMEOUT));
 }
 ```
 
@@ -413,7 +429,7 @@ private void transfer() {
     check("Transfer", builder(tx, alice)
             .withRequiredSigners(issuerAddress)
             .withSigner(SignerProviders.signerFrom(issuer))
-            .completeAndWait());
+            .completeAndWait(CONFIRM_TIMEOUT));
 }
 ```
 
@@ -434,7 +450,7 @@ private void seize() {
 
     check("Seize", builder(tx, issuer)
             .withRequiredSigners(issuerAddress)
-            .completeAndWait());
+            .completeAndWait(CONFIRM_TIMEOUT));
 }
 ```
 
@@ -461,7 +477,7 @@ private void burn() {
             .burn(policyId, List.of(new Asset(ASSET_NAME, BigInteger.valueOf(40))),
                     BurnAuthorization.of(PlutusData.unit(), PlutusData.unit()));
 
-    check("Burn", builder(tx, issuer).completeAndWait());
+    check("Burn", builder(tx, issuer).completeAndWait(CONFIRM_TIMEOUT));
 }
 ```
 
@@ -514,6 +530,8 @@ import com.bloxbean.cardano.client.programmabletoken.cip113.Cip113Registration;
 import com.bloxbean.cardano.client.programmabletoken.cip113.tx.RegistryNodeSpec;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.TxResult;
+import com.bloxbean.cardano.client.quicktx.TxStatus;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.util.HexUtil;
 
@@ -532,6 +550,9 @@ public class IssuerApprovedToken {
             + "02002300d0014020805a2c8030c020004c020c024004c020004c010dd5004452689b2b200401";
 
     private static final String ASSET_NAME = "TutorialToken";
+
+    /** How long to wait for a submitted transaction to land in a block. */
+    private static final Duration CONFIRM_TIMEOUT = Duration.ofMinutes(5);
 
     /** How long to let the backend's UTxO view catch up after a confirmed transaction. */
     private static final Duration SETTLE_TIME = Duration.ofSeconds(60);
@@ -621,7 +642,7 @@ public class IssuerApprovedToken {
         check("Fund alice", new QuickTxBuilder(backend)
                 .compose(tx)
                 .withSigner(SignerProviders.signerFrom(issuer))
-                .completeAndWait());
+                .completeAndWait(CONFIRM_TIMEOUT));
     }
 
     // -- Step: withdraw-zero needs a registered reward account
@@ -629,12 +650,12 @@ public class IssuerApprovedToken {
     private void registerRewardAccount() {
         String rewardAddress = AddressProvider.getRewardAddress(logic, network).toBech32();
 
-        Result<String> result = new QuickTxBuilder(backend)
+        TxResult result = new QuickTxBuilder(backend)
                 .compose(new Tx()
                         .registerStakeAddress(rewardAddress)
                         .from(issuer.baseAddress()))
                 .withSigner(SignerProviders.signerFrom(issuer))
-                .completeAndWait();
+                .completeAndWait(CONFIRM_TIMEOUT);
 
         if (!result.isSuccessful() && result.getResponse().contains("StakeKeyRegistered")) {
             System.out.println("Reward account already registered");
@@ -661,7 +682,7 @@ public class IssuerApprovedToken {
 
         check("Register", builder(tx, issuer)
                 .withRequiredSigners(issuerAddress)
-                .completeAndWait());
+                .completeAndWait(CONFIRM_TIMEOUT));
     }
 
     // -- Step: a transfer without the issuer's signature
@@ -690,7 +711,7 @@ public class IssuerApprovedToken {
         check("Transfer", builder(tx, alice)
                 .withRequiredSigners(issuerAddress)
                 .withSigner(SignerProviders.signerFrom(issuer))
-                .completeAndWait());
+                .completeAndWait(CONFIRM_TIMEOUT));
     }
 
     // -- Step: seize tokens without the holder's signature
@@ -703,7 +724,7 @@ public class IssuerApprovedToken {
 
         check("Seize", builder(tx, issuer)
                 .withRequiredSigners(issuerAddress)
-                .completeAndWait());
+                .completeAndWait(CONFIRM_TIMEOUT));
     }
 
     // -- Step: burn
@@ -714,7 +735,7 @@ public class IssuerApprovedToken {
                 .burn(policyId, List.of(new Asset(ASSET_NAME, BigInteger.valueOf(40))),
                         BurnAuthorization.of(PlutusData.unit(), PlutusData.unit()));
 
-        check("Burn", builder(tx, issuer).completeAndWait());
+        check("Burn", builder(tx, issuer).completeAndWait(CONFIRM_TIMEOUT));
     }
 
     // -- Helpers
@@ -740,9 +761,11 @@ public class IssuerApprovedToken {
                 .reduce(BigInteger.ZERO, BigInteger::add);
     }
 
-    private static void check(String step, Result<String> result) {
+    private static void check(String step, TxResult result) {
         if (!result.isSuccessful())
             throw new IllegalStateException(step + " failed: " + result.getResponse());
+        if (result.getTxStatus() != TxStatus.CONFIRMED)
+            throw new IllegalStateException(step + " not confirmed (" + result.getTxStatus() + "): " + result.getValue());
         System.out.printf("%-12s : %s%n", step, result.getValue());
         settle();
     }
@@ -787,7 +810,7 @@ The whole run cost about 7 tADA from the issuer and 1.6 tADA from Alice, on top 
 
 You can look up each transaction hash in a [Preview explorer](https://preview.cardanoscan.io).
 
-This story runs once per mnemonic, because the token stays registered. To run it from the start again, create a new wallet. With the pauses, a run takes about six minutes.
+This story runs once per mnemonic, because the token stays registered. To run it from the start again, create a new wallet. With the pauses, our Preview run took about ten minutes.
 
 ## What you built
 
@@ -805,6 +828,7 @@ The "issuer" requirement comes from your script, not from the protocol. A differ
 | What you see | Cause | Fix |
 |---|---|---|
 | `All inputs are spent. Transaction has probably already been included` | The backend returned a UTxO that a confirmed transaction had already spent | Wait and retry, or increase `SETTLE_TIME` |
+| `... not confirmed (TIMEOUT): <hash>` | The transaction didn't land within `CONFIRM_TIMEOUT`, and it may still land | Look up the hash in an explorer. Run again once it has landed, using a new wallet if the token is already registered, and increase `CONFIRM_TIMEOUT` |
 | `Could not resolve the minting logic script ...` | The chain hasn't revealed your script, and you didn't hand it over | Call `protocol.scripts().register(script)` before building |
 | `ConwayWithdrawalsMissingAccounts` in the submit response | The script's reward account isn't registered | Run [Step 3](#step-3-fund-alice-and-register-the-reward-account) |
 | `No covering registry node for policy ...` | That policy is already registered, usually because you ran the story twice | Skip `register`, or create a new wallet |
