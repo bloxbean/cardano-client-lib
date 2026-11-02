@@ -15,11 +15,7 @@ In this tutorial you'll create a token that can't move without its issuer's sign
 You finish with Alice holding 900 tokens, Bob holding 60, and a total supply of 960.
 
 :::note[Version]
-Programmable token support is available from **0.8.0-pre7**, and this tutorial was tested on that release.
-:::
-
-:::caution[Experimental]
-CIP-113 has the status **Proposed**, and `cardano-client-programmable-token` is experimental, so its public types may change before the module reaches beta. If the code doesn't compile on a newer release, check the module's [release notes](https://github.com/bloxbean/cardano-client-lib/blob/master/programmable-token/RELEASE_NOTES.md). Use this on testnets for now.
+Programmable token support is available from **0.8.0-pre7**, and this tutorial was tested on that release. If the code doesn't compile on a newer release, check the module's [release notes](https://github.com/bloxbean/cardano-client-lib/blob/master/programmable-token/RELEASE_NOTES.md).
 :::
 
 **You need:** Java 17+, and some experience with [QuickTx](/quicktx/overview/). If you haven't built a transaction with this library yet, start with [your first transaction](/learn/simple-transfer/).
