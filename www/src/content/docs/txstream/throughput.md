@@ -17,7 +17,8 @@ expresses that directly:
 - The lane also constrains **coin selection**: an item's transaction is mechanically pinned to its
   lane's funding scope (violations fail typed `TXSTREAM_LANE_SCOPE_VIOLATION`), and the lane is
   declared as the engine's spending resource — the cross-process safety net if another process
-  ever runs against the same funds.
+  ever runs against the same funds. Template items are exempt from the pin: keep each template's
+  `from_ref` equal to its lane's source yourself.
 
 > **Alias caveat:** for funding-*ref* lanes, identity is the reference string as given
 > (`ref:account://sender`), caller-asserted canonical. Two different references naming the same
@@ -90,7 +91,7 @@ Multi-item planning is opt-in via a `WindowPolicy` plus a planner:
 - `WindowPolicy.countOrTime(n, maxAge)` — n items or the oldest item's age, whichever first.
 - `WindowPolicy.time(maxAge)` — age only.
 
-Time-based policies require the builder's `maintenanceExecutor(ScheduledExecutorService)`: the
+Time-based policies need a scheduler. Set `maintenanceExecutor(ScheduledExecutorService)`, or let the stream inherit the engine's maintenance executor when it's a `ScheduledExecutorService`: the
 stream owns no threads or timers, so window-age wakeups run on your scheduler (one scheduled
 wakeup per open window).
 
@@ -101,7 +102,7 @@ TxFlowStream perWindowStream = TxFlowStream.builder("payouts-window", engine)
         .lane(ResolvedLane.ofFundingRef("payouts", "account://sender"))
         .planner(TxStreamPlanner.perWindow())
         .window(WindowPolicy.countOrTime(50, Duration.ofSeconds(10)))
-        .maintenanceExecutor(maintenance)   // required for time-based windows
+        .maintenanceExecutor(maintenance)   // a scheduler for time-based windows
         .executor(streamExecutor)
         .build();
 
@@ -149,9 +150,12 @@ batch.ifPresent(result -> System.out.println(result.status()
 > flow (or fails the window typed, with `allowNonPaymentSingletons(false)`). The merged
 > transaction is a minimal reconstruction from the members' payment outputs plus the lane's
 > funding source — **per-member transaction context is not carried**: extra signers, custom fee
-> payer, change address, validity windows, and attached metadata are dropped. Items needing any
-> of that belong under `perItem()` or `perWindow()`. Batching fails closed if it would produce an
-> unsignable merged transaction.
+> payer, change address, and validity windows are dropped. Items needing any of that belong
+> under `perItem()` or `perWindow()`.
+>
+> **Batching needs a funding-ref lane.** A merged plan gets a signer only on a funding-ref lane
+> (`ofFundingRef` or `from_ref`). On an address lane the merged transaction has no signer, so the
+> batch fails with `No signers found` and no funds move.
 
 > **Dedup warning:** `perWindow()` and `batching(...)` provide flow-level dedup only, and under
 > batching a re-batched payment is a **real second on-chain payment**. Read
@@ -167,16 +171,30 @@ failures). Plans are validated before dispatch (`TXSTREAM_PLAN_INVALID`,
 
 ## Partitioned lanes: the fan-out deep-dive
 
-`LanePolicy.partitioned(...)` is the full UTXO throughput story for a single logical wallet: a
-one-time bootstrap execution splits the funding source into N disjoint lane UTXOs (application-
-owned addresses), items are assigned by `hash(idempotencyKey) % N` (stable across restarts), and
-the N lanes run concurrently — throughput scales with N, not block time.
+Items may use QuickTx extensions registered on the engine (`FlowEngine.Builder.extension` or
+`FlowRuntime.Builder.extension`). An unregistered extension is rejected at submit with
+`TXSTREAM_NON_PORTABLE_ITEM`, `batching(...)` never merges extension items, and `perWindow()` splits
+items with conflicting bindings into separate flows on the same lane.
+
+`LanePolicy.partitioned(...)` is the full UTXO throughput story for a single logical wallet: the
+funding source is split across N lane addresses, items are assigned by `hash(idempotencyKey) % N`
+(stable across restarts), and the N lanes run concurrently — throughput scales with N, not block
+time.
+
+:::caution[Pre-fund your lanes in this preview]
+The built-in bootstrap transaction carries no signer, so `bootstrap(true)` fails `start()` with
+`TXSTREAM_BOOTSTRAP_FAILED`. Fund the lane addresses yourself and use `bootstrap(false)`.
+:::
+
+Items must leave `from` and `from_ref` unset, or name exactly their assigned lane address; otherwise
+they fail `TXSTREAM_LANE_SCOPE_VIOLATION`. A plan's signers must be able to sign for whichever lane
+the hash assigns:
 
 ```java
 PartitionedLanes partitioning = PartitionedLanes.fromRef("account://treasury")
         .laneAddresses(laneAddresses)       // order is stability-critical
         .seedPerLane(Amount.ada(200))
-        .bootstrap(true)                    // one-time fan-out split on start()
+        .bootstrap(false)                   // lanes are already funded
         .build();
 
 TxFlowStream stream = TxFlowStream.builder("payouts-partitioned", durableEngine)
@@ -186,19 +204,13 @@ TxFlowStream stream = TxFlowStream.builder("payouts-partitioned", durableEngine)
         .build();
 stream.start();
 
-BootstrapReport bootstrap = stream.bootstrap();
-if (bootstrap.outcome() == BootstrapReport.Outcome.MATCHED) {
-    // a prior run already split the wallet; nothing was re-submitted
-}
+TxPlan plan = TxPlan.from(new Tx().payToAddress(receiver, Amount.ada(2)))
+        .withSigner("account://lane0")
+        .withSigner("account://lane1");
+stream.submit("payout-1", plan).awaitConfirmed(Duration.ofMinutes(5));
 ```
 
-The bootstrap is one idempotent engine execution, run by `start()` before the stream opens for
-work; its claim is derived from the funding source, addresses, and seed, so a restart or a second
-instance `MATCHED`s instead of re-splitting. A failed bootstrap fails `start()` typed
-(`TXSTREAM_BOOTSTRAP_FAILED`) — nothing dispatches against unfunded lanes. A crash after the
-split was submitted but before it confirmed leaves the bootstrap execution non-terminal: the next
-`start()` reports `FAILED` and an operator must reconcile it (e.g. `engine.recover(...)`) before
-the stream opens. With `bootstrap(false)` the lanes are assumed pre-funded. Min-ADA per lane and
+With `bootstrap(false)` the lanes are assumed pre-funded. Min-ADA per lane and
 consolidating lanes on shutdown are the caller's economics — the stream never manages keys.
 
 > **FUNDS-CRITICAL: the partitioned configuration must be byte-stable across restarts.** The
@@ -223,15 +235,15 @@ What the current built-ins actually deliver:
   executions (devnet-validated), bounded by `maxInFlight`.
 - **Batching is real transaction reduction** — up to `maxItemsPerTransaction` payments per
   on-chain transaction (devnet-validated: two payments merged into one transaction).
-- **Within one flow, the built-in planners build SEQUENTIAL flows**: a `perWindow()` flow of 50
-  items confirms its 50 steps one confirmation at a time, and a lane running `perItem()` flows
-  waits for each item's confirmation before dispatching the next. Intra-lane pipelining —
-  chaining a transaction off a previous transaction's *unconfirmed* outputs — is an engine
-  capability that is **not yet reachable through the built-in planners**. It is a roadmap item;
-  do not size a deployment assuming it.
+- **Within one flow, `perWindow()` is SEQUENTIAL by default**: a flow of 50 items confirms its 50
+  steps one at a time, and a lane running `perItem()` flows waits for each item's confirmation
+  before dispatching the next. `perWindow(ChainingMode.PIPELINED)` with a `WindowPolicy` submits a
+  window's steps without waiting for confirmation between them. The lane still runs one execution
+  at a time, so the next window waits for the current one, and windows of one gain nothing. Dedup
+  stays flow-level.
 
 So today's levers, in order: **more lanes** (explicit or partitioned), then **batching** (fewer,
-larger transactions), then window sizing. If a lane must exceed roughly one transaction per
+larger transactions), then `perWindow(PIPELINED)` with window sizing. If a lane must exceed roughly one transaction per
 confirmation interval and batching cannot absorb it, that is the signal to partition further.
 
 ## Feeding a stream from java.util.concurrent.Flow

@@ -193,11 +193,17 @@ escrows for one vault share the same inline datum (the admin), so find them by d
 to its order by the lock transaction hash the service recorded:
 
 ```java
+TxStreamItemResult lock1Result = lock1.awaitConfirmed(Duration.ofMinutes(3));
+TxStreamItemResult lock2Result = lock2.awaitConfirmed(Duration.ofMinutes(3));
+
 List<Utxo> escrows = ScriptUtxoFinders.findAllByInlineDatum(
         utxoSupplier, scriptAddress, vaultDatum);
 Utxo escrow1 = byTxHash(escrows, lock1Result.getTransactionHash());
 Utxo escrow2 = byTxHash(escrows, lock2Result.getTransactionHash());
 ```
+
+`byTxHash` is your own helper that filters by `Utxo.getTxHash()`. Confirmation can come before UTxO
+indexing, so retry the lookup until the lock output appears.
 
 (If your datum is unique per order — e.g. it embeds an order id — `findFirstByInlineDatum` finds
 the exact UTXO directly.)
@@ -380,9 +386,13 @@ for keys. (This tutorial's test uses inline attachment; the by-ref shape is cove
   native-script-only; for Plutus minting use the inline `mintAsset(PlutusScript, ...)` overloads
   (portable via the attachment's `cbor_hex`), or name the `policyId` string explicitly and attach
   the mint validator by `ScriptRef` through the script registry.
-- **Script cost evaluation runs through the engine's `TransactionProcessor`** (the backend's
-  evaluate endpoint — supported by Yaci DevKit and Blockfrost). There is no per-item evaluator
-  hook on the stream; if your backend cannot evaluate, script items fail at build.
+- **Script cost evaluation runs through the engine's `TransactionProcessor` by default** (the
+  backend's evaluate endpoint — supported by Yaci DevKit and Blockfrost). To evaluate locally, set one
+  factory for the whole engine: `.txEvaluator((utxos, params) -> new AikenTransactionEvaluator(utxos, params))`
+  on `FlowEngine.Builder` or `FlowRuntime.Builder`, using [Aiken Java Binding](/smart-contracts/aiken/).
+  There's no per-item evaluator. A Plutus step under `perWindow(ChainingMode.PIPELINED)` that spends
+  or references an earlier step's pending output needs the local evaluator, because the backend knows
+  only confirmed UTxOs.
 - **Runtime `Utxo` objects serialize as references.** A claim plan built from a found `Utxo`
   round-trips as `(tx_hash, output_index)`; if that UTXO is spent before dispatch, the claim
   fails honestly rather than double-spending.

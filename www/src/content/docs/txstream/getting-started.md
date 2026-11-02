@@ -5,8 +5,11 @@ description: "Continuous, idempotent transaction submission on the FlowEngine ru
 
 :::tip[New to TxStream? Start here]
 **The problem:** you have many transactions to submit over time — a payout queue, an outbox
-table, a message stream — and each must land **exactly once**, even if your process crashes and
-the upstream queue redelivers the same item.
+table, a message stream — and each must land **once**, even when the upstream queue redelivers
+the same item. Within one running process, `FlowRuntime` gives you this. It keeps its history in
+memory, so after a process restart a redelivered item is new work and pays again. To survive
+crashes, pair a durable engine store with a durable stream store and `perItem()`; see
+[Durability](/txstream/durability/).
 
 **The shape of the answer:** you open a stream, submit work items with a business id you already
 have (an order id, a message id), and each item becomes its own idempotent execution. Redelivering
@@ -28,13 +31,14 @@ uncertain outcome is reported as `RECOVERY_REQUIRED`, never as a false failure);
 item settles a receipt in bounded time.
 
 **When to use it:** reach for TxStream when you are submitting many transactions over time and
-care that each lands exactly once and survives failures; reach for QuickTx when you are building a
+care that each lands exactly once and survives failures (crash survival needs the durable stores,
+not plain `FlowRuntime`); reach for QuickTx when you are building a
 single transaction, and for a `TxFlow` definition plus `FlowEngine` when several transactions form
 one multi-step workflow. TxStream is not the right tool for one-off transactions, for on-chain
 atomic multi-party logic (that is a contract), or for latency-critical paths — confirmation
 latency dominates; this is a throughput and reliability tool.
 
-> **Status:** TxStream ships with the txflow preview line (`0.8.0-pre*`) and is
+> **Status:** TxStream ships with txflow in the [latest preview](/start-here/installation/#versions) and is
 > preview/experimental. The scenarios below are validated end-to-end on a live Yaci DevKit devnet,
 > but sustained-load soak testing has not been done. Java 17 is the minimum. Direct engine/stream
 > builders use caller-owned executors; the optional `FlowRuntime` below explicitly owns its
@@ -45,11 +49,10 @@ latency dominates; this is a throughput and reliability tool.
 TxStream is part of the `cardano-client-txflow` module — no extra dependency beyond txflow itself:
 
 ```gradle
-def cclVersion = "0.8.0-pre5-SNAPSHOT"
+def cclVersion = '<version>'
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
 
 dependencies {
@@ -95,7 +98,12 @@ What the pieces do:
   Same-source items serialize; different sources can run concurrently. Do not mix address and
   reference forms for one wallet within a stream.
 - **`TxPlan` payloads** are portable QuickTx plans. A `TxPlan` needs `.withSigner(...)` naming a
-  reference registered by `FlowRuntime.Builder.account(...)`; keys never travel inside items.
+  reference registered by `FlowRuntime.Builder.account(...)`; keys never travel inside items. A plan
+  with no `from` or `from_ref` is rejected at submit with `TXSTREAM_LANE_UNDERIVABLE`.
+
+`runtime.open(id)` takes no options. For windows, planners or a custom lane policy, use
+`TxFlowStream.builder(id, runtime.engine())`. The runtime doesn't track that stream, so close it
+before the runtime.
 
 ## Item identity and idempotency
 
@@ -183,9 +191,9 @@ try {
     return stream.submit("order-0042", plan)
             .awaitConfirmed(Duration.ofMinutes(5));
 } catch (TxStreamUncertainException uncertain) {
-    // DO NOT RESUBMIT: reconcile this known item/transaction.
-    return stream.awaitResolution(uncertain.itemId(),
-            Duration.ofMinutes(5), Duration.ofSeconds(5));
+    // DO NOT RESUBMIT: the transaction may still land. Look its hash up on chain.
+    String txHash = uncertain.result().getTransactionHash(); // may be null
+    throw uncertain;
 } catch (TxStreamTimeoutException timeout) {
     // A caller wait expired; inspect timeout.result(). Timeout is not failure.
     throw timeout;
@@ -196,12 +204,16 @@ try {
 }
 ```
 
+`stream.awaitResolution(itemId, timeout, interval)` can change that answer only on an engine with a
+`FlowExecutionStore`, once the stored execution is terminal. Otherwise it ends with
+`TxStreamTimeoutException`, so don't rely on it with plain `FlowRuntime`.
+
 `receipt.completion()` remains the non-cancelling asynchronous stage and `awaitSettled()` is the
 blocking API for callers that intentionally branch over every settled state. Both can expose
 `RECOVERY_REQUIRED`. `getItemStatus(itemId)` returns the live projection at any time:
 
 ```java
-// Live projection; read-through repair for RECOVERY_REQUIRED items:
+// Live projection; read-through repair needs an engine with a store:
 Optional<TxStreamItemResult> current = stream.getItemStatus(receipt.itemId());
 
 TxStreamStats stats = stream.getStats();
@@ -217,7 +229,7 @@ int inFlight = stats.inFlightCount();
 | `CONFIRMED` | The item's transaction confirmed on chain | yes |
 | `FAILED` | Conclusive failure; when a transaction was submitted first, its hash is retained | yes |
 | `CANCELLED` | Cancelled before producing a confirmed transaction | yes |
-| `RECOVERY_REQUIRED` | Disposition uncertain — typically submitted but unconfirmed inside a terminal flow. **The transaction may still confirm: reconcile, do not retry blindly.** Settles the receipt as a point-in-time answer but remains repairable through `getItemStatus`/`reconcile` | settles the receipt; repairable |
+| `RECOVERY_REQUIRED` | Disposition uncertain — typically submitted but unconfirmed inside a terminal flow. **The transaction may still confirm: reconcile, do not retry blindly.** Settles the receipt as a point-in-time answer. `getItemStatus`/`reconcile` can repair it only on an engine with a store, once the stored execution is terminal | settles the receipt |
 
 Two projection guarantees are worth internalizing: a transaction hash, once known, is never
 dropped from a later snapshot, and a submitted-but-unconfirmed transaction is never reported
