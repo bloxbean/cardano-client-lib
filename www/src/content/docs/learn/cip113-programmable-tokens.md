@@ -77,7 +77,7 @@ dependencies {
 }
 ```
 
-`aiken-java-binding` applies your script's parameter and evaluates scripts locally. It bundles native libraries for macOS, Windows and x86-64 Linux, but not ARM64 Linux.
+`aiken-java-binding` applies your script's parameter and evaluates scripts locally. It bundles native libraries for macOS, Windows and x86-64 Linux, but not ARM64 Linux. On ARM64 Linux, [use Scalus instead](#use-scalus-instead-of-aiken).
 
 You also need a free [Blockfrost](https://blockfrost.io) project for Preview and a funded wallet. Create a wallet with this class:
 
@@ -807,6 +807,28 @@ The whole run cost about 7 tADA from the issuer and 1.6 tADA from Alice, on top 
 You can look up each transaction hash in a [Preview explorer](https://preview.cardanoscan.io).
 
 This story runs once per mnemonic, because the token stays registered. To run it from the start again, create a new wallet. With the pauses, our Preview run took about ten minutes.
+
+## Use Scalus instead of Aiken
+
+[Scalus](/smart-contracts/scalus/) can do both jobs that Aiken Java Binding does here, and it also runs on ARM64 Linux. Replace the `aiken-java-binding` dependency with `org.scalus:scalus-bloxbean-cardano-client-lib_3:1.4.1`, then change two places.
+
+Apply the parameter in `prepareLogicScript`:
+
+```java
+PlutusScript unapplied = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(COMPILED_CODE, PlutusVersion.v3);
+String applied = ScalusScriptUtils.applyParamsToScript(unapplied.getCborHex(), BytesPlutusData.of(issuerKeyHash));
+logicScript = PlutusV3Script.builder().type("PlutusScriptV3").cborHex(applied).build();
+```
+
+Evaluate scripts in `builder`, with `params` from `backend.getEpochService().getProtocolParameters().getValue()`:
+
+```java
+.withTxEvaluator(new ScalusTransactionEvaluator(
+        params, new DefaultUtxoSupplier(backend.getUtxoService()),
+        new ScriptServiceSupplier(backend.getScriptService())));
+```
+
+The parameter gives the same script hash either way, so a token registered with one tool works with the other.
 
 ## What you built
 

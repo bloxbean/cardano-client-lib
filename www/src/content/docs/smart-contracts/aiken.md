@@ -5,6 +5,8 @@ description: Aiken Integration Apis
 
 Using [Aiken Java Binding](https://github.com/bloxbean/aiken-java-binding) provides many useful functionalities, such as "off-chain" script cost evaluation and compiling parameterized contracts. Aiken Java Binding offers a JNI wrapper around the Aiken library, making it easier to integrate with Java-based applications.
 
+The binding bundles native libraries for macOS, Windows and x86-64 Linux, but not ARM64 Linux. On ARM64 Linux, use [Scalus](/smart-contracts/scalus/) instead.
+
 ## Dependencies
 
 To use Aiken Java Binding in your project, include the following dependency in your build configuration.
@@ -15,14 +17,14 @@ To use Aiken Java Binding in your project, include the following dependency in y
 <dependency>
     <groupId>com.bloxbean.cardano</groupId>
     <artifactId>aiken-java-binding</artifactId>
-    <version>0.0.8</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 
 ### Gradle (`build.gradle`)
 
 ```groovy
-implementation 'com.bloxbean.cardano:aiken-java-binding:${version}'
+implementation 'com.bloxbean.cardano:aiken-java-binding:0.1.0'
 ```
 
 ## Script Cost Evaluation
@@ -32,12 +34,14 @@ Aiken Java Binding provides an implementation of the `TransactionEvaluator` inte
 ### Example Usage
 
 ```java
-Result<String> result1 = quickTxBuilder.compose(scriptTx)
+TxResult result = quickTxBuilder.compose(tx)
                 .feePayer(address)
                 .withSigner(SignerProviders.signerFrom(account))
-                .withTxEvaluator(new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier))
-                .completeAndWait(System.out::println);
+                .withTxEvaluator(new AikenTransactionEvaluator(backendService))
+                .completeAndWait();
 ```
+
+If you don't use a `BackendService`, pass your own suppliers: `new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier)`. See [Calling a Plutus script](/learn/plutus-scripts/) for a complete example.
 
 ## Compile Parameterized Contract
 
