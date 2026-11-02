@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.transaction.util;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.Special;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.spec.Era;
 
 import java.util.List;
@@ -24,7 +24,6 @@ public final class SerializationUtil {
      * The items of an array, without the BREAK that ends an indefinite-length one.
      */
     public static List<DataItem> withoutBreak(List<DataItem> items) {
-        int size = items.size();
-        return size > 0 && items.get(size - 1) == Special.BREAK ? items.subList(0, size - 1) : items;
+        return CborSerializationUtil.withoutBreak(items);
     }
 }

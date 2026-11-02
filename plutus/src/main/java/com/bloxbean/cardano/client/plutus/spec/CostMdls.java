@@ -149,7 +149,7 @@ public class CostMdls {
             if (langKey.bitLength() > 8)
                 throw new CborDeserializationException("De-serialization failed. Invalid language key : " + langKey);
 
-            List<DataItem> costItems = costModelArr.getDataItems();
+            List<DataItem> costItems = CborSerializationUtil.withoutBreak(costModelArr.getDataItems());
             long[] costs = new long[costItems.size()];
             for (int i = 0; i < costs.length; i++) {
                 DataItem costItem = costItems.get(i);

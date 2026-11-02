@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import co.nstant.in.cbor.CborDecoder;
+import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
@@ -12,12 +14,37 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CostMdlsTest {
+
+    /**
+     * An indefinite cost array holds no BREAK in a tree from {@link CborSerializationUtil#deserialize(byte[])}, but ends
+     * with one in a tree from cbor-java's own decoder, as callers may pass.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"a1009f0102ff", "a1009f01ff", "a1009fff", "a100820102"})
+    void deserialize_sameCostsFromBothDecoders(String cbor) throws Exception {
+        byte[] bytes = HexUtil.decodeHexString(cbor);
+
+        DataItem cborJavaTree = new CborDecoder(new ByteArrayInputStream(bytes)).decodeNext();
+        CostModel fromCbor = CostMdls.deserialize(CborSerializationUtil.deserialize(bytes)).get(Language.PLUTUS_V1);
+        CostModel fromCborJava = CostMdls.deserialize(cborJavaTree).get(Language.PLUTUS_V1);
+
+        assertThat(fromCborJava.getCosts()).isEqualTo(fromCbor.getCosts());
+    }
+
+    @Test
+    void deserialize_indefiniteCostsHaveNoBreakEntry() throws Exception {
+        DataItem cborJavaTree = new CborDecoder(new ByteArrayInputStream(HexUtil.decodeHexString("a1009f0102ff")))
+                .decodeNext();
+
+        assertThat(CostMdls.deserialize(cborJavaTree).get(Language.PLUTUS_V1).getCosts()).containsExactly(1, 2);
+    }
 
     @Test
     void getLanguageViewEncoding() {
