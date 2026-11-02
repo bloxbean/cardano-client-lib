@@ -2,17 +2,33 @@
 import '../styles/landing.css';
 import HeroPipeline from '../components/landing/HeroPipeline.astro';
 import CodeShowcase from '../components/landing/CodeShowcase.astro';
+import { highlightJava } from '../components/landing/highlight.mjs';
 import { generateCatalog } from '../../scripts/generate-catalog.mjs';
 
-/*
- * Counts and the version come from the repository's own catalog, so the landing
- * page cannot advertise a module count or release the build does not produce.
- */
-const catalog = await generateCatalog({ logger: { info: () => {} } });
-const { version, counts } = catalog;
+/* The version comes from one line on the installation page; see generate-catalog.mjs. */
+const { version } = await generateCatalog({ logger: { info: () => {} } });
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p) => `${base}${p}`;
+
+const install = `implementation "com.bloxbean.cardano:cardano-client-lib:${version}"`;
+
+const heroCode = `Tx tx = new Tx()
+        .payToAddress(receiver, Amount.ada(10))
+        .from(sender.baseAddress());
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait();`;
+
+const stages = ['UTXOs selected', 'Balanced', 'Signed', 'Submitted', 'Confirmed'];
+
+const ribbon = [
+  'Payments', 'Native tokens', 'NFTs', 'CIP-25', 'CIP-68', 'CIP-113 programmable tokens',
+  'Plutus V1–V3', 'Reference scripts', 'Multisig', 'Staking', 'DReps', 'Conway governance',
+  'HD wallets', 'CIP-30 signing', 'Blockfrost', 'Koios', 'Ogmios', 'Yaci DevKit', 'Aiken', 'Scalus',
+];
 ---
 
 <html lang="en">
@@ -36,11 +52,12 @@ const href = (p) => `${base}${p}`;
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <script is:inline>
-      // Honour the theme the reader chose in the docs, before first paint.
+      // Before first paint: honour the docs theme, and mark that animation scripts can run.
+      document.documentElement.classList.add('js');
       try {
         const stored = localStorage.getItem('starlight-theme');
         if (stored === 'light' || stored === 'dark') {
@@ -55,6 +72,8 @@ const href = (p) => `${base}${p}`;
   </head>
 
   <body>
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
     <nav class="nav">
       <div class="wrap nav-inner">
         <a class="nav-brand" href={href('/')}>
@@ -66,245 +85,179 @@ const href = (p) => `${base}${p}`;
           <a class="nav-hide-sm" href={href('/learn/simple-transfer/')}>Learn</a>
           <a class="nav-hide-sm" href={href('/quicktx/overview/')}>QuickTx</a>
           <a class="nav-hide-sm" href={href('/ai/')}>AI</a>
-          <a href="https://github.com/bloxbean/cardano-client-lib">GitHub</a>
+          <a class="nav-cta" href="https://github.com/bloxbean/cardano-client-lib">GitHub</a>
         </div>
       </div>
     </nav>
 
     <main>
-      <!-- Hero -->
       <section class="hero">
         <div class="wrap hero-inner">
-          <div>
-            <span class="eyebrow"><span class="dot"></span> v{version} · Conway era · Java 17+</span>
-            <h1>Cardano transactions,<br /><span class="grad">written in Java</span>.</h1>
+          <div class="hero-copy">
+            <a class="eyebrow" href={href('/project/whats-new/')}>
+              <span class="dot"></span> v{version} preview · Conway era · Java 17+
+            </a>
+            <h1>
+              Build
+              <span class="rotator" data-rotator>
+                <span class="grad is-on">payments</span>
+                <span class="grad">NFTs</span>
+                <span class="grad">Plutus calls</span>
+                <span class="grad">staking</span>
+                <span class="grad">governance</span>
+                <span class="grad">workflows</span>
+              </span>
+              <br />on Cardano, in Java.
+            </h1>
             <p class="lede">
-              Build, sign and submit any Cardano transaction — payments, native tokens, NFTs,
-              Plutus scripts, staking and governance — from an API that reads like what you meant.
-              Then chain them into multi-step workflows when one transaction is not enough.
+              An API that reads like what you meant. Coin selection, balancing, fees and change are
+              handled for you, and you can chain transactions when one isn't enough.
             </p>
             <div class="hero-actions">
               <a class="btn btn-primary" href={href('/learn/simple-transfer/')}>
-                Send your first transaction →
+                Send your first transaction <span aria-hidden="true">→</span>
               </a>
               <a class="btn btn-ghost" href={href('/start-here/installation/')}>Installation</a>
             </div>
-            <div class="hero-install">
-              <span class="k">implementation</span> "com.bloxbean.cardano:cardano-client-lib:{version}"
+            <div class="install">
+              <code>{install}</code>
+              <button type="button" class="copy" data-copy={install} aria-label="Copy dependency">Copy</button>
             </div>
           </div>
 
-          <div class="reveal">
-            <HeroPipeline />
-          </div>
-        </div>
-
-        <div class="wrap">
-          <div class="stats reveal">
-            <div class="stat">
-              <div class="n">{counts.modules}</div>
-              <div class="l">published modules</div>
+          <div class="window" data-tilt>
+            <div class="window-bar">
+              <span></span><span></span><span></span>
+              <em>FirstTransaction.java</em>
             </div>
-            <div class="stat">
-              <div class="n">{counts.backends}</div>
-              <div class="l">backend providers</div>
-            </div>
-            <div class="stat">
-              <div class="n">{counts.cips}</div>
-              <div class="l">CIP implementations</div>
-            </div>
-            <div class="stat">
-              <div class="n">Conway</div>
-              <div class="l">full governance support</div>
-            </div>
+            <pre class="window-code"><code>{heroCode.split('\n').map((line, i) => (
+              <span class="line" style={`--i:${i}`} set:html={highlightJava(line) || ' '} />
+            ))}</code></pre>
+            <ol class="lifecycle" data-lifecycle aria-label="What the library does for you">
+              {stages.map((s) => <li>{s}</li>)}
+            </ol>
           </div>
         </div>
       </section>
 
-      <!-- Code showcase -->
-      <section class="section section-alt">
-        <div class="wrap">
-          <div class="section-head">
-            <h2>One API for every transaction</h2>
+      <div class="ribbon" aria-hidden="true">
+        <div class="ribbon-track">
+          {[...ribbon, ...ribbon].map((r) => <span>{r}</span>)}
+        </div>
+      </div>
+
+      <section class="section">
+        <div class="wrap split">
+          <div class="section-head reveal">
+            <span class="kicker">One API</span>
+            <h2>The same shape for every transaction</h2>
             <p>
-              QuickTx handles UTXO selection, balancing, fee calculation and change for you. The
-              same shape works whether you are sending ADA or calling a validator.
+              Send ADA, mint a token, call a validator or delegate stake. Say what should happen, and
+              QuickTx works out the rest.
             </p>
+            <a class="more" href={href('/quicktx/overview/')}>Explore QuickTx →</a>
           </div>
-          <CodeShowcase />
+          <div class="reveal"><CodeShowcase /></div>
         </div>
       </section>
 
-      <!-- Why -->
       <section class="section">
         <div class="wrap">
-          <div class="section-head">
-            <h2>Built for real applications</h2>
-            <p>Not a thin RPC wrapper — the parts that are genuinely hard are handled.</p>
+          <div class="section-head center reveal">
+            <span class="kicker">Built for real applications</span>
+            <h2>The hard parts are already handled</h2>
           </div>
-          <div class="grid">
-            <div class="card">
-              <h3><span class="icon">◈</span> Complete transaction support</h3>
+          <div class="bento">
+            <a class="card span-2 reveal" data-glow href={href('/learn/plutus-scripts/')}>
+              <h3>Complete transaction support</h3>
               <p>
-                Payments, multi-asset outputs, native-script and Plutus minting, reference scripts
-                and inputs, staking certificates, and every Conway governance action.
+                Payments, multi-asset outputs, native-script and Plutus minting, reference scripts and
+                inputs, staking certificates, and every Conway governance action.
               </p>
-            </div>
-            <div class="card">
-              <h3><span class="icon">⛓</span> Backend independent</h3>
+            </a>
+            <a class="card reveal" data-glow href={href('/reference/backend-services/')}>
+              <h3>Any backend</h3>
+              <p>Blockfrost, Koios, Ogmios and Kupo, Nexus, or your own. Swap providers by changing one constructor.</p>
+            </a>
+            <a class="card reveal" data-glow href={href('/smart-contracts/blueprint-codegen/')}>
+              <h3>Type-safe on-chain data</h3>
+              <p>Generate Java classes from a CIP-57 blueprint, with compile-time-checked datums and redeemers.</p>
+            </a>
+            <a class="card span-2 reveal" data-glow href={href('/learn/cip113-programmable-tokens/')}>
+              <h3>Programmable tokens</h3>
               <p>
-                Blockfrost, Koios, Ogmios/Kupo or your own. Swap providers by changing one
-                constructor — or supply UTXOs yourself through <code>UtxoSupplier</code>.
+                Register, mint, transfer, seize and burn CIP-113 tokens whose rules live in your own
+                validators, with the protocol's plumbing handled for you.
               </p>
-            </div>
-            <div class="card">
-              <h3><span class="icon">◎</span> Type-safe on-chain data</h3>
+            </a>
+            <a class="card span-2 reveal" data-glow href={href('/verified-structures/overview/')}>
+              <h3>Verified data structures</h3>
               <p>
-                Generate Java classes from a CIP-57 blueprint and get compile-time-checked datums
-                and redeemers instead of hand-built <code>PlutusData</code>.
+                Keep data off chain and prove it on chain, with Merkle Patricia Forestry proofs for
+                Aiken validators, or Jellyfish Merkle Trees for versioned state.
               </p>
-            </div>
-            <div class="card">
-              <h3><span class="icon">↻</span> Chaining that actually works</h3>
-              <p>
-                TxFlow tracks UTXO dependencies between steps, so a follow-up transaction can spend
-                an output that is still pending — no "insufficient funds" from a race with the chain.
-              </p>
-            </div>
-            <div class="card">
-              <h3><span class="icon">⎈</span> Rollback aware</h3>
-              <p>
-                Confirmation tracking detects rollbacks and rebuilds affected steps, rather than
-                assuming a transaction that was submitted stayed submitted.
-              </p>
-            </div>
-            <div class="card">
-              <h3><span class="icon">✦</span> Agent friendly</h3>
-              <p>
-                A published <code>llms.txt</code>, a full-text corpus and a machine-readable module
-                catalog, all regenerated from the source tree on every build.
-              </p>
-            </div>
+            </a>
+            <a class="card reveal" data-glow href={href('/ai/')}>
+              <h3>Agent friendly</h3>
+              <p>A published <code>llms.txt</code> and a machine-readable module catalog, regenerated on every build.</p>
+            </a>
           </div>
         </div>
       </section>
 
-      <!-- Pick your API -->
-      <section class="section section-alt">
+      <section class="section">
+        <div class="wrap split split-rev">
+          <div class="reveal glass"><HeroPipeline /></div>
+          <div class="section-head reveal">
+            <span class="kicker">Start simple, scale later</span>
+            <h2>When one transaction isn't enough</h2>
+            <p>
+              A follow-up transaction can spend an output that's still pending, with no race against the
+              chain. And a transaction that goes missing is reported as uncertain, never as a false
+              success.
+            </p>
+            <a class="more" href={href('/txflow/your-first-flow/')}>Build your first flow →</a>
+          </div>
+        </div>
         <div class="wrap">
-          <div class="section-head">
-            <h2>Start simple, scale when you need to</h2>
-            <p>Four APIs, one engine. Most applications never need more than the first.</p>
-          </div>
-          <div class="grid">
-            <a class="card" href={href('/quicktx/overview/')}>
-              <h3>QuickTx <span class="pill pill-rec">Recommended</span></h3>
-              <p>
-                One transaction, start to finish. The default choice, and far more capable than its
-                name suggests — scripts, certificates and governance all included.
-              </p>
+          <div class="ladder">
+            <a class="rung reveal" data-glow href={href('/quicktx/overview/')}>
+              <span class="pill pill-rec">Recommended</span>
+              <h3>QuickTx</h3>
+              <p>One transaction, start to finish. The default choice for most applications.</p>
             </a>
-            <a class="card" href={href('/txplan/getting-started/')}>
-              <h3>TxPlan <span class="pill">Preview</span></h3>
-              <p>
-                The same transactions expressed as YAML your application loads at run time — so
-                operators can review a payout before it is submitted.
-              </p>
+            <a class="rung reveal" data-glow href={href('/txplan/getting-started/')}>
+              <span class="pill">Preview</span>
+              <h3>TxPlan</h3>
+              <p>The same transactions as YAML, so they can be reviewed before they're submitted.</p>
             </a>
-            <a class="card" href={href('/txflow/overview/')}>
-              <h3>TxFlow <span class="pill">Preview</span></h3>
-              <p>
-                Multi-step workflows where one transaction spends what the last one produced, with
-                dependency tracking, retries and rollback strategies.
-              </p>
+            <a class="rung reveal" data-glow href={href('/txflow/overview/')}>
+              <span class="pill">Preview</span>
+              <h3>TxFlow</h3>
+              <p>Multi-step workflows where one transaction spends what the last one produced.</p>
             </a>
-            <a class="card" href={href('/txstream/getting-started/')}>
-              <h3>TxStream <span class="pill">Preview</span></h3>
-              <p>
-                Continuous submission with exactly-once delivery and durable recovery, for services
-                that must never double-submit across a restart.
-              </p>
+            <a class="rung reveal" data-glow href={href('/txstream/getting-started/')}>
+              <span class="pill pill-exp">Experimental</span>
+              <h3>TxStream</h3>
+              <p>A continuous feed of independent transactions, each landing once.</p>
             </a>
           </div>
         </div>
       </section>
 
-      <!-- Quick start -->
       <section class="section">
         <div class="wrap">
-          <div class="section-head">
-            <h2>Running in four steps</h2>
-            <p>From an empty project to a confirmed transaction on preview.</p>
-          </div>
-          <div class="steps">
-            <div class="step">
-              <h3>Add the dependency</h3>
+          <div class="cta reveal">
+            <div>
+              <h2>From an empty project to a confirmed transaction</h2>
               <p>
-                <code>cardano-client-lib</code> plus a backend module. One version for every CCL
-                artifact.
+                Add the dependency, create an account, build the transaction and sign it. Test on a
+                public testnet or on a local devnet with
+                <a href={href('/reference/backend-services/#yaci-devkit--yaci-store-local-development')}>Yaci DevKit</a>.
               </p>
             </div>
-            <div class="step">
-              <h3>Create an account</h3>
-              <p>
-                <code>new Account(Networks.preview(), mnemonic)</code> — then fund it from the
-                testnet faucet.
-              </p>
-            </div>
-            <div class="step">
-              <h3>Build the transaction</h3>
-              <p>
-                <code>new Tx().payToAddress(...).from(...)</code>. Inputs, fee and change are
-                worked out for you.
-              </p>
-            </div>
-            <div class="step">
-              <h3>Sign and wait</h3>
-              <p>
-                <code>completeAndWait()</code> submits and waits for the block — unlike
-                <code>complete()</code>, which only submits.
-              </p>
-            </div>
-          </div>
-          <div style="text-align:center;margin-top:2.5rem">
             <a class="btn btn-primary" href={href('/learn/simple-transfer/')}>
-              Follow the full walkthrough →
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <!-- AI -->
-      <section class="section section-alt">
-        <div class="wrap">
-          <div class="section-head">
-            <h2>Writing this code with an AI agent?</h2>
-            <p>
-              Point it at the artifacts below and it will generate against the current API rather
-              than a stale snapshot of it.
-            </p>
-          </div>
-          <div class="grid">
-            <a class="card" href={href('/llms.txt')}>
-              <h3><span class="icon">≡</span> llms.txt</h3>
-              <p>
-                Curated index following the llmstxt.org convention, led by the "which API do I use"
-                decision table.
-              </p>
-            </a>
-            <a class="card" href={href('/ai/starter-pack/')}>
-              <h3><span class="icon">✎</span> AI Starter Pack</h3>
-              <p>
-                The mistakes agents actually make with this library — mismatched networks,
-                <code>complete()</code> read as confirmation, invented classes — and how to avoid them.
-              </p>
-            </a>
-            <a class="card" href={href('/ai/catalog.json')}>
-              <h3><span class="icon">{ }</span> catalog.json</h3>
-              <p>
-                Every module, its artifact id, canonical entry-point class and recommendation tier.
-                Generated from the build.
-              </p>
+              Follow the walkthrough <span aria-hidden="true">→</span>
             </a>
           </div>
         </div>
@@ -323,5 +276,73 @@ const href = (p) => `${base}${p}`;
         </div>
       </div>
     </footer>
+
+    <script is:inline>
+      (() => {
+        const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        // Copy the dependency line.
+        document.querySelectorAll('[data-copy]').forEach((button) => {
+          button.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(button.dataset.copy);
+              button.textContent = 'Copied';
+              setTimeout(() => (button.textContent = 'Copy'), 1600);
+            } catch {
+              button.textContent = 'Press ⌘C';
+            }
+          });
+        });
+
+        // Reveal sections as they scroll in.
+        const seen = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('in');
+              seen.unobserve(entry.target);
+            }
+          });
+        }, { rootMargin: '0px 0px -8% 0px' });
+        document.querySelectorAll('.reveal').forEach((el) => seen.observe(el));
+
+        // A glow that follows the pointer across cards.
+        document.querySelectorAll('[data-glow]').forEach((card) => {
+          card.addEventListener('pointermove', (event) => {
+            const box = card.getBoundingClientRect();
+            card.style.setProperty('--x', `${event.clientX - box.left}px`);
+            card.style.setProperty('--y', `${event.clientY - box.top}px`);
+          });
+        });
+
+        const stages = document.querySelectorAll('[data-lifecycle] li');
+        if (still) {
+          stages.forEach((stage) => stage.classList.add('on'));
+          return;
+        }
+
+        // Walk the transaction through its lifecycle, then start again.
+        let stage = 0;
+        const step = () => {
+          if (stage === stages.length) {
+            stages.forEach((s) => s.classList.remove('on'));
+            stage = 0;
+          } else {
+            stages[stage].classList.add('on');
+            stage += 1;
+          }
+          setTimeout(step, stage === stages.length ? 2600 : 850);
+        };
+        setTimeout(step, 1500);
+
+        // Rotate the word in the headline.
+        const words = document.querySelectorAll('[data-rotator] > span');
+        let word = 0;
+        setInterval(() => {
+          words[word].classList.remove('is-on');
+          word = (word + 1) % words.length;
+          words[word].classList.add('is-on');
+        }, 2400);
+      })();
+    </script>
   </body>
 </html>

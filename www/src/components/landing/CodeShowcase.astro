@@ -5,6 +5,7 @@
  *
  * Snippets are the real QuickTx API, kept short enough to read at a glance.
  */
+import { highlightJava } from './highlight.mjs';
 
 const samples = [
   {
@@ -81,17 +82,19 @@ TxResult result = new QuickTxBuilder(backendService)
 
   <div class="panels">
     {samples.map((s) => (
-      <pre class={`panel panel-${s.id}`}><code>{s.code}</code></pre>
+      <pre class={`panel panel-${s.id}`}><code set:html={highlightJava(s.code)} /></pre>
     ))}
   </div>
 </div>
 
 <style>
   .showcase {
-    border: 1px solid var(--ccl-border);
-    border-radius: 14px;
+    position: relative;
+    border: 1px solid var(--ccl-code-border);
+    border-radius: 18px;
     overflow: hidden;
-    background: var(--ccl-surface);
+    background: var(--ccl-code-bg);
+    box-shadow: var(--ccl-shadow);
   }
 
   /* The radios drive everything; they never need to be seen. */
@@ -104,42 +107,38 @@ TxResult result = new QuickTxBuilder(backendService)
   .tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
-    padding: 0.5rem;
-    border-bottom: 1px solid var(--ccl-border);
-    background: rgba(255, 255, 255, 0.02);
+    gap: 0.35rem;
+    padding: 0.65rem;
+    border-bottom: 1px solid var(--ccl-code-border);
   }
 
   .tab {
-    padding: 0.45rem 0.9rem;
-    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
     font-size: 0.85rem;
     font-weight: 500;
-    color: var(--ccl-text-dim);
+    color: #a79fca;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background 0.2s, color 0.2s;
     white-space: nowrap;
   }
 
   .tab:hover {
-    color: var(--ccl-text);
-    background: rgba(167, 139, 250, 0.1);
-  }
-
-  .panels {
-    position: relative;
+    color: #fff;
+    background: rgba(167, 139, 250, 0.12);
   }
 
   .panel {
     display: none;
     margin: 0;
-    padding: 1.25rem 1.4rem;
+    padding: 1.5rem 1.6rem;
     overflow-x: auto;
-    font-family: var(--sl-font-system-mono, 'JetBrains Mono', ui-monospace, monospace);
-    font-size: 0.82rem;
-    line-height: 1.7;
-    color: #cdc6e8;
+    font-family: var(--ccl-mono);
+    font-size: 0.86rem;
+    line-height: 1.75;
+    color: #d9d4ef;
     tab-size: 4;
+    min-height: 19rem;
   }
 
   /*
@@ -151,7 +150,7 @@ TxResult result = new QuickTxBuilder(backendService)
   #tab-script:checked ~ .tabs .tab:nth-child(3),
   #tab-stake:checked  ~ .tabs .tab:nth-child(4) {
     color: #fff;
-    background: rgba(167, 139, 250, 0.2);
+    background: linear-gradient(100deg, rgba(167, 139, 250, 0.35), rgba(34, 211, 238, 0.22));
   }
 
   #tab-send:checked   ~ .panels .panel-send,
@@ -166,10 +165,7 @@ TxResult result = new QuickTxBuilder(backendService)
   #tab-mint:focus-visible   ~ .tabs .tab:nth-child(2),
   #tab-script:focus-visible ~ .tabs .tab:nth-child(3),
   #tab-stake:focus-visible  ~ .tabs .tab:nth-child(4) {
-    outline: 2px solid var(--ccl-accent);
+    outline: 2px solid var(--ccl-violet);
     outline-offset: 2px;
   }
-
-  :global([data-theme='light']) .panel { color: #2c2352; }
-  :global([data-theme='light']) .tabs { background: rgba(0, 0, 0, 0.02); }
 </style>
