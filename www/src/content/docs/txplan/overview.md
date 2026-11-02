@@ -3,7 +3,7 @@ title: "TxPlan Overview"
 description: "YAML-based transaction definitions with variable substitution"
 ---
 
-> **Preview — 0.8.0-pre5**: APIs may change before stable release.
+> **Preview feature**: available in the [latest preview](/start-here/installation/#versions). APIs may change before the stable release.
 
 TxPlan provides a configuration-driven approach to defining Cardano transactions. Instead of writing Java code for every
 transaction, you can define transactions in YAML with variable substitution, context properties, and signer registry
@@ -24,7 +24,7 @@ no additional dependency is needed.
 
 ```gradle
 dependencies {
-    implementation 'com.bloxbean.cardano:cardano-client-lib:0.8.0-pre5'
+    implementation 'com.bloxbean.cardano:cardano-client-lib:<version>'
 }
 ```
 
@@ -81,7 +81,8 @@ transaction:
 ### Variables
 
 The `variables` section defines key-value pairs that can be referenced anywhere in the YAML using `${variable_name}`
-syntax. Variables are resolved before deserialization.
+syntax. Variables are resolved before deserialization, on the raw text. An undefined `${x}`, even in a comment, fails with
+`Variable not found: x`, and a value containing YAML syntax such as `: ` or `#` can change the document's structure.
 
 ```yaml
 variables:
@@ -105,6 +106,7 @@ The `context` section configures transaction-level settings that apply to the `Q
 | `required_signers` | List of required signer credential hashes (hex) |
 | `valid_from_slot` | Transaction validity start slot |
 | `valid_to_slot` | Transaction validity end slot |
+| `additional_signers_count` | Extra signers to count in fee estimation when they sign later, such as a multisig. Integer from 0 to 1000. Available from 0.8.0-pre7 |
 | `deposit_payer` | Address that pays deposit (e.g., for stake registration) |
 | `deposit_mode` | Deposit handling mode (`AUTO`, `CHANGE_OUTPUT`, `ANY_OUTPUT`, `NEW_UTXO_SELECTION`) |
 
@@ -115,9 +117,34 @@ Each entry in the `transaction` list contains a `tx` block with:
 - `from` / `from_ref` — sender address or registry reference
 - `change_address` — optional explicit change address
 - `change_datum` / `change_datum_hash` — datum for change output (script transactions)
-- `inputs` — script UTXO inputs with redeemers
-- `intents` — transaction intents (payments, minting, staking, etc.)
-- `scripts` — validator attachments
+- `inputs` — inputs to consume or reference: `script_collect_from`, `collect_from`, `reference_input`
+- `intents` — what the transaction does (see below)
+- `scripts` — script attachments: `validator`, `native_script`
+
+Intent types:
+
+| Area | Types |
+|------|-------|
+| Core | `payment`, `donation`, `minting`, `script_minting`, `metadata` |
+| Staking | `stake_registration`, `stake_deregistration`, `stake_delegation`, `stake_withdrawal` |
+| Pools | `pool_registration`, `pool_update`, `pool_retirement` |
+| Governance | `drep_registration`, `drep_deregistration`, `drep_update`, `governance_proposal`, `voting`, `voting_delegation` |
+
+Unknown keys under the document root, `tx` or `context` fail, but unknown fields inside an intent are dropped silently, so
+check your spelling there.
+
+### Plans with extensions
+
+`TxPlan.from` and `toYaml` handle core intents only. For extension intents, such as [programmable tokens](/learn/cip113-programmable-tokens/),
+use `TxPlanCodec`:
+
+```java
+TxPlanCodec codec = TxPlanCodec.builder().withExtension(extension).build();
+String yaml = codec.toYaml(plan);
+TxPlan restored = codec.fromYaml(yaml, runtimeVariables);
+
+new QuickTxBuilder(backend).withExtension(extension).compose(restored);
+```
 
 ## QuickTxBuilder Integration
 

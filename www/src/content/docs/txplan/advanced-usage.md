@@ -3,7 +3,7 @@ title: "TxPlan Advanced Usage"
 description: "Signer Registry, script transactions, multi-tx plans, and dynamic configuration"
 ---
 
-> **Preview — 0.8.0-pre5**: APIs may change before stable release.
+> **Preview feature**: available in the [latest preview](/start-here/installation/#versions). APIs may change before the stable release.
 
 ## Signer Registry
 
@@ -41,12 +41,13 @@ Result<String> result = builder
 - `feePayerRef` / `collateralPayerRef` resolve to a wallet or address at compose time
 - `withSignerRef(ref, scope)` adds additional witnesses (scopes: `payment`, `stake`, `drep`, `committeeCold`,
   `committeeHot`, `policy`)
-- Mixing address-based APIs with references is allowed; conflicts raise a `TxBuildException`
+- Mixing address-based APIs with references is allowed; conflicts raise a `TxBuildException`. In YAML, if a `tx` sets
+  both `from` and `from_ref`, `from_ref` wins silently
 
 ### Using Registry References in YAML
 
 ```yaml
-version: 1.1
+version: 1.0
 variables:
   receiver: addr_test1_receiver_address
   amount: 5000000
@@ -79,17 +80,25 @@ Result<String> result = builder
 
 If the registry cannot resolve a reference, `QuickTxBuilder` fails fast with a `TxBuildException`.
 
-## Multiple Transactions
+A reference resolves an address only. It doesn't add a signature, so list every key that must sign under `signers`,
+including the sender's with `scope: payment`. With no signers at all, the build throws `No signers found`.
+
+A plan with `from_ref` can be built only once, because the first build sets the plan's sender. Parse the YAML again for
+each execution, and don't build one plan concurrently.
+
+## Multiple `tx` entries
 
 > **Important:** Each `tx` entry in a plan must have a **unique `from` address**. To send multiple payments from the
 > same address, use multiple intents within a single `tx` entry rather than multiple `tx` entries.
 
-A single YAML document can define multiple transactions that are composed together:
+A single YAML document can define several `tx` entries. They're merged into one on-chain transaction with one hash.
+`fee_payer` is mandatory when there's more than one entry, and every sender must sign:
 
 ```yaml
 version: 1.0
 variables:
   treasury: addr_test1_treasury
+  ops: addr_test1_ops
   pool_operator: addr_test1_pool_op
 
 context:
@@ -107,7 +116,7 @@ transaction:
               quantity: '500000000'
 
   - tx:
-      from: ${treasury}
+      from: ${ops}
       intents:
         - type: payment
           address: addr_test1_alice
@@ -127,8 +136,10 @@ transaction:
       from: addr_test1_sender
       change_address: addr_test1_change
       inputs:
-        - type: script_collect
-          utxo_ref: "tx_hash#0"
+        - type: script_collect_from
+          utxo_refs:
+            - tx_hash: <64-character transaction hash>
+              output_index: 0
           redeemer:
             constructor: 0
             fields: []
@@ -139,9 +150,10 @@ transaction:
             - unit: lovelace
               quantity: '10000000'
       scripts:
-        - type: spending_validator
-          script_hex: "590a01..."
-          plutus_version: v2
+        - type: validator
+          role: spend
+          cbor_hex: "590a01..."
+          version: v2
 ```
 
 ### Change Address with Datum
@@ -185,6 +197,9 @@ Result<String> result = builder.compose(plan)
 TxPlan can be used as the transaction definition within [TxFlow](/txflow/overview/) steps, enabling
 YAML-defined transactions in multi-step orchestrated flows:
 
+Under `FlowEngine`, each plan must hold exactly one `tx`, have no `variables:` block, and declare its signers in
+`context.signers`. Use flow parameters and `FlowBindings` for per-run values.
+
 ```java
 TxPlan depositPlan = TxPlan.from(depositYaml);
 
@@ -195,7 +210,7 @@ FlowStep depositStep = FlowStep.builder("deposit")
 TxFlow flow = TxFlow.builder("escrow")
         .addStep(depositStep)
         .addStep(FlowStep.builder("release")
-                .dependsOn("deposit")
+                .fundsFrom("deposit")   // or .needs("deposit") for ordering only
                 .withTxPlan(TxPlan.from(releaseYaml))
                 .build())
         .build();
@@ -216,8 +231,9 @@ TxFlow flow = TxFlow.builder("escrow")
 
 | Method | Description |
 |--------|-------------|
-| `addVariable(key, value)` | Add a variable for `${key}` resolution |
-| `setVariables(map)` | Set all variables at once |
+| `addVariable(key, value)` | Add an entry to the `variables:` block written by `toYaml()`. Doesn't resolve or rewrite transaction values |
+| `setVariables(map)` | Replace that block |
+| `additionalSignersCount(count)` | Set `additional_signers_count`, available from 0.8.0-pre7. Throws `IllegalArgumentException` outside 0-1000 |
 | `addTransaction(tx)` | Add a transaction to the plan |
 | `feePayer(address)` | Set fee payer address |
 | `feePayerRef(ref)` | Set fee payer registry reference |

@@ -5,7 +5,7 @@ description: "Move a transaction out of Java and into a YAML file you can versio
 
 :::tip[Preview API]
 TxPlan ships inside the `quicktx` module — no extra dependency. It is stable enough to build on,
-but its YAML schema may still change before 0.8.0 final.
+but its YAML schema may still change before the stable release.
 :::
 
 A `Tx` written in Java hardcodes the decisions. TxPlan moves them into a YAML document your
@@ -38,13 +38,32 @@ String yaml = TxPlan.from(tx)
 System.out.println(yaml);
 ```
 
-`addVariable` here is an **authoring** call: it populates the `variables:` block that `toYaml()`
-emits, so the document you get back is already parameterised rather than full of literal
-addresses.
+`addVariable` only adds entries to the `variables:` block that `toYaml()` writes. It doesn't rewrite
+the transaction, so addresses and amounts in the output stay literal:
+
+```yaml
+version: 1.0
+variables:
+  receiver: addr_test1...
+  sender: addr_test1...
+context:
+  fee_payer: addr_test1...
+transaction:
+- tx:
+    from: addr_test1...
+    change_address: addr_test1...
+    intents:
+    - type: payment
+      address: addr_test1...
+      amounts:
+      - unit: lovelace
+        quantity: 10000000
+```
 
 ## The plan file
 
-The output has this shape — save it as `payment.yaml`:
+To parameterise the file, replace those values with `${...}` by hand. Save the result as
+`payment.yaml`:
 
 ```yaml
 version: 1.0
@@ -69,10 +88,11 @@ Four parts, and it is worth knowing which is which:
 
 - **`variables`** — the values every `${...}` placeholder resolves against.
 - **`context`** — settings that apply to the whole plan and map onto `QuickTxBuilder`:
-  `fee_payer`, `collateral_payer`, `valid_from_slot`, `valid_to_slot`, `required_signers`,
+  `fee_payer`, `fee_payer_ref`, `collateral_payer`, `collateral_payer_ref`, `signers`,
+  `required_signers`, `valid_from_slot`, `valid_to_slot`, `additional_signers_count`,
   `deposit_payer`, `deposit_mode`. Note these keys are `snake_case`.
-- **`transaction`** — a list of `- tx:` entries. Singular key, plural contents: a plan can carry
-  several transactions submitted together.
+- **`transaction`** — a list of `- tx:` entries. A plan can carry several entries, each with a
+  different sender. They are merged into one on-chain transaction with one hash.
 - **`intents`** — what each transaction actually does. `type: payment` here; minting, delegation,
   governance and script intents have their own types.
 
@@ -104,28 +124,24 @@ block. `TxPlan.from(yaml)` returns a plan whose transactions are already fully m
 calling `addVariable(...)` on that returned plan does **not** change them. `addVariable` populates
 a plan you are serialising *out*; it does not inject into a plan you have read *in*.
 
-To vary values per run, produce the `variables:` block before parsing:
+To vary values per run, pass them to `TxPlanCodec`:
 
 ```java
 String template = Files.readString(Path.of("payment.yaml"));
 
-// Supply this run's values, then parse.
-String yaml = template
-        .replace("SENDER_PLACEHOLDER", sender.baseAddress())
-        .replace("RECEIVER_PLACEHOLDER", receiverAddress)
-        .replace("AMOUNT_PLACEHOLDER", String.valueOf(adaToLovelace(10)));
-
-TxPlan plan = TxPlan.from(yaml);
+TxPlan plan = TxPlanCodec.builder().build().fromYaml(template, Map.of(
+        "sender", sender.baseAddress(),
+        "receiver", receiverAddress,
+        "amount", adaToLovelace(10)));
 ```
 
-Any templating approach works — a text substitution as above, a YAML library that writes the
-`variables:` map, or generating the whole document. What matters is that the values are in the
-document by the time `TxPlan.from(String)` sees it.
+Runtime values override the document's `variables:`, and an exact `${name}` keeps the value's native
+type. `TxPlanCodec` is marked experimental.
 
 For addresses and signing keys that are fixed per environment rather than per run, the
 **signer registry** is cleaner than variables: reference them as `account://ops` and resolve them
 at compose time with `compose(plan, signerRegistry)`. See
-[TxPlan overview](/txplan/overview/#context-properties).
+[Advanced usage](/txplan/advanced-usage/#signer-registry).
 
 ## When TxPlan is the right tool
 
@@ -143,6 +159,6 @@ that is TxFlow's job, and TxFlow can execute plans as its steps.
 
 ## Next
 
-- [TxPlan overview](/txplan/overview/) — full YAML schema, context properties, signer registry
-- [Advanced usage](/txplan/advanced-usage/) — script transactions, metadata, multi-transaction plans
+- [TxPlan overview](/txplan/overview/) — YAML structure, intent types, context properties
+- [Advanced usage](/txplan/advanced-usage/) — signer registry, script transactions, multi-entry plans
 - [TxFlow](/txflow/overview/) — when the steps depend on each other
