@@ -51,6 +51,7 @@ export default defineConfig({
       lastUpdated: true,
       components: {
         Head: './src/components/overrides/Head.astro',
+        Footer: './src/components/overrides/Footer.astro',
       },
       sidebar: [
         {
