@@ -409,6 +409,8 @@ and apply its workflow policy before taking another action.
 
 ## Production limitations
 
+See also the [known issues](/project/known-issues/#txflow-engine) in the latest preview.
+
 - Store leases and fencing prevent stale workers from mutating TxFlow's durable state. They cannot
   stop a partitioned stale process from submitting already-signed bytes to Cardano. Active-active
   deployments needing that guarantee require external spending serialization or a UTxO

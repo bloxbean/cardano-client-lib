@@ -3,6 +3,10 @@ title: "TxStream Getting Started"
 description: "Continuous, idempotent transaction submission on the FlowEngine runtime"
 ---
 
+:::caution[Experimental]
+TxStream is experimental, and its APIs and behaviour may change. See [known issues](/project/known-issues/#txstream) before relying on it.
+:::
+
 :::tip[New to TxStream? Start here]
 **The problem:** you have many transactions to submit over time — a payout queue, an outbox
 table, a message stream — and each must land **once**, even when the upstream queue redelivers
@@ -39,7 +43,7 @@ atomic multi-party logic (that is a contract), or for latency-critical paths —
 latency dominates; this is a throughput and reliability tool.
 
 > **Status:** TxStream ships with txflow in the [latest preview](/start-here/installation/#versions) and is
-> preview/experimental. The scenarios below are validated end-to-end on a live Yaci DevKit devnet,
+> experimental; see [known issues](/project/known-issues/#txstream). The scenarios below are validated end-to-end on a live Yaci DevKit devnet,
 > but sustained-load soak testing has not been done. Java 17 is the minimum. Direct engine/stream
 > builders use caller-owned executors; the optional `FlowRuntime` below explicitly owns its
 > documented executors for you.

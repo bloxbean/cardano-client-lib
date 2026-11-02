@@ -3,6 +3,10 @@ title: "TxStream: Smart Contracts"
 description: "Order-escrow settlement with a real Aiken vault: locking and claiming contract UTXOs through the stream, idempotently, with contract contention serialized on one lane"
 ---
 
+:::caution[Experimental]
+TxStream is experimental, and its APIs and behaviour may change. See [known issues](/project/known-issues/#txstream) before relying on it.
+:::
+
 This tutorial builds an **order-escrow settlement service** on TxStream with a real Aiken
 validator. Funds for each order are locked at a vault script with an inline datum naming the
 operator; when a fulfillment event arrives (a queue message), the service claims the order's

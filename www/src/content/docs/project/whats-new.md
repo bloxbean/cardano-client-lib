@@ -19,7 +19,7 @@ TxFlow orchestrates multi-step Cardano transactions with automatic UTXO chaining
 
 ### [TxStream: many transactions, reliably](/txstream/getting-started/)
 
-TxStream submits a continuous stream of transactions, each landing once, and recovers across restarts. It runs on the TxFlow engine.
+TxStream submits a continuous stream of transactions, each landing once, and durable stores carry that across restarts. It runs on the TxFlow engine, and it's experimental: see [known issues](/project/known-issues/).
 
 ### [TxPlan: YAML transactions](/txplan/overview/)
 
@@ -63,6 +63,6 @@ dependencies {
 
 ## API stability
 
-These APIs are a preview for early adopters. Core concepts are stable, but method signatures, configuration options and defaults may change before the stable release.
+See [known issues](/project/known-issues/) for current gaps. These APIs are a preview for early adopters. Core concepts are stable, but method signatures, configuration options and defaults may change before the stable release.
 
 If you find a problem or have a suggestion, please open an issue on [GitHub](https://github.com/bloxbean/cardano-client-lib/issues).

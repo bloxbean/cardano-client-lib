@@ -3,6 +3,10 @@ title: "TxStream: Durability & Exactly-Once"
 description: "Durable store pairing, restart re-attach, dedup scopes, secrets policy, and active/standby HA"
 ---
 
+:::caution[Experimental]
+TxStream is experimental, and its APIs and behaviour may change. See [known issues](/project/known-issues/#txstream) before relying on it.
+:::
+
 TxStream is experimental. The default managed runtime is process-local; it does not
 provide crash-durable acceptance. Durable store pairing persists planned execution
 requests and supports reattachment, but it is not yet a general exactly-once queue consumer.

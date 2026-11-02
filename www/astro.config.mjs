@@ -11,6 +11,7 @@ import llmsIntegration from './scripts/llms-integration.mjs';
 const base = process.env.BASE_PATH || undefined;
 
 const preview = /** @type {const} */ ({ text: 'Preview', variant: 'tip' });
+const experimental = /** @type {const} */ ({ text: 'Experimental', variant: 'caution' });
 
 export default defineConfig({
   site: 'https://cardano-client.dev',
@@ -109,7 +110,7 @@ export default defineConfig({
         },
         {
           label: 'TxStream',
-          badge: preview,
+          badge: experimental,
           items: [
             { label: 'Getting started', slug: 'txstream/getting-started' },
             { label: 'Durability & exactly-once', slug: 'txstream/durability' },
@@ -192,6 +193,7 @@ export default defineConfig({
           collapsed: true,
           items: [
             { label: "What's new in 0.8.0", slug: 'project/whats-new' },
+            { label: 'Known issues', slug: 'project/known-issues' },
             { label: 'Showcase', slug: 'project/showcase' },
             { label: 'Contributing to docs', slug: 'project/contributing-to-docs' },
             { label: 'Support this project', slug: 'project/support' },

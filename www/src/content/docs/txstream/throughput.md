@@ -3,6 +3,10 @@ title: "TxStream: Lanes, Batching & Throughput"
 description: "The UTXO concurrency model: lane policies, windows, planners, partitioned fan-out, and honest throughput expectations"
 ---
 
+:::caution[Experimental]
+TxStream is experimental, and its APIs and behaviour may change. See [known issues](/project/known-issues/#txstream) before relying on it.
+:::
+
 Cardano's eUTXO model *is* TxStream's concurrency model. Two transactions that spend disjoint
 UTXOs can be in flight simultaneously; two transactions spending the same funds cannot. TxStream
 expresses that directly:

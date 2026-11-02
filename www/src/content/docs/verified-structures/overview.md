@@ -9,8 +9,6 @@ A verified data structure stores key-value data off chain and reduces all of it 
 
 The usual Cardano pattern is to keep the data in your application, store the root in a datum, and let a validator check proofs on chain.
 
-These modules are experimental. Test them against your own workload before relying on them.
-
 ## Which one do I need?
 
 | | [MpfTrie](/verified-structures/mpf/) | [Jellyfish Merkle Tree](/verified-structures/jmt/) |
