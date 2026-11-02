@@ -28,7 +28,7 @@ Four ideas explain most of what follows.
 
 **Registry.** A shared on-chain linked list with one node per token. Each node records the scripts that govern that token, and anyone can add a node.
 
-**Substandard.** Those scripts are the token's rules, and you write them:
+**Substandard.** Those scripts are the token's rules, and you write them. The CIP calls a token's set of rules a substandard, and the reference implementation calls it a *module*:
 
 | Script | Field in CCL | Runs when |
 |---|---|---|
