@@ -14,10 +14,10 @@ Use QuickTx when you want the happy path to be short and readable, but still nee
 - Compose multiple `Tx`/`ScriptTx` into one transaction
 - Per-tx overrides for UTXO selection, reference scripts, and verifiers
 
-> **0.8.0 Preview — Unified Tx API**: In 0.8.0-pre5, all `ScriptTx` operations are now available directly on `Tx`.
+> **Preview — Unified Tx API**: from 0.8.0-pre5, all `ScriptTx` operations are available directly on `Tx`.
 > `ScriptTx` is deprecated. See the [Unified Tx API](/quicktx/unified-tx/) documentation for details and migration guide.
 
-> **0.8.0 Preview — YAML Transaction Plans**: Define transactions in YAML with variable substitution and execute them
+> **Preview — YAML Transaction Plans**: Define transactions in YAML with variable substitution and execute them
 > through QuickTxBuilder. See the [TxPlan](/txplan/overview/) documentation.
 
 ## Dependencies

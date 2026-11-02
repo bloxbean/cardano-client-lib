@@ -3,6 +3,17 @@ title: "Installation"
 description: Maven and Gradle dependencies
 ---
 
+## Versions
+
+- **Latest stable:** 0.7.3
+- **Latest preview:** 0.8.0-pre7
+
+Previews contain the newest features, such as TxFlow, TxStream, TxPlan and verified data structures, and their APIs may change before the stable release. See [what's new](/project/whats-new/) and the [release notes](https://github.com/bloxbean/cardano-client-lib/releases).
+
+Java 17 or later is required.
+
+Throughout this site, replace `<version>` or `{version}` in a dependency with the version you're using. Pages for preview features need the latest preview.
+
 ## For release binaries
 
 **For Maven, add the following dependencies to project's pom.xml**
@@ -13,7 +24,7 @@ description: Maven and Gradle dependencies
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>${ccl.version}</version>
+            <version>{version}</version>
         </dependency>
 ```
 - **Backend modules**
@@ -25,21 +36,21 @@ description: Maven and Gradle dependencies
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>${ccl.version}</version>
+            <version>{version}</version>
         </dependency>
 
          <!-- For Koios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
-            <version>${ccl.version}</version>
+            <version>{version}</version>
         </dependency>
 
          <!-- For Ogmios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>
-            <version>${ccl.version}</version>
+            <version>{version}</version>
         </dependency>
 ```
 
@@ -48,7 +59,7 @@ description: Maven and Gradle dependencies
 - **Core Module**
 
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:${ccl.version}'
+implementation 'com.bloxbean.cardano:cardano-client-lib:<version>'
 ```
 - **Backend modules**
 
@@ -56,13 +67,13 @@ implementation 'com.bloxbean.cardano:cardano-client-lib:${ccl.version}'
 
 ```groovy
 //For Blockfrost
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:${ccl.version}'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:<version>'
 
 //For Koios
-implementation 'com.bloxbean.cardano:cardano-client-backend-koios:${ccl.version}'
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:<version>'
 
 //For Ogmios
-implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:${ccl.version}'
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:<version>'
 
 ```
 
@@ -70,7 +81,7 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:${ccl.version
 ## For snapshot binaries
 
 >
-> **SNAPSHOT_VERSION :** 0.8.0-SNAPSHOT (Please verify the latest snapshot version in **gradle.properties**)
+> **SNAPSHOT_VERSION :** the version in [gradle.properties](https://github.com/bloxbean/cardano-client-lib/blob/master/gradle.properties), which ends in `-SNAPSHOT`
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```

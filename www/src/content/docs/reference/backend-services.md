@@ -163,6 +163,15 @@ BackendService backendService = new BFBackendService(
 For more details, see the [Yaci DevKit documentation](https://devkit.yaci.xyz)
 and [Yaci Store documentation](https://store.yaci.xyz).
 
+### Nexus Integration
+
+Available from 0.8.0-pre7, through the `cardano-client-backend-nexus` module. See the [module README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/nexus/README.md) for setup and the Nexus SDK's `Network` class.
+
+```java
+BackendService backendService =
+        new NexusBackendService("https://nexus.gerowallet.io", "<NEXUS_API_KEY>", Network.MAINNET);
+```
+
 ## Advanced Usage
 
 ### Provider Switching

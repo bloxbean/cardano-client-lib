@@ -42,8 +42,8 @@ when you hit a specific wall.
 They compose: a TxFlow step can execute a TxPlan, and TxStream runs on the TxFlow engine.
 
 :::note[These APIs are preview]
-They work and are documented in full, but their surfaces may shift before 0.8.0 final. Pin an
-exact version if you build on them now.
+They work and are documented in full, but their surfaces may shift before the stable release. Use the
+[latest preview](/start-here/installation/#versions), and pin an exact version if you build on it.
 :::
 
 ## Test against a local devnet

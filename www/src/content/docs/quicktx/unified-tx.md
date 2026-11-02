@@ -3,7 +3,7 @@ title: "Unified Tx API"
 description: "ScriptTx merged into Tx — one class for all transaction types"
 ---
 
-> **Preview — 0.8.0-pre5**: APIs may change before stable release.
+> **Preview feature**: available from 0.8.0-pre5. See the [latest preview](/start-here/installation/#versions). APIs may change before the stable release.
 
 ## What Changed
 

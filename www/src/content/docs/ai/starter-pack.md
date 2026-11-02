@@ -7,7 +7,7 @@ description: "Everything an AI agent needs to write correct cardano-client-lib c
 > machine ingestion, not for learning. Humans should start at
 > [Your first transaction](/learn/simple-transfer/) instead.
 
-Target version: **0.8.0-pre5** · Ledger era: **Conway** · Java **17+** · Group `com.bloxbean.cardano`
+Target version: the [latest preview](/start-here/installation/#versions) · Ledger era: **Conway** · Java **17+** · Group `com.bloxbean.cardano`
 
 ---
 
@@ -278,7 +278,7 @@ Chain `.withSigner(...)` once per required key.
 Use one version for every CCL module.
 
 ```gradle
-def cclVersion = '0.8.0-pre5'
+def cclVersion = '<version>' // the latest preview, see /start-here/installation/#versions
 
 dependencies {
     implementation "com.bloxbean.cardano:cardano-client-lib:${cclVersion}"

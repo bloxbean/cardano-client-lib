@@ -3,8 +3,8 @@
  * the landing page.
  *
  * Everything here is derived from the repository itself — settings.gradle for the
- * module list, gradle.properties for the version — so the site cannot advertise a
- * module or version the build does not actually contain.
+ * module list, the installation page for the version — so the site cannot advertise a
+ * module the build does not actually contain, and states the version once.
  */
 
 import fs from 'node:fs/promises';
@@ -289,11 +289,20 @@ const CIP_TITLES = {
   cip102: 'Royalty datum standard',
 };
 
+/**
+ * The version the site advertises is the latest published preview, stated once in
+ * the installation page. gradle.properties holds the next snapshot, which readers
+ * can't download from Maven Central.
+ */
 async function readVersion() {
   const props = await fs.readFile(path.join(REPO_ROOT, 'gradle.properties'), 'utf8');
-  const version = props.match(/^\s*version\s*=\s*(.+)$/m)?.[1]?.trim();
   const group = props.match(/^\s*group\s*=\s*(.+)$/m)?.[1]?.trim();
-  if (!version) throw new Error('could not read version from gradle.properties');
+  const page = await fs.readFile(
+    path.join(REPO_ROOT, 'www/src/content/docs/start-here/installation.md'),
+    'utf8',
+  );
+  const version = page.match(/^- \*\*Latest preview:\*\* (\S+)\s*$/m)?.[1];
+  if (!version) throw new Error('could not read "Latest preview" from start-here/installation.md');
   return { version, group: group ?? 'com.bloxbean.cardano' };
 }
 

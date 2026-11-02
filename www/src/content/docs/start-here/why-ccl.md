@@ -59,9 +59,9 @@ builds on the one before.
 
 ## Versions
 
-- **Latest stable:** [0.7.1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.1)
-- **Current preview:** 0.8.0-pre5 — see [what's new](/project/whats-new/) for the Unified Tx API,
-  TxFlow, TxPlan and verified data structures
+See [Versions](/start-here/installation/#versions) for the latest stable and preview releases, and
+[what's new](/project/whats-new/) for the Unified Tx API, TxFlow, TxStream, TxPlan, programmable tokens
+and verified data structures.
 
 Java 17 or later is required.
 

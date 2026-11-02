@@ -1,65 +1,68 @@
 ---
 title: "What's new in 0.8.0"
-description: "Overview of new features in Cardano Client Lib 0.8.0-pre5"
+description: "New features in the Cardano Client Lib 0.8.0 preview releases."
 ---
 
-> **Preview — 0.8.0-pre5**: APIs may change before stable release.
+> **Preview features**: available in the [latest preview](/start-here/installation/#versions). APIs may change before the stable release.
 
-The 0.8.0-pre5 release introduces several major features for building sophisticated Cardano applications in Java.
+The 0.8.0 previews add several major features for building Cardano applications in Java. For the complete list of changes, see the [release notes](https://github.com/bloxbean/cardano-client-lib/releases).
 
-## New Features
+## New features
 
 ### [Unified Tx API](/quicktx/unified-tx/)
 
-`ScriptTx` is now deprecated. All script operations — `collectFrom` with redeemers, Plutus minting, validator
-attachment, and script-protected staking/governance — are available directly on the `Tx` class. This eliminates the
-need to choose between `Tx` and `ScriptTx`, and allows mixing script and non-script operations in a single transaction
-object.
+`ScriptTx` is deprecated. All script operations, such as `collectFrom` with redeemers, Plutus minting, validator attachment, and script-protected staking and governance, are available directly on the `Tx` class. You no longer choose between `Tx` and `ScriptTx`, and you can mix script and non-script operations in one transaction.
 
-### [TxFlow — Multi-Step Transaction Orchestration](/txflow/overview/)
+### [TxFlow: multi-step transactions](/txflow/overview/)
 
-TxFlow provides a builder-based API for orchestrating multi-step Cardano transactions with automatic UTXO chaining,
-confirmation tracking, rollback detection, and retry logic. Build complex transaction workflows like token deployment
-pipelines, multi-party swap sequences, or batched operations — all with declarative configuration.
+TxFlow orchestrates multi-step Cardano transactions with automatic UTXO chaining, confirmation tracking, rollback detection and retries.
 
-### [TxPlan — YAML-Based Transactions](/txplan/overview/)
+### [TxStream: many transactions, reliably](/txstream/getting-started/)
 
-TxPlan allows you to define Cardano transactions in YAML format with variable substitution and context properties.
-Transactions can be loaded from YAML files, configured externally, and executed through the standard `QuickTxBuilder`
-pipeline. Part of the `quicktx` module — no additional dependency required.
+TxStream submits a continuous stream of transactions, each landing once, and recovers across restarts. It runs on the TxFlow engine.
 
-### [MpfTrie — Verified Data Structures](/verified-structures/overview/)
+### [TxPlan: YAML transactions](/txplan/overview/)
 
-Production-ready Merkle Patricia Forestry (MPF) with RocksDB persistence. Build verifiable data structures compatible
-with Aiken's on-chain proof verification. Includes multi-version support, garbage collection strategies, and batch
-operations for high-throughput scenarios.
+TxPlan defines Cardano transactions in YAML, with variables and context properties, and runs them through `QuickTxBuilder`. It's part of the `quicktx` module, so it needs no additional dependency.
 
-## Gradle Dependencies
+### [Verified data structures](/verified-structures/overview/)
+
+Merkle Patricia Forestry (MPF) and Jellyfish Merkle Tree (JMT), with RocksDB and SQL storage. MPF proofs can be verified on chain by Aiken's library.
+
+## New in 0.8.0-pre7
+
+- **[CIP-113 programmable tokens](/learn/cip113-programmable-tokens/):** tokens with on-chain transfer rules, through the new `cardano-client-programmable-token` module.
+- **QuickTx extensions in TxFlow:** TxFlow and TxStream can run steps that use extension intents, such as programmable tokens.
+- **MPF proofs:** proofs are now canonical and match the official JavaScript library. RocksDB garbage collection also received data-loss fixes. See [MpfTrie](/verified-structures/mpf/).
+- **JMT:** absence proof fixes, bounded historical reads and a schema installer. See [Jellyfish Merkle Tree](/verified-structures/jmt/).
+- **Nexus backend:** the new `cardano-client-backend-nexus` module.
+- **TxPlan:** the `additional_signers_count` context property.
+- **Lower-level parsing:** stack-safe CBOR and Plutus data codecs, plus `RawTx` and `RawBlock` views that keep a transaction's original bytes.
+- **GraalVM:** reachability metadata now ships in the module jars.
+
+## Gradle dependencies
 
 ```gradle
-// Preview version
-def cclVersion = "0.8.0-pre5"
+def cclVersion = '<version>' // the latest preview
 
 dependencies {
-    // Core library (includes quicktx with Unified Tx API and TxPlan)
-    implementation "com.bloxbean.cardano:cardano-client-lib:${cclVersion}"
+    // Core library, including QuickTx with the Unified Tx API and TxPlan
+    implementation "com.bloxbean.cardano:cardano-client-lib:$cclVersion"
 
-    // TxFlow module (multi-step transaction orchestration)
-    implementation "com.bloxbean.cardano:txflow:${cclVersion}"
+    // TxFlow and TxStream
+    implementation "com.bloxbean.cardano:cardano-client-txflow:$cclVersion"
 
-    // MpfTrie with RocksDB persistence
-    implementation "com.bloxbean.cardano:merkle-patricia-forestry-rocksdb:${cclVersion}"
+    // Verified data structures on RocksDB
+    implementation "com.bloxbean.cardano:cardano-client-merkle-patricia-forestry-rocksdb:$cclVersion"
+    implementation "com.bloxbean.cardano:cardano-client-jellyfish-merkle-rocksdb:$cclVersion"
 
     // Backend provider (choose one)
-    implementation "com.bloxbean.cardano:cardano-client-backend-blockfrost:${cclVersion}"
+    implementation "com.bloxbean.cardano:cardano-client-backend-blockfrost:$cclVersion"
 }
 ```
 
-## API Stability
+## API stability
 
-These APIs are provided as a preview for early adopters. While the core concepts and overall design are stable, specific
-method signatures, configuration options, and default behaviors may change before the final 0.8.0 release based on
-community feedback.
+These APIs are a preview for early adopters. Core concepts are stable, but method signatures, configuration options and defaults may change before the stable release.
 
-If you encounter issues or have suggestions, please open an issue on
-[GitHub](https://github.com/bloxbean/cardano-client-lib/issues).
+If you find a problem or have a suggestion, please open an issue on [GitHub](https://github.com/bloxbean/cardano-client-lib/issues).
