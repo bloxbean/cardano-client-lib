@@ -191,10 +191,16 @@ version and empty DNS names, for +237 samples. It is the first code step.
 
 Before merging:
 
-- Answer the automated review's finding on `CostMdls.java:156`, that indefinite cost arrays from cbor-java's own
-  decoder now fail on their trailing BREAK. Yaci passes such trees to CCL, so this matters. It has not been verified
-  here.
-- Rebase it. It is two commits behind `master`.
+- Fix `CostMdls.java:156`. Indefinite cost arrays from cbor-java's own decoder fail on their trailing BREAK:
+  `a1009f0102ff` gives `Invalid cost : BREAK` (reproduced). Check the other model decoders on cbor-java trees too,
+  because callers such as Yaci's `Datum.java:52` pass them to CCL.
+- Merge current `master` into it, with no force-push.
+
+PR #734 also changes what a decoded tree holds. Without the BREAK item, a plain cbor-java or Yaci encoder writes
+`9f0102` for an array read from `9f0102ff`, which is truncated CBOR. CCL's own encoder writes `9f0102ff`. The direct
+`CborEncoder` uses in Yano and JuLC main code do not take CCL-decoded trees, but CCL cannot see its external users, so
+this goes in the release notes. The trailing item cannot be kept for those encoders, because it is the root cause of
+#717 and yaci#113.
 
 ### D4. No silent narrowing
 
@@ -267,13 +273,16 @@ script bytes stay exact: sample `transaction_output/valid/00019` has an indefini
 keeps while re-encoding the outer array.
 
 **D6.3 Inline datum bytes.** `TransactionOutput` keeps the original tag-24 payload at decode, with the datum object
-decoded from it. `serialize` writes the payload only when `inlineDatum` is that same object and still equals a fresh
-decode of the payload. Otherwise it encodes the model.
+decoded from it. `serialize` writes the payload only when both of these hold. Otherwise it encodes the model.
 
-Model equality alone is not enough. It ignores map order and decoding collapses duplicate keys, so `a201000101` and
-`a10101` compare equal (checked against PR #734's build), and an equality-only rule would write the old bytes for a
-replacement datum. The same-object check closes that, and the equality check catches in-place mutation. `setInlineDatum`
-and a `toBuilder` with a new datum both fall back to the model, as does a deep copy, which is today's behaviour.
+1. `inlineDatum` is that same object. This covers replacement: model equality ignores map order and decoding collapses
+   duplicate keys, so `a201000101` and `a10101` compare equal, and only identity tells a replacement apart.
+2. Its non-canonical encoding equals that of a fresh decode of the payload. This covers in-place mutation, including a
+   reorder: after moving a map entry the model still equals a fresh decode, but this encoding changes from `a201020304`
+   to `a203040102`. Both were checked against PR #734's build.
+
+`setInlineDatum` and a `toBuilder` with a new datum fall back to the model, as does a deep copy, which is today's
+behaviour.
 
 A built output has no retained bytes and encodes as it does today. The fields are excluded from `equals`, `hashCode` and
 JSON. The cost is one decode, paid only for decoded outputs at `serialize`.
@@ -301,7 +310,7 @@ Refresh ADR-060's stale numbers.
 
 | Change | Why |
 |---|---|
-| Yaci's `CborSerializationUtil.deserialize*` delegates to CCL | One file serving 93. With PR #734, trees stop holding BREAK, which should remove the size-check failures of yaci#113 |
+| Yaci's `CborSerializationUtil.deserialize*` and `serialize*` both delegate to CCL, in the same change | One file serving 93. With PR #734, trees stop holding BREAK, which should remove the size-check failures of yaci#113. Yaci's encoders need that BREAK and would write truncated CBOR, so the decoder cannot move alone |
 | `CborSlice` to `CborSpan` (7 files) | Equivalent walkers. CCL gains prefix navigation, the one real gap |
 | `TransactionBodyExtractor`, `AuxDataExtractor` to `RawBlock` / `CborSpan` | Supersedes yaci#214 |
 | Scalar reads delegate to CCL | Removes the shared bignum bug |
@@ -310,6 +319,9 @@ Refresh ADR-060's stale numbers.
 **Not** a wholesale swap to CCL models. Returning CCL models breaks Yano and Yaci Store. Keeping Yaci's models behind
 CCL decoding needs a mapper per field, roughly the same code plus a dependency on CCL's semantics. The facade change
 above reaches yaci#113 without either.
+
+Yaci's hashing and framing read these re-encodes, so the change needs regression tests with nested indefinite arrays,
+and a differential test of the old and new encoders on the same trees. G3 covers real blocks.
 
 Byron, node-to-client decoders and Yaci's fail-or-continue policy stay. A consumer that continues after a parse
 failure keeps doing so. This is the one place stricter decoding could hurt: `RawBlock` is eager and rejects unknown
@@ -344,7 +356,7 @@ JuLC (D2):
 | I3 | A decoded value is never silently different from the encoded value | D4 | Unit tests at each boundary, G1 |
 | I4 | No harness special-cases a sample | D1, D7 | Review |
 | I5 | A transaction built through the API serializes to the same bytes as before, except maps mixing key and script keys (D6.1) | D4-D6 | G2 |
-| I6 | Existing builder calls compile unchanged | D4, D5 | G2, G5 |
+| I6 | Existing builder calls compile unchanged, including `null` arguments | D4, D5 | G2, G5, a compile test with `null` |
 | I7 | Every block Yaci parses today still parses, with the same model | D8 | G3 |
 | I8 | Retained bytes are never written for a datum they no longer represent | D6.3 | Mutation tests |
 
@@ -352,7 +364,7 @@ JuLC (D2):
 
 | ID | Gate | Runs |
 |---|---|---|
-| G1 | CCL CI fetches the pinned corpus and runs valid samples through model decode and re-encode. The expected-miss list holds the dispute only and must not grow | Every CCL PR touching decoders |
+| G1 | CCL CI fetches the pinned corpus and runs valid samples through model decode and re-encode. The expected-miss list shrinks with each milestone (section 6) and must not grow. A listed sample that passes fails the gate, so the list stays exact. It holds the dispute only after M4 | Every CCL PR touching decoders |
 | G2 | Golden bytes: a fixed set of built transactions compared with bytes from the last release. `TransactionModelParityTest` and the codec differential tests stay green | CCL CI |
 | G3 | `tools/chain-parse-check` full replay on mainnet, preprod and preview, before and after, for CCL and for Yaci | Before each milestone release. Manual, by design |
 | G4 | Native-image `ReachabilityMetadataGuard` | CCL CI |
@@ -365,10 +377,11 @@ The expected scores are from section 1.3. Only 9149 and 9163 are measured; the r
 
 | ID | Project | Work | Entry | Exit | Score |
 |---|---|---|---|---|---|
-| M1 | CCL | D3, PR #734 merged | D3's two items done | G1 (new), G2, G5 | 9149 |
+| M1 | CCL | D3, PR #734 merged | D3's two items done | G5; the report shows 9149 | 9149 |
+| M1a | CCL | G1 and G2 added | M1 | Miss list at 37 | 9149 |
 | M2 | Yano | D7 | None. Takes effect with M1 | I4; redeemer 47/47 | 9163 |
-| M3 | CCL | D4, D5 | M1 | I1, I3, I6; G2, G4, G5 | 9178 |
-| M4 | CCL | D6 | M1 | I5, I8; G1-G5 | 9198 |
+| M3 | CCL | D4, D5 | M1a | Miss list at 22; I3, I6; G1, G2, G4, G5 | 9178 |
+| M4 | CCL | D6 | M1a | Miss list at 2; I1, I5, I8; G1-G5 | 9198 |
 | M5 | All | Release: CCL, then Yaci and JuLC, then Yano | M3, M4; G3 | The report on the release shows 9198 | 9198 |
 | M6 | Upstream | The corpus changes (Q1) | Dataset maintainers agree | The corpus pin moves | 9200 |
 | M7 | Yaci | D8 | M1 released | yaci#113 closed; I7; G3 | Sync only |
@@ -377,15 +390,60 @@ The expected scores are from section 1.3. Only 9149 and 9163 are measured; the r
 M1 to M6 are the 100% work. M7 and M8 are the consolidation, and do not move the score. M2 can land before M1, and
 M3 and M4 are independent of each other.
 
+The scores are cumulative, in table order, and each assumes every milestone above it. Without M2 the report shows 14
+fewer. If M4 lands before M3, the score after M4 is 9183. The miss lists count CCL's gate, which encodes non-canonically
+like M2, so they do not depend on M2. They assume M3 lands first: M4 alone leaves 17.
+
 At 9200 the cbor-decoding score is 100%. With the other pre19 scores unchanged, the overall score rises from 99.05% to
 about 99.83%.
+
+### 6.1 Implementation order
+
+The maintainer's order is CCL first and Yano last, one PR per step, each reviewed before the next starts. Yano's
+published score therefore moves only at step 8, and the CCL gate's miss list tracks progress until then. Every PR must
+also leave the strict reader at 8334/8334, by running Yano's report against the CCL build. Only 9149 is measured; the
+other values are expected until built.
+
+| Step | PR | Milestone | Samples fixed | Misses left in G1 | Yano report |
+|---|---|---|---:|---:|---:|
+| 1 | Finish PR #734 | M1 | 237 | n/a | 9149 |
+| 2 | Safety net: corpus gate and golden bytes | M1a | 0 | 37 | 9149 |
+| 3 | Numerics | M3 (D4) | 1 | 36 | 9150 |
+| 4 | `ProtocolParamUpdate` | M3 (D5) | 14 | 22 | 9164 |
+| 5 | Haskell map order | M4 (D6.1) | 13 | 9 | 9177 |
+| 6 | Script references and inline datum bytes | M4 (D6.2, D6.3) | 7 | 2 | 9184 |
+| 7 | Release CCL, then Yaci and JuLC | M5 | 0 | 2 | 9184 |
+| 8 | Yano: version bump and harness fixes | M2, M5 | 14 | 2 | 9198 |
+
+1. **Finish PR #734.** Fix `CostMdls.java:156` for both decoder paths, and check the other model decoders on cbor-java
+   trees. Merge `master`. Add the release note for trees without BREAK (D3).
+2. **Safety net.** G1 fetches the corpus at its pinned commit and does not vendor it, because the dataset has no
+   licence. It starts with 37 listed misses: 14 parameter update, 13 order, 7 output, 2 disputed, 1 certificate. G2
+   takes golden bytes from the current release, including mixed withdrawals, voters and committee members, so that step
+   5 shows up as an intended diff.
+3. **Numerics (D4).** One shared bignum read. The unsigned positions, the widened `Redeemer.index`, and the
+   exact-or-throw positions, with boundary tests at 2^31, 2^32, 2^63 and 2^64-1.
+4. **`ProtocolParamUpdate` (D5, Q2).** Keys 25-33 and the threshold classes. `Long` getters, `...Long` builder methods,
+   the old constructor kept as deprecated, and the reachability metadata.
+5. **Map order (D6.1).** Comparators in `Comparators`, used with the existing `SortedMap`, and `WithdrawalUtil`
+   delegating. Golden bytes change only for the mixed cases. If Q5 goes to (a), the signed comparison is fixed here too.
+6. **Script references and datums (D6.2, D6.3).** Mutation tests for I8: a replacement with `a10101` over `a201000101`,
+   `setInlineDatum`, `toBuilder`, and an in-place reorder.
+7. **Release.** G3 on mainnet, preprod and preview, G4 and G5. Release notes cover the getters, `ProtocolVersion.minor`,
+   the exact-or-throw positions, map order and trees without BREAK. CCL is released first, then Yaci and JuLC against
+   it.
+8. **Yano.** Bump the versions and apply D7: `CborRule.java:154`, encoder exceptions, the Yaci diagnostic column and
+   ADR-060's numbers. The report must show 9198 and 8334/8334, in total and for the strict reader alone.
+
+M7 and M8 come after step 8. Raising Q1 with the dataset maintainers is a separate decision.
 
 ## 7. Compatibility
 
 | Change | Wire | Source | Binary | Notes |
 |---|---|---|---|---|
 | PR #734 `ProtocolVersion.minor` to `long` | Same | `getMinor()` type changes | Breaks | Only in-repo caller is an integration test |
-| `ProtocolParamUpdate` three `Long` fields | Same below 2^31 | Builder kept by overloads; getters change (Q2) | Getters break | No main code in CCL, Yaci, Yano or JuLC uses these getters on CCL's class. Yaci has its own model |
+| PR #734 trees without BREAK | Same through CCL's encoder | None | None | A plain cbor-java or Yaci encoder writes truncated CBOR for an indefinite array from such a tree (D3, D8). Release note |
+| `ProtocolParamUpdate` three `Long` fields | Same below 2^31 | Builder unchanged, with new `...Long` methods; getters change (Q2) | Getters break | No main code in CCL, Yaci, Yano or JuLC uses these getters on CCL's class. Yaci has its own model |
 | `ProtocolParamUpdate` new fields | New keys appear | Builder additive | All-args constructor changes | A deprecated constructor with the old signature keeps it |
 | Unsigned treatments | Same below 2^63 | None | None | Above that, the getter reads negative |
 | Exact-or-throw | Same in range | None | None | A value that wrapped now throws |
@@ -404,6 +462,8 @@ about 99.83%.
 | General memoized bytes in every model | ADR 0001 deferred it, and only inline datums need it here |
 | Re-encode inline datums from Yano's `RawOutput` in the harness | Would raise the score and leave CCL's defect in place |
 | Accept the two disputed samples | Yano would accept what production Haskell rejects (Q1) |
+| `Integer` and `Long` builder overloads | `.maxBlockSize(null)` stops compiling, against I6 (Q2) |
+| `int` and `Long` builder overloads | A null `Integer` variable would throw at unboxing |
 | A `Comparator<DataItem>` inside `SortedMap` | Keys there are encoded items, so each comparator would re-parse what the model already holds. Caller-side sorting is the existing idiom and needs no encoder change |
 
 ## 9. Risks
@@ -412,7 +472,8 @@ about 99.83%.
 |---|---|
 | Loosened CCL lets invalid input into the node | I2, G6. The strict reader alone is at 8334/8334 |
 | Other CCL users depend on an accidental rejection | PR #734 keeps `RecD` rejections. G2, G5 |
-| Stale retained datum bytes | D6.3's same-object and equality checks, I8 |
+| Stale retained datum bytes | D6.3's same-object and encoding checks, I8 |
+| External code encodes a CCL-decoded tree with a plain encoder | Release note (D3). Yaci moves its encoder with its decoder (D8) |
 | A hardware wallet refuses a body mixing key and script withdrawals (D6.1) | Release notes. Narrow case; not tested on a device |
 | Yaci stops on a block it parses today | Walker before `RawBlock`, G3, I7 |
 | Simulated fixes behave differently when built | G6 compares each milestone with section 6 |
@@ -426,10 +487,11 @@ until the corpus changes. Accepting them would make Yano accept a transaction pr
 special-casing them in the harness is ruled out by I4 and ADR-060. Raising it with the dataset maintainers is a separate
 step, not yet taken.
 
-**Q2. `ProtocolParamUpdate` getters.** Resolved in r2: `Long` getters, plus builder overloads for `Integer` and `Long`.
-A caller assigning to `Integer` fails to compile, which is loud, and no consumer's main code does; the one caller found
-is the test at `UpdateTest.java:26`. `Objects.equals` against an `Integer` still compiles and returns false, and
-`.maxTxSize(null)` becomes ambiguous, so both go in the release notes.
+**Q2. `ProtocolParamUpdate` getters.** Resolved in r2, builder revised in r3: `Long` getters. The builder keeps
+`maxBlockSize(Integer)` and adds `maxBlockSizeLong(Long)`, and the same for `maxTxSize` and `maxEpoch`, so existing
+calls compile and link unchanged, including `null`. A caller assigning a getter to `Integer` fails to compile, which is
+loud, and no consumer's main code does; the one caller found is the test at `UpdateTest.java:26`. `Objects.equals`
+against an `Integer` still compiles and returns false, so that goes in the release notes.
 
 **Q3. Should the strict reader eventually move to CCL?** Resolved in r2: not now (D9). It is the largest remaining CDDL
 reader outside CCL. Revisit if a second consumer appears, such as a CCL user wanting Haskell-exact validation, or at the
@@ -439,8 +501,8 @@ Dijkstra work.
 Haskell's order (D6.1), although the corpus does not measure them.
 
 **Q5. Asset name order.** Haskell's `AssetName` uses `ShortByteString`'s `Ord`: unsigned bytes, then length. So `6161`
-sorts before `62`. `Comparators.assetComparator` sorts by length first, then signed bytes, so `62` comes first, and of two
-names of equal length, one with a byte at or above `0x80` sorts first. The corpus does not measure this: no Conway
+sorts before `62`. `Comparators.assetComparator` sorts by length first, then signed bytes, so `62` comes first, and of
+two names of equal length, one with a byte at or above `0x80` sorts first. The corpus does not measure this: no Conway
 `value` sample has two assets under one policy.
 
 - (a) Keep length-first, as RFC 7049 section 3.9 and CIP-21 require, and fix only the signed comparison, which is wrong
@@ -467,7 +529,11 @@ Found while researching. Traced by reading only, except where stated. Each needs
 ## 12. Revision history
 
 - **r1** (2026-11-01): initial proposal.
-- **r2** (2026-11-02, responds to the automated review of 7c4d7ba0 and the maintainer's decisions): Q1-Q4 resolved;
-    D6.1 widened to every map whose `Ord` order differs from its encoded bytes; D6.3 gains a same-object check, because
-  model
+- **r2** (2026-11-02, responds to the automated review of 7c4d7ba0 and the maintainer's decisions): Q1-Q4 resolved; D6.1
+  widened to every map whose `Ord` order differs from its encoded bytes; D6.3 gains a same-object check, because model
   equality ignores map order and duplicate keys; Q5 added for asset names, replacing the related finding.
+- **r3** (2026-11-02, responds to reviewer1's review of 7c4d7ba0): 1 -> D8 moves Yaci's encoder with its decoder, and D3
+  and section 7 record the wider effect of trees without BREAK; 2 -> D6.3's second check compares non-canonical
+  encodings; 3 -> Q2 uses `...Long` builder methods, I6 covers `null`; 4 -> G1's list shrinks per milestone, M1a added,
+  scores stated as cumulative. D3's `CostMdls` finding marked as reproduced. Section 6.1 adds the maintainer's
+  eight-step order.
