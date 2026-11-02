@@ -317,7 +317,7 @@ See [Verified structures](/verified-structures/overview/).
 
 ## 7. Testing generated code
 
-Do not hand back transaction code you have not run. [Yaci DevKit](https://github.com/bloxbean/yaci-devkit)
+Do not hand back transaction code you have not run. [Yaci DevKit](https://devkit.yaci.xyz/#get-started)
 gives a local devnet with pre-funded accounts and instant blocks:
 
 ```java

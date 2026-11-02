@@ -61,7 +61,7 @@ links onward to everything else.
 ## Verifying what an agent produces
 
 Generated transaction code should be run before you trust it. The cheapest loop is
-[Yaci DevKit](https://github.com/bloxbean/yaci-devkit), a local Cardano devnet with pre-funded
+[Yaci DevKit](https://devkit.yaci.xyz/#get-started), a local Cardano devnet with pre-funded
 accounts and instant blocks — no faucet, no API key, no waiting on a public testnet.
 
 Point the backend at `http://localhost:8080/api/v1/` and the same code you would run on preview

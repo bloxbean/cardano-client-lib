@@ -49,7 +49,7 @@ They work and are documented in full, but their surfaces may shift before the st
 ## Test against a local devnet
 
 The single biggest speed-up when learning this library is not reading — it is a fast feedback
-loop. [Yaci DevKit](https://github.com/bloxbean/yaci-devkit) runs a local Cardano devnet with
+loop. [Yaci DevKit](https://devkit.yaci.xyz/#get-started) runs a local Cardano devnet with
 pre-funded accounts and near-instant blocks:
 
 ```java

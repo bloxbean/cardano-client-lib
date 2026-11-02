@@ -28,7 +28,7 @@ Please check [dependencies](/start-here/installation/) page to find the required
 > For **Koios** backend provider, you don't need any registration.
 
 > For **Yaci DevKit** as a local development environment, install and run
-> [Yaci DevKit](https://devkit.yaci.xyz). It provides a local Cardano devnet with
+> [Yaci DevKit](https://devkit.yaci.xyz/#get-started). It provides a local Cardano devnet with
 > built-in Yaci Store that exposes Blockfrost-compatible APIs. No registration or API key is required.
 
 ## Create Sender and Receiver accounts

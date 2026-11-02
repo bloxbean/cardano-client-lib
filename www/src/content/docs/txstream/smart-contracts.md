@@ -401,7 +401,7 @@ for keys. (This tutorial's test uses inline attachment; the by-ref shape is cove
   round-trips as `(tx_hash, output_index)`; if that UTXO is spent before dispatch, the claim
   fails honestly rather than double-spending.
 - **Run the scenario yourself against a devnet.** The integration test needs a running
-  [Yaci DevKit](https://devkit.yaci.xyz/) at `http://localhost:8080/api/v1/`:
+  [Yaci DevKit](https://devkit.yaci.xyz/#get-started) at `http://localhost:8080/api/v1/`:
 
 ```
 ./gradlew :txflow:integrationTest --tests TxFlowStreamContractIntegrationTest -Dyaci.integration.test=true

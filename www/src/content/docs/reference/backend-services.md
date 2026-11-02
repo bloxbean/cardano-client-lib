@@ -131,7 +131,7 @@ For more details about Ogmios/Kupo integration, see the [Ogmios backend README](
 Blockfrost-compatible APIs. Since `BFBackendService` communicates using the Blockfrost API protocol,
 it works seamlessly with any Yaci Store instance — no code changes required.
 
-[Yaci DevKit](https://github.com/bloxbean/yaci-devkit) bundles Yaci Store with a local Cardano devnet,
+[Yaci DevKit](https://devkit.yaci.xyz/#get-started) bundles Yaci Store with a local Cardano devnet,
 giving you a complete local development environment. This is ideal for:
 
 - **Rapid iteration** — no waiting for testnet confirmations
@@ -160,7 +160,7 @@ BackendService backendService = new BFBackendService(
 );
 ```
 
-For more details, see the [Yaci DevKit documentation](https://devkit.yaci.xyz)
+To install and start it, see [Get started with Yaci DevKit](https://devkit.yaci.xyz/#get-started)
 and [Yaci Store documentation](https://store.yaci.xyz).
 
 ### Nexus Integration
