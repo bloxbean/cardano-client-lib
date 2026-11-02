@@ -227,31 +227,56 @@ Unknown keys stay ignored, as ADR 0001 D6 decided. After this change, no key Con
 
 ### D6. Three re-encoding fixes, and no general promise
 
-**D6.1 Reward account order.** `TreasuryWithdrawalsAction.serialize` writes entries in `Ord` order:
-`(network, script credentials first, hash)`, in a `SortedMap`, which the canonical encoder leaves in order
-(`CustomCborEncoder.java:429`).
+**D6.1 Ledger key order.** A map keyed by a ledger type is written in Haskell's `Ord` order, decided in r2 (Q4).
 
-The credential part of this comparator already exists: `WithdrawalUtil.getWithdrawalComparator`, in `function`, which
-`transaction-spec` cannot depend on. It moves down with network added, and `function` delegates.
+| Map | Haskell key | `Ord` order | CCL today | Change |
+|---|---|---|---|---|
+| `TreasuryWithdrawalsAction`, body key 5 | `AccountAddress` | Network, script before key, hash | Encoded bytes, so key accounts first | Yes |
+| `UpdateCommittee` new members | `Credential` | Script before key, hash | Encoded bytes, so key first | Yes |
+| `VotingProcedures` outer map | `Voter` | Committee, DRep, pool; script before key within the first two; hash | Encoded bytes, so tag order 0-4 | Yes |
+| `VotingProcedures` inner map | `GovActionId` | Transaction id, index | Encoded bytes give the same order | No |
+| Redeemers, cost models, metadata labels | `PlutusPurpose`, `Language`, `Word64` | By tag or number | Encoded bytes give the same order | No |
 
-This changes the bytes of a *built* proposal that mixes key and script accounts. The proposal stays valid: Haskell's
-decoder does not require sorted keys here, as the corpus shows, since these 13 valid samples have unsorted input.
-D10's I5 records the exception.
+The mechanism is the one `Value` and `MultiAsset` already use: the model sorts its entries with a `Comparator` and puts
+them in the existing `SortedMap`, which both encoder modes write as inserted (`CustomCborEncoder.java:429`). `SortedMap`
+and the encoder do not change. The comparators go in `Comparators`, one per key type. The credential part of
+`WithdrawalUtil.getWithdrawalComparator`, in `function`, moves down with network added, and `function` delegates.
 
-The same `Ord` question applies to body withdrawals (key 5), `UpdateCommittee` and `VotingProcedures`. The corpus does
-not measure them, and changing the body changes transaction bytes. They stay as they are (Q4).
+Checked with a prototype against PR #734's build: five reward accounts sorted this way came out in Haskell's order with
+`canonical` true and false, and when nested in a canonical parent. The corpus samples simulated 13/13 (section 1.3).
+
+The corpus only measures the treasury row: 13 of its 14 treasury samples mix key and script accounts, no Conway sample
+is an `UpdateCommittee`, and the Conway set has no valid `transaction_body` or `voting_procedures` sample. The other
+rows follow the same rule by decision, not by score.
+
+This changes the bytes of a *built* transaction whose map mixes key and script keys, and its hash. The transaction stays
+valid: Haskell's decoder does not require sorted keys here, as the 13 treasury samples show, since their input is
+unsorted. Redeemer indexes do not depend on it, because `WithdrawalUtil` already sorts script-first before computing
+them. D10's I5 records the exception.
+
+CIP-21 requires hardware wallets to see map keys sorted lowest to highest, and names withdrawals explicitly. So a body
+that mixes key and script withdrawals will no longer meet CIP-21. Proposals do not hit this, because CIP-21 forbids them
+in hardware wallet transactions, and voting does not, because it allows a single voter. Section 9 records the risk.
+
+Asset names are the exception, left open as Q5. Sets encoded as arrays, such as inputs, are not maps and stay as they
+are.
 
 **D6.2 Script references.** `TransactionOutput.serialize` writes `82` plus the two original items when the stored
 `scriptRef` is an indefinite two-item array. The field keeps the raw bytes, so its meaning does not change. The inner
 script bytes stay exact: sample `transaction_output/valid/00019` has an indefinite native script inside, which Haskell
 keeps while re-encoding the outer array.
 
-**D6.3 Inline datum bytes.** `TransactionOutput` keeps the original tag-24 payload at decode, and `serialize` uses it
-when it still decodes to a value equal to the current `inlineDatum`. Otherwise it encodes the model.
+**D6.3 Inline datum bytes.** `TransactionOutput` keeps the original tag-24 payload at decode, with the datum object
+decoded from it. `serialize` writes the payload only when `inlineDatum` is that same object and still equals a fresh
+decode of the payload. Otherwise it encodes the model.
 
-That single check replaces any invalidation logic, so `setInlineDatum`, `toBuilder` and in-place mutation of the datum
-are all safe. A built output has no retained bytes and encodes as it does today. The field is excluded from `equals`,
-`hashCode` and JSON. The cost is one decode, paid only for decoded outputs at `serialize`.
+Model equality alone is not enough. It ignores map order and decoding collapses duplicate keys, so `a201000101` and
+`a10101` compare equal (checked against PR #734's build), and an equality-only rule would write the old bytes for a
+replacement datum. The same-object check closes that, and the equality check catches in-place mutation. `setInlineDatum`
+and a `toBuilder` with a new datum both fall back to the model, as does a deep copy, which is today's behaviour.
+
+A built output has no retained bytes and encodes as it does today. The fields are excluded from `equals`, `hashCode` and
+JSON. The cost is one decode, paid only for decoded outputs at `serialize`.
 
 This also fixes the case behind #397 for inline datums, where re-serializing a decoded output changed its bytes.
 
@@ -318,7 +343,7 @@ JuLC (D2):
 | I2 | The strict reader alone, and the node's pair of decoders, reject 8334/8334 at every step | D3-D6, D9 | G6 |
 | I3 | A decoded value is never silently different from the encoded value | D4 | Unit tests at each boundary, G1 |
 | I4 | No harness special-cases a sample | D1, D7 | Review |
-| I5 | A transaction built through the API serializes to the same bytes as before, except treasury withdrawals mixing key and script accounts (D6.1) | D4-D6 | G2 |
+| I5 | A transaction built through the API serializes to the same bytes as before, except maps mixing key and script keys (D6.1) | D4-D6 | G2 |
 | I6 | Existing builder calls compile unchanged | D4, D5 | G2, G5 |
 | I7 | Every block Yaci parses today still parses, with the same model | D8 | G3 |
 | I8 | Retained bytes are never written for a datum they no longer represent | D6.3 | Mutation tests |
@@ -342,10 +367,10 @@ The expected scores are from section 1.3. Only 9149 and 9163 are measured; the r
 |---|---|---|---|---|---|
 | M1 | CCL | D3, PR #734 merged | D3's two items done | G1 (new), G2, G5 | 9149 |
 | M2 | Yano | D7 | None. Takes effect with M1 | I4; redeemer 47/47 | 9163 |
-| M3 | CCL | D4, D5 | M1; Q2 decided | I1, I3, I6; G2, G4, G5 | 9178 |
-| M4 | CCL | D6 | M1; Q4 decided | I5, I8; G1-G5 | 9198 |
+| M3 | CCL | D4, D5 | M1 | I1, I3, I6; G2, G4, G5 | 9178 |
+| M4 | CCL | D6 | M1 | I5, I8; G1-G5 | 9198 |
 | M5 | All | Release: CCL, then Yaci and JuLC, then Yano | M3, M4; G3 | The report on the release shows 9198 | 9198 |
-| M6 | Upstream | Q1 resolved | Maintainer decision | The corpus pin moves | 9200 |
+| M6 | Upstream | The corpus changes (Q1) | Dataset maintainers agree | The corpus pin moves | 9200 |
 | M7 | Yaci | D8 | M1 released | yaci#113 closed; I7; G3 | Sync only |
 | M8 | Yano, JuLC, CCL | D9, then refresh ADR 0001's status and section 7 | M5 | `CborCursor` and `OriginalTxBytes` deleted | None |
 
@@ -364,7 +389,7 @@ about 99.83%.
 | `ProtocolParamUpdate` new fields | New keys appear | Builder additive | All-args constructor changes | A deprecated constructor with the old signature keeps it |
 | Unsigned treatments | Same below 2^63 | None | None | Above that, the getter reads negative |
 | Exact-or-throw | Same in range | None | None | A value that wrapped now throws |
-| D6.1 order | Changes for mixed withdrawals | None | None | `gov_action_hex` in stored quicktx plans still decodes |
+| D6.1 order | Changes for maps mixing key and script keys, and so the hash | None | None | `gov_action_hex` in stored quicktx plans still decodes. Parties on old and new CCL can compute different hashes for such a transaction |
 | D6.2 | Definite outer array | None | None | Only for received indefinite script refs |
 | D6.3 | Original bytes | None | None | Only for decoded outputs |
 
@@ -379,6 +404,7 @@ about 99.83%.
 | General memoized bytes in every model | ADR 0001 deferred it, and only inline datums need it here |
 | Re-encode inline datums from Yano's `RawOutput` in the harness | Would raise the score and leave CCL's defect in place |
 | Accept the two disputed samples | Yano would accept what production Haskell rejects (Q1) |
+| A `Comparator<DataItem>` inside `SortedMap` | Keys there are encoded items, so each comparator would re-parse what the model already holds. Caller-side sorting is the existing idiom and needs no encoder change |
 
 ## 9. Risks
 
@@ -386,39 +412,43 @@ about 99.83%.
 |---|---|
 | Loosened CCL lets invalid input into the node | I2, G6. The strict reader alone is at 8334/8334 |
 | Other CCL users depend on an accidental rejection | PR #734 keeps `RecD` rejections. G2, G5 |
-| Stale retained datum bytes | D6.3's equality check, I8 |
+| Stale retained datum bytes | D6.3's same-object and equality checks, I8 |
+| A hardware wallet refuses a body mixing key and script withdrawals (D6.1) | Release notes. Narrow case; not tested on a device |
 | Yaci stops on a block it parses today | Walker before `RawBlock`, G3, I7 |
 | Simulated fixes behave differently when built | G6 compares each milestone with section 6 |
 | Corpus maintainers disagree on Q1 | Stays at 9198, documented, with production behaviour unchanged |
 
 ## 10. Open questions
 
-**Q1. The two disputed `auxiliary_data` samples.** This is what stands between 9198 and 9200.
+**Q1. The two disputed `auxiliary_data` samples.** Resolved in r2: keep rejecting, as production does. Yano stays at
+9198
+until the corpus changes. Accepting them would make Yano accept a transaction production Haskell rejects, and
+special-casing them in the harness is ruled out by I4 and ADR-060. Raising it with the dataset maintainers is a separate
+step, not yet taken.
 
-- (a) Keep rejecting, as production does, and raise it with the dataset maintainers. Yano stays at 9198 until the
-  corpus changes.
-- (b) Accept them in CCL and the strict reader. Reaches 9200 now, but Yano then accepts a transaction production Haskell
-  rejects.
-- (c) Special-case them in the harness. Ruled out by I4 and ADR-060.
+**Q2. `ProtocolParamUpdate` getters.** Resolved in r2: `Long` getters, plus builder overloads for `Integer` and `Long`.
+A caller assigning to `Integer` fails to compile, which is loud, and no consumer's main code does; the one caller found
+is the test at `UpdateTest.java:26`. `Objects.equals` against an `Integer` still compiles and returns false, and
+`.maxTxSize(null)` becomes ambiguous, so both go in the release notes.
 
-Lean: (a). It also corrects the corpus for every other implementation.
+**Q3. Should the strict reader eventually move to CCL?** Resolved in r2: not now (D9). It is the largest remaining CDDL
+reader outside CCL. Revisit if a second consumer appears, such as a CCL user wanting Haskell-exact validation, or at the
+Dijkstra work.
 
-**Q2. `ProtocolParamUpdate` getters.**
+**Q4. Other `Ord`-ordered maps** (body withdrawals, `UpdateCommittee`, `VotingProcedures`). Resolved in r2: they follow
+Haskell's order (D6.1), although the corpus does not measure them.
 
-- (a) `Long` getters, plus builder overloads for `Integer` and `Long`. A caller assigning to `Integer` fails to compile,
-  which is loud, and no consumer's main code does.
-- (b) Keep `Integer` getters that throw above the range, plus new `...AsLong` getters. Binary compatible, but two getters
-  per field for good.
+**Q5. Asset name order.** Haskell's `AssetName` uses `ShortByteString`'s `Ord`: unsigned bytes, then length. So `6161`
+sorts before `62`. `Comparators.assetComparator` sorts by length first, then signed bytes, so `62` comes first, and of two
+names of equal length, one with a byte at or above `0x80` sorts first. The corpus does not measure this: no Conway
+`value` sample has two assets under one policy.
 
-Lean: (a).
+- (a) Keep length-first, as RFC 7049 section 3.9 and CIP-21 require, and fix only the signed comparison, which is wrong
+  under every rule.
+- (b) Use Haskell's order. This changes the bytes and hash of any output or mint with names of different lengths, which
+  is common, and a hardware wallet would refuse them under CIP-21.
 
-**Q3. Should the strict reader eventually move to CCL?** It is the largest remaining CDDL reader outside CCL. Moving
-its pure decoding half would suit a second consumer, such as a CCL user wanting Haskell-exact validation. Lean: not
-now (D9). Revisit if a second consumer appears, or at the Dijkstra work.
-
-**Q4. Other `Ord`-ordered maps** (body withdrawals, `UpdateCommittee`, `VotingProcedures`). Sorting them changes built
-transaction bytes, for no score. Quicktx's redeemer indexes do not depend on it: `WithdrawalUtil` already sorts
-script-first before computing them. Lean: leave them until a measurement shows a difference.
+Lean: (a). Unlike D6.1's cases, (b) reaches ordinary wallet transactions. No milestone waits on this.
 
 ## 11. Related findings (out of scope)
 
@@ -430,7 +460,6 @@ Found while researching. Traced by reading only, except where stated. Each needs
 - **IPv6 byte order.** Haskell reads four little-endian words (`getHostAddress6`). `PoolRegistration.java:232` and
   Yaci's serializer use the bytes as they are (yaci#152). Bytes round-trip; the displayed address is wrong.
 - **Yaci header and Byron hashes** come from canonical re-encodes, not original bytes.
-- **Asset order.** `Comparators.java:10-29` compares signed bytes, differently from the encoder.
 - **Yano `StackOverflowError`** is caught by neither `JavaLedgerValidationEngine.java:127-129` nor
   `EngineAdmission.java:122`.
 - **yaci#96** looks fixed in code and may be closable.
@@ -438,3 +467,7 @@ Found while researching. Traced by reading only, except where stated. Each needs
 ## 12. Revision history
 
 - **r1** (2026-11-01): initial proposal.
+- **r2** (2026-11-02, responds to the automated review of 7c4d7ba0 and the maintainer's decisions): Q1-Q4 resolved;
+    D6.1 widened to every map whose `Ord` order differs from its encoded bytes; D6.3 gains a same-object check, because
+  model
+  equality ignores map order and duplicate keys; Q5 added for asset names, replacing the related finding.
