@@ -140,9 +140,11 @@ export default defineConfig({
           badge: preview,
           collapsed: true,
           items: [
-            { label: 'MpfTrie overview', slug: 'verified-structures/overview' },
-            { label: 'Production guide', slug: 'verified-structures/production-guide' },
-            { label: 'Multi-version GC', slug: 'verified-structures/multi-version-gc' },
+            { label: 'Overview', slug: 'verified-structures/overview' },
+            { label: 'MpfTrie', slug: 'verified-structures/mpf' },
+            { label: 'Jellyfish Merkle Tree', slug: 'verified-structures/jmt' },
+            { label: 'MPF production guide', slug: 'verified-structures/production-guide' },
+            { label: 'MPF versions and GC', slug: 'verified-structures/multi-version-gc' },
           ],
         },
         {

@@ -1,146 +1,101 @@
 ---
-title: "Multi-Version & Garbage Collection"
-description: "RocksDbStateTrees versioning, GC strategies, retention policies"
+title: "MPF versions and garbage collection"
+description: "Record versions of an MpfTrie on RocksDB, read old versions and reclaim space."
 ---
 
-> **Preview — 0.8.0-pre5**: APIs may change before stable release.
+> **Preview feature**: available in the [latest preview](/start-here/installation/#versions). APIs may change before the stable release.
 
-> The StateTree and GC APIs used in this section are experimental and not ready for production use. They are available for testing
-> and feedback but may change significantly before stable release.
+## Record versions
 
-## RocksDbStateTrees
-
-`RocksDbStateTrees` provides multi-version support, allowing you to maintain versioned snapshots of the trie and
-roll back to any previous version.
-
-### Setup
+`RocksDbStateTrees` defaults to `StorageMode.MULTI_VERSION`. The mode is saved on first open and checked on every later open. The SQL backend defaults to `SINGLE_VERSION`, so pass the mode explicitly if you might use both.
 
 ```java
-import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbStateTrees;
-import com.bloxbean.cardano.vds.mpf.MpfTrie;
-import com.bloxbean.cardano.vds.core.api.StorageMode;
+try (RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf")) {
+    MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
+    RocksDbMptSession session = RocksDbMptSession.of(stateTrees);
 
-// Enable versioning
-RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf", StorageMode.MULTI_VERSION);
+    long v1 = session.write(() -> {
+        trie.put("alice".getBytes(), "100".getBytes());
+        return stateTrees.putRootWithRefcount(trie.getRootHash());
+    });
 
-// Get node store and create MpfTrie
-MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
-```
+    long v2 = session.write(() -> {
+        trie.put("alice".getBytes(), "150".getBytes());
+        return stateTrees.putRootWithRefcount(trie.getRootHash());
+    });
 
-### Versioning
-
-```java
-// Version 1
-trie.put("alice".getBytes(), "100".getBytes());
-long v1 = stateTrees.putRootWithRefcount(trie.getRootHash());
-
-// Version 2
-trie.put("alice".getBytes(), "150".getBytes());
-long v2 = stateTrees.putRootWithRefcount(trie.getRootHash());
-
-// Rollback to version 1
-byte[] rootV1 = stateTrees.rootsIndex().get(v1);
-trie.setRootHash(rootV1);
-
-byte[] value = trie.get("alice".getBytes()); // Returns "100"
-```
-
-### API Reference
-
-```java
-// Constructors
-RocksDbStateTrees(String path)
-RocksDbStateTrees(String path, StorageMode mode)
-RocksDbStateTrees(RocksDB db, StorageMode mode)
-
-// Version management
-long putRootWithRefcount(byte[] rootHash)  // Stores root hash, returns version number
-
-// Access internals
-RocksDbNodeStore nodeStore()
-RocksDbRootsIndex rootsIndex()             // Access version→root mapping
-RocksDB db()
-```
-
-## Garbage Collection (Experimental)
-
-> **Experimental**: Garbage collection is available for testing but APIs may change significantly before stable release.
-
-MPF with RocksDB includes a mark-sweep GC strategy to reclaim space from stale nodes that are no longer reachable
-from any retained root.
-
-### Mark-Sweep GC
-
-Marks reachable nodes from retained roots, then sweeps unreachable ones. Uses a temporary RocksDB column family
-to persist the mark set, keeping memory usage low even for large tries.
-
-```java
-import com.bloxbean.cardano.vds.mpf.rocksdb.gc.*;
-import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
-
-GcManager gcManager = new GcManager(
-    stateTrees.nodeStore(),
-    stateTrees.rootsIndex()
-);
-
-GcOptions options = new GcOptions();
-options.deleteBatchSize = 10_000;
-options.progress = deleted -> System.out.println("Deleted: " + deleted);
-
-// Run GC (keep latest 5 versions)
-RetentionPolicy policy = RetentionPolicy.keepLatestN(5);
-GcStrategy strategy = new OnDiskMarkSweepStrategy();
-
-GcReport report = gcManager.runSync(strategy, policy, options);
-
-System.out.println("Deleted nodes: " + report.deleted);
-System.out.println("Duration: " + report.durationMillis + "ms");
-```
-
-### GcManager API
-
-```java
-// Constructor
-GcManager(RocksDbNodeStore nodeStore, RocksDbRootsIndex rootsIndex)
-
-// Synchronous GC
-GcReport runSync(GcStrategy strategy, RetentionPolicy policy, GcOptions options)
-
-// Asynchronous GC
-CompletableFuture<GcReport> runAsync(GcStrategy strategy, RetentionPolicy policy, GcOptions options)
-```
-
-### GcOptions
-
-```java
-GcOptions options = new GcOptions();
-options.deleteBatchSize = 10_000;        // Nodes per delete batch
-options.progress = n -> log.info("{}", n); // Progress callback
-options.dryRun = false;                   // Set true to simulate
-```
-
-### GcReport
-
-```java
-GcReport {
-    long marked;         // Nodes marked as reachable
-    long deleted;        // Nodes deleted
-    long total;          // Total nodes processed
-    long durationMillis; // Execution time
+    // Read an older version
+    MpfTrie atV1 = new MpfTrie(stateTrees.nodeStore(), stateTrees.rootsIndex().get(v1));
+    byte[] alice = atV1.get("alice".getBytes());   // "100"
 }
 ```
 
-## Retention Policies
+If you collect garbage with mark-sweep only, `stateTrees.rootsIndex().put(version, root)` is enough to record a version.
 
-Retention policies determine which versions to keep during GC.
+## Keep only the latest state
 
 ```java
-// Keep latest N versions
-RetentionPolicy.keepLatestN(10);
-
-// Keep specific versions
-RetentionPolicy.keepVersions(List.of(1L, 5L, 10L));
-
-// Keep a range of versions (inclusive)
-RetentionPolicy.keepRange(5, 15);
+try (RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf", StorageMode.SINGLE_VERSION)) {
+    MpfTrie trie = new MpfTrie(stateTrees.nodeStore(), stateTrees.getCurrentRoot());
+    trie.put("alice".getBytes(), "100".getBytes());
+    stateTrees.putRootSnapshot(trie.getRootHash());   // overwrites version 0
+    stateTrees.cleanupOrphanedNodes(new GcOptions()); // keeps only the current root
+}
 ```
+
+## Garbage collection
+
+Every `put` writes new nodes and leaves the old ones in place. GC deletes the nodes that no retained version reaches.
+
+```java
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.*;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.*;
+
+GcManager gc = new GcManager(stateTrees.nodeStore(), stateTrees.rootsIndex());
+
+GcOptions options = new GcOptions();
+options.deleteBatchSize = 10_000;
+options.progress = deleted -> System.out.println("deleted " + deleted);
+
+GcReport report = gc.runSync(new OnDiskMarkSweepStrategy(), RetentionPolicy.keepLatestN(5), options);
+System.out.println("deleted " + report.deleted + " of " + report.total + " nodes");
+```
+
+`runSync` declares `throws Exception`. To simulate a run, set `options.dryRun = true`. `gc.runAsync(strategy, policy, options, report -> ...)` runs on a daemon thread and passes the report to the callback.
+
+| Strategy | Cost | Requirements |
+|---|---|---|
+| `OnDiskMarkSweepStrategy` | Walks every retained version and scans the namespace's nodes | None |
+| `RefcountGcStrategy` | Walks the retained and dropped versions, with no full scan | Versions recorded with `putRootWithRefcount`; only those are reclaimed |
+
+### Retention policies
+
+```java
+RetentionPolicy.keepLatestN(10);
+RetentionPolicy.keepVersions(List.of(1L, 5L, 10L));
+RetentionPolicy.keepRange(5, 15);                // inclusive
+```
+
+A policy can also be any lambda from the roots index to the roots to keep.
+
+### Rules
+
+- **Stop writers first.** Don't run GC while anything else writes to the same namespace.
+- **The latest root is always kept.** With a roots index, the `LATEST` root and the root at the last version survive whatever the policy says. Commit those tries before running GC, because a root visible only in an open write batch is rejected.
+- **Without a roots index,** `OnDiskMarkSweepStrategy` keeps only the policy's roots.
+- **Use one strategy per namespace,** and run mark-sweep occasionally to reclaim what refcount GC leaks.
+- **Refcount GC fails safe.** It never deletes a node a retained version still reaches, even with wrong counts. It leaks instead and reports those nodes in `GcReport.protectedNodes`. It refuses to run when a retained root has no refcount.
+- **Refcount GC edits the index.** It removes dropped versions from the roots index, while mark-sweep leaves the index as it is.
+
+### After a crash
+
+Both strategies use a temporary column family named `__vds_gc_marks_<digits>`. If you open the `RocksDB` yourself, open it with all column families from `RocksDB.listColumnFamilies` and call `GcManager.dropLeftoverGcColumnFamilies` after a crash.
+
+### Databases written by 0.8.0-pre6 or earlier
+
+0.8.0-pre7 fixed data-loss bugs in RocksDB GC, so upgrade before running GC on an existing database.
+
+- Refcounts written by older code counted only roots. Refcount GC now protects retained tries from them and leaks instead of deleting.
+- Temporary column families left by 0.8.0-pre6 are named `marks_<digits>` and are never dropped automatically. Check them, then drop them with `GcManager.dropLegacyGcColumnFamilies`.
+
+For the algorithms and on-disk details, see the [GC design document](https://github.com/bloxbean/cardano-client-lib/blob/master/verified-structures/merkle-patricia-forestry-rocksdb/docs/gc.md).

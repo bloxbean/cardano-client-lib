@@ -1,299 +1,86 @@
 ---
-title: "Production Guide"
-description: "Batch operations, performance tuning, monitoring, and thread safety"
+title: "MPF production guide"
+description: "Atomic writes, RocksDB tuning, thread safety, backup and shutdown for MpfTrie."
 ---
 
-> **Preview — 0.8.0-pre5**: APIs may change before stable release.
+> **Preview feature**: available in the [latest preview](/start-here/installation/#versions). APIs may change before the stable release.
 
-## Batch Operations
+## Atomic writes
 
-### WriteBatch
-
-Use RocksDB's `WriteBatch` for atomic multi-operation writes:
-
-```java
-RocksDbNodeStore nodeStore = stateTrees.nodeStore();
-MpfTrie trie = new MpfTrie(nodeStore);
-
-try (WriteBatch batch = new WriteBatch();
-     WriteOptions writeOpts = new WriteOptions()) {
-
-    nodeStore.withBatch(batch, () -> {
-        // All operations go into the batch
-        trie.put("key1".getBytes(), "value1".getBytes());
-        trie.put("key2".getBytes(), "value2".getBytes());
-        trie.put("key3".getBytes(), "value3".getBytes());
-        return null;
-    });
-
-    // Atomic commit
-    stateTrees.db().write(writeOpts, batch);
-}
-```
-
-### Session-Based Batching
-
-`RocksDbMptSession` provides automatic batching with try-with-resources:
-
-```java
-import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbMptSession;
-
-try (RocksDbMptSession session = new RocksDbMptSession(stateTrees)) {
-    MpfTrie trie = new MpfTrie(session.nodeStore());
-
-    // Multiple operations batched
-    trie.put("alice".getBytes(), "100".getBytes());
-    trie.put("bob".getBytes(), "200".getBytes());
-    trie.put("charlie".getBytes(), "300".getBytes());
-
-    // Atomic commit
-    session.commit("accounts");
-}
-```
-
-## Storage Schema
-
-RocksDB stores MPF data in multiple column families:
-
-| Column Family | Key | Value |
-|--------------|-----|-------|
-| `nodes` | Blake2b-256 hash (32 bytes) | CBOR-encoded node |
-| `roots` | tree name + version | Root hash |
-| `metadata` | configuration key | Configuration value |
-| `refcounts` | 0xF0 prefix + node hash | Reference count (for GC) |
-
-## Performance
-
-### RocksDB Tuning
-
-**Write-heavy workload:**
-
-```java
-Options options = new Options()
-    .setWriteBufferSize(128 * 1024 * 1024)  // 128 MB
-    .setMaxWriteBufferNumber(4);
-
-RocksDbResources.builder()
-    .path(path)
-    .options(options)
-    .build();
-```
-
-**Read-heavy workload:**
-
-```java
-BlockBasedTableConfig tableConfig = new BlockBasedTableConfig()
-    .setBlockSize(64 * 1024)  // 64 KB blocks
-    .setCacheIndexAndFilterBlocks(true)
-    .setFilterPolicy(new BloomFilter(10));
-
-Options options = new Options()
-    .setTableFormatConfig(tableConfig);
-```
-
-## Thread Safety
-
-| Component | Thread Safety |
-|-----------|--------------|
-| **RocksDbStateTrees** | Thread-safe for reads, serialize writes |
-| **RocksDbNodeStore** | Thread-safe for reads, batch writes need coordination |
-| **MpfTrie** | NOT thread-safe — use separate instances per thread |
-| **GcManager** | Thread-safe — can run GC concurrently with reads |
-
-For multi-threaded access, create a separate `MpfTrie` instance per thread, all sharing the same `RocksDbNodeStore`.
-
-## Scheduled GC
-
-> **Experimental**: Garbage collection APIs may change before stable release.
-
-Run GC periodically to reclaim space from stale nodes:
-
-```java
-ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-
-scheduler.scheduleAtFixedRate(() -> {
-    try {
-        GcReport report = gcManager.runSync(
-            new OnDiskMarkSweepStrategy(),
-            RetentionPolicy.keepLatestN(7),  // Keep 1 week of versions
-            new GcOptions()
-        );
-        logger.info("GC completed: deleted {} nodes", report.deleted);
-    } catch (Exception e) {
-        logger.error("GC failed", e);
-    }
-}, 1, 24, TimeUnit.HOURS);
-```
-
-## Monitoring
-
-```java
-// Monitor RocksDB stats
-String stats = db.getProperty("rocksdb.stats");
-String estimatedSize = db.getProperty("rocksdb.total-sst-files-size");
-
-logger.info("RocksDB stats: {}", stats);
-logger.info("Total size: {} bytes", estimatedSize);
-```
-
-## Backup and Restore
-
-```java
-// Backup
-BackupEngine backupEngine = BackupEngine.open(env, new BackupEngineOptions(backupPath));
-backupEngine.createNewBackup(db);
-backupEngine.close();
-
-// Restore---
-title: "Production Guide"
-description: "Batch operations, performance tuning, monitoring, and thread safety"
----
-
-# MpfTrie — Production Guide
-
-> **Preview — 0.8.0-pre5**: APIs may change before stable release.
-
-## Batch Operations
-
-### WriteBatch
-
-Use RocksDB's `WriteBatch` for atomic multi-operation writes:
-
-```java
-RocksDbNodeStore nodeStore = stateTrees.nodeStore();
-MpfTrie trie = new MpfTrie(nodeStore);
-
-try (WriteBatch batch = new WriteBatch();
-     WriteOptions writeOpts = new WriteOptions()) {
-
-    nodeStore.withBatch(batch, () -> {
-        // All operations go into the batch
-        trie.put("key1".getBytes(), "value1".getBytes());
-        trie.put("key2".getBytes(), "value2".getBytes());
-        trie.put("key3".getBytes(), "value3".getBytes());
-        return null;
-    });
-
-    // Atomic commit
-    stateTrees.db().write(writeOpts, batch);
-}
-```
-
-### Session-Based Batching
-
-`RocksDbMptSession` provides automatic batching with try-with-resources:
+`RocksDbMptSession` runs your work in one RocksDB write batch and commits it at the end. Nodes, the version entry and refcounts land together.
 
 ```java
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbMptSession;
 
 MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
+RocksDbMptSession session = RocksDbMptSession.of(stateTrees);
 
-try (RocksDbMptSession session = RocksDbMptSession.of(stateTrees)) {
-    session.write(() -> {
-        trie.put("alice".getBytes(), "100".getBytes());
-        trie.put("bob".getBytes(), "200".getBytes());
-        trie.put("charlie".getBytes(), "300".getBytes());
-    });
-}
-
-// Store the root hash as a new version
-stateTrees.putRootWithRefcount(trie.getRootHash());
+long version = session.write(() -> {
+    trie.put("alice".getBytes(), "100".getBytes());
+    trie.put("bob".getBytes(), "200".getBytes());
+    return stateTrees.putRootWithRefcount(trie.getRootHash());
+});
 ```
 
-## Storage Schema
+Inside a session, write only through the store APIs. A batch is bound to the calling thread.
 
-RocksDB stores MPF data in multiple column families:
+For a bulk load that you can repeat, you can trade durability for speed by turning off the write-ahead log with `RocksDbMptSession.of(stateTrees, Options.builder().disableWal(true).build())`. Writes that aren't flushed yet are then lost on a crash or close, and they aren't in a backup.
 
-| Column Family | Key | Value |
-|--------------|-----|-------|
-| `nodes` | Blake2b-256 hash (32 bytes) | CBOR-encoded node |
-| `roots` | tree name + version | Root hash |
-| `metadata` | configuration key | Configuration value |
-| `refcounts` | 0xF0 prefix + node hash | Reference count (for GC) |
+## Storage layout
 
-## Performance
+`RocksDbStateTrees` keeps two column families:
 
-### RocksDB Tuning
+```text
+nodes:  [ns][node hash]          -> CBOR-encoded node
+        [ns][0xF0][node hash]    -> refcount (refcount GC only)
+roots:  [ns][version]            -> root hash
+        [ns]"LATEST"             -> latest root
+        [ns]"VERSION"            -> last version number
+        [ns]"_storage_mode"      -> MULTI_VERSION or SINGLE_VERSION
+```
 
-**Write-heavy workload:**
+`[ns]` is the namespace's one-byte key prefix, `0x00` by default. To keep several tries in one database, pass `NamespaceOptions.keyPrefix((byte) 0x01)` or `NamespaceOptions.columnFamily("accounts")` to the constructor.
+
+A RocksDB directory can be opened by only one `RocksDbStateTrees` at a time. Open namespaces one after another, or build `RocksDbNodeStore` and `RocksDbRootsIndex` instances over one shared `RocksDB` handle.
+
+## RocksDB tuning
+
+`RocksDbConfig` has the profiles `highThroughput()`, `balanced()`, `lowMemory()` and `defaults()`, plus a builder. Pass one to the constructor, and measure with your own workload:
 
 ```java
-Options options = new Options()
-    .setWriteBufferSize(128 * 1024 * 1024)  // 128 MB
-    .setMaxWriteBufferNumber(4);
-
-// Create RocksDB with custom options, then use the
-// RocksDbNodeStore(RocksDB, ColumnFamilyHandle) constructor
+RocksDbStateTrees(String dbPath, NamespaceOptions namespace, StorageMode mode, RocksDbConfig config)
 ```
 
-**Read-heavy workload:**
+See the [rocksdb-core README](https://github.com/bloxbean/cardano-client-lib/tree/master/verified-structures/rocksdb-core) for its options.
 
-```java
-BlockBasedTableConfig tableConfig = new BlockBasedTableConfig()
-    .setBlockSize(64 * 1024)  // 64 KB blocks
-    .setCacheIndexAndFilterBlocks(true)
-    .setFilterPolicy(new BloomFilter(10));
+## Thread safety
 
-Options options = new Options()
-    .setTableFormatConfig(tableConfig);
-```
-
-## Thread Safety
-
-| Component | Thread Safety |
-|-----------|--------------|
-| **RocksDbStateTrees** | Thread-safe for reads, serialize writes |
-| **RocksDbNodeStore** | Thread-safe for reads, batch writes need coordination |
-| **MpfTrie** | NOT thread-safe — use separate instances per thread |
-
-For multi-threaded access, create a separate `MpfTrie` instance per thread, all sharing the same `RocksDbNodeStore`.
+- `MpfTrie` isn't thread-safe. Use one instance per thread, or synchronize access.
+- The backend has no concurrency control: serialize writers of a namespace.
+- Pause writers while [garbage collection](/verified-structures/multi-version-gc/) runs. Its snapshot doesn't protect re-puts of existing node keys.
 
 ## Monitoring
 
 ```java
-// Monitor RocksDB stats
-String stats = db.getProperty("rocksdb.stats");
-String estimatedSize = db.getProperty("rocksdb.total-sst-files-size");
-
-logger.info("RocksDB stats: {}", stats);
-logger.info("Total size: {} bytes", estimatedSize);
+String stats = stateTrees.db().getProperty("rocksdb.stats");
+String size = stateTrees.db().getProperty("rocksdb.total-sst-files-size");
 ```
 
-## Backup and Restore
+## Backup and restore
+
+Use RocksDB's own backup engine, with writers paused:
 
 ```java
-// Backup
-BackupEngine backupEngine = BackupEngine.open(env, new BackupEngineOptions(backupPath));
-backupEngine.createNewBackup(db);
-backupEngine.close();
+try (BackupEngine backup = BackupEngine.open(Env.getDefault(), new BackupEngineOptions(backupPath))) {
+    backup.createNewBackup(stateTrees.db(), true); // true flushes first
+}
 
-// Restore
-BackupEngine restoreEngine = BackupEngine.open(env, new BackupEngineOptions(backupPath));
-restoreEngine.restoreDbFromLatestBackup(dbPath, dbPath, new RestoreOptions(false));
-restoreEngine.close();
+try (BackupEngine restore = BackupEngine.open(Env.getDefault(), new BackupEngineOptions(backupPath));
+     RestoreOptions options = new RestoreOptions(false)) {
+    restore.restoreDbFromLatestBackup(dbPath, dbPath, options);
+}
 ```
 
-## Graceful Shutdown
+## Shutdown
 
-```java
-// Ensure all writes are flushed
-db.flush(new FlushOptions().setWaitForFlush(true));
-
-// Close in correct order
-stateTrees.close();  // Closes DB and resources
-```
-
-BackupEngine restoreEngine = BackupEngine.open(env, new BackupEngineOptions(backupPath));
-restoreEngine.restoreDbFromLatestBackup(dbPath, dbPath, new RestoreOptions(false));
-restoreEngine.close();
-```
-
-## Graceful Shutdown
-
-```java
-// Ensure all writes are flushed
-db.flush(new FlushOptions().setWaitForFlush(true));
-
-// Close in correct order
-stateTrees.close();  // Closes DB and resources
-```
+Close `RocksDbStateTrees`, ideally with try-with-resources. It closes the database and its resources.
