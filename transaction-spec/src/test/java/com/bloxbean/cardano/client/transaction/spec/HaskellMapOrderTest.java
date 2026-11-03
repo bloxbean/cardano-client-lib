@@ -82,7 +82,7 @@ class HaskellMapOrderTest {
         assertThat(encodedKeys(map, canonical)).isEqualTo(REWARD_ACCOUNTS_IN_BYTES_ORDER);
     }
 
-    /** Only mixing keys and scripts on one network tells Haskell's order and CIP-21's apart. */
+    /** Only mixing keys and scripts tells Haskell's order and CIP-21's apart. */
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void withoutMixingBothOrdersAreTheSame(boolean canonical) throws Exception {

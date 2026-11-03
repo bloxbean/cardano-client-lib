@@ -49,11 +49,11 @@ public class Comparators {
 
     /**
      * CIP-21: the reward account's bytes, so a key (e0, e1) before a script (f0, f1). For the transaction body's
-     * withdrawals only. It agrees with {@link #WITHDRAWAL} unless one network's withdrawals mix keys and scripts.
+     * withdrawals only. It agrees with {@link #WITHDRAWAL} unless the withdrawals mix keys and scripts.
      */
     public static final Comparator<Withdrawal> WITHDRAWAL_BYTES = Comparator.comparing(
             (Withdrawal withdrawal) -> new Address(withdrawal.getRewardAddress()).getBytes(),
-            Arrays::compareUnsigned);
+            Comparators::lengthFirst);
 
     /**
      * Haskell's {@code Voter}: committee, then DRep, each with a script before a key, then stake pool, and by hash
