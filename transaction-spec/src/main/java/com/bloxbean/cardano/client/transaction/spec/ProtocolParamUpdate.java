@@ -78,7 +78,7 @@ public class ProtocolParamUpdate {
     /**
      * The constructor before the Conway keys and the widening of three fields.
      *
-     * @deprecated use {@link #builder()}
+     * @deprecated use {@code builder()}
      */
     @Deprecated
     @SuppressWarnings("java:S107") // the old signature, kept for callers
