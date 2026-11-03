@@ -10,7 +10,7 @@ import lombok.*;
 import java.util.Map;
 import java.util.*;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
@@ -93,7 +93,7 @@ public class UpdateCommittee implements GovAction {
         co.nstant.in.cbor.model.Map committeeColdCredEpochMapDI = (co.nstant.in.cbor.model.Map) govActionDIList.get(3);
         for (DataItem key : committeeColdCredEpochMapDI.getKeys()) {
             Credential cred = CredentialSerializer.deserialize((Array) key);
-            int epoch = toInt(committeeColdCredEpochMapDI.get(key));
+            int epoch = toIntExact(committeeColdCredEpochMapDI.get(key));
             committeeColdCredEpochMap.put(cred, epoch);
         }
 

@@ -11,6 +11,8 @@ import lombok.Getter;
 import java.util.List;
 import java.util.Objects;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+
 @Getter
 public class StakeDeregistration implements Certificate {
     private final CertificateType type = CertificateType.STAKE_DEREGISTRATION;
@@ -31,7 +33,7 @@ public class StakeDeregistration implements Certificate {
         }
 
         UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || type.getValue().intValue() != 1)
+        if (type == null || toIntExact(type) != 1)
             throw new CborDeserializationException("StakeDeregistration deserialization failed. Invalid type : "
                     + type != null ? String.valueOf(type.getValue().intValue()) : null);
 

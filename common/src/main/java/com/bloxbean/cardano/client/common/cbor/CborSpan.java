@@ -403,8 +403,7 @@ public final class CborSpan {
     public BigInteger asBigInteger() {
         CborHead head = head(offset);
         if (head.major == MAJOR_TAG && (head.argument == TAG_POSITIVE_BIGNUM || head.argument == TAG_NEGATIVE_BIGNUM)) {
-            BigInteger magnitude = new BigInteger(1, untag().byteString());
-            return head.argument == TAG_POSITIVE_BIGNUM ? magnitude : BigInteger.ONE.negate().subtract(magnitude);
+            return bignum(head.argument == TAG_POSITIVE_BIGNUM, untag().byteString());
         }
         if (head.major != MAJOR_UNSIGNED && head.major != MAJOR_NEGATIVE)
             throw CborHead.error("expected a CBOR integer or bignum", offset);
@@ -412,6 +411,12 @@ public final class CborSpan {
                 ? BigInteger.valueOf(head.argument)
                 : new BigInteger(Long.toUnsignedString(head.argument));
         return head.major == MAJOR_UNSIGNED ? argument : BigInteger.ONE.negate().subtract(argument);
+    }
+
+    /** @return the value of a bignum: its content is an unsigned magnitude {@code n}, and tag 3 means {@code -1 - n} */
+    static BigInteger bignum(boolean positive, byte[] content) {
+        BigInteger magnitude = new BigInteger(1, content);
+        return positive ? magnitude : BigInteger.ONE.negate().subtract(magnitude);
     }
 
     /**

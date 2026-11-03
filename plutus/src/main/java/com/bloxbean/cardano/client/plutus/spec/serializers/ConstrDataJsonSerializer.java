@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Collections;
 
 import static com.bloxbean.cardano.client.plutus.spec.serializers.PlutusDataJsonKeys.CONSTRUCTOR;
@@ -25,7 +26,7 @@ public class ConstrDataJsonSerializer extends StdSerializer<ConstrPlutusData> {
     @Override
     public void serialize(ConstrPlutusData value, JsonGenerator gen, SerializerProvider provider) throws IOException {
         gen.writeStartObject();
-        gen.writeNumberField(CONSTRUCTOR, value.getAlternative());
+        gen.writeNumberField(CONSTRUCTOR, new BigInteger(Long.toUnsignedString(value.getAlternative())));
         if (value.getData() != null) {
             ListPlutusData listPlutusData = value.getData();
             gen.writeObjectField(FIELDS, listPlutusData.getPlutusDataList());

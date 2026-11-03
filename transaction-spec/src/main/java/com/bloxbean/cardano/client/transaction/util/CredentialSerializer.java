@@ -8,8 +8,9 @@ import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.address.CredentialType;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 
-import java.math.BigInteger;
 import java.util.List;
+
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
 
 public class CredentialSerializer {
     public static Credential deserialize(Array stakeCredArray)  {
@@ -21,14 +22,14 @@ public class CredentialSerializer {
         UnsignedInteger typeDI = (UnsignedInteger) dataItemList.get(0);
         ByteString hashDI = (ByteString) dataItemList.get(1);
 
-        BigInteger typeBI = typeDI.getValue();
-        if (typeBI.intValue() == 0) {
+        int type = toIntExact(typeDI);
+        if (type == 0) {
             return Credential.fromKey(hashDI.getBytes());
-        } else if (typeBI.intValue() == 1) {
+        } else if (type == 1) {
             return Credential.fromScript(hashDI.getBytes());
         } else {
             throw new CborRuntimeException("Credential deserialization failed. Invalid CredType : "
-                    + typeBI.intValue());
+                    + type);
         }
     }
 

@@ -14,6 +14,8 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -46,7 +48,7 @@ public class TransactionInput {
 
         UnsignedInteger indexUI = (UnsignedInteger) items.get(1);
         if(indexUI != null)
-            transactionInput.setIndex(indexUI.getValue().intValue());
+            transactionInput.setIndex(toIntExact(indexUI));
 
         return transactionInput;
     }

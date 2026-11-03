@@ -21,6 +21,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.TreeMap;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
 
 /**
@@ -172,7 +174,7 @@ final class PlutusDataCodec {
                 throw new CborDeserializationException("Cbor deserialization failed. Expected 2 DataItem, found : " + size);
             if (!(items.get(0) instanceof UnsignedInteger) || !(items.get(1) instanceof Array))
                 throw new CborDeserializationException("Cbor deserialization failed. Constructor 102 is [alternative, [fields]]");
-            return ((UnsignedInteger) items.get(0)).getValue().longValue();
+            return toUnsignedLong(items.get(0));
         }
         Long alternative = compactTagToAlternative(tag.getValue());
         if (alternative == null)
@@ -412,7 +414,7 @@ final class PlutusDataCodec {
             return fields;
         }
         Array general = new Array();
-        general.add(new UnsignedInteger(constr.getAlternative()));
+        general.add(unsignedLongItem(constr.getAlternative()));
         general.add(fields);
         general.setTag(GENERAL_FORM_TAG);
         return general;
@@ -963,6 +965,8 @@ final class PlutusDataCodec {
 
     // Alternatives 0-6 are tags 121-127, 7-127 are tags 1280-1400, anything else uses tag 102.
     static Long alternativeToCompactTag(long alternative) {
+        if (alternative < 0) // an unsigned value at or above 2^63, see CborSerializationUtil.toUnsignedLong
+            return null;
         if (alternative <= 6)
             return 121 + alternative;
         else if (alternative <= 127)

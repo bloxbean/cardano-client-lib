@@ -11,8 +11,10 @@ import lombok.*;
 
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toBytes;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toLong;
 
 @Getter
 @NoArgsConstructor
@@ -31,7 +33,7 @@ public class PoolRetirement implements Certificate {
         Array array = new Array();
         array.add(new UnsignedInteger(4));
         array.add(new ByteString(poolKeyHash));
-        array.add(new UnsignedInteger(epoch));
+        array.add(unsignedLongItem(epoch));
 
         return array;
     }
@@ -44,12 +46,12 @@ public class PoolRetirement implements Certificate {
         }
 
         UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || type.getValue().intValue() != 4)
+        if (type == null || toIntExact(type) != 4)
             throw new CborDeserializationException("PoolRetirement deserialization failed. Invalid type : "
                     + type != null ? String.valueOf(type.getValue().intValue()) : null);
 
         byte[] poolKeyHash = toBytes(dataItemList.get(1));
-        long epoch = toLong(dataItemList.get(2));
+        long epoch = toUnsignedLong(dataItemList.get(2));
 
         return new PoolRetirement(poolKeyHash, epoch);
     }

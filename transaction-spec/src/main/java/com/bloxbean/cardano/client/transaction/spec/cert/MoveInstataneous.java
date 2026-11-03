@@ -11,8 +11,8 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 import static com.bloxbean.cardano.client.transaction.spec.cert.MirPot.RESERVES;
 import static com.bloxbean.cardano.client.transaction.spec.cert.MirPot.TREASURY;
 
@@ -68,14 +68,14 @@ public class MoveInstataneous implements Certificate {
         }
 
         UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || type.getValue().intValue() != 6)
+        if (type == null || toIntExact(type) != 6)
             throw new CborDeserializationException("MoveInstantaneous Rewards deserialization failed. Invalid type : "
                     + type != null ? String.valueOf(type.getValue().intValue()) : null);
 
         List<DataItem> moveInstDIList = ((Array) dataItemList.get(1)).getDataItems();
 
         MirPot pot = null;
-        int fundsDrawnFrom = toInt(moveInstDIList.get(0));
+        int fundsDrawnFrom = toIntExact(moveInstDIList.get(0));
         if (fundsDrawnFrom == 0)
             pot = RESERVES;
         if (fundsDrawnFrom == 1)

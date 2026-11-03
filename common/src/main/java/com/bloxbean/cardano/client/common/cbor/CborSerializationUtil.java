@@ -30,9 +30,9 @@ public class CborSerializationUtil {
             value = ((Number) valueItem).getValue();
         } else if (MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
             if (valueItem.getTag().getValue() == 2) { //positive
-                value = new BigInteger(((ByteString) valueItem).getBytes());
+                value = CborSpan.bignum(true, ((ByteString) valueItem).getBytes());
             } else if (valueItem.getTag().getValue() == 3) { //Negative
-                value = new BigInteger(((ByteString) valueItem).getBytes()).multiply(BigInteger.valueOf(-1));
+                value = CborSpan.bignum(false, ((ByteString) valueItem).getBytes());
             }
         }
 
@@ -68,6 +68,42 @@ public class CborSerializationUtil {
      */
     public static int toInt(DataItem valueItem) {
         return getBigInteger(valueItem).intValue();
+    }
+
+    /**
+     * Convert a CBOR DataItem to int, rejecting a value an int cannot hold instead of wrapping it as {@link #toInt}
+     * does.
+     * @param valueItem an integer or bignum
+     * @return the value
+     * @throws CborRuntimeException if the value does not fit in an int
+     */
+    public static int toIntExact(DataItem valueItem) {
+        BigInteger value = getBigInteger(valueItem);
+        if (value == null || value.bitLength() > 31)
+            throw new CborRuntimeException("Expected a 32-bit integer, found : " + valueItem);
+        return value.intValue();
+    }
+
+    /**
+     * Convert a CBOR DataItem to a long holding an unsigned 64-bit value. A value at or above 2^63 reads as negative
+     * through the long, and {@link #unsignedLongItem(long)} writes it back exactly.
+     * @param valueItem an integer or bignum
+     * @return the value's 64 bits
+     * @throws CborRuntimeException if the value is negative or does not fit in 64 bits
+     */
+    public static long toUnsignedLong(DataItem valueItem) {
+        BigInteger value = getBigInteger(valueItem);
+        if (value == null || value.signum() < 0 || value.bitLength() > 64)
+            throw new CborRuntimeException("Expected an unsigned 64-bit integer, found : " + valueItem);
+        return value.longValue();
+    }
+
+    /**
+     * @param value the 64 bits of an unsigned value, as {@link #toUnsignedLong(DataItem)} reads it
+     * @return the unsigned integer
+     */
+    public static UnsignedInteger unsignedLongItem(long value) {
+        return new UnsignedInteger(new BigInteger(Long.toUnsignedString(value)));
     }
 
     /**
