@@ -237,15 +237,20 @@ Unknown keys stay ignored, as ADR 0001 D6 decided. After this change, no key Con
 
 ### D6. Three re-encoding fixes, and no general promise
 
-**D6.1 Ledger key order.** A map keyed by a ledger type is written in Haskell's `Ord` order, decided in r2 (Q4).
+**D6.1 Ledger key order.** A map keyed by a ledger type is written in Haskell's `Ord` order, decided in r2 (Q4), unless
+a hardware wallet can sign that map. There CIP-21 decides, as a wallet refuses any other order and the ledger accepts
+either (r7).
 
 | Map | Haskell key | `Ord` order | CCL today | Change |
 |---|---|---|---|---|
-| `TreasuryWithdrawalsAction`, body key 5 | `AccountAddress` | Network, script before key, hash | Encoded bytes, so key accounts first | Yes |
+| `TreasuryWithdrawalsAction` | `AccountAddress` | Network, script before key, hash | Encoded bytes, so key accounts first | Yes |
+| Body key 5 | `AccountAddress` | As above, but CIP-21 applies: encoded bytes, so key accounts first | Encoded bytes | No |
 | `UpdateCommittee` new members | `Credential` | Script before key, hash | Encoded bytes, so key first | Yes |
 | `VotingProcedures` outer map | `Voter` | Committee, DRep, pool; script before key within the first two; hash | Encoded bytes, so tag order 0-4 | Yes |
 | `VotingProcedures` inner map | `GovActionId` | Transaction id, index | Encoded bytes are length-first, so an index of 24 or more sorts after smaller indexes under any transaction id | Yes |
 | Redeemers, cost models, metadata labels | `PlutusPurpose`, `Language`, `Word64` | By tag or number | Encoded bytes give the same order | No |
+| Policy ids, in outputs and mint | `PolicyID` | Bytes; CIP-21 agrees, as all have 28 bytes | Hex text in outputs; mint unsorted when non-canonical | Sort by bytes in both |
+| Asset names | `AssetName` | Unsigned bytes, then length; CIP-21 applies: length, then unsigned bytes (Q5) | Length, then signed bytes | Unsigned |
 
 The mechanism is the one `Value` and `MultiAsset` already use: the model sorts its entries with a `Comparator` and puts
 them in the existing `SortedMap`, which both encoder modes write as inserted (`CustomCborEncoder.java:429`). `SortedMap`
@@ -256,20 +261,30 @@ Checked with a prototype against PR #734's build: five reward accounts sorted th
 `canonical` true and false, and when nested in a canonical parent. The corpus samples simulated 13/13 (section 1.3).
 
 The corpus only measures the treasury row: 13 of its 14 treasury samples mix key and script accounts, no Conway sample
-is an `UpdateCommittee`, and the Conway set has no valid `transaction_body` or `voting_procedures` sample. The other
-rows follow the same rule by decision, not by score.
+is an `UpdateCommittee`, and the Conway set has no valid `transaction_body` sample. The other rows follow the same rule
+by decision, not by score.
 
-This changes the bytes of a *built* transaction whose map mixes key and script keys, and its hash. The transaction stays
-valid: Haskell's decoder does not require sorted keys here, as the 13 treasury samples show, since their input is
-unsorted. Redeemer indexes do not depend on it, because `WithdrawalUtil` already sorts script-first before computing
-them. D10's I5 records the exception.
+This changes the bytes of a *built* transaction whose treasury, committee or voter map mixes key and script keys, and
+its hash. The transaction stays valid: Haskell's decoder does not require sorted keys here, as the 13 treasury samples
+show, since their input is unsorted. D10's I5 records the exception.
 
-CIP-21 requires hardware wallets to see map keys sorted lowest to highest, and names withdrawals explicitly. So a body
-that mixes key and script withdrawals will no longer meet CIP-21. Proposals do not hit this, because CIP-21 forbids them
-in hardware wallet transactions, and voting does not, because it allows a single voter. Section 9 records the risk.
+The rule for a map a hardware wallet can sign comes from CIP-21: "The keys in every map must be sorted from lowest value
+to highest", in RFC 7049's sense, and it names withdrawals and multi-assets. Ledger's app enforces this for withdrawals,
+policies and asset names (`LedgerHQ/app-cardano`, `src/transaction/tx_processing.c`,
+`SWO_TX_PARSING_FAIL_CANONICAL_ORDER`), as Trezor's does (`signer.py`, `HashBuilderDict`). So:
 
-Asset names are the exception, left open as Q5. Sets encoded as arrays, such as inputs, are not maps and stay as they
-are.
+- Body withdrawals stay in byte order. Byte order and Haskell's differ only when a transaction's withdrawals mix keys
+  and scripts, and then it cannot meet both. The ledger accepts this order, confirmed on a Yaci DevKit chain by
+  the mixed withdrawals test of CCL PR #727. Mainnet had no such transaction among 18,508 with two or more withdrawals,
+  up to 2026-03-26, so the case is narrow in either direction.
+- `Withdrawal.serialize` writes this order, and treasury withdrawals use `Withdrawal.serializeInLedgerOrder`.
+- Treasury withdrawals and `UpdateCommittee` do not meet CIP-21 and need not, as CIP-21 forbids proposals in a hardware
+  wallet transaction. Voting does not conflict either, as CIP-21 allows "a single voter with a single voting procedure",
+  so neither voting map has two keys to order. If CIP-21 ever allows more, the voting maps must be looked at again.
+
+Redeemer indexes are separate from all this. The ledger derives them from its own map order, whatever the wire order,
+so `Comparators.WITHDRAWAL` stays script first for `Reward` indexes, as PR #727 made it. Sets encoded as arrays, such as
+inputs, are not maps and stay as they are.
 
 **D6.2 Script references.** `TransactionOutput.serialize` writes `82` plus the two original items when the stored
 `scriptRef` is an indefinite two-item array. The field keeps the raw bytes, so its meaning does not change. The inner
@@ -372,7 +387,7 @@ JuLC (D2):
 | I2 | The strict reader alone, and the node's pair of decoders, reject 8334/8334 at every step | D3-D6, D9 | G6 |
 | I3 | A decoded value is never silently different from the encoded value | D4 | Unit tests at each boundary, G1 |
 | I4 | No harness special-cases a sample | D1, D7 | Review |
-| I5 | A transaction built through the API serializes to the same bytes as before, except for order in the maps D6.1 changes and for asset names the signed comparison misordered (Q5) | D4-D6 | G2 |
+| I5 | A transaction built through the API serializes to the same bytes as before, except for order in the treasury, committee and voting maps D6.1 changes and for asset names the signed comparison misordered (Q5). A body a hardware wallet can sign meets CIP-21's map order | D4-D6 | G2, `Cip21BodyOrderTest` |
 | I6 | Existing builder calls compile unchanged, including `null` arguments | D4, D5 | G2, G5, a compile test with `null` |
 | I7 | Every block Yaci parses today still parses, with the same model | D8 | G3 |
 | I8 | Retained bytes are never written for a datum they no longer represent, at any depth. An unchanged decoded datum keeps them | D6.3 | Mutation tests |
@@ -447,7 +462,8 @@ other values are expected until built.
 4. **`ProtocolParamUpdate` (D5, Q2).** Keys 25-33 and the threshold classes. `Long` getters, `...Long` builder methods,
    the old constructor kept as deprecated, and the reachability metadata.
 5. **Map order (D6.1).** Comparators in `Comparators`, used with the existing `SortedMap`, and `WithdrawalUtil`
-   delegating. Golden bytes change only for the mixed cases. If Q5 goes to (a), the signed comparison is fixed here too.
+   delegating. Golden bytes change only for the mixed cases outside the body, and for the signed asset name comparison,
+   fixed here as Q5 went to (a).
 6. **Script references and datums (D6.2, D6.3).** Mutation tests for I8: a replacement with `a10101` over `a201000101`,
    `setInlineDatum`, `toBuilder`, an in-place reorder, and replacements inside a list, a constructor and a map, each
    with a duplicate-key map replaced by one whose encoding matches. An unchanged decoded datum keeps its payload.
@@ -469,7 +485,7 @@ M7 and M8 come after step 8. Raising Q1 with the dataset maintainers is a separa
 | `ProtocolParamUpdate` new fields | New keys appear | Builder additive | All-args constructor changes | A deprecated constructor with the old signature keeps it |
 | Unsigned treatments | Same below 2^63 | None | None | Above that, the getter reads negative |
 | Exact-or-throw | Same in range | None | None | A value that wrapped now throws |
-| D6.1 order | Changes for maps mixing key and script keys, and so the hash | None | None | `gov_action_hex` in stored quicktx plans still decodes. Parties on old and new CCL can compute different hashes for such a transaction |
+| D6.1 order | Changes for treasury, committee and voter maps mixing key and script keys, and so the hash. Body withdrawals keep their bytes | None | None | `gov_action_hex` in stored quicktx plans still decodes. Parties on old and new CCL can compute different hashes for such a transaction |
 | D6.2 | Definite outer array | None | None | Only for received indefinite script refs |
 | D6.3 | Original bytes | None | None | Only for decoded outputs |
 
@@ -496,7 +512,8 @@ M7 and M8 come after step 8. Raising Q1 with the dataset maintainers is a separa
 | Other CCL users depend on an accidental rejection | PR #734 keeps `RecD` rejections. G2, G5 |
 | Stale retained datum bytes | D6.3's same-object and datum key checks, I8 |
 | External code encodes a CCL-decoded tree with a plain encoder | Release note (D3). Yaci moves its encoder with its decoder (D8) |
-| A hardware wallet refuses a body mixing key and script withdrawals (D6.1) | Release notes. Narrow case; not tested on a device |
+| A hardware wallet refuses a CCL-built body (D6.1) | `Cip21BodyOrderTest` walks the encoded body with CIP-21's own rule. Not tested on a device |
+| A mixed-withdrawal body built by CCL and one built by a Haskell tool differ in bytes and hash (D6.1) | Each is valid. Parties must sign one set of bytes, as they already must |
 | Yaci stops on a block it parses today | Walker before `RawBlock`, G3, I7 |
 | Simulated fixes behave differently when built | G6 compares each milestone with section 6 |
 | Corpus maintainers disagree on Q1 | Stays at 9198, documented, with production behaviour unchanged |
@@ -520,10 +537,10 @@ reader outside CCL. Revisit if a second consumer appears, such as a CCL user wan
 Dijkstra work.
 
 **Q4. Other `Ord`-ordered maps** (body withdrawals, `UpdateCommittee`, `VotingProcedures`). Resolved in r2: they follow
-Haskell's order (D6.1), although the corpus does not measure them.
+Haskell's order (D6.1), although the corpus does not measure them. Changed in r7: body withdrawals follow CIP-21.
 
-**Q5. Asset name order.** Haskell's `AssetName` uses `ShortByteString`'s `Ord`: unsigned bytes, then length. So `6161`
-sorts before `62`. `Comparators.assetComparator` sorts by length first, then signed bytes, so `62` comes first, and of
+**Q5. Asset name order.** Resolved in r7 as (a), by the maintainer. Haskell's `AssetName` uses `ShortByteString`'s
+`Ord`: unsigned bytes, then length. So `6161` sorts before `62`. `Comparators.assetComparator` sorts by length first, then signed bytes, so `62` comes first, and of
 two names of equal length, one with a byte at or above `0x80` sorts first. The corpus does not measure this: no Conway
 `value` sample has two assets under one policy.
 
@@ -532,7 +549,7 @@ two names of equal length, one with a byte at or above `0x80` sorts first. The c
 - (b) Use Haskell's order. This changes the bytes and hash of any output or mint with names of different lengths, which
   is common, and a hardware wallet would refuse them under CIP-21.
 
-Lean: (a). Unlike D6.1's cases, (b) reaches ordinary wallet transactions. No milestone waits on this.
+(b) would reach ordinary wallet transactions, which is why (a) was chosen.
 
 ## 11. Related findings (out of scope)
 
@@ -569,3 +586,7 @@ Found while researching. Traced by reading only, except where stated. Each needs
 - **r6** (2026-11-03, from review of the step 6 implementation): D6.3 records repeated entries in `EncodedKeyMap`, covers
   repeats nested inside repeats, and states its limits; `TransactionOutput.copy` added; D6.2 states what it leaves as it
   is. All 6 CCL steps are built, and Yano's report measures 9198 against them locally.
+- **r7** (2026-11-03, from the maintainer's review of hardware wallet compatibility): D6.1 keeps body withdrawals in
+  CIP-21's order, as a wallet refuses any other and the ledger accepts either, and everything a hardware wallet cannot
+  sign follows Haskell's order. Q5 resolved as (a). Policy ids sort by bytes in both encoder modes. I5 and section 9
+  updated.
