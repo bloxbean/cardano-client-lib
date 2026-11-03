@@ -4,6 +4,7 @@ import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -11,11 +12,16 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.util.HexUtil;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
+import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 @Data
@@ -23,6 +29,9 @@ import java.util.List;
 @NoArgsConstructor
 @Builder(toBuilder=true)
 public class TransactionOutput {
+    private static final int INDEFINITE_ARRAY = 0x9f;
+    private static final int DEFINITE_PAIR = 0x82;
+
     private String address;
     private Value value;
     private byte[] datumHash;
@@ -33,6 +42,12 @@ public class TransactionOutput {
     private PlutusData inlineDatum;
     private byte[] scriptRef;
 
+    //The inline datum's original tag-24 bytes, not part of the value of this output
+    @Getter(AccessLevel.NONE)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private final DecodedDatum decodedDatum = new DecodedDatum();
+
     //TODO -- Remove later if not required
     //serialize to Alonzo era (legacy) format
     //boolean alonzoEraFormat;
@@ -40,6 +55,16 @@ public class TransactionOutput {
     public TransactionOutput(String address, Value value) {
         this.address = address;
         this.value = value;
+    }
+
+    /**
+     * @return a shallow copy that writes the same bytes, as {@code toBuilder().build()} would not for a decoded datum
+     */
+    public TransactionOutput copy() {
+        TransactionOutput copy = toBuilder().build();
+        copy.decodedDatum.datum = decodedDatum.datum;
+        copy.decodedDatum.bytes = decodedDatum.bytes;
+        return copy;
     }
 
     //custom setters
@@ -95,26 +120,57 @@ public class TransactionOutput {
             datumArray.add(new ByteString(datumHash));
             map.put(new UnsignedInteger(2), datumArray);
         } else if(inlineDatum != null) {
-            DataItem inlineDatumDI = inlineDatum.serialize();
-            ByteString inlineDatumBS = null;
-            try {
-                inlineDatumBS = new ByteString(CborSerializationUtil.serialize(inlineDatumDI));
-                inlineDatumBS.setTag(new Tag(24));
-            } catch (CborException e) {
-                throw new CborSerializationException("Cbor serialization error", e);
-            }
+            ByteString inlineDatumBS = new ByteString(inlineDatumBytes());
+            inlineDatumBS.setTag(new Tag(24));
             datumArray.add(new UnsignedInteger(1));
             datumArray.add(inlineDatumBS);
             map.put(new UnsignedInteger(2), datumArray);
         }
 
         if (scriptRef != null) {
-            ByteString scriptRefBS = new ByteString(scriptRef);
+            ByteString scriptRefBS = new ByteString(scriptRefBytes());
             scriptRefBS.setTag(new Tag(24)); //tag 6.24
             map.put(new UnsignedInteger(3), scriptRefBS);
         }
 
         return map;
+    }
+
+    /**
+     * The datum's original bytes while it is the object decoded from them and still represents them, as Haskell keeps
+     * them, or else its encoding (ADR 0002 D6.3).
+     */
+    private byte[] inlineDatumBytes() throws CborSerializationException {
+        try {
+            if (decodedDatum.datum == inlineDatum && decodedDatum.bytes != null
+                    && PlutusData.representsBytes(inlineDatum, decodedDatum.bytes))
+                return decodedDatum.bytes;
+            return CborSerializationUtil.serialize(inlineDatum.serialize());
+        } catch (CborException | CborDeserializationException e) {
+            throw new CborSerializationException("Cbor serialization error", e);
+        }
+    }
+
+    /**
+     * A script reference whose outer array is indefinite is written with a definite one and its inner bytes kept, as
+     * Haskell re-encodes it (ADR 0002 D6.2). The field keeps what it holds, and anything else is written as it is.
+     */
+    private byte[] scriptRefBytes() {
+        if (scriptRef.length == 0 || (scriptRef[0] & 0xff) != INDEFINITE_ARRAY)
+            return scriptRef;
+        List<CborSpan> items;
+        try {
+            items = CborSpan.of(scriptRef).items();
+        } catch (CborRuntimeException e) {
+            return scriptRef;
+        }
+        if (items.size() != 2)
+            return scriptRef;
+        ByteArrayOutputStream definite = new ByteArrayOutputStream(scriptRef.length);
+        definite.write(DEFINITE_PAIR);
+        definite.writeBytes(items.get(0).bytes());
+        definite.writeBytes(items.get(1).bytes());
+        return definite.toByteArray();
     }
 
     private Array serializeAlonzo() throws CborSerializationException, AddressExcepion {
@@ -173,6 +229,8 @@ public class TransactionOutput {
             } else if (new UnsignedInteger(1).equals(datumOptionsList.get(0))) { //datum
                 ByteString inlineDatumBS = (ByteString) datumOptionsList.get(1);
                 inlineDatum = PlutusData.deserialize(inlineDatumBS.getBytes());
+                output.decodedDatum.datum = inlineDatum;
+                output.decodedDatum.bytes = inlineDatumBS.getBytes();
             }
         }
         output.setDatumHash(datumHash);
@@ -248,5 +306,10 @@ public class TransactionOutput {
 
             return this;
         }
+    }
+
+    private static final class DecodedDatum {
+        private PlutusData datum;
+        private byte[] bytes;
     }
 }

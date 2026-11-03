@@ -13,6 +13,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.NonNull;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 
 public interface PlutusData {
     int BIG_UINT_TAG = 2;
@@ -50,6 +51,23 @@ public interface PlutusData {
      */
     static PlutusData deserialize(DataItem dataItem) throws CborDeserializationException {
         return PlutusDataCodec.decode(dataItem);
+    }
+
+    /**
+     * Whether a datum decoded from {@code bytes} still represents them, at any depth, after whatever its mutable lists
+     * and maps went through. Compares with a fresh decode of the bytes, so it costs a decode and two encodes.
+     *
+     * @param data  the datum
+     * @param bytes the bytes it was decoded from
+     * @return false if the datum has changed in a way its encoding or a map's repeated keys can show
+     */
+    static boolean representsBytes(PlutusData data, byte[] bytes)
+            throws CborDeserializationException, CborSerializationException {
+        try {
+            return Arrays.equals(PlutusDataCodec.datumKey(data), PlutusDataCodec.datumKey(deserialize(bytes)));
+        } catch (CborException e) {
+            throw new CborSerializationException("Cbor serialization error", e);
+        }
     }
 
     static PlutusData deserialize(@NonNull byte[] serializedBytes) throws CborDeserializationException {

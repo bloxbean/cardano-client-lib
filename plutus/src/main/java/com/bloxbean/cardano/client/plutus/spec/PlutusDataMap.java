@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
+import co.nstant.in.cbor.model.Array;
+
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Iterator;
@@ -19,6 +21,16 @@ import java.util.Set;
 final class PlutusDataMap extends AbstractMap<PlutusData, PlutusData> {
     // a key as stored: the PlutusData itself (null, an integer or a byte string), or a Key with its hash
     private final LinkedHashMap<Object, PlutusData> entries = new LinkedHashMap<>();
+    // what the decoded CBOR repeated, see PlutusDataCodec.datumKey; null for almost every map
+    private Array repeatedEntries;
+
+    Array getRepeatedEntries() {
+        return repeatedEntries;
+    }
+
+    void setRepeatedEntries(Array repeatedEntries) {
+        this.repeatedEntries = repeatedEntries;
+    }
 
     @Override
     public PlutusData put(PlutusData key, PlutusData value) {

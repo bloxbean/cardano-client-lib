@@ -1,37 +1,6 @@
 # Valid corpus samples that CCL does not yet decode and re-encode to the reference: <rule>/<sample> <how it misses>.
 # See CborCorpusConformanceTest. This list can only shrink.
 
-# Script references and inline datum bytes (ADR 0002 D6.2, D6.3)
-transaction_output/00005-989f3f39d68fb388 differs
-transaction_output/00011-3a09f8d306348a1d differs
-transaction_output/00012-9b736c92dff59605 differs
-transaction_output/00016-87491ec0984ca198 differs
-transaction_output/00018-2b3f9186faa8a4f2 differs
-transaction_output/00019-8c95a86564390b7d differs
-transaction_output/00024-e8063bebb125d557 differs
-datum_option/00010-5ca86a2f453f08e2 differs
-datum_option/00012-a933e70c8750ab08 differs
-datum_option/00015-d87a60cef43ac38b differs
-datum_option/00016-6bab7cd5c430b7ce differs
-datum_option/00017-a33fbfff5d422d57 differs
-datum_option/00019-26d1b8c184aa27d5 differs
-datum_option/00023-05e4fd27302e9237 differs
-datum_option/00024-e2b27c76f66283e4 differs
-datum_option/00028-17744ce3af936848 differs
-datum_option/00030-43d09c51419d756a differs
-datum_option/00031-9f913d21da22b648 differs
-datum_option/00033-69ef9764da6aee9b differs
-datum_option/00034-fafe72940d9eea9b differs
-datum_option/00035-82cd6c8d9232ed0f differs
-datum_option/00037-05fa0ec97512b141 differs
-datum_option/00039-13aaaa03487baea8 differs
-datum_option/00044-3cba00e362035d98 differs
-datum_option/00048-6f8ae5fa212ba994 differs
-datum_option/00049-83ab232e4b7c5998 differs
-datum_option/00051-df4f9921a5de76d2 differs
-datum_option/00052-94a971baabcf2815 differs
-datum_option/00053-5676c56538ba7ccd differs
-
 # Disputed: the dataset and production Haskell disagree, so CCL keeps rejecting these (ADR 0002 Q1)
 auxiliary_data/00003-a457defa17a4ecca rejected
 auxiliary_data/00025-756519256dadb3b0 rejected
