@@ -14,7 +14,9 @@ import java.util.Comparator;
 
 /**
  * Comparators used during cbor serialization. A map keyed by a ledger type is written in Haskell's {@code Ord} order
- * for that type, which is not always the order of its encoded bytes.
+ * for that type, which is not always the order of its encoded bytes. Asset names and the transaction body's
+ * withdrawals are the exception: hardware wallets refuse a body whose map keys are not in CIP-21's order, and the
+ * ledger accepts either. Redeemer indexes always follow Haskell's order, whatever the map's order on the wire.
  */
 public class Comparators {
 
@@ -25,26 +27,33 @@ public class Comparators {
      * Length first, then unsigned bytes, as RFC 7049 section 3.9 and CIP-21 require. Haskell's {@code AssetName} order
      * is different, and this one is kept for hardware wallets (ADR 0002 Q5).
      */
-    public static final Comparator<Asset> ASSET = (asset1, asset2) -> {
-        byte[] name1 = asset1.getNameAsBytes();
-        byte[] name2 = asset2.getNameAsBytes();
+    public static final Comparator<Asset> ASSET = Comparator.comparing(Asset::getNameAsBytes, Comparators::lengthFirst);
 
-        if (name1.length != name2.length) {
-            return Integer.compare(name1.length, name2.length);
-        }
-        return Arrays.compareUnsigned(name1, name2);
-    };
+    /** By bytes, not hex text, where Haskell's {@code PolicyID} order and CIP-21's agree. */
+    public static final Comparator<MultiAsset> POLICY = Comparator.comparing(
+            (MultiAsset multiAsset) -> HexUtil.decodeHexString(multiAsset.getPolicyId()), Comparators::lengthFirst);
 
     /** Haskell's {@code Credential}: {@code ScriptHashObj} before {@code KeyHashObj}, then by hash. */
     public static final Comparator<Credential> CREDENTIAL = Comparator
             .comparingInt((Credential credential) -> credential.getType() == CredentialType.Script ? 0 : 1)
             .thenComparing(Credential::getBytes, Arrays::compareUnsigned);
 
-    /** Haskell's {@code AccountAddress}: network, then {@link #CREDENTIAL}. */
+    /**
+     * Haskell's {@code AccountAddress}: network, then {@link #CREDENTIAL}. For treasury withdrawals, and for working out
+     * {@code Reward} redeemer indexes.
+     */
     public static final Comparator<Withdrawal> WITHDRAWAL = Comparator.comparing(
             (Withdrawal withdrawal) -> new Address(withdrawal.getRewardAddress()),
             Comparator.comparingInt((Address address) -> address.getNetwork().getNetworkId())
                     .thenComparing(Comparators::delegationCredential, CREDENTIAL));
+
+    /**
+     * CIP-21: the reward account's bytes, so a key (e0, e1) before a script (f0, f1). For the transaction body's
+     * withdrawals only. It agrees with {@link #WITHDRAWAL} unless one network's withdrawals mix keys and scripts.
+     */
+    public static final Comparator<Withdrawal> WITHDRAWAL_BYTES = Comparator.comparing(
+            (Withdrawal withdrawal) -> new Address(withdrawal.getRewardAddress()).getBytes(),
+            Arrays::compareUnsigned);
 
     /**
      * Haskell's {@code Voter}: committee, then DRep, each with a script before a key, then stake pool, and by hash
@@ -58,6 +67,12 @@ public class Comparators {
     public static final Comparator<GovActionId> GOV_ACTION_ID = Comparator
             .comparing((GovActionId id) -> HexUtil.decodeHexString(id.getTransactionId()), Arrays::compareUnsigned)
             .thenComparingInt(GovActionId::getGovActionIndex);
+
+    private static int lengthFirst(byte[] first, byte[] second) {
+        return first.length != second.length
+                ? Integer.compare(first.length, second.length)
+                : Arrays.compareUnsigned(first, second);
+    }
 
     private static Credential delegationCredential(Address address) {
         return AddressProvider.getDelegationCredential(address).orElseThrow(() -> new IllegalArgumentException(

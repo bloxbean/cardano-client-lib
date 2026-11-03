@@ -138,11 +138,7 @@ public class TransactionBody {
         }
 
         if (mint != null && mint.size() > 0) {
-            Map mintMap = new Map();
-            for (MultiAsset multiAsset : mint) {
-                multiAsset.serialize(mintMap);
-            }
-            bodyMap.put(new UnsignedInteger(9), mintMap);
+            bodyMap.put(new UnsignedInteger(9), MultiAsset.serialize(mint));
         }
 
         if (scriptDataHash != null) {

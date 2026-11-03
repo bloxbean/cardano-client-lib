@@ -28,12 +28,14 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * ADR 0002 D6.1: a map keyed by a ledger type is written in Haskell's {@code Ord} order for that type, in canonical and
- * non-canonical encoding alike. Expected orders are written out by hand from {@code Ord}, not from the comparators.
+ * non-canonical encoding alike, except where CIP-21 decides. Expected orders are written out by hand, not from the
+ * comparators.
  */
 class HaskellMapOrderTest {
 
@@ -56,6 +58,10 @@ class HaskellMapOrderTest {
     private static final List<String> REWARD_ACCOUNTS_IN_ORDER = List.of(
             "581df0" + LOW, "581df0" + HIGH, "581de0" + LOW, "581de0" + HIGH, "581df1" + LOW, "581de1" + LOW);
 
+    /** The same accounts by their bytes, as CIP-21 wants them: e0, e1, f0, f1. */
+    private static final List<String> REWARD_ACCOUNTS_IN_BYTES_ORDER = List.of(
+            "581de0" + LOW, "581de0" + HIGH, "581de1" + LOW, "581df0" + LOW, "581df0" + HIGH, "581df1" + LOW);
+
     private static List<Withdrawal> shuffledWithdrawals() {
         return List.of(
                 withdrawal(key(LOW), Networks.mainnet()),
@@ -68,12 +74,28 @@ class HaskellMapOrderTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void bodyWithdrawalsAreInRewardAccountOrder(boolean canonical) throws Exception {
+    void bodyWithdrawalsAreInBytesOrder(boolean canonical) throws Exception {
         TransactionBody body = TransactionBody.builder().withdrawals(new ArrayList<>(shuffledWithdrawals())).build();
 
         Map map = (Map) body.serialize().get(new UnsignedInteger(5));
 
-        assertThat(encodedKeys(map, canonical)).isEqualTo(REWARD_ACCOUNTS_IN_ORDER);
+        assertThat(encodedKeys(map, canonical)).isEqualTo(REWARD_ACCOUNTS_IN_BYTES_ORDER);
+    }
+
+    /** Only mixing keys and scripts on one network tells Haskell's order and CIP-21's apart. */
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void withoutMixingBothOrdersAreTheSame(boolean canonical) throws Exception {
+        for (Function<String, Credential> credential : List.<Function<String, Credential>>of(
+                HaskellMapOrderTest::key, HaskellMapOrderTest::script)) {
+            List<Withdrawal> withdrawals = List.of(withdrawal(credential.apply(HIGH), Networks.mainnet()),
+                    withdrawal(credential.apply(LOW), Networks.testnet()),
+                    withdrawal(credential.apply(LOW), Networks.mainnet()));
+
+            assertThat(encodedKeys(Withdrawal.serialize(withdrawals), canonical))
+                    .isEqualTo(encodedKeys(Withdrawal.serializeInLedgerOrder(withdrawals), canonical))
+                    .hasSize(3);
+        }
     }
 
     @ParameterizedTest
