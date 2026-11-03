@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.ChunkableDataItem;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -95,12 +96,12 @@ class Cip21BodyOrderTest {
 
         Array decoded = (Array) CborSerializationUtil.deserialize(transaction.serialize());
 
-        assertAllMapsInOrder(decoded.getDataItems().get(0));
+        assertMeetsCip21(decoded.getDataItems().get(0));
     }
 
-    /** Writing the decoded items back keeps the bytes only if each integer and length is minimal and definite. */
+    /** Writing the decoded items back keeps the bytes only if each integer and length is minimal. */
     @Test
-    void builtTransactionIsMinimalAndDefinite() throws Exception {
+    void builtTransactionIsMinimal() throws Exception {
         byte[] bytes = Transaction.builder().body(body()).witnessSet(new TransactionWitnessSet()).build().serialize();
 
         assertThat(CborSerializationUtil.serialize(CborSerializationUtil.deserialize(bytes), false)).isEqualTo(bytes);
@@ -119,7 +120,7 @@ class Cip21BodyOrderTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void bodyIsInOrderInBothEncoderModes(boolean canonical) throws Exception {
-        assertAllMapsInOrder(CborSerializationUtil.deserialize(
+        assertMeetsCip21(CborSerializationUtil.deserialize(
                 CborSerializationUtil.serialize(body().serialize(), canonical)));
     }
 
@@ -131,15 +132,18 @@ class Cip21BodyOrderTest {
                 withdrawal(Credential.fromScript(LOW), Networks.testnet()))).build().serialize())
                 .getDataItems().get(1);
 
-        assertThatThrownBy(() -> assertAllMapsInOrder(
+        assertThatThrownBy(() -> assertMeetsCip21(
                 CborSerializationUtil.deserialize(CborSerializationUtil.serialize(treasuryMap))))
                 .isInstanceOf(AssertionError.class);
     }
 
-    private static void assertAllMapsInOrder(DataItem item) throws Exception {
+    private static void assertMeetsCip21(DataItem item) throws Exception {
+        if (item instanceof ChunkableDataItem chunkable) {
+            assertThat(chunkable.isChunked()).as("indefinite length").isFalse();
+        }
         if (item instanceof Array array) {
             for (DataItem element : array.getDataItems()) {
-                assertAllMapsInOrder(element);
+                assertMeetsCip21(element);
             }
         } else if (item instanceof Map map) {
             byte[] previous = null;
@@ -150,8 +154,8 @@ class Cip21BodyOrderTest {
                             .isNegative();
                 }
                 previous = encoded;
-                assertAllMapsInOrder(key);
-                assertAllMapsInOrder(map.get(key));
+                assertMeetsCip21(key);
+                assertMeetsCip21(map.get(key));
             }
         }
     }
