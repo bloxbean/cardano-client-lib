@@ -244,7 +244,7 @@ Unknown keys stay ignored, as ADR 0001 D6 decided. After this change, no key Con
 | `TreasuryWithdrawalsAction`, body key 5 | `AccountAddress` | Network, script before key, hash | Encoded bytes, so key accounts first | Yes |
 | `UpdateCommittee` new members | `Credential` | Script before key, hash | Encoded bytes, so key first | Yes |
 | `VotingProcedures` outer map | `Voter` | Committee, DRep, pool; script before key within the first two; hash | Encoded bytes, so tag order 0-4 | Yes |
-| `VotingProcedures` inner map | `GovActionId` | Transaction id, index | Encoded bytes give the same order | No |
+| `VotingProcedures` inner map | `GovActionId` | Transaction id, index | Encoded bytes are length-first, so an index of 24 or more sorts after smaller indexes under any transaction id | Yes |
 | Redeemers, cost models, metadata labels | `PlutusPurpose`, `Language`, `Word64` | By tag or number | Encoded bytes give the same order | No |
 
 The mechanism is the one `Value` and `MultiAsset` already use: the model sorts its entries with a `Comparator` and puts
@@ -367,7 +367,7 @@ JuLC (D2):
 | I2 | The strict reader alone, and the node's pair of decoders, reject 8334/8334 at every step | D3-D6, D9 | G6 |
 | I3 | A decoded value is never silently different from the encoded value | D4 | Unit tests at each boundary, G1 |
 | I4 | No harness special-cases a sample | D1, D7 | Review |
-| I5 | A transaction built through the API serializes to the same bytes as before, except maps mixing key and script keys (D6.1) | D4-D6 | G2 |
+| I5 | A transaction built through the API serializes to the same bytes as before, except for order in the maps D6.1 changes and for asset names the signed comparison misordered (Q5) | D4-D6 | G2 |
 | I6 | Existing builder calls compile unchanged, including `null` arguments | D4, D5 | G2, G5, a compile test with `null` |
 | I7 | Every block Yaci parses today still parses, with the same model | D8 | G3 |
 | I8 | Retained bytes are never written for a datum they no longer represent, at any depth. An unchanged decoded datum keeps them | D6.3 | Mutation tests |
@@ -558,3 +558,5 @@ Found while researching. Traced by reading only, except where stated. Each needs
   nested replacements. G1's starting list corrected from 37 to 59, as measured by the gate in PR #741, with 22
   `datum_option` samples that Yano's report does not count; Yano's scores are unchanged. Steps are stacked, and D7 went
   up early as bloxbean/yano#230.
+- **r5** (2026-11-03, from review of the step 5 implementation): D6.1's inner `VotingProcedures` row corrected, as encoded
+  bytes do not give `GovActionId`'s order for an index of 24 or more. I5 names the order and asset exceptions.
