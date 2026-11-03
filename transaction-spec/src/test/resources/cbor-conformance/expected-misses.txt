@@ -1,21 +1,6 @@
 # Valid corpus samples that CCL does not yet decode and re-encode to the reference: <rule>/<sample> <how it misses>.
 # See CborCorpusConformanceTest. This list can only shrink.
 
-# Map order: Haskell's order for maps keyed by reward account, credential or voter (ADR 0002 D6.1)
-gov_action/00006-ce6fe156ba134420 differs
-gov_action/00008-2ace7133fadfe0f2 differs
-gov_action/00010-f386561f56cb421d differs
-gov_action/00011-1754b5cc06e984da differs
-gov_action/00014-f4372fd2594fa930 differs
-gov_action/00016-501b828ddb597fe0 differs
-gov_action/00020-c0f1ea919ca24e98 differs
-gov_action/00024-8a94497e6589c04d differs
-gov_action/00025-42183c52b12ae5f1 differs
-gov_action/00027-50d4321119cfe97a differs
-gov_action/00028-7ab82f39a90f312a differs
-gov_action/00032-a83d0610bcc97b8a differs
-proposal_procedure/00003-324bed419ff4cae5 differs
-
 # Script references and inline datum bytes (ADR 0002 D6.2, D6.3)
 transaction_output/00005-989f3f39d68fb388 differs
 transaction_output/00011-3a09f8d306348a1d differs

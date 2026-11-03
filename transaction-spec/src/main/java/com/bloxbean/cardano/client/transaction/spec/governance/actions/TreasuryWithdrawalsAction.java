@@ -49,12 +49,7 @@ public class TreasuryWithdrawalsAction implements GovAction {
         Array array = new Array();
         array.add(new UnsignedInteger(2));
 
-        Map withdrawalMap = new Map();
-        for (Withdrawal withdrawal : withdrawals) {
-            withdrawal.serialize(withdrawalMap);
-        }
-
-        array.add(withdrawalMap);
+        array.add(Withdrawal.serialize(withdrawals));
 
         if (policyHash != null && policyHash.length > 0) {
             if (policyHash.length != 28)

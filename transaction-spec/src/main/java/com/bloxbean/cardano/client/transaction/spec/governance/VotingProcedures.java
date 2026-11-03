@@ -3,13 +3,17 @@ package com.bloxbean.cardano.client.transaction.spec.governance;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
+import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
+import com.bloxbean.cardano.client.transaction.spec.Comparators;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -41,14 +45,19 @@ public class VotingProcedures {
     }
 
     public DataItem serialize() {
-        Map map = new Map();
+        Map map = new SortedMap();
 
-        for (java.util.Map.Entry<Voter, java.util.Map<GovActionId, VotingProcedure>> entry : voting.entrySet()) {
+        List<java.util.Map.Entry<Voter, java.util.Map<GovActionId, VotingProcedure>>> voters =
+                new ArrayList<>(voting.entrySet());
+        voters.sort(java.util.Map.Entry.comparingByKey(Comparators.VOTER));
+        for (java.util.Map.Entry<Voter, java.util.Map<GovActionId, VotingProcedure>> entry : voters) {
             Voter voter = entry.getKey();
             java.util.Map<GovActionId, VotingProcedure> value = entry.getValue();
 
-            Map govActIdVoteProcedureMap = new Map();
-            for (java.util.Map.Entry<GovActionId, VotingProcedure> votingProEntry : value.entrySet()) {
+            Map govActIdVoteProcedureMap = new SortedMap();
+            List<java.util.Map.Entry<GovActionId, VotingProcedure>> votes = new ArrayList<>(value.entrySet());
+            votes.sort(java.util.Map.Entry.comparingByKey(Comparators.GOV_ACTION_ID));
+            for (java.util.Map.Entry<GovActionId, VotingProcedure> votingProEntry : votes) {
                 govActIdVoteProcedureMap.put(votingProEntry.getKey().serialize(), votingProEntry.getValue().serialize());
             }
 

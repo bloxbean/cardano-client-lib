@@ -106,7 +106,7 @@ public class MultiAsset {
         Map assetsMap = new SortedMap();
         List<Asset> cloneAssets = new ArrayList<>(assets);
         //sorted based on asset name bytes for canonical cbor
-        Collections.sort(cloneAssets, Comparators.assetComparator);
+        Collections.sort(cloneAssets, Comparators.ASSET);
         for (Asset asset : cloneAssets) {
             ByteString assetNameBytes = new ByteString(asset.getNameAsBytes());
 

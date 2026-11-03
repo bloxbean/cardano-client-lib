@@ -5,11 +5,14 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
+import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import lombok.*;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 @Getter
@@ -39,6 +42,23 @@ public class Withdrawal {
 
         return new Withdrawal(rewardAddress,
                 coinDI != null ? coinDI.getValue() : null);
+    }
+
+    /**
+     * @param withdrawals the withdrawals, in any order
+     * @return their map, in Haskell's order
+     * @throws AddressExcepion if a reward address cannot be encoded
+     * @throws RuntimeException if sorting finds an address that is not a reward address
+     */
+    public static Map serialize(List<Withdrawal> withdrawals) throws AddressExcepion {
+        List<Withdrawal> sorted = new ArrayList<>(withdrawals);
+        sorted.sort(Comparators.WITHDRAWAL);
+
+        Map withdrawalMap = new SortedMap();
+        for (Withdrawal withdrawal : sorted) {
+            withdrawal.serialize(withdrawalMap);
+        }
+        return withdrawalMap;
     }
 
     /**

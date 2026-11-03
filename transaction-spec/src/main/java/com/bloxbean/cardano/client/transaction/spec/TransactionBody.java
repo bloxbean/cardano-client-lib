@@ -122,11 +122,7 @@ public class TransactionBody {
         }
 
         if (withdrawals != null && withdrawals.size() > 0) { //Withdrawals
-            Map withdrawalMap = new Map();
-            for (Withdrawal withdrawal : withdrawals) {
-                withdrawal.serialize(withdrawalMap);
-            }
-            bodyMap.put(new UnsignedInteger(5), withdrawalMap);
+            bodyMap.put(new UnsignedInteger(5), Withdrawal.serialize(withdrawals));
         }
 
         if (update != null) {
