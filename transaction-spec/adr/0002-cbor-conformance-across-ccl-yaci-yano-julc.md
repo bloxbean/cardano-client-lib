@@ -53,6 +53,10 @@ With PR #734 and D7, 37 valid samples still miss. A probe dumped input, expected
 proposed fix was then simulated against the expected bytes. The "Confirmed" column is that simulation. The code fixes
 themselves are not built yet.
 
+CCL's own gate (G1) sees 22 more: `datum_option` samples whose inline datum CCL's encoder rewrites. Yano's report does
+not count them, because it re-encodes that rule from its strict reader, which keeps the original bytes. They need the
+same fix as the 3 inline datum samples below (D6.3), so they add work to G1's list but not to Yano's score.
+
 | Count | Rule | Cause | Confirmed by | Fix |
 |---:|---|---|---|---|
 | 14 | `protocol_param_update` | All 14 use keys 25-33, which CCL drops. 12 also have keys 2, 3 or 7 at or above 2^31, which wrap in `Integer` fields and then fail on re-encoding | Input, normalized (which reduces tag-30 rationals), equals expected on 14/14 | D4, D5 |
@@ -275,11 +279,19 @@ keeps while re-encoding the outer array.
 **D6.3 Inline datum bytes.** `TransactionOutput` keeps the original tag-24 payload at decode, with the datum object
 decoded from it. `serialize` writes the payload only when both of these hold. Otherwise it encodes the model.
 
-1. `inlineDatum` is that same object. This covers replacement: model equality ignores map order and decoding collapses
-   duplicate keys, so `a201000101` and `a10101` compare equal, and only identity tells a replacement apart.
-2. Its non-canonical encoding equals that of a fresh decode of the payload. This covers in-place mutation, including a
-   reorder: after moving a map entry the model still equals a fresh decode, but this encoding changes from `a201020304`
-   to `a203040102`. Both were checked against PR #734's build.
+1. `inlineDatum` is that same object. This covers replacing the root: model equality ignores map order and decoding
+   collapses duplicate keys, so `a201000101` and `a10101` compare equal, and only identity tells a replacement apart.
+2. Its datum key equals that of a fresh decode of the payload. The key is the non-canonical encoding plus, for each
+   map, the duplicate entries the decoder dropped. This covers everything inside the mutable datum:
+   - An in-place reorder changes the encoding from `a201020304` to `a203040102`.
+   - A replaced child can leave the encoding unchanged, so the dropped entries are needed as well. Replacing the child
+     of `81a201000101` with `a10101` keeps the encoding at `81a10101` and the root object the same, as reproduced on
+     CCL's build. Only the dropped entry, which the fresh decode has and the replacement does not, tells them apart.
+
+`MapPlutusData` keeps the dropped entries for this comparison alone. Its `getMap()` and encoding do not change, and
+entries are recorded only when a decoded map has a duplicate key, so other data costs nothing. Encoding a model map
+with its duplicates was rejected: `getMap()` is mutable, so stale duplicates could be written after a change, and it
+would change the bytes of every re-serialized map with duplicates, which D6.3 does not need.
 
 `setInlineDatum` and a `toBuilder` with a new datum fall back to the model, as does a deep copy, which is today's
 behaviour.
@@ -358,7 +370,7 @@ JuLC (D2):
 | I5 | A transaction built through the API serializes to the same bytes as before, except maps mixing key and script keys (D6.1) | D4-D6 | G2 |
 | I6 | Existing builder calls compile unchanged, including `null` arguments | D4, D5 | G2, G5, a compile test with `null` |
 | I7 | Every block Yaci parses today still parses, with the same model | D8 | G3 |
-| I8 | Retained bytes are never written for a datum they no longer represent | D6.3 | Mutation tests |
+| I8 | Retained bytes are never written for a datum they no longer represent, at any depth. An unchanged decoded datum keeps them | D6.3 | Mutation tests |
 
 **Gates**
 
@@ -378,9 +390,9 @@ The expected scores are from section 1.3. Only 9149 and 9163 are measured; the r
 | ID | Project | Work | Entry | Exit | Score |
 |---|---|---|---|---|---|
 | M1 | CCL | D3, PR #734 merged | D3's two items done | G5; the report shows 9149 | 9149 |
-| M1a | CCL | G1 and G2 added | M1 | Miss list at 37 | 9149 |
+| M1a | CCL | G1 and G2 added | M1 | Miss list at 59 | 9149 |
 | M2 | Yano | D7 | None. Takes effect with M1 | I4; redeemer 47/47 | 9163 |
-| M3 | CCL | D4, D5 | M1a | Miss list at 22; I3, I6; G1, G2, G4, G5 | 9178 |
+| M3 | CCL | D4, D5 | M1a | Miss list at 44; I3, I6; G1, G2, G4, G5 | 9178 |
 | M4 | CCL | D6 | M1a | Miss list at 2; I1, I5, I8; G1-G5 | 9198 |
 | M5 | All | Release: CCL, then Yaci and JuLC, then Yano | M3, M4; G3 | The report on the release shows 9198 | 9198 |
 | M6 | Upstream | The corpus changes (Q1) | Dataset maintainers agree | The corpus pin moves | 9200 |
@@ -399,26 +411,29 @@ about 99.83%.
 
 ### 6.1 Implementation order
 
-The maintainer's order is CCL first and Yano last, one PR per step, each reviewed before the next starts. Yano's
-published score therefore moves only at step 8, and the CCL gate's miss list tracks progress until then. Every PR must
-also leave the strict reader at 8334/8334, by running Yano's report against the CCL build. Only 9149 is measured; the
+The maintainer's order is CCL first and Yano last, one PR per step, stacked on the step before it so that work
+continues while each waits for review. The steps still merge in order. Yano's score therefore moves mainly at step 8,
+and the CCL gate's miss list tracks progress until then. D7 needs no CCL release, so it went up early as
+bloxbean/yano#230. Every PR must also leave the strict reader at 8334/8334, by running Yano's report against the CCL
+build. Only 9149 is measured; the
 other values are expected until built.
 
 | Step | PR | Milestone | Samples fixed | Misses left in G1 | Yano report |
 |---|---|---|---:|---:|---:|
 | 1 | Finish PR #734 | M1 | 237 | n/a | 9149 |
-| 2 | Safety net: corpus gate and golden bytes | M1a | 0 | 37 | 9149 |
-| 3 | Numerics | M3 (D4) | 1 | 36 | 9150 |
-| 4 | `ProtocolParamUpdate` | M3 (D5) | 14 | 22 | 9164 |
-| 5 | Haskell map order | M4 (D6.1) | 13 | 9 | 9177 |
-| 6 | Script references and inline datum bytes | M4 (D6.2, D6.3) | 7 | 2 | 9184 |
+| 2 | Safety net: corpus gate and golden bytes | M1a | 0 | 59 | 9149 |
+| 3 | Numerics | M3 (D4) | 1 | 58 | 9150 |
+| 4 | `ProtocolParamUpdate` | M3 (D5) | 14 | 44 | 9164 |
+| 5 | Haskell map order | M4 (D6.1) | 13 | 31 | 9177 |
+| 6 | Script references and inline datum bytes | M4 (D6.2, D6.3) | 7 (and 22 for G1 alone) | 2 | 9184 |
 | 7 | Release CCL, then Yaci and JuLC | M5 | 0 | 2 | 9184 |
 | 8 | Yano: version bump and harness fixes | M2, M5 | 14 | 2 | 9198 |
 
 1. **Finish PR #734.** Fix `CostMdls.java:156` for both decoder paths, and check the other model decoders on cbor-java
    trees. Merge `master`. Add the release note for trees without BREAK (D3).
 2. **Safety net.** G1 fetches the corpus at its pinned commit and does not vendor it, because the dataset has no
-   licence. It starts with 37 listed misses: 14 parameter update, 13 order, 7 output, 2 disputed, 1 certificate. G2
+   licence. It starts with 59 listed misses: 14 parameter update, 13 order, 7 output, 22 `datum_option`, 2 disputed,
+   1 certificate. G2
    takes golden bytes from the current release, including mixed withdrawals, voters and committee members, so that step
    5 shows up as an intended diff.
 3. **Numerics (D4).** One shared bignum read. The unsigned positions, the widened `Redeemer.index`, and the
@@ -428,7 +443,8 @@ other values are expected until built.
 5. **Map order (D6.1).** Comparators in `Comparators`, used with the existing `SortedMap`, and `WithdrawalUtil`
    delegating. Golden bytes change only for the mixed cases. If Q5 goes to (a), the signed comparison is fixed here too.
 6. **Script references and datums (D6.2, D6.3).** Mutation tests for I8: a replacement with `a10101` over `a201000101`,
-   `setInlineDatum`, `toBuilder`, and an in-place reorder.
+   `setInlineDatum`, `toBuilder`, an in-place reorder, and replacements inside a list, a constructor and a map, each
+   with a duplicate-key map replaced by one whose encoding matches. An unchanged decoded datum keeps its payload.
 7. **Release.** G3 on mainnet, preprod and preview, G4 and G5. Release notes cover the getters, `ProtocolVersion.minor`,
    the exact-or-throw positions, map order and trees without BREAK. CCL is released first, then Yaci and JuLC against
    it.
@@ -472,7 +488,7 @@ M7 and M8 come after step 8. Raising Q1 with the dataset maintainers is a separa
 |---|---|
 | Loosened CCL lets invalid input into the node | I2, G6. The strict reader alone is at 8334/8334 |
 | Other CCL users depend on an accidental rejection | PR #734 keeps `RecD` rejections. G2, G5 |
-| Stale retained datum bytes | D6.3's same-object and encoding checks, I8 |
+| Stale retained datum bytes | D6.3's same-object and datum key checks, I8 |
 | External code encodes a CCL-decoded tree with a plain encoder | Release note (D3). Yaci moves its encoder with its decoder (D8) |
 | A hardware wallet refuses a body mixing key and script withdrawals (D6.1) | Release notes. Narrow case; not tested on a device |
 | Yaci stops on a block it parses today | Walker before `RawBlock`, G3, I7 |
@@ -537,3 +553,8 @@ Found while researching. Traced by reading only, except where stated. Each needs
   encodings; 3 -> Q2 uses `...Long` builder methods, I6 covers `null`; 4 -> G1's list shrinks per milestone, M1a added,
   scores stated as cumulative. D3's `CostMdls` finding marked as reproduced. Section 6.1 adds the maintainer's
   eight-step order.
+- **r4** (2026-11-03, responds to reviewer1's re-review of 943b5360): F2 -> D6.3's second check compares a datum key that
+  includes the duplicate entries the decoder dropped, so a replacement inside the datum is detected; I8 and step 6 cover
+  nested replacements. G1's starting list corrected from 37 to 59, as measured by the gate in PR #741, with 22
+  `datum_option` samples that Yano's report does not count; Yano's scores are unchanged. Steps are stacked, and D7 went
+  up early as bloxbean/yano#230.
