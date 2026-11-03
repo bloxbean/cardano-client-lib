@@ -102,6 +102,21 @@ public class MultiAsset {
         return multiAssets.stream().collect(Collectors.toMap(MultiAsset::getPolicyId, Function.identity()));
     }
 
+    /**
+     * @param multiAssets the multi assets, in any order
+     * @return their map, sorted by policy id, and each policy's assets by name
+     */
+    public static Map serialize(List<MultiAsset> multiAssets) {
+        List<MultiAsset> sorted = new ArrayList<>(multiAssets);
+        sorted.sort(Comparators.POLICY);
+
+        Map multiAssetMap = new SortedMap();
+        for (MultiAsset multiAsset : sorted) {
+            multiAsset.serialize(multiAssetMap);
+        }
+        return multiAssetMap;
+    }
+
     public void serialize(Map multiAssetMap) {
         Map assetsMap = new SortedMap();
         List<Asset> cloneAssets = new ArrayList<>(assets);

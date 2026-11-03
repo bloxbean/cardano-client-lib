@@ -49,7 +49,7 @@ public class TreasuryWithdrawalsAction implements GovAction {
         Array array = new Array();
         array.add(new UnsignedInteger(2));
 
-        array.add(Withdrawal.serialize(withdrawals));
+        array.add(Withdrawal.serializeInLedgerOrder(withdrawals));
 
         if (policyHash != null && policyHash.length > 0) {
             if (policyHash.length != 28)

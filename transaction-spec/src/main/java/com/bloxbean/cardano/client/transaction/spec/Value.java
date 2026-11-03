@@ -132,16 +132,7 @@ public class Value {
     }
 
     private Map serializeMultiAssets() {
-        Map map = new SortedMap();
-        if (multiAssets != null) {
-            List<MultiAsset> cloneMultiAssets = new ArrayList<>(multiAssets);
-            //sorted based on policy id for canonical cbor
-            Collections.sort(cloneMultiAssets, (m1, m2) -> m1.getPolicyId().compareTo(m2.getPolicyId()));
-            for (MultiAsset multiAsset : cloneMultiAssets) {
-                multiAsset.serialize(map);
-            }
-        }
-        return map;
+        return multiAssets != null ? MultiAsset.serialize(multiAssets) : new SortedMap();
     }
 
     /**

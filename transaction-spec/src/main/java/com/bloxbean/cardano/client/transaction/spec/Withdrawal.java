@@ -12,6 +12,7 @@ import lombok.*;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -45,14 +46,31 @@ public class Withdrawal {
     }
 
     /**
+     * For the transaction body, so that a hardware wallet can sign it.
+     *
+     * @param withdrawals the withdrawals, in any order
+     * @return their map, in CIP-21's order
+     * @throws AddressExcepion if a reward address cannot be encoded
+     */
+    public static Map serialize(List<Withdrawal> withdrawals) throws AddressExcepion {
+        return toMap(withdrawals, Comparators.WITHDRAWAL_BYTES);
+    }
+
+    /**
+     * For a treasury withdrawals action.
+     *
      * @param withdrawals the withdrawals, in any order
      * @return their map, in Haskell's order
      * @throws AddressExcepion if a reward address cannot be encoded
      * @throws RuntimeException if sorting finds an address that is not a reward address
      */
-    public static Map serialize(List<Withdrawal> withdrawals) throws AddressExcepion {
+    public static Map serializeInLedgerOrder(List<Withdrawal> withdrawals) throws AddressExcepion {
+        return toMap(withdrawals, Comparators.WITHDRAWAL);
+    }
+
+    private static Map toMap(List<Withdrawal> withdrawals, Comparator<Withdrawal> order) throws AddressExcepion {
         List<Withdrawal> sorted = new ArrayList<>(withdrawals);
-        sorted.sort(Comparators.WITHDRAWAL);
+        sorted.sort(order);
 
         Map withdrawalMap = new SortedMap();
         for (Withdrawal withdrawal : sorted) {
