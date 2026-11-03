@@ -274,7 +274,8 @@ are.
 **D6.2 Script references.** `TransactionOutput.serialize` writes `82` plus the two original items when the stored
 `scriptRef` is an indefinite two-item array. The field keeps the raw bytes, so its meaning does not change. The inner
 script bytes stay exact: sample `transaction_output/valid/00019` has an indefinite native script inside, which Haskell
-keeps while re-encoding the outer array.
+keeps while re-encoding the outer array. Haskell also re-encodes the type integer and a Plutus script's byte string
+head. No corpus sample has such forms, and D6.2 leaves them as they are.
 
 **D6.3 Inline datum bytes.** `TransactionOutput` keeps the original tag-24 payload at decode, with the datum object
 decoded from it. `serialize` writes the payload only when both of these hold. Otherwise it encodes the model.
@@ -288,13 +289,17 @@ decoded from it. `serialize` writes the payload only when both of these hold. Ot
      of `81a201000101` with `a10101` keeps the encoding at `81a10101` and the root object the same, as reproduced on
      CCL's build. Only the dropped entry, which the fresh decode has and the replacement does not, tells them apart.
 
-`MapPlutusData` keeps the dropped entries for this comparison alone. Its `getMap()` and encoding do not change, and
-entries are recorded only when a decoded map has a duplicate key, so other data costs nothing. Encoding a model map
-with its duplicates was rejected: `getMap()` is mutable, so stale duplicates could be written after a change, and it
-would change the bytes of every re-serialized map with duplicates, which D6.3 does not need.
+CCL's decoded CBOR map (`EncodedKeyMap`) records what each repeated key replaced, and `PlutusDataMap` keeps that for
+this comparison alone. The key also covers repeats nested inside a repeated key or value. `getMap()` and encoding do not
+change, and entries are recorded only when a decoded map has a duplicate key, so other data costs nothing. Encoding a
+model map with its duplicates was rejected: `getMap()` is mutable, so stale duplicates could be written after a change,
+and it would change the bytes of every re-serialized map with duplicates, which D6.3 does not need.
 
-`setInlineDatum` and a `toBuilder` with a new datum fall back to the model, as does a deep copy, which is today's
-behaviour.
+A map keeps its record for life, so one cleared and refilled with the same entries counts as unchanged. A child replaced
+by one of equal value in another encoding also keeps the original bytes, as the model cannot tell them apart.
+
+`setInlineDatum`, `toBuilder` and a deep copy fall back to the model, which is today's behaviour. A new
+`TransactionOutput.copy` keeps the bytes, and `MinAdaCalculator` uses it so that it measures what the output writes.
 
 A built output has no retained bytes and encodes as it does today. The fields are excluded from `equals`, `hashCode` and
 JSON. The cost is one decode, paid only for decoded outputs at `serialize`.
@@ -415,7 +420,8 @@ The maintainer's order is CCL first and Yano last, one PR per step, stacked on t
 continues while each waits for review. The steps still merge in order. Yano's score therefore moves mainly at step 8,
 and the CCL gate's miss list tracks progress until then. D7 needs no CCL release, so it went up early as
 bloxbean/yano#230. Every PR must also leave the strict reader at 8334/8334, by running Yano's report against the CCL
-build. Only 9149 is measured; the
+build. Scores through step 6 are now measured against local builds, with D7 applied. They are 9163 (#734), 9164, 9178, 9191 and
+9198; the
 other values are expected until built.
 
 | Step | PR | Milestone | Samples fixed | Misses left in G1 | Yano report |
@@ -560,3 +566,6 @@ Found while researching. Traced by reading only, except where stated. Each needs
   up early as bloxbean/yano#230.
 - **r5** (2026-11-03, from review of the step 5 implementation): D6.1's inner `VotingProcedures` row corrected, as encoded
   bytes do not give `GovActionId`'s order for an index of 24 or more. I5 names the order and asset exceptions.
+- **r6** (2026-11-03, from review of the step 6 implementation): D6.3 records repeated entries in `EncodedKeyMap`, covers
+  repeats nested inside repeats, and states its limits; `TransactionOutput.copy` added; D6.2 states what it leaves as it
+  is. All 6 CCL steps are built, and Yano's report measures 9198 against them locally.
