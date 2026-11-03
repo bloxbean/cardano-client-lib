@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.ChunkableDataItem;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -138,14 +137,13 @@ class Cip21BodyOrderTest {
     }
 
     private static void assertMeetsCip21(DataItem item) throws Exception {
-        if (item instanceof ChunkableDataItem chunkable) {
-            assertThat(chunkable.isChunked()).as("indefinite length").isFalse();
-        }
         if (item instanceof Array array) {
+            assertThat(array.isChunked()).as("indefinite array").isFalse();
             for (DataItem element : array.getDataItems()) {
                 assertMeetsCip21(element);
             }
         } else if (item instanceof Map map) {
+            assertThat(map.isChunked()).as("indefinite map").isFalse();
             byte[] previous = null;
             for (DataItem key : map.getKeys()) {
                 byte[] encoded = CborSerializationUtil.serialize(key, false);
