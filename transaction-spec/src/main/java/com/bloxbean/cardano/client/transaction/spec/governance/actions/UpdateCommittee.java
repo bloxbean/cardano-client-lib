@@ -12,7 +12,8 @@ import lombok.*;
 import java.util.Map;
 import java.util.*;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
@@ -36,7 +37,7 @@ public class UpdateCommittee implements GovAction {
     private Set<Credential> membersForRemoval = new LinkedHashSet<>();
 
     @Builder.Default
-    private Map<Credential, Integer> newMembersAndTerms = new LinkedHashMap<>();
+    private Map<Credential, Long> newMembersAndTerms = new LinkedHashMap<>();
     private UnitInterval quorumThreshold; //TODO?? Check the correct name.
 
     @Override
@@ -60,10 +61,10 @@ public class UpdateCommittee implements GovAction {
         array.add(membersForRemovalArray);
 
         SortedMap newMembersTermsMap = new SortedMap();
-        List<Map.Entry<Credential, Integer>> newMembers = new ArrayList<>(newMembersAndTerms.entrySet());
+        List<Map.Entry<Credential, Long>> newMembers = new ArrayList<>(newMembersAndTerms.entrySet());
         newMembers.sort(Map.Entry.comparingByKey(Comparators.CREDENTIAL));
-        for (Map.Entry<Credential, Integer> newMemberTerm: newMembers) {
-            newMembersTermsMap.put(CredentialSerializer.serialize(newMemberTerm.getKey()), new UnsignedInteger(newMemberTerm.getValue()));
+        for (Map.Entry<Credential, Long> newMemberTerm: newMembers) {
+            newMembersTermsMap.put(CredentialSerializer.serialize(newMemberTerm.getKey()), unsignedLongItem(newMemberTerm.getValue()));
         }
         array.add(newMembersTermsMap);
 
@@ -93,11 +94,11 @@ public class UpdateCommittee implements GovAction {
                 .forEach(coldCred -> committeeColdCredSet.add(coldCred));
 
         //committee_cold_credential => epoch
-        java.util.Map<Credential, Integer> committeeColdCredEpochMap = new java.util.LinkedHashMap<>();
+        java.util.Map<Credential, Long> committeeColdCredEpochMap = new java.util.LinkedHashMap<>();
         co.nstant.in.cbor.model.Map committeeColdCredEpochMapDI = (co.nstant.in.cbor.model.Map) govActionDIList.get(3);
         for (DataItem key : committeeColdCredEpochMapDI.getKeys()) {
             Credential cred = CredentialSerializer.deserialize((Array) key);
-            int epoch = toIntExact(committeeColdCredEpochMapDI.get(key));
+            long epoch = toUnsignedLong(committeeColdCredEpochMapDI.get(key));
             committeeColdCredEpochMap.put(cred, epoch);
         }
 

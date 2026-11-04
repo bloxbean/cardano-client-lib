@@ -153,9 +153,9 @@ final class GoldenTransactions {
     private static UpdateCommittee updateCommittee() {
         Set<Credential> removed = new LinkedHashSet<>(List.of(Credential.fromKey(KEY_B),
                 Credential.fromScript(SCRIPT_B)));
-        Map<Credential, Integer> added = new LinkedHashMap<>();
-        added.put(Credential.fromKey(KEY_A), 500);
-        added.put(Credential.fromScript(SCRIPT_A), 600);
+        Map<Credential, Long> added = new LinkedHashMap<>();
+        added.put(Credential.fromKey(KEY_A), 500L);
+        added.put(Credential.fromScript(SCRIPT_A), 600L);
         return UpdateCommittee.builder().membersForRemoval(removed).newMembersAndTerms(added)
                 .quorumThreshold(new UnitInterval(BigInteger.TWO, BigInteger.valueOf(3))).build();
     }
