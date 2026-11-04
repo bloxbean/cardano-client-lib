@@ -17,6 +17,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigInteger;
 import java.util.HexFormat;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -98,9 +99,21 @@ class NumericBoundaryTest {
     }
 
     @Test
-    void committeeTermDoesNotWrap() {
-        // [4, null, [], {credential: 2^32 + 5}, 1/2]: the term would wrap to 5
-        byte[] action = hex("8504f680a1" + "8200" + HASH28 + "1b0000000100000005" + "d81e820102");
+    void committeeTermKeepsAllSixtyFourBits() throws Exception {
+        // [4, null, [], {credential: term}, 1/2]: Haskell reads the term as an EpochNo, a Word64
+        for (String term : List.of("1a80000000", "1b0000000100000005", "1b8000000000000000",
+                "1bffffffffffffffff")) {
+            byte[] action = hex("8504f6d9010280a1" + "8200" + HASH28 + term + "d81e820102");
+
+            GovAction decoded = GovAction.deserialize((Array) CborSerializationUtil.deserialize(action));
+
+            assertThat(CborSerializationUtil.serialize(decoded.serialize(), false)).as(term).isEqualTo(action);
+        }
+    }
+
+    @Test
+    void committeeTermIsNotNegative() {
+        byte[] action = hex("8504f680a1" + "8200" + HASH28 + "20" + "d81e820102");
 
         assertThatThrownBy(() -> GovAction.deserialize((Array) CborSerializationUtil.deserialize(action)))
                 .isInstanceOf(CborRuntimeException.class);
