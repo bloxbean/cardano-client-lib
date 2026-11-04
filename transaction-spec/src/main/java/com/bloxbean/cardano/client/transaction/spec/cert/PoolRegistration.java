@@ -102,9 +102,11 @@ public class PoolRegistration implements Certificate {
 
         //pool owners
         Array poolOwnersArr = createArray(era);
-        poolOwners.stream().forEach(poolOwner -> {
-            poolOwnersArr.add(new ByteString(HexUtil.decodeHexString(poolOwner)));
-        });
+        //a set, in Haskell's order for its KeyHash
+        poolOwners.stream()
+                .map(HexUtil::decodeHexString)
+                .sorted(Arrays::compareUnsigned)
+                .forEach(poolOwner -> poolOwnersArr.add(new ByteString(poolOwner)));
         array.add(poolOwnersArr);
 
         //relays

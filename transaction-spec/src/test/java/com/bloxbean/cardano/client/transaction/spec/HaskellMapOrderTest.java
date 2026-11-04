@@ -9,7 +9,9 @@ import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
+import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.bloxbean.cardano.client.transaction.spec.governance.Vote;
 import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
 import com.bloxbean.cardano.client.transaction.spec.governance.VoterType;
@@ -18,6 +20,7 @@ import com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.TreasuryWithdrawalsAction;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.UpdateCommittee;
+import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -170,6 +173,79 @@ class HaskellMapOrderTest {
         assets.sort(Comparators.ASSET);
 
         assertThat(assets.stream().map(Asset::getName)).containsExactly("0x01", "0x80", "0xff", "0x0000");
+    }
+
+    /** Names that length-first and bytes order put differently: a long name with a low first byte. */
+    private static final List<Asset> NAMES = List.of(asset("0xff"), asset("0x0000"), asset("0x01"));
+    private static final String POLICY = "0a".repeat(28);
+
+    private static MultiAsset multiAsset() {
+        return MultiAsset.builder().policyId(POLICY).assets(NAMES).build();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void assetNamesCanBeWrittenInLedgerOrder(boolean canonical) throws Exception {
+        Map assets = (Map) MultiAsset.serializeInLedgerOrder(List.of(multiAsset())).getValues().iterator().next();
+
+        assertThat(encodedKeys(assets, canonical)).containsExactly("420000", "4101", "41ff");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void assetNamesStayInCip21OrderByDefault(boolean canonical) throws Exception {
+        Map assets = (Map) MultiAsset.serialize(List.of(multiAsset())).getValues().iterator().next();
+
+        assertThat(encodedKeys(assets, canonical)).containsExactly("4101", "41ff", "420000");
+    }
+
+    @Test
+    void valueAndOutputCanBeWrittenInLedgerOrder() throws Exception {
+        Value value = Value.builder().coin(BigInteger.ONE).multiAssets(List.of(multiAsset())).build();
+        TransactionOutput output = TransactionOutput.builder()
+                .address(AddressProvider.getEntAddress(key(LOW), Networks.testnet()).toBech32())
+                .value(value).build();
+        String inLedgerOrder = "01a1581c" + POLICY + "a3" + "42000001" + "410101" + "41ff01";
+        String inCip21Order = "01a1581c" + POLICY + "a3" + "410101" + "41ff01" + "42000001";
+
+        assertThat(hex(value.serializeInLedgerOrder())).isEqualTo("82" + inLedgerOrder);
+        assertThat(hex(value.serialize())).isEqualTo("82" + inCip21Order);
+        assertThat(hex(output.serializeInLedgerOrder())).endsWith("82" + inLedgerOrder);
+        assertThat(hex(output.serialize())).endsWith("82" + inCip21Order);
+    }
+
+    @Test
+    void poolOwnersAreByHash() throws Exception {
+        String pool = "8a03581c" + "00".repeat(28) + "5820" + "00".repeat(32) + "0000d81e820001"
+                + "581de0" + "00".repeat(28) + "%s80f6";
+        String owners = "82581c" + LOW + "581c" + HIGH;
+        PoolRegistration registration = PoolRegistration.builder()
+                .operator(HexFormat.of().parseHex("00".repeat(28)))
+                .vrfKeyHash(HexFormat.of().parseHex("00".repeat(32)))
+                .pledge(BigInteger.ZERO).cost(BigInteger.ZERO)
+                .margin(new UnitInterval(BigInteger.ZERO, BigInteger.ONE))
+                .rewardAccount("e0" + "00".repeat(28))
+                .poolOwners(new LinkedHashSet<>(List.of(HIGH, LOW)))
+                .relays(List.of())
+                .build();
+
+        assertThat(hex(registration.serialize(Era.Babbage))).isEqualTo(pool.formatted(owners));
+    }
+
+    @Test
+    void removedCommitteeMembersAreScriptFirstThenByHash() {
+        UpdateCommittee action = new UpdateCommittee();
+        action.setMembersForRemoval(new LinkedHashSet<>(List.of(key(LOW), script(HIGH), script(LOW))));
+        action.setQuorumThreshold(new UnitInterval(BigInteger.ONE, BigInteger.TWO));
+
+        Array removed = (Array) action.serialize(Era.Babbage).getDataItems().get(2);
+
+        assertThat(removed.getDataItems()).containsExactly(CredentialSerializer.serialize(script(LOW)),
+                CredentialSerializer.serialize(script(HIGH)), CredentialSerializer.serialize(key(LOW)));
+    }
+
+    private static String hex(DataItem item) throws Exception {
+        return HexFormat.of().formatHex(CborSerializationUtil.serialize(item, false));
     }
 
     private static Asset asset(String name) {
