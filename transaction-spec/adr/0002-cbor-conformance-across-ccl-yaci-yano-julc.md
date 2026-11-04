@@ -215,7 +215,7 @@ one of three treatments:
 |---|---|---|
 | Widen | Hold the full range in a wider type | `ProtocolParamUpdate.maxBlockSize` (2), `maxTxSize` (3), `maxEpoch` (7) to `Long`. New keys 28, 29, 32 are `Long`. `Redeemer.index` map form reads the whole `BigInteger` it already holds |
 | Unsigned | Keep the `long`, read and write it as unsigned 64-bit | `PoolRetirement.epoch`, `ttl`, `validityStartInterval`, `ConstrPlutusData` alternative |
-| Exact or throw | Throw rather than wrap, because the type cannot widen without breaking users | `UpdateCommittee` term (`Map<Credential, Integer>`), `Update.epoch`, certificate and action discriminants |
+| Exact or throw | Throw rather than wrap, because the type cannot widen without breaking users | `Update.epoch`, certificate and action discriminants |
 
 Unsigned keeps the public type. A value at or above 2^63 reads as negative through the getter, but round-trips exactly.
 No ledger-legal epoch or slot gets there; Haskell decodes the value and then fails a ledger rule.
@@ -388,7 +388,7 @@ JuLC (D2):
 | I3 | A decoded value is never silently different from the encoded value | D4 | Unit tests at each boundary, G1 |
 | I4 | No harness special-cases a sample | D1, D7 | Review |
 | I5 | A transaction built through the API serializes to the same bytes as before, except for order in the treasury, committee and voting maps D6.1 changes and for asset names the signed comparison misordered (Q5). A body a hardware wallet can sign meets CIP-21's map order | D4-D6 | G2, `Cip21BodyOrderTest` |
-| I6 | Existing builder calls compile unchanged, including `null` arguments | D4, D5 | G2, G5, a compile test with `null` |
+| I6 | Existing builder calls compile unchanged, including `null` arguments, apart from `UpdateCommittee.newMembersAndTerms` (r8) | D4, D5 | G2, G5, a compile test with `null` |
 | I7 | Every block Yaci parses today still parses, with the same model | D8 | G3 |
 | I8 | Retained bytes are never written for a datum they no longer represent, at any depth. An unchanged decoded datum keeps them | D6.3 | Mutation tests |
 
@@ -590,3 +590,10 @@ Found while researching. Traced by reading only, except where stated. Each needs
   CIP-21's order, as a wallet refuses any other and the ledger accepts either, and everything a hardware wallet cannot
   sign follows Haskell's order. Q5 resolved as (a). Policy ids sort by bytes in both encoder modes. I5 and section 9
   updated.
+- **r8** (2026-11-05, from measuring on the regenerated dataset): the committee term moves from exact-or-throw to
+  unsigned 64-bit, so `newMembersAndTerms` becomes `Map<Credential, Long>`. Haskell reads it as an `EpochNo`, a `Word64`,
+  and throwing refused 62 valid `transaction` and `transaction_body` samples that 0.8.0-pre7 accepted by truncating. The
+  dataset was regenerated on 2026-10-30, to 42,675 Conway samples in 97 rules at `95e9e7c2`, so this ADR's 9198/9200 and
+  section 8's gate describe the old revision. On the new one, measured by Yano's harness (bloxbean/yano#231), this
+  stack scores 41528/42675 (97.31%), against 39561 for 0.8.0-pre7. Q5's statement that the corpus does not measure asset
+  order no longer holds: 372 samples expect Haskell's asset order, and 89 Haskell's withdrawal order.
