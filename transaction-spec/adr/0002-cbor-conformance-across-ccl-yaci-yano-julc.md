@@ -162,7 +162,7 @@ Out of scope:
 
 | Reference | Version |
 |---|---|
-| cardano-cbor-dataset | `6cd8c928665bbafe90e02066ebb4620e38f051de`, corpus `conway-123-100`. The repository has no licence file, so samples are fetched, never vendored |
+| cardano-cbor-dataset | `95e9e7c296ca1b641c8d99af2ab7c286a90caebf` since r9; section 1's measurements used `6cd8c928665bbafe90e02066ebb4620e38f051de`, corpus `conway-123-100`. The repository has no licence file, so samples are fetched, never vendored |
 | cardano-ledger | `6176e413b2be9880c23cedbdaa899f9752693b22` (the dataset's pin); `c8cbb661d3` as a second reading |
 | Conway CDDL | `eras/conway/impl/cddl/data/conway.cddl` at the same revision |
 | Decoder version | The dataset decodes at `eraProtVerHigh` (11). ADR 0001 records production as `ProtVerLow` (9). A search of `eras/` and the binary and core libraries at `c8cbb661d3` found no decoder switch at 10 or 11, so the two agree here |
@@ -278,6 +278,11 @@ policies and asset names (`LedgerHQ/app-cardano`, `src/transaction/tx_processing
   the mixed withdrawals test of CCL PR #727. Mainnet had no such transaction among 18,508 with two or more withdrawals,
   up to 2026-03-26, so the case is narrow in either direction.
 - `Withdrawal.serialize` writes this order, and treasury withdrawals use `Withdrawal.serializeInLedgerOrder`.
+- `MultiAsset`, `Value` and `TransactionOutput` keep CIP-21's asset order in `serialize` and add
+  `serializeInLedgerOrder`, for a caller that must match Haskell's bytes, such as a conformance report. Transaction
+  building does not use it.
+- Sets are written in key order, as Haskell writes them: pool owners by hash, removed committee members by
+  `Comparators.CREDENTIAL`.
 - Treasury withdrawals and `UpdateCommittee` do not meet CIP-21 and need not, as CIP-21 forbids proposals in a hardware
   wallet transaction. Voting does not conflict either, as CIP-21 allows "a single voter with a single voting procedure",
   so neither voting map has two keys to order. If CIP-21 ever allows more, the voting maps must be looked at again.
@@ -387,7 +392,7 @@ JuLC (D2):
 | I2 | The strict reader alone, and the node's pair of decoders, reject 8334/8334 at every step | D3-D6, D9 | G6 |
 | I3 | A decoded value is never silently different from the encoded value | D4 | Unit tests at each boundary, G1 |
 | I4 | No harness special-cases a sample | D1, D7 | Review |
-| I5 | A transaction built through the API serializes to the same bytes as before, except for order in the treasury, committee and voting maps D6.1 changes and for asset names the signed comparison misordered (Q5). A body a hardware wallet can sign meets CIP-21's map order | D4-D6 | G2, `Cip21BodyOrderTest` |
+| I5 | A transaction built through the API serializes to the same bytes as before, except for order in the treasury, committee and voting maps and the pool owner and removed committee member sets D6.1 changes, and for asset names the signed comparison misordered (Q5). A body a hardware wallet can sign meets CIP-21's map order | D4-D6 | G2, `Cip21BodyOrderTest` |
 | I6 | Existing builder calls compile unchanged, including `null` arguments, apart from `UpdateCommittee.newMembersAndTerms` (r8) | D4, D5 | G2, G5, a compile test with `null` |
 | I7 | Every block Yaci parses today still parses, with the same model | D8 | G3 |
 | I8 | Retained bytes are never written for a datum they no longer represent, at any depth. An unchanged decoded datum keeps them | D6.3 | Mutation tests |
@@ -551,6 +556,11 @@ two names of equal length, one with a byte at or above `0x80` sorts first. The c
 
 (b) would reach ordinary wallet transactions, which is why (a) was chosen.
 
+The regenerated dataset does measure this order (r8). So r9 adds Haskell's order as a separate writer,
+`serializeInLedgerOrder`, on the maintainer's decision. (a) still holds: `serialize`, and so every transaction built
+with CCL, keeps CIP-21's order. A report that uses the new writer shows CCL can write Haskell's order, not that its
+transactions use it, and should say so.
+
 ## 11. Related findings (out of scope)
 
 Found while researching. Traced by reading only, except where stated. Each needs its own issue.
@@ -597,3 +607,9 @@ Found while researching. Traced by reading only, except where stated. Each needs
   section 8's gate describe the old revision. On the new one, measured by Yano's harness (bloxbean/yano#231), this
   stack scores 41528/42675 (97.31%), against 39561 for 0.8.0-pre7. Q5's statement that the corpus does not measure asset
   order no longer holds: 372 samples expect Haskell's asset order, and 89 Haskell's withdrawal order.
+- r9 (2026-11-05, maintainer's decision on Q5's new evidence): `serializeInLedgerOrder` added for assets, values and
+  outputs, with `serialize` unchanged. Pool owners and removed committee members are written in key order, which
+  changes `update_committee_mixed` in the golden bytes, by order only. The gate moves to `95e9e7c2` and measures the
+  2705 valid and manual-valid samples of the 19 rules with a model; 14 auxiliary data samples stay listed (Q1). With
+  Yano's harness calling the new writers, measured on a local build: 42215/42675 (98.92%). Of the rest, 3 are in CCL (a
+  Plutus constructor's form) and 2 in the harness (an empty `%multiasset`); the others are Yano's.
