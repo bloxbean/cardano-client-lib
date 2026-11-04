@@ -2,5 +2,17 @@
 # See CborCorpusConformanceTest. This list can only shrink.
 
 # Disputed: the dataset and production Haskell disagree, so CCL keeps rejecting these (ADR 0002 Q1)
-auxiliary_data/00003-a457defa17a4ecca rejected
-auxiliary_data/00025-756519256dadb3b0 rejected
+auxiliary_data/00002-0c539dfdbaef007a rejected
+auxiliary_data/00005-a457defa17a4ecca rejected
+auxiliary_data/00017-404626cf68958993 rejected
+auxiliary_data/00023-00ab0922d19c644a rejected
+auxiliary_data/00029-6205e9711d89789d rejected
+auxiliary_data/00041-253deb02a918fb73 rejected
+auxiliary_data/00042-d82311b80642032b rejected
+auxiliary_data/00048-756519256dadb3b0 rejected
+auxiliary_data/00050-bb9832c1fcffbfb6 rejected
+auxiliary_data/00062-908eed8f850ccf14 rejected
+auxiliary_data/00067-43ded06814c5ed57 rejected
+auxiliary_data/00070-51e81a87bd5c2281 rejected
+auxiliary_data/00074-6316419958642947 rejected
+auxiliary_data/00097-520777a711fb34f9 rejected

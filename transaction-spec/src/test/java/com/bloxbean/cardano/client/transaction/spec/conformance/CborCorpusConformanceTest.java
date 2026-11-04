@@ -45,8 +45,8 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Conformance gate over cardano-cbor-dataset's valid Conway samples: each must decode into CCL's model and re-encode to
- * the reference bytes after the dataset's normalization. Samples that do not yet are listed with how they miss in
+ * Conformance gate over cardano-cbor-dataset's valid Conway samples of the rules CCL has a model for: each must decode
+ * into that model and re-encode to the reference bytes after the dataset's normalization. Samples that do not yet are listed with how they miss in
  * {@code cbor-conformance/expected-misses.txt}. A new miss fails, a listed sample that now passes fails, and so does
  * one that misses in a different way, so the list stays exact and can only shrink.
  *
@@ -55,8 +55,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>What it does not cover: invalid samples, as rejecting them is the job of a strict reader, not of these model
  * decoders (transaction-spec/adr/0002-cbor-conformance-across-ccl-yaci-yano-julc.md, D10); cbor-java's decoder trees,
- * as {@link CborSerializationUtil#deserialize(byte[])} is the only decoder here; and a datum hash's encoding, which the
- * model does not hold apart from its bytes.</p>
+ * as {@link CborSerializationUtil#deserialize(byte[])} is the only decoder here; a datum hash's encoding, which the
+ * model does not hold apart from its bytes; and the dataset's other rules, which are parts of these and which Yano's
+ * node-diversity report measures. Values and outputs are written in the ledger's order, as the reference is
+ * (ADR 0002 Q5).</p>
  */
 @EnabledIfSystemProperty(named = "cbor.dataset", matches = ".+")
 class CborCorpusConformanceTest {
@@ -117,8 +119,9 @@ class CborCorpusConformanceTest {
         rules.put("transaction_input", new Rule(cbor -> TransactionInput.deserialize((Array) item(cbor)),
                 model -> ((TransactionInput) model).serialize()));
         rules.put("transaction_output", new Rule(cbor -> TransactionOutput.deserialize(item(cbor)),
-                model -> ((TransactionOutput) model).serialize()));
-        rules.put("value", new Rule(cbor -> Value.deserialize(item(cbor)), model -> ((Value) model).serialize()));
+                model -> ((TransactionOutput) model).serializeInLedgerOrder()));
+        rules.put("value", new Rule(cbor -> Value.deserialize(item(cbor)),
+                model -> ((Value) model).serializeInLedgerOrder()));
         rules.put("voting_procedure", new Rule(cbor -> VotingProcedure.deserialize((Array) item(cbor)),
                 model -> ((VotingProcedure) model).serialize()));
         return rules;
@@ -151,7 +154,7 @@ class CborCorpusConformanceTest {
         }
         Map<String, String> listed = listedMisses();
 
-        assertThat(samples).as("valid samples in the pinned corpus").isEqualTo(866);
+        assertThat(samples).as("valid samples in the pinned corpus").isEqualTo(2705);
         assertThat(misses.keySet().stream().filter(id -> !misses.get(id).equals(listed.get(id)))
                 .map(id -> id + " " + misses.get(id) + ": " + details.get(id)).collect(Collectors.toList()))
                 .as("misses that are new, or differ from the list").isEmpty();
@@ -166,9 +169,6 @@ class CborCorpusConformanceTest {
     /** @return how the valid sample misses, or null if it does not */
     private static Miss miss(String ruleName, Path input) throws IOException {
         Rule rule = RULES.get(ruleName);
-        if (rule == null) {
-            return new Miss("rejected", "no decoder for this rule");
-        }
         Object model;
         try {
             model = rule.decoder().decode(Files.readAllBytes(input));
@@ -186,7 +186,7 @@ class CborCorpusConformanceTest {
         } catch (Exception | StackOverflowError e) {
             return new Miss("encoder", e.toString());
         }
-        return Arrays.equals(normalized, Files.readAllBytes(expectedOf(input))) ? null
+        return Arrays.equals(normalized, CborNormalizer.normalize(Files.readAllBytes(expectedOf(input)))) ? null
                 : new Miss("differs", "re-encoding differs from the reference");
     }
 
@@ -240,16 +240,16 @@ class CborCorpusConformanceTest {
     }
 
     private static List<Path> validSamples() throws IOException {
-        try (Stream<Path> rules = Files.list(dataset().resolve("conway"))) {
-            List<Path> samples = new ArrayList<>();
-            for (Path rule : rules.collect(Collectors.toList())) {
-                Path valid = rule.resolve("valid");
-                if (Files.isDirectory(valid)) {
-                    samples.addAll(files(valid, INPUT));
+        List<Path> samples = new ArrayList<>();
+        for (String rule : RULES.keySet()) {
+            for (String category : List.of("valid", "manual-valid")) {
+                Path directory = dataset().resolve("conway").resolve(rule).resolve(category);
+                if (Files.isDirectory(directory)) {
+                    samples.addAll(files(directory, INPUT));
                 }
             }
-            return samples;
         }
+        return samples;
     }
 
     private static List<Path> files(Path directory, String suffix) throws IOException {
