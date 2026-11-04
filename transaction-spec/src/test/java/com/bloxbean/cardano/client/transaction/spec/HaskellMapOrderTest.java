@@ -112,11 +112,11 @@ class HaskellMapOrderTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void committeeMembersAreScriptFirstThenByHash(boolean canonical) throws Exception {
-        LinkedHashMap<Credential, Integer> members = new LinkedHashMap<>();
-        members.put(key(HIGH), 1);
-        members.put(script(HIGH), 2);
-        members.put(key(LOW), 3);
-        members.put(script(LOW), 4);
+        LinkedHashMap<Credential, Long> members = new LinkedHashMap<>();
+        members.put(key(HIGH), 1L);
+        members.put(script(HIGH), 2L);
+        members.put(key(LOW), 3L);
+        members.put(script(LOW), 4L);
         UpdateCommittee action = UpdateCommittee.builder().membersForRemoval(new LinkedHashSet<>())
                 .newMembersAndTerms(members).quorumThreshold(new UnitInterval(BigInteger.ONE, BigInteger.TWO)).build();
 
