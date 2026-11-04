@@ -85,7 +85,7 @@ jobs:
     name: CBOR conformance corpus
     runs-on: ubuntu-latest
     env:
-      CBOR_DATASET_REVISION: 6cd8c928665bbafe90e02066ebb4620e38f051de
+      CBOR_DATASET_REVISION: 95e9e7c296ca1b641c8d99af2ab7c286a90caebf
     steps:
       - name: Checkout
         uses: actions/checkout@v4
