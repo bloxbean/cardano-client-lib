@@ -55,7 +55,9 @@ public class UpdateCommittee implements GovAction {
             array.add(SimpleValue.NULL);
 
         Array membersForRemovalArray = createArray(era);
-        for (Credential member: membersForRemoval) {
+        List<Credential> removed = new ArrayList<>(membersForRemoval);
+        removed.sort(Comparators.CREDENTIAL);
+        for (Credential member: removed) {
             membersForRemovalArray.add(CredentialSerializer.serialize(member));
         }
         array.add(membersForRemovalArray);

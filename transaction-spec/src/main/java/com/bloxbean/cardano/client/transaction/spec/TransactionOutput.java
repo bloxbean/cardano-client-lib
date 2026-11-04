@@ -23,6 +23,7 @@ import lombok.ToString;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.function.Function;
 
 @Data
 @AllArgsConstructor
@@ -85,6 +86,19 @@ public class TransactionOutput {
     }
 
     public DataItem serialize() throws CborSerializationException, AddressExcepion {
+        return serialize(Value::serialize);
+    }
+
+    /**
+     * Serialize with the value's assets in the order the Haskell ledger writes, see
+     * {@link Value#serializeInLedgerOrder()}
+     */
+    public DataItem serializeInLedgerOrder() throws CborSerializationException, AddressExcepion {
+        return serialize(Value::serializeInLedgerOrder);
+    }
+
+    private DataItem serialize(Function<Value, DataItem> valueWriter)
+            throws CborSerializationException, AddressExcepion {
 // TODO -- Remove later if not required.
 //        if (alonzoEraFormat) {
 //            if (datum == null && scriptRef == null)
@@ -95,13 +109,13 @@ public class TransactionOutput {
 //        }
         //For now, serialize to legacy format if inlineDatum and scriptRef are not set
         if (inlineDatum == null && scriptRef == null)
-            return serializeAlonzo();
+            return serializeAlonzo(valueWriter);
         else {
-            return serializePostAlonzo();
+            return serializePostAlonzo(valueWriter);
         }
     }
 
-    private Map serializePostAlonzo() throws AddressExcepion, CborSerializationException {
+    private Map serializePostAlonzo(Function<Value, DataItem> valueWriter) throws AddressExcepion, CborSerializationException {
         Map map = new Map();
 
         byte[] addressByte = AddressUtil.addressToBytes(address);
@@ -109,7 +123,7 @@ public class TransactionOutput {
 
         if(value == null)
             throw new CborSerializationException("Value cannot be null");
-        map.put(new UnsignedInteger(1), value.serialize());
+        map.put(new UnsignedInteger(1), valueWriter.apply(value));
 
         if (datumHash != null && inlineDatum != null)
             throw new CborSerializationException("Only one can be set. datumHash or datum");
@@ -173,14 +187,14 @@ public class TransactionOutput {
         return definite.toByteArray();
     }
 
-    private Array serializeAlonzo() throws CborSerializationException, AddressExcepion {
+    private Array serializeAlonzo(Function<Value, DataItem> valueWriter) throws CborSerializationException, AddressExcepion {
         Array array = new Array();
         byte[] addressByte = AddressUtil.addressToBytes(address);
         array.add(new ByteString(addressByte));
 
         if(value == null)
             throw new CborSerializationException("Value cannot be null");
-        array.add(value.serialize());
+        array.add(valueWriter.apply(value));
 
         if(datumHash != null)
             array.add(new ByteString(datumHash));

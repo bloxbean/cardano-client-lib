@@ -29,6 +29,13 @@ public class Comparators {
      */
     public static final Comparator<Asset> ASSET = Comparator.comparing(Asset::getNameAsBytes, Comparators::lengthFirst);
 
+    /**
+     * Haskell's {@code AssetName}: unsigned bytes, so a name sorts before any longer name it is a prefix of. For
+     * {@link MultiAsset#serializeInLedgerOrder}, as hardware wallets refuse this order in a transaction body.
+     */
+    public static final Comparator<Asset> ASSET_LEDGER = Comparator.comparing(Asset::getNameAsBytes,
+            Arrays::compareUnsigned);
+
     /** By bytes, not hex text, where Haskell's {@code PolicyID} order and CIP-21's agree. */
     public static final Comparator<MultiAsset> POLICY = Comparator.comparing(
             (MultiAsset multiAsset) -> HexUtil.decodeHexString(multiAsset.getPolicyId()), Comparators::lengthFirst);
