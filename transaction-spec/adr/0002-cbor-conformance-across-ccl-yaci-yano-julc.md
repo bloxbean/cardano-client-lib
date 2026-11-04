@@ -214,7 +214,7 @@ one of three treatments:
 | Treatment | Meaning | Positions |
 |---|---|---|
 | Widen | Hold the full range in a wider type | `ProtocolParamUpdate.maxBlockSize` (2), `maxTxSize` (3), `maxEpoch` (7) to `Long`. New keys 28, 29, 32 are `Long`. `Redeemer.index` map form reads the whole `BigInteger` it already holds |
-| Unsigned | Keep the `long`, read and write it as unsigned 64-bit | `PoolRetirement.epoch`, `ttl`, `validityStartInterval`, `ConstrPlutusData` alternative |
+| Unsigned | Keep the `long`, read and write it as unsigned 64-bit | `PoolRetirement.epoch`, `ttl`, `validityStartInterval`, `ConstrPlutusData` alternative. `UpdateCommittee` term, which also widens from `Integer` to `Long` (r8) |
 | Exact or throw | Throw rather than wrap, because the type cannot widen without breaking users | `Update.epoch`, certificate and action discriminants |
 
 Unsigned keeps the public type. A value at or above 2^63 reads as negative through the getter, but round-trips exactly.
