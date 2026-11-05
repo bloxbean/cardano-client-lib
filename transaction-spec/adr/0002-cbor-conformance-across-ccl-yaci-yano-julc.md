@@ -5,13 +5,15 @@
 **Risk**: High. Decoders decide what a node accepts, and CCL's decoders have many consumers.
 **Issues**: bloxbean/cardano-client-lib#717, #505, #397; PR #734; bloxbean/yaci#113, #214, #191, #152;
 bloxbean/yano#202 (closed)
-**Related**: ADR 0001 in this directory; Yano ADR-060 (node-diversity reports)
+**Related**: ADR 0001 and ADR 0003 in this directory; Yano ADR-060 (node-diversity reports)
 **Modules**: CCL `common`, `plutus`, `transaction-spec`, `function`; Yaci `core`; Yano `ledger-rules`,
 `ledger-conformance`; JuLC `julc-cardano-client-lib`
 
 This ADR continues ADR 0001, so it lives in the same directory. ADR 0001 built the foundations: the span walker, the
 raw views, the iterative codecs. This ADR uses them to reach 100% on the node-diversity `cbor-decoding` scenario, and
 sets which project owns which part of CBOR parsing.
+
+**D8's serializer boundary and D9 are revisited by ADR 0003.** D1-D7 and D10 stand unchanged.
 
 ## 1. Context
 
@@ -613,3 +615,5 @@ Found while researching. Traced by reading only, except where stated. Each needs
   2705 valid and manual-valid samples of the 19 rules with a model; 14 auxiliary data samples stay listed (Q1). With
   Yano's harness calling the new writers, measured on a local build: 42215/42675 (98.92%). Of the rest, 3 are in CCL (a
   Plutus constructor's form) and 2 in the harness (an empty `%multiasset`); the others are Yano's.
+- **r10** (2026-11-05, from ADR 0003's acceptance): the note that ADR 0003 revisits D8's serializer boundary and D9, as
+  its D10 asks. No decision here changes.
