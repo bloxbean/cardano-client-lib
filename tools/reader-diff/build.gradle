@@ -1,0 +1,87 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+// The tool's own classes (streaming, comparison) compile against these versions. The builds it compares are sides:
+// directories of jars from side.sh, which never mix with this class path.
+def rootProperties = new Properties()
+file('../../gradle.properties').withInputStream { rootProperties.load(it) }
+def cclVersion = findProperty('cclVersion') ?: rootProperties.getProperty('version')
+def yaciVersion = findProperty('yaciVersion') ?: '0.5.0-pre15'
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+// yaci-core 0.5.x is compiled for Java 25
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+
+sourceSets {
+    // A patched class, for the sensitivity test only: see ReaderDiffEndToEndTest.
+    synthetic
+}
+
+configurations {
+    side
+}
+
+dependencies {
+    implementation "com.bloxbean.cardano:cardano-client-transaction-spec:${cclVersion}"
+    implementation "com.bloxbean.cardano:yaci-core:${yaciVersion}"
+    implementation 'org.slf4j:slf4j-api:2.0.13'
+    runtimeOnly 'org.slf4j:slf4j-simple:2.0.13'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    if (findProperty('sideCcl')) {
+        side "com.bloxbean.cardano:cardano-client-transaction-spec:${sideCcl}"
+        side "com.bloxbean.cardano:yaci-core:${sideYaci}"
+    }
+}
+
+// Yaci brings its own (older) CCL: every CCL module resolves to the version of this configuration, apart from the
+// Merkle structures, which are versioned on their own.
+configurations.configureEach { configuration ->
+    resolutionStrategy.eachDependency { details ->
+        def name = details.requested.name
+        if (details.requested.group == 'com.bloxbean.cardano' && name.startsWith('cardano-client-')
+                && !name.contains('jellyfish') && !name.contains('merkle'))
+            details.useVersion(configuration.name == 'side' ? findProperty('sideCcl') : cclVersion)
+    }
+}
+
+sourceSets.synthetic.compileClasspath += configurations.runtimeClasspath
+
+def syntheticJar = tasks.register('syntheticJar', Jar) {
+    from sourceSets.synthetic.output
+    archiveFileName = 'synthetic.jar'
+}
+
+test {
+    useJUnitPlatform()
+    dependsOn syntheticJar
+    maxHeapSize = '4g'
+    jvmArgs '--sun-misc-unsafe-memory-access=allow'
+    systemProperty 'reader.diff.synthetic', syntheticJar.get().archiveFile.get().asFile.path
+    // The jars the end-to-end test uses as a side. -Pcorpus= and -Pdataset= also run the field coverage check over a
+    // dumped corpus and over the dataset.
+    doFirst { systemProperty 'reader.diff.jars', sourceSets.main.runtimeClasspath.filter { it.name.endsWith('.jar') }.asPath }
+    if (findProperty('corpus')) systemProperty 'reader.diff.corpus', findProperty('corpus')
+    if (findProperty('dataset')) systemProperty 'reader.diff.dataset', findProperty('dataset')
+}
+
+// side.sh: the jars of one side, in a directory of their own.
+tasks.register('copySide', Sync) {
+    from configurations.side
+    into findProperty('sideDir') ?: layout.buildDirectory.dir('side')
+}
+
+application {
+    mainClass = 'com.bloxbean.cardano.client.tools.readerdiff.ReaderDiff'
+    // Netty still uses sun.misc.Unsafe: allow it without the JDK 24+ warning
+    applicationDefaultJvmArgs = ['-Xmx12g', '--sun-misc-unsafe-memory-access=allow']
+}
