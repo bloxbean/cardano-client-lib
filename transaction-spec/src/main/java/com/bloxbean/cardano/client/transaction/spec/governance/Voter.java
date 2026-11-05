@@ -1,12 +1,12 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.transaction.raw.RawVoter;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -52,7 +52,7 @@ public class Voter {
     }
 
     public static Voter deserialize(Array voterArray) {
-        return from(RawVoter.of(RawModels.span(voterArray)));
+        return from(RawVoter.of(CborSerializationUtil.span(voterArray)));
     }
 
     /**

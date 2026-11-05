@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
@@ -37,7 +38,7 @@ public class AuthCommitteeHotCert implements Certificate {
     }
 
     public static AuthCommitteeHotCert deserialize(Array certArray) {
-        return from(RawCertificate.lenient(CertKind.AUTH_COMMITTEE_HOT_CERT, RawModels.span(certArray)));
+        return from(RawCertificate.lenient(CertKind.AUTH_COMMITTEE_HOT_CERT, CborSerializationUtil.span(certArray)));
     }
 
     static AuthCommitteeHotCert from(RawCertificate cert) {

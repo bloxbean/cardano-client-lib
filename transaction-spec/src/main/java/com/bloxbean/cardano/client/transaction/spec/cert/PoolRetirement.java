@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -36,7 +37,7 @@ public class PoolRetirement implements Certificate {
     }
 
     public static PoolRetirement deserialize(@NonNull Array poolRetirementArray) throws CborDeserializationException {
-        return from(RawCertificate.lenient(CertKind.POOL_RETIREMENT, RawModels.span(poolRetirementArray)));
+        return from(RawCertificate.lenient(CertKind.POOL_RETIREMENT, CborSerializationUtil.span(poolRetirementArray)));
     }
 
     static PoolRetirement from(RawCertificate cert) throws CborDeserializationException {

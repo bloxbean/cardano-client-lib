@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -45,7 +46,7 @@ public class HardForkInitiationAction implements GovAction {
     }
 
     public static HardForkInitiationAction deserialize(Array govActionArray) {
-        return from(RawGovAction.lenient(GovActionKind.HARD_FORK_INITIATION, RawModels.span(govActionArray),
+        return from(RawGovAction.lenient(GovActionKind.HARD_FORK_INITIATION, CborSerializationUtil.span(govActionArray),
                 RawModels.READ_IN));
     }
 

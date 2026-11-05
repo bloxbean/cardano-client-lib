@@ -12,7 +12,6 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.raw.RawOutput;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -208,7 +207,7 @@ public class TransactionOutput {
 
     public static TransactionOutput deserialize(DataItem dataItem) throws CborDeserializationException {
         try {
-            return from(RawOutput.lenient(RawModels.span(dataItem)));
+            return from(RawOutput.lenient(CborSerializationUtil.span(dataItem)));
         } catch (CborRuntimeException e) {
             throw new CborDeserializationException("TransactionOutput deserialization failed", e);
         }

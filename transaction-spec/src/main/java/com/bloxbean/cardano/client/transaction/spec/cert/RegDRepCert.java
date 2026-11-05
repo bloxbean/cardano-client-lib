@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
@@ -48,7 +49,7 @@ public class RegDRepCert implements Certificate {
     }
 
     public static RegDRepCert deserialize(DataItem di) {
-        return from(RawCertificate.lenient(CertKind.REG_DREP_CERT, RawModels.span(di)));
+        return from(RawCertificate.lenient(CertKind.REG_DREP_CERT, CborSerializationUtil.span(di)));
     }
 
     static RegDRepCert from(RawCertificate cert) {

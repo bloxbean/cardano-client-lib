@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -37,7 +38,7 @@ public class GenesisKeyDelegation implements Certificate {
     }
 
     public static GenesisKeyDelegation deserialize(Array genesisKeyDelArray) throws CborDeserializationException {
-        return from(RawCertificate.lenient(CertKind.GENESIS_KEY_DELEGATION, RawModels.span(genesisKeyDelArray)));
+        return from(RawCertificate.lenient(CertKind.GENESIS_KEY_DELEGATION, CborSerializationUtil.span(genesisKeyDelArray)));
     }
 
     static GenesisKeyDelegation from(RawCertificate cert) throws CborDeserializationException {

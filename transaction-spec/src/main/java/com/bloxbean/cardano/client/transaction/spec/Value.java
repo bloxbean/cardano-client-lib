@@ -1,11 +1,11 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.transaction.raw.RawMultiAsset;
 import com.bloxbean.cardano.client.transaction.raw.RawValue;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,7 +37,7 @@ public class Value {
      * @return {@link Value}
      */
     public static Value deserialize(DataItem valueItem) {
-        return RawValue.lenient(RawModels.span(valueItem)).map(Value::from).orElse(null);
+        return RawValue.lenient(CborSerializationUtil.span(valueItem)).map(Value::from).orElse(null);
     }
 
     static Value from(RawValue raw) {

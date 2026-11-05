@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -44,7 +45,7 @@ public class Update {
     }
 
     public static Update deserialize(DataItem din) throws CborDeserializationException {
-        return from(RawUpdate.lenient(RawModels.span(din), RawModels.READ_IN));
+        return from(RawUpdate.lenient(CborSerializationUtil.span(din), RawModels.READ_IN));
     }
 
     /**

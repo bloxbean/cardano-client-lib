@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -37,7 +38,7 @@ public class VoteDelegCert implements Certificate {
     }
 
     public static VoteDelegCert deserialize(Array certArray) {
-        return from(RawCertificate.lenient(CertKind.VOTE_DELEG_CERT, RawModels.span(certArray)));
+        return from(RawCertificate.lenient(CertKind.VOTE_DELEG_CERT, CborSerializationUtil.span(certArray)));
     }
 
     static VoteDelegCert from(RawCertificate cert) {

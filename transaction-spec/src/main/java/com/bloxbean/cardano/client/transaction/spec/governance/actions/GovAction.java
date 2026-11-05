@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
@@ -27,7 +28,7 @@ public interface GovAction {
     GovActionType getType();
 
     static GovAction deserialize(Array govActionArray) {
-        return from(RawGovAction.lenient(RawModels.span(govActionArray), RawModels.READ_IN));
+        return from(RawGovAction.lenient(CborSerializationUtil.span(govActionArray), RawModels.READ_IN));
     }
 
     /**

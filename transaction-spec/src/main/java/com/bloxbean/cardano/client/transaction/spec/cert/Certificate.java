@@ -9,7 +9,6 @@ import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.raw.CertKind;
 import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -20,7 +19,7 @@ public interface Certificate {
     static Certificate deserialize(Array certArray) throws CborDeserializationException {
         Objects.requireNonNull(certArray);
 
-        return from(RawCertificate.lenient(RawModels.span(certArray)).orElseThrow(() ->
+        return from(RawCertificate.lenient(CborSerializationUtil.span(certArray)).orElseThrow(() ->
                 new CborDeserializationException("Certificate deserialization failed. Unknown type")));
     }
 

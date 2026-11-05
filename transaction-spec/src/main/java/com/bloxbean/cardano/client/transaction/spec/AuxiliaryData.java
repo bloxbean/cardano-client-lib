@@ -74,7 +74,7 @@ public class AuxiliaryData {
 
     private static AuxiliaryData deserialize(DataItem item) throws CborDeserializationException {
         try {
-            return from(RawAuxData.lenient(RawModels.span(item), RawModels.READ_IN));
+            return from(RawAuxData.lenient(CborSerializationUtil.span(item), RawModels.READ_IN));
         } catch (CborRuntimeException e) {
             throw new CborDeserializationException("AuxiliaryData deserialization failed", e);
         }

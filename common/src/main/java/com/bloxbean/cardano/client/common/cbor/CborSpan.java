@@ -426,7 +426,7 @@ public final class CborSpan {
     }
 
     /**
-     * @return the array items in encoded order
+     * @return the array items in encoded order, as the same read-only list on each call
      * @throws CborRuntimeException if the item is not an untagged array
      */
     public List<CborSpan> items() {
@@ -434,7 +434,7 @@ public final class CborSpan {
     }
 
     /**
-     * @return the map entries in encoded order; duplicate keys are kept
+     * @return the map entries in encoded order, duplicate keys kept, as the same read-only list on each call
      * @throws CborRuntimeException if the item is not an untagged map
      */
     public List<Map.Entry<CborSpan, CborSpan>> entries() {

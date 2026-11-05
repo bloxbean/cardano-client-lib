@@ -5,7 +5,6 @@ import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.transaction.raw.RawMultiAsset;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.*;
 
@@ -27,7 +26,7 @@ public class MultiAsset {
     private List<Asset> assets = new ArrayList<>();
 
     public static MultiAsset deserialize(Map multiAssetsMap, DataItem key) {
-        return from(RawMultiAsset.lenient(RawModels.span(key), RawModels.span(multiAssetsMap.get(key))));
+        return from(RawMultiAsset.lenient(CborSerializationUtil.span(key), CborSerializationUtil.span(multiAssetsMap.get(key))));
     }
 
     static MultiAsset from(RawMultiAsset raw) {

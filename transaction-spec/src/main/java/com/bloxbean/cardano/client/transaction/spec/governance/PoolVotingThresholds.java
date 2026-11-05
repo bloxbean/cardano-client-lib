@@ -1,11 +1,11 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.raw.RawVotingThresholds;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -35,7 +35,7 @@ public class PoolVotingThresholds {
     }
 
     public static PoolVotingThresholds deserialize(Array array) {
-        return from(RawVotingThresholds.pool(RawModels.span(array), true));
+        return from(RawVotingThresholds.pool(CborSerializationUtil.span(array), true));
     }
 
     /**

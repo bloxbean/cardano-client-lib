@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
@@ -7,7 +8,6 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.raw.RawNonce;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -31,7 +31,7 @@ public class Nonce {
 
     public static Nonce deserialize(DataItem di) throws CborDeserializationException {
         if (di == null) return null;
-        return from(RawNonce.lenient(RawModels.span(di)));
+        return from(RawNonce.lenient(CborSerializationUtil.span(di)));
     }
 
     /**

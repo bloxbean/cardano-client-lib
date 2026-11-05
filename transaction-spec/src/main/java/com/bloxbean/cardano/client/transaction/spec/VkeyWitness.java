@@ -1,11 +1,11 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.transaction.raw.RawVkeyWitness;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,7 +30,7 @@ public class VkeyWitness {
 
     public static VkeyWitness deserialize(Array vkWitness) throws CborDeserializationException {
         try {
-            return from(RawVkeyWitness.of(RawModels.span(vkWitness)));
+            return from(RawVkeyWitness.of(CborSerializationUtil.span(vkWitness)));
         } catch (CborRuntimeException e) {
             throw new CborDeserializationException("VkeyWitness deserialization failed", e);
         }

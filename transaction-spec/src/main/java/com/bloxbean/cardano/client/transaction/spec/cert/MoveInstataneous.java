@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -59,7 +60,7 @@ public class MoveInstataneous implements Certificate {
     }
 
     public static MoveInstataneous deserialize(Array moveInstantaneousArr) throws CborDeserializationException {
-        return from(RawCertificate.lenient(CertKind.MOVE_INSTANTANEOUS_REWARDS, RawModels.span(moveInstantaneousArr)));
+        return from(RawCertificate.lenient(CertKind.MOVE_INSTANTANEOUS_REWARDS, CborSerializationUtil.span(moveInstantaneousArr)));
     }
 
     static MoveInstataneous from(RawCertificate cert) throws CborDeserializationException {

@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
@@ -21,7 +22,7 @@ public class StakeRegistration implements Certificate {
     }
 
     public static StakeRegistration deserialize(Array stRegArray) throws CborDeserializationException {
-        return from(RawCertificate.lenient(CertKind.STAKE_REGISTRATION, RawModels.span(stRegArray)));
+        return from(RawCertificate.lenient(CertKind.STAKE_REGISTRATION, CborSerializationUtil.span(stRegArray)));
     }
 
     static StakeRegistration from(RawCertificate cert) throws CborDeserializationException {

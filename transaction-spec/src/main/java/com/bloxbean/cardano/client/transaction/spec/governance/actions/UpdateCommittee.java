@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
@@ -84,7 +85,7 @@ public class UpdateCommittee implements GovAction {
      * @return
      */
     public static UpdateCommittee deserialize(Array govActionArray) {
-        return from(RawGovAction.lenient(GovActionKind.UPDATE_COMMITTEE, RawModels.span(govActionArray),
+        return from(RawGovAction.lenient(GovActionKind.UPDATE_COMMITTEE, CborSerializationUtil.span(govActionArray),
                 RawModels.READ_IN));
     }
 

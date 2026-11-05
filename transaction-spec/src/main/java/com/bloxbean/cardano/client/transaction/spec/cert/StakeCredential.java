@@ -64,7 +64,7 @@ public class StakeCredential {
 
     public static StakeCredential deserialize(Array stakeCredArray) throws CborDeserializationException {
         try {
-            return RawModels.stakeCredential(RawCredential.of(RawModels.span(stakeCredArray)));
+            return RawModels.stakeCredential(RawCredential.of(CborSerializationUtil.span(stakeCredArray)));
         } catch (CborRuntimeException e) {
             throw new CborDeserializationException("StakeCredential deserialization failed", e);
         }

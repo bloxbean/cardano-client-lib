@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
@@ -61,7 +62,7 @@ public class ProposalProcedure {
 
 
     public static ProposalProcedure deserialize(DataItem di) {
-        return from(RawProposal.lenient(RawModels.span(di), RawModels.READ_IN));
+        return from(RawProposal.lenient(CborSerializationUtil.span(di), RawModels.READ_IN));
     }
 
     /**

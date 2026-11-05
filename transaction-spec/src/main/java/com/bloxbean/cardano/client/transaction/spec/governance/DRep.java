@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
@@ -83,6 +84,6 @@ public class DRep {
     }
 
     public static DRep deserialize(DataItem di) {
-        return RawModels.drep(RawDRep.lenient(RawModels.span(di)));
+        return RawModels.drep(RawDRep.lenient(CborSerializationUtil.span(di)));
     }
 }

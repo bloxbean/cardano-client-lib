@@ -1,11 +1,11 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.transaction.raw.RawGovActionId;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,7 +33,7 @@ public class GovActionId {
     }
 
     public static GovActionId deserialize(DataItem di) {
-        return from(RawGovActionId.lenient(RawModels.span(di)));
+        return from(RawGovActionId.lenient(CborSerializationUtil.span(di)));
     }
 
     /**

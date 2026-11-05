@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -46,7 +47,7 @@ public class NewConstitution implements GovAction {
     }
 
     public static NewConstitution deserialize(Array govActionArray) {
-        return from(RawGovAction.lenient(GovActionKind.NEW_CONSTITUTION, RawModels.span(govActionArray),
+        return from(RawGovAction.lenient(GovActionKind.NEW_CONSTITUTION, CborSerializationUtil.span(govActionArray),
                 RawModels.READ_IN));
     }
 

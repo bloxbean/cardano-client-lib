@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
@@ -10,7 +11,6 @@ import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.transaction.raw.RawWithdrawal;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
 import java.math.BigInteger;
@@ -37,7 +37,7 @@ public class Withdrawal {
 
         DataItem coin = withdrawalMap.get(addrKey);
         try {
-            return from(RawWithdrawal.of(RawModels.span(addrKey), coin != null ? RawModels.span(coin) : null));
+            return from(RawWithdrawal.of(CborSerializationUtil.span(addrKey), coin != null ? CborSerializationUtil.span(coin) : null));
         } catch (CborRuntimeException e) {
             throw new CborDeserializationException("Withdrawal deserialization failed", e);
         }

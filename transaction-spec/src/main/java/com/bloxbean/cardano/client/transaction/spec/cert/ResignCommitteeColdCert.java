@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
@@ -45,7 +46,7 @@ public class ResignCommitteeColdCert implements Certificate {
     }
 
     public static ResignCommitteeColdCert deserialize(DataItem di) {
-        return from(RawCertificate.lenient(CertKind.RESIGN_COMMITTEE_COLD_CERT, RawModels.span(di)));
+        return from(RawCertificate.lenient(CertKind.RESIGN_COMMITTEE_COLD_CERT, CborSerializationUtil.span(di)));
     }
 
     static ResignCommitteeColdCert from(RawCertificate cert) {

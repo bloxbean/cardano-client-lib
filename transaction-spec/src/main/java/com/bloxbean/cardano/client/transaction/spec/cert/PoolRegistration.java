@@ -139,7 +139,7 @@ public class PoolRegistration implements Certificate {
     }
 
     public static PoolRegistration deserialize(DataItem di) throws CborDeserializationException {
-        return from(RawCertificate.lenient(CertKind.POOL_REGISTRATION, RawModels.span(di)));
+        return from(RawCertificate.lenient(CertKind.POOL_REGISTRATION, CborSerializationUtil.span(di)));
     }
 
     static PoolRegistration from(RawCertificate cert) throws CborDeserializationException {

@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.transaction.raw.RawProtocolVersion;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
 import java.math.BigInteger;
@@ -29,7 +29,7 @@ public class ProtocolVersion {
     }
 
     public static ProtocolVersion deserialize(Array array) {
-        return from(RawProtocolVersion.lenient(RawModels.span(array)));
+        return from(RawProtocolVersion.lenient(CborSerializationUtil.span(array)));
     }
 
     /**

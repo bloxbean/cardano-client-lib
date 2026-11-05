@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
@@ -240,7 +241,7 @@ public class TransactionBody {
 
     public static TransactionBody deserialize(Map bodyMap) throws CborDeserializationException {
         try {
-            return from(RawTxBody.lenient(RawModels.span(bodyMap), RawModels.READ_IN));
+            return from(RawTxBody.lenient(CborSerializationUtil.span(bodyMap), RawModels.READ_IN));
         } catch (CborRuntimeException e) {
             throw new CborDeserializationException("TransactionBody deserialization failed", e);
         }

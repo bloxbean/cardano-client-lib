@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
@@ -8,7 +9,6 @@ import com.bloxbean.cardano.client.transaction.raw.RawVotingProcedure;
 import com.bloxbean.cardano.client.transaction.raw.RawVotingProcedures;
 import com.bloxbean.cardano.client.transaction.spec.Comparators;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -71,7 +71,7 @@ public class VotingProcedures {
     }
 
     public static VotingProcedures deserialize(DataItem di) {
-        return from(RawVotingProcedures.lenient(RawModels.span(di)));
+        return from(RawVotingProcedures.lenient(CborSerializationUtil.span(di)));
     }
 
     /**

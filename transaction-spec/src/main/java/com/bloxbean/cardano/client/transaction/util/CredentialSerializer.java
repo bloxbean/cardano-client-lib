@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.util;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -10,7 +11,7 @@ import com.bloxbean.cardano.client.transaction.raw.RawCredential;
 
 public class CredentialSerializer {
     public static Credential deserialize(Array stakeCredArray)  {
-        return RawModels.credential(RawCredential.of(RawModels.span(stakeCredArray)));
+        return RawModels.credential(RawCredential.of(CborSerializationUtil.span(stakeCredArray)));
     }
 
     public static Array serialize(Credential credential)  {

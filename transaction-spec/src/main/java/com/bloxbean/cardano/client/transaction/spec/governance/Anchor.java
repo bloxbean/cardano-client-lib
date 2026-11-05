@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
@@ -41,6 +42,6 @@ public class Anchor {
     }
 
     public static Anchor deserialize(Array array) {
-        return RawModels.anchor(RawAnchor.of(RawModels.span(array)));
+        return RawModels.anchor(RawAnchor.of(CborSerializationUtil.span(array)));
     }
 }

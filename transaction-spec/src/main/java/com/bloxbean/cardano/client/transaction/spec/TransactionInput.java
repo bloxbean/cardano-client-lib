@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -7,7 +8,6 @@ import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.raw.RawInput;
-import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,7 +33,7 @@ public class TransactionInput {
 
     public static TransactionInput deserialize(Array inputItem) throws CborDeserializationException {
         try {
-            return from(RawInput.of(RawModels.span(inputItem)));
+            return from(RawInput.of(CborSerializationUtil.span(inputItem)));
         } catch (CborRuntimeException e) {
             throw new CborDeserializationException("TransactionInput deserialization failed", e);
         }

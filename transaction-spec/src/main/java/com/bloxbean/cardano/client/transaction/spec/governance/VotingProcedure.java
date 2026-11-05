@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
@@ -41,7 +42,7 @@ public class VotingProcedure {
     }
 
     public static VotingProcedure deserialize(Array array) {
-        return from(RawVotingProcedure.lenient(RawModels.span(array)));
+        return from(RawVotingProcedure.lenient(CborSerializationUtil.span(array)));
     }
 
     /**

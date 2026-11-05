@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.transaction.util;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
@@ -30,7 +29,6 @@ import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -108,17 +106,6 @@ public final class RawModels {
             default:
                 return PlutusV3Script.deserialize(bytes);
         }
-    }
-
-    /**
-     * Encodes a model decoder's item for the reader (ADR 0003 D7).
-     *
-     * @param item a decoded item
-     * @return the item as a span, keeping map order
-     * @throws CborRuntimeException if the item cannot be encoded
-     */
-    public static CborSpan span(DataItem item) {
-        return CborSerializationUtil.span(Objects.requireNonNull(item));
     }
 
     /**
