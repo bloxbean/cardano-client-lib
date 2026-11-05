@@ -10,12 +10,16 @@ bloxbean/yano#202 (closed)
 `ledger-conformance`; JuLC `julc-cardano-client-lib`
 
 This ADR continues ADR 0001, so it lives in the same directory. ADR 0001 built the foundations: the span walker, the
-raw views, the iterative codecs. This ADR uses them to reach 100% on the node-diversity `cbor-decoding` scenario, and
-sets which project owns which part of CBOR parsing.
+raw views, the iterative codecs. This ADR uses them to work towards 100% on the node-diversity `cbor-decoding` scenario,
+and sets which project owns which part of CBOR parsing.
 
 **D8's serializer boundary and D9 are revisited by ADR 0003.** D1-D7 and D10 stand unchanged.
 
 ## 1. Context
+
+**Two dataset revisions appear in this ADR.** The active one is `95e9e7c2`, and D1a holds its release criteria. Sections
+1, 1.6, 2 and 6's score tables were measured on `6cd8c928` (`conway-123-100`, 9200 samples). Those numbers are historical
+and are not release criteria.
 
 ### 1.1 Goal
 
@@ -137,7 +141,7 @@ path conformant, which is why D8 stands on its own.
 
 In scope:
 
-- Every change needed for 100% on `conway-123-100`.
+- Every change needed for 100% on `conway-123-100`, the old pin. D1a sets what this stack must meet on the active pin.
 - One owner for each layer of CBOR parsing, and what moves there.
 - Regression and compatibility gates for CCL's consumers.
 
@@ -173,10 +177,39 @@ Out of scope:
 
 ### D1. What 100% means
 
-100% means 9200/9200 on the pinned corpus, with no sample masked in the harness and no behaviour that production
-Haskell rejects. Under that definition this plan reaches **9198/9200**. The other two samples need Q1.
+100% means every sample of the pinned corpus, with no sample masked in the harness and no behaviour that production
+Haskell rejects. On the old revision that was 9200/9200, and this plan reached **9198/9200**. The other two samples
+needed Q1. This is still the goal, but it is no longer this stack's release criterion. D1a is.
 
 A new corpus revision is a deliberate pin change, as ADR-060 already says.
+
+### D1a. Release criteria on the active pin (r11)
+
+The active pin is `95e9e7c296ca1b641c8d99af2ab7c286a90caebf`. Its Conway dataset has 42,675 samples in 97 rules: 10,914
+valid (10,681 `valid`, 233 `manual-valid`) and 31,761 invalid. This stack does not reach 100% on it, and is not required
+to. It is released when all of these hold:
+
+| Check | Scope | Criterion | Measured |
+|---|---|---|---|
+| CCL gate (G1) | The 2,705 valid and manual-valid samples of the 19 rules with a model | Exactly the 14 listed misses on #745, all `auxiliary_data` (Q1). The list can only shrink | Yes, on #745 at `50a9756c` |
+| Yano's report (G6) | All 42,675 samples | At least 42,215: 10,457/10,914 valid and 31,758/31,761 invalid. Its misses are a subset of the 460 below | On a local build of #745 at `161b00f9`, with Yano's harness on the new writers. To be repeated on the release |
+| Strict reader alone (G6) | The 31,761 invalid samples | At least 31,679, and no sample it rejects at the baseline is lost. Step 8 records that baseline per sample | The count only, on the same build |
+
+The 460 accepted misses, as classified on that build:
+
+| Samples | Rules | Owner | Reason |
+|---:|---|---|---|
+| 388 | `header_body` 101, `header` 100, `operational_cert` 87, `kes_period` 53, `block_number` 47 | Yano | `ShelleyHeaderView` |
+| 64 | `auxiliary_data_array` 50, `auxiliary_data` 14 | Yano | The strict reader refuses Allegra's indefinite form. The 14 are also on G1's list (Q1) |
+| 3 | `%constr<plutus_data>` | CCL | A Plutus constructor's form |
+| 2 | `%multiasset<positive_coin>` | Yano's harness | An empty multi-asset |
+| 3 | `block_number` and `kes_period` `0001-negative`, `certificate` `pool-owners-repeated` | Yano | Invalid samples accepted |
+
+These are accepted for this stack and left as follow-ups, not silently dropped. The 3 invalid samples mean invalid
+rejection is not 100% on this pin, so I2's old wording no longer applies.
+
+CI pins the corpus per step. #741 to #743 gate on `6cd8c928`, with 59, 58 and 44 listed misses. #744 moves CI to
+`95e9e7c2`, with 86 listed, and #745 leaves 14.
 
 ### D2. One owner per layer
 
@@ -390,8 +423,8 @@ JuLC (D2):
 
 | ID | Invariant | Constrains | Tested by |
 |---|---|---|---|
-| I1 | CCL accepts every valid corpus sample, except those in the dispute list (Q1) | D3-D6 | G1 |
-| I2 | The strict reader alone, and the node's pair of decoders, reject 8334/8334 at every step | D3-D6, D9 | G6 |
+| I1 | CCL accepts every valid sample in G1's scope, except those in the dispute list (Q1) | D3-D6 | G1 |
+| I2 | At every step, the strict reader alone and the node's pair of decoders reject no fewer invalid samples than the baseline for that step's pin. On the active pin that is D1a's 31,679 and 31,758 of 31,761. On the old pin it was 8334/8334 | D1a, D3-D6, D9 | G6 |
 | I3 | A decoded value is never silently different from the encoded value | D4 | Unit tests at each boundary, G1 |
 | I4 | No harness special-cases a sample | D1, D7 | Review |
 | I5 | A transaction built through the API serializes to the same bytes as before, except for order in the treasury, committee and voting maps and the pool owner and removed committee member sets D6.1 changes, and for asset names the signed comparison misordered (Q5). A body a hardware wallet can sign meets CIP-21's map order | D4-D6 | G2, `Cip21BodyOrderTest` |
@@ -408,11 +441,12 @@ JuLC (D2):
 | G3 | `tools/chain-parse-check` full replay on mainnet, preprod and preview, before and after, for CCL and for Yaci | Before each milestone release. Manual, by design |
 | G4 | Native-image `ReachabilityMetadataGuard` | CCL CI |
 | G5 | Downstream suites against a CCL snapshot: Yaci `core`, JuLC, Yano `ledger-rules`, `ledger-conformance`, `tx-services` | Before each CCL release |
-| G6 | Yano's report per milestone: the score matches the table in section 6 and invalid counts stay at 100%, in total and for the strict reader alone | Yano CI, dispatched |
+| G6 | Yano's report per milestone: the score and invalid counts meet D1a, in total and for the strict reader alone | Yano CI, dispatched |
 
 ## 6. Milestones
 
-The expected scores are from section 1.3. Only 9149 and 9163 are measured; the rest are simulations until built.
+The scores in this table are historical, on `6cd8c928`. M5's exit and step 8 follow D1a on the active pin. The expected
+scores are from section 1.3. Only 9149 and 9163 are measured; the rest were simulations until built.
 
 | ID | Project | Work | Entry | Exit | Score |
 |---|---|---|---|---|---|
@@ -421,27 +455,28 @@ The expected scores are from section 1.3. Only 9149 and 9163 are measured; the r
 | M2 | Yano | D7 | None. Takes effect with M1 | I4; redeemer 47/47 | 9163 |
 | M3 | CCL | D4, D5 | M1a | Miss list at 44; I3, I6; G1, G2, G4, G5 | 9178 |
 | M4 | CCL | D6 | M1a | Miss list at 2; I1, I5, I8; G1-G5 | 9198 |
-| M5 | All | Release: CCL, then Yaci and JuLC, then Yano | M3, M4; G3 | The report on the release shows 9198 | 9198 |
+| M5 | All | Release: CCL, then Yaci and JuLC, then Yano | M3, M4; G3 | The report on the release meets D1a | 9198 on the old pin; 42,215 on the active pin |
 | M6 | Upstream | The corpus changes (Q1) | Dataset maintainers agree | The corpus pin moves | 9200 |
 | M7 | Yaci | D8 | M1 released | yaci#113 closed; I7; G3 | Sync only |
 | M8 | Yano, JuLC, CCL | D9, then refresh ADR 0001's status and section 7 | M5 | `CborCursor` and `OriginalTxBytes` deleted | None |
 
-M1 to M6 are the 100% work. M7 and M8 are the consolidation, and do not move the score. M2 can land before M1, and
+M1 to M6 were the 100% work on the old pin. M7 and M8 are the consolidation, and do not move the score. M2 can land before M1, and
 M3 and M4 are independent of each other.
 
 The scores are cumulative, in table order, and each assumes every milestone above it. Without M2 the report shows 14
 fewer. If M4 lands before M3, the score after M4 is 9183. The miss lists count CCL's gate, which encodes non-canonically
 like M2, so they do not depend on M2. They assume M3 lands first: M4 alone leaves 17.
 
-At 9200 the cbor-decoding score is 100%. With the other pre19 scores unchanged, the overall score rises from 99.05% to
-about 99.83%.
+At 9200 the cbor-decoding score was 100%. With the other pre19 scores unchanged, the overall score would have risen from
+99.05% to about 99.83%. On the active pin, D1a's 42,215 is 98.92% for this scenario, and the overall score is measured on
+the release.
 
 ### 6.1 Implementation order
 
 The maintainer's order is CCL first and Yano last, one PR per step, stacked on the step before it so that work
 continues while each waits for review. The steps still merge in order. Yano's score therefore moves mainly at step 8,
 and the CCL gate's miss list tracks progress until then. D7 needs no CCL release, so it went up early as
-bloxbean/yano#230. Every PR must also leave the strict reader at 8334/8334, by running Yano's report against the CCL
+bloxbean/yano#230. Every PR must also keep the strict reader's rejections (I2), by running Yano's report against the CCL
 build. Scores through step 6 are now measured against local builds, with D7 applied. They are 9163 (#734), 9164, 9178, 9191 and
 9198; the
 other values are expected until built.
@@ -456,6 +491,9 @@ other values are expected until built.
 | 6 | Script references and inline datum bytes | M4 (D6.2, D6.3) | 7 (and 22 for G1 alone) | 2 | 9184 |
 | 7 | Release CCL, then Yaci and JuLC | M5 | 0 | 2 | 9184 |
 | 8 | Yano: version bump and harness fixes | M2, M5 | 14 | 2 | 9198 |
+
+That table and steps 1 to 6 below describe the old pin. On the active pin, the measured path is 39,561 for `0.8.0-pre7`,
+41,528 for the stack before the Haskell-order writers, and 42,215 with them and Yano's harness on the new writers.
 
 1. **Finish PR #734.** Fix `CostMdls.java:156` for both decoder paths, and check the other model decoders on cbor-java
    trees. Merge `master`. Add the release note for trees without BREAK (D3).
@@ -478,7 +516,8 @@ other values are expected until built.
    the exact-or-throw positions, map order and trees without BREAK. CCL is released first, then Yaci and JuLC against
    it.
 8. **Yano.** Bump the versions and apply D7: `CborRule.java:154`, encoder exceptions, the Yaci diagnostic column and
-   ADR-060's numbers. The report must show 9198 and 8334/8334, in total and for the strict reader alone.
+   ADR-060's numbers. The report must meet D1a, in total and for the strict reader alone, and step 8 records the strict
+   reader's per-sample baseline.
 
 M7 and M8 come after step 8. Raising Q1 with the dataset maintainers is a separate decision.
 
@@ -515,7 +554,7 @@ M7 and M8 come after step 8. Raising Q1 with the dataset maintainers is a separa
 
 | Risk | Mitigation |
 |---|---|
-| Loosened CCL lets invalid input into the node | I2, G6. The strict reader alone is at 8334/8334 |
+| Loosened CCL lets invalid input into the node | I2, G6. On the active pin the strict reader alone rejects 31,679 of 31,761, and the node's pair 31,758 |
 | Other CCL users depend on an accidental rejection | PR #734 keeps `RecD` rejections. G2, G5 |
 | Stale retained datum bytes | D6.3's same-object and datum key checks, I8 |
 | External code encodes a CCL-decoded tree with a plain encoder | Release note (D3). Yaci moves its encoder with its decoder (D8) |
@@ -523,12 +562,12 @@ M7 and M8 come after step 8. Raising Q1 with the dataset maintainers is a separa
 | A mixed-withdrawal body built by CCL and one built by a Haskell tool differ in bytes and hash (D6.1) | Each is valid. Parties must sign one set of bytes, as they already must |
 | Yaci stops on a block it parses today | Walker before `RawBlock`, G3, I7 |
 | Simulated fixes behave differently when built | G6 compares each milestone with section 6 |
-| Corpus maintainers disagree on Q1 | Stays at 9198, documented, with production behaviour unchanged |
+| Corpus maintainers disagree on Q1 | Those samples stay missed and documented (D1a), with production behaviour unchanged |
 
 ## 10. Open questions
 
-**Q1. The two disputed `auxiliary_data` samples.** Resolved in r2: keep rejecting, as production does. Yano stays at
-9198
+**Q1. The two disputed `auxiliary_data` samples.** Resolved in r2: keep rejecting, as production does. Yano stayed at
+9198 on the old pin, and on the active pin the `auxiliary_data` samples stay listed (D1a),
 until the corpus changes. Accepting them would make Yano accept a transaction production Haskell rejects, and
 special-casing them in the harness is ruled out by I4 and ADR-060. Raising it with the dataset maintainers is a separate
 step, not yet taken.
@@ -617,3 +656,6 @@ Found while researching. Traced by reading only, except where stated. Each needs
   Plutus constructor's form) and 2 in the harness (an empty `%multiasset`); the others are Yano's.
 - **r10** (2026-11-05, from ADR 0003's acceptance): the note that ADR 0003 revisits D8's serializer boundary and D9, as
   its D10 asks. No decision here changes.
+- **r11** (2026-11-05, responds to reviewer1's review of `4ee2de37`): F5 -> new D1a states the active pin, scope, exact
+  misses and release criteria. D1, I1, I2, G6, M5, sections 1, 6 and 6.1, step 8, Risks and Q1 follow it, and the old pin's
+  numbers are labelled historical. No decision or implementation scope changes.
