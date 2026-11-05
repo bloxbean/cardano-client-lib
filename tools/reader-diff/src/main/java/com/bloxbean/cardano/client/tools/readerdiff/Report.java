@@ -44,7 +44,7 @@ final class Report implements AutoCloseable {
         this.out = out;
         this.header = header;
         Files.createDirectories(out);
-        differences = Files.newBufferedWriter(out.resolve("differences.jsonl"));
+        differences = new BufferedWriter(new java.io.OutputStreamWriter(Files.newOutputStream(out.resolve("differences.jsonl")), java.nio.charset.StandardCharsets.UTF_8));
     }
 
     /** One top-level input done: a block, or a dataset sample. */
@@ -125,7 +125,7 @@ final class Report implements AutoCloseable {
             differences.flush();
         }
         String summary = summary();
-        Files.writeString(out.resolve("summary.txt"), summary);
+        Files.writeString(out.resolve("summary.txt"), new String(String.valueOf(summary).getBytes(java.nio.charset.StandardCharsets.UTF_8), java.nio.charset.StandardCharsets.UTF_8));
         return summary;
     }
 
