@@ -65,6 +65,7 @@ public class TransactionOutput {
         TransactionOutput copy = toBuilder().build();
         copy.decodedDatum.datum = decodedDatum.datum;
         copy.decodedDatum.bytes = decodedDatum.bytes;
+        copy.decodedDatum.mapsThatLostPairs = decodedDatum.mapsThatLostPairs;
         return copy;
     }
 
@@ -157,7 +158,7 @@ public class TransactionOutput {
     private byte[] inlineDatumBytes() throws CborSerializationException {
         try {
             if (decodedDatum.datum == inlineDatum && decodedDatum.bytes != null
-                    && PlutusData.representsBytes(inlineDatum, decodedDatum.bytes))
+                    && PlutusData.representsBytes(inlineDatum, decodedDatum.bytes, decodedDatum.mapsThatLostPairs))
                 return decodedDatum.bytes;
             return CborSerializationUtil.serialize(inlineDatum.serialize());
         } catch (CborException | CborDeserializationException e) {
@@ -245,6 +246,7 @@ public class TransactionOutput {
                 inlineDatum = PlutusData.deserialize(inlineDatumBS.getBytes());
                 output.decodedDatum.datum = inlineDatum;
                 output.decodedDatum.bytes = inlineDatumBS.getBytes();
+                output.decodedDatum.mapsThatLostPairs = PlutusData.mapsThatLostPairs(inlineDatum);
             }
         }
         output.setDatumHash(datumHash);
@@ -325,5 +327,6 @@ public class TransactionOutput {
     private static final class DecodedDatum {
         private PlutusData datum;
         private byte[] bytes;
+        private List<?> mapsThatLostPairs;
     }
 }

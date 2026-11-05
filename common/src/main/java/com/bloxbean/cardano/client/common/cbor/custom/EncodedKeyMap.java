@@ -1,11 +1,9 @@
 package com.bloxbean.cardano.client.common.cbor.custom;
 
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.MajorType;
 import co.nstant.in.cbor.model.Map;
-import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 
 import java.util.AbstractCollection;
@@ -39,7 +37,7 @@ import java.util.Objects;
  */
 public class EncodedKeyMap extends Map {
     private final LinkedHashMap<Key, DataItem> entries;
-    private Array repeatedEntries;
+    private boolean repeatedKey;
 
     public EncodedKeyMap() {
         this(16);
@@ -52,14 +50,8 @@ public class EncodedKeyMap extends Map {
 
     @Override
     public Map put(DataItem key, DataItem value) {
-        DataItem replaced = entries.put(new Key(key), value);
-        if (replaced != null) {
-            if (repeatedEntries == null)
-                repeatedEntries = new Array();
-            repeatedEntries.add(new UnsignedInteger(entries.size() + repeatedEntries.getDataItems().size() / 3L));
-            repeatedEntries.add(key);
-            repeatedEntries.add(replaced);
-        }
+        if (entries.put(new Key(key), value) != null)
+            repeatedKey = true;
         return this;
     }
 
@@ -68,16 +60,7 @@ public class EncodedKeyMap extends Map {
      * A CDDL record (a transaction body, a witness set) that repeats a key is invalid on chain.
      */
     public boolean hasRepeatedKey() {
-        return repeatedEntries != null;
-    }
-
-    /**
-     * @return what a repeated key's later value replaced, as {@code position, key, replaced value} for each repeat, or
-     * null if no key repeats. {@code position} counts the pairs put before the repeat, so two decoded maps with the
-     * same result but different entries differ here.
-     */
-    public Array getRepeatedEntries() {
-        return repeatedEntries;
+        return repeatedKey;
     }
 
     @Override

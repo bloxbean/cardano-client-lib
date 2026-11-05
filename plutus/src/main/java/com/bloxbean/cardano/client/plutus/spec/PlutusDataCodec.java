@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
@@ -15,7 +14,6 @@ import com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 
-import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -99,16 +97,14 @@ final class PlutusDataCodec {
             if (depth == 0)
                 return null;
             MapPlutusData map = new MapPlutusData();
-            keepRepeatedEntries(map, (Map) item);
-            long position = 0;
+            markRepeatedKey(map, (Map) item);
             EntryIterator entries = new EntryIterator((Map) item);
             while (entries.hasNext()) {
-                DataItem keyItem = entries.next();
-                PlutusData key = decodeShallow(keyItem, depth - 1);
+                PlutusData key = decodeShallow(entries.next(), depth - 1);
                 PlutusData value = key == null ? null : decodeShallow(entries.next(), depth - 1);
                 if (value == null)
                     return null;
-                ((PlutusDataMap) map.getMap()).putDecoded(position++, keyItem, key, value);
+                ((PlutusDataMap) map.getMap()).putDecoded(key, value);
             }
             return map;
         }
@@ -273,13 +269,11 @@ final class PlutusDataCodec {
         private final MapPlutusData map = new MapPlutusData();
         private PlutusData key;
         private boolean keyDone;
-        private DataItem keyItem;
-        private long position;
 
         MapFrame(DecodeFrame parent, Map source) {
             super(parent);
             this.entries = new EntryIterator(source);
-            keepRepeatedEntries(map, source);
+            markRepeatedKey(map, source);
         }
 
         @Override
@@ -289,10 +283,7 @@ final class PlutusDataCodec {
 
         @Override
         DataItem next() {
-            DataItem item = entries.next();
-            if (!keyDone)
-                keyItem = item;
-            return item;
+            return entries.next();
         }
 
         @Override
@@ -301,7 +292,7 @@ final class PlutusDataCodec {
                 key = child;
                 keyDone = true;
             } else {
-                ((PlutusDataMap) map.getMap()).putDecoded(position++, keyItem, key, child);
+                ((PlutusDataMap) map.getMap()).putDecoded(key, child);
                 keyDone = false;
             }
         }
@@ -312,9 +303,9 @@ final class PlutusDataCodec {
         }
     }
 
-    private static void keepRepeatedEntries(MapPlutusData map, Map source) {
+    private static void markRepeatedKey(MapPlutusData map, Map source) {
         if (source instanceof EncodedKeyMap && ((EncodedKeyMap) source).hasRepeatedKey())
-            ((PlutusDataMap) map.getMap()).setRepeatedEntries(((EncodedKeyMap) source).getRepeatedEntries());
+            ((PlutusDataMap) map.getMap()).markLostPairs();
     }
 
     // Keys and values of a cbor-java map in order: its key list and values share the insertion order, so they are
@@ -574,117 +565,59 @@ final class PlutusDataCodec {
 
     // ---- whether data still represents the bytes it was decoded from
 
-    private static final int MODEL_RECORD = 0;
-    private static final int NESTED_RECORD = 1;
-    private static final int LOST_PAIR_RECORD = 2;
-
     /**
-     * What tells two datums apart when deciding whether retained bytes still represent one (ADR 0002 D6.3): the model's
-     * values and pairs in order, plus a record of the pairs each map lost when decoded, with its place in the walk. A
-     * record says what kind it is, so a map in the model, one inside another record's entries and a pair lost converting
-     * to Plutus keys, such as a0 and bfff, can't pass for each other. Each lost pair is written once, so the key stays
-     * proportional to the datum.
-     * A map that repeated a key encodes like one that did not, so replacing a child can leave the encoding unchanged.
-     * A map keeps its record for life, so one cleared and refilled with the same entries still counts as unchanged.
-     * Nothing recurses.
+     * The maps in this datum that lost a pair when decoded, in walk order: the CBOR repeated a key, or CBOR keys that
+     * differ are one Plutus key, such as a0 and bfff. Their model can't show what they lost, so only these same objects
+     * can stand for the bytes they came from, at the same places (ADR 0002 D6.3). Almost every datum has none. Nothing
+     * recurses.
      */
-    static byte[] datumKey(PlutusData root) throws CborSerializationException, CborException {
-        ByteArrayOutputStream key = new ByteArrayOutputStream();
-        // Every value and pair the model holds, in order. Its encoding would not do: model keys that differ can encode
-        // the same, such as an empty list's two forms, and the encoding then keeps only one of those pairs.
-        byte[] model = modelKey(root, true);
-        key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(model.length), false));
-        key.writeBytes(model);
-
+    static List<LossyMap> mapsThatLostPairs(PlutusData root) {
+        List<LossyMap> found = new ArrayList<>(0);
         ArrayDeque<PlutusData> pending = new ArrayDeque<>();
         pending.push(root);
-        long node = 0;
+        long place = 0;
         while (!pending.isEmpty()) {
             PlutusData data = pending.pop();
-            node++;
+            place++;
             if (data instanceof ListPlutusData) {
-                ((ListPlutusData) data).getPlutusDataList().forEach(pending::push);
+                List<PlutusData> items = ((ListPlutusData) data).getPlutusDataList();
+                if (items != null)
+                    items.forEach(pending::push);
             } else if (data instanceof ConstrPlutusData) {
-                pending.push(((ConstrPlutusData) data).getData());
+                if (((ConstrPlutusData) data).getData() != null)
+                    pending.push(((ConstrPlutusData) data).getData());
             } else if (data instanceof MapPlutusData) {
                 java.util.Map<PlutusData, PlutusData> map = ((MapPlutusData) data).getMap();
-                map.forEach((entryKey, entryValue) -> {
-                    pending.push(entryKey);
-                    pending.push(entryValue);
+                if (map == null)
+                    continue;
+                map.forEach((key, value) -> {
+                    pending.push(key);
+                    pending.push(value);
                 });
-                Array repeated = map instanceof PlutusDataMap ? ((PlutusDataMap) map).getRepeatedEntries() : null;
-                if (repeated != null) {
-                    writeRepeatRecord(key, MODEL_RECORD, node, repeated);
-                    writeRepeatsWithin(key, repeated);
-                }
-                // A lost pair is no longer in the model, so it is written here once and then walked like the model.
-                List<PlutusDataMap.LostPair> lost = map instanceof PlutusDataMap ? ((PlutusDataMap) map).getLostPairs() : null;
-                if (lost != null) {
-                    for (PlutusDataMap.LostPair pair : lost) {
-                        writeLostPair(key, node, pair);
-                        pending.push(pair.key());
-                        pending.push(pair.value());
-                    }
-                }
+                if (map instanceof PlutusDataMap && ((PlutusDataMap) map).hasLostPairs())
+                    found.add(new LossyMap(place, data));
             }
         }
-        return key.toByteArray();
+        return found;
     }
 
-    private static void writeLostPair(ByteArrayOutputStream key, long place, PlutusDataMap.LostPair pair)
-            throws CborException {
-        key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(LOST_PAIR_RECORD), false));
-        key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(place), false));
-        key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(pair.position()), false));
-        // Only the key's outer form: its contents are in the model key below, and repeating them level by level would
-        // grow faster than the datum.
-        DataItem form = pair.keyItem();
-        key.write(form.getMajorType().ordinal());
-        key.write(isChunked(form) ? 1 : 0);
-        key.writeBytes(CborSerializationUtil.serialize(
-                new UnsignedInteger(form.getTag() == null ? 0 : form.getTag().getValue() + 1), false));
-        for (PlutusData data : List.of(pair.key(), pair.value())) {
-            byte[] model = modelKey(data, true);
-            key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(model.length), false));
-            key.writeBytes(model);
+    record LossyMap(long place, PlutusData map) {
+    }
+
+    static boolean sameMaps(List<LossyMap> current, List<?> decoded) {
+        if (current.size() != decoded.size())
+            return false;
+        for (int i = 0; i < current.size(); i++) {
+            LossyMap other = (LossyMap) decoded.get(i);
+            if (current.get(i).place() != other.place() || current.get(i).map() != other.map())
+                return false;
         }
+        return true;
     }
 
-    private static boolean isChunked(DataItem item) {
-        if (item instanceof Array)
-            return ((Array) item).isChunked();
-        if (item instanceof Map)
-            return ((Map) item).isChunked();
-        return item instanceof ByteString && ((ByteString) item).isChunked();
-    }
-
-    private static void writeRepeatRecord(ByteArrayOutputStream key, int kind, long place, Array repeated)
-            throws CborException {
-        key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(kind), false));
-        key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(place), false));
-        key.writeBytes(CborSerializationUtil.serialize(repeated, false));
-    }
-
-    // A repeated entry's own encoding hides any key it repeats in turn, so those are written too.
-    private static void writeRepeatsWithin(ByteArrayOutputStream key, Array repeated) throws CborException {
-        ArrayDeque<DataItem> pending = new ArrayDeque<>();
-        pending.push(repeated);
-        long item = 0;
-        while (!pending.isEmpty()) {
-            DataItem data = pending.pop();
-            item++;
-            if (data instanceof Array) {
-                ((Array) data).getDataItems().forEach(pending::push);
-            } else if (data instanceof Map) {
-                ((Map) data).getKeys().forEach(pending::push);
-                ((Map) data).getValues().forEach(pending::push);
-                Array nested = data instanceof EncodedKeyMap ? ((EncodedKeyMap) data).getRepeatedEntries() : null;
-                if (nested != null) {
-                    writeRepeatRecord(key, NESTED_RECORD, item, nested);
-                    pending.push(nested);
-                }
-            }
-        }
+    /** The model's values and pairs in order, which an in-place change at any depth alters. */
+    static byte[] orderedKey(PlutusData root) {
+        return modelKey(root, true);
     }
 
     // ---- equals and hashCode

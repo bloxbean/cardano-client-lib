@@ -171,12 +171,6 @@ class TransactionOutputBytesTest {
         assertThat(written(output)).isEqualTo("82a10101a10100");
     }
 
-    @Test
-    void aRepeatInsideARepeatedValueAndOneInTheKeptValueHaveDifferentKeys() throws Exception {
-        assertThat(PlutusData.representsBytes(datum("a201a1000001a200010001"), hex("a201a20001000001a10001")))
-                .isFalse();
-    }
-
     @ParameterizedTest
     @CsvSource({
             // CBOR keys that differ but are one Plutus key, so the conversion to the model drops a pair
@@ -187,6 +181,8 @@ class TransactionOutputBytesTest {
             "81a3a000bfff010203, a3a0000203bfff01, 81a20203a001",
             // a key repeated in the CBOR and equal to one in another form, whose order only their forms show
             "81a3c241010101200100, a30120c241010001c24101, 81a10100",
+            // the same, inside a list key
+            "81a381c2410101810120810100, a381012081c24101008101c24101, 81a1810100",
             // the same, with a key's definite and indefinite forms
             "81a3a020bfffa0a080, bfbfff80a020a0a0ff, 81a1a0a0",
             // model keys that differ but encode the same, so the encoding keeps one pair

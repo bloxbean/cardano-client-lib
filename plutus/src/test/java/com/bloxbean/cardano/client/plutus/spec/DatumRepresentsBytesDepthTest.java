@@ -8,10 +8,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** A datum key stays proportional to the datum, whichever way a map loses pairs at every level of nesting. */
-class DatumKeySizeTest {
+/** A decoded datum still represents its bytes, whichever way a map loses pairs at every level of nesting. */
+class DatumRepresentsBytesDepthTest {
     private static final int DEPTH = 4000;
-    private static final int MAX_BYTES_PER_INPUT_BYTE = 32;
 
     static List<String> nestedLosses() {
         return List.of(
@@ -37,21 +36,19 @@ class DatumKeySizeTest {
     }
 
     @org.junit.jupiter.api.Test
-    void aKeyStaysProportionalWhenLostKeysHoldLostKeys() throws Exception {
+    void lostKeysThatHoldLostKeys() throws Exception {
         byte[] bytes = HexFormat.of().parseHex(lostKeysWithin(170));
         PlutusData decoded = PlutusData.deserialize(bytes);
 
-        assertThat(PlutusDataCodec.datumKey(decoded).length).isLessThan(bytes.length * MAX_BYTES_PER_INPUT_BYTE);
-        assertThat(PlutusData.representsBytes(decoded, bytes)).isTrue();
+        assertThat(PlutusData.representsBytes(decoded, bytes, PlutusData.mapsThatLostPairs(decoded))).isTrue();
     }
 
     @ParameterizedTest
     @MethodSource("nestedLosses")
-    void aKeyStaysProportionalToItsDatum(String datum) throws Exception {
+    void stillRepresentsItsBytes(String datum) throws Exception {
         byte[] bytes = HexFormat.of().parseHex(datum);
         PlutusData decoded = PlutusData.deserialize(bytes);
 
-        assertThat(PlutusDataCodec.datumKey(decoded).length).isLessThan(bytes.length * MAX_BYTES_PER_INPUT_BYTE);
-        assertThat(PlutusData.representsBytes(decoded, bytes)).isTrue();
+        assertThat(PlutusData.representsBytes(decoded, bytes, PlutusData.mapsThatLostPairs(decoded))).isTrue();
     }
 }
