@@ -109,6 +109,16 @@ class CostMdlsTest {
     }
 
     @Test
+    void aDeeplyNestedCostIsRejectedWithoutOverflowingTheStack() {
+        byte[] cbor = HexUtil.decodeHexString("a10081" + "81".repeat(6000) + "00");
+
+        assertThatThrownBy(() -> CostMdls.deserialize(CborSerializationUtil.deserialize(cbor)))
+                .isInstanceOf(CborDeserializationException.class)
+                .hasMessageContaining("cost 0")
+                .hasMessageContaining("ARRAY");
+    }
+
+    @Test
     void serDeser_keysShouldBeOrdered() throws Exception {
         CostMdls costMdls = new CostMdls();
         CostModel costModel1 = new CostModel(Language.PLUTUS_V1, new long[]{1, 2, 3});
