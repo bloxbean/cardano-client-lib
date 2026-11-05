@@ -48,18 +48,18 @@ expected values) compile against one CCL and Yaci, which never mix with the side
 ```bash
 cd tools/reader-diff
 ./gradlew --no-watch-fs --console=plain installDist test \
-    -PcclVersion=0.8.0-lc-base-SNAPSHOT -Dmaven.repo.local=/Volumes/data2/yano-try/cbor-adr/lc/m2
+    -PcclVersion=0.8.0-lc-base-SNAPSHOT -Dmaven.repo.local=$READER_DIFF_HOME/m2
 ```
 
 ## Sides
 
 ```bash
+export READER_DIFF_HOME=<work dir>   # holds m2/, the local Maven repository the builds publish to
 ./side.sh base 0.8.0-lc-base-SNAPSHOT 0.5.0-pre15   # <label> <cclVersion> <yaciVersion>
 ```
 
-This resolves the jars from `/Volumes/data2/yano-try/cbor-adr/lc/m2` and Central into
-`/Volumes/data2/yano-try/cbor-adr/lc/sides/<label>/`. Every `cardano-client-*` module is forced to the CCL version,
-except artifacts with `jellyfish` or `merkle` in their name.
+This resolves the jars from `$READER_DIFF_HOME/m2` and Central into `$READER_DIFF_HOME/sides/<label>/`. Every
+`cardano-client-*` module is forced to the CCL version, except artifacts with `jellyfish` or `merkle` in their name.
 
 ## Commands
 
@@ -132,7 +132,7 @@ Yaci's hash gets wrong today, which ADR 0003 D8 leaves open.
 
 ```bash
 $R diff-dataset --old=<sideDir> --new=<sideDir> --out=<dir> [--allow=<file>] [--workers=N] \
-    --dataset=/Volumes/data2/yano-try/cbor-adr/corpora-pinned/cardano-cbor-dataset/dataset/conway
+    --dataset=<cardano-cbor-dataset checkout>/dataset/conway
 ```
 
 Runs `ccl:<rule>` and `yaci:<rule>` on each sample of the rules that have a decoder (`DatasetDecoders`, which mirrors

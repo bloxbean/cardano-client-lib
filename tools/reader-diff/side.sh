@@ -3,7 +3,7 @@
 # usage: side.sh <label> <cclVersion> <yaciVersion>
 set -euo pipefail
 [ $# -eq 3 ] || { echo "usage: $0 <label> <cclVersion> <yaciVersion>" >&2; exit 2; }
-LC=/Volumes/data2/yano-try/cbor-adr/lc
+LC="${READER_DIFF_HOME:?set READER_DIFF_HOME to the directory that holds m2/}"
 cd "$(dirname "$0")"
 ./gradlew --no-watch-fs --console=plain -q copySide -Dmaven.repo.local="$LC/m2" \
     -PsideCcl="$2" -PsideYaci="$3" -PsideDir="$LC/sides/$1"
