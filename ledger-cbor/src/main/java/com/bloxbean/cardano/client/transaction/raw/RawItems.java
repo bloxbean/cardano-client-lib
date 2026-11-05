@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.spec.UnitInterval;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,16 @@ public final class RawItems {
         List<Map.Entry<CborSpan, CborSpan>> entries = map(item, what);
         if (repeatsKey(entries))
             throw error("The " + what + " repeats a key", item);
+        return entries;
+    }
+
+    /**
+     * The entries of a record read as a decoded map reads it, last entry first, so that looking up a repeated key finds
+     * its last value. Tags are looked through.
+     */
+    static List<Map.Entry<CborSpan, CborSpan>> lastFirst(CborSpan item, String what) {
+        List<Map.Entry<CborSpan, CborSpan>> entries = new ArrayList<>(map(item, what));
+        Collections.reverse(entries);
         return entries;
     }
 

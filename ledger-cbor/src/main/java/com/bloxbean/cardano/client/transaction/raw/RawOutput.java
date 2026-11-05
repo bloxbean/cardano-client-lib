@@ -16,7 +16,8 @@ import java.util.Optional;
  * tags. {@link #lenient(CborSpan)} reads what the models of {@code transaction-spec} have always accepted, which ADR
  * 0003 D7 keeps until a separate decision changes it: an item is read when it is asked for, its tags are looked through, a
  * map form may lack its address, a datum option's bytes and a script reference need no tag 24 and are not looked into,
- * and a datum option of another kind holds no datum.
+ * and a datum option of another kind holds no datum. {@link #tolerant(CborSpan)} reads that too, for a chain follower that
+ * must not lose a block to a repeated key.
  */
 public final class RawOutput {
     /** The legacy form, {@code alonzo_transaction_output}. */
@@ -34,13 +35,20 @@ public final class RawOutput {
 
     private final CborSpan span;
     private final boolean lenient;
+    private final boolean tolerant;
     private final PositionalRecord legacy;
     private final List<Map.Entry<CborSpan, CborSpan>> fields;
 
     private RawOutput(CborSpan span, boolean lenient, PositionalRecord legacy,
                       List<Map.Entry<CborSpan, CborSpan>> fields) {
+        this(span, lenient, false, legacy, fields);
+    }
+
+    private RawOutput(CborSpan span, boolean lenient, boolean tolerant, PositionalRecord legacy,
+                      List<Map.Entry<CborSpan, CborSpan>> fields) {
         this.span = span;
         this.lenient = lenient;
+        this.tolerant = tolerant;
         this.legacy = legacy;
         this.fields = fields;
     }
@@ -70,6 +78,23 @@ public final class RawOutput {
             return new RawOutput(output, true, PositionalRecord.of(LEGACY, output, true), null);
         if (major == MAJOR_MAP)
             return new RawOutput(output, true, null, RawItems.record(output, "output"));
+        throw RawTx.error("An output is an array or a map", output);
+    }
+
+    /**
+     * Reads an output as {@link #lenient(CborSpan)} does, except that a repeated key of the map form means its last
+     * value, and its value is read with {@link RawValue#tolerant(CborSpan)}.
+     *
+     * @param output an output as encoded
+     * @return the view
+     * @throws CborRuntimeException if it is not an array of 2 or 3 items, or a map
+     */
+    public static RawOutput tolerant(CborSpan output) {
+        int major = output.majorType();
+        if (major == MAJOR_ARRAY)
+            return new RawOutput(output, true, true, PositionalRecord.of(LEGACY, output, true), null);
+        if (major == MAJOR_MAP)
+            return new RawOutput(output, true, true, null, RawItems.lastFirst(output, "output"));
         throw RawTx.error("An output is an array or a map", output);
     }
 
@@ -105,10 +130,13 @@ public final class RawOutput {
     }
 
     /**
-     * @return the value, read as this view's form reads one: for {@link #lenient(CborSpan)} see
-     * {@link RawValue#lenient(CborSpan)}, else {@link RawValue#of(CborSpan)}, which is never empty
+     * @return the value, read as this view's form reads one: for {@link #tolerant(CborSpan)} see
+     * {@link RawValue#tolerant(CborSpan)}, for {@link #lenient(CborSpan)} see {@link RawValue#lenient(CborSpan)}, else
+     * {@link RawValue#of(CborSpan)}, which is never empty
      */
     public Optional<RawValue> amount() {
+        if (tolerant)
+            return RawValue.tolerant(value());
         return lenient ? RawValue.lenient(value()) : Optional.of(RawValue.of(value()));
     }
 

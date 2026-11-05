@@ -30,6 +30,24 @@ public record RawWithdrawal(byte[] rewardAccount, BigInteger coin) {
         return new RawWithdrawal(RawItems.bytes(account), coin != null ? RawItems.unsigned(coin) : null);
     }
 
+    /**
+     * Reads a withdrawals map whose amounts may be any integer or bignum, as {@link RawItems#integer(CborSpan, boolean)}
+     * reads one when lenient: an amount that is no number is null.
+     *
+     * @param map a withdrawals map as encoded
+     * @return the withdrawals, one per reward account, in the order of their first entries; a repeated account has its
+     * last amount
+     * @throws RuntimeException if it is not a map, an account is not a byte string, or an amount a byte string without a
+     *                          tag
+     */
+    public static List<RawWithdrawal> tolerant(CborSpan map) {
+        List<Map.Entry<CborSpan, CborSpan>> entries = RawItems.distinct(map, "withdrawals map");
+        List<RawWithdrawal> withdrawals = new ArrayList<>(entries.size());
+        for (Map.Entry<CborSpan, CborSpan> entry : entries)
+            withdrawals.add(new RawWithdrawal(RawItems.bytes(entry.getKey()), RawItems.integer(entry.getValue(), true)));
+        return withdrawals;
+    }
+
     // One entry per reward account: see RawItems.distinct.
     static List<RawWithdrawal> read(CborSpan map) {
         List<Map.Entry<CborSpan, CborSpan>> entries = RawItems.distinct(map, "withdrawals map");

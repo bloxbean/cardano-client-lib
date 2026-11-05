@@ -343,6 +343,63 @@ class RawTxBodyTest {
     }
 
     @Test
+    void aChainFollowerReadsTheLastValueOfARepeatedKey() {
+        RawTxBody body = RawTxBody.tolerant(span("a5" + MIN + "02" + "05" + "1802" + "06"), Era.Conway);
+        assertThat(body.fee()).contains(BigInteger.valueOf(6));
+        // a tagged key is another key
+        assertThat(RawTxBody.tolerant(span("a4" + MIN + "c102" + "05"), Era.Conway).fee())
+                .contains(BigInteger.valueOf(100));
+        assertThatThrownBy(() -> RawTxBody.tolerant(span("00"), Era.Conway)).isInstanceOf(CborRuntimeException.class);
+
+        RawOutput output = RawOutput.tolerant(span("a3" + "00" + ADDR + "01" + "01" + "01" + "02"));
+        assertThat(output.amount().orElseThrow().coin()).isEqualTo(BigInteger.TWO);
+        RawTxBody outputs = RawTxBody.tolerant(span("a3" + "0080" + "0181" + "a3" + "00" + ADDR + "01" + "01" + "01"
+                + "02" + "0200"), Era.Conway);
+        assertThat(outputs.outputs().get(0).amount().orElseThrow().coin()).isEqualTo(BigInteger.TWO);
+        assertThatThrownBy(() -> RawOutput.tolerant(span("00"))).isInstanceOf(CborRuntimeException.class);
+    }
+
+    @Test
+    void aChainFollowerRejectsWhatDecodingATreeRejects() {
+        assertThatThrownBy(() -> RawTxBody.tolerant(span("a4" + MIN + "18ff" + "d81e" + "00"), Era.Conway))
+                .isInstanceOf(CborRuntimeException.class);
+    }
+
+    @Test
+    void aChainFollowerReadsAValueArrayOfAtLeastTwoItemsInAnyForm() {
+        for (String value : List.of("82" + "05" + "a0", "9f" + "05" + "a0" + "ff", "83" + "05" + "a0" + "00")) {
+            RawValue read = RawValue.tolerant(span(value)).orElseThrow();
+            assertThat(read.coin()).isEqualTo(BigInteger.valueOf(5));
+            assertThat(read.multiAssets()).isEmpty();
+        }
+        for (String value : List.of("80", "81" + "05", "9f" + "05" + "ff"))
+            assertThatThrownBy(() -> RawValue.tolerant(span(value))).isInstanceOf(CborRuntimeException.class);
+        // an item at a position of a number that holds something else is null
+        assertThat(RawValue.tolerant(span("82" + "6161" + "a0")).orElseThrow().coin()).isNull();
+        // anything else is read as a lenient view reads it
+        assertThat(RawValue.tolerant(span("05")).orElseThrow().coin()).isEqualTo(BigInteger.valueOf(5));
+        assertThat(RawValue.tolerant(span("6161"))).isEmpty();
+    }
+
+    @Test
+    void aChainFollowerReadsAnyWithdrawalAmount() {
+        RawTxBody body = RawTxBody.tolerant(span("a4" + MIN + "05" + "a3" + RA + "20" + "41aa" + "c24101" + "41bb"
+                + "6161"), Era.Conway);
+        assertThat(body.withdrawals()).extracting(RawWithdrawal::coin)
+                .containsExactly(BigInteger.valueOf(-1), BigInteger.ONE, null);
+    }
+
+    @Test
+    void certificatesAsEncoded() {
+        RawTxBody body = RawTxBody.tolerant(span("a4" + MIN + "04" + "d90102" + "81" + "8100"), Era.Conway);
+        assertThat(body.certificateItems()).extracting(CborSpan::bytes)
+                .containsExactly(HexUtil.decodeHexString("8100"));
+        assertThat(RawTxBody.tolerant(span("a3" + MIN), Era.Conway).certificateItems()).isEmpty();
+        assertThatThrownBy(() -> RawTxBody.tolerant(span("a4" + MIN + "04" + "00"), Era.Conway).certificateItems())
+                .isInstanceOf(CborRuntimeException.class);
+    }
+
+    @Test
     void aFieldHasItsKeyInTheTable() {
         assertThat(TxBodyField.REQUIRED_SIGNERS.key()).isEqualTo(14);
         assertThat(TxBodyField.INPUTS.spec().record().name()).isEqualTo("transaction_input");

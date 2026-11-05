@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.spec.Era;
@@ -25,20 +26,28 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * Update and the governance fields stay spans (M5). A view from {@link #lenient(CborSpan, Era)} reads what the models
  * of {@code transaction-spec} have always accepted, which D7 keeps until a separate decision changes it. See
  * {@link RawOutput}, {@link RawValue} and {@link RawCertificate} for what that means for them.
+ * {@link #tolerant(CborSpan, Era)} is for a chain follower, which must not lose a block its node has accepted.
  */
 public final class RawTxBody {
     private final CborSpan span;
     private final List<Map.Entry<CborSpan, CborSpan>> fields;
     private final Era era;
     private final boolean lenient;
+    private final boolean tolerant;
 
     RawTxBody(CborSpan span, List<Map.Entry<CborSpan, CborSpan>> fields, Era era, boolean lenient) {
+        this(span, fields, era, lenient, false);
+    }
+
+    private RawTxBody(CborSpan span, List<Map.Entry<CborSpan, CborSpan>> fields, Era era, boolean lenient,
+                      boolean tolerant) {
         if (era == null)
             throw new IllegalArgumentException("era is null");
         this.span = span;
         this.fields = fields;
         this.era = era;
         this.lenient = lenient;
+        this.tolerant = tolerant;
     }
 
     /**
@@ -49,6 +58,21 @@ public final class RawTxBody {
      */
     public static RawTxBody lenient(CborSpan span, Era era) {
         return new RawTxBody(span, RawItems.record(span, "transaction body"), era, true);
+    }
+
+    /**
+     * Reads a body as {@link #lenient(CborSpan, Era)} does, except that a repeated key means its last value, here and in
+     * an output, and that outputs and withdrawals are read with {@link RawOutput#tolerant(CborSpan)} and
+     * {@link RawWithdrawal#tolerant(CborSpan)}. What decoding the body to a tree rejects is rejected.
+     *
+     * @param span a body as encoded
+     * @param era  the era to read it in
+     * @return the view
+     * @throws CborRuntimeException if it is not a map, or decoding it would reject it
+     */
+    public static RawTxBody tolerant(CborSpan span, Era era) {
+        CborSerializationUtil.checkTags(span);
+        return new RawTxBody(span, RawItems.lastFirst(span, "transaction body"), era, true, true);
     }
 
     /**
@@ -79,6 +103,8 @@ public final class RawTxBody {
     }
 
     private RawOutput output(CborSpan output) {
+        if (tolerant)
+            return RawOutput.tolerant(output);
         return lenient ? RawOutput.lenient(output) : RawOutput.of(output);
     }
 
@@ -101,6 +127,13 @@ public final class RawTxBody {
                 .orElse(List.of());
     }
 
+    /**
+     * @return the certificates as encoded, for a caller that reads them itself; none if the field is absent
+     */
+    public List<CborSpan> certificateItems() {
+        return value(TxBodyField.CERTIFICATES).map(field -> RawItems.array(field, "certificates")).orElse(List.of());
+    }
+
     private RawCertificate certificate(CborSpan certificate) {
         if (!lenient)
             return RawCertificate.of(certificate);
@@ -112,7 +145,8 @@ public final class RawTxBody {
      * last amount, and the span has every entry. None if the field is absent
      */
     public List<RawWithdrawal> withdrawals() {
-        return value(TxBodyField.WITHDRAWALS).map(RawWithdrawal::read).orElse(List.of());
+        return value(TxBodyField.WITHDRAWALS).map(tolerant ? RawWithdrawal::tolerant : RawWithdrawal::read)
+                .orElse(List.of());
     }
 
     /**

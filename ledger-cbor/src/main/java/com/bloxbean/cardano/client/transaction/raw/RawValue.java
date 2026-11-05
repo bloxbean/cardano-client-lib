@@ -82,6 +82,21 @@ public final class RawValue {
         return Optional.empty();
     }
 
+    /**
+     * Reads a value as {@link #lenient(CborSpan)} does, except for an array: any array of at least two items is a coin
+     * and assets, definite or not, and what follows them is ignored.
+     *
+     * @param span a value as encoded
+     * @return the view, or empty for an item that holds no value
+     * @throws RuntimeException if it is a byte string without a tag, or an array of fewer than two items
+     */
+    public static Optional<RawValue> tolerant(CborSpan span) {
+        if (RawItems.content(span).majorType() != MAJOR_ARRAY)
+            return lenient(span);
+        PositionalRecord record = PositionalRecord.of(COIN_AND_ASSETS, span, false);
+        return Optional.of(new RawValue(span, record.value(FieldType.COIN), record.value(FieldType.MAP), true));
+    }
+
     private static RawValue ofArray(CborSpan span, boolean lenient) {
         PositionalRecord record = PositionalRecord.of(COIN_AND_ASSETS, span, true);
         return new RawValue(span, record.value(FieldType.COIN), record.value(FieldType.MAP), lenient);
