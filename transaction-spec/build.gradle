@@ -14,8 +14,11 @@ dependencies {
 
 test {
     // The CBOR conformance gate: the dataset is fetched by CI and never copied here. See CborCorpusConformanceTest.
+    // The dataset is a test input too, so a changed dataset at the same path runs the tests again.
     if (project.hasProperty('cborDataset')) {
-        systemProperty 'cbor.dataset', file(project.property('cborDataset')).absolutePath
+        def cborDataset = file(project.property('cborDataset'))
+        systemProperty 'cbor.dataset', cborDataset.absolutePath
+        inputs.dir(cborDataset).withPropertyName('cborDataset').withPathSensitivity(PathSensitivity.RELATIVE)
     }
 }
 
