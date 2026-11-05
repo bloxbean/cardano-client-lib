@@ -8,7 +8,15 @@ import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.Script;
+import com.bloxbean.cardano.client.transaction.raw.RawAnchor;
 import com.bloxbean.cardano.client.transaction.raw.RawBlock;
+import com.bloxbean.cardano.client.transaction.raw.RawCostModels;
+import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
+import com.bloxbean.cardano.client.transaction.raw.RawNonce;
+import com.bloxbean.cardano.client.transaction.raw.RawProposal;
+import com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate;
+import com.bloxbean.cardano.client.transaction.raw.RawProtocolVersion;
+import com.bloxbean.cardano.client.transaction.raw.RawVotingThresholds;
 import com.bloxbean.cardano.client.transaction.raw.RawDatum;
 import com.bloxbean.cardano.client.transaction.raw.RawHeader;
 import com.bloxbean.cardano.client.transaction.raw.FormatPolicy;
@@ -332,10 +340,82 @@ final class Checker {
             body.collateralReturn().ifPresent(this::amount);
             body.totalCollateral();
             body.referenceInputs();
+            body.update().ifPresent(update -> {
+                update.epoch();
+                update.proposals().forEach(proposal -> parameters(proposal.getValue()));
+            });
+            body.votingProcedures().ifPresent(procedures -> procedures.voters().forEach(voter -> voter.votes()
+                    .forEach(vote -> vote.getValue().anchor().ifPresent(RawAnchor::url))));
+            body.proposalProcedures().ifPresent(proposals -> proposals.forEach(this::proposal));
+            body.currentTreasury();
+            body.donation();
             state.inc(era, "typed_bodies", 1);
         } catch (Throwable e) {
             c.issue("typed_body", trace(e));
         }
+    }
+
+    private void proposal(RawProposal proposal) {
+        proposal.deposit();
+        proposal.anchor().url();
+        RawGovAction action = proposal.govAction();
+        switch (action.kind()) {
+            case PARAMETER_CHANGE -> {
+                action.previousActionId();
+                parameters(action.protocolParamUpdate());
+                action.policyHash();
+            }
+            case HARD_FORK_INITIATION -> action.protocolVersion().minor();
+            case TREASURY_WITHDRAWALS -> action.withdrawals();
+            case NO_CONFIDENCE -> action.previousActionId();
+            case UPDATE_COMMITTEE -> {
+                action.membersToRemove();
+                action.membersToAdd();
+                action.quorum();
+            }
+            case NEW_CONSTITUTION -> action.constitution().anchor().url();
+            default -> {
+            }
+        }
+    }
+
+    // Every field of a parameter update, read in the era of its transaction.
+    private void parameters(RawProtocolParamUpdate update) {
+        update.minFeeA();
+        update.minFeeB();
+        update.maxBlockBodySize();
+        update.maxTxSize();
+        update.maxBlockHeaderSize();
+        update.keyDeposit();
+        update.poolDeposit();
+        update.maxEpoch();
+        update.nOpt();
+        update.poolPledgeInfluence();
+        update.expansionRate();
+        update.treasuryGrowthRate();
+        update.decentralization();
+        update.extraEntropy().ifPresent(RawNonce::hash);
+        update.protocolVersion().ifPresent(RawProtocolVersion::minor);
+        update.minUtxoValue();
+        update.minPoolCost();
+        update.coinsPerUtxoWord();
+        update.coinsPerUtxoByte();
+        update.costModels().ifPresent(models -> models.models().forEach(RawCostModels.Model::costs));
+        update.executionCosts();
+        update.maxTxExUnits();
+        update.maxBlockExUnits();
+        update.maxValueSize();
+        update.collateralPercentage();
+        update.maxCollateralInputs();
+        update.poolVotingThresholds().ifPresent(t -> t.get(RawVotingThresholds.Pool.SECURITY_GROUP));
+        update.drepVotingThresholds().ifPresent(t -> t.get(RawVotingThresholds.DRep.TREASURY_WITHDRAWAL));
+        update.minCommitteeSize();
+        update.committeeTermLimit();
+        update.govActionLifetime();
+        update.govActionDeposit();
+        update.drepDeposit();
+        update.drepInactivity();
+        update.minFeeRefScriptCostPerByte();
     }
 
     private void amount(RawOutput output) {

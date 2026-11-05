@@ -6,8 +6,10 @@ with their required flags and types, the rules a certificate is made of (credent
 pool_metadata, move_instantaneous_reward), the rules a transaction body is made of (transaction_input, both forms of
 an output, datum_option, value, multiasset, mint, withdrawals), the rules a witness set is made of (the table of each
 field's items, vkeywitness, bootstrap_witness, both forms of redeemers, ex_units), auxiliary data in all its forms, the
-transaction's own array, and the block and header layouts the era names in EraSpec. Run it by hand, and on each bump
-of the ledger pin:
+transaction's own array, the parameter update with every key and the rules it is made of (nonce, cost_models,
+ex_unit_prices, both voting thresholds), the update before Conway, governance (gov_action and each kind, voter,
+gov_action_id, voting_procedure(s), proposal_procedure, constitution), and the block and header layouts the era names
+in EraSpec. Run it by hand, and on each bump of the ledger pin:
 
     tools/cddl-table-check/check_tables.py --ledger <cardano-ledger checkout> [--commit <sha>]
 
@@ -52,6 +54,16 @@ TYPES = {
     "metadata/ nil": "OPTIONAL_AUXILIARY_DATA", "metadata": "METADATA", "redeemer_tag": "REDEEMER_TAG",
     "tag : redeemer_tag": "REDEEMER_TAG", "index : uint .size 4": "UINT32", "plutus_data": "PLUTUS_DATA",
     "ex_units": "EX_UNITS", "0 .. max_int64": "EX_UNIT",
+    "nonnegative_interval": "NONNEGATIVE_INTERVAL", "nonce": "NONCE", "[protocol_version]": "PROTOCOL_VERSION",
+    "cost_models": "COST_MODELS", "ex_unit_prices": "EX_UNIT_PRICES", "epoch_interval": "UINT32",
+    "pool_voting_thresholds": "POOL_VOTING_THRESHOLDS", "drep_voting_thresholds": "DREP_VOTING_THRESHOLDS",
+    "proposed_protocol_parameter_updates": "PROPOSED_PARAMETER_UPDATES",
+    "protocol_param_update": "PROTOCOL_PARAM_UPDATE",
+    "gov_action_id/ nil": "OPTIONAL_GOV_ACTION_ID", "guardrails_script_hash/ nil": "OPTIONAL_HASH28",
+    "set<committee_cold_credential>": "CREDENTIAL_SET",
+    "{* committee_cold_credential => epoch}": "COMMITTEE_TERMS", "constitution": "CONSTITUTION",
+    "gov_action": "GOV_ACTION", "anchor": "ANCHOR", "vote": "VOTE", "voter": "VOTER", "gov_action_id": "GOV_ACTION_ID",
+    "voting_procedure": "VOTING_PROCEDURE",
 }
 # The table of an item of a witness set's or aux data's list.
 ITEM_TABLES = {
@@ -272,8 +284,9 @@ def nested_kinds(view):
 
 
 def member_table(view):
-    return {int(tag): [item.strip().replace("FieldType.", "")] for tag, item
-            in re.findall(r"FieldSpec\.member\((\d+), Era\.\w+, null, (FieldType\.\w+)\)", java(view))}
+    return {int(tag): [item.strip().replace("FieldType.", "") for item in items.split(",") if item.strip()]
+            for tag, items in re.findall(r"FieldSpec\.member\((\d+), Era\.\w+, null((?:, FieldType\.\w+)*)\)",
+                                         java(view))}
 
 
 def output_table(era):
@@ -321,10 +334,43 @@ def multiasset_table(name, era):
     return [key.group(1), key.group(2), asset, args.group(2) if era == "Conway" else args.group(1)]
 
 
-def entries_table(view):
+def entries_table(view, name=r"\w+"):
     """(key type, value type) of a map of like entries."""
-    found = re.search(r'RecordSpec\.entries\("\w+", FieldType\.(\w+),\s*FieldSpec\.of\(0, FieldType\.(\w+)', java(view))
+    found = re.search(r'RecordSpec\.entries\("' + name + r'", FieldType\.(\w+),\s*FieldSpec\.of\(0, FieldType\.(\w+)',
+                      java(view))
     return [found.group(1), found.group(2)]
+
+
+def param_table(era):
+    """{key: (FieldType, required)} of the parameter update rows valid in the era."""
+    return {int(a[0]): (a[1].replace("FieldType.", ""), False) for _, a in rows("ProtocolParamField")
+            if valid_in(era, era_of(a[2]), era_of(a[3]))}
+
+
+def param_rule(cddl_text):
+    """The parameter update rule; a field of {@code uint .size 4} is a UINT32, as in the body of a header."""
+    return {key: ("UINT32" if field == "MINOR_PROTOCOL_VERSION" else field, required)
+            for key, (field, required) in keyed_rule("protocol_param_update", cddl_text).items()}
+
+
+def gov_action_table():
+    """The governance action table, a WITHDRAWALS item being the MAP of withdrawals' table, which the body has too."""
+    return {int(a[0]): ["MAP" if item == "WITHDRAWALS" else item for item in a[3:]] for _, a in rows("GovActionKind")}
+
+
+def enum_size(view, name):
+    source = java(view)
+    body = source[source.index("enum " + name + " "):]
+    return len([c for c in body[body.index("{") + 1:body.index("}")].split(",") if c.strip()])
+
+
+def cost_models_rule(cddl_text):
+    """Whether every cost model of the rule is an array of int64, by its key: a language id or a range of them."""
+    body = rule(cddl_text, "cost_models")
+    values = re.findall(r"=>\s*([\w\[\]* ]+?)\s*[,}]|:\s*(\[[^\]]*\])", body)
+    models = [v[0] or v[1] for v in values]
+    return {"values": sorted({"COST_MODEL" if re.fullmatch(r"\[[\d* ]*int64\]", rule(cddl_text, m) or m) else m
+                              for m in models})}
 
 
 def positional(view, name=r"\w+"):
@@ -455,9 +501,45 @@ def main():
                     {"items": positional("RawHeader", "operational_cert")}, problems)
             compare("protocol_version", {"items": array_items("protocol_version", text)},
                     {"items": positional("RawHeader", "protocol_version")}, problems)
+        params = param_table(era)
+        compare("protocol_param_update key", param_rule(text), params, problems)
+        if rule(text, "nonce"):
+            compare("nonce", union_members("nonce", text), member_table("RawNonce"), problems)
+        if rule(text, "cost_models"):
+            compare("cost_models", cost_models_rule(text), {"values": [entries_table("RawCostModels")[1]]}, problems)
+            compare("ex_unit_prices", {"items": array_items("ex_unit_prices", text)},
+                    {"items": positional("RawExUnitPrices")}, problems)
+        if rule(text, "update"):
+            compare("update", {"items": array_items("update", text)}, {"items": positional("RawUpdate", "update")},
+                    problems)
+            proposals = re.fullmatch(r"\{[*+] (\w+) => (\w+)\}",
+                                     rule(text, "proposed_protocol_parameter_updates")).groups()
+            compare("proposed_protocol_parameter_updates", {"items": [field_type(item, text) for item in proposals]},
+                    {"items": entries_table("RawUpdate")}, problems)
+        if rule(text, "gov_action"):
+            compare("gov_action", union_members("gov_action", text), gov_action_table(), problems)
+            compare("voter", union_members("voter", text), nested_kinds("RawVoter"), problems)
+            for name, view in (("gov_action_id", "RawGovActionId"), ("voting_procedure", "RawVotingProcedure"),
+                               ("proposal_procedure", "RawProposal"), ("constitution", "RawConstitution")):
+                compare(name, {"items": [field_type(i, text) for i in split_top(rule(text, name)[1:-1], ",")]},
+                        {"items": positional(view)}, problems)
+            voting = re.fullmatch(r"\{\+ (\w+) => \{\+ (\w+) => (\w+)\}\}",
+                                  rule(text, "voting_procedures")).groups()
+            compare("voting_procedures", {"items": [field_type(item, text) for item in voting]},
+                    {"items": entries_table("RawVotingProcedures", "voting_procedures")[:1]
+                              + entries_table("RawVotingProcedures", "votes")}, problems)
+            treasury = re.search(r"\{\* (\w+) => (\w+)\}", rule(text, "treasury_withdrawals_action")).groups()
+            compare("treasury withdrawals", {"items": [field_type(item, text) for item in treasury]},
+                    {"items": entries_table("RawWithdrawal")}, problems)
+            compare("committee terms", {"items": [field_type("committee_cold_credential", text),
+                                                  field_type("epoch", text)]},
+                    {"items": entries_table("RawGovAction", "committee_terms")}, problems)
+            for name, enum in (("pool_voting_thresholds", "Pool"), ("drep_voting_thresholds", "DRep")):
+                compare(name, {"items": array_items(name, text)},
+                        {"items": ["UNIT_INTERVAL"] * enum_size("RawVotingThresholds", enum)}, problems)
         status = "OK" if not problems else f"{len(problems)} DIFFERENCES"
         print(f"{era}: {status}; tags {sorted(certs)}, body keys {sorted(body)}, witness keys {sorted(witnesses)}, "
-              f"{block_layout}, {header_layout}")
+              f"parameter keys {sorted(params)}, {block_layout}, {header_layout}")
         for problem in problems:
             print("  " + problem)
         problems_total += len(problems)
