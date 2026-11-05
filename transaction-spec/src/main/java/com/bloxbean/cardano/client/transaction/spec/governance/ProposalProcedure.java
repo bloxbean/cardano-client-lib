@@ -17,6 +17,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
 
 /**
@@ -62,8 +63,7 @@ public class ProposalProcedure {
 
 
     public static ProposalProcedure deserialize(DataItem di) {
-        Array proposalProcedureArray = (Array) di;
-        List<DataItem> diList = proposalProcedureArray.getDataItems();
+        List<DataItem> diList = definiteItems((Array) di, "proposal_procedure");
 
         BigInteger deposit = getBigInteger(diList.get(0));
 

@@ -71,6 +71,34 @@ public class CborSerializationUtil {
     }
 
     /**
+     * The items of an array that must have a definite length. cardano-ledger accepts both lengths for most arrays, but
+     * up to protocol version 11 (Conway) a record decoded with Coders' {@code RecD} reads the list header before its
+     * fields ({@code decodeCount (RecD _)}), and a tuple with {@code decodeListLenOf}, so an indefinite-length one is
+     * rejected.
+     *
+     * @param array the array
+     * @param name  what the array is, for the error message
+     * @return the items of the array
+     * @throws CborRuntimeException if the array has an indefinite length
+     */
+    public static List<DataItem> definiteItems(Array array, String name) {
+        if (array.isChunked())
+            throw new CborRuntimeException("Invalid " + name + ": expected a definite-length array");
+        return array.getDataItems();
+    }
+
+    /**
+     * The items of an array, without the BREAK that cbor-java's decoder ends an indefinite-length one with.
+     *
+     * @param items the items of the array
+     * @return the items, without a trailing BREAK
+     */
+    public static List<DataItem> withoutBreak(List<DataItem> items) {
+        int size = items.size();
+        return size > 0 && items.get(size - 1) == Special.BREAK ? items.subList(0, size - 1) : items;
+    }
+
+    /**
      * Convert a ByteString dataitem to Hex value
      * @param di
      * @return
@@ -210,7 +238,10 @@ public class CborSerializationUtil {
      * <p>
      * Decoding is iterative, so items of any nesting depth decode on any thread, and produces the same trees as
      * cbor-java's {@code CborDecoder}, except that maps are
-     * {@link com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap}s.
+     * {@link com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap}s and an indefinite-length array is
+     * {@code chunked} without a trailing {@link Special#BREAK} item, so its items are just its elements. Encode such a
+     * tree with {@link #serialize(DataItem)}: cbor-java's own encoder writes an indefinite array's end only from that
+     * item, so it would leave the array unterminated.
      * Input that is not well-formed CBOR (RFC 8949) is rejected.
      *
      * @param bytes CBOR bytes

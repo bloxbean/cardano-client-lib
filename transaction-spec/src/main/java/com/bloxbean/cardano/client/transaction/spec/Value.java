@@ -16,6 +16,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -59,7 +61,7 @@ public class Value {
         //There can be two elements
         //First one coin
         Value value = new Value();
-        List<DataItem> valueDataItems = valueArray.getDataItems();
+        List<DataItem> valueDataItems = definiteItems(valueArray, "value");
         if (valueDataItems != null && valueDataItems.size() == 2) {
             DataItem valueDI = valueDataItems.get(0);
             BigInteger coin = CborSerializationUtil.getBigInteger(valueDI);

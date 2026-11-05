@@ -64,6 +64,18 @@ class TransactionDeserializeShapesTest {
         assertThat(deserialize("9f" + BODY + "a0" + "f4" + "f6" + "ff").isValid()).isFalse();
     }
 
+    /**
+     * The Allegra aux data array is a record that cardano-ledger decodes with Coders' RecD below protocol version 12
+     * (AlonzoTxAuxDataRaw's decodeAllegra), which reads the list header before the fields, so an indefinite-length one
+     * is rejected.
+     */
+    @Test
+    void indefiniteAllegraAuxDataIsRejected() {
+        assertThatThrownBy(() -> deserialize("84" + BODY + "a0" + "f5" + "9f" + "a0" + "80" + "ff"))
+                .isInstanceOf(CborDeserializationException.class)
+                .hasStackTraceContaining("expected a definite-length array");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "84" + BODY + "a0" + "01" + "f6",                                    // isValid is not a bool

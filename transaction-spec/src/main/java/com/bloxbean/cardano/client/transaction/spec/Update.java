@@ -8,6 +8,9 @@ import lombok.*;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
+
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 @Getter
 @AllArgsConstructor
@@ -40,12 +43,12 @@ public class Update {
     }
 
     public static Update deserialize(DataItem din) throws CborDeserializationException {
-        Array updateArray = (Array) din;
-        if (updateArray.getDataItems().size() != 2)
-            throw new CborDeserializationException("Invalid number of dataitems for update. Expected 2, found: " + updateArray.getDataItems().size());
+        List<DataItem> updateItems = definiteItems((Array) din, "update");
+        if (updateItems.size() != 2)
+            throw new CborDeserializationException("Invalid number of dataitems for update. Expected 2, found: " + updateItems.size());
 
         java.util.Map deProtoParamUpdatesMap = new LinkedHashMap<>();
-        Map protoParamUpdatesMap = (Map) updateArray.getDataItems().get(0);
+        Map protoParamUpdatesMap = (Map) updateItems.get(0);
         for (DataItem genhashDI: protoParamUpdatesMap.getKeys()) {
             String genesisHash = HexUtil.encodeHexString(((ByteString)genhashDI).getBytes());
             ProtocolParamUpdate protocolParamUpdate = ProtocolParamUpdate.deserialize(protoParamUpdatesMap.get(genhashDI));
@@ -53,7 +56,7 @@ public class Update {
             deProtoParamUpdatesMap.put(genesisHash, protocolParamUpdate);
         }
 
-        int epoch = ((UnsignedInteger)updateArray.getDataItems().get(1)).getValue().intValue();
+        int epoch = ((UnsignedInteger) updateItems.get(1)).getValue().intValue();
 
         return new Update(deProtoParamUpdatesMap, epoch);
     }

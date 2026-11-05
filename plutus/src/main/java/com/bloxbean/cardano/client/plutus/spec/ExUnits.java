@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 import java.math.BigInteger;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -29,7 +31,7 @@ public class ExUnits {
     }
 
     public static ExUnits deserialize(Array exUnitDI) throws CborDeserializationException {
-        List<DataItem> dataItemList = exUnitDI.getDataItems();
+        List<DataItem> dataItemList = definiteItems(exUnitDI, "ex_units");
         if (dataItemList == null || dataItemList.size() != 2)
             throw new CborDeserializationException("ExUnits deserialization error. Invalid no of DataItem");
 

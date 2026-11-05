@@ -11,6 +11,7 @@ import lombok.*;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.bigIntegerToDataItem;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 
 @Getter
@@ -42,7 +43,7 @@ public class ExUnitPrices {
     }
 
     public static ExUnitPrices deserialize(DataItem di) throws CborDeserializationException {
-        List<DataItem> dataItemList = ((Array) di).getDataItems();
+        List<DataItem> dataItemList = definiteItems((Array) di, "ex_unit_prices");
 
         if (dataItemList.size() < 2) {
             throw new CborDeserializationException("Invalid no of items. Expected : 2, found : " + dataItemList.size());

@@ -12,7 +12,6 @@ import com.bloxbean.cardano.client.transaction.Nonce;
 import lombok.*;
 
 import java.math.BigInteger;
-import java.util.List;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toRational;
@@ -235,12 +234,8 @@ public class ProtocolParamUpdate {
 
         ProtocolVersion protocolVersion = null;
         itemDI = map.get(new UnsignedInteger(14));
-        if (itemDI != null) {
-            List<DataItem> protocolVersionDIList =((Array) itemDI).getDataItems();
-            int majorVersion = toInt(protocolVersionDIList.get(0));
-            int minorVersion = toInt(protocolVersionDIList.get(1));
-            protocolVersion = new ProtocolVersion(majorVersion, minorVersion);
-        }
+        if (itemDI != null)
+            protocolVersion = ProtocolVersion.deserialize((Array) itemDI);
 
         itemDI = map.get(new UnsignedInteger(15)); //Removed
         BigInteger minUtxo = itemDI != null? getBigInteger(itemDI): null;

@@ -25,16 +25,49 @@ class DataItemDecoderTest {
         return CborSerializationUtil.deserialize(decodeHexString(hex));
     }
 
+    /**
+     * Unlike cbor-java, an indefinite array holds just its items (cbor-java adds the closing BREAK as a last item, which
+     * decoders then counted as a field), and it re-encodes with its BREAK.
+     */
     @Test
-    void indefiniteArrayIsChunkedAndEndsWithBreak() {
+    void indefiniteArrayIsChunkedWithoutBreak() throws Exception {
         Array array = (Array) decode("9f0102ff");
         assertThat(array.isChunked()).isTrue();
-        assertThat(array.getDataItems()).hasSize(3);
-        assertThat(array.getDataItems().get(2)).isSameAs(Special.BREAK);
+        assertThat(array.getDataItems()).containsExactly(new UnsignedInteger(1), new UnsignedInteger(2));
+        assertThat(CborSerializationUtil.serialize(array)).isEqualTo(decodeHexString("9f0102ff"));
+
+        Array empty = (Array) decode("9fff");
+        assertThat(empty.isChunked()).isTrue();
+        assertThat(empty.getDataItems()).isEmpty();
+        assertThat(CborSerializationUtil.serialize(empty)).isEqualTo(decodeHexString("9fff"));
 
         Array definite = (Array) decode("980201" + "02");
         assertThat(definite.isChunked()).isFalse();
         assertThat(definite.getDataItems()).hasSize(2);
+    }
+
+    /**
+     * An indefinite array built the cbor-java way, ending with a BREAK item, is closed with that one BREAK.
+     */
+    @Test
+    void indefiniteArrayEndingWithBreakItemIsClosedOnce() throws Exception {
+        Array array = new Array();
+        array.setChunked(true);
+        array.add(new UnsignedInteger(1));
+        array.add(Special.BREAK);
+        assertThat(CborSerializationUtil.serialize(array)).isEqualTo(decodeHexString("9f01ff"));
+
+        Array empty = new Array();
+        empty.setChunked(true);
+        empty.add(Special.BREAK);
+        assertThat(CborSerializationUtil.serialize(empty)).isEqualTo(decodeHexString("9fff"));
+    }
+
+    @Test
+    void definiteItemsRejectsAnIndefiniteArray() {
+        assertThat(CborSerializationUtil.definiteItems((Array) decode("820102"), "pair")).hasSize(2);
+        assertThatThrownBy(() -> CborSerializationUtil.definiteItems((Array) decode("9f0102ff"), "pair"))
+                .isInstanceOf(CborRuntimeException.class);
     }
 
     @Test
@@ -80,8 +113,20 @@ class DataItemDecoderTest {
         assertThat(decode("c1d81e820102").getTag().getTag().getValue()).isEqualTo(1);
     }
 
+    /**
+     * cardano-ledger's decodeRationalWithTag reads the array with decodeListLenOrIndef; cbor-java rejected the
+     * indefinite form, its BREAK making three items.
+     */
+    @Test
+    void tag30OverAnIndefiniteArrayIsARationalNumber() {
+        RationalNumber rational = (RationalNumber) decode("d81e9f011903e8ff");
+        assertThat(rational.getNumerator().getValue()).isEqualTo(BigInteger.ONE);
+        assertThat(rational.getDenominator().getValue()).isEqualTo(BigInteger.valueOf(1000));
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"d81e01", "d81e8101", "d81e83010203", "d81e820100", "d81e82016161", "d8268201616d", "d8268261610a"})
+    @ValueSource(strings = {"d81e01", "d81e8101", "d81e83010203", "d81e820100", "d81e82016161", "d8268201616d", "d8268261610a",
+            "d81e9f01ff", "d81e9f010203ff"})
     void malformedRationalsAndLanguageStringsAreRejectedLikeCborJava(String hex) {
         assertThatThrownBy(() -> decode(hex)).isInstanceOf(CborRuntimeException.class);
     }

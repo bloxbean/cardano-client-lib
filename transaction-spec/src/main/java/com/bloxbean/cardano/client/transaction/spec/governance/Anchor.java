@@ -41,11 +41,10 @@ public class Anchor {
     }
 
     public static Anchor deserialize(Array array) {
-        if (array != null && array.getDataItems().size() != 2)
-            throw new IllegalArgumentException("Invalid anchor array. Expected 2 items. Found : "
-                    + array.getDataItems().size());
+        List<DataItem> diList = definiteItems(array, "anchor");
+        if (diList.size() != 2)
+            throw new IllegalArgumentException("Invalid anchor array. Expected 2 items. Found : " + diList.size());
 
-        List<DataItem> diList = array.getDataItems();
         String anchorUrl = toUnicodeString(diList.get(0));
         byte[] anchorDataHash = toBytes(diList.get(1));
 
