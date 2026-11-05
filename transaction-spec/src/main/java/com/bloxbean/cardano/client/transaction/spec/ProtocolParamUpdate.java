@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.plutus.spec.ExUnitPrices;
@@ -151,11 +152,11 @@ public class ProtocolParamUpdate {
             }
 
             if (maxBlockSize != null) {
-                map.put(new UnsignedInteger(2), unsignedLongItem(maxBlockSize));
+                map.put(new UnsignedInteger(2), new UnsignedInteger(maxBlockSize));
             }
 
             if (maxTxSize != null) {
-                map.put(new UnsignedInteger(3), unsignedLongItem(maxTxSize));
+                map.put(new UnsignedInteger(3), new UnsignedInteger(maxTxSize));
             }
 
             if (maxBlockHeaderSize != null) {
@@ -171,7 +172,7 @@ public class ProtocolParamUpdate {
             }
 
             if (maxEpoch != null) {
-                map.put(new UnsignedInteger(7), unsignedLongItem(maxEpoch));
+                map.put(new UnsignedInteger(7), new UnsignedInteger(maxEpoch));
             }
 
             if (nOpt != null) {
@@ -237,7 +238,7 @@ public class ProtocolParamUpdate {
             }
 
             if (maxValSize != null) {
-                map.put(new UnsignedInteger(22), unsignedLongItem(maxValSize));
+                map.put(new UnsignedInteger(22), new UnsignedInteger(maxValSize));
             }
 
             if (collateralPercent != null) {
@@ -261,11 +262,11 @@ public class ProtocolParamUpdate {
             }
 
             if (committeeMaxTermLength != null) {
-                map.put(new UnsignedInteger(28), unsignedLongItem(committeeMaxTermLength));
+                map.put(new UnsignedInteger(28), new UnsignedInteger(committeeMaxTermLength));
             }
 
             if (govActionLifetime != null) {
-                map.put(new UnsignedInteger(29), unsignedLongItem(govActionLifetime));
+                map.put(new UnsignedInteger(29), new UnsignedInteger(govActionLifetime));
             }
 
             if (govActionDeposit != null) {
@@ -277,7 +278,7 @@ public class ProtocolParamUpdate {
             }
 
             if (drepActivity != null) {
-                map.put(new UnsignedInteger(32), unsignedLongItem(drepActivity));
+                map.put(new UnsignedInteger(32), new UnsignedInteger(drepActivity));
             }
 
             if (minFeeRefScriptCostPerByte != null) {
@@ -291,6 +292,14 @@ public class ProtocolParamUpdate {
         return map;
     }
 
+    // Haskell reads these as Word32 or EpochInterval. A Long holds that whole range without using its sign.
+    private static long toWord32(DataItem item) {
+        long value = toUnsignedLong(item);
+        if (value < 0 || value > 0xffffffffL)
+            throw new CborRuntimeException("Expected an unsigned 32-bit integer, found : " + Long.toUnsignedString(value));
+        return value;
+    }
+
     public static ProtocolParamUpdate deserialize(DataItem din) throws CborDeserializationException {
         Map map = (Map) din;
 
@@ -301,10 +310,10 @@ public class ProtocolParamUpdate {
         BigInteger minFeeB = itemDI != null? getBigInteger(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(2));
-        Long maxBlockSize = itemDI != null? toUnsignedLong(itemDI) : null;
+        Long maxBlockSize = itemDI != null? toWord32(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(3));
-        Long maxTxSize = itemDI != null? toUnsignedLong(itemDI) : null;
+        Long maxTxSize = itemDI != null? toWord32(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(4));
         Integer maxBlockHeaderSize = itemDI != null? toUnsignedInt(itemDI) : null;
@@ -316,7 +325,7 @@ public class ProtocolParamUpdate {
         BigInteger poolDeposit = itemDI != null? getBigInteger(itemDI): null;
 
         itemDI = map.get(new UnsignedInteger(7));
-        Long maxEpoch = itemDI != null? toUnsignedLong(itemDI): null;
+        Long maxEpoch = itemDI != null? toWord32(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(8));
         Integer nOpt = itemDI != null? toUnsignedInt(itemDI): null;
@@ -366,7 +375,7 @@ public class ProtocolParamUpdate {
 
 
         itemDI = map.get(new UnsignedInteger(22));
-        Long maxValueSize = itemDI != null? toUnsignedLong(itemDI): null;
+        Long maxValueSize = itemDI != null? toWord32(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(23));
         Integer collateralPercent = itemDI != null? toUnsignedInt(itemDI): null;
@@ -386,10 +395,10 @@ public class ProtocolParamUpdate {
         Integer committeeMinSize = itemDI != null? toUnsignedInt(itemDI): null;
 
         itemDI = map.get(new UnsignedInteger(28));
-        Long committeeMaxTermLength = itemDI != null? toUnsignedLong(itemDI): null;
+        Long committeeMaxTermLength = itemDI != null? toWord32(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(29));
-        Long govActionLifetime = itemDI != null? toUnsignedLong(itemDI): null;
+        Long govActionLifetime = itemDI != null? toWord32(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(30));
         BigInteger govActionDeposit = itemDI != null? getBigInteger(itemDI): null;
@@ -398,7 +407,7 @@ public class ProtocolParamUpdate {
         BigInteger drepDeposit = itemDI != null? getBigInteger(itemDI): null;
 
         itemDI = map.get(new UnsignedInteger(32));
-        Long drepActivity = itemDI != null? toUnsignedLong(itemDI): null;
+        Long drepActivity = itemDI != null? toWord32(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(33));
         Rational minFeeRefScriptCostPerByte = itemDI != null? toRational((RationalNumber) itemDI): null;

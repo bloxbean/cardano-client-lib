@@ -4,6 +4,7 @@ import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Rational;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRepVotingThresholds;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -117,6 +120,58 @@ class ProtocolParamUpdateConwayTest {
         DataItem update = CborSerializationUtil.deserialize(hex("a1041b0000000100000005"));
 
         assertThatThrownBy(() -> ProtocolParamUpdate.deserialize(update)).isInstanceOf(CborRuntimeException.class);
+    }
+
+    /** Each 32-bit field: its key, and a builder for it. */
+    private static java.util.Map<Integer, Function<Long, ProtocolParamUpdate>> word32Fields() {
+        java.util.Map<Integer, Function<Long, ProtocolParamUpdate>> fields = new TreeMap<>();
+        fields.put(2, v -> ProtocolParamUpdate.builder().maxBlockSizeLong(v).build());
+        fields.put(3, v -> ProtocolParamUpdate.builder().maxTxSizeLong(v).build());
+        fields.put(7, v -> ProtocolParamUpdate.builder().maxEpochLong(v).build());
+        fields.put(22, v -> ProtocolParamUpdate.builder().maxValSize(v).build());
+        fields.put(28, v -> ProtocolParamUpdate.builder().committeeMaxTermLength(v).build());
+        fields.put(29, v -> ProtocolParamUpdate.builder().govActionLifetime(v).build());
+        fields.put(32, v -> ProtocolParamUpdate.builder().drepActivity(v).build());
+        return fields;
+    }
+
+    private static String keyHex(int key) {
+        return key < 24 ? String.format("%02x", key) : "18" + String.format("%02x", key);
+    }
+
+    @Test
+    void aNegativeValueInA32BitFieldIsNotWritten() {
+        word32Fields().forEach((key, build) -> assertThatThrownBy(() -> build.apply(-1L).serialize())
+                .as("key " + key).isInstanceOf(CborSerializationException.class));
+        assertThatThrownBy(() -> ProtocolParamUpdate.builder().maxBlockSize(-1).build().serialize())
+                .isInstanceOf(CborSerializationException.class);
+    }
+
+    @Test
+    void a32BitFieldHoldsItsWholeRange() throws Exception {
+        for (var field : word32Fields().entrySet()) {
+            byte[] zero = hex("a1" + keyHex(field.getKey()) + "00");
+            byte[] top = hex("a1" + keyHex(field.getKey()) + "1affffffff");
+
+            assertThat(CborSerializationUtil.serialize(field.getValue().apply(0L).serialize(), false)).isEqualTo(zero);
+            assertThat(CborSerializationUtil.serialize(field.getValue().apply(0xffffffffL).serialize(), false))
+                    .isEqualTo(top);
+            assertThat(CborSerializationUtil.serialize(
+                    ProtocolParamUpdate.deserialize(CborSerializationUtil.deserialize(top)).serialize(), false))
+                    .isEqualTo(top);
+        }
+    }
+
+    @Test
+    void aValueA32BitFieldCannotHoldIsNotRead() {
+        for (int key : word32Fields().keySet()) {
+            for (String value : List.of("1b0000000100000000", "1bffffffffffffffff", "20", "c24100")) {
+                DataItem update = CborSerializationUtil.deserialize(hex("a1" + keyHex(key) + value));
+
+                assertThatThrownBy(() -> ProtocolParamUpdate.deserialize(update))
+                        .as("key " + key + " value " + value).isInstanceOf(CborRuntimeException.class);
+            }
+        }
     }
 
     @Test
