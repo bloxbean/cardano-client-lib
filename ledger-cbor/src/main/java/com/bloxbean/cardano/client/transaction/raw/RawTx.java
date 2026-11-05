@@ -186,7 +186,9 @@ public final class RawTx {
     // The value of an unsigned key in a record's entries. Keys are compared as unsigned 64-bit values, so an unknown key
     // of 2^63 or more is passed over like any other unknown key.
     static Optional<CborSpan> field(List<Map.Entry<CborSpan, CborSpan>> record, long key) {
-        for (Map.Entry<CborSpan, CborSpan> entry : record) {
+        // by index: a view looks up each of its fields, and an iterator for each was a lookup's main cost
+        for (int i = 0; i < record.size(); i++) {
+            Map.Entry<CborSpan, CborSpan> entry = record.get(i);
             CborSpan candidate = entry.getKey();
             // the usual key is one byte, which is the key itself if it is an unsigned integer below 24
             if (candidate.length() == 1) {
