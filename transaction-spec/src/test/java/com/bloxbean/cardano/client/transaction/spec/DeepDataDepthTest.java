@@ -34,13 +34,18 @@ class DeepDataDepthTest {
                 DeepDataDepthFixtures.class.getName()))
                 .redirectErrorStream(true)
                 .start();
-        boolean finished = process.waitFor(5, TimeUnit.MINUTES);
-        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        if (!finished)
+        try {
+            boolean finished = process.waitFor(5, TimeUnit.MINUTES);
+            // A child that hung is stopped first, as it would hold this read open.
+            if (!finished)
+                process.destroyForcibly();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(finished).as("forked -Xint JVM finished in time").isTrue();
+            assertThat(process.exitValue()).as(output).isZero();
+            assertThat(output).contains("ok: deep data depth fixtures");
+        } finally {
             process.destroyForcibly();
-        assertThat(finished).as("forked -Xint JVM finished in time").isTrue();
-        assertThat(process.exitValue()).as(output).isZero();
-        assertThat(output).contains("ok: deep data depth fixtures");
+        }
     }
 
     // Created reflectively so the class compiles on Java 17; the JDK 21 CI job runs it.
