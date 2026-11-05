@@ -290,11 +290,31 @@
           "parameterTypes": []
         },
         {
+          "name": "getCommitteeMaxTermLength",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCommitteeMinSize",
+          "parameterTypes": []
+        },
+        {
           "name": "getCostModels",
           "parameterTypes": []
         },
         {
           "name": "getDecentralisationConstant",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepActivity",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getDrepVotingThresholds",
           "parameterTypes": []
         },
         {
@@ -307,6 +327,14 @@
         },
         {
           "name": "getExtraEntropy",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovActionDeposit",
+          "parameterTypes": []
+        },
+        {
+          "name": "getGovActionLifetime",
           "parameterTypes": []
         },
         {
@@ -354,6 +382,10 @@
           "parameterTypes": []
         },
         {
+          "name": "getMinFeeRefScriptCostPerByte",
+          "parameterTypes": []
+        },
+        {
           "name": "getMinPoolCost",
           "parameterTypes": []
         },
@@ -371,6 +403,10 @@
         },
         {
           "name": "getPoolPledgeInfluence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPoolVotingThresholds",
           "parameterTypes": []
         },
         {
@@ -1933,6 +1969,176 @@
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.DRepVotingThresholds",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCommitteeNoConfidence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCommitteeNormal",
+          "parameterTypes": []
+        },
+        {
+          "name": "getHardForkInitiation",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMotionNoConfidence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPpEconomicGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPpGovGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPpNetworkGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPpTechnicalGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "getTreasuryWithdrawal",
+          "parameterTypes": []
+        },
+        {
+          "name": "getUpdateToConstitution",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCommitteeNoConfidence",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setCommitteeNormal",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setHardForkInitiation",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setMotionNoConfidence",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setPpEconomicGroup",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setPpGovGroup",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setPpNetworkGroup",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setPpTechnicalGroup",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setTreasuryWithdrawal",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setUpdateToConstitution",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.transaction.spec.governance.PoolVotingThresholds",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getCommitteeNoConfidence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getCommitteeNormal",
+          "parameterTypes": []
+        },
+        {
+          "name": "getHardForkInitiation",
+          "parameterTypes": []
+        },
+        {
+          "name": "getMotionNoConfidence",
+          "parameterTypes": []
+        },
+        {
+          "name": "getPpSecurityGroup",
+          "parameterTypes": []
+        },
+        {
+          "name": "setCommitteeNoConfidence",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setCommitteeNormal",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setHardForkInitiation",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setMotionNoConfidence",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        },
+        {
+          "name": "setPpSecurityGroup",
+          "parameterTypes": [
+            "com.bloxbean.cardano.client.spec.UnitInterval"
+          ]
+        }
+      ]
     },
     {
       "condition": {

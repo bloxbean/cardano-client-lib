@@ -1,22 +1,6 @@
 # Valid corpus samples that CCL does not yet decode and re-encode to the reference: <rule>/<sample> <how it misses>.
 # See CborCorpusConformanceTest. This list can only shrink.
 
-# protocol_param_update: keys 25-33 are not modelled (ADR 0002 D5)
-protocol_param_update/00001-573fb5fba95fe66b encoder
-protocol_param_update/00002-270151ff5dc41562 encoder
-protocol_param_update/00003-3e57977dd583a657 encoder
-protocol_param_update/00004-e7942e276804274e encoder
-protocol_param_update/00005-d6948b5f1554ca92 encoder
-protocol_param_update/00006-f4ebbd72013b66fe encoder
-protocol_param_update/00007-4b2fbbd0b1323426 encoder
-protocol_param_update/00008-6df345aeb5a5a200 encoder
-protocol_param_update/00009-f38aaacfb5173a48 encoder
-protocol_param_update/00010-f5160c776761e627 encoder
-protocol_param_update/00011-25c4b4ddb27790d2 encoder
-protocol_param_update/00012-fc78d590bcff8a13 encoder
-protocol_param_update/00013-a5247b003f741fb5 differs
-protocol_param_update/00014-19ae63910033481b differs
-
 # Map order: Haskell's order for maps keyed by reward account, credential or voter (ADR 0002 D6.1)
 gov_action/00006-ce6fe156ba134420 differs
 gov_action/00008-2ace7133fadfe0f2 differs
