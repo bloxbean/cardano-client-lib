@@ -337,9 +337,10 @@ decoded from it. `serialize` writes the payload only when both of these hold. Ot
 
 1. `inlineDatum` is that same object. This covers replacing the root: model equality ignores map order and decoding
    collapses duplicate keys, so `a201000101` and `a10101` compare equal, and only identity tells a replacement apart.
-2. Its datum key equals that of a fresh decode of the payload. The key is the non-canonical encoding plus, for each
-   map, the duplicate entries the decoder dropped. This covers everything inside the mutable datum:
-   - An in-place reorder changes the encoding from `a201020304` to `a203040102`.
+2. Its datum key equals that of a fresh decode of the payload. The key is the model's values and pairs in order plus,
+   for each map, the pairs lost in decoding: a key the CBOR repeats, or CBOR keys that differ but are one Plutus key,
+   such as `a0` and `bfff`. This covers everything inside the mutable datum:
+   - An in-place reorder changes the order of the pairs from `a201020304` to `a203040102`.
    - A replaced child can leave the encoding unchanged, so the dropped entries are needed as well. Replacing the child
      of `81a201000101` with `a10101` keeps the encoding at `81a10101` and the root object the same, as reproduced on
      CCL's build. Only the dropped entry, which the fresh decode has and the replacement does not, tells them apart.
@@ -659,3 +660,5 @@ Found while researching. Traced by reading only, except where stated. Each needs
 - **r11** (2026-11-05, responds to reviewer1's review of `4ee2de37`): F5 -> new D1a states the active pin, scope, exact
   misses and release criteria. D1, I1, I2, G6, M5, sections 1, 6 and 6.1, step 8, Risks and Q1 follow it, and the old pin's
   numbers are labelled historical. No decision or implementation scope changes.
+- **r12** (2026-11-05, from reviewer1's review of #745): D6.3's key is the model's pairs in order, not its encoding, and
+  also covers pairs lost converting to Plutus keys. D6.3's rule and I8 don't change.
