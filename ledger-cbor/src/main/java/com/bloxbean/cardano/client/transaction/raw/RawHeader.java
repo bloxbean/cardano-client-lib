@@ -15,9 +15,7 @@ import java.util.Optional;
  * may be indefinite, strings chunked and integers non-minimal. Hash and key lengths and ranges are not checked (D5).
  */
 public final class RawHeader {
-    /** The {@code header} rule; its body's table depends on the layout, see {@link #walk(CborSpan, FormatPolicy)}. */
-    public static final RecordSpec HEADER = RecordSpec.positional("header", FieldType.HEADER_BODY,
-            FieldType.KES_SIGNATURE);
+    static final RecordSpec HEADER = RecordSpec.positional("header", FieldType.HEADER_BODY, FieldType.KES_SIGNATURE);
     static final RecordSpec OPERATIONAL_CERT = RecordSpec.positional("operational_cert", FieldType.KES_VKEY,
             FieldType.SEQUENCE_NUMBER, FieldType.KES_PERIOD, FieldType.SIGNATURE);
     static final RecordSpec PROTOCOL_VERSION = RecordSpec.positional("protocol_version",
@@ -61,9 +59,9 @@ public final class RawHeader {
     }
 
     /**
-     * Walks a header with a policy (ADR 0003 D6): {@link #HEADER}, then its body in the layout with as many items as it
-     * has, for a caller with no era, as {@link #of(CborSpan)}. The policy is told the first era of that layout, which
-     * belongs to every row of its tables.
+     * Walks a header with a policy (ADR 0003 D6): the header's record, then its body in the layout with as many items
+     * as it has, for a caller with no era, as {@link #of(CborSpan)}. Every row of these tables holds in every era, so the
+     * policy is told the newest.
      *
      * @param span   a header as encoded
      * @param policy the policy, which throws to reject
@@ -75,7 +73,7 @@ public final class RawHeader {
         if (items.isEmpty())
             throw RawTx.error("A header has a body", span);
         HeaderLayout layout = HeaderLayout.ofShape(items.get(0));
-        Era era = EraSpec.firstWith(layout);
+        Era era = EraSpec.newest();
         HEADER.walk(span, era, policy);
         layout.body.walk(items.get(0), era, policy);
     }
