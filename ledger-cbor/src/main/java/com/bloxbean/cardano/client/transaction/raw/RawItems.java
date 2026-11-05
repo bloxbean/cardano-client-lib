@@ -156,8 +156,12 @@ public final class RawItems {
 
     // What makes two byte string keys equal.
     static Object identity(CborSpan key) {
-        if (!key.isTagged())
-            return ByteBuffer.wrap(key.byteString());
+        if (!key.isTagged()) {
+            if (key.isIndefinite())
+                return ByteBuffer.wrap(key.byteString());
+            int header = key.headerLength();
+            return ByteBuffer.wrap(key.buffer(), key.offset() + header, key.length() - header);
+        }
         List<Object> tagsAndBytes = new ArrayList<>();
         CborSpan content = key;
         while (content.isTagged()) {

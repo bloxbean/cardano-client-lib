@@ -67,6 +67,8 @@ public final class CborSpan {
     private final int length;
     // Listed once: a walk and the views of a record read the same containers, and a listing skips every child.
     private List<CborSpan> children;
+    private List<Map.Entry<CborSpan, CborSpan>> entries;
+    private CborSpan untagged;
 
     private CborSpan(byte[] buffer, int offset, int length) {
         this.buffer = buffer;
@@ -355,7 +357,7 @@ public final class CborSpan {
         CborHead head = head(offset);
         if (head.major != MAJOR_TAG)
             throw CborHead.error("CBOR item is not tagged", offset);
-        return new CborSpan(buffer, head.end, offset + length - head.end);
+        return untagged(head);
     }
 
     /**
@@ -367,7 +369,13 @@ public final class CborSpan {
      */
     public CborSpan untagIf(long tag) {
         CborHead head = head(offset);
-        return head.major == MAJOR_TAG && head.argument == tag ? new CborSpan(buffer, head.end, offset + length - head.end) : this;
+        return head.major == MAJOR_TAG && head.argument == tag ? untagged(head) : this;
+    }
+
+    private CborSpan untagged(CborHead head) {
+        if (untagged == null)
+            untagged = new CborSpan(buffer, head.end, offset + length - head.end);
+        return untagged;
     }
 
     /**
@@ -428,9 +436,12 @@ public final class CborSpan {
      */
     public List<Map.Entry<CborSpan, CborSpan>> entries() {
         List<CborSpan> children = children(MAJOR_MAP);
-        List<Map.Entry<CborSpan, CborSpan>> entries = new ArrayList<>(children.size() / 2);
+        if (entries != null)
+            return entries;
+        List<Map.Entry<CborSpan, CborSpan>> listed = new ArrayList<>(children.size() / 2);
         for (int i = 0; i < children.size(); i += 2)
-            entries.add(new AbstractMap.SimpleImmutableEntry<>(children.get(i), children.get(i + 1)));
+            listed.add(new AbstractMap.SimpleImmutableEntry<>(children.get(i), children.get(i + 1)));
+        entries = Collections.unmodifiableList(listed);
         return entries;
     }
 
@@ -445,16 +456,22 @@ public final class CborSpan {
      */
     public Optional<CborSpan> field(long key) {
         List<CborSpan> children = children(MAJOR_MAP);
-        Set<Long> seen = new HashSet<>();
+        Set<Long> seen = null;
+        long seenBelow64 = 0;
         CborSpan value = null;
         for (int i = 0; i < children.size(); i += 2) {
             CborSpan keySpan = children.get(i);
             CborHead head = head(keySpan.offset);
             if (head.major != MAJOR_UNSIGNED)
                 continue;
-            if (!seen.add(head.argument))
+            boolean below64 = Long.compareUnsigned(head.argument, Long.SIZE) < 0;
+            if (!below64 && seen == null)
+                seen = new HashSet<>();
+            if (below64 ? (seenBelow64 & (1L << head.argument)) != 0 : !seen.add(head.argument))
                 throw CborHead.error("duplicate key " + Long.toUnsignedString(head.argument) + " in CBOR record",
                         keySpan.offset);
+            if (below64)
+                seenBelow64 |= 1L << head.argument;
             if (head.argument == key)
                 value = children.get(i + 1);
         }
