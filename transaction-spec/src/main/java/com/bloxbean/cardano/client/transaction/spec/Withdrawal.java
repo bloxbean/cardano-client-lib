@@ -8,6 +8,9 @@ import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.transaction.raw.RawWithdrawal;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
 import java.math.BigInteger;
@@ -32,17 +35,20 @@ public class Withdrawal {
         Objects.requireNonNull(withdrawalMap);
         Objects.requireNonNull(addrKey);
 
-        String rewardAddress;
+        DataItem coin = withdrawalMap.get(addrKey);
         try {
-            rewardAddress = AddressUtil.bytesToAddress(((ByteString) addrKey).getBytes());
+            return from(RawWithdrawal.of(RawModels.span(addrKey), coin != null ? RawModels.span(coin) : null));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("Withdrawal deserialization failed", e);
+        }
+    }
+
+    static Withdrawal from(RawWithdrawal raw) throws CborDeserializationException {
+        try {
+            return new Withdrawal(AddressUtil.bytesToAddress(raw.rewardAccount()), raw.coin());
         } catch (Exception e) {
             throw new CborDeserializationException("Bytes cannot be converted to bech32 address", e);
         }
-
-        UnsignedInteger coinDI = (UnsignedInteger) withdrawalMap.get(addrKey);
-
-        return new Withdrawal(rewardAddress,
-                coinDI != null ? coinDI.getValue() : null);
     }
 
     /**

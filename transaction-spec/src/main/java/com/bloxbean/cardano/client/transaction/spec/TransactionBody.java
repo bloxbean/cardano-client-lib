@@ -2,15 +2,26 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.spec.NetworkId;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.raw.RawInput;
+import com.bloxbean.cardano.client.transaction.raw.RawMultiAsset;
+import com.bloxbean.cardano.client.transaction.raw.RawOutput;
+import com.bloxbean.cardano.client.transaction.raw.RawTx;
+import com.bloxbean.cardano.client.transaction.raw.RawTxBody;
+import com.bloxbean.cardano.client.transaction.raw.RawWithdrawal;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
 import com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.transaction.util.UniqueList;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,12 +30,11 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
 
 @Data
@@ -32,6 +42,8 @@ import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.cre
 @NoArgsConstructor
 @Builder
 public class TransactionBody {
+    // The era of these fields' meanings: key 14 is the required signers, and not what it means after Conway
+    private static final Era READ_IN = Era.Conway;
 
     @Builder.Default
     private List<TransactionInput> inputs = new UniqueList<>();
@@ -230,184 +242,113 @@ public class TransactionBody {
     }
 
     public static TransactionBody deserialize(Map bodyMap) throws CborDeserializationException {
-        TransactionBody transactionBody = new TransactionBody();
-
-        Array inputArray = (Array) bodyMap.get(new UnsignedInteger(0));
-        List<TransactionInput> inputs = new ArrayList<>();
-        for (DataItem inputItem : inputArray.getDataItems()) {
-            if (inputItem == SimpleValue.BREAK) continue;
-            TransactionInput ti = TransactionInput.deserialize((Array) inputItem);
-            inputs.add(ti);
+        try {
+            return from(RawTxBody.lenient(RawModels.span(bodyMap), READ_IN));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("TransactionBody deserialization failed", e);
         }
-        transactionBody.setInputs(inputs);
+    }
 
-        Array outputArray = (Array) bodyMap.get(new UnsignedInteger(1));
+    static TransactionBody from(RawTx tx) throws CborDeserializationException {
+        return from(tx.body(READ_IN));
+    }
+
+    private static TransactionBody from(RawTxBody raw) throws CborDeserializationException {
+        TransactionBody body = new TransactionBody();
+
+        body.setInputs(inputs(raw.inputs()));
+
         List<TransactionOutput> outputs = new ArrayList<>();
-        for (DataItem ouptutItem : outputArray.getDataItems()) {
-            if (ouptutItem == SimpleValue.BREAK) continue;
-            TransactionOutput to = TransactionOutput.deserialize(ouptutItem);
-            outputs.add(to);
+        for (RawOutput output : raw.outputs())
+            outputs.add(TransactionOutput.from(output));
+        body.setOutputs(outputs);
+
+        raw.fee().ifPresent(body::setFee);
+        raw.ttl().ifPresent(body::setTtl);
+
+        for (RawCertificate certificate : raw.certificates())
+            body.getCerts().add(Certificate.from(certificate));
+
+        for (RawWithdrawal withdrawal : raw.withdrawals())
+            body.getWithdrawals().add(Withdrawal.from(withdrawal));
+
+        Optional<CborSpan> update = raw.update();
+        if (update.isPresent())
+            body.setUpdate(Update.deserialize(item(update.get())));
+
+        raw.auxDataHash().ifPresent(body::setAuxiliaryDataHash);
+        raw.validityStart().ifPresent(body::setValidityStartInterval);
+
+        for (RawMultiAsset multiAsset : raw.mint())
+            body.getMint().add(MultiAsset.from(multiAsset));
+
+        raw.scriptDataHash().ifPresent(body::setScriptDataHash);
+
+        Optional<List<RawInput>> collateral = raw.collateral();
+        if (collateral.isPresent())
+            body.setCollateral(inputs(collateral.get()));
+
+        raw.requiredSigners().ifPresent(body::setRequiredSigners);
+
+        OptionalInt networkId = raw.networkId();
+        if (networkId.isPresent())
+            body.setNetworkId(networkId(networkId.getAsInt()));
+
+        Optional<RawOutput> collateralReturn = raw.collateralReturn();
+        if (collateralReturn.isPresent())
+            body.setCollateralReturn(TransactionOutput.from(collateralReturn.get()));
+
+        raw.totalCollateral().ifPresent(body::setTotalCollateral);
+
+        Optional<List<RawInput>> referenceInputs = raw.referenceInputs();
+        if (referenceInputs.isPresent())
+            body.setReferenceInputs(inputs(referenceInputs.get()));
+
+        Optional<CborSpan> votingProcedures = raw.votingProcedures();
+        if (votingProcedures.isPresent())
+            body.setVotingProcedures(VotingProcedures.deserialize(item(votingProcedures.get())));
+
+        Optional<CborSpan> proposalProcedures = raw.proposalProcedures();
+        if (proposalProcedures.isPresent())
+            setProposalProcedures(body, (Array) item(proposalProcedures.get()));
+
+        raw.currentTreasury().ifPresent(treasury -> body.setCurrentTreasuryValue(((Number) item(treasury)).getValue()));
+        raw.donation().ifPresent(donation -> body.setDonation(((UnsignedInteger) item(donation)).getValue()));
+
+        return body;
+    }
+
+    private static List<TransactionInput> inputs(List<RawInput> raw) {
+        List<TransactionInput> inputs = new ArrayList<>(raw.size());
+        for (RawInput input : raw)
+            inputs.add(TransactionInput.from(input));
+        return inputs;
+    }
+
+    private static NetworkId networkId(int value) throws CborDeserializationException {
+        switch (value) {
+            case 0:
+                return NetworkId.TESTNET;
+            case 1:
+                return NetworkId.MAINNET;
+            default:
+                throw new CborDeserializationException("Invalid networkId value : " + value);
         }
-        transactionBody.setOutputs(outputs);
+    }
 
-        UnsignedInteger feeUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(2));
-        if (feeUI != null) {
-            transactionBody.setFee(feeUI.getValue());
+    private static void setProposalProcedures(TransactionBody body, Array procedures)
+            throws CborDeserializationException {
+        List<ProposalProcedure> proposalProcedures = new UniqueList<>();
+        for (DataItem procedure : procedures.getDataItems()) {
+            if (procedure != SimpleValue.BREAK)
+                proposalProcedures.add(ProposalProcedure.deserialize(procedure));
         }
+        if (proposalProcedures.size() > 0)
+            body.setProposalProcedures(proposalProcedures);
+    }
 
-        UnsignedInteger ttlUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(3));
-        if (ttlUI != null) {
-            transactionBody.setTtl(toUnsignedLong(ttlUI));
-        }
-
-        //certs
-        Array certArray = (Array) bodyMap.get(new UnsignedInteger(4));
-        if (certArray != null && certArray.getDataItems() != null && certArray.getDataItems().size() > 0) {
-            for (DataItem dataItem : certArray.getDataItems()) {
-                if (dataItem == SimpleValue.BREAK) continue;
-                Certificate cert = Certificate.deserialize((Array) dataItem);
-                transactionBody.getCerts().add(cert);
-            }
-        }
-
-        //withdrawals
-        Map withdrawalMap = (Map) bodyMap.get(new UnsignedInteger(5));
-        if (withdrawalMap != null && withdrawalMap.getKeys() != null && withdrawalMap.getKeys().size() > 0) {
-            Collection<DataItem> addrKeys = withdrawalMap.getKeys();
-            for (DataItem addrKey : addrKeys) {
-                Withdrawal withdrawal = Withdrawal.deserialize(withdrawalMap, addrKey);
-                transactionBody.getWithdrawals().add(withdrawal);
-            }
-        }
-
-        //update
-        DataItem updateDI = bodyMap.get(new UnsignedInteger(6));
-        if (updateDI != null) {
-            Update update = Update.deserialize(updateDI);
-            transactionBody.setUpdate(update);
-        }
-
-        ByteString metadataHashBS = (ByteString) bodyMap.get(new UnsignedInteger(7));
-        if (metadataHashBS != null) {
-            transactionBody.setAuxiliaryDataHash(metadataHashBS.getBytes());
-        }
-
-        UnsignedInteger validityStartIntervalUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(8));
-        if (validityStartIntervalUI != null) {
-            transactionBody.setValidityStartInterval(toUnsignedLong(validityStartIntervalUI));
-        }
-
-        //Mint
-        Map mintMap = (Map) bodyMap.get(new UnsignedInteger(9));
-        if (mintMap != null) {
-            Collection<DataItem> mintDataItems = mintMap.getKeys();
-            for (DataItem multiAssetKey : mintDataItems) {
-                MultiAsset ma = MultiAsset.deserialize(mintMap, multiAssetKey);
-                transactionBody.getMint().add(ma);
-            }
-        }
-
-        //script_data_hash
-        ByteString scriptDataHashBS = (ByteString) bodyMap.get(new UnsignedInteger(11));
-        if (scriptDataHashBS != null) {
-            transactionBody.setScriptDataHash(scriptDataHashBS.getBytes());
-        }
-
-        //collateral
-        Array collateralArray = (Array) bodyMap.get(new UnsignedInteger(13));
-        if (collateralArray != null) {
-            List<TransactionInput> collateral = new ArrayList<>();
-            for (DataItem inputItem : collateralArray.getDataItems()) {
-                if (inputItem == SimpleValue.BREAK) continue;
-                TransactionInput ti = TransactionInput.deserialize((Array) inputItem);
-                collateral.add(ti);
-            }
-            transactionBody.setCollateral(collateral);
-        }
-
-        //required_signers
-        Array requiredSignerArray = (Array) bodyMap.get(new UnsignedInteger(14));
-        if (requiredSignerArray != null) {
-            List<byte[]> requiredSigners = new ArrayList<>();
-            for (DataItem requiredSigDI : requiredSignerArray.getDataItems()) {
-                if (requiredSigDI == SimpleValue.BREAK) continue;
-                ByteString requiredSigBS = (ByteString) requiredSigDI;
-                requiredSigners.add(requiredSigBS.getBytes());
-            }
-            transactionBody.setRequiredSigners(requiredSigners);
-        }
-
-        //network Id
-        UnsignedInteger networkIdUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(15));
-        if (networkIdUI != null) {
-            int networkIdInt = toUnsignedInt(networkIdUI);
-            if (networkIdInt == 0) {
-                transactionBody.setNetworkId(NetworkId.TESTNET);
-            } else if (networkIdInt == 1) {
-                transactionBody.setNetworkId(NetworkId.MAINNET);
-            } else {
-                throw new CborDeserializationException("Invalid networkId value : " + networkIdInt);
-            }
-        }
-
-        //collateral return
-        DataItem collateralReturnDI = bodyMap.get(new UnsignedInteger(16));
-        if (collateralReturnDI != null) {
-            TransactionOutput collateralReturn = TransactionOutput.deserialize(collateralReturnDI);
-            transactionBody.setCollateralReturn(collateralReturn);
-        }
-
-        //total collateral
-        UnsignedInteger totalCollateralUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(17));
-        if (totalCollateralUI != null) {
-            transactionBody.setTotalCollateral(totalCollateralUI.getValue());
-        }
-
-        //reference inputs
-        Array referenceInputsArray = (Array) bodyMap.get(new UnsignedInteger(18));
-        if (referenceInputsArray != null) {
-            List<TransactionInput> referenceInputs = new ArrayList<>();
-            for (DataItem inputItem : referenceInputsArray.getDataItems()) {
-                if (inputItem == SimpleValue.BREAK) continue;
-                TransactionInput ti = TransactionInput.deserialize((Array) inputItem);
-                referenceInputs.add(ti);
-            }
-            transactionBody.setReferenceInputs(referenceInputs);
-        }
-
-        //voting procedures
-        var votingProceduresDI = bodyMap.get(new UnsignedInteger(19));
-        if (votingProceduresDI != null) {
-            VotingProcedures votingProcedures = VotingProcedures.deserialize(votingProceduresDI);
-            transactionBody.setVotingProcedures(votingProcedures);
-        }
-
-        //proposal procedures
-        Array proposalProceduresArray = (Array) bodyMap.get(new UnsignedInteger(20));
-        if (proposalProceduresArray != null && proposalProceduresArray.getDataItems().size() > 0) {
-            var proposalProceduresDIList = proposalProceduresArray.getDataItems();
-
-            List<ProposalProcedure> proposalProcedureList = new UniqueList<>();
-            for (var proposalProcedureDI : proposalProceduresDIList) {
-                if (proposalProcedureDI == SimpleValue.BREAK) continue;
-                var proposalProcedure = ProposalProcedure.deserialize(proposalProcedureDI);
-                proposalProcedureList.add(proposalProcedure);
-            }
-
-            if (proposalProcedureList.size() > 0)
-                transactionBody.setProposalProcedures(proposalProcedureList);
-        }
-
-        //current treasury value
-        var currentTreasuryValueDI = (Number) bodyMap.get(new UnsignedInteger(21));
-        if (currentTreasuryValueDI != null)
-            transactionBody.setCurrentTreasuryValue(currentTreasuryValueDI.getValue());
-
-        //donation
-        var donationDI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(22));
-        if (donationDI != null)
-            transactionBody.setDonation(donationDI.getValue());
-
-        return transactionBody;
+    // The fields ADR 0003's M5 has yet to move stay on the decoded tree.
+    private static DataItem item(CborSpan field) {
+        return CborSerializationUtil.deserialize(field);
     }
 }

@@ -6,7 +6,11 @@ import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.plutus.spec.CostModel;
 import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.transaction.spec.Withdrawal;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.transaction.util.RealCborFixturesAccess;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -169,6 +174,62 @@ class RawTxRealCorpusTest {
             compared++;
         }
         assertThat(compared).isGreaterThan(300);
+    }
+
+    /** The body's typed fields as the format reads them, next to the model mapped from them as the models read them. */
+    @Test
+    void theTypedBodyMatchesTheModel() throws Exception {
+        int compared = 0;
+        for (RealCborFixturesAccess.Tx tx : RealCborFixturesAccess.allTxsAndBlockTxs()) {
+            RawTx raw;
+            try {
+                raw = RawTx.of(tx.cbor());
+            } catch (RuntimeException e) {
+                continue;
+            }
+            TransactionBody model = Transaction.deserialize(tx.cbor()).getBody();
+            RawTxBody body = raw.body(Era.Conway);
+            TxBodyField.RECORD.walk(raw.body(), Era.Conway, FormatPolicy.ACCEPT_ALL);
+            assertThat(inputs(body.inputs())).as(tx.name()).isEqualTo(modelInputs(model.getInputs()));
+            assertThat(inputs(body.collateral().orElse(List.of()))).isEqualTo(modelInputs(model.getCollateral()));
+            assertThat(inputs(body.referenceInputs().orElse(List.of())))
+                    .isEqualTo(modelInputs(model.getReferenceInputs()));
+            assertThat(body.fee().orElse(BigInteger.ZERO)).isEqualTo(model.getFee());
+            assertThat(body.ttl().orElse(0)).isEqualTo(model.getTtl());
+            assertThat(body.validityStart().orElse(0)).isEqualTo(model.getValidityStartInterval());
+            assertThat(body.certificates()).as(tx.name()).hasSameSizeAs(model.getCerts());
+            assertThat(body.withdrawals()).extracting(RawWithdrawal::coin)
+                    .isEqualTo(model.getWithdrawals().stream().map(Withdrawal::getCoin).toList());
+            assertThat(assets(body.mint())).isEqualTo(modelAssets(model.getMint()));
+            assertThat(body.outputs()).hasSameSizeAs(model.getOutputs());
+            for (int i = 0; i < body.outputs().size(); i++) {
+                RawValue value = body.outputs().get(i).amount().orElseThrow();
+                assertThat(value.coin()).isEqualTo(model.getOutputs().get(i).getValue().getCoin());
+                assertThat(assets(value.multiAssets()))
+                        .isEqualTo(modelAssets(model.getOutputs().get(i).getValue().getMultiAssets()));
+            }
+            compared++;
+        }
+        assertThat(compared).isGreaterThan(300);
+    }
+
+    private static List<String> inputs(List<RawInput> inputs) {
+        return inputs.stream().map(in -> encodeHexString(in.transactionId()) + "#" + in.index()).toList();
+    }
+
+    private static List<String> modelInputs(List<TransactionInput> inputs) {
+        return inputs.stream().map(in -> in.getTransactionId() + "#" + in.getIndex()).toList();
+    }
+
+    private static List<String> assets(List<RawMultiAsset> assets) {
+        return assets.stream().flatMap(policy -> policy.assets().stream().map(asset ->
+                encodeHexString(policy.policyId()) + "." + encodeHexString(asset.name()) + "=" + asset.quantity()))
+                .toList();
+    }
+
+    private static List<String> modelAssets(List<MultiAsset> assets) {
+        return assets.stream().flatMap(policy -> policy.getAssets().stream().map(asset ->
+                policy.getPolicyId() + "." + asset.getName().substring(2) + "=" + asset.getValue())).toList();
     }
 
     private static void readEverything(String name, RawTx raw, Map<String, Integer> seen) throws Exception {

@@ -11,6 +11,8 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.spec.Script;
+import com.bloxbean.cardano.client.transaction.raw.RawOutput;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -23,6 +25,7 @@ import lombok.ToString;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 
 @Data
@@ -204,94 +207,35 @@ public class TransactionOutput {
     }
 
     public static TransactionOutput deserialize(DataItem dataItem) throws CborDeserializationException {
-        if (MajorType.ARRAY == dataItem.getMajorType()) { //Alonzo (Legacy)
-            return deserializeAlonzo((Array) dataItem);
-        } else if (MajorType.MAP == dataItem.getMajorType()) { //Post Alonzo
-            return deserializePostAlonzo((Map) dataItem);
-        } else
-            throw new CborDeserializationException("Invalid type for TransactionOutput : " + dataItem.getMajorType());
+        try {
+            return from(RawOutput.lenient(RawModels.span(dataItem)));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("TransactionOutput deserialization failed", e);
+        }
     }
 
-    private static TransactionOutput deserializePostAlonzo(Map ouptutItem) throws CborDeserializationException {
+    static TransactionOutput from(RawOutput raw) throws CborDeserializationException {
         TransactionOutput output = new TransactionOutput();
-
-        //address
-        ByteString addrByteStr = (ByteString) ouptutItem.get(new UnsignedInteger(0));
-        if(addrByteStr != null) {
+        Optional<byte[]> address = raw.addressBytes();
+        if (address.isPresent()) {
             try {
-                output.setAddress(AddressUtil.bytesToAddress(addrByteStr.getBytes()));
+                output.setAddress(AddressUtil.bytesToAddress(address.get()));
             } catch (Exception e) {
                 throw new CborDeserializationException("Bytes cannot be converted to bech32 address", e);
             }
         }
-
-        //value
-        DataItem valueItem = ouptutItem.get(new UnsignedInteger(1));
-        Value value = Value.deserialize(valueItem);
-        output.setValue(value);
-
-        //datum_options
-        byte[] datumHash = null;
-        PlutusData inlineDatum = null;
-        Array datumOptionsItem = (Array) ouptutItem.get(new UnsignedInteger(2));
-        if (datumOptionsItem != null) {
-            List<DataItem> datumOptionsList = datumOptionsItem.getDataItems();
-            if (datumOptionsList.size() != 2)
-                throw new CborDeserializationException("Invalid size for datum_options : " + datumOptionsList.size());
-
-            if (new UnsignedInteger(0).equals(datumOptionsList.get(0))) { //datum hash
-                datumHash = ((ByteString) datumOptionsList.get(1)).getBytes();
-            } else if (new UnsignedInteger(1).equals(datumOptionsList.get(0))) { //datum
-                ByteString inlineDatumBS = (ByteString) datumOptionsList.get(1);
-                inlineDatum = PlutusData.deserialize(inlineDatumBS.getBytes());
-                output.decodedDatum.datum = inlineDatum;
-                output.decodedDatum.bytes = inlineDatumBS.getBytes();
-                output.decodedDatum.mapsThatLostPairs = PlutusData.mapsThatLostPairs(inlineDatum);
-            }
+        output.setValue(raw.amount().map(Value::from).orElse(null));
+        output.setDatumHash(raw.datumHash().orElse(null));
+        Optional<byte[]> inlineDatum = raw.inlineDatumBytes();
+        if (inlineDatum.isPresent()) {
+            output.inlineDatum = PlutusData.deserialize(inlineDatum.get());
+            output.decodedDatum.datum = output.inlineDatum;
+            output.decodedDatum.bytes = inlineDatum.get();
+            output.decodedDatum.mapsThatLostPairs = PlutusData.mapsThatLostPairs(output.inlineDatum);
         }
-        output.setDatumHash(datumHash);
-        output.setInlineDatum(inlineDatum);
-
-        //script_ref
-        ByteString scriptRefBs = (ByteString) ouptutItem.get(new UnsignedInteger(3));
-        if (scriptRefBs != null) {
-            output.setScriptRef(scriptRefBs.getBytes());
-        }
-
+        raw.scriptRefBytes().ifPresent(scriptRef -> output.setScriptRef(scriptRef));
         return output;
     }
-
-    private static TransactionOutput deserializeAlonzo(Array ouptutItem) throws CborDeserializationException {
-        List<DataItem> items = ouptutItem.getDataItems();
-        TransactionOutput output = new TransactionOutput();
-
-        if(items == null || (items.size() != 2 && items.size() != 3)) {
-            throw new CborDeserializationException("TransactionOutput deserialization failed. Invalid no of DataItems");
-        }
-
-        ByteString addrByteStr = (ByteString)items.get(0);
-        if(addrByteStr != null) {
-            try {
-                output.setAddress(AddressUtil.bytesToAddress(addrByteStr.getBytes()));
-            } catch (Exception e) {
-                throw new CborDeserializationException("Bytes cannot be converted to bech32 address", e);
-            }
-        }
-
-        DataItem valueItem = items.get(1);
-        Value value = Value.deserialize(valueItem);
-
-        if (items.size() == 3) {
-            ByteString datumBytes = (ByteString) items.get(2);
-            if(datumBytes != null) {
-                output.setDatumHash(datumBytes.getBytes());
-            }
-        }
-
-        output.setValue(value);
-        return output;
-    }
-
 
     @Override
     public String toString() {

@@ -25,6 +25,7 @@ import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -85,6 +86,7 @@ public final class RawModels {
      * @throws CborRuntimeException if the item cannot be encoded
      */
     public static CborSpan span(DataItem item) {
+        Objects.requireNonNull(item);
         try {
             return CborSpan.of(CborSerializationUtil.serialize(item, false));
         } catch (CborException e) {
