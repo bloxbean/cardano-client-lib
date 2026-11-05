@@ -4,7 +4,6 @@ import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
-import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,6 +12,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -83,6 +83,20 @@ public class Value {
      * @return DataItem
      */
     public DataItem serialize() {
+        return serialize(MultiAsset::serialize);
+    }
+
+    /**
+     * Serialize with the assets in the order the Haskell ledger writes, see
+     * {@link MultiAsset#serializeInLedgerOrder(List)}
+     *
+     * @return DataItem
+     */
+    public DataItem serializeInLedgerOrder() {
+        return serialize(MultiAsset::serializeInLedgerOrder);
+    }
+
+    private DataItem serialize(Function<List<MultiAsset>, Map> multiAssetsWriter) {
         if (this.getMultiAssets() != null && this.getMultiAssets().size() > 0) {
             Array coinAssetArray = new Array();
 
@@ -96,8 +110,7 @@ public class Value {
                 coinAssetArray.add(new UnsignedInteger(BigInteger.ZERO));
             }
 
-            Map valueMap = this.serializeMultiAssets();
-            coinAssetArray.add(valueMap);
+            coinAssetArray.add(multiAssetsWriter.apply(multiAssets));
             return coinAssetArray;
         } else {
             DataItem valueDI;
@@ -129,19 +142,6 @@ public class Value {
             multiAssetsMap.put(multiAsset.getPolicyId(), assets);
         }
         return multiAssetsMap;
-    }
-
-    private Map serializeMultiAssets() {
-        Map map = new SortedMap();
-        if (multiAssets != null) {
-            List<MultiAsset> cloneMultiAssets = new ArrayList<>(multiAssets);
-            //sorted based on policy id for canonical cbor
-            Collections.sort(cloneMultiAssets, (m1, m2) -> m1.getPolicyId().compareTo(m2.getPolicyId()));
-            for (MultiAsset multiAsset : cloneMultiAssets) {
-                multiAsset.serialize(map);
-            }
-        }
-        return map;
     }
 
     /**

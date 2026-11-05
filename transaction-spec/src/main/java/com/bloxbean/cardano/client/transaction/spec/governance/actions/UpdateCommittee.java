@@ -2,8 +2,10 @@ package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
+import com.bloxbean.cardano.client.transaction.spec.Comparators;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
 import lombok.*;
 
@@ -53,13 +55,17 @@ public class UpdateCommittee implements GovAction {
             array.add(SimpleValue.NULL);
 
         Array membersForRemovalArray = createArray(era);
-        for (Credential member: membersForRemoval) {
+        List<Credential> removed = new ArrayList<>(membersForRemoval);
+        removed.sort(Comparators.CREDENTIAL);
+        for (Credential member: removed) {
             membersForRemovalArray.add(CredentialSerializer.serialize(member));
         }
         array.add(membersForRemovalArray);
 
-        co.nstant.in.cbor.model.Map newMembersTermsMap = new co.nstant.in.cbor.model.Map();
-        for (Map.Entry<Credential, Long> newMemberTerm: newMembersAndTerms.entrySet()) {
+        SortedMap newMembersTermsMap = new SortedMap();
+        List<Map.Entry<Credential, Long>> newMembers = new ArrayList<>(newMembersAndTerms.entrySet());
+        newMembers.sort(Map.Entry.comparingByKey(Comparators.CREDENTIAL));
+        for (Map.Entry<Credential, Long> newMemberTerm: newMembers) {
             newMembersTermsMap.put(CredentialSerializer.serialize(newMemberTerm.getKey()), unsignedLongItem(newMemberTerm.getValue()));
         }
         array.add(newMembersTermsMap);

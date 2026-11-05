@@ -122,11 +122,7 @@ public class TransactionBody {
         }
 
         if (withdrawals != null && withdrawals.size() > 0) { //Withdrawals
-            Map withdrawalMap = new Map();
-            for (Withdrawal withdrawal : withdrawals) {
-                withdrawal.serialize(withdrawalMap);
-            }
-            bodyMap.put(new UnsignedInteger(5), withdrawalMap);
+            bodyMap.put(new UnsignedInteger(5), Withdrawal.serialize(withdrawals));
         }
 
         if (update != null) {
@@ -142,11 +138,7 @@ public class TransactionBody {
         }
 
         if (mint != null && mint.size() > 0) {
-            Map mintMap = new Map();
-            for (MultiAsset multiAsset : mint) {
-                multiAsset.serialize(mintMap);
-            }
-            bodyMap.put(new UnsignedInteger(9), mintMap);
+            bodyMap.put(new UnsignedInteger(9), MultiAsset.serialize(mint));
         }
 
         if (scriptDataHash != null) {

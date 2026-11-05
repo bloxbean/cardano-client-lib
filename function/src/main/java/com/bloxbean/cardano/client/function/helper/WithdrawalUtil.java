@@ -2,8 +2,7 @@ package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
-import com.bloxbean.cardano.client.address.Credential;
-import com.bloxbean.cardano.client.address.CredentialType;
+import com.bloxbean.cardano.client.transaction.spec.Comparators;
 import com.bloxbean.cardano.client.transaction.spec.Withdrawal;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
@@ -28,16 +27,7 @@ public class WithdrawalUtil {
      * @return Comparator for Withdrawal objects
      */
     public static Comparator<Withdrawal> getWithdrawalComparator() {
-        Comparator<Credential> credentialComparator = Comparator
-                .comparing((Credential credential) -> credential.getType() == CredentialType.Script ? 0 : 1)
-                .thenComparing(credential -> HexUtil.encodeHexString(credential.getBytes()));
-
-        return Comparator.comparing(withdrawal -> {
-            Address address = new Address(withdrawal.getRewardAddress());
-            return AddressProvider.getDelegationCredential(address)
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "No delegation credential found for address: " + withdrawal.getRewardAddress()));
-        }, credentialComparator);
+        return Comparators.WITHDRAWAL;
     }
 
     /**

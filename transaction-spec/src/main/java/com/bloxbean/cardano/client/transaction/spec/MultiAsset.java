@@ -102,11 +102,44 @@ public class MultiAsset {
         return multiAssets.stream().collect(Collectors.toMap(MultiAsset::getPolicyId, Function.identity()));
     }
 
+    /**
+     * @param multiAssets the multi assets, in any order
+     * @return their map, sorted by policy id, and each policy's assets by name in CIP-21's order, the one to sign
+     */
+    public static Map serialize(List<MultiAsset> multiAssets) {
+        return toMap(multiAssets, Comparators.ASSET);
+    }
+
+    /**
+     * The order the Haskell ledger writes. The ledger accepts either order, and hardware wallets accept only
+     * {@link #serialize(List)}'s, so a transaction body uses that one.
+     *
+     * @param multiAssets the multi assets, in any order
+     * @return their map, sorted by policy id, and each policy's assets by name in Haskell's order
+     */
+    public static Map serializeInLedgerOrder(List<MultiAsset> multiAssets) {
+        return toMap(multiAssets, Comparators.ASSET_LEDGER);
+    }
+
+    private static Map toMap(List<MultiAsset> multiAssets, Comparator<Asset> nameOrder) {
+        List<MultiAsset> sorted = new ArrayList<>(multiAssets);
+        sorted.sort(Comparators.POLICY);
+
+        Map multiAssetMap = new SortedMap();
+        for (MultiAsset multiAsset : sorted) {
+            multiAsset.serialize(multiAssetMap, nameOrder);
+        }
+        return multiAssetMap;
+    }
+
     public void serialize(Map multiAssetMap) {
+        serialize(multiAssetMap, Comparators.ASSET);
+    }
+
+    private void serialize(Map multiAssetMap, Comparator<Asset> nameOrder) {
         Map assetsMap = new SortedMap();
         List<Asset> cloneAssets = new ArrayList<>(assets);
-        //sorted based on asset name bytes for canonical cbor
-        Collections.sort(cloneAssets, Comparators.assetComparator);
+        cloneAssets.sort(nameOrder);
         for (Asset asset : cloneAssets) {
             ByteString assetNameBytes = new ByteString(asset.getNameAsBytes());
 

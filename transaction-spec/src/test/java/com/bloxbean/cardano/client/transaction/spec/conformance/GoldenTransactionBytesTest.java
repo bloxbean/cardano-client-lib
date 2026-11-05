@@ -15,7 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Transactions built through the API keep their bytes (ADR 0002, gate G2). {@code golden-transactions.txt} comes from
- * the released CCL 0.8.0-pre7, not from this code. A change to it must be an intended one, named in the release notes.
+ * the released CCL 0.8.0-pre7, not from this code, except where its header says. A change to it must be an intended
+ * one, named in the release notes.
  */
 class GoldenTransactionBytesTest {
 

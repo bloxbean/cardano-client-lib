@@ -5,11 +5,15 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
+import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import lombok.*;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 
 @Getter
@@ -39,6 +43,40 @@ public class Withdrawal {
 
         return new Withdrawal(rewardAddress,
                 coinDI != null ? coinDI.getValue() : null);
+    }
+
+    /**
+     * For the transaction body, so that a hardware wallet can sign it.
+     *
+     * @param withdrawals the withdrawals, in any order
+     * @return their map, in CIP-21's order
+     * @throws AddressExcepion if a reward address cannot be encoded
+     */
+    public static Map serialize(List<Withdrawal> withdrawals) throws AddressExcepion {
+        return toMap(withdrawals, Comparators.WITHDRAWAL_BYTES);
+    }
+
+    /**
+     * For a treasury withdrawals action.
+     *
+     * @param withdrawals the withdrawals, in any order
+     * @return their map, in Haskell's order
+     * @throws AddressExcepion if a reward address cannot be encoded
+     * @throws RuntimeException if sorting finds an address that is not a reward address
+     */
+    public static Map serializeInLedgerOrder(List<Withdrawal> withdrawals) throws AddressExcepion {
+        return toMap(withdrawals, Comparators.WITHDRAWAL);
+    }
+
+    private static Map toMap(List<Withdrawal> withdrawals, Comparator<Withdrawal> order) throws AddressExcepion {
+        List<Withdrawal> sorted = new ArrayList<>(withdrawals);
+        sorted.sort(order);
+
+        Map withdrawalMap = new SortedMap();
+        for (Withdrawal withdrawal : sorted) {
+            withdrawal.serialize(withdrawalMap);
+        }
+        return withdrawalMap;
     }
 
     /**
