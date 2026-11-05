@@ -337,28 +337,32 @@ decoded from it. `serialize` writes the payload only when both of these hold. Ot
 
 1. `inlineDatum` is that same object. This covers replacing the root: model equality ignores map order and decoding
    collapses duplicate keys, so `a201000101` and `a10101` compare equal, and only identity tells a replacement apart.
-2. Its datum key equals that of a fresh decode of the payload. The key is the model's values and pairs in order plus,
-   for each map, the pairs lost in decoding: a key the CBOR repeats, or CBOR keys that differ but are one Plutus key,
-   such as `a0` and `bfff`. This covers everything inside the mutable datum:
+2. Its values and pairs, in order, match a fresh decode of the payload, and the maps that lost a pair when decoded are
+   the same objects in the same places. A map loses a pair when the CBOR repeats a key, or when CBOR keys that differ are
+   one Plutus key, such as `a0` and `bfff`. This covers everything inside the mutable datum:
    - An in-place reorder changes the order of the pairs from `a201020304` to `a203040102`.
-   - A replaced child can leave the encoding unchanged, so the dropped entries are needed as well. Replacing the child
-     of `81a201000101` with `a10101` keeps the encoding at `81a10101` and the root object the same, as reproduced on
-     CCL's build. Only the dropped entry, which the fresh decode has and the replacement does not, tells them apart.
+   - A replaced child can leave the values unchanged, so identity is needed as well. Replacing the child of
+     `81a201000101` with `a10101` keeps the encoding at `81a10101` and the root object the same, as reproduced on CCL's
+     build. Only the map object tells them apart.
 
-CCL's decoded CBOR map (`EncodedKeyMap`) records what each repeated key replaced, and `PlutusDataMap` keeps that for
-this comparison alone. The key also covers repeats nested inside a repeated key or value. `getMap()` and encoding do not
-change, and entries are recorded only when a decoded map has a duplicate key, so other data costs nothing. Encoding a
-model map with its duplicates was rejected: `getMap()` is mutable, so stale duplicates could be written after a change,
-and it would change the bytes of every re-serialized map with duplicates, which D6.3 does not need.
+`PlutusDataMap` marks a map that lost a pair, and the output remembers those maps and their places when decoding. Any
+other map holds all its pairs, so a change there shows in the comparison, and only an equal value in another encoding
+passes. `getMap()` and encoding do not change, and almost every datum has no such map.
 
-A map keeps its record for life, so one cleared and refilled with the same entries counts as unchanged. A child replaced
+Two designs were rejected. Describing what was lost in a comparison key was tried from r4 to r12. Review showed that a
+record small enough to stay linear misses cases, which write stale bytes, and a complete one grows faster than the datum,
+so a small datum can exhaust the heap. Encoding a model map with its duplicates was rejected too: `getMap()` is mutable,
+so stale duplicates could be written after a change, and it would change the bytes of every re-serialized map with
+duplicates, which D6.3 does not need.
+
+A map stays marked for life, so one cleared and refilled with the same entries counts as unchanged. A child replaced
 by one of equal value in another encoding also keeps the original bytes, as the model cannot tell them apart.
 
 `setInlineDatum`, `toBuilder` and a deep copy fall back to the model, which is today's behaviour. A new
 `TransactionOutput.copy` keeps the bytes, and `MinAdaCalculator` uses it so that it measures what the output writes.
 
 A built output has no retained bytes and encodes as it does today. The fields are excluded from `equals`, `hashCode` and
-JSON. The cost is one decode, paid only for decoded outputs at `serialize`.
+JSON. The cost is one decode, paid only for decoded outputs at `serialize`, and one walk of each inline datum at decode.
 
 This also fixes the case behind #397 for inline datums, where re-serializing a decoded output changed its bytes.
 
@@ -557,7 +561,7 @@ M7 and M8 come after step 8. Raising Q1 with the dataset maintainers is a separa
 |---|---|
 | Loosened CCL lets invalid input into the node | I2, G6. On the active pin the strict reader alone rejects 31,679 of 31,761, and the node's pair 31,758 |
 | Other CCL users depend on an accidental rejection | PR #734 keeps `RecD` rejections. G2, G5 |
-| Stale retained datum bytes | D6.3's same-object and datum key checks, I8 |
+| Stale retained datum bytes | D6.3's same-object checks and comparison, I8 |
 | External code encodes a CCL-decoded tree with a plain encoder | Release note (D3). Yaci moves its encoder with its decoder (D8) |
 | A hardware wallet refuses a CCL-built body (D6.1) | `Cip21BodyOrderTest` walks the encoded body with CIP-21's own rule. Not tested on a device |
 | A mixed-withdrawal body built by CCL and one built by a Haskell tool differ in bytes and hash (D6.1) | Each is valid. Parties must sign one set of bytes, as they already must |
@@ -662,3 +666,6 @@ Found while researching. Traced by reading only, except where stated. Each needs
   numbers are labelled historical. No decision or implementation scope changes.
 - **r12** (2026-11-05, from reviewer1's review of #745): D6.3's key is the model's pairs in order, not its encoding, and
   also covers pairs lost converting to Plutus keys. D6.3's rule and I8 don't change.
+- **r13** (2026-11-05, maintainer's decision, from reviewer1's review of #745): D6.3's second check becomes the model's
+  pairs in order plus the identity and place of the maps that lost a pair, in place of a datum key that describes the
+  loss. I8 doesn't change.
