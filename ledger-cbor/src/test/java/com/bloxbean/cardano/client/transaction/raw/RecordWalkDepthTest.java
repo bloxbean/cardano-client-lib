@@ -91,8 +91,67 @@ class RecordWalkDepthTest {
         assertThatThrownBy(() -> RawCertificate.of(span("84" + "10" + CRED + "00" + DEEP_LIST)).anchor())
                 .isInstanceOf(CborRuntimeException.class);
         witnessAndAux();
+        governance();
         header();
         block();
+    }
+
+    // A deep value at each kind of table of an update and of governance, walked and read through a body's views.
+    private static void governance() {
+        String h28 = "581c" + "00".repeat(28);
+        String id = "82" + "5820" + "00".repeat(32) + "00";
+        String anchor = "82" + "60" + "5820" + "00".repeat(32);
+        String ra = "581d" + "e1" + "00".repeat(28);
+        java.util.List<String> actions = java.util.List.of("84" + "00" + DEEP_LIST + "a0" + "f6",
+                "84" + "00" + "f6" + DEEP_MAP + "f6", "84" + "00" + "f6" + "a1" + "00" + DEEP_LIST + "f6",
+                "84" + "00" + "f6" + "a1" + "12" + "a1" + "00" + "81" + DEEP_LIST + "f6",
+                "84" + "00" + "f6" + "a1" + "12" + "a1" + DEEP_LIST + "80" + "f6",
+                "84" + "00" + "f6" + "a1" + "1819" + "85" + DEEP_TAGS + "00" + "00" + "00" + "00" + "00" + "f6",
+                "84" + "00" + "f6" + "a1" + "0d" + "82" + "01" + DEEP_MAP + "f6",
+                "84" + "00" + "f6" + "a0" + DEEP_LIST, "83" + "01" + "f6" + "82" + DEEP_LIST + "00",
+                "83" + "02" + "a1" + DEEP_LIST + "00" + "f6", "83" + "02" + "a1" + ra + DEEP_MAP + "f6",
+                "85" + "04" + "f6" + "81" + DEEP_LIST + "a0" + "d81e820102",
+                "85" + "04" + "f6" + "80" + "a1" + "8200" + h28 + DEEP_LIST + "d81e820102",
+                "85" + "04" + "f6" + "80" + "a0" + "d81e82" + DEEP_LIST + "01",
+                "83" + "05" + "f6" + "82" + DEEP_LIST + "f6", "83" + "05" + "f6" + "82" + anchor + DEEP_MAP,
+                DEEP_TAGS + "8106");
+        for (String action : actions) {
+            String proposal = "84" + "00" + ra + action + anchor;
+            governanceBody("14" + "81" + proposal);
+        }
+        governanceBody("14" + "81" + "84" + DEEP_LIST + ra + "8106" + anchor);
+        governanceBody("14" + "81" + "84" + "00" + ra + "8106" + DEEP_MAP);
+        governanceBody("13" + "a1" + DEEP_LIST + "a0");
+        governanceBody("13" + "a1" + "8200" + h28 + "a1" + DEEP_MAP + "8200f6");
+        governanceBody("13" + "a1" + "8200" + h28 + "a1" + id + "82" + DEEP_LIST + "f6");
+        governanceBody("13" + "a1" + "8200" + h28 + "a1" + id + "82" + "00" + DEEP_MAP);
+        governanceBody("06" + "82" + "a1" + DEEP_LIST + "a0" + "00");
+        governanceBody("06" + "82" + "a1" + h28 + "a1" + "0e" + DEEP_LIST + "00");
+        governanceBody("06" + "82" + "a0" + DEEP_LIST);
+        governanceBody("15" + DEEP_TAGS + "00");
+        governanceBody("16" + DEEP_LIST);
+    }
+
+    private static void governanceBody(String field) {
+        String body = "a4" + "0080" + "0180" + "0200" + field;
+        AtomicInteger calls = new AtomicInteger();
+        try {
+            RawTx.walk(HexUtil.decodeHexString("84" + body + "a0f5f6"), Era.Conway, new CountingPolicy(calls));
+        } catch (CborRuntimeException e) {
+            // the walk could not enter a value: a rejection, as D5 says, not an overflow
+        }
+        assertThat(calls.get()).isPositive();
+        CborSpan span = span(body);
+        for (java.util.function.Supplier<RawTxBody> view : java.util.List.<java.util.function.Supplier<RawTxBody>>of(
+                () -> RawTxBody.lenient(span, Era.Conway), () -> RawTxBody.tolerant(span, Era.Conway),
+                () -> RawTx.of(HexUtil.decodeHexString("84" + body + "a0f5f6")).body(Era.Conway))) {
+            try {
+                GovernanceViewsTest.readAll(view.get());
+            } catch (RuntimeException e) {
+                // a rejection, not an overflow: a stack overflow is an Error and fails the test
+                assertThat(e).isNotInstanceOf(IllegalStateException.class);
+            }
+        }
     }
 
     // A deep value at each kind of table of a witness set and of aux data, on both readings of each view.

@@ -52,8 +52,8 @@ public enum TxBodyField {
     TOTAL_COLLATERAL(17, COIN, false, Era.Babbage, null),
     REFERENCE_INPUTS_MAYBE_EMPTY(18, SET, false, Era.Babbage, Era.Babbage, RawInput.RECORD),
     REFERENCE_INPUTS(18, NONEMPTY_SET, false, Era.Conway, null, RawInput.RECORD),
-    VOTING_PROCEDURES(19, NONEMPTY_MAP, false, Era.Conway, null),
-    PROPOSAL_PROCEDURES(20, NONEMPTY_SET, false, Era.Conway, null),
+    VOTING_PROCEDURES(19, NONEMPTY_MAP, false, Era.Conway, null, RawVotingProcedures.RECORD),
+    PROPOSAL_PROCEDURES(20, NONEMPTY_SET, false, Era.Conway, null, RawProposal.RECORD),
     CURRENT_TREASURY(21, COIN, false, Era.Conway, null),
     DONATION(22, POSITIVE_COIN, false, Era.Conway, null);
 

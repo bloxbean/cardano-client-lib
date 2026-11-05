@@ -21,6 +21,7 @@ public enum FieldType {
     URL,
     DNS_NAME,
     UNIT_INTERVAL,
+    NONNEGATIVE_INTERVAL,
     /** The types that may be null. */
     OPTIONAL_PORT(Shape.NULLABLE),
     OPTIONAL_IPV4(Shape.NULLABLE),
@@ -29,6 +30,9 @@ public enum FieldType {
     OPTIONAL_POOL_METADATA(Shape.NULLABLE),
     OPTIONAL_HASH32(Shape.NULLABLE),
     OPTIONAL_AUXILIARY_DATA(Shape.NULLABLE),
+    OPTIONAL_GOV_ACTION_ID(Shape.NULLABLE),
+    /** A script hash or null, such as a guardrails script hash. */
+    OPTIONAL_HASH28(Shape.NULLABLE),
     /** A member of a tagged union, as encoded. */
     MEMBER,
     CREDENTIAL,
@@ -63,6 +67,30 @@ public enum FieldType {
     INT64,
     NONZERO_INT64,
     UPDATE,
+    /** The {@code genesis_hash => protocol_param_update} map of an update. */
+    PROPOSED_PARAMETER_UPDATES,
+    PROTOCOL_PARAM_UPDATE,
+    NONCE,
+    COST_MODELS,
+    /** A key of {@code cost_models}. */
+    LANGUAGE,
+    /** A value of {@code cost_models}: an array of int64, as one value. */
+    COST_MODEL,
+    EX_UNIT_PRICES,
+    POOL_VOTING_THRESHOLDS,
+    DREP_VOTING_THRESHOLDS,
+    VOTER,
+    GOV_ACTION_ID,
+    VOTING_PROCEDURE,
+    /** {@code 0 .. 2}. */
+    VOTE,
+    ANCHOR,
+    GOV_ACTION,
+    CONSTITUTION,
+    /** A map of reward accounts to coins, such as a treasury withdrawal's. */
+    WITHDRAWALS,
+    /** The {@code committee_cold_credential => epoch} map of a committee update. */
+    COMMITTEE_TERMS,
     BOOL,
     TRANSACTION_BODY,
     TRANSACTION_WITNESS_SET,
@@ -94,6 +122,8 @@ public enum FieldType {
     NONEMPTY_SET(Shape.COLLECTION),
     /** A set of key hashes, for a policy to tell what its items are. */
     KEY_HASH_SET(Shape.COLLECTION),
+    /** A set of committee cold credentials. */
+    CREDENTIAL_SET(Shape.COLLECTION),
     RELAY_LIST(Shape.COLLECTION),
     CERTIFICATE_LIST(Shape.COLLECTION),
     NONEMPTY_CERTIFICATE_SET(Shape.COLLECTION);
@@ -131,10 +161,12 @@ public enum FieldType {
     public RecordSpec record() {
         switch (this) {
             case OPTIONAL_ANCHOR:
+            case ANCHOR:
                 return RawAnchor.RECORD;
             case OPTIONAL_POOL_METADATA:
                 return RawPoolMetadata.RECORD;
             case CREDENTIAL:
+            case CREDENTIAL_SET:
                 return RawCredential.RECORD;
             case DREP:
                 return RawDRep.RECORD;
@@ -165,6 +197,37 @@ public enum FieldType {
                 return RawRedeemer.VALUE;
             case EX_UNITS:
                 return RawExUnits.RECORD;
+            case UPDATE:
+                return RawUpdate.RECORD;
+            case PROPOSED_PARAMETER_UPDATES:
+                return RawUpdate.PROPOSALS;
+            case PROTOCOL_PARAM_UPDATE:
+                return ProtocolParamField.RECORD;
+            case NONCE:
+                return RawNonce.RECORD;
+            case COST_MODELS:
+                return RawCostModels.RECORD;
+            case EX_UNIT_PRICES:
+                return RawExUnitPrices.RECORD;
+            case POOL_VOTING_THRESHOLDS:
+                return RawVotingThresholds.POOL;
+            case DREP_VOTING_THRESHOLDS:
+                return RawVotingThresholds.DREP;
+            case VOTER:
+                return RawVoter.RECORD;
+            case GOV_ACTION_ID:
+            case OPTIONAL_GOV_ACTION_ID:
+                return RawGovActionId.RECORD;
+            case VOTING_PROCEDURE:
+                return RawVotingProcedure.RECORD;
+            case GOV_ACTION:
+                return GovActionKind.RECORD;
+            case CONSTITUTION:
+                return RawConstitution.RECORD;
+            case WITHDRAWALS:
+                return RawWithdrawal.RECORD;
+            case COMMITTEE_TERMS:
+                return RawGovAction.COMMITTEE_TERMS;
             default:
                 return null;
         }

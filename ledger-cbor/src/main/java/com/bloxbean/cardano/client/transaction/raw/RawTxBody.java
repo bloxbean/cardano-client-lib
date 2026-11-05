@@ -23,10 +23,12 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * {@link CborRuntimeException} if it is not what the table says. Tags on an item are looked through, sets may have tag
  * 258 or not and any array may be indefinite. Hash lengths, ranges and empty sets are not checked.
  * <p>
- * Update and the governance fields stay spans (M5). A view from {@link #lenient(CborSpan, Era)} reads what the models
- * of {@code transaction-spec} have always accepted, which D7 keeps until a separate decision changes it. See
- * {@link RawOutput}, {@link RawValue} and {@link RawCertificate} for what that means for them.
- * {@link #tolerant(CborSpan, Era)} is for a chain follower, which must not lose a block its node has accepted.
+ * A view from {@link #lenient(CborSpan, Era)} reads what the models of {@code transaction-spec} have always accepted,
+ * which D7 keeps until a separate decision changes it. See {@link RawOutput}, {@link RawValue}, {@link RawCertificate},
+ * {@link RawUpdate}, {@link RawVotingProcedures} and {@link RawProposal} for what that means for them.
+ * {@link #tolerant(CborSpan, Era)} is for a chain follower, which must not lose a block its node has accepted; it reads
+ * the update and the governance fields as {@code lenient} does, and the treasury value and the donation as any integer
+ * or bignum, or absent if it is no number.
  */
 public final class RawTxBody {
     private final CborSpan span;
@@ -150,10 +152,11 @@ public final class RawTxBody {
     }
 
     /**
-     * @return the update, as encoded
+     * @return the update of the protocol parameters before Conway, its parameter updates read in this view's era
      */
-    public Optional<CborSpan> update() {
-        return value(TxBodyField.UPDATE_PROPOSAL);
+    public Optional<RawUpdate> update() {
+        return value(TxBodyField.UPDATE_PROPOSAL)
+                .map(update -> lenient ? RawUpdate.lenient(update, era) : RawUpdate.of(update, era));
     }
 
     public Optional<byte[]> auxDataHash() {
@@ -217,32 +220,32 @@ public final class RawTxBody {
         return value(TxBodyField.REFERENCE_INPUTS).map(this::inputs);
     }
 
-    /**
-     * @return the voting procedures, as encoded
-     */
-    public Optional<CborSpan> votingProcedures() {
-        return value(TxBodyField.VOTING_PROCEDURES);
+    public Optional<RawVotingProcedures> votingProcedures() {
+        return value(TxBodyField.VOTING_PROCEDURES)
+                .map(lenient ? RawVotingProcedures::lenient : RawVotingProcedures::of);
     }
 
     /**
-     * @return the proposal procedures, as encoded
+     * @return the proposal procedures in encoded order, with any repeated one kept, read in this view's era; or empty
+     * if the field is absent
      */
-    public Optional<CborSpan> proposalProcedures() {
-        return value(TxBodyField.PROPOSAL_PROCEDURES);
+    public Optional<List<RawProposal>> proposalProcedures() {
+        return value(TxBodyField.PROPOSAL_PROCEDURES).map(field -> items(field, "proposal procedures",
+                proposal -> lenient ? RawProposal.lenient(proposal, era) : RawProposal.of(proposal, era)));
     }
 
     /**
-     * @return the current treasury value, as encoded
+     * @return the current treasury value; read as the models read it, any integer that is not a bignum
      */
-    public Optional<CborSpan> currentTreasury() {
-        return value(TxBodyField.CURRENT_TREASURY);
+    public Optional<BigInteger> currentTreasury() {
+        if (tolerant)
+            return value(TxBodyField.CURRENT_TREASURY).map(value -> RawItems.integer(value, true));
+        return value(TxBodyField.CURRENT_TREASURY).map(lenient ? RawItems::number : RawItems::unsigned);
     }
 
-    /**
-     * @return the donation, as encoded
-     */
-    public Optional<CborSpan> donation() {
-        return value(TxBodyField.DONATION);
+    public Optional<BigInteger> donation() {
+        return value(TxBodyField.DONATION).map(value -> tolerant ? RawItems.integer(value, true)
+                : RawItems.unsigned(value));
     }
 
     private List<RawInput> inputs(CborSpan field) {

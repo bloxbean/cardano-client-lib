@@ -49,7 +49,7 @@ class RawTxBodyTest {
                 body::scriptDataHash, body::collateral, body::requiredSigners, body::networkId,
                 () -> body.collateralReturn().ifPresent(RawTxBodyTest::readOutput), body::totalCollateral,
                 body::referenceInputs, body::votingProcedures, body::proposalProcedures, body::currentTreasury,
-                body::donation);
+                body::donation, () -> GovernanceViewsTest.readAll(body));
     }
 
     private static void readOutput(RawOutput output) {
@@ -83,7 +83,7 @@ class RawTxBodyTest {
         assertThat(read.certificates().get(0).kind()).isEqualTo(CertKind.STAKE_REGISTRATION);
         assertThat(hex(read.withdrawals().get(0).rewardAccount())).isEqualTo("e1" + "33".repeat(28));
         assertThat(read.withdrawals().get(0).coin()).isEqualTo(7);
-        assertThat(read.update().orElseThrow().bytes()).isEqualTo(HexUtil.decodeHexString("82a000"));
+        assertThat(read.update().orElseThrow().span().bytes()).isEqualTo(HexUtil.decodeHexString("82a000"));
         assertThat(hex(read.auxDataHash().orElseThrow())).isEqualTo("22".repeat(32));
         assertThat(read.validityStart().getAsLong()).isEqualTo(1);
         assertThat(hex(read.mint().get(0).policyId())).isEqualTo("11".repeat(28));

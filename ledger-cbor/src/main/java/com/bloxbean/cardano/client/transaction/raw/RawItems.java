@@ -63,6 +63,17 @@ public final class RawItems {
         return content.isIndefinite();
     }
 
+    /**
+     * @return the item, an array that a decoded tree does not mark as indefinite: what a model reads with
+     * {@code definiteItems}
+     * @throws com.bloxbean.cardano.client.exception.CborRuntimeException if a decoded tree marks it as indefinite
+     */
+    static CborSpan definite(CborSpan item, String what) {
+        if (indefiniteWhenDecoded(item))
+            throw error("Invalid " + what + ": expected a definite-length array", item);
+        return item;
+    }
+
     public static List<CborSpan> array(CborSpan item, String what) {
         CborSpan content = content(item);
         if (content.majorType() != 4)
@@ -234,6 +245,16 @@ public final class RawItems {
         CborSpan content = content(item);
         return content.majorType() <= 1 ? content.asBigInteger()
                 : CborSerializationUtil.getBigInteger(CborSerializationUtil.deserialize(item.bytes()));
+    }
+
+    /**
+     * @return an integer and not a bignum, tags looked through: what a decoded tree holds as a {@code Number}
+     */
+    public static BigInteger number(CborSpan item) {
+        CborSpan content = content(item);
+        if (content.majorType() > 1)
+            throw error("Expected an integer", item);
+        return content.asBigInteger();
     }
 
     /** @return an integer or a bignum; lenient, what {@link #lenientInteger} reads */
