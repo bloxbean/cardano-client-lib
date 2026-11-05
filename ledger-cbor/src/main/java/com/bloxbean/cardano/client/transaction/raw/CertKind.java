@@ -13,12 +13,12 @@ import static com.bloxbean.cardano.client.transaction.raw.FieldType.CREDENTIAL;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.DREP;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.HASH28;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.HASH32;
+import static com.bloxbean.cardano.client.transaction.raw.FieldType.KEY_HASH_SET;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.MIR;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.OPTIONAL_ANCHOR;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.OPTIONAL_POOL_METADATA;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.RELAY_LIST;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.REWARD_ACCOUNT;
-import static com.bloxbean.cardano.client.transaction.raw.FieldType.SET;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.UINT;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.UNIT_INTERVAL;
 
@@ -31,8 +31,8 @@ public enum CertKind {
     STAKE_REGISTRATION(0, Era.Shelley, Era.Conway, CREDENTIAL),
     STAKE_DEREGISTRATION(1, Era.Shelley, Era.Conway, CREDENTIAL),
     STAKE_DELEGATION(2, Era.Shelley, null, CREDENTIAL, HASH28),
-    POOL_REGISTRATION(3, Era.Shelley, null, HASH28, HASH32, COIN, COIN, UNIT_INTERVAL, REWARD_ACCOUNT, SET, RELAY_LIST,
-            OPTIONAL_POOL_METADATA),
+    POOL_REGISTRATION(3, Era.Shelley, null, HASH28, HASH32, COIN, COIN, UNIT_INTERVAL, REWARD_ACCOUNT, KEY_HASH_SET,
+            RELAY_LIST, OPTIONAL_POOL_METADATA),
     POOL_RETIREMENT(4, Era.Shelley, null, HASH28, UINT),
     GENESIS_KEY_DELEGATION(5, Era.Shelley, Era.Babbage, HASH28, HASH28, HASH32),
     MOVE_INSTANTANEOUS_REWARDS(6, Era.Shelley, Era.Babbage, MIR),

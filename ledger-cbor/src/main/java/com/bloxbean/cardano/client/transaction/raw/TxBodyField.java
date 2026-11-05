@@ -8,6 +8,7 @@ import java.util.List;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.CERTIFICATE_LIST;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.COIN;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.HASH32;
+import static com.bloxbean.cardano.client.transaction.raw.FieldType.KEY_HASH_SET;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.LIST;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.MAP;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.NETWORK_ID;
@@ -44,7 +45,7 @@ public enum TxBodyField {
     SCRIPT_DATA_HASH(11, HASH32, false, Era.Alonzo, null),
     COLLATERAL_MAYBE_EMPTY(13, SET, false, Era.Alonzo, Era.Babbage),
     COLLATERAL(13, NONEMPTY_SET, false, Era.Conway, null),
-    REQUIRED_SIGNERS_MAYBE_EMPTY(14, SET, false, Era.Alonzo, Era.Babbage),
+    REQUIRED_SIGNERS_MAYBE_EMPTY(14, KEY_HASH_SET, false, Era.Alonzo, Era.Babbage),
     REQUIRED_SIGNERS(14, NONEMPTY_SET, false, Era.Conway, Era.Conway),
     NETWORK(15, NETWORK_ID, false, Era.Alonzo, null),
     COLLATERAL_RETURN(16, TRANSACTION_OUTPUT, false, Era.Babbage, null),

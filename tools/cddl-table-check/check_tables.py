@@ -34,7 +34,7 @@ TYPES = {
     "dns_name": "DNS_NAME", "url": "URL", "bytes": "BYTES", "move_instantaneous_reward": "MIR",
     "transaction_output": "TRANSACTION_OUTPUT", "update": "UPDATE", "redeemers": "REDEEMERS",
     "[* relay]": "RELAY_LIST", "[* certificate]": "CERTIFICATE_LIST", "certificates": "NONEMPTY_CERTIFICATE_SET",
-    "0/ 1": "UINT", "{* stake_credential => delta_coin}/ coin": "MIR_TARGET",
+    "set<addr_keyhash>": "KEY_HASH_SET", "0/ 1": "UINT", "{* stake_credential => delta_coin}/ coin": "MIR_TARGET",
 }
 SHAPES = [
     (r"\[\* ", "LIST"), (r"\[\+ ", "NONEMPTY_LIST"), (r"set<", "SET"), (r"nonempty_set<", "NONEMPTY_SET"),

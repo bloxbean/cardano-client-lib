@@ -41,6 +41,8 @@ public enum FieldType {
     /** An array, optionally in tag 258. */
     SET(Shape.COLLECTION),
     NONEMPTY_SET(Shape.COLLECTION),
+    /** A set of key hashes, for a policy to tell what its items are. */
+    KEY_HASH_SET(Shape.COLLECTION),
     RELAY_LIST(Shape.COLLECTION),
     CERTIFICATE_LIST(Shape.COLLECTION),
     NONEMPTY_CERTIFICATE_SET(Shape.COLLECTION);
@@ -70,7 +72,7 @@ public enum FieldType {
     /**
      * @return the table of a value of this type, or of each item of a collection; null for a leaf
      */
-    RecordSpec record() {
+    public RecordSpec record() {
         switch (this) {
             case OPTIONAL_ANCHOR:
                 return RawAnchor.RECORD;

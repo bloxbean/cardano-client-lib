@@ -159,7 +159,7 @@ public final class RawCertificate {
      */
     public List<byte[]> poolOwners() {
         List<byte[]> owners = new ArrayList<>();
-        for (CborSpan owner : RawItems.array(record.value(FieldType.SET), FieldType.SET.name()))
+        for (CborSpan owner : RawItems.array(record.value(FieldType.KEY_HASH_SET), FieldType.KEY_HASH_SET.name()))
             owners.add(RawItems.bytes(owner));
         return owners;
     }

@@ -325,7 +325,7 @@ class RawCertificateTest {
         CertKind.RECORD.walk(span("8a" + "03" + KEY1 + VRF + "00" + "00" + "d81e820001" + REWARD_ACCOUNT + "80"
                 + "81" + relay + "82" + "6161" + "4100"), Era.Conway, policy);
         assertThat(policy.events).contains(
-                "check SET 80",
+                "check KEY_HASH_SET 80",
                 "entry relay 1:MEMBER key=01 value=" + relay + " occurrence=0",
                 "check OPTIONAL_PORT 19ffff",
                 "check DNS_NAME 6161",
