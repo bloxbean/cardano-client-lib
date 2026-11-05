@@ -245,11 +245,15 @@ class RawTxBodyTest {
     @Test
     void valuesInEveryForm() {
         assertThat(RawValue.of(span("05")).coin()).isEqualTo(5);
-        assertThat(RawValue.of(span("c2" + "4101")).coin()).isEqualTo(1);
+        assertThat(RawValue.of(span("c1" + "05")).coin()).isEqualTo(5);
         assertThat(RawValue.of(span("82" + "05" + "a0")).coin()).isEqualTo(5);
         assertThat(RawValue.of(span("9f" + "05" + "a0" + "ff")).coin()).isEqualTo(5);
-        for (String bad : List.of("6161", "81" + "00", "83" + "00" + "a0" + "00"))
+        // a coin is an unsigned integer, as the ledger's Coin decodes one
+        for (String bad : List.of("6161", "20", "c2" + "4101", "81" + "00", "83" + "00" + "a0" + "00"))
             assertThatThrownBy(() -> RawValue.of(span(bad))).isInstanceOf(CborRuntimeException.class);
+        for (String coin : List.of("20", "c2" + "4101"))
+            assertThatThrownBy(() -> RawValue.of(span("82" + coin + "a0")).coin())
+                    .isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> RawValue.of(span("82" + "00" + "00")).multiAssets())
                 .isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> RawValue.of(span("82" + "6161" + "a0")).coin())

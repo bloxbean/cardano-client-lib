@@ -28,7 +28,7 @@ public record RawExUnitPrices(CborSpan span, UnitInterval memory, UnitInterval s
 
     /**
      * Reads prices as CCL's model always has (ADR 0003 D7): definite, items after the last ignored, and the numbers of
-     * a rational read as {@link RawItems#rational(CborSpan, boolean)} reads them when lenient.
+     * a rational read as the models read a number: tags looked through, and null for an item that is no number.
      *
      * @param span prices as encoded
      * @return the view

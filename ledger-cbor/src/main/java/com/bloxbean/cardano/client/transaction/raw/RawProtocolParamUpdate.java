@@ -245,7 +245,7 @@ public final class RawProtocolParamUpdate {
 
     // A coin; when lenient, any integer or bignum, and absent if it is no number.
     private Optional<BigInteger> coin(ProtocolParamField field) {
-        return value(field).map(item -> lenient ? RawItems.integer(item, true) : RawItems.unsigned(item));
+        return value(field).map(item -> RawItems.coin(item, lenient));
     }
 
     // An unsigned integer whose range is not checked, in 64 bits.

@@ -30,7 +30,7 @@ public final class RawItems {
     private RawItems() {
     }
 
-    public static CborSpan content(CborSpan item) {
+    static CborSpan content(CborSpan item) {
         CborSpan content = item;
         while (content.isTagged())
             content = content.untag();
@@ -81,7 +81,7 @@ public final class RawItems {
         return content.items();
     }
 
-    public static List<Map.Entry<CborSpan, CborSpan>> map(CborSpan item, String what) {
+    static List<Map.Entry<CborSpan, CborSpan>> map(CborSpan item, String what) {
         CborSpan content = content(item);
         if (content.majorType() != 5)
             throw error("A " + what + " is a map", item);
@@ -242,17 +242,17 @@ public final class RawItems {
         return content(item).byteString();
     }
 
-    public static String text(CborSpan item) {
+    static String text(CborSpan item) {
         return content(item).text();
     }
 
     /** @return the value, or null for an untagged null */
-    public static <T> T nullable(CborSpan item, Function<CborSpan, T> read) {
+    static <T> T nullable(CborSpan item, Function<CborSpan, T> read) {
         return item.isNull() ? null : read.apply(item);
     }
 
     /** @return an unsigned integer that fits an int */
-    public static int smallUnsigned(CborSpan item) {
+    static int smallUnsigned(CborSpan item) {
         BigInteger value = unsigned(item);
         if (value.bitLength() >= Integer.SIZE)
             throw error("Expected an unsigned integer that fits an int, found " + value, item);
@@ -260,12 +260,12 @@ public final class RawItems {
     }
 
     /** @return the 64 bits of an unsigned integer: a value of 2^63 or more reads as negative */
-    public static long unsignedLong(CborSpan item) {
+    static long unsignedLong(CborSpan item) {
         return unsigned(item).longValue();
     }
 
     /** @return an unsigned integer of any size */
-    public static BigInteger unsigned(CborSpan item) {
+    static BigInteger unsigned(CborSpan item) {
         CborSpan content = content(item);
         if (content.majorType() != 0)
             throw error("Expected an unsigned integer", item);
@@ -292,20 +292,28 @@ public final class RawItems {
     /**
      * @return an integer and not a bignum, tags looked through: what a decoded tree holds as a {@code Number}
      */
-    public static BigInteger number(CborSpan item) {
+    static BigInteger number(CborSpan item) {
         CborSpan content = content(item);
         if (content.majorType() > 1)
             throw error("Expected an integer", item);
         return content.asBigInteger();
     }
 
+    /**
+     * @return a coin. A view reads it as the ledger's {@code Coin} decodes one, an unsigned integer, tags looked
+     * through (ADR 0003 D5); when lenient, as {@link #lenientInteger} reads any number, as the models always have (D7)
+     */
+    static BigInteger coin(CborSpan item, boolean lenient) {
+        return lenient ? lenientInteger(item) : unsigned(item);
+    }
+
     /** @return an integer or a bignum; lenient, what {@link #lenientInteger} reads */
-    public static BigInteger integer(CborSpan item, boolean lenient) {
+    static BigInteger integer(CborSpan item, boolean lenient) {
         return lenient ? lenientInteger(item) : integer(item);
     }
 
     /** @return a rational, tag 30 on {@code [int, int]} */
-    public static UnitInterval rational(CborSpan item, boolean lenient) {
+    static UnitInterval rational(CborSpan item, boolean lenient) {
         boolean tagged = false;
         CborSpan content = item;
         while (content.isTagged()) {

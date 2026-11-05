@@ -13,15 +13,16 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
 
 /**
  * A redeemer as received, from either form of the {@code redeemers} rule: the array
- * {@code [tag, index, data, ex_units]} or the Conway map entry {@code [tag, index] => [data, ex_units]}.
+ * {@code [tag, index, data, ex_units]} or the Conway map entry {@code [tag, index] => [data, ex_units]}. The tag and
+ * the index are unsigned integers, tags on them looked through.
  * <p>
  * The {@code lenient} readings read what the models of {@code transaction-spec} have always accepted, which ADR 0003 D7
- * keeps until a separate decision changes it: tags on an item are looked through, a map value is definite, a field of
+ * keeps until a separate decision changes it: tags on an array are looked through, a map value is definite, a field of
  * neither form holds no redeemer, and a map keeps one entry per key, equal as a decoded map's are, with the key's first
  * encoding. A view of {@link RawWitnessSet#tolerant} reads a map as they do, and a map value may be indefinite.
  *
  * @param tag     the purpose: 0 spend, 1 mint, 2 cert, 3 reward, 4 voting, 5 proposing
- * @param index   the index of the item the redeemer is for
+ * @param index   the index of the item the redeemer is for, its 64 bits: see {@link #unsignedIndex()}
  * @param data    the redeemer data, as encoded (see {@link RawDatum} to hash or decode it)
  * @param exUnits the execution units {@code [mem, steps]}, as encoded
  * @param key     the key {@code [tag, index]} of the map form, as encoded; null for the array form
@@ -53,7 +54,7 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, 
      * @throws CborRuntimeException if it is not an array of 4 items, or its tag or index is not an unsigned integer
      */
     public static RawRedeemer lenient(CborSpan item) {
-        return ofItem(item, RawItems.array(item, ITEM.name()), true);
+        return ofItem(item, RawItems.array(item, ITEM.name()));
     }
 
     /**
@@ -70,7 +71,7 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, 
     }
 
     private static RawRedeemer tolerant(CborSpan key, CborSpan value) {
-        return ofEntry(key, RawItems.array(key, KEY.name()), value, RawItems.array(value, VALUE.name()), true);
+        return ofEntry(key, RawItems.array(key, KEY.name()), value, RawItems.array(value, VALUE.name()));
     }
 
     // The field in encoded order, with any repeated key kept (the ledger keeps the last value of a repeated key).
@@ -78,12 +79,12 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, 
         List<RawRedeemer> redeemers = new ArrayList<>();
         if (field.majorType() == MAJOR_ARRAY) {
             for (CborSpan item : field.items())
-                redeemers.add(ofItem(item, item.items(), false));
+                redeemers.add(ofItem(item, item.items()));
         } else {
             for (Map.Entry<CborSpan, CborSpan> entry : field.entries()) {
                 CborSpan key = entry.getKey();
                 CborSpan value = entry.getValue();
-                redeemers.add(ofEntry(key, key.items(), value, value.items(), false));
+                redeemers.add(ofEntry(key, key.items(), value, value.items()));
             }
         }
         return redeemers;
@@ -104,29 +105,28 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, 
         return redeemers;
     }
 
-    private static RawRedeemer ofItem(CborSpan item, List<CborSpan> items, boolean lenient) {
+    private static RawRedeemer ofItem(CborSpan item, List<CborSpan> items) {
         PositionalRecord record = PositionalRecord.of(ITEM, item, items, true);
         return of(record.value(FieldType.REDEEMER_TAG), record.value(FieldType.UINT32),
-                record.value(FieldType.PLUTUS_DATA), record.value(FieldType.EX_UNITS), null, item, lenient);
+                record.value(FieldType.PLUTUS_DATA), record.value(FieldType.EX_UNITS), null, item);
     }
 
-    private static RawRedeemer ofEntry(CborSpan key, List<CborSpan> keyItems, CborSpan value, List<CborSpan> valueItems,
-                                       boolean lenient) {
+    private static RawRedeemer ofEntry(CborSpan key, List<CborSpan> keyItems, CborSpan value,
+                                       List<CborSpan> valueItems) {
         PositionalRecord keyRecord = PositionalRecord.of(KEY, key, keyItems, true);
         PositionalRecord valueRecord = PositionalRecord.of(VALUE, value, valueItems, true);
         return of(keyRecord.value(FieldType.REDEEMER_TAG), keyRecord.value(FieldType.UINT32),
-                valueRecord.value(FieldType.PLUTUS_DATA), valueRecord.value(FieldType.EX_UNITS), key, value, lenient);
+                valueRecord.value(FieldType.PLUTUS_DATA), valueRecord.value(FieldType.EX_UNITS), key, value);
     }
 
+    // The index is unsigned in every reading; its range is policy (ADR 0003 D5).
     private static RawRedeemer of(CborSpan tag, CborSpan index, CborSpan data, CborSpan exUnits, CborSpan key,
-                                  CborSpan span, boolean lenient) {
-        return lenient
-                ? new RawRedeemer(RawItems.smallUnsigned(tag), RawItems.unsignedLong(index), data, exUnits, key, span)
-                : new RawRedeemer(RawTx.smallInt(tag), index.asLong(), data, exUnits, key, span);
+                                  CborSpan span) {
+        return new RawRedeemer(RawItems.smallUnsigned(tag), RawItems.unsignedLong(index), data, exUnits, key, span);
     }
 
     /**
-     * @return the index, for a redeemer read as the models read one: its 64 bits, as an unsigned value
+     * @return the index, its 64 bits as an unsigned value
      */
     public BigInteger unsignedIndex() {
         return new BigInteger(Long.toUnsignedString(index));

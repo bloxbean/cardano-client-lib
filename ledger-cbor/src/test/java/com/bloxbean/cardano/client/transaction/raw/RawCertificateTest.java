@@ -248,6 +248,12 @@ class RawCertificateTest {
                 .isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> of("82" + "00" + "8202" + KEY1).credential()).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> of("83" + "07" + CRED1 + "6161").coin()).isInstanceOf(CborRuntimeException.class);
+        // a coin is an unsigned integer, as the ledger's Coin decodes one; the models read any number
+        for (String coin : List.of("20", "c2" + "4105"))
+            assertThatThrownBy(() -> of("83" + "07" + CRED1 + coin).coin()).isInstanceOf(CborRuntimeException.class);
+        assertThat(RawCertificate.lenient(CertKind.REG_CERT, span("83" + "07" + CRED1 + "20")).coin()).isEqualTo(-1);
+        assertThat(RawCertificate.lenient(CertKind.REG_CERT, span("83" + "07" + CRED1 + "c24105")).coin())
+                .isEqualTo(5);
         assertThatThrownBy(() -> of("83" + "09" + CRED1 + "820200").drep()).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> of("83" + "0f" + CRED1 + "8100").anchor()).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> of("83" + "04" + KEY1 + "20").epoch()).isInstanceOf(CborRuntimeException.class);

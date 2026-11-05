@@ -137,7 +137,7 @@ public final class RawCertificate {
      * @return the deposit, or the refund of an unregistration
      */
     public BigInteger coin() {
-        return RawItems.integer(record.value(FieldType.COIN), lenient);
+        return RawItems.coin(record.value(FieldType.COIN), lenient);
     }
 
     public RawDRep drep() {
@@ -167,11 +167,11 @@ public final class RawCertificate {
     }
 
     public BigInteger pledge() {
-        return RawItems.integer(record.value(FieldType.COIN), lenient);
+        return RawItems.coin(record.value(FieldType.COIN), lenient);
     }
 
     public BigInteger cost() {
-        return RawItems.integer(record.value(FieldType.COIN, 1), lenient);
+        return RawItems.coin(record.value(FieldType.COIN, 1), lenient);
     }
 
     public UnitInterval margin() {

@@ -65,7 +65,7 @@ public final class RawProposal {
      * @return the deposit; for a view read as the models read one, null if it is no number
      */
     public BigInteger deposit() {
-        return RawItems.integer(record.value(FieldType.COIN), lenient);
+        return RawItems.coin(record.value(FieldType.COIN), lenient);
     }
 
     /**

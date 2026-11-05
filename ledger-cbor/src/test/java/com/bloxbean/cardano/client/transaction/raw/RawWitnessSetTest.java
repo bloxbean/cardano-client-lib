@@ -136,8 +136,9 @@ class RawWitnessSetTest {
         assertThat(entries).extracting(redeemer -> hex(redeemer.data())).containsExactly("01", "02", "03");
         assertThat(tx("a105" + map).witnessSet(Era.Conway).redeemers().orElseThrow()).hasSize(3);
 
+        // the index is unsigned in every reading
         for (String bad : List.of("00", "c180", "8100", "8183000000", "a100" + "00", "a1" + "8100" + "820000",
-                "a1" + "820000" + "8100"))
+                "a1" + "820000" + "8100", "81" + "84" + "00" + "20" + "00" + UNITS, "a1" + "820020" + "8200" + UNITS))
             assertThatThrownBy(() -> tx("a105" + bad).redeemers()).as(bad).isInstanceOf(CborRuntimeException.class);
     }
 

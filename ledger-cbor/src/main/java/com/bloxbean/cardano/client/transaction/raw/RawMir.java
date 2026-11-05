@@ -73,7 +73,7 @@ public final class RawMir {
      * @return the coin that moves to the other pot
      */
     public BigInteger coin() {
-        return RawItems.integer(target(), lenient);
+        return RawItems.coin(target(), lenient);
     }
 
     private CborSpan target() {

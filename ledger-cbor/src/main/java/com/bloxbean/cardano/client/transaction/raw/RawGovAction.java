@@ -18,8 +18,8 @@ import java.util.Optional;
  * <p>
  * {@link #of(CborSpan, Era)} keeps every entry of a map, in encoded order. {@link #lenient(CborSpan, Era)} reads what
  * CCL's models have always read (ADR 0003 D7): items after the last position are ignored, a map has one entry per key,
- * as a decoded map has it, numbers are read as {@link RawItems#integer(CborSpan, boolean)} reads them when lenient, and
- * ids, constitutions and parameter updates are read leniently too.
+ * as a decoded map has it, a number is any integer or bignum, tags looked through, and null if the item is no number,
+ * and ids, constitutions and parameter updates are read leniently too.
  */
 public final class RawGovAction {
     /** The {@code committee_cold_credential => epoch} map of a committee update. */

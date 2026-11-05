@@ -28,8 +28,8 @@ public final class RawProtocolVersion {
     }
 
     /**
-     * Reads a protocol version as CCL's models always have: the minor version is read as
-     * {@link RawItems#integer(CborSpan, boolean)} reads a number when lenient (ADR 0003 D7).
+     * Reads a protocol version as CCL's models always have: the minor version is any integer or bignum, tags looked
+     * through, and null if the item is no number (ADR 0003 D7).
      *
      * @param span a protocol version as encoded
      * @return the view

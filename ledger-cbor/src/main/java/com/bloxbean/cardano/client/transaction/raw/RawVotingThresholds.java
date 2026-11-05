@@ -45,8 +45,8 @@ public final class RawVotingThresholds {
 
     /**
      * @param span    pool voting thresholds as encoded
-     * @param lenient whether to read the numbers of a rational as CCL's models always have, as
-     *                {@link RawItems#rational(CborSpan, boolean)} does
+     * @param lenient whether to read the numbers of a rational as CCL's models always have: tags looked through, and
+     *                null for an item that is no number
      * @return the view
      * @throws CborRuntimeException if they are not an array of five items
      */

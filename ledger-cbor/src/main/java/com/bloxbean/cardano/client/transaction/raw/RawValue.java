@@ -27,7 +27,10 @@ public final class RawValue {
     static final RecordSpec COIN_AND_ASSETS = RecordSpec.positional("value", List.of(
             FieldSpec.of(0, FieldType.COIN, true, Era.Mary, null),
             FieldSpec.of(1, FieldType.MAP, true, Era.Mary, null, RawMultiAsset.VALUE)));
-    /** The {@code value} rule: a coin, of which a reader accepts any integer or bignum (D5), or the array form. */
+    /**
+     * The {@code value} rule: a coin or the array form. A walk gives a policy a coin of any integer or bignum to check,
+     * and {@link #of(CborSpan)} reads only an unsigned integer, as it reads every coin.
+     */
     static final RecordSpec RECORD = RecordSpec.byMajorType("value",
             FieldSpec.of(MAJOR_UNSIGNED, FieldType.COIN, false, Era.Shelley, null),
             FieldSpec.of(MAJOR_NEGATIVE, FieldType.COIN, false, Era.Shelley, null),
@@ -49,12 +52,12 @@ public final class RawValue {
     /**
      * @param span a value as encoded
      * @return the view
-     * @throws CborRuntimeException if it is no integer or bignum, or array of two items
+     * @throws CborRuntimeException if it is no unsigned integer, or array of two items
      */
     public static RawValue of(CborSpan span) {
         if (RawItems.content(span).majorType() == MAJOR_ARRAY)
             return ofArray(span, false);
-        RawItems.integer(span, false);
+        RawItems.unsigned(span);
         return new RawValue(span, span, null, false);
     }
 
@@ -113,7 +116,7 @@ public final class RawValue {
      * @return the coin; for a view read as the models read one, null if its item is no number
      */
     public BigInteger coin() {
-        return coin != null ? RawItems.integer(coin, lenient) : BigInteger.ZERO;
+        return coin != null ? RawItems.coin(coin, lenient) : BigInteger.ZERO;
     }
 
     /**

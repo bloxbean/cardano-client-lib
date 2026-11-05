@@ -31,8 +31,8 @@ public record RawWithdrawal(byte[] rewardAccount, BigInteger coin) {
     }
 
     /**
-     * Reads a withdrawals map whose amounts may be any integer or bignum, as {@link RawItems#integer(CborSpan, boolean)}
-     * reads one when lenient: an amount that is no number is null.
+     * Reads a withdrawals map whose amounts may be any integer or bignum, tags looked through: an amount that is no
+     * number is null.
      *
      * @param map a withdrawals map as encoded
      * @return the withdrawals, one per reward account, in the order of their first entries; a repeated account has its

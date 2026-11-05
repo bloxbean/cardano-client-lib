@@ -214,7 +214,7 @@ public final class RawTx {
         return item.items();
     }
 
-    // A small unsigned integer, such as a redeemer tag or a script type.
+    // A small unsigned integer, such as a script type.
     static int smallInt(CborSpan item) {
         long value = item.asLong();
         if (value < 0 || value > Integer.MAX_VALUE)
