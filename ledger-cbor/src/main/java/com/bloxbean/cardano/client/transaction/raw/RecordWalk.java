@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.spec.Era;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +14,6 @@ import java.util.Map;
 final class RecordWalk {
     private static final int MAJOR_ARRAY = 4;
     private static final int MAJOR_TAG = 6;
-    private static final int MAJOR_BYTES = 2;
 
     private RecordWalk() {
     }
@@ -69,7 +67,8 @@ final class RecordWalk {
             int smallKey = smallKey(key);
             BigInteger integer = smallKey >= 0 ? null : integerKey(key);
             int occurrence = 0;
-            if (smallKey < 0 && ordered == i && byteStringAbove(key, i == 0 ? null : entries.get(i - 1).getKey())) {
+            CborSpan previous = i == 0 ? null : entries.get(i - 1).getKey();
+            if (smallKey < 0 && ordered == i && RawItems.byteStringAbove(key, previous)) {
                 ordered++;
             } else if (smallKey < 0 || (small & 1L << smallKey) != 0) {
                 if (seen == null) {
@@ -97,28 +96,6 @@ final class RecordWalk {
             if (field.requiredIn(era) && !has(field.key(), small, seen))
                 policy.missing(record, field, container, era);
         }
-    }
-
-    // Whether a key is an untagged definite byte string whose content is above that of the previous key, if any.
-    private static boolean byteStringAbove(CborSpan key, CborSpan previous) {
-        int start = byteStringContent(key);
-        if (start < 0)
-            return false;
-        if (previous == null)
-            return true;
-        int end = key.offset() + key.length();
-        int previousStart = byteStringContent(previous);
-        return Arrays.compareUnsigned(key.buffer(), start, end, previous.buffer(), previousStart,
-                previous.offset() + previous.length()) > 0;
-    }
-
-    // Where the content of an untagged definite byte string starts, or -1 for any other item.
-    private static int byteStringContent(CborSpan item) {
-        int initial = item.buffer()[item.offset()] & 0xff;
-        if (initial >>> 5 != MAJOR_BYTES || (initial & 0x1f) > 27)
-            return -1;
-        int info = initial & 0x1f;
-        return item.offset() + 1 + (info < 24 ? 0 : 1 << (info - 24));
     }
 
     private static boolean has(long key, long small, Map<Object, Integer> seen) {

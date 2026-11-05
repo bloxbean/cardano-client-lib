@@ -11,6 +11,7 @@ import com.bloxbean.cardano.client.spec.UnitInterval;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -138,12 +139,44 @@ public final class RawItems {
      */
     static List<Map.Entry<CborSpan, CborSpan>> distinct(CborSpan item, String what) {
         List<Map.Entry<CborSpan, CborSpan>> entries = map(item, what);
-        if (entries.size() < 2)
+        if (entries.size() < 2 || ordered(entries))
             return entries;
         Map<Object, Map.Entry<CborSpan, CborSpan>> distinct = new LinkedHashMap<>(2 * entries.size());
         for (Map.Entry<CborSpan, CborSpan> entry : entries)
             distinct.put(identity(entry.getKey()), entry);
         return new ArrayList<>(distinct.values());
+    }
+
+    // Whether every key is a definite byte string above the one before, so that no key repeats.
+    private static boolean ordered(List<Map.Entry<CborSpan, CborSpan>> entries) {
+        for (int i = 0; i < entries.size(); i++) {
+            if (!byteStringAbove(entries.get(i).getKey(), i == 0 ? null : entries.get(i - 1).getKey()))
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * @return whether a key is an untagged definite byte string whose content is above that of the previous key, if
+     * there is one, which is such a byte string
+     */
+    static boolean byteStringAbove(CborSpan key, CborSpan previous) {
+        int start = byteStringContent(key);
+        if (start < 0)
+            return false;
+        if (previous == null)
+            return true;
+        return Arrays.compareUnsigned(key.buffer(), start, key.offset() + key.length(), previous.buffer(),
+                byteStringContent(previous), previous.offset() + previous.length()) > 0;
+    }
+
+    // Where the content of an untagged definite byte string starts, or -1 for any other item.
+    private static int byteStringContent(CborSpan item) {
+        int initial = item.buffer()[item.offset()] & 0xff;
+        int info = initial & 0x1f;
+        if (initial >>> 5 != 2 || info > 27)
+            return -1;
+        return item.offset() + 1 + (info < 24 ? 0 : 1 << (info - 24));
     }
 
     /**
