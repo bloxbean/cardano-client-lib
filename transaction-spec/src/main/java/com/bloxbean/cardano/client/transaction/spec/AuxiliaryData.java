@@ -2,18 +2,22 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
-import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
+import com.bloxbean.cardano.client.transaction.raw.RawAuxData;
+import com.bloxbean.cardano.client.transaction.raw.RawScript;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.AllArgsConstructor;
@@ -23,9 +27,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
+import java.util.Optional;
 
 @Data
 @AllArgsConstructor
@@ -63,78 +65,34 @@ public class AuxiliaryData {
      * @throws CborDeserializationException if the array is not of that shape
      */
     public static AuxiliaryData deserialize(Array array) throws CborDeserializationException {
-        List<DataItem> items = definiteItems(array, "aux data");
-        if (items.size() != 2 || !(items.get(0) instanceof Map) || !(items.get(1) instanceof Array))
-            throw new CborDeserializationException("Aux data [metadata, scripts] expected");
-        AuxiliaryData auxiliaryData = new AuxiliaryData();
-        auxiliaryData.setMetadata(CBORMetadata.deserialize((Map) items.get(0)));
-        for (DataItem nativeScriptDI : withoutBreak(((Array) items.get(1)).getDataItems())) {
-            if (!(nativeScriptDI instanceof Array))
-                throw new CborDeserializationException("Native script expected in aux data");
-            auxiliaryData.getNativeScripts().add(NativeScript.deserialize((Array) nativeScriptDI));
-        }
-        return auxiliaryData;
+        return deserialize((DataItem) array);
     }
 
     public static AuxiliaryData deserialize(Map map) throws CborDeserializationException {
-        Tag mapTag = map.getTag();
-        AuxiliaryData auxiliaryData = new AuxiliaryData();
+        return deserialize((DataItem) map);
+    }
 
-        if (mapTag != null && mapTag.getValue() == 259) { //Alonzo
-            DataItem metadataValueDI = map.get(new UnsignedInteger(0));
-            DataItem nativeScriptsValueDI = map.get(new UnsignedInteger(1));
-            DataItem plutusV1ScriptsValueDI = map.get(new UnsignedInteger(2));
-            DataItem plutusV2ScriptsValueDI = map.get(new UnsignedInteger(3));
-            DataItem plutusV3ScriptsValueDI = map.get(new UnsignedInteger(4));
-
-            if (metadataValueDI != null) {
-                Metadata cborMetadata = CBORMetadata.deserialize((Map) metadataValueDI);
-                auxiliaryData.setMetadata(cborMetadata);
-            }
-
-            if (nativeScriptsValueDI != null) {
-                Array nativeScriptsArray = (Array) nativeScriptsValueDI;
-                for (DataItem nativeScriptDI : nativeScriptsArray.getDataItems()) {
-                    if (nativeScriptDI == SimpleValue.BREAK) continue;
-                    NativeScript nativeScript = NativeScript.deserialize((Array) nativeScriptDI);
-                    auxiliaryData.getNativeScripts().add(nativeScript);
-                }
-            }
-
-            //plutus_v1_script
-            if (plutusV1ScriptsValueDI != null) {
-                Array plutusV1ScriptsArray = (Array) plutusV1ScriptsValueDI;
-                for (DataItem plutusV1ScriptDI : plutusV1ScriptsArray.getDataItems()) {
-                    if (plutusV1ScriptDI == SimpleValue.BREAK) continue;
-                    PlutusV1Script plutusV1Script = PlutusV1Script.deserialize((ByteString) plutusV1ScriptDI);
-                    auxiliaryData.getPlutusV1Scripts().add(plutusV1Script);
-                }
-            }
-
-            //plutus_v2_script
-            if (plutusV2ScriptsValueDI != null) {
-                Array plutusV2ScriptsArray = (Array) plutusV2ScriptsValueDI;
-                for (DataItem plutusV2ScriptDI : plutusV2ScriptsArray.getDataItems()) {
-                    if (plutusV2ScriptDI == SimpleValue.BREAK) continue;
-                    PlutusV2Script plutusV2Script = PlutusV2Script.deserialize((ByteString) plutusV2ScriptDI);
-                    auxiliaryData.getPlutusV2Scripts().add(plutusV2Script);
-                }
-            }
-
-            //plutus_v3_script
-            if (plutusV3ScriptsValueDI != null) {
-                Array plutusV3ScriptsArray = (Array) plutusV3ScriptsValueDI;
-                for (DataItem plutusV3ScriptDI : plutusV3ScriptsArray.getDataItems()) {
-                    if (plutusV3ScriptDI == SimpleValue.BREAK) continue;
-                    PlutusV3Script plutusV3Script = PlutusV3Script.deserialize((ByteString) plutusV3ScriptDI);
-                    auxiliaryData.getPlutusV3Scripts().add(plutusV3Script);
-                }
-            }
-        } else { //Shelley-mary
-            Metadata metadata = CBORMetadata.deserialize(map);
-            auxiliaryData.setMetadata(metadata);
+    private static AuxiliaryData deserialize(DataItem item) throws CborDeserializationException {
+        try {
+            return from(RawAuxData.lenient(RawModels.span(item), TransactionBody.READ_IN));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("AuxiliaryData deserialization failed", e);
         }
+    }
 
+    static AuxiliaryData from(RawAuxData raw) throws CborDeserializationException {
+        AuxiliaryData auxiliaryData = new AuxiliaryData();
+        Optional<CborSpan> metadata = raw.metadata();
+        if (metadata.isPresent())
+            auxiliaryData.setMetadata(RawModels.toMetadata(metadata.get()));
+        for (RawScript script : raw.nativeScripts())
+            auxiliaryData.getNativeScripts().add((NativeScript) RawModels.toScript(script));
+        for (RawScript script : raw.plutusV1Scripts())
+            auxiliaryData.getPlutusV1Scripts().add((PlutusV1Script) RawModels.toScript(script));
+        for (RawScript script : raw.plutusV2Scripts())
+            auxiliaryData.getPlutusV2Scripts().add((PlutusV2Script) RawModels.toScript(script));
+        for (RawScript script : raw.plutusV3Scripts())
+            auxiliaryData.getPlutusV3Scripts().add((PlutusV3Script) RawModels.toScript(script));
         return auxiliaryData;
     }
 

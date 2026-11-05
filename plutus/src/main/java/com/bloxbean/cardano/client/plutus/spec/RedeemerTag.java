@@ -24,6 +24,14 @@ public enum RedeemerTag {
         this.value = value;
     }
 
+    /**
+     * @param value a redeemer tag's number
+     * @return the tag, or null if there is none with this number
+     */
+    public static RedeemerTag fromValue(int value) {
+        return Arrays.stream(values()).filter(tag -> tag.value == value).findFirst().orElse(null);
+    }
+
     public static RedeemerTag convert(String redeemerTag) {
         return Arrays.stream(values()).filter(value -> value.name().equalsIgnoreCase(redeemerTag)).findFirst().orElse(null);
     }

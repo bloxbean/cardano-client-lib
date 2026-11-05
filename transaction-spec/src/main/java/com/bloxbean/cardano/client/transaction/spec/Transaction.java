@@ -2,13 +2,12 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
-import com.bloxbean.cardano.client.common.cbor.CborSpan;
-import com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
+import com.bloxbean.cardano.client.transaction.raw.RawAuxData;
 import com.bloxbean.cardano.client.transaction.raw.RawTx;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -145,40 +144,15 @@ public class Transaction {
 
             Transaction transaction = new Transaction();
             transaction.setValid(raw.isValid());
-            transaction.setWitnessSet(TransactionWitnessSet.deserialize(record(item(raw.witnessSet()), "witness set")));
-            Optional<CborSpan> auxiliaryData = raw.auxData();
+            transaction.setWitnessSet(TransactionWitnessSet.from(raw.witnessSet(TransactionBody.READ_IN)));
+            Optional<RawAuxData> auxiliaryData = raw.auxData(TransactionBody.READ_IN);
             if (auxiliaryData.isPresent())
-                transaction.setAuxiliaryData(auxiliaryData(item(auxiliaryData.get())));
+                transaction.setAuxiliaryData(AuxiliaryData.from(auxiliaryData.get()));
             transaction.setBody(TransactionBody.from(raw));
             return transaction;
         } catch (Exception e) {
             throw new CborDeserializationException("CBOR deserialization failed", e);
         }
-    }
-
-    private static AuxiliaryData auxiliaryData(DataItem auxiliaryDataDI) throws CborDeserializationException {
-        if (auxiliaryDataDI instanceof Map) {
-            if (auxiliaryDataDI.getTag() != null)
-                record(auxiliaryDataDI, "aux data");
-            return AuxiliaryData.deserialize((Map) auxiliaryDataDI);
-        }
-        if (auxiliaryDataDI instanceof Array)
-            return AuxiliaryData.deserialize((Array) auxiliaryDataDI);
-        throw new CborDeserializationException("Unknown aux data shape: " + auxiliaryDataDI.getMajorType());
-    }
-
-    // The witness set and the aux data stay on the decoded tree until ADR 0003's M4 moves them.
-    private static DataItem item(CborSpan span) {
-        return CborSerializationUtil.deserialize(span);
-    }
-
-    // A CDDL record: a map that does not repeat a key (the decoder keeps a repeated key once, and notes it).
-    private static Map record(DataItem item, String what) throws CborDeserializationException {
-        if (!(item instanceof Map))
-            throw new CborDeserializationException("The " + what + " is a map, found " + item.getMajorType());
-        if (item instanceof EncodedKeyMap && ((EncodedKeyMap) item).hasRepeatedKey())
-            throw new CborDeserializationException("The " + what + " repeats a key");
-        return (Map) item;
     }
 
     public String toJson() {

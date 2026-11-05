@@ -1,14 +1,15 @@
 package com.bloxbean.cardano.client.transaction.util;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
@@ -25,6 +26,8 @@ import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -35,6 +38,29 @@ import java.util.Optional;
 public final class RawModels {
 
     private RawModels() {
+    }
+
+    /**
+     * Turns a view into a model.
+     *
+     * @param <R> the view
+     * @param <M> the model
+     */
+    public interface Mapper<R, M> {
+        M map(R raw) throws CborDeserializationException;
+    }
+
+    /**
+     * @param raw    views
+     * @param mapper what turns one into a model
+     * @return the models, in order
+     * @throws CborDeserializationException if the mapper rejects a view
+     */
+    public static <R, M> List<M> mapAll(List<R> raw, Mapper<R, M> mapper) throws CborDeserializationException {
+        List<M> models = new ArrayList<>(raw.size());
+        for (R item : raw)
+            models.add(mapper.map(item));
+        return models;
     }
 
     /**
@@ -61,12 +87,12 @@ public final class RawModels {
         if (script.type() == 0) {
             if (script.span().majorType() != 4)
                 throw new CborDeserializationException("Expected a native script at offset " + script.span().offset());
-            return NativeScript.deserialize((Array) CborSerializationUtil.deserialize(script.span().bytes()));
+            return NativeScript.deserialize((Array) CborSerializationUtil.deserialize(script.span()));
         }
         if (script.span().majorType() != 2)
             throw new CborDeserializationException(
                     "Expected a Plutus script byte string at offset " + script.span().offset());
-        ByteString bytes = (ByteString) CborSerializationUtil.deserialize(script.span().bytes());
+        ByteString bytes = (ByteString) CborSerializationUtil.deserialize(script.span());
         switch (script.type()) {
             case 1:
                 return PlutusV1Script.deserialize(bytes);
@@ -78,20 +104,26 @@ public final class RawModels {
     }
 
     /**
-     * Encodes a model decoder's item for the reader (ADR 0003 D7). Encoding facts are already lost in a tree, and the
-     * models do not use them.
+     * Encodes a model decoder's item for the reader (ADR 0003 D7).
      *
      * @param item a decoded item
      * @return the item as a span, keeping map order
      * @throws CborRuntimeException if the item cannot be encoded
      */
     public static CborSpan span(DataItem item) {
-        Objects.requireNonNull(item);
-        try {
-            return CborSpan.of(CborSerializationUtil.serialize(item, false));
-        } catch (CborException e) {
-            throw new CborRuntimeException("Cbor serialization error", e);
-        }
+        return CborSerializationUtil.span(Objects.requireNonNull(item));
+    }
+
+    /**
+     * Decodes the metadata. The model keeps one entry per map key, and re-encoding it may give other bytes.
+     *
+     * @param metadata the metadata as received, a map
+     * @return the metadata
+     * @throws com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException if a value is not a
+     *                                                                                         metadatum
+     */
+    public static CBORMetadata toMetadata(CborSpan metadata) {
+        return CBORMetadata.deserialize((Map) CborSerializationUtil.deserialize(metadata));
     }
 
     /**

@@ -42,8 +42,9 @@ import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.cre
 @NoArgsConstructor
 @Builder
 public class TransactionBody {
-    // The era of these fields' meanings: key 14 is the required signers, and not what it means after Conway
-    private static final Era READ_IN = Era.Conway;
+    // The era of the meanings of a transaction's fields: key 14 is the required signers, and not what it means after
+    // Conway
+    static final Era READ_IN = Era.Conway;
 
     @Builder.Default
     private List<TransactionInput> inputs = new UniqueList<>();

@@ -1,11 +1,20 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
 import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.transaction.spec.AuxiliaryData;
+import com.bloxbean.cardano.client.transaction.spec.BootstrapWitness;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
+import com.bloxbean.cardano.client.transaction.spec.VkeyWitness;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.RegCert;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
@@ -15,6 +24,7 @@ import com.bloxbean.cardano.client.transaction.util.RealCborFixturesAccess;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static com.bloxbean.cardano.client.util.HexUtil.decodeHexString;
 import static com.bloxbean.cardano.client.util.HexUtil.encodeHexString;
@@ -78,6 +88,8 @@ final class RawViewDepthFixtures {
                 decodeHexString("8307" + "8200581c" + KEY_HASH + deepCoin));
         check(((RegCert) Certificate.deserialize(certificate)).getCoin() == null, "certificate: a deep item at a coin");
 
+        witnessSetAndAuxModels();
+
         String[][] metadata = {
                 {"metadata lists (16,250 levels)", "a100" + "81".repeat(16_250) + "00"},
                 {"metadata maps (8,000 levels)", "a100" + "a100".repeat(8_000) + "00"},
@@ -87,6 +99,86 @@ final class RawViewDepthFixtures {
             tx = tx(BODY, "a0", fixture[1]);
             check(Arrays.equals(tx.auxDataHash().orElseThrow(), hash256(fixture[1])), fixture[0] + ": aux data hash");
         }
+    }
+
+    // The mappers and the overloads that re-encode a tree (ADR 0003 D7), at every position of unbounded nesting: what
+    // they cannot read is rejected as an exception.
+    private static void witnessSetAndAuxModels() throws Exception {
+        String list = "81".repeat(16_000) + "00";
+        String map = "a100".repeat(8_000) + "00";
+        String script = "820181".repeat(5_300) + SIG;
+        String units = "820000";
+        String keyedData = "a10581" + "8400" + "00" + list + units;
+        String entryData = "a105a1" + "820000" + "82" + list + units;
+
+        checkModel(BODY, keyedData, "f6", tx -> tx.getWitnessSet().getRedeemers().size() == 1);
+        checkModel(BODY, entryData, "f6", tx -> tx.getWitnessSet().getRedeemers().size() == 1);
+        checkModel(BODY, "a10481" + list, "f6", tx -> tx.getWitnessSet().getPlutusDataList().size() == 1);
+        checkModel(BODY, "a10181" + script, "f6", tx -> tx.getWitnessSet().getNativeScripts().size() == 1);
+        checkModel(BODY, "a0", "a100" + list, tx -> tx.getAuxiliaryData() != null);
+        checkModel(BODY, "a0", "82" + "a100" + map + "80", tx -> tx.getAuxiliaryData() != null);
+        checkModel(BODY, "a0", "82" + "a0" + "81" + script, tx -> tx.getAuxiliaryData().getNativeScripts().size() == 1);
+        checkModel(BODY, "a0", "d90103a1" + "00" + "a100" + list, tx -> tx.getAuxiliaryData() != null);
+        checkModel(BODY, "a0", "d90103a1" + "0181" + script,
+                tx -> tx.getAuxiliaryData().getNativeScripts().size() == 1);
+
+        for (String witnesses : new String[]{"a1" + "00" + list, "a1" + "0081" + list, "a1" + "0281" + list,
+                "a1" + "0381" + list, "a1" + "0681" + list, "a1" + "0781" + list,
+                "a1" + "05a1" + list + units, "a1" + "0581" + list, "a10581" + "84" + list + "00" + "00" + units,
+                "a10581" + "84" + "00" + "00" + "00" + list, "a105a1" + "820000" + list}) {
+            rejectsModel(BODY, witnesses, "f6");
+            rejectsTree(() -> TransactionWitnessSet.deserialize((Map) item(witnesses)));
+        }
+        for (String aux : new String[]{list, "82" + list + "80", "82" + "a0" + list, "d90103a1" + "00" + list,
+                "d90103a1" + "01" + list, "d90103a1" + "0281" + list})
+            rejectsModel(BODY, "a0", aux);
+
+        check(TransactionWitnessSet.deserialize((Map) item(keyedData)).getRedeemers().size() == 1, "witness set tree");
+        check(TransactionWitnessSet.deserialize((Map) item("a10181" + script)).getNativeScripts().size() == 1,
+                "witness set tree: native script");
+        check(AuxiliaryData.deserialize((Map) item("a100" + list)).getMetadata() != null, "aux data tree: map");
+        check(AuxiliaryData.deserialize((Array) item("82" + "a0" + "81" + script)).getNativeScripts().size() == 1,
+                "aux data tree: array");
+        check(AuxiliaryData.deserialize((Map) item("d90103a1" + "0181" + script)).getNativeScripts().size() == 1,
+                "aux data tree: keyed");
+        check(Redeemer.deserializePreConway((Array) item("8400" + "00" + list + units)).getIndex().signum() == 0,
+                "redeemer tree: array");
+        check(Redeemer.deserialize((Array) item("820000"), (Array) item("82" + list + units)).getData() != null,
+                "redeemer tree: map");
+        rejectsTree(() -> Redeemer.deserialize((Array) item("82" + list + "00"), (Array) item("82" + "00" + units)));
+        rejectsTree(() -> ExUnits.deserialize((Array) item("82" + list + "00")));
+        rejectsTree(() -> VkeyWitness.deserialize((Array) item("82" + list + "40")));
+        rejectsTree(() -> BootstrapWitness.deserialize((Array) item("84" + list + "40" + "40" + "40")));
+    }
+
+    private static DataItem item(String hex) {
+        return CborSerializationUtil.deserialize(decodeHexString(hex));
+    }
+
+    private static void checkModel(String body, String witnesses, String aux, Predicate<Transaction> holds)
+            throws Exception {
+        check(holds.test(Transaction.deserialize(decodeHexString("84" + body + witnesses + "f5" + aux))),
+                "model of " + witnesses.substring(0, Math.min(16, witnesses.length())) + " / "
+                        + aux.substring(0, Math.min(16, aux.length())));
+    }
+
+    private static void rejectsModel(String body, String witnesses, String aux) {
+        rejectsTree(() -> Transaction.deserialize(decodeHexString("84" + body + witnesses + "f5" + aux)));
+    }
+
+    private interface Decode {
+        Object run() throws Exception;
+    }
+
+    // Rejected with an ordinary exception: a stack overflow is an Error, and fails the test.
+    private static void rejectsTree(Decode decode) {
+        boolean rejected = false;
+        try {
+            decode.run();
+        } catch (Exception e) {
+            rejected = true;
+        }
+        check(rejected, "a deep value is rejected");
     }
 
     // The real trigger: its TxId, its script's hash as on chain, evaluation as the ledger decided, and its block's body hash.

@@ -1,18 +1,16 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.raw.RawRedeemer;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.*;
 
 import java.math.BigInteger;
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 @Data
 @AllArgsConstructor
@@ -90,79 +88,34 @@ public class Redeemer {
     }
 
     public static Redeemer deserializePreConway(Array redeemerDI) throws CborDeserializationException {
-        List<DataItem> redeemerDIList = redeemerDI.getDataItems();
-        if (redeemerDIList == null || redeemerDIList.size() != 4)
-            throw new CborDeserializationException("Redeemer deserialization error. Invalid no of DataItems");
-
-        DataItem tagDI = redeemerDIList.get(0);
-        DataItem indexDI = redeemerDIList.get(1);
-        DataItem dataDI = redeemerDIList.get(2);
-        DataItem exUnitDI = redeemerDIList.get(3);
-
-        Redeemer redeemer = new Redeemer();
-
-        //tag
-        int tagValue = toUnsignedInt(tagDI);
-        if (tagValue == 0) {
-            redeemer.setTag(RedeemerTag.Spend);
-        } else if (tagValue == 1) {
-            redeemer.setTag(RedeemerTag.Mint);
-        } else if (tagValue == 2) {
-            redeemer.setTag(RedeemerTag.Cert);
-        } else if (tagValue == 3) {
-            redeemer.setTag(RedeemerTag.Reward);
-        } else if (tagValue == 4) {
-            redeemer.setTag(RedeemerTag.Voting);
-        } else if (tagValue == 5) {
-            redeemer.setTag(RedeemerTag.Proposing);
+        try {
+            return from(RawRedeemer.lenient(CborSerializationUtil.span(redeemerDI)));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("Redeemer deserialization failed", e);
         }
-
-        //Index
-        redeemer.setIndex(((UnsignedInteger) indexDI).getValue());
-        redeemer.setData(PlutusData.deserialize(dataDI));
-        redeemer.setExUnits(ExUnits.deserialize((Array) exUnitDI));
-
-        return redeemer;
     }
 
     public static Redeemer deserialize(Array redeemerKey, Array redeemerValue) throws CborDeserializationException {
-        List<DataItem> redeemerKeyDIList = redeemerKey.getDataItems();
-        if (redeemerKeyDIList == null || redeemerKeyDIList.size() != 2)
-            throw new CborDeserializationException("Redeemer deserialization error. Invalid no of DataItems in key");
-
-        List<DataItem> redeemerValueDIList = definiteItems(redeemerValue, "redeemer value");
-        if (redeemerValueDIList == null || redeemerValueDIList.size() != 2)
-            throw new CborDeserializationException("Redeemer deserialization error. Invalid no of DataItems in value");
-
-        DataItem tagDI = redeemerKeyDIList.get(0);
-        DataItem indexDI = redeemerKeyDIList.get(1);
-
-        DataItem dataDI = redeemerValueDIList.get(0);
-        DataItem exUnitDI = redeemerValueDIList.get(1);
-
-        Redeemer redeemer = new Redeemer();
-
-        //tag
-        int tagValue = toUnsignedInt(tagDI);
-        if (tagValue == 0) {
-            redeemer.setTag(RedeemerTag.Spend);
-        } else if (tagValue == 1) {
-            redeemer.setTag(RedeemerTag.Mint);
-        } else if (tagValue == 2) {
-            redeemer.setTag(RedeemerTag.Cert);
-        } else if (tagValue == 3) {
-            redeemer.setTag(RedeemerTag.Reward);
-        } else if (tagValue == 4) {
-            redeemer.setTag(RedeemerTag.Voting);
-        } else if (tagValue == 5) {
-            redeemer.setTag(RedeemerTag.Proposing);
+        try {
+            return from(RawRedeemer.lenient(CborSerializationUtil.span(redeemerKey),
+                    CborSerializationUtil.span(redeemerValue)));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("Redeemer deserialization failed", e);
         }
+    }
 
-        //Index
-        redeemer.setIndex(((UnsignedInteger) indexDI).getValue());
-        redeemer.setData(PlutusData.deserialize(dataDI));
-        redeemer.setExUnits(ExUnits.deserialize((Array) exUnitDI));
-
+    /**
+     * @param raw a redeemer as received, read as {@link RawRedeemer#lenient} reads one
+     * @return the model, whose tag is null if the number is no tag's
+     * @throws CborDeserializationException if the data is not Plutus data, or the execution units are not two unsigned
+     *                                      integers in a definite array
+     */
+    public static Redeemer from(RawRedeemer raw) throws CborDeserializationException {
+        Redeemer redeemer = new Redeemer();
+        redeemer.tag = RedeemerTag.fromValue(raw.tag());
+        redeemer.index = raw.unsignedIndex();
+        redeemer.data = PlutusData.deserialize(raw.data().bytes());
+        redeemer.exUnits = ExUnits.from(raw.units());
         return redeemer;
     }
 

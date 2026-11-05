@@ -2,15 +2,15 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.transaction.raw.RawVkeyWitness;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -29,18 +29,15 @@ public class VkeyWitness {
     }
 
     public static VkeyWitness deserialize(Array vkWitness) throws CborDeserializationException {
-        List<DataItem> dataItemList = vkWitness.getDataItems();
-        if(dataItemList == null || dataItemList.size() != 2)
-            throw new CborDeserializationException("VkeyWitness deserialization error. Invalid no of DataItem");
+        try {
+            return from(RawVkeyWitness.of(RawModels.span(vkWitness)));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("VkeyWitness deserialization failed", e);
+        }
+    }
 
-        DataItem vkeyDI = dataItemList.get(0);
-        DataItem sigDI = dataItemList.get(1);
-
-        VkeyWitness vkeyWitness = new VkeyWitness();
-        vkeyWitness.setVkey(((ByteString)vkeyDI).getBytes());
-        vkeyWitness.setSignature(((ByteString)sigDI).getBytes());
-
-        return vkeyWitness;
+    static VkeyWitness from(RawVkeyWitness raw) {
+        return new VkeyWitness(raw.vkey(), raw.signature());
     }
 
     @Override
