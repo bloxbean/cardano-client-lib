@@ -1,0 +1,71 @@
+# Valid corpus samples that CCL does not yet decode and re-encode to the reference: <rule>/<sample> <how it misses>.
+# See CborCorpusConformanceTest. This list can only shrink.
+
+# protocol_param_update: keys 25-33 are not modelled (ADR 0002 D5)
+protocol_param_update/00001-573fb5fba95fe66b encoder
+protocol_param_update/00002-270151ff5dc41562 encoder
+protocol_param_update/00003-3e57977dd583a657 encoder
+protocol_param_update/00004-e7942e276804274e encoder
+protocol_param_update/00005-d6948b5f1554ca92 encoder
+protocol_param_update/00006-f4ebbd72013b66fe encoder
+protocol_param_update/00007-4b2fbbd0b1323426 encoder
+protocol_param_update/00008-6df345aeb5a5a200 encoder
+protocol_param_update/00009-f38aaacfb5173a48 encoder
+protocol_param_update/00010-f5160c776761e627 encoder
+protocol_param_update/00011-25c4b4ddb27790d2 encoder
+protocol_param_update/00012-fc78d590bcff8a13 encoder
+protocol_param_update/00013-a5247b003f741fb5 differs
+protocol_param_update/00014-19ae63910033481b differs
+
+# Map order: Haskell's order for maps keyed by reward account, credential or voter (ADR 0002 D6.1)
+gov_action/00006-ce6fe156ba134420 differs
+gov_action/00008-2ace7133fadfe0f2 differs
+gov_action/00010-f386561f56cb421d differs
+gov_action/00011-1754b5cc06e984da differs
+gov_action/00014-f4372fd2594fa930 differs
+gov_action/00016-501b828ddb597fe0 differs
+gov_action/00020-c0f1ea919ca24e98 differs
+gov_action/00024-8a94497e6589c04d differs
+gov_action/00025-42183c52b12ae5f1 differs
+gov_action/00027-50d4321119cfe97a differs
+gov_action/00028-7ab82f39a90f312a differs
+gov_action/00032-a83d0610bcc97b8a differs
+proposal_procedure/00003-324bed419ff4cae5 differs
+
+# Script references and inline datum bytes (ADR 0002 D6.2, D6.3)
+transaction_output/00005-989f3f39d68fb388 differs
+transaction_output/00011-3a09f8d306348a1d differs
+transaction_output/00012-9b736c92dff59605 differs
+transaction_output/00016-87491ec0984ca198 differs
+transaction_output/00018-2b3f9186faa8a4f2 differs
+transaction_output/00019-8c95a86564390b7d differs
+transaction_output/00024-e8063bebb125d557 differs
+datum_option/00010-5ca86a2f453f08e2 differs
+datum_option/00012-a933e70c8750ab08 differs
+datum_option/00015-d87a60cef43ac38b differs
+datum_option/00016-6bab7cd5c430b7ce differs
+datum_option/00017-a33fbfff5d422d57 differs
+datum_option/00019-26d1b8c184aa27d5 differs
+datum_option/00023-05e4fd27302e9237 differs
+datum_option/00024-e2b27c76f66283e4 differs
+datum_option/00028-17744ce3af936848 differs
+datum_option/00030-43d09c51419d756a differs
+datum_option/00031-9f913d21da22b648 differs
+datum_option/00033-69ef9764da6aee9b differs
+datum_option/00034-fafe72940d9eea9b differs
+datum_option/00035-82cd6c8d9232ed0f differs
+datum_option/00037-05fa0ec97512b141 differs
+datum_option/00039-13aaaa03487baea8 differs
+datum_option/00044-3cba00e362035d98 differs
+datum_option/00048-6f8ae5fa212ba994 differs
+datum_option/00049-83ab232e4b7c5998 differs
+datum_option/00051-df4f9921a5de76d2 differs
+datum_option/00052-94a971baabcf2815 differs
+datum_option/00053-5676c56538ba7ccd differs
+
+# Pool retirement epoch at or above 2^63 (ADR 0002 D4)
+certificate/00012-5a3c5243d9f5c89d encoder
+
+# Disputed: the dataset and production Haskell disagree, so CCL keeps rejecting these (ADR 0002 Q1)
+auxiliary_data/00003-a457defa17a4ecca rejected
+auxiliary_data/00025-756519256dadb3b0 rejected

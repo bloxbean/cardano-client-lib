@@ -12,6 +12,13 @@ dependencies {
     }
 }
 
+test {
+    // The CBOR conformance gate: the dataset is fetched by CI and never copied here. See CborCorpusConformanceTest.
+    if (project.hasProperty('cborDataset')) {
+        systemProperty 'cbor.dataset', file(project.property('cborDataset')).absolutePath
+    }
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
