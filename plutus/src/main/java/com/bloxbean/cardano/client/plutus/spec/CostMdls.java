@@ -154,7 +154,8 @@ public class CostMdls {
             for (int i = 0; i < costs.length; i++) {
                 DataItem costItem = costItems.get(i);
                 if (!(costItem instanceof Number))
-                    throw new CborDeserializationException("De-serialization failed. Invalid cost : " + costItem);
+                    throw new CborDeserializationException("De-serialization failed. Invalid cost " + i + " : a "
+                            + costItem.getMajorType() + ", not an integer");
                 BigInteger cost = ((Number) costItem).getValue();
                 if (cost.bitLength() > 63)
                     throw new CborDeserializationException("De-serialization failed. Cost out of range : " + cost);
