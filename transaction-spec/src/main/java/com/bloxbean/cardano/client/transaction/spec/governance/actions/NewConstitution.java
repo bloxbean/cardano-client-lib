@@ -1,17 +1,18 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.governance.Constitution;
+import com.bloxbean.cardano.client.transaction.raw.GovActionKind;
+import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -45,14 +46,16 @@ public class NewConstitution implements GovAction {
     }
 
     public static NewConstitution deserialize(Array govActionArray) {
-        List<DataItem> govActionDIList = govActionArray.getDataItems();
+        return from(RawGovAction.lenient(GovActionKind.NEW_CONSTITUTION, RawModels.span(govActionArray),
+                RawModels.READ_IN));
+    }
 
-        DataItem actionIdDI = govActionDIList.get(1);
-        GovActionId govActionId = GovAction.getGovActionId(actionIdDI);
-
-        Constitution constitution = Constitution.deserialize((Array) govActionDIList.get(2));
-
-        return new NewConstitution(govActionId, constitution);
+    /**
+     * @param raw a new constitution as received
+     * @return the model
+     */
+    static NewConstitution from(RawGovAction raw) {
+        return new NewConstitution(GovAction.previous(raw.previousActionId()), Constitution.from(raw.constitution()));
     }
 
 }

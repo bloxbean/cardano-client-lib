@@ -3,9 +3,11 @@ package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate;
+import com.bloxbean.cardano.client.transaction.raw.GovActionKind;
+import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -47,20 +49,18 @@ public class ParameterChangeAction implements GovAction {
         return array;
     }
 
-    @SneakyThrows
     public static GovAction deserialize(Array govActionArray) {
-        List<DataItem> govActionDIList = govActionArray.getDataItems();
-        DataItem actionIdDI = govActionDIList.get(1);
+        return from(RawGovAction.lenient(GovActionKind.PARAMETER_CHANGE, RawModels.span(govActionArray),
+                RawModels.READ_IN));
+    }
 
-        GovActionId govActionId = GovAction.getGovActionId(actionIdDI); //handles both govActionId and null
-        ProtocolParamUpdate protocolParamUpdate = ProtocolParamUpdate.deserialize(govActionDIList.get(2));
-
-        var policyHashDI = govActionDIList.get(3); //policy hash
-        byte[] policyHash = null;
-        if (policyHashDI != SimpleValue.NULL) {
-            policyHash = ((ByteString) policyHashDI).getBytes();
-        }
-
-        return new ParameterChangeAction(govActionId, protocolParamUpdate, policyHash);
+    /**
+     * @param raw a parameter change as received
+     * @return the model
+     */
+    @SneakyThrows
+    static ParameterChangeAction from(RawGovAction raw) {
+        return new ParameterChangeAction(GovAction.previous(raw.previousActionId()),
+                ProtocolParamUpdate.from(raw.protocolParamUpdate()), raw.policyHash().orElse(null));
     }
 }

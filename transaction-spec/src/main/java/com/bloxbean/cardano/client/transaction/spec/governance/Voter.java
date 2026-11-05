@@ -5,15 +5,15 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.transaction.raw.RawVoter;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Objects;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.transaction.spec.governance.VoterType.CONSTITUTIONAL_COMMITTEE_HOT_KEY_HASH;
 
 @Data
@@ -52,27 +52,26 @@ public class Voter {
     }
 
     public static Voter deserialize(Array voterArray) {
-        if (voterArray != null && voterArray.getDataItems().size() != 2)
-            throw new IllegalArgumentException("Invalid voter array. Expected 2 items. Found : "
-                    + voterArray.getDataItems().size());
+        return from(RawVoter.of(RawModels.span(voterArray)));
+    }
 
-        List<DataItem> diList = voterArray.getDataItems();
-        int key = toUnsignedInt(diList.get(0));
-        byte[] hash = ((ByteString) diList.get(1)).getBytes();
-
-        switch (key) {
-            case 0:
+    /**
+     * @param raw a voter as received
+     * @return the model
+     */
+    public static Voter from(RawVoter raw) {
+        byte[] hash = raw.hash();
+        switch (raw.kind()) {
+            case COMMITTEE_HOT_KEY_HASH:
                 return new Voter(CONSTITUTIONAL_COMMITTEE_HOT_KEY_HASH, Credential.fromKey(hash));
-            case 1:
+            case COMMITTEE_HOT_SCRIPT_HASH:
                 return new Voter(VoterType.CONSTITUTIONAL_COMMITTEE_HOT_SCRIPT_HASH, Credential.fromScript(hash));
-            case 2:
+            case DREP_KEY_HASH:
                 return new Voter(VoterType.DREP_KEY_HASH, Credential.fromKey(hash));
-            case 3:
+            case DREP_SCRIPT_HASH:
                 return new Voter(VoterType.DREP_SCRIPT_HASH, Credential.fromScript(hash));
-            case 4:
-                return new Voter(VoterType.STAKING_POOL_KEY_HASH, Credential.fromKey(hash));
             default:
-                throw new IllegalArgumentException("Invalid voter key. Expected 0,1,2,3,4. Found : " + key);
+                return new Voter(VoterType.STAKING_POOL_KEY_HASH, Credential.fromKey(hash));
         }
     }
 }

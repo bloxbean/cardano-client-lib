@@ -5,8 +5,11 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
+import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
+import com.bloxbean.cardano.client.transaction.raw.RawGovActionId;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
+import java.util.Optional;
 
 /**
  * gov_action =
@@ -24,26 +27,38 @@ public interface GovAction {
     GovActionType getType();
 
     static GovAction deserialize(Array govActionArray) {
-        DataItem fistItem = govActionArray.getDataItems().get(0);
-        int actionType = toUnsignedInt(fistItem);
-        switch (actionType) {
-            case 0:
-                return ParameterChangeAction.deserialize(govActionArray);
-            case 1:
-                return HardForkInitiationAction.deserialize(govActionArray);
-            case 2:
-                return TreasuryWithdrawalsAction.deserialize(govActionArray);
-            case 3:
-                return NoConfidence.deserialize(govActionArray);
-            case 4:
-                return UpdateCommittee.deserialize(govActionArray);
-            case 5:
-                return NewConstitution.deserialize(govActionArray);
-            case 6:
-                return new InfoAction();
+        return from(RawGovAction.lenient(RawModels.span(govActionArray), RawModels.READ_IN));
+    }
+
+    /**
+     * @param raw a governance action as received
+     * @return the model of its kind
+     */
+    static GovAction from(RawGovAction raw) {
+        switch (raw.kind()) {
+            case PARAMETER_CHANGE:
+                return ParameterChangeAction.from(raw);
+            case HARD_FORK_INITIATION:
+                return HardForkInitiationAction.from(raw);
+            case TREASURY_WITHDRAWALS:
+                return TreasuryWithdrawalsAction.from(raw);
+            case NO_CONFIDENCE:
+                return NoConfidence.from(raw);
+            case UPDATE_COMMITTEE:
+                return UpdateCommittee.from(raw);
+            case NEW_CONSTITUTION:
+                return NewConstitution.from(raw);
             default:
-                throw new IllegalArgumentException("GovAction is not a valid type : " + actionType);
+                return new InfoAction();
         }
+    }
+
+    /**
+     * @param raw the previous action's id as received, or empty
+     * @return its model, or null
+     */
+    static GovActionId previous(Optional<RawGovActionId> raw) {
+        return raw.map(GovActionId::from).orElse(null);
     }
 
     static GovActionId getGovActionId(DataItem actionIdDI) {

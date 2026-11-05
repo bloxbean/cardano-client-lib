@@ -1,14 +1,14 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.GovActionKind;
+import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
-import java.util.List;
-import java.util.Objects;
 
 /**
  * no_confidence = (3, gov_action_id / null)
@@ -36,12 +36,15 @@ public class NoConfidence implements GovAction {
     }
 
     public static GovAction deserialize(Array govActionArray) {
-        Objects.requireNonNull(govActionArray);
+        return from(RawGovAction.lenient(GovActionKind.NO_CONFIDENCE, RawModels.span(govActionArray),
+                RawModels.READ_IN));
+    }
 
-        List<DataItem> govActionDIList = govActionArray.getDataItems();
-        DataItem actionIdDI = govActionDIList.get(1);
-        GovActionId govActionId = GovAction.getGovActionId(actionIdDI);
-
-        return new NoConfidence(govActionId);
+    /**
+     * @param raw a motion of no confidence as received
+     * @return the model
+     */
+    static NoConfidence from(RawGovAction raw) {
+        return new NoConfidence(GovAction.previous(raw.previousActionId()));
     }
 }

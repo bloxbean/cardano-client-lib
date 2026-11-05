@@ -1,15 +1,16 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
-import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.SimpleValue;
+import com.bloxbean.cardano.client.transaction.raw.RawVotingProcedure;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Objects;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 /**
  * {@literal
@@ -40,21 +41,14 @@ public class VotingProcedure {
     }
 
     public static VotingProcedure deserialize(Array array) {
-        List<DataItem> diList = definiteItems(array, "voting_procedure");
-        if (diList.size() != 2)
-            throw new IllegalArgumentException("Invalid voting_procedure array. Expected 2 items. Found : "
-                    + diList.size());
+        return from(RawVotingProcedure.lenient(RawModels.span(array)));
+    }
 
-        Vote vote = Vote.deserialize((UnsignedInteger) diList.get(0));
-
-        //anchor
-        Anchor anchor;
-        if (diList.get(1) == SimpleValue.NULL) {
-            anchor = null;
-        } else {
-            anchor = Anchor.deserialize((Array) diList.get(1));
-        }
-
-        return new VotingProcedure(vote, anchor);
+    /**
+     * @param raw a voting procedure as received
+     * @return the model
+     */
+    public static VotingProcedure from(RawVotingProcedure raw) {
+        return new VotingProcedure(Vote.from(raw.vote()), RawModels.anchor(raw.anchor()));
     }
 }

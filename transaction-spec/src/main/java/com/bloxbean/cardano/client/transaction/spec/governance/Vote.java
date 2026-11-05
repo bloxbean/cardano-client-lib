@@ -27,7 +27,10 @@ public enum Vote {
      * @return
      */
     public static Vote deserialize(UnsignedInteger voteDI) {
-        int vote = toUnsignedInt(voteDI);
+        return from(toUnsignedInt(voteDI));
+    }
+
+    static Vote from(int vote) {
         switch (vote) {
             case 0:
                 return Vote.NO;

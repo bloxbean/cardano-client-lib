@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.raw.RawAuxData;
 import com.bloxbean.cardano.client.transaction.raw.RawTx;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -144,8 +145,8 @@ public class Transaction {
 
             Transaction transaction = new Transaction();
             transaction.setValid(raw.isValid());
-            transaction.setWitnessSet(TransactionWitnessSet.from(raw.witnessSet(TransactionBody.READ_IN)));
-            Optional<RawAuxData> auxiliaryData = raw.auxData(TransactionBody.READ_IN);
+            transaction.setWitnessSet(TransactionWitnessSet.from(raw.witnessSet(RawModels.READ_IN)));
+            Optional<RawAuxData> auxiliaryData = raw.auxData(RawModels.READ_IN);
             if (auxiliaryData.isPresent())
                 transaction.setAuxiliaryData(AuxiliaryData.from(auxiliaryData.get()));
             transaction.setBody(TransactionBody.from(raw));

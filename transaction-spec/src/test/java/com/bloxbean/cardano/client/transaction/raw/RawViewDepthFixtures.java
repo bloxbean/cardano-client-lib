@@ -7,10 +7,16 @@ import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.transaction.spec.AuxiliaryData;
+import com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate;
+import com.bloxbean.cardano.client.transaction.spec.Update;
+import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
+import com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
 import com.bloxbean.cardano.client.transaction.spec.BootstrapWitness;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
@@ -89,6 +95,7 @@ final class RawViewDepthFixtures {
         check(((RegCert) Certificate.deserialize(certificate)).getCoin() == null, "certificate: a deep item at a coin");
 
         witnessSetAndAuxModels();
+        governanceModels();
 
         String[][] metadata = {
                 {"metadata lists (16,250 levels)", "a100" + "81".repeat(16_250) + "00"},
@@ -149,6 +156,50 @@ final class RawViewDepthFixtures {
         rejectsTree(() -> ExUnits.deserialize((Array) item("82" + list + "00")));
         rejectsTree(() -> VkeyWitness.deserialize((Array) item("82" + list + "40")));
         rejectsTree(() -> BootstrapWitness.deserialize((Array) item("84" + list + "40" + "40" + "40")));
+    }
+
+    // The mappers of an update and of governance, and the overloads that re-encode a tree, with a deep value at each
+    // kind of position: read or rejected, never an overflow.
+    private static void governanceModels() {
+        String list = "81".repeat(16_000) + "00";
+        String map = "a100".repeat(8_000) + "00";
+        String h28 = "581c" + KEY_HASH;
+        String ra = "581d" + "e1" + KEY_HASH;
+        String anchor = "82" + "60" + "5820" + "00".repeat(32);
+        String[] actions = {"84" + "00" + list + "a0" + "f6", "84" + "00" + "f6" + map + "f6",
+                "84" + "00" + "f6" + "a1" + "00" + list + "f6", "84" + "00" + "f6" + "a1" + "12" + "a1" + "00" + "81"
+                + list + "f6", "84" + "00" + "f6" + "a1" + "0d" + "82" + "01" + list + "f6",
+                "83" + "01" + "f6" + "82" + "00" + list, "83" + "02" + "a1" + ra + list + "f6",
+                "85" + "04" + "f6" + "81" + list + "a0" + "d81e820102",
+                "85" + "04" + "f6" + "80" + "a1" + "8200" + h28 + list + "d81e820102",
+                "83" + "05" + "f6" + "82" + list + "f6"};
+        for (String action : actions) {
+            String proposal = "84" + "00" + ra + action + anchor;
+            survives(() -> Transaction.deserialize(decodeHexString("84" + "a4" + "008001800200" + "14" + "81"
+                    + proposal + "a0" + "f5" + "f6")));
+            survives(() -> ProposalProcedure.deserialize(item(proposal)));
+            survives(() -> GovAction.deserialize((Array) item(action)));
+        }
+        String[] fields = {"13" + "a1" + list + "a0", "13" + "a1" + "8200" + h28 + "a1" + map + "8200f6",
+                "13" + "a1" + "8200" + h28 + "a1" + "82" + "5820" + "00".repeat(32) + "00" + "82" + "00" + list,
+                "06" + "82" + "a1" + h28 + "a1" + "0e" + list + "00", "06" + "82" + "a0" + list, "15" + list,
+                "16" + map};
+        for (String field : fields)
+            survives(() -> Transaction.deserialize(decodeHexString("84" + "a4" + "008001800200" + field + "a0" + "f5"
+                    + "f6")));
+        survives(() -> VotingProcedures.deserialize(item("a1" + list + "a0")));
+        survives(() -> Update.deserialize(item("82" + "a1" + h28 + map + "00")));
+        survives(() -> ProtocolParamUpdate.deserialize(item("a1" + "13" + list)));
+        survives(() -> CostMdls.deserialize(item("a1" + "00" + "81" + list)));
+    }
+
+    // Read or rejected with an ordinary exception: a stack overflow is an Error, and fails the test.
+    private static void survives(Decode decode) {
+        try {
+            decode.run();
+        } catch (Exception e) {
+            // a rejection
+        }
     }
 
     private static DataItem item(String hex) {

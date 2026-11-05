@@ -2,16 +2,13 @@ package com.bloxbean.cardano.client.transaction.spec.governance;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
+import com.bloxbean.cardano.client.transaction.raw.RawConstitution;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.*;
 
-import java.util.List;
 import java.util.Objects;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toHex;
 
 /**
  * constitution =
@@ -44,21 +41,15 @@ public class Constitution {
     }
 
     public static Constitution deserialize(Array array) {
-        List<DataItem> constitutionDIList = definiteItems(array, "constitution");
+        return from(RawConstitution.lenient(RawModels.span(array)));
+    }
 
-        if (constitutionDIList.size() != 2)
-            throw new IllegalArgumentException("Invalid constitution array. Expected 2 items. Found : "
-                    + constitutionDIList.size());
-
-        Anchor anchor = Anchor.deserialize((Array) constitutionDIList.get(0));
-
-        DataItem scriptHashDI = constitutionDIList.get(1);
-        String scriptHash;
-        if (scriptHashDI == SimpleValue.NULL)
-            scriptHash = null;
-        else
-            scriptHash = toHex(scriptHashDI);
-
-        return new Constitution(anchor, scriptHash);
+    /**
+     * @param raw a constitution as received
+     * @return the model
+     */
+    public static Constitution from(RawConstitution raw) {
+        Anchor anchor = RawModels.anchor(raw.anchor());
+        return new Constitution(anchor, raw.scriptHash().map(HexUtil::encodeHexString).orElse(null));
     }
 }

@@ -2,15 +2,13 @@ package com.bloxbean.cardano.client.plutus.spec;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
-import co.nstant.in.cbor.model.Number;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.raw.RawCostModels;
 
-import java.math.BigInteger;
 import java.util.Collections;
-import java.util.List;
 import java.util.TreeMap;
 
 public class CostMdls {
@@ -129,40 +127,25 @@ public class CostMdls {
     }
 
     public static CostMdls deserialize(DataItem di) throws CborDeserializationException {
-        Map map = (Map)di;
+        try {
+            return from(RawCostModels.lenient(CborSerializationUtil.span(di)));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("De-serialization failed. " + e.getMessage(), e);
+        }
+    }
 
+    /**
+     * @param raw cost models as received
+     * @return the model: a language read twice keeps the later cost model
+     * @throws CborDeserializationException if a language id is not a Word8 (cardano-ledger: {@code Map Word8 [Int64]})
+     */
+    public static CostMdls from(RawCostModels raw) throws CborDeserializationException {
         CostMdls costMdls = new CostMdls();
-        for (DataItem key: map.getKeys()) {
-            Array costModelArr;
-            BigInteger langKey;
-            if (key.getMajorType() == MajorType.BYTE_STRING ) { //Looks like Plutus V1 old format. Plz refer to serializationV1 method
-                UnsignedInteger intKey = (UnsignedInteger) CborSerializationUtil.deserialize(((ByteString)key).getBytes());
-                langKey = intKey.getValue();
-                ByteString valueBS = (ByteString) map.get(key);
-                costModelArr = (Array) CborSerializationUtil.deserialize(valueBS.getBytes());
-            } else {
-                langKey = ((UnsignedInteger)key).getValue();
-                costModelArr = (Array) map.get(key);
-            }
-
-            // A language id is a Word8 and a cost an Int64 (cardano-ledger: Map Word8 [Int64])
-            if (langKey.bitLength() > 8)
-                throw new CborDeserializationException("De-serialization failed. Invalid language key : " + langKey);
-
-            List<DataItem> costItems = CborSerializationUtil.withoutBreak(costModelArr.getDataItems());
-            long[] costs = new long[costItems.size()];
-            for (int i = 0; i < costs.length; i++) {
-                DataItem costItem = costItems.get(i);
-                if (!(costItem instanceof Number))
-                    throw new CborDeserializationException("De-serialization failed. Invalid cost " + i + " : a "
-                            + costItem.getMajorType() + ", not an integer");
-                BigInteger cost = ((Number) costItem).getValue();
-                if (cost.bitLength() > 63)
-                    throw new CborDeserializationException("De-serialization failed. Cost out of range : " + cost);
-                costs[i] = cost.longValue();
-            }
-
-            int languageId = langKey.intValue();
+        for (RawCostModels.Model model : raw.models()) {
+            int languageId = model.language();
+            if (languageId > 0xff)
+                throw new CborDeserializationException("De-serialization failed. Invalid language key : " + languageId);
+            long[] costs = model.costs();
             if (languageId == 0)
                 costMdls.add(new CostModel(Language.PLUTUS_V1, costs));
             else if (languageId == 1)
@@ -172,7 +155,6 @@ public class CostMdls {
             else
                 costMdls.unknownCostMdlsMap.put(languageId, costs);
         }
-
         return costMdls;
     }
 }

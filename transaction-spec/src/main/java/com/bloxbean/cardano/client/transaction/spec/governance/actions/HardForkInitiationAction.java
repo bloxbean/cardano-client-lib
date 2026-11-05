@@ -1,17 +1,18 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.ProtocolVersion;
+import com.bloxbean.cardano.client.transaction.raw.GovActionKind;
+import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -44,12 +45,16 @@ public class HardForkInitiationAction implements GovAction {
     }
 
     public static HardForkInitiationAction deserialize(Array govActionArray) {
-        List<DataItem> govActionDIList = govActionArray.getDataItems();
+        return from(RawGovAction.lenient(GovActionKind.HARD_FORK_INITIATION, RawModels.span(govActionArray),
+                RawModels.READ_IN));
+    }
 
-        DataItem actionIdDI = govActionDIList.get(1);
-        GovActionId govActionId = GovAction.getGovActionId(actionIdDI);
-
-        ProtocolVersion protocolVersion = ProtocolVersion.deserialize((Array) govActionDIList.get(2));
-        return new HardForkInitiationAction(govActionId, protocolVersion);
+    /**
+     * @param raw a hard fork initiation as received
+     * @return the model
+     */
+    static HardForkInitiationAction from(RawGovAction raw) {
+        return new HardForkInitiationAction(GovAction.previous(raw.previousActionId()),
+                ProtocolVersion.from(raw.protocolVersion()));
     }
 }

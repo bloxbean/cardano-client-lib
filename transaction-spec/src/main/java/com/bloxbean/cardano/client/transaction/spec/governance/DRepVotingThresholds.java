@@ -4,15 +4,15 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.UnitInterval;
+import com.bloxbean.cardano.client.transaction.raw.RawVotingThresholds;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
+import static com.bloxbean.cardano.client.transaction.raw.RawVotingThresholds.DRep;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toRationalArray;
-import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitIntervals;
 
 
 /**
@@ -23,8 +23,6 @@ import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.to
 @NoArgsConstructor
 @Builder
 public class DRepVotingThresholds {
-    private static final int SIZE = 10;
-
     private UnitInterval motionNoConfidence;
     private UnitInterval committeeNormal;
     private UnitInterval committeeNoConfidence;
@@ -42,8 +40,23 @@ public class DRepVotingThresholds {
     }
 
     public static DRepVotingThresholds deserialize(Array array) {
-        List<UnitInterval> items = toUnitIntervals(array, "drep_voting_thresholds", SIZE);
-        return new DRepVotingThresholds(items.get(0), items.get(1), items.get(2), items.get(3), items.get(4),
-                items.get(5), items.get(6), items.get(7), items.get(8), items.get(9));
+        return from(RawVotingThresholds.drep(RawModels.span(array), true));
+    }
+
+    /**
+     * @param raw the thresholds as received
+     * @return the model
+     */
+    public static DRepVotingThresholds from(RawVotingThresholds raw) {
+        return new DRepVotingThresholds(raw.get(DRep.MOTION_NO_CONFIDENCE),
+                raw.get(DRep.COMMITTEE_NORMAL),
+                raw.get(DRep.COMMITTEE_NO_CONFIDENCE),
+                raw.get(DRep.UPDATE_CONSTITUTION),
+                raw.get(DRep.HARD_FORK_INITIATION),
+                raw.get(DRep.NETWORK_GROUP),
+                raw.get(DRep.ECONOMIC_GROUP),
+                raw.get(DRep.TECHNICAL_GROUP),
+                raw.get(DRep.GOVERNANCE_GROUP),
+                raw.get(DRep.TREASURY_WITHDRAWAL));
     }
 }

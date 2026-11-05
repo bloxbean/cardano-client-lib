@@ -157,7 +157,7 @@ public class TransactionWitnessSet {
 
     public static TransactionWitnessSet deserialize(Map witnessMap) throws CborDeserializationException {
         try {
-            return from(RawWitnessSet.lenient(RawModels.span(witnessMap), TransactionBody.READ_IN));
+            return from(RawWitnessSet.lenient(RawModels.span(witnessMap), RawModels.READ_IN));
         } catch (CborRuntimeException e) {
             throw new CborDeserializationException("TransactionWitnessSet deserialization failed", e);
         }

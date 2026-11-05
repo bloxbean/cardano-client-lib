@@ -12,14 +12,19 @@ import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.Nonce;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRepVotingThresholds;
 import com.bloxbean.cardano.client.transaction.spec.governance.PoolVotingThresholds;
+import com.bloxbean.cardano.client.transaction.raw.RawCostModels;
+import com.bloxbean.cardano.client.transaction.raw.RawExUnits;
+import com.bloxbean.cardano.client.transaction.raw.RawNonce;
+import com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
 import java.math.BigInteger;
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
-import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toRational;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toRationalNumber;
-import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
 
 @Getter
 @AllArgsConstructor
@@ -293,163 +298,74 @@ public class ProtocolParamUpdate {
     }
 
     // Haskell reads these as Word32 or EpochInterval. A Long holds that whole range without using its sign.
-    private static long toWord32(DataItem item) {
-        long value = toUnsignedLong(item);
-        if (value < 0 || value > 0xffffffffL)
-            throw new CborRuntimeException("Expected an unsigned 32-bit integer, found : " + Long.toUnsignedString(value));
-        return value;
+    private static Long toWord32(OptionalLong value) {
+        if (value.isEmpty())
+            return null;
+        long word = value.getAsLong();
+        if (word < 0 || word > 0xffffffffL)
+            throw new CborRuntimeException("Expected an unsigned 32-bit integer, found : "
+                    + Long.toUnsignedString(word));
+        return word;
+    }
+
+    private static Integer orNull(OptionalInt value) {
+        return value.isPresent() ? value.getAsInt() : null;
+    }
+
+    private static Rational toRational(Optional<UnitInterval> value) {
+        return value.map(interval -> new Rational(interval.getNumerator(), interval.getDenominator())).orElse(null);
     }
 
     public static ProtocolParamUpdate deserialize(DataItem din) throws CborDeserializationException {
-        Map map = (Map) din;
+        return from(RawProtocolParamUpdate.lenient(RawModels.span(din), RawModels.READ_IN));
+    }
 
-        DataItem itemDI = map.get(new UnsignedInteger(0));
-        BigInteger minFeeA = itemDI != null? getBigInteger(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(1));
-        BigInteger minFeeB = itemDI != null? getBigInteger(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(2));
-        Long maxBlockSize = itemDI != null? toWord32(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(3));
-        Long maxTxSize = itemDI != null? toWord32(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(4));
-        Integer maxBlockHeaderSize = itemDI != null? toUnsignedInt(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(5));
-        BigInteger keyDeposit = itemDI != null? getBigInteger(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(6));
-        BigInteger poolDeposit = itemDI != null? getBigInteger(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(7));
-        Long maxEpoch = itemDI != null? toWord32(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(8));
-        Integer nOpt = itemDI != null? toUnsignedInt(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(9));
-        Rational poolPledgeInfluence = itemDI != null? toRational((RationalNumber) itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(10));
-        UnitInterval expansionRate = itemDI != null? toUnitInterval((RationalNumber) itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(11));
-        UnitInterval treasuryGrowthRate = itemDI != null? toUnitInterval((RationalNumber) itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(12));
-        UnitInterval decentralizationParam = itemDI != null? toUnitInterval((RationalNumber) itemDI): null;
-
-//      $nonce /= [ 0 // 1, bytes .size 32 ]
-        itemDI = map.get(new UnsignedInteger(13)); //Removed
-        Nonce extraEntropy = itemDI != null? Nonce.deserialize(itemDI): null;
-
-        ProtocolVersion protocolVersion = null;
-        itemDI = map.get(new UnsignedInteger(14));
-        if (itemDI != null)
-            protocolVersion = ProtocolVersion.deserialize((Array) itemDI);
-
-        itemDI = map.get(new UnsignedInteger(15)); //Removed
-        BigInteger minUtxo = itemDI != null? getBigInteger(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(16));
-        BigInteger minPoolCost = itemDI != null? getBigInteger(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(17));
-        BigInteger adaPerUtxoBytes = itemDI != null? getBigInteger(itemDI): null;
-
-        //CostModels
-        itemDI = map.get(new UnsignedInteger(18));
-        CostMdls costMdls = itemDI != null? CostMdls.deserialize(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(19));
-        ExUnitPrices executionCosts = itemDI != null? ExUnitPrices.deserialize(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(20));
-        ExUnits maxTxExUnits = itemDI != null? ExUnits.deserialize((Array)itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(21));
-        ExUnits maxBlockExUnits = itemDI != null? ExUnits.deserialize((Array)itemDI) : null;
-
-
-        itemDI = map.get(new UnsignedInteger(22));
-        Long maxValueSize = itemDI != null? toWord32(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(23));
-        Integer collateralPercent = itemDI != null? toUnsignedInt(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(24));
-        Integer maxCollateralPercent = itemDI != null? toUnsignedInt(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(25));
-        PoolVotingThresholds poolVotingThresholds = itemDI != null
-                ? PoolVotingThresholds.deserialize((Array) itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(26));
-        DRepVotingThresholds drepVotingThresholds = itemDI != null
-                ? DRepVotingThresholds.deserialize((Array) itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(27));
-        Integer committeeMinSize = itemDI != null? toUnsignedInt(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(28));
-        Long committeeMaxTermLength = itemDI != null? toWord32(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(29));
-        Long govActionLifetime = itemDI != null? toWord32(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(30));
-        BigInteger govActionDeposit = itemDI != null? getBigInteger(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(31));
-        BigInteger drepDeposit = itemDI != null? getBigInteger(itemDI): null;
-
-        itemDI = map.get(new UnsignedInteger(32));
-        Long drepActivity = itemDI != null? toWord32(itemDI) : null;
-
-        itemDI = map.get(new UnsignedInteger(33));
-        Rational minFeeRefScriptCostPerByte = itemDI != null? toRational((RationalNumber) itemDI): null;
-
-        ProtocolParamUpdate protocolParamUpdate = ProtocolParamUpdate.builder()
-                .minFeeA(minFeeA)
-                .minFeeB(minFeeB)
-                .maxBlockSizeLong(maxBlockSize)
-                .maxTxSizeLong(maxTxSize)
-                .maxBlockHeaderSize(maxBlockHeaderSize)
-                .keyDeposit(keyDeposit)
-                .poolDeposit(poolDeposit)
-                .maxEpochLong(maxEpoch)
-                .nOpt(nOpt)
-                .poolPledgeInfluence(poolPledgeInfluence)
-                .expansionRate(expansionRate)
-                .treasuryGrowthRate(treasuryGrowthRate)
-                .decentralisationConstant(decentralizationParam)
-                .extraEntropy(extraEntropy)
-                .protocolVersion(protocolVersion)
-                .minUtxo(minUtxo)
-                .minPoolCost(minPoolCost)
-                .adaPerUtxoByte(adaPerUtxoBytes)
-                .costModels(costMdls)
-                .executionCosts(executionCosts)
-                .maxTxExUnits(maxTxExUnits)
-                .maxBlockExUnits(maxBlockExUnits)
-                .maxValSize(maxValueSize)
-                .collateralPercent(collateralPercent)
-                .maxCollateralInputs(maxCollateralPercent)
-                .poolVotingThresholds(poolVotingThresholds)
-                .drepVotingThresholds(drepVotingThresholds)
-                .committeeMinSize(committeeMinSize)
-                .committeeMaxTermLength(committeeMaxTermLength)
-                .govActionLifetime(govActionLifetime)
-                .govActionDeposit(govActionDeposit)
-                .drepDeposit(drepDeposit)
-                .drepActivity(drepActivity)
-                .minFeeRefScriptCostPerByte(minFeeRefScriptCostPerByte)
+    /**
+     * @param raw a protocol parameter update as received
+     * @return the model, which keeps the coins per UTxO of key 17 in {@code adaPerUtxoByte} whatever the era
+     * @throws CborDeserializationException if the cost models, the execution prices or units, or the nonce are not what
+     *                                      their models accept
+     */
+    public static ProtocolParamUpdate from(RawProtocolParamUpdate raw) throws CborDeserializationException {
+        Optional<RawExUnits> maxTxExUnits = raw.maxTxExUnits();
+        Optional<RawExUnits> maxBlockExUnits = raw.maxBlockExUnits();
+        Optional<RawCostModels> costModels = raw.costModels();
+        Optional<RawNonce> extraEntropy = raw.extraEntropy();
+        return ProtocolParamUpdate.builder()
+                .minFeeA(raw.minFeeA().orElse(null))
+                .minFeeB(raw.minFeeB().orElse(null))
+                .maxBlockSizeLong(toWord32(raw.maxBlockBodySize()))
+                .maxTxSizeLong(toWord32(raw.maxTxSize()))
+                .maxBlockHeaderSize(orNull(raw.maxBlockHeaderSize()))
+                .keyDeposit(raw.keyDeposit().orElse(null))
+                .poolDeposit(raw.poolDeposit().orElse(null))
+                .maxEpochLong(toWord32(raw.maxEpoch()))
+                .nOpt(orNull(raw.nOpt()))
+                .poolPledgeInfluence(toRational(raw.poolPledgeInfluence()))
+                .expansionRate(raw.expansionRate().orElse(null))
+                .treasuryGrowthRate(raw.treasuryGrowthRate().orElse(null))
+                .decentralisationConstant(raw.decentralization().orElse(null))
+                .extraEntropy(extraEntropy.isPresent() ? Nonce.from(extraEntropy.get()) : null)
+                .protocolVersion(raw.protocolVersion().map(ProtocolVersion::from).orElse(null))
+                .minUtxo(raw.minUtxoValue().orElse(null))
+                .minPoolCost(raw.minPoolCost().orElse(null))
+                .adaPerUtxoByte(raw.coinsPerUtxoByte().orElse(null))
+                .costModels(costModels.isPresent() ? CostMdls.from(costModels.get()) : null)
+                .executionCosts(raw.executionCosts().map(ExUnitPrices::from).orElse(null))
+                .maxTxExUnits(maxTxExUnits.isPresent() ? ExUnits.from(maxTxExUnits.get()) : null)
+                .maxBlockExUnits(maxBlockExUnits.isPresent() ? ExUnits.from(maxBlockExUnits.get()) : null)
+                .maxValSize(toWord32(raw.maxValueSize()))
+                .collateralPercent(orNull(raw.collateralPercentage()))
+                .maxCollateralInputs(orNull(raw.maxCollateralInputs()))
+                .poolVotingThresholds(raw.poolVotingThresholds().map(PoolVotingThresholds::from).orElse(null))
+                .drepVotingThresholds(raw.drepVotingThresholds().map(DRepVotingThresholds::from).orElse(null))
+                .committeeMinSize(orNull(raw.minCommitteeSize()))
+                .committeeMaxTermLength(toWord32(raw.committeeTermLimit()))
+                .govActionLifetime(toWord32(raw.govActionLifetime()))
+                .govActionDeposit(raw.govActionDeposit().orElse(null))
+                .drepDeposit(raw.drepDeposit().orElse(null))
+                .drepActivity(toWord32(raw.drepInactivity()))
+                .minFeeRefScriptCostPerByte(toRational(raw.minFeeRefScriptCostPerByte()))
                 .build();
-
-        return protocolParamUpdate;
-
     }
 }

@@ -2,8 +2,6 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
-import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
-import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -15,8 +13,10 @@ import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.raw.RawInput;
 import com.bloxbean.cardano.client.transaction.raw.RawMultiAsset;
 import com.bloxbean.cardano.client.transaction.raw.RawOutput;
+import com.bloxbean.cardano.client.transaction.raw.RawProposal;
 import com.bloxbean.cardano.client.transaction.raw.RawTx;
 import com.bloxbean.cardano.client.transaction.raw.RawTxBody;
+import com.bloxbean.cardano.client.transaction.raw.RawUpdate;
 import com.bloxbean.cardano.client.transaction.raw.RawWithdrawal;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
@@ -42,10 +42,6 @@ import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.cre
 @NoArgsConstructor
 @Builder
 public class TransactionBody {
-    // The era of the meanings of a transaction's fields: key 14 is the required signers, and not what it means after
-    // Conway
-    static final Era READ_IN = Era.Conway;
-
     @Builder.Default
     private List<TransactionInput> inputs = new UniqueList<>();
 
@@ -244,14 +240,14 @@ public class TransactionBody {
 
     public static TransactionBody deserialize(Map bodyMap) throws CborDeserializationException {
         try {
-            return from(RawTxBody.lenient(RawModels.span(bodyMap), READ_IN));
+            return from(RawTxBody.lenient(RawModels.span(bodyMap), RawModels.READ_IN));
         } catch (CborRuntimeException e) {
             throw new CborDeserializationException("TransactionBody deserialization failed", e);
         }
     }
 
     static TransactionBody from(RawTx tx) throws CborDeserializationException {
-        return from(tx.body(READ_IN));
+        return from(tx.body(RawModels.READ_IN));
     }
 
     private static TransactionBody from(RawTxBody raw) throws CborDeserializationException {
@@ -273,9 +269,9 @@ public class TransactionBody {
         for (RawWithdrawal withdrawal : raw.withdrawals())
             body.getWithdrawals().add(Withdrawal.from(withdrawal));
 
-        Optional<CborSpan> update = raw.update();
+        Optional<RawUpdate> update = raw.update();
         if (update.isPresent())
-            body.setUpdate(Update.deserialize(item(update.get())));
+            body.setUpdate(Update.from(update.get()));
 
         raw.auxDataHash().ifPresent(body::setAuxiliaryDataHash);
         raw.validityStart().ifPresent(body::setValidityStartInterval);
@@ -305,16 +301,18 @@ public class TransactionBody {
         if (referenceInputs.isPresent())
             body.setReferenceInputs(inputs(referenceInputs.get()));
 
-        Optional<CborSpan> votingProcedures = raw.votingProcedures();
-        if (votingProcedures.isPresent())
-            body.setVotingProcedures(VotingProcedures.deserialize(item(votingProcedures.get())));
+        raw.votingProcedures().map(VotingProcedures::from).ifPresent(body::setVotingProcedures);
 
-        Optional<CborSpan> proposalProcedures = raw.proposalProcedures();
-        if (proposalProcedures.isPresent())
-            setProposalProcedures(body, (Array) item(proposalProcedures.get()));
+        Optional<List<RawProposal>> proposals = raw.proposalProcedures();
+        if (proposals.isPresent() && !proposals.get().isEmpty()) {
+            List<ProposalProcedure> proposalProcedures = new UniqueList<>();
+            for (RawProposal proposal : proposals.get())
+                proposalProcedures.add(ProposalProcedure.from(proposal));
+            body.setProposalProcedures(proposalProcedures);
+        }
 
-        raw.currentTreasury().ifPresent(treasury -> body.setCurrentTreasuryValue(((Number) item(treasury)).getValue()));
-        raw.donation().ifPresent(donation -> body.setDonation(((UnsignedInteger) item(donation)).getValue()));
+        raw.currentTreasury().ifPresent(body::setCurrentTreasuryValue);
+        raw.donation().ifPresent(body::setDonation);
 
         return body;
     }
@@ -337,19 +335,4 @@ public class TransactionBody {
         }
     }
 
-    private static void setProposalProcedures(TransactionBody body, Array procedures)
-            throws CborDeserializationException {
-        List<ProposalProcedure> proposalProcedures = new UniqueList<>();
-        for (DataItem procedure : procedures.getDataItems()) {
-            if (procedure != SimpleValue.BREAK)
-                proposalProcedures.add(ProposalProcedure.deserialize(procedure));
-        }
-        if (proposalProcedures.size() > 0)
-            body.setProposalProcedures(proposalProcedures);
-    }
-
-    // The fields ADR 0003's M5 has yet to move stay on the decoded tree.
-    private static DataItem item(CborSpan field) {
-        return CborSerializationUtil.deserialize(field);
-    }
 }

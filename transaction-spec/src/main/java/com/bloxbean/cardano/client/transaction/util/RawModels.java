@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
@@ -14,6 +15,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.raw.RawAnchor;
 import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
@@ -36,6 +38,11 @@ import java.util.Optional;
  * classpath (ADR 0003 Q2).
  */
 public final class RawModels {
+    /**
+     * The era the models read a transaction in, which gives its fields their meanings: body key 14 is the required
+     * signers, and not what it means after Conway, and parameter update key 17 is the coins per UTxO byte.
+     */
+    public static final Era READ_IN = Era.Conway;
 
     private RawModels() {
     }
@@ -178,6 +185,19 @@ public final class RawModels {
         if (anchor.span().isIndefinite())
             throw new CborRuntimeException("Invalid anchor: expected a definite-length array");
         return new Anchor(anchor.url(), anchor.dataHash());
+    }
+
+    /**
+     * @param rewardAccount a reward account's bytes
+     * @return its bech32 address
+     * @throws CborRuntimeException if the bytes are not a reward address
+     */
+    public static String rewardAddress(byte[] rewardAccount) {
+        try {
+            return AddressUtil.bytesToAddress(rewardAccount);
+        } catch (Exception e) {
+            throw new CborRuntimeException("Bytes cannot be converted to bech32 reward address", e);
+        }
     }
 
     /**
