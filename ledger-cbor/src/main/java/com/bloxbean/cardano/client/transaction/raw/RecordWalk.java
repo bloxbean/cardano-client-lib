@@ -5,12 +5,15 @@ import com.bloxbean.cardano.client.spec.Era;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /** The one walk of a ledger record, driven by its table. See {@link RecordSpec#walk} and {@link FormatPolicy}. */
 final class RecordWalk {
+    private static final int MAJOR_ARRAY = 4;
+    private static final int MAJOR_TAG = 6;
 
     private RecordWalk() {
     }
@@ -34,13 +37,20 @@ final class RecordWalk {
     }
 
     private static void byMajorType(RecordSpec record, CborSpan item, Era era, FormatPolicy policy) {
-        FieldSpec row = record.field(item.majorType(), era);
+        FieldSpec row = byMajorTypeRow(record, item, era);
         if (row == null)
             throw RawTx.error("A " + record.name() + " cannot be of major type " + item.majorType(), item);
-        if (row.record() != null)
+        if (row.type().container())
+            value(row, item, era, policy);
+        else if (row.record() != null)
             walk(row.record(), item, era, policy);
         else
             policy.check(row.type(), item, era);
+    }
+
+    private static FieldSpec byMajorTypeRow(RecordSpec record, CborSpan item, Era era) {
+        FieldSpec tagged = item.isTagged() ? record.field(MAJOR_TAG, era) : null;
+        return tagged != null && tagged.record().tag() == item.tag() ? tagged : record.field(item.majorType(), era);
     }
 
     private static void keyed(RecordSpec record, CborSpan container, Era era, FormatPolicy policy) {
@@ -54,7 +64,7 @@ final class RecordWalk {
             FieldSpec field = record.keyType() != null ? record.field(0, era) : field(record, integer, era);
             policy.entry(record, field, key, value, occurrence, era);
             if (record.keyType() != null)
-                policy.check(record.keyType(), key, era);
+                key(record.keyType(), key, era, policy);
             if (field != null)
                 value(field, value, era, policy);
         }
@@ -64,11 +74,29 @@ final class RecordWalk {
         }
     }
 
+    private static void key(FieldType type, CborSpan key, Era era, FormatPolicy policy) {
+        policy.check(type, key, era);
+        if (type.record() != null)
+            walk(type.record(), key, era, policy);
+    }
+
     // Keys that decode alike are one key, however they are encoded.
     private static Object decodedKey(CborSpan key, BigInteger integer) {
         if (integer != null)
             return integer;
+        if (key.majorType() == MAJOR_ARRAY && !key.isTagged())
+            return arrayKey(key);
         return key.majorType() == 2 ? RawItems.identity(key) : ByteBuffer.wrap(key.bytes());
+    }
+
+    // An array of scalars, such as a redeemer's [tag, index]; an item that is no integer is compared by its bytes.
+    private static List<Object> arrayKey(CborSpan key) {
+        List<Object> items = new ArrayList<>();
+        for (CborSpan item : key.items()) {
+            BigInteger integer = integerKey(item);
+            items.add(integer != null ? integer : ByteBuffer.wrap(item.bytes()));
+        }
+        return items;
     }
 
     /** For a caller that has listed the items of the union's value, which has told the policy it entered. */

@@ -26,11 +26,14 @@ public final class RecordSpec {
         /**
          * An item whose CBOR major type picks a row: its {@link FieldSpec#record()} if it has one, or else a value of
          * its type. Such as an output, an array or a map, or a value, a coin or an array. A policy is told of the
-         * record the row names, and not of this one. An item of another major type is one the walk cannot enter.
+         * record the row names, and not of this one. An item of another major type is one the walk cannot enter. A row
+         * with major type 6 is for an item in the tag of its {@code record}; an item in any other tag is read by the
+         * type inside.
          */
         BY_MAJOR_TYPE
     }
 
+    private static final long NO_TAG = -1;
     private static final int MAJOR_BYTES = 2;
     /** An item of a set of key hashes, for a set whose type does not say what its items are. */
     static final RecordSpec KEY_HASH = byMajorType("addr_keyhash",
@@ -42,27 +45,35 @@ public final class RecordSpec {
     private final int firstPosition;
     private final int requiredArity;
     private final FieldType keyType;
+    private final long tag;
 
     private RecordSpec(String name, Shape shape, List<FieldSpec> fields, int firstPosition) {
-        this(name, shape, fields, firstPosition, null);
+        this(name, shape, fields, firstPosition, null, NO_TAG);
     }
 
-    private RecordSpec(String name, Shape shape, List<FieldSpec> fields, int firstPosition, FieldType keyType) {
+    private RecordSpec(String name, Shape shape, List<FieldSpec> fields, int firstPosition, FieldType keyType,
+                       long tag) {
         this.name = name;
         this.shape = shape;
         this.fields = List.copyOf(fields);
         this.firstPosition = firstPosition;
         this.requiredArity = firstPosition + (int) fields.stream().filter(FieldSpec::required).count();
         this.keyType = keyType;
+        this.tag = tag;
     }
 
     static RecordSpec keyed(String name, List<FieldSpec> rows) {
         return new RecordSpec(name, Shape.KEYED, rows, 0);
     }
 
+    // A map in a tag, whose keys are the fields.
+    static RecordSpec keyed(String name, long tag, List<FieldSpec> rows) {
+        return new RecordSpec(name, Shape.KEYED, rows, 0, null, tag);
+    }
+
     // A map of like entries: a row per era range of the values' type, each with key 0.
     static RecordSpec entries(String name, FieldType keyType, FieldSpec... values) {
-        return new RecordSpec(name, Shape.KEYED, List.of(values), 0, keyType);
+        return new RecordSpec(name, Shape.KEYED, List.of(values), 0, keyType, NO_TAG);
     }
 
     // A row per major type the item may have, with the major type as its key.
@@ -130,6 +141,13 @@ public final class RecordSpec {
     }
 
     /**
+     * @return the tag a keyed record is in, or -1 if it is in none
+     */
+    public long tag() {
+        return tag;
+    }
+
+    /**
      * @param key a key, tag or position
      * @param era the era being read
      * @return the row of that key valid in the era, or else any row of that key, or null if no era has the key. A key
@@ -169,10 +187,10 @@ public final class RecordSpec {
 
     /**
      * Walks a value of this record with a policy. For each record, nested ones included: {@link FormatPolicy#enter},
-     * then per entry {@link FormatPolicy#entry}, {@link FormatPolicy#check} of a typed key if it has one, of the value
-     * if the field is known and the walk of the value if it has a table, and finally {@link FormatPolicy#missing}.
-     * Recursive types are leaves, and tables nest to a small fixed depth, so a walk is stack-safe whatever the input
-     * (ADR 0003 I9).
+     * then per entry {@link FormatPolicy#entry}, {@link FormatPolicy#check} and the walk of a typed key if it has one,
+     * of the value if the field is known and the walk of the value if it has a table, and finally
+     * {@link FormatPolicy#missing}. Recursive types are leaves, and tables nest to a small fixed depth, so a walk is
+     * stack-safe whatever the input (ADR 0003 I9).
      *
      * @param value  the record as encoded
      * @param era    the era to read it in

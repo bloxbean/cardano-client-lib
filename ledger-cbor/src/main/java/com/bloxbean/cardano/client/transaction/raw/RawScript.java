@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
 
 import java.util.List;
 
@@ -14,9 +15,22 @@ import java.util.List;
  * @param span a native script, or the byte string of a Plutus script, as encoded
  */
 public record RawScript(int type, CborSpan span) {
+    static final int NATIVE_TYPE = 0;
+    static final int PLUTUS_V1_TYPE = 1;
+    static final int PLUTUS_V2_TYPE = 2;
+    static final int PLUTUS_V3_TYPE = 3;
+
+    private static final int MAJOR_BYTES = 2;
+    private static final int MAJOR_ARRAY = 4;
+    /** An item of a list of native scripts. It is recursive, so an item is one value (ADR 0003 D6). */
+    static final RecordSpec NATIVE = RecordSpec.byMajorType("native_script",
+            FieldSpec.of(MAJOR_ARRAY, FieldType.NATIVE_SCRIPT, false, Era.Shelley, null));
+    /** An item of a list of Plutus scripts. */
+    static final RecordSpec PLUTUS = RecordSpec.byMajorType("plutus_script",
+            FieldSpec.of(MAJOR_BYTES, FieldType.PLUTUS_SCRIPT, false, Era.Alonzo, null));
 
     public RawScript {
-        if (type < 0 || type > 3)
+        if (type < NATIVE_TYPE || type > PLUTUS_V3_TYPE)
             throw new CborRuntimeException("Unknown script type " + type + " at offset " + span.offset());
     }
 
@@ -34,7 +48,7 @@ public record RawScript(int type, CborSpan span) {
      * and the Plutus script's bytes
      */
     public byte[] hash() {
-        byte[] script = type == 0 ? span.bytes() : span.byteString();
+        byte[] script = type == NATIVE_TYPE ? span.bytes() : span.byteString();
         return Blake2bUtil.blake2bHash224(BytesUtil.merge(new byte[]{(byte) type}, script));
     }
 }

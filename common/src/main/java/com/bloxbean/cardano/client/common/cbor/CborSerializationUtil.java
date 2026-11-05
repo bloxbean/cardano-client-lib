@@ -304,6 +304,22 @@ public class CborSerializationUtil {
     }
 
     /**
+     * Encodes a decoded item for a reader of spans. Encoding facts are already lost in a tree, and a model decoded from
+     * it does not use them.
+     *
+     * @param item a decoded item
+     * @return the item as a span, keeping map order
+     * @throws CborRuntimeException if the item cannot be encoded
+     */
+    public static CborSpan span(@NonNull DataItem item) {
+        try {
+            return CborSpan.of(serialize(item, false));
+        } catch (CborException e) {
+            throw new CborRuntimeException("Cbor serialization error", e);
+        }
+    }
+
+    /**
      * Rejects what {@link #deserialize(byte[])} rejects and a span reads, for a caller that reads a span in place of a
      * decoded tree and keeps what the tree accepts: tag 30 needs two integers with a denominator other than 0, and tag
      * 38 two text strings, wherever they occur in the item. Everything else decoding rejects, the walker of a span does

@@ -90,8 +90,97 @@ class RecordWalkDepthTest {
                 .isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> RawCertificate.of(span("84" + "10" + CRED + "00" + DEEP_LIST)).anchor())
                 .isInstanceOf(CborRuntimeException.class);
+        witnessAndAux();
         header();
         block();
+    }
+
+    // A deep value at each kind of table of a witness set and of aux data, on both readings of each view.
+    private static void witnessAndAux() {
+        String units = "820000";
+        for (String witnesses : java.util.List.of(
+                "a1" + "00" + DEEP_LIST, "a1" + "0081" + DEEP_LIST, "a1" + "0081" + "82" + DEEP_LIST + DEEP_MAP,
+                "a1" + "0281" + "84" + DEEP_LIST + DEEP_MAP + DEEP_LIST + DEEP_MAP, "a1" + "0181" + DEEP_NATIVE_SCRIPT,
+                "a1" + "0381" + DEEP_TAGS + "40", "a1" + "0481" + DEEP_MAP, "a1" + "05" + DEEP_LIST,
+                "a1" + "05" + DEEP_MAP, "a1" + "0581" + DEEP_LIST,
+                "a1" + "0581" + "84" + DEEP_LIST + "00" + "00" + units,
+                "a1" + "0581" + "84" + "00" + DEEP_MAP + DEEP_LIST + units,
+                "a1" + "0581" + "84" + "00" + "00" + "00" + DEEP_LIST,
+                "a1" + "0581" + "84" + "00" + "00" + "00" + "82" + DEEP_LIST + "00",
+                "a1" + "05a1" + DEEP_LIST + units, "a1" + "05a2" + DEEP_LIST + units + DEEP_MAP + units,
+                "a1" + "05a1" + "82" + "00" + DEEP_LIST + "82" + "00" + units,
+                "a1" + "05a1" + "820000" + "82" + DEEP_MAP + DEEP_LIST, DEEP_TAGS + "a1" + "05" + DEEP_TAGS + "80",
+                DEEP_TAGS + "a0")) {
+            walkOf(WitnessSetField.RECORD, witnesses);
+            read(span(witnesses));
+        }
+        for (String aux : java.util.List.of(DEEP_MAP, "a100" + DEEP_LIST, DEEP_TAGS + DEEP_MAP,
+                DEEP_TAGS + "d90103" + "a1" + "00" + DEEP_MAP, "d90103" + DEEP_TAGS + "a1" + "00" + DEEP_MAP,
+                "d90103" + "a1" + "00" + DEEP_LIST, "d90103" + "a1" + "01" + DEEP_LIST,
+                "d90103" + "a1" + "0181" + DEEP_NATIVE_SCRIPT, "d90103" + "a1" + "0281" + DEEP_LIST,
+                "d90103" + "a1" + DEEP_LIST + "00", "82" + DEEP_MAP + "81" + DEEP_NATIVE_SCRIPT,
+                "82" + DEEP_LIST + DEEP_MAP, DEEP_LIST, DEEP_TAGS + "00"))
+            readAux(span(aux));
+        assertThat(RawRedeemer.lenient(span("84" + DEEP_TAGS + "00" + DEEP_TAGS + "00" + DEEP_LIST + DEEP_MAP)).tag())
+                .isZero();
+        assertRejected(() -> RawVkeyWitness.of(span(DEEP_LIST)));
+        assertRejected(() -> RawBootstrapWitness.of(span("84" + DEEP_LIST + DEEP_MAP + "40" + "40")));
+        assertRejected(() -> RawExUnits.of(span("82" + DEEP_LIST + DEEP_MAP)));
+        assertThat(RawItems.indefiniteWhenDecoded(span(DEEP_TAGS + "9fff"))).isTrue();
+        // the transaction's own array
+        AtomicInteger calls = new AtomicInteger();
+        RawTx.walk(HexUtil.decodeHexString("84" + "a3008001800200" + "a0" + DEEP_LIST + DEEP_MAP), Era.Conway,
+                new CountingPolicy(calls));
+        assertThat(calls.get()).isPositive();
+    }
+
+    private static void walkOf(RecordSpec record, String value) {
+        AtomicInteger calls = new AtomicInteger();
+        try {
+            record.walk(span(value), Era.Conway, new CountingPolicy(calls));
+        } catch (CborRuntimeException e) {
+            // the walk could not enter a value: a rejection, as D5 says, not an overflow
+        }
+        assertThat(calls.get()).isPositive();
+    }
+
+    private static void read(CborSpan witnesses) {
+        RawWitnessSet set = RawWitnessSet.lenient(witnesses, Era.Conway);
+        byte[] tx = HexUtil.decodeHexString("84" + "a3008001800200" + HexUtil.encodeHexString(witnesses.bytes())
+                + "f5f6");
+        boolean strict = !witnesses.isTagged();
+        for (RawWitnessSet view : strict ? java.util.List.of(set, RawTx.of(tx).witnessSet(Era.Conway))
+                : java.util.List.of(set)) {
+            for (Runnable accessor : java.util.List.<Runnable>of(view::vkeyWitnesses, view::nativeScripts,
+                    view::bootstrapWitnesses, view::plutusV1Scripts, view::datums, view::redeemers,
+                    view::plutusV2Scripts, view::plutusV3Scripts, view::scripts)) {
+                try {
+                    accessor.run();
+                } catch (CborRuntimeException e) {
+                    // a rejection, not an overflow: a stack overflow is an Error and fails the test
+                }
+            }
+            try {
+                view.redeemers().ifPresent(redeemers -> redeemers.forEach(RawRedeemer::units));
+            } catch (CborRuntimeException e) {
+                // the same
+            }
+        }
+    }
+
+    private static void readAux(CborSpan aux) {
+        try {
+            RawAuxData.RECORD.walk(aux, Era.Conway, FormatPolicy.ACCEPT_ALL);
+        } catch (CborRuntimeException e) {
+            // the same
+        }
+        try {
+            RawAuxData view = RawAuxData.lenient(aux, Era.Conway);
+            view.metadata();
+            view.scripts();
+        } catch (CborRuntimeException e) {
+            // the same
+        }
     }
 
     private static void header() {

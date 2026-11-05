@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
+import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap;
@@ -23,6 +25,7 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  */
 public final class RawItems {
     private static final long RATIONAL = 30;
+    private static final long LANGUAGE_STRING = 38;
 
     private RawItems() {
     }
@@ -32,6 +35,32 @@ public final class RawItems {
         while (content.isTagged())
             content = content.untag();
         return content;
+    }
+
+    /** @return the tag closest to the item, which says what a decoded tree makes of it; -1 if it has none */
+    static long innermostTag(CborSpan item) {
+        long tag = -1;
+        CborSpan content = item;
+        while (content.isTagged()) {
+            tag = content.tag();
+            content = content.untag();
+        }
+        return tag;
+    }
+
+    /**
+     * @return whether a decoded tree marks this item as indefinite: it does not for an array in tag 30 or 38, which it
+     * turns into a new, definite item
+     */
+    public static boolean indefiniteWhenDecoded(CborSpan item) {
+        CborSpan content = item;
+        while (content.isTagged()) {
+            long tag = content.tag();
+            if (tag == RATIONAL || tag == LANGUAGE_STRING)
+                return false;
+            content = content.untag();
+        }
+        return content.isIndefinite();
     }
 
     public static List<CborSpan> array(CborSpan item, String what) {
@@ -104,6 +133,25 @@ public final class RawItems {
         for (Map.Entry<CborSpan, CborSpan> entry : entries)
             distinct.put(identity(entry.getKey()), entry);
         return new ArrayList<>(distinct.values());
+    }
+
+    /**
+     * The entries of a map with keys of any kind, one per key, as {@link #distinct} has them. Keys are equal as a
+     * decoded map's are, which takes decoding them.
+     */
+    static List<Map.Entry<CborSpan, CborSpan>> distinctKeys(CborSpan item, String what) {
+        List<Map.Entry<CborSpan, CborSpan>> entries = map(item, what);
+        if (entries.size() < 2)
+            return entries;
+        EncodedKeyMap decoded = new EncodedKeyMap(entries.size());
+        for (int i = 0; i < entries.size(); i++)
+            decoded.put(CborSerializationUtil.deserialize(entries.get(i).getKey()), new UnsignedInteger(i));
+        if (!decoded.hasRepeatedKey())
+            return entries;
+        List<Map.Entry<CborSpan, CborSpan>> distinct = new ArrayList<>(decoded.getValues().size());
+        for (DataItem index : decoded.getValues())
+            distinct.add(entries.get(((UnsignedInteger) index).getValue().intValue()));
+        return distinct;
     }
 
     // What makes two byte string keys equal.

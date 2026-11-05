@@ -22,7 +22,8 @@ import java.util.Optional;
  * Accepts the submission form {@code [body, witnesses, aux / null]} (any era; valid) and the Alonzo form
  * {@code [body, witnesses, isValid, aux / null]}. A view is era-agnostic: records are read by key, unknown keys are passed
  * through, tag 258 is accepted on sets, and both redeemer forms and every aux data shape are read. Only
- * {@link #scriptDataHash(Era, byte[])} and the typed fields of {@link #body(Era)} depend on the era. A record with a
+ * {@link #scriptDataHash(Era, byte[])} and the typed fields of {@link #body(Era)}, {@link #witnessSet(Era)} and
+ * {@link #auxData(Era)} depend on the era. A record with a
  * repeated key is rejected, as the ledger rejects it: the body, the witness set and the tag-259 aux data when the view
  * is created, and an output in map form (and the collateral return) when it is read with {@link #outputs()} or
  * {@link #collateralReturn()}.
@@ -32,8 +33,6 @@ import java.util.Optional;
  * Byron transactions are not supported.
  */
 public final class RawTx {
-    private static final int NATIVE = 0;
-
     private final CborSpan span;
     private final CborSpan body;
     private final CborSpan witnessSet;
@@ -52,7 +51,8 @@ public final class RawTx {
         this.bodyFields = record(body, "transaction body");
         this.witnessFields = record(witnessSet, "witness set");
         this.auxData = auxData;
-        this.auxFields = auxData != null && auxData.tag() == 259 ? record(auxData.untag(), "aux data") : null;
+        this.auxFields = auxData != null && auxData.tag() == AuxDataField.RECORD.tag()
+                ? record(auxData.untag(), "aux data") : null;
         this.valid = valid;
         this.validityFlag = validityFlag;
         this.lenient = false;
@@ -87,8 +87,8 @@ public final class RawTx {
     /**
      * Reads a transaction as the models always have (ADR 0003 D7): a tag on the transaction or on a record is looked
      * through, and a key of any kind may not repeat in the body. The witness set and the aux data are read when they
-     * are asked for. What decoding the body to a tree rejects is rejected here too, so a model mapped from this view
-     * accepts what the tree did.
+     * are asked for. What decoding the body to a tree rejects is rejected here too, and for the witness set and the aux
+     * data when they are read, so a model mapped from this view accepts what the tree did.
      *
      * @param txCbor a transaction, exactly one CBOR item
      * @return the view
@@ -98,14 +98,16 @@ public final class RawTx {
     public static RawTx lenient(byte[] txCbor) {
         CborSpan tx = CborSpan.of(txCbor);
         List<CborSpan> items = checkedItems(RawItems.array(tx, "transaction"), tx);
-        // what is read from spans here: the witness set and the aux data are decoded when they are read
+        // what is read from spans here: the witness set and the aux data are checked when they are read
         CborSerializationUtil.checkTags(tx.isTagged() ? tx : items.get(0));
         return new RawTx(tx, items);
     }
 
     /**
-     * Walks the body and the witness set with a policy (ADR 0003 D6). A view rejects a record that repeats a key when
-     * it is created, and a policy must see that entry, so a walk takes the bytes.
+     * Walks the transaction with a policy (ADR 0003 D6): its own array, the body, the witness set, the validity flag
+     * and the aux data. A view rejects a record that repeats a key when it is created, and a policy must see that
+     * entry, so a walk takes the bytes. The form {@code [body, witnesses, aux / null]} has its rows to Mary, and the
+     * form with the flag from Alonzo on: outside them, {@link FieldSpec#validIn(Era)} tells the policy.
      *
      * @param txCbor a transaction, exactly one CBOR item
      * @param era    the era to read it in
@@ -114,9 +116,22 @@ public final class RawTx {
      *                              policy accepts a value the walk cannot enter
      */
     public static void walk(byte[] txCbor, Era era, FormatPolicy policy) {
-        List<CborSpan> items = items(CborSpan.of(txCbor));
-        TxBodyField.RECORD.walk(items.get(0), era, policy);
-        WitnessSetField.RECORD.walk(items.get(1), era, policy);
+        CborSpan tx = CborSpan.of(txCbor);
+        (items(tx).size() == Forms.WITHOUT_FLAG.arity() ? Forms.WITHOUT_FLAG : Forms.WITH_FLAG).walk(tx, era, policy);
+    }
+
+    // The tables of the transaction's own array. A holder of its own, so that nothing reading a table initializes
+    // RawTx.
+    private static final class Forms {
+        static final RecordSpec WITHOUT_FLAG = RecordSpec.positional("pre_alonzo_transaction", List.of(
+                FieldSpec.of(0, FieldType.TRANSACTION_BODY, true, Era.Shelley, Era.Mary, TxBodyField.RECORD),
+                FieldSpec.of(1, FieldType.TRANSACTION_WITNESS_SET, true, Era.Shelley, Era.Mary, WitnessSetField.RECORD),
+                FieldSpec.of(2, FieldType.OPTIONAL_AUXILIARY_DATA, true, Era.Shelley, Era.Mary)));
+        static final RecordSpec WITH_FLAG = RecordSpec.positional("transaction", List.of(
+                FieldSpec.of(0, FieldType.TRANSACTION_BODY, true, Era.Alonzo, null, TxBodyField.RECORD),
+                FieldSpec.of(1, FieldType.TRANSACTION_WITNESS_SET, true, Era.Alonzo, null, WitnessSetField.RECORD),
+                FieldSpec.of(2, FieldType.BOOL, true, Era.Alonzo, null),
+                FieldSpec.of(3, FieldType.OPTIONAL_AUXILIARY_DATA, true, Era.Alonzo, null)));
     }
 
     // The items of a transaction: [body, witnesses, aux / null] or [body, witnesses, isValid, aux / null].
@@ -233,11 +248,40 @@ public final class RawTx {
     }
 
     /**
+     * @param era the era to read the witness set in
+     * @return the witness set's typed fields
+     * @throws IllegalArgumentException if the era is null
+     * @throws CborRuntimeException     if this view is {@link #lenient(byte[])} and the witness set is not a map that
+     *                                  repeats no key
+     */
+    public RawWitnessSet witnessSet(Era era) {
+        if (!lenient)
+            return new RawWitnessSet(witnessSet, witnessFields, era, false);
+        CborSerializationUtil.checkTags(witnessSet);
+        return RawWitnessSet.lenient(witnessSet, era);
+    }
+
+    /**
      * @return the aux data in any shape (a metadata map, {@code [metadata, scripts]} or {@code #6.259({...})}), or empty
      * if it is null
      */
     public Optional<CborSpan> auxData() {
         return Optional.ofNullable(auxData);
+    }
+
+    /**
+     * @param era the era to read the aux data in
+     * @return the aux data's typed fields, or empty if it is null
+     * @throws IllegalArgumentException if the era is null
+     * @throws CborRuntimeException     if it is none of the forms
+     */
+    public Optional<RawAuxData> auxData(Era era) {
+        if (auxData == null)
+            return Optional.empty();
+        if (!lenient)
+            return Optional.of(RawAuxData.of(auxData, auxFields, era));
+        CborSerializationUtil.checkTags(auxData);
+        return Optional.of(RawAuxData.lenient(auxData, era));
     }
 
     /**
@@ -285,8 +329,8 @@ public final class RawTx {
         if (era == null || languageViews == null)
             throw new IllegalArgumentException("era and languageViews are required (a0 for no language views)");
         byte[] absentRedeemers = EraSpec.of(era).absentRedeemers();
-        Optional<CborSpan> redeemers = witnessField(5);
-        Optional<CborSpan> datums = witnessField(4);
+        Optional<CborSpan> redeemers = witnessField(WitnessSetField.REDEEMERS_FIELD.key());
+        Optional<CborSpan> datums = witnessField(WitnessSetField.PLUTUS_DATA.key());
         boolean noRedeemers = redeemers.map(field -> field.size() == 0).orElse(true);
         boolean noDatums = datums.map(field -> field.untagIf(258).size() == 0).orElse(true);
         boolean noLanguages = CborSpan.of(languageViews).size() == 0;
@@ -313,6 +357,10 @@ public final class RawTx {
      * @return the field as encoded, or empty if absent
      */
     public Optional<CborSpan> witnessField(int key) {
+        return witnessField((long) key);
+    }
+
+    private Optional<CborSpan> witnessField(long key) {
         return field(witnessFields != null ? witnessFields : RawItems.map(witnessSet, "witness set"), key);
     }
 
@@ -336,9 +384,7 @@ public final class RawTx {
      * @return the witness datums (witness field 4), every entry in encoded order
      */
     public List<RawDatum> witnessDatums() {
-        List<RawDatum> datums = new ArrayList<>();
-        witnessSetItems(4).forEach(datum -> datums.add(new RawDatum(datum)));
-        return datums;
+        return newestWitnessSet().datums().orElse(List.of());
     }
 
     /**
@@ -346,39 +392,19 @@ public final class RawTx {
      * repeated key kept (the ledger keeps the last value of a repeated key)
      */
     public List<RawRedeemer> redeemers() {
-        List<RawRedeemer> redeemers = new ArrayList<>();
-        Optional<CborSpan> field = witnessField(5);
-        if (field.isEmpty())
-            return redeemers;
-        if (field.get().majorType() == 4) {
-            for (CborSpan redeemer : field.get().items()) {
-                List<CborSpan> items = redeemer.items();
-                if (items.size() != 4)
-                    throw error("A redeemer has 4 items, found " + items.size(), redeemer);
-                redeemers.add(new RawRedeemer(smallInt(items.get(0)), items.get(1).asLong(), items.get(2), items.get(3)));
-            }
-        } else {
-            for (Map.Entry<CborSpan, CborSpan> entry : field.get().entries()) {
-                List<CborSpan> key = entry.getKey().items();
-                List<CborSpan> value = entry.getValue().items();
-                if (key.size() != 2 || value.size() != 2)
-                    throw error("A redeemer map entry is [tag, index] => [data, ex_units]", entry.getKey());
-                redeemers.add(new RawRedeemer(smallInt(key.get(0)), key.get(1).asLong(), value.get(0), value.get(1)));
-            }
-        }
-        return redeemers;
+        return newestWitnessSet().redeemers().orElse(List.of());
     }
 
     /**
      * @return the witness scripts: native (witness field 1), Plutus V1 (3), V2 (6) and V3 (7)
      */
     public List<RawScript> scripts() {
-        List<RawScript> scripts = new ArrayList<>();
-        witnessSetItems(1).forEach(script -> scripts.add(new RawScript(NATIVE, script)));
-        witnessSetItems(3).forEach(script -> scripts.add(new RawScript(1, script)));
-        witnessSetItems(6).forEach(script -> scripts.add(new RawScript(2, script)));
-        witnessSetItems(7).forEach(script -> scripts.add(new RawScript(3, script)));
-        return scripts;
+        return newestWitnessSet().scripts();
+    }
+
+    // For the accessors that take no era. No key of a witness set has changed its meaning yet.
+    private RawWitnessSet newestWitnessSet() {
+        return witnessSet(EraSpec.newest());
     }
 
     /**
@@ -386,39 +412,21 @@ public final class RawTx {
      * {@code #6.259({...})} (keys 1-4); none for a metadata map
      */
     public List<RawScript> auxScripts() {
-        List<RawScript> scripts = new ArrayList<>();
-        if (auxData == null || (auxData.majorType() == 5 && auxData.tag() == -1))
-            return scripts;
-        if (auxData.majorType() == 4 && auxData.tag() == -1) {
-            List<CborSpan> items = auxData.items();
-            if (items.size() != 2)
-                throw error("Aux data [metadata, scripts] has 2 items, found " + items.size(), auxData);
-            items.get(1).items().forEach(script -> scripts.add(new RawScript(NATIVE, script)));
-            return scripts;
-        }
-        if (auxData.tag() != 259)
-            throw error("Unknown aux data shape", auxData);
-        List<Map.Entry<CborSpan, CborSpan>> fields = auxFields != null ? auxFields : RawItems.map(auxData, "aux data");
-        for (int key = 1; key <= 4; key++) {
-            int type = key - 1;
-            field(fields, key).ifPresent(
-                    list -> list.items().forEach(script -> scripts.add(new RawScript(type, script))));
-        }
-        return scripts;
+        return auxData(EraSpec.newest()).map(RawAuxData::scripts).orElse(List.of());
     }
 
     /**
      * @return the vkey witnesses {@code [vkey, signature]} (witness field 0)
      */
     public List<CborSpan> vkeyWitnesses() {
-        return witnessSetItems(0);
+        return witnessSetItems((int) WitnessSetField.VKEY_WITNESSES.key());
     }
 
     /**
      * @return the bootstrap witnesses {@code [vkey, signature, chain_code, attributes]} (witness field 2)
      */
     public List<CborSpan> bootstrapWitnesses() {
-        return witnessSetItems(2);
+        return witnessSetItems((int) WitnessSetField.BOOTSTRAP_WITNESSES.key());
     }
 
     /**

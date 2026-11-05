@@ -28,6 +28,7 @@ public enum FieldType {
     OPTIONAL_ANCHOR(Shape.NULLABLE),
     OPTIONAL_POOL_METADATA(Shape.NULLABLE),
     OPTIONAL_HASH32(Shape.NULLABLE),
+    OPTIONAL_AUXILIARY_DATA(Shape.NULLABLE),
     /** A member of a tagged union, as encoded. */
     MEMBER,
     CREDENTIAL,
@@ -62,7 +63,27 @@ public enum FieldType {
     INT64,
     NONZERO_INT64,
     UPDATE,
+    BOOL,
+    TRANSACTION_BODY,
+    TRANSACTION_WITNESS_SET,
     REDEEMERS,
+    REDEEMER_TAG,
+    /** The key of the map form of redeemers. */
+    REDEEMER_KEY,
+    /** The value of the map form of redeemers. */
+    REDEEMER_VALUE,
+    EX_UNITS,
+    /** An item of {@code ex_units}, {@code 0 .. max_int64}. */
+    EX_UNIT,
+    /** Recursive, so one value. */
+    NATIVE_SCRIPT,
+    PLUTUS_SCRIPT,
+    /** Recursive, so one value. */
+    PLUTUS_DATA,
+    /** Recursive, so one value. */
+    METADATA,
+    /** The array or the keyed form of auxiliary data, as encoded. */
+    AUXILIARY_DATA,
     MAP,
     NONEMPTY_MAP,
     /** An array, of any length. */
@@ -99,6 +120,11 @@ public enum FieldType {
         return shape == Shape.COLLECTION;
     }
 
+    // Says only what container a value is: a row of this type has a table for what is inside.
+    boolean container() {
+        return collection() || this == MAP || this == NONEMPTY_MAP;
+    }
+
     /**
      * @return the table of a value of this type, or of each item of a collection; null for a leaf
      */
@@ -131,6 +157,14 @@ public enum FieldType {
                 return RawValue.RECORD;
             case DATUM_OPTION:
                 return RawDatum.OPTION;
+            case OPTIONAL_AUXILIARY_DATA:
+                return RawAuxData.RECORD;
+            case REDEEMER_KEY:
+                return RawRedeemer.KEY;
+            case REDEEMER_VALUE:
+                return RawRedeemer.VALUE;
+            case EX_UNITS:
+                return RawExUnits.RECORD;
             default:
                 return null;
         }

@@ -128,7 +128,9 @@ class KeyedRecordPolicyTest {
             @Override
             public void entry(RecordSpec record, FieldSpec field, CborSpan key, CborSpan value, int occurrence,
                               Era era) {
-                events.add(RecordingPolicy.hex(key) + ":" + (field != null ? field.type() : null) + ":" + occurrence);
+                if (record == TxBodyField.RECORD)
+                    events.add(RecordingPolicy.hex(key) + ":" + (field != null ? field.type() : null) + ":"
+                            + occurrence);
             }
         });
         assertThat(events).containsExactly("1802:COIN:0", "02:COIN:1", "0a:null:0", "00:SET:0", "01:LIST:0");
