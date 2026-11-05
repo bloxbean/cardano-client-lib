@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.spec.Era;
@@ -20,6 +21,7 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * lists as they are. {@link #lenient(CborSpan, Era)} reads what the models of {@code transaction-spec} have always
  * accepted, which D7 keeps until a separate decision changes it: tags are looked through, and the one closest to a map
  * says what it is; a tagged map may not repeat a key, of any kind; and the array form is definite.
+ * {@link #tolerant(CborSpan, Era)} is for a chain follower, which must not lose a block its node has accepted.
  */
 public final class RawAuxData {
     private static final int MAJOR_ARRAY = 4;
@@ -97,6 +99,35 @@ public final class RawAuxData {
         return new RawAuxData(span, era, true, items.get(0), items.get(1), null);
     }
 
+    /**
+     * Reads aux data as {@link #lenient(CborSpan, Era)} does, except that a repeated key means its last value, the
+     * array form may be indefinite and have more than two items, and an item of none of the forms reads as aux data
+     * with nothing in it. What decoding it to a tree rejects is rejected.
+     *
+     * @param span aux data as encoded
+     * @param era  the era to read it in
+     * @return the view
+     * @throws CborRuntimeException if it is an array of fewer than two items or with no array of scripts, or decoding
+     *                              it would reject it
+     */
+    public static RawAuxData tolerant(CborSpan span, Era era) {
+        CborSerializationUtil.checkTags(span);
+        int major = span.majorType();
+        if (major == MAJOR_MAP)
+            return RawItems.innermostTag(span) == AuxDataField.RECORD.tag()
+                    ? new RawAuxData(span, era, true, null, null, RawItems.lastFirst(span, "aux data"))
+                    : new RawAuxData(span, era, true, span, null, null);
+        if (major != MAJOR_ARRAY)
+            return new RawAuxData(span, era, true, null, null, List.of());
+        List<CborSpan> items = RawItems.array(span, ARRAY_FORM.name());
+        if (items.size() < ARRAY_FORM.arity())
+            throw error("Aux data [metadata, scripts] has " + ARRAY_FORM.arity() + " items, found " + items.size(),
+                    span);
+        if (items.get(1).majorType() != MAJOR_ARRAY)
+            throw error("Aux data [metadata, scripts] has an array of scripts", span);
+        return new RawAuxData(span, era, true, items.get(0), items.get(1), null);
+    }
+
     private static void checkArrayForm(List<CborSpan> items, CborSpan span) {
         if (items.size() != ARRAY_FORM.arity())
             throw error("Aux data [metadata, scripts] has " + ARRAY_FORM.arity() + " items, found " + items.size(),
@@ -125,6 +156,14 @@ public final class RawAuxData {
                 throw error("Metadata is a map", item);
         });
         return found;
+    }
+
+    /**
+     * @param field a field of the keyed form
+     * @return whether the aux data has it: the other forms have none of its fields
+     */
+    public boolean has(AuxDataField field) {
+        return field(field).isPresent();
     }
 
     /**

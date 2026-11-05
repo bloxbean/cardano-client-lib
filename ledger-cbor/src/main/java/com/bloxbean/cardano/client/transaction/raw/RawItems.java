@@ -136,22 +136,33 @@ public final class RawItems {
     }
 
     /**
-     * The entries of a map with keys of any kind, one per key, as {@link #distinct} has them. Keys are equal as a
-     * decoded map's are, which takes decoding them.
+     * The entries of a map with keys of any kind, one per key, as {@link #distinct} has them, and a repeated key keeps
+     * its first encoding. Keys are equal as a decoded map's are, which takes decoding them.
      */
     static List<Map.Entry<CborSpan, CborSpan>> distinctKeys(CborSpan item, String what) {
         List<Map.Entry<CborSpan, CborSpan>> entries = map(item, what);
         if (entries.size() < 2)
             return entries;
-        EncodedKeyMap decoded = new EncodedKeyMap(entries.size());
-        for (int i = 0; i < entries.size(); i++)
-            decoded.put(CborSerializationUtil.deserialize(entries.get(i).getKey()), new UnsignedInteger(i));
-        if (!decoded.hasRepeatedKey())
+        List<DataItem> keys = new ArrayList<>(entries.size());
+        EncodedKeyMap last = new EncodedKeyMap(entries.size());
+        for (int i = 0; i < entries.size(); i++) {
+            keys.add(CborSerializationUtil.deserialize(entries.get(i).getKey()));
+            last.put(keys.get(i), new UnsignedInteger(i));
+        }
+        if (!last.hasRepeatedKey())
             return entries;
-        List<Map.Entry<CborSpan, CborSpan>> distinct = new ArrayList<>(decoded.getValues().size());
-        for (DataItem index : decoded.getValues())
-            distinct.add(entries.get(((UnsignedInteger) index).getValue().intValue()));
+        EncodedKeyMap first = new EncodedKeyMap(entries.size());
+        for (int i = entries.size() - 1; i >= 0; i--)
+            first.put(keys.get(i), new UnsignedInteger(i));
+        List<Map.Entry<CborSpan, CborSpan>> distinct = new ArrayList<>(last.getValues().size());
+        for (DataItem key : last.getKeys())
+            distinct.add(Map.entry(entries.get(index(first.get(key))).getKey(),
+                    entries.get(index(last.get(key))).getValue()));
         return distinct;
+    }
+
+    private static int index(DataItem index) {
+        return ((UnsignedInteger) index).getValue().intValue();
     }
 
     // What makes two byte string keys equal.

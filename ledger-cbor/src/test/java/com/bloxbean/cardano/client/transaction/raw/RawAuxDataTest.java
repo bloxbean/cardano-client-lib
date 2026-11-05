@@ -109,6 +109,40 @@ class RawAuxDataTest {
         assertThat(lenient("d90103a1" + "0580").scripts()).isEmpty();
     }
 
+    /** A chain follower's reading: what a decoded tree accepts, with a repeated key meaning its last value. */
+    @Test
+    void aTolerantReadingKeepsWhatADecodedTreeAccepts() {
+        RawAuxData repeated = RawAuxData.tolerant(span("d90103" + "a2" + "0180" + "1801" + "81" + NATIVE), Era.Conway);
+        assertThat(scriptsOf(repeated.nativeScripts())).containsExactly("0:" + NATIVE);
+        // the array form may be indefinite and longer
+        for (String array : List.of("9f" + METADATA + "81" + NATIVE + "ff", "83" + METADATA + "81" + NATIVE + "00")) {
+            RawAuxData aux = RawAuxData.tolerant(span(array), Era.Conway);
+            assertThat(hex(aux.metadata().orElseThrow())).isEqualTo(METADATA);
+            assertThat(scriptsOf(aux.nativeScripts())).containsExactly("0:" + NATIVE);
+        }
+        // an item of no form has nothing in it
+        for (String none : List.of("00", "6161", "f6", "c100")) {
+            RawAuxData aux = RawAuxData.tolerant(span(none), Era.Conway);
+            assertThat(aux.metadata()).as(none).isEmpty();
+            assertThat(aux.scripts()).as(none).isEmpty();
+        }
+        for (String bad : List.of("80", "81" + METADATA, "82" + METADATA + "00", "d81e00"))
+            assertThatThrownBy(() -> RawAuxData.tolerant(span(bad), Era.Conway)).as(bad)
+                    .isInstanceOf(CborRuntimeException.class);
+    }
+
+    /** Whether the keyed form has a field, which an empty list of scripts does not say. */
+    @Test
+    void hasAField() {
+        RawAuxData keyed = lenient("d90103" + "a2" + "00" + METADATA + "0180");
+        assertThat(keyed.has(AuxDataField.METADATA)).isTrue();
+        assertThat(keyed.has(AuxDataField.NATIVE_SCRIPTS)).isTrue();
+        assertThat(keyed.nativeScripts()).isEmpty();
+        assertThat(keyed.has(AuxDataField.PLUTUS_V1_SCRIPTS)).isFalse();
+        for (String other : List.of(METADATA, "82" + METADATA + "81" + NATIVE))
+            assertThat(lenient(other).has(AuxDataField.NATIVE_SCRIPTS)).as(other).isFalse();
+    }
+
     @Test
     void anEraIsRequired() {
         assertThatThrownBy(() -> tx(METADATA).auxData(null)).isInstanceOf(IllegalArgumentException.class);

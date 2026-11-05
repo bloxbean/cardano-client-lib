@@ -17,14 +17,17 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * <p>
  * The {@code lenient} readings read what the models of {@code transaction-spec} have always accepted, which ADR 0003 D7
  * keeps until a separate decision changes it: tags on an item are looked through, a map value is definite, a field of
- * neither form holds no redeemer, and a map keeps one entry per key, equal as a decoded map's are.
+ * neither form holds no redeemer, and a map keeps one entry per key, equal as a decoded map's are, with the key's first
+ * encoding. A view of {@link RawWitnessSet#tolerant} reads a map as they do, and a map value may be indefinite.
  *
  * @param tag     the purpose: 0 spend, 1 mint, 2 cert, 3 reward, 4 voting, 5 proposing
  * @param index   the index of the item the redeemer is for
  * @param data    the redeemer data, as encoded (see {@link RawDatum} to hash or decode it)
  * @param exUnits the execution units {@code [mem, steps]}, as encoded
+ * @param key     the key {@code [tag, index]} of the map form, as encoded; null for the array form
+ * @param span    the redeemer as encoded: the item of the array form, or the value of the map form
  */
-public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits) {
+public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, CborSpan key, CborSpan span) {
     private static final int MAJOR_ARRAY = 4;
     private static final int MAJOR_MAP = 5;
 
@@ -63,6 +66,10 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits) 
     public static RawRedeemer lenient(CborSpan key, CborSpan value) {
         if (RawItems.indefiniteWhenDecoded(value))
             throw error("Invalid redeemer value: expected a definite-length array", value);
+        return tolerant(key, value);
+    }
+
+    private static RawRedeemer tolerant(CborSpan key, CborSpan value) {
         return ofEntry(key, RawItems.array(key, KEY.name()), value, RawItems.array(value, VALUE.name()), true);
     }
 
@@ -82,7 +89,8 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits) 
         return redeemers;
     }
 
-    static List<RawRedeemer> readLenient(CborSpan field) {
+    // A tolerant reading lets a map value be indefinite.
+    static List<RawRedeemer> readLenient(CborSpan field, boolean tolerant) {
         List<RawRedeemer> redeemers = new ArrayList<>();
         int major = field.majorType();
         if (major == MAJOR_ARRAY) {
@@ -90,7 +98,8 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits) 
                 redeemers.add(lenient(item));
         } else if (major == MAJOR_MAP) {
             for (Map.Entry<CborSpan, CborSpan> entry : RawItems.distinctKeys(field, MAP.name()))
-                redeemers.add(lenient(entry.getKey(), entry.getValue()));
+                redeemers.add(tolerant ? tolerant(entry.getKey(), entry.getValue())
+                        : lenient(entry.getKey(), entry.getValue()));
         }
         return redeemers;
     }
@@ -98,7 +107,7 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits) 
     private static RawRedeemer ofItem(CborSpan item, List<CborSpan> items, boolean lenient) {
         PositionalRecord record = PositionalRecord.of(ITEM, item, items, true);
         return of(record.value(FieldType.REDEEMER_TAG), record.value(FieldType.UINT32),
-                record.value(FieldType.PLUTUS_DATA), record.value(FieldType.EX_UNITS), lenient);
+                record.value(FieldType.PLUTUS_DATA), record.value(FieldType.EX_UNITS), null, item, lenient);
     }
 
     private static RawRedeemer ofEntry(CborSpan key, List<CborSpan> keyItems, CborSpan value, List<CborSpan> valueItems,
@@ -106,12 +115,14 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits) 
         PositionalRecord keyRecord = PositionalRecord.of(KEY, key, keyItems, true);
         PositionalRecord valueRecord = PositionalRecord.of(VALUE, value, valueItems, true);
         return of(keyRecord.value(FieldType.REDEEMER_TAG), keyRecord.value(FieldType.UINT32),
-                valueRecord.value(FieldType.PLUTUS_DATA), valueRecord.value(FieldType.EX_UNITS), lenient);
+                valueRecord.value(FieldType.PLUTUS_DATA), valueRecord.value(FieldType.EX_UNITS), key, value, lenient);
     }
 
-    private static RawRedeemer of(CborSpan tag, CborSpan index, CborSpan data, CborSpan exUnits, boolean lenient) {
-        return lenient ? new RawRedeemer(RawItems.smallUnsigned(tag), RawItems.unsignedLong(index), data, exUnits)
-                : new RawRedeemer(RawTx.smallInt(tag), index.asLong(), data, exUnits);
+    private static RawRedeemer of(CborSpan tag, CborSpan index, CborSpan data, CborSpan exUnits, CborSpan key,
+                                  CborSpan span, boolean lenient) {
+        return lenient
+                ? new RawRedeemer(RawItems.smallUnsigned(tag), RawItems.unsignedLong(index), data, exUnits, key, span)
+                : new RawRedeemer(RawTx.smallInt(tag), index.asLong(), data, exUnits, key, span);
     }
 
     /**

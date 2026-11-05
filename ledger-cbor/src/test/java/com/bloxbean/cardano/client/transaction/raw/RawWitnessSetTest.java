@@ -176,6 +176,41 @@ class RawWitnessSetTest {
         assertThat(lenient("a105" + "a1" + "9f0000ff" + "82" + "00" + UNITS).redeemers().orElseThrow()).hasSize(1);
     }
 
+    /** Each redeemer keeps its source: the item of the array form, the key and value of the map form. */
+    @Test
+    void aRedeemerKeepsItsEncoding() {
+        String item = "84" + "00" + "01" + "02" + UNITS;
+        RawRedeemer array = lenient("a105" + "81" + item).redeemers().orElseThrow().get(0);
+        assertThat(hex(array.span())).isEqualTo(item);
+        assertThat(array.key()).isNull();
+        // a repeated key keeps its first encoding and the last value, on every reading
+        String map = "a2" + "820000" + "82" + "01" + UNITS + "82180000" + "82" + "02" + UNITS;
+        RawWitnessSet tolerant = RawWitnessSet.tolerant(span("a105" + map), Era.Conway);
+        for (RawWitnessSet set : List.of(lenient("a105" + map), tolerant)) {
+            RawRedeemer entry = set.redeemers().orElseThrow().get(0);
+            assertThat(hex(entry.key())).isEqualTo("820000");
+            assertThat(hex(entry.span())).isEqualTo("82" + "02" + UNITS);
+        }
+        assertThat(tx("a105" + map).redeemers()).extracting(redeemer -> hex(redeemer.key()))
+                .containsExactly("820000", "82180000");
+    }
+
+    /** A chain follower's reading: a repeated key means its last value, and a redeemer value may be indefinite. */
+    @Test
+    void aTolerantReadingKeepsWhatADecodedTreeAccepts() {
+        RawWitnessSet set = RawWitnessSet.tolerant(span("a3" + "048100" + "0081" + VKEY_WITNESS + "1804" + "8101"),
+                Era.Conway);
+        assertThat(set.datums().orElseThrow()).extracting(datum -> hex(datum.span())).containsExactly("01");
+        assertThat(set.vkeyWitnesses().orElseThrow()).hasSize(1);
+        String indefinite = "a105" + "a1" + "820000" + "9f" + "00" + UNITS + "ff";
+        assertThat(RawWitnessSet.tolerant(span(indefinite), Era.Conway).redeemers().orElseThrow()).hasSize(1);
+        assertThatThrownBy(() -> lenient(indefinite).redeemers()).isInstanceOf(CborRuntimeException.class);
+        // what a tree rejects, and what is no map
+        for (String bad : List.of("d81e00", "a1" + "04" + "81" + "d81e00", "80"))
+            assertThatThrownBy(() -> RawWitnessSet.tolerant(span(bad), Era.Conway)).as(bad)
+                    .isInstanceOf(CborRuntimeException.class);
+    }
+
     @Test
     void executionUnitsAreTwoUnsignedIntegersInAnyForm() {
         assertThat(RawExUnits.of(span("9f" + "c105" + "06" + "ff")).mem()).isEqualTo(5);

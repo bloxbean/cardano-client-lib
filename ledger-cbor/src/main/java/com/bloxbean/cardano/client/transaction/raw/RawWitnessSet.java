@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.spec.Era;
@@ -19,7 +20,8 @@ import java.util.function.Function;
  * A view from {@link RawTx#witnessSet(Era)} of {@link RawTx#of(byte[])} reads a list with its tag 258 or none, and
  * every redeemer it has. {@link #lenient(CborSpan, Era)} reads what the models of {@code transaction-spec} have always
  * accepted, which D7 keeps until a separate decision changes it: tags are looked through everywhere, and for redeemers
- * see {@link RawRedeemer}.
+ * see {@link RawRedeemer}. {@link #tolerant(CborSpan, Era)} is for a chain follower, which must not lose a block its
+ * node has accepted.
  */
 public final class RawWitnessSet {
     private static final long SET_TAG = 258;
@@ -28,14 +30,21 @@ public final class RawWitnessSet {
     private final List<Map.Entry<CborSpan, CborSpan>> fields;
     private final Era era;
     private final boolean lenient;
+    private final boolean tolerant;
 
     RawWitnessSet(CborSpan span, List<Map.Entry<CborSpan, CborSpan>> fields, Era era, boolean lenient) {
+        this(span, fields, era, lenient, false);
+    }
+
+    private RawWitnessSet(CborSpan span, List<Map.Entry<CborSpan, CborSpan>> fields, Era era, boolean lenient,
+                          boolean tolerant) {
         if (era == null)
             throw new IllegalArgumentException("era is null");
         this.span = span;
         this.fields = fields;
         this.era = era;
         this.lenient = lenient;
+        this.tolerant = tolerant;
     }
 
     /**
@@ -46,6 +55,20 @@ public final class RawWitnessSet {
      */
     public static RawWitnessSet lenient(CborSpan span, Era era) {
         return new RawWitnessSet(span, RawItems.record(span, "witness set"), era, true);
+    }
+
+    /**
+     * Reads a witness set as {@link #lenient(CborSpan, Era)} does, except that a repeated key means its last value, and
+     * a value of the redeemer map may be indefinite. What decoding the witness set to a tree rejects is rejected.
+     *
+     * @param span a witness set as encoded
+     * @param era  the era to read it in
+     * @return the view
+     * @throws CborRuntimeException if it is not a map, or decoding it would reject it
+     */
+    public static RawWitnessSet tolerant(CborSpan span, Era era) {
+        CborSerializationUtil.checkTags(span);
+        return new RawWitnessSet(span, RawItems.lastFirst(span, "witness set"), era, true, true);
     }
 
     /**
@@ -100,7 +123,7 @@ public final class RawWitnessSet {
      */
     public Optional<List<RawRedeemer>> redeemers() {
         return value(WitnessSetField.REDEEMERS_FIELD)
-                .map(field -> lenient ? RawRedeemer.readLenient(field) : RawRedeemer.read(field));
+                .map(field -> lenient ? RawRedeemer.readLenient(field, tolerant) : RawRedeemer.read(field));
     }
 
     /**
