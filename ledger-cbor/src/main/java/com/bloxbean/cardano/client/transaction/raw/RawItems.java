@@ -11,7 +11,6 @@ import com.bloxbean.cardano.client.spec.UnitInterval;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -166,8 +165,18 @@ public final class RawItems {
             return false;
         if (previous == null)
             return true;
-        return Arrays.compareUnsigned(key.buffer(), start, key.offset() + key.length(), previous.buffer(),
-                byteStringContent(previous), previous.offset() + previous.length()) > 0;
+        byte[] buffer = key.buffer();
+        byte[] previousBuffer = previous.buffer();
+        int previousStart = byteStringContent(previous);
+        int length = key.offset() + key.length() - start;
+        int previousLength = previous.offset() + previous.length() - previousStart;
+        // keys usually differ in their first bytes, where a loop is quicker than a vectorised comparison
+        for (int i = 0; i < Math.min(length, previousLength); i++) {
+            int difference = (buffer[start + i] & 0xff) - (previousBuffer[previousStart + i] & 0xff);
+            if (difference != 0)
+                return difference > 0;
+        }
+        return length > previousLength;
     }
 
     // Where the content of an untagged definite byte string starts, or -1 for any other item.
