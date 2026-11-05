@@ -61,8 +61,7 @@ final class RecordWalk {
     private static void positional(RecordSpec record, CborSpan container, Era era, FormatPolicy policy) {
         List<CborSpan> items = RawItems.array(container, record.name());
         // a member of a tagged union starts after the tag, which the union has reported
-        int first = record.fields().isEmpty() ? 1 : (int) record.fields().get(0).key();
-        for (int position = first; position < items.size(); position++) {
+        for (int position = record.firstPosition(); position < items.size(); position++) {
             CborSpan value = items.get(position);
             FieldSpec field = record.field(position, era);
             policy.entry(record, field, null, value, 0, era);

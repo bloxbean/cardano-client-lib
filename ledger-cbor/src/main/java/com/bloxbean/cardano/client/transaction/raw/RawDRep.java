@@ -73,7 +73,8 @@ public final class RawDRep {
     }
 
     private static RawDRep read(CborSpan span, boolean exact) {
-        return new RawDRep(Kind.of(PositionalRecord.tag(RECORD, span)), PositionalRecord.member(RECORD, span, exact));
+        PositionalRecord record = PositionalRecord.member(RECORD, span, exact);
+        return new RawDRep(Kind.of(record.tag()), record);
     }
 
     public Kind kind() {

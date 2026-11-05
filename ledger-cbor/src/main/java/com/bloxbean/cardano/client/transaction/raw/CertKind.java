@@ -86,7 +86,10 @@ public enum CertKind {
      *                              integer that fits an int
      */
     public static Optional<CertKind> of(CborSpan certificate) {
-        int tag = PositionalRecord.tag(RECORD, certificate);
+        List<CborSpan> items = RawItems.array(certificate, RECORD.name());
+        if (items.isEmpty())
+            throw RawTx.error("A certificate has a tag", certificate);
+        int tag = RawItems.smallUnsigned(items.get(0));
         for (CertKind kind : values()) {
             if (kind.tag() == tag)
                 return Optional.of(kind);

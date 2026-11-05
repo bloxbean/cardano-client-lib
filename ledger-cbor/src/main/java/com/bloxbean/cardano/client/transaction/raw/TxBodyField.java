@@ -71,8 +71,4 @@ public enum TxBodyField {
     TxBodyField(int key, FieldType type, boolean required, Era from, Era until) {
         this.spec = FieldSpec.of(key, type, required, from, until);
     }
-
-    public FieldSpec spec() {
-        return spec;
-    }
 }

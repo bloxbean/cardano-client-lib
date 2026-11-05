@@ -67,9 +67,9 @@ public final class RawCertificate {
      *                              or it has more items than the table
      */
     public RawCertificate exact() {
-        if (PositionalRecord.tag(CertKind.RECORD, span) != kind.tag())
+        if (record.tag() != kind.tag())
             throw error("Expected a certificate of tag " + kind.tag(), span);
-        PositionalRecord.member(CertKind.RECORD, kind.tag(), span, true);
+        record.checkArity(true);
         return this;
     }
 

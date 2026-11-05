@@ -25,28 +25,30 @@ public final class RecordSpec {
     private final String name;
     private final Shape shape;
     private final List<FieldSpec> fields;
+    private final int firstPosition;
 
-    private RecordSpec(String name, Shape shape, List<FieldSpec> fields) {
+    private RecordSpec(String name, Shape shape, List<FieldSpec> fields, int firstPosition) {
         this.name = name;
         this.shape = shape;
         this.fields = List.copyOf(fields);
+        this.firstPosition = firstPosition;
     }
 
     static RecordSpec keyed(String name, List<FieldSpec> rows) {
-        return new RecordSpec(name, Shape.KEYED, rows);
+        return new RecordSpec(name, Shape.KEYED, rows, 0);
     }
 
     static RecordSpec tagged(String name, List<FieldSpec> members) {
-        return new RecordSpec(name, Shape.TAGGED, members);
+        return new RecordSpec(name, Shape.TAGGED, members, 0);
     }
 
     static RecordSpec positional(String name, FieldType... items) {
-        return new RecordSpec(name, Shape.POSITIONAL, rows(0, items));
+        return new RecordSpec(name, Shape.POSITIONAL, rows(0, items), 0);
     }
 
     // A member of a tagged union: its positions start after the tag, which the union has read.
     static RecordSpec member(long tag, FieldType... items) {
-        return new RecordSpec("member " + tag, Shape.POSITIONAL, rows(1, items));
+        return new RecordSpec("member " + tag, Shape.POSITIONAL, rows(1, items), 1);
     }
 
     private static List<FieldSpec> rows(int first, FieldType[] items) {
@@ -54,6 +56,16 @@ public final class RecordSpec {
         for (int i = 0; i < items.length; i++)
             rows.add(FieldSpec.of(first + i, items[i], true, Era.Shelley, null));
         return rows;
+    }
+
+    // The position of a positional record's first field: 1 in a member of a tagged union, after its tag.
+    int firstPosition() {
+        return firstPosition;
+    }
+
+    // The number of items of a positional record, with the tag of a member.
+    int arity() {
+        return firstPosition + fields.size();
     }
 
     public String name() {

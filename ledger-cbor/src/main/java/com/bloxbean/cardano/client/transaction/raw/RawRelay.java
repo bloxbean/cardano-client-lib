@@ -50,7 +50,8 @@ public final class RawRelay {
     }
 
     static RawRelay read(CborSpan span, boolean exact) {
-        return new RawRelay(Kind.of(PositionalRecord.tag(RECORD, span)), PositionalRecord.member(RECORD, span, exact));
+        PositionalRecord record = PositionalRecord.member(RECORD, span, exact);
+        return new RawRelay(Kind.of(record.tag()), record);
     }
 
     public Kind kind() {

@@ -29,8 +29,8 @@ public final class RawCredential {
      *                              known tag
      */
     public static RawCredential of(CborSpan span) {
-        return new RawCredential(PositionalRecord.member(RECORD, span, true),
-                PositionalRecord.tag(RECORD, span) == SCRIPT_HASH.key());
+        PositionalRecord record = PositionalRecord.member(RECORD, span, true);
+        return new RawCredential(record, record.tag() == SCRIPT_HASH.key());
     }
 
     /**

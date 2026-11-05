@@ -15,45 +15,49 @@ final class PositionalRecord {
     private final RecordSpec spec;
     private final List<CborSpan> items;
 
-    private PositionalRecord(CborSpan span, RecordSpec spec, List<CborSpan> items) {
+    private PositionalRecord(CborSpan span, RecordSpec spec, List<CborSpan> items, boolean exact) {
         this.span = span;
         this.spec = spec;
         this.items = items;
+        checkArity(exact);
     }
 
     /**
      * @param exact false to ignore items after the last position; too few items are always rejected
      */
     static PositionalRecord of(RecordSpec spec, CborSpan span, boolean exact) {
-        return new PositionalRecord(span, spec, RawItems.array(span, spec.name())).checkArity(exact);
+        return new PositionalRecord(span, spec, RawItems.array(span, spec.name()), exact);
     }
 
     /** @return the member of the union that the first item names, or an error for an unknown tag */
     static PositionalRecord member(RecordSpec union, CborSpan span, boolean exact) {
-        return member(union, tag(union, span), span, exact);
+        List<CborSpan> items = RawItems.array(span, union.name());
+        if (items.isEmpty())
+            throw error("A " + union.name() + " has a tag", span);
+        return new PositionalRecord(span, memberSpec(union, RawItems.smallUnsigned(items.get(0)), span), items, exact);
     }
 
     /** @return the member with this tag; the first item is not read */
     static PositionalRecord member(RecordSpec union, long tag, CborSpan span, boolean exact) {
+        return new PositionalRecord(span, memberSpec(union, tag, span), RawItems.array(span, union.name()), exact);
+    }
+
+    private static RecordSpec memberSpec(RecordSpec union, long tag, CborSpan span) {
         FieldSpec member = union.member(tag);
         if (member == null)
             throw error("Unknown " + union.name() + " tag " + tag, span);
-        return new PositionalRecord(span, member.record(), RawItems.array(span, union.name())).checkArity(exact);
+        return member.record();
     }
 
-    /** @return the tag of a member of the union */
-    static int tag(RecordSpec union, CborSpan span) {
-        List<CborSpan> items = RawItems.array(span, union.name());
-        if (items.isEmpty())
-            throw error("A " + union.name() + " has a tag", span);
+    /** @return the tag of a member of a union */
+    int tag() {
         return RawItems.smallUnsigned(items.get(0));
     }
 
-    private PositionalRecord checkArity(boolean exact) {
-        int arity = (int) spec.fields().stream().mapToLong(FieldSpec::key).max().orElse(0) + 1;
+    void checkArity(boolean exact) {
+        int arity = spec.arity();
         if (items.size() < arity || (exact && items.size() > arity))
             throw error("A " + spec.name() + " has " + arity + " items, found " + items.size(), span);
-        return this;
     }
 
     /** @return the item of the record's first field of this type */

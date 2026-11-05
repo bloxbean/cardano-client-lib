@@ -87,7 +87,9 @@ final class RawItems {
      * looks through tags and returns null for an item that is no number. Kept as they keep it (ADR 0003 D7).
      */
     private static BigInteger lenientInteger(CborSpan item) {
-        return CborSerializationUtil.getBigInteger(CborSerializationUtil.deserialize(item.bytes()));
+        CborSpan content = content(item);
+        return content.majorType() <= 1 ? content.asBigInteger()
+                : CborSerializationUtil.getBigInteger(CborSerializationUtil.deserialize(item.bytes()));
     }
 
     /** @return an integer or a bignum; lenient, what {@link #lenientInteger} reads */

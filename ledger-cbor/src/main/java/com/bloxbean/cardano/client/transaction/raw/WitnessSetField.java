@@ -47,8 +47,4 @@ public enum WitnessSetField {
     WitnessSetField(int key, FieldType type, Era from, Era until) {
         this.spec = FieldSpec.of(key, type, false, from, until);
     }
-
-    public FieldSpec spec() {
-        return spec;
-    }
 }
