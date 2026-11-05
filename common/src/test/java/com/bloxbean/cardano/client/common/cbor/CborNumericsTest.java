@@ -54,6 +54,17 @@ class CborNumericsTest {
     }
 
     @Test
+    void anythingNotANumberIsRejectedWithoutRenderingIt() {
+        DataItem deep = CborSerializationUtil.deserialize(java.util.HexFormat.of().parseHex("81".repeat(6000) + "00"));
+        DataItem untaggedBytes = new ByteString(new byte[]{1});
+
+        for (DataItem item : new DataItem[]{deep, untaggedBytes}) {
+            assertThatThrownBy(() -> toIntExact(item)).isInstanceOf(CborRuntimeException.class);
+            assertThatThrownBy(() -> toUnsignedLong(item)).isInstanceOf(CborRuntimeException.class);
+        }
+    }
+
+    @Test
     void toUnsignedLongRejectsWhat64BitsCannotHold() {
         assertThatThrownBy(() -> toUnsignedLong(new UnsignedInteger(TWO_64))).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> toUnsignedLong(bignum(3, new byte[]{0}))).isInstanceOf(CborRuntimeException.class);
