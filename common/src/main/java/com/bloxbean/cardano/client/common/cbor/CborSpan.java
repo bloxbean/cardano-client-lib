@@ -96,6 +96,37 @@ public final class CborSpan {
     }
 
     /**
+     * Walks to an item of nested arrays and no further: only the heads of the arrays on the path, the items before each
+     * index and the item itself are read, so what follows may be malformed or missing. Tags on the arrays are looked
+     * through. For {@code 82 07 85 ...}, {@code arrayItem(bytes, 0)} is the {@code 07} and {@code arrayItem(bytes, 1, 0)}
+     * the first item of the second array.
+     *
+     * @param buffer CBOR bytes, with an array at the start
+     * @param path   the index in each array on the way down
+     * @return the span of that item, sharing the buffer
+     * @throws CborRuntimeException if what is read is malformed or truncated, a step on the path is not an array, or an
+     *                              array has no such index
+     */
+    public static CborSpan arrayItem(byte[] buffer, int... path) {
+        Objects.requireNonNull(buffer, "buffer");
+        CborHead head = new CborHead();
+        int pos = 0;
+        for (int index : path) {
+            head.read(buffer, pos, buffer.length);
+            while (head.major == MAJOR_TAG)
+                head.read(buffer, head.end, buffer.length);
+            if (head.major != MAJOR_ARRAY)
+                throw CborHead.error("expected a CBOR array", head.start);
+            if (index < 0 || (!head.indefinite && Long.compareUnsigned(index, head.argument) >= 0))
+                throw CborHead.error("no item " + index + " in the CBOR array", head.start);
+            pos = head.end;
+            for (int i = 0; i < index; i++)
+                pos = skip(buffer, pos, buffer.length);
+        }
+        return at(buffer, pos);
+    }
+
+    /**
      * Walks the window {@code [offset, offset + length)}, which must hold exactly one data item.
      *
      * @param buffer CBOR bytes

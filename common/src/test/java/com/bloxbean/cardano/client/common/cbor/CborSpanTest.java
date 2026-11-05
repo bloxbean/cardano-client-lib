@@ -264,6 +264,92 @@ class CborSpanTest {
     }
 
     @Test
+    void arrayItemWalksNoFurtherThanTheItem() {
+        // what follows the selected item is malformed (fc is reserved), truncated, or missing
+        byte[] damaged = decodeHexString("8207" + "85" + "820102" + "fc");
+        assertThat(CborSpan.arrayItem(damaged, 0).asLong()).isEqualTo(7);
+        CborSpan header = CborSpan.arrayItem(damaged, 1, 0);
+        assertThat(hex(header)).isEqualTo("820102");
+        assertThat(header.offset()).isEqualTo(3);
+        assertThat(header.buffer()).isSameAs(damaged);
+        assertThat(hex(CborSpan.arrayItem(decodeHexString("8207" + "85" + "820102"), 1, 0))).isEqualTo("820102");
+        assertThat(hex(CborSpan.arrayItem(decodeHexString("99ffff" + "01"), 0))).isEqualTo("01");
+    }
+
+    @Test
+    void arrayItemWalksTheItemsBeforeTheIndex() {
+        assertThat(hex(CborSpan.arrayItem(decodeHexString("83" + "820102" + "a10102" + "03"), 2))).isEqualTo("03");
+        assertThatThrownBy(() -> CborSpan.arrayItem(decodeHexString("83" + "81fc" + "01" + "02"), 1))
+                .isInstanceOf(CborRuntimeException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "9f" + "01" + "8102" + "fc", // an indefinite array
+            "9802" + "01" + "8102" + "fc", // non-minimal head
+            "9b0000000000000002" + "01" + "8102" + "fc",
+            "d818" + "82" + "01" + "8102" + "fc", // tags on the array
+            "c1" + "d818" + "82" + "01" + "8102" + "fc",
+            "82" + "1801" + "8102" + "fc"})
+    void arrayItemTakesAnyArrayForm(String hex) {
+        assertThat(hex(CborSpan.arrayItem(decodeHexString(hex), 1))).isEqualTo("8102");
+    }
+
+    @Test
+    void arrayItemWithAnEmptyPathIsTheFirstItem() {
+        assertThat(hex(CborSpan.arrayItem(decodeHexString("8102" + "fc")))).isEqualTo("8102");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "", // nothing
+            "01", // not an array
+            "a0",
+            "c101",
+            "80", // no such index
+            "8101",
+            "9f" + "01" + "ff", // an indefinite array that ends before it
+            "9f" + "ff",
+            "8201", // no item where the array says there is one
+            "9f" + "01",
+            "82" + "fc" + "02", // an earlier item is malformed
+            "82" + "01" + "fc", // the item is malformed
+            "82" + "01" + "81", // or truncated
+            "9bffffffffffffffff", // a head without its argument, and a count that is not there
+            "98", // a truncated head
+            "d8"})
+    void arrayItemRejectsWhatIsNotThere(String hex) {
+        byte[] bytes = decodeHexString(hex);
+        assertThatThrownBy(() -> CborSpan.arrayItem(bytes, 1)).isInstanceOf(CborRuntimeException.class);
+    }
+
+    @Test
+    void arrayItemRejectsANegativeIndex() {
+        assertThatThrownBy(() -> CborSpan.arrayItem(decodeHexString("8101"), -1))
+                .isInstanceOf(CborRuntimeException.class);
+    }
+
+    /**
+     * {@link CborSpan#at} does not look at what follows the item. A caller that must fail on a malformed value after it,
+     * and tolerate a well-formed one, walks them with {@link CborSpan#skip}.
+     */
+    @Test
+    void atDoesNotReadTrailingBytesAndSkipDoes() {
+        for (String trailing : new String[]{"00", "81", "fc", "ff"}) {
+            byte[] bytes = decodeHexString("820102" + trailing);
+            assertThat(CborSpan.at(bytes, 0).length()).as(trailing).isEqualTo(3);
+        }
+        byte[] wellFormed = decodeHexString("820102" + "00" + "8101");
+        assertThat(CborSpan.skip(wellFormed, 3, wellFormed.length)).isEqualTo(4);
+        assertThat(CborSpan.skip(wellFormed, 4, wellFormed.length)).isEqualTo(wellFormed.length);
+        for (String trailing : new String[]{"81", "fc", "ff"}) {
+            byte[] bytes = decodeHexString("820102" + trailing);
+            assertThatThrownBy(() -> CborSpan.skip(bytes, 3, bytes.length)).as(trailing)
+                    .isInstanceOf(CborRuntimeException.class);
+        }
+    }
+
+    @Test
     void toStringShowsHex() {
         assertThat(span("820102").toString()).contains("820102").contains("length=3");
     }
