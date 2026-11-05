@@ -16,7 +16,8 @@ import java.util.TreeMap;
 /**
  * The recursive encoder that {@link CustomCborEncoder} was before it became iterative (with the CustomMapEncoder it
  * used), kept as a test oracle: the iterative encoder must produce the same bytes. Like it, it closes an indefinite
- * array that does not end with a BREAK item (as CborSerializationUtil.deserialize gives one) with a BREAK.
+ * array that does not end with a BREAK item (as CborSerializationUtil.deserialize gives one) with a BREAK, and an empty
+ * indefinite map too, which the recursive encoder left without its BREAK, so unterminated.
  */
 @SuppressWarnings("deprecation")
 public class LegacyCborEncoder extends CborEncoder {
@@ -92,6 +93,8 @@ public class LegacyCborEncoder extends CborEncoder {
                 encodeTypeAndLength(MajorType.MAP, keys.size());
             }
             if (keys.isEmpty()) {
+                if (map.isChunked())
+                    encoder.encode(SimpleValue.BREAK);
                 return;
             }
             if (map.isChunked()) {

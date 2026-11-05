@@ -28,9 +28,9 @@ import java.util.TreeMap;
  * Containers are encoded with an explicit stack instead of recursion, so items of any nesting depth encode on any
  * thread. The output is the same as the cbor-java based encoder it replaces, byte for byte: maps that need canonical
  * ordering buffer their encoded entries and sort them by unsigned lexicographic order of the key bytes; everything else
- * streams. The one difference: an indefinite array is closed with a BREAK whether or not its last item is
+ * streams. The differences: an indefinite array is closed with a BREAK whether or not its last item is
  * {@link Special#BREAK}, as {@link com.bloxbean.cardano.client.common.cbor.CborSerializationUtil#deserialize(byte[])}
- * leaves that item out.
+ * leaves that item out, and an empty indefinite map is closed too, as it was left unterminated.
  */
 public class CustomCborEncoder extends CborEncoder {
     private static final BigInteger MINUS_ONE = BigInteger.valueOf(-1);
@@ -444,12 +444,13 @@ public class CustomCborEncoder extends CborEncoder {
                         out.write(MajorType.MAP.getValue() << 5 | 31);
                     else
                         writeHead(out, MajorType.MAP, size);
-                    // as before, an empty map ends right after its head, even an indefinite one; a single entry needs
-                    // no sorting, so it streams
+                    // a single entry needs no sorting, so it streams
                     if (size > 1 && (sortAllMaps || (canonical && !map.isChunked() && !(map instanceof SortedMap))))
                         frame = new SortedMapFrame(parent, out, map, map.isChunked());
                     else if (size > 0)
                         frame = new StreamingMapFrame(parent, out, map, map.isChunked());
+                    else if (map.isChunked())
+                        writeBreak(out);
                     break;
                 }
                 case BYTE_STRING:
