@@ -11,6 +11,7 @@ import lombok.*;
 
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toBytes;
 
 @Getter
@@ -46,7 +47,7 @@ public class GenesisKeyDelegation implements Certificate {
         }
 
         UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || type.getValue().intValue() != 5)
+        if (type == null || toUnsignedInt(type) != 5)
             throw new CborDeserializationException("GenesisKeyDelegation deserialization failed. Invalid type : "
                     + type != null ? String.valueOf(type.getValue().intValue()) : null);
 

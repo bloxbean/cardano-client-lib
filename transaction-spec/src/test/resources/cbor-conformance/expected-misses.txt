@@ -63,9 +63,6 @@ datum_option/00051-df4f9921a5de76d2 differs
 datum_option/00052-94a971baabcf2815 differs
 datum_option/00053-5676c56538ba7ccd differs
 
-# Pool retirement epoch at or above 2^63 (ADR 0002 D4)
-certificate/00012-5a3c5243d9f5c89d encoder
-
 # Disputed: the dataset and production Haskell disagree, so CCL keeps rejecting these (ADR 0002 Q1)
 auxiliary_data/00003-a457defa17a4ecca rejected
 auxiliary_data/00025-756519256dadb3b0 rejected

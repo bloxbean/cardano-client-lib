@@ -16,6 +16,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 @Data
@@ -42,12 +43,10 @@ public class Value {
             value = new Value();
             value.setCoin(((Number) valueItem).getValue());
         } else if (MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
-            if (valueItem.getTag().getValue() == 2) {
+            BigInteger coin = getBigInteger(valueItem);
+            if (coin != null) {
                 value = new Value();
-                value.setCoin(new BigInteger(((ByteString) valueItem).getBytes()));
-            } else if (valueItem.getTag().getValue() == 3) {
-                value = new Value();
-                value.setCoin(new BigInteger(((ByteString) valueItem).getBytes()).multiply(BigInteger.valueOf(-1)));
+                value.setCoin(coin);
             }
         } else if (MajorType.ARRAY.equals(valueItem.getMajorType())) {
             Array coinAssetArray = (Array) valueItem;

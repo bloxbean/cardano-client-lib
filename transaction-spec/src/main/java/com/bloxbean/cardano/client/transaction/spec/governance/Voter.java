@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 import java.util.Objects;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.transaction.spec.governance.VoterType.CONSTITUTIONAL_COMMITTEE_HOT_KEY_HASH;
 
 @Data
@@ -56,7 +57,7 @@ public class Voter {
                     + voterArray.getDataItems().size());
 
         List<DataItem> diList = voterArray.getDataItems();
-        int key = ((UnsignedInteger) diList.get(0)).getValue().intValue();
+        int key = toUnsignedInt(diList.get(0));
         byte[] hash = ((ByteString) diList.get(1)).getBytes();
 
         switch (key) {

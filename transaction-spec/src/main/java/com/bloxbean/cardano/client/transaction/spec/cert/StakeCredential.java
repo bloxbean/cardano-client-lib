@@ -16,8 +16,9 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
-import java.math.BigInteger;
 import java.util.List;
+
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 @Getter
 @EqualsAndHashCode
@@ -73,14 +74,14 @@ public class StakeCredential {
         UnsignedInteger typeDI = (UnsignedInteger) dataItemList.get(0);
         ByteString hashDI = (ByteString) dataItemList.get(1);
 
-        BigInteger typeBI = typeDI.getValue();
-        if (typeBI.intValue() == 0) {
+        int type = toUnsignedInt(typeDI);
+        if (type == 0) {
             return StakeCredential.fromKeyHash(hashDI.getBytes());
-        } else if (typeBI.intValue() == 1) {
+        } else if (type == 1) {
             return StakeCredential.fromScriptHash(hashDI.getBytes());
         } else {
             throw new CborDeserializationException("StakeCredential deserialization failed. Invalid StakeCredType : "
-                    + typeBI.intValue());
+                    + type);
         }
     }
 

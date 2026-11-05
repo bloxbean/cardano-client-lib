@@ -22,6 +22,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
 
 @Data
@@ -106,7 +109,7 @@ public class TransactionBody {
         }
 
         if (ttl != 0) {
-            bodyMap.put(new UnsignedInteger(3), new UnsignedInteger(ttl)); //ttl
+            bodyMap.put(new UnsignedInteger(3), unsignedLongItem(ttl)); //ttl
         }
 
         if (certs != null && certs.size() > 0) { //certs
@@ -135,7 +138,7 @@ public class TransactionBody {
         }
 
         if (validityStartInterval != 0) {
-            bodyMap.put(new UnsignedInteger(8), new UnsignedInteger(validityStartInterval)); //validityStartInterval
+            bodyMap.put(new UnsignedInteger(8), unsignedLongItem(validityStartInterval)); //validityStartInterval
         }
 
         if (mint != null && mint.size() > 0) {
@@ -262,7 +265,7 @@ public class TransactionBody {
 
         UnsignedInteger ttlUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(3));
         if (ttlUI != null) {
-            transactionBody.setTtl(ttlUI.getValue().longValue());
+            transactionBody.setTtl(toUnsignedLong(ttlUI));
         }
 
         //certs
@@ -299,7 +302,7 @@ public class TransactionBody {
 
         UnsignedInteger validityStartIntervalUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(8));
         if (validityStartIntervalUI != null) {
-            transactionBody.setValidityStartInterval(validityStartIntervalUI.getValue().longValue());
+            transactionBody.setValidityStartInterval(toUnsignedLong(validityStartIntervalUI));
         }
 
         //Mint
@@ -345,7 +348,7 @@ public class TransactionBody {
         //network Id
         UnsignedInteger networkIdUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(15));
         if (networkIdUI != null) {
-            int networkIdInt = networkIdUI.getValue().intValue();
+            int networkIdInt = toUnsignedInt(networkIdUI);
             if (networkIdInt == 0) {
                 transactionBody.setNetworkId(NetworkId.TESTNET);
             } else if (networkIdInt == 1) {

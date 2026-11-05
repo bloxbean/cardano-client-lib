@@ -15,6 +15,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 import java.util.Objects;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
+
 public interface Certificate {
 
     static Certificate deserialize(Array certArray) throws CborDeserializationException {
@@ -27,7 +29,7 @@ public interface Certificate {
         }
 
         UnsignedInteger typeUI = (UnsignedInteger) dataItemList.get(0);
-        int type = typeUI.getValue().intValue();
+        int type = toUnsignedInt(typeUI);
 
         Certificate certificate;
         switch (type) {

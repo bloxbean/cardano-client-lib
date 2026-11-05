@@ -12,8 +12,8 @@ import lombok.ToString;
 
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toHex;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 
 @Getter
 @NoArgsConstructor
@@ -88,7 +88,7 @@ public class DRep {
     public static DRep deserialize(DataItem di) {
         List<DataItem> dataItemList = ((Array) di).getDataItems();
 
-        int key = toInt(dataItemList.get(0));
+        int key = toUnsignedInt(dataItemList.get(0));
 
         switch (key) {
             case 0:

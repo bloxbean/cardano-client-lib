@@ -7,8 +7,8 @@ import lombok.*;
 
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
 
 @Getter
@@ -36,7 +36,7 @@ public class ProtocolVersion {
             throw new IllegalArgumentException("Invalid protocol version array. Expected 2 items. Found : "
                     + protocolVerDIList.size());
 
-        int major = toInt(protocolVerDIList.get(0));
+        int major = toUnsignedInt(protocolVerDIList.get(0));
         long minor = getBigInteger(protocolVerDIList.get(1)).longValueExact();
 
         return new ProtocolVersion(major, minor);

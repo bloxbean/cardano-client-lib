@@ -30,9 +30,9 @@ public class CborSerializationUtil {
             value = ((Number) valueItem).getValue();
         } else if (MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
             if (valueItem.getTag().getValue() == 2) { //positive
-                value = new BigInteger(((ByteString) valueItem).getBytes());
+                value = CborSpan.bignum(true, ((ByteString) valueItem).getBytes());
             } else if (valueItem.getTag().getValue() == 3) { //Negative
-                value = new BigInteger(((ByteString) valueItem).getBytes()).multiply(BigInteger.valueOf(-1));
+                value = CborSpan.bignum(false, ((ByteString) valueItem).getBytes());
             }
         }
 
@@ -68,6 +68,46 @@ public class CborSerializationUtil {
      */
     public static int toInt(DataItem valueItem) {
         return getBigInteger(valueItem).intValue();
+    }
+
+    /**
+     * Read a position the ledger defines as unsigned into an int, rejecting anything else, or a value an int cannot hold,
+     * instead of wrapping it as {@link #toInt} does.
+     * @param valueItem a CBOR unsigned integer
+     * @return the value
+     * @throws CborRuntimeException for a negative integer, a bignum, any other item, or a value above
+     *                              {@link Integer#MAX_VALUE}
+     */
+    public static int toUnsignedInt(DataItem valueItem) {
+        if (!(valueItem instanceof UnsignedInteger) || ((UnsignedInteger) valueItem).getValue().bitLength() > 31)
+            throw new CborRuntimeException("Expected an unsigned integer that fits an int, found : " + describe(valueItem));
+        return ((UnsignedInteger) valueItem).getValue().intValue();
+    }
+
+    /**
+     * Read an unsigned 64-bit position into a long. A value at or above 2^63 reads as negative through the long, and
+     * {@link #unsignedLongItem(long)} writes it back exactly.
+     * @param valueItem a CBOR unsigned integer
+     * @return the value's 64 bits
+     * @throws CborRuntimeException for a negative integer, a bignum, or any other item
+     */
+    public static long toUnsignedLong(DataItem valueItem) {
+        if (!(valueItem instanceof UnsignedInteger) || ((UnsignedInteger) valueItem).getValue().bitLength() > 64)
+            throw new CborRuntimeException("Expected an unsigned 64-bit integer, found : " + describe(valueItem));
+        return ((UnsignedInteger) valueItem).getValue().longValue();
+    }
+
+    // Untrusted data can nest deeply, and a DataItem's own toString recurses through it.
+    private static String describe(DataItem item) {
+        return item instanceof Number ? ((Number) item).getValue().toString() : item.getMajorType().toString();
+    }
+
+    /**
+     * @param value the 64 bits of an unsigned value, as {@link #toUnsignedLong(DataItem)} reads it
+     * @return the unsigned integer
+     */
+    public static UnsignedInteger unsignedLongItem(long value) {
+        return new UnsignedInteger(new BigInteger(Long.toUnsignedString(value)));
     }
 
     /**
