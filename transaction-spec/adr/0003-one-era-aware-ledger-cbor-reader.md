@@ -214,17 +214,32 @@ what needs no era: spans, the transaction id and raw field access by key. Typed 
 
 ### D4. Block parsing in CCL
 
-Two steps, so that deciding what a block is never requires being able to parse it:
+Three entry points, so that deciding what a block is never requires being able to parse it:
 
-1. **`BlockEnvelope.of(bytes)`** reads `[era, block]`, optionally in tag 24 as `RawBlock` allows today, and returns the
+1. **`BlockEnvelope.of(bytes)`**, or `of(span)` for a caller holding a span, reads `[era, block]`, optionally in tag 24 as `RawBlock` allows today, and returns the
    era index and the block's span. It accepts any index, including Byron and eras CCL does not know. It rejects only
    bytes that are not such an envelope.
 2. **`RawBlock.of(envelope)`** reads a known Shelley-family era through its layout. An unknown era raises a specific
    `UnsupportedEraException`.
+3. **`RawBlock.readAs(envelope, era)`** reads the block with a named era's layouts and field tables, whatever index the
+   envelope carries. Its `era()` returns the named era, and `envelope.eraIndex()` stays the fact. This is always the
+   caller's explicit choice; `RawBlock.of` never falls back to it. `EraSpec.newest()` names the last row of the table.
 
-This resolves the conflict ADR 0002 D8 noted. `RawBlock` rejects unknown eras, while Yaci attempts a parse and leaves
-`Block.era` null (`EraUtil.getEra`). Yaci can now send Byron to its own parsers, and treat an unknown era as its policy
-says, using the envelope alone.
+This resolves the conflict ADR 0002 D8 noted. `RawBlock` rejects unknown eras, while Yaci has no list of layouts:
+`BlockSerializer` parses any non-Byron index, leaves `Block.era` null (`EraUtil.getEra`), and delivers the block.
+Listeners get that null and `TxCborUtil.assembleTxCbor` handles it, returning null. So today a new era with an unchanged
+layout keeps syncing, and that must not be lost. Yaci's wrapper dispatches on the envelope alone:
+
+| Envelope index | Yaci | Result |
+|---|---|---|
+| 0, 1 | Its Byron serializers | As today |
+| 2 to 7 | `RawBlock.of(envelope)` | `Block.era` set |
+| Anything else | `RawBlock.readAs(envelope, EraSpec.newest())` | Populated `Block` with a null era. A block that does not fit that layout, such as Dijkstra's two items, is a parse failure and raises `onParsingError` (I12) |
+
+Reading an unknown era with the newest tables can misread a key whose meaning changed, as key 14 does in Dijkstra. That
+is no worse than today, since Yaci's serializers do not look at the era at all, and the null era tells the listener the
+era was not recognised. Adding an era to `EraSpec` moves `newest()` to it. CCL's own users keep the rejection, and
+choose `readAs` only if they want this behaviour.
 
 New reading in this decision: `RawHeader` with both layouts, giving block number, slot, previous hash, keys, VRF
 results, body size and hash, operational certificate, protocol version and the header hash.
@@ -308,18 +323,30 @@ Direct callers of the main serializers, in main code:
 |---|---|---|
 | `BlockSerializer` | `BlockfetchAgent`; Yano, about 15 uses; Yaci Store, none | Keep the class as a thin wrapper over the reader and the mapper |
 | `ByronBlockSerializer`, `ByronEbBlockSerializer` | Yaci; Yano, 6 uses | Keep unchanged: the only Byron readers |
-| `BlockHeaderSerializer`, `TransactionBodySerializer`, `TransactionOutputSerializer`, `WitnessesSerializer`, `AuxDataSerializer`, `CertificateSerializer`, `UpdateSerializer`, `WithdrawalsSerializer` | Yaci core only | Become mappers. Deprecate, then remove in a later release (Yaci is public, so unseen users may exist) |
+| `BlockHeaderSerializer`, `TransactionBodySerializer`, `TransactionOutputSerializer`, `WitnessesSerializer`, `AuxDataSerializer`, `CertificateSerializer`, `UpdateSerializer`, `WithdrawalsSerializer` | Yaci core only | Become mappers. Deprecate, then remove once Q5's period has passed (Yaci is public, so unseen users may exist) |
 | Network message serializers (`StartBatch`, `BatchDone` and others) | Yaci core | Keep. They are protocol messages, not ledger data |
 
 Yaci behaviour that has been earned the hard way and must be kept. Each gets a regression test before its code moves:
 
-- `BlockSerializer.deserialize` tolerates trailing top-level values, and keeps a null era for unknown eras.
+- `BlockSerializer.deserialize` tolerates trailing top-level values. `CborSpan.of` rejects them, so the wrapper reads
+  the first value with `CborSpan.at` and passes that span to `BlockEnvelope.of`.
+- An unknown era index in the newest layout gives a populated `Block` with a null era (D4, I12).
 - Witnesses or auxiliary data that fail to parse do not fail the block (`DataItemIsolation`, `metadataParseError`).
 - A count mismatch between parsed and raw items logs and continues.
 - Datum and redeemer CBOR and hashes come from source bytes, and the datum duplicate rule is kept.
 - Auxiliary data CBOR is exposed only if it matches the transaction's hash.
 - `YaciConfig` still controls `returnBlockCbor`, `returnTxBodyCbor` and `returnFullTxCbor`.
 - A parse failure raises `onParsingError` with the block number when the header can be read.
+
+Two differences from today are known already, and go in I5's list for approval at M2. Neither should occur in a block
+from a valid chain, and G3 checks that on real chains. In both, the listener gets `onParsingError` in place of a
+populated `Block`:
+
+- `BlockSerializer` chooses its header reader by shape, not by era, and accepts four or five block items under any
+  index. Under D4, a known era whose shape contradicts its `EraSpec` row fails, and so does an unknown era in an older
+  shape than the newest.
+- `RawBlock`'s checks from ADR 0001 D6 (D5's third row) reject mismatched counts and bad indexes in a block that Yaci's
+  serializer does not check for.
 
 No runtime switch between old and new parsers is added. Each step is proven before release by comparing old and new
 output (I5, I6), and then the old code is deleted. A flag would keep two parsers alive, which is the problem this ADR
@@ -412,6 +439,7 @@ depends on this path.
 | I9 | Reading and walking stay stack-safe at maximum nesting | D5, D6 | ADR 0001 depth fixtures, on the walk as well |
 | I10 | Parse time and allocation on the same blocks stay within 10% of the M0 baseline (proposed figure) | D8 | Benchmark, recorded per milestone |
 | I11 | A bad witness or auxiliary data item still does not fail its block, and listeners see the same errors | D5, D8 | Regression tests from D8's list |
+| I12 | In Yaci, an unknown era index in the newest layout reaches listeners as a populated `Block` with a null era, and one that does not fit the layout raises `onParsingError`. `RawBlock.of` still rejects it | D4, D8 | Regression tests: a valid Conway block with its index changed, written before the code moves, and a two-item block |
 
 Gates reused from ADR 0002: **G3** `tools/chain-parse-check` full replay on mainnet, preprod and preview, before and
 after; **G5** downstream suites against a CCL snapshot: Yaci `core`, JuLC, Yano `ledger-rules`, `ledger-conformance` and
@@ -424,9 +452,9 @@ Each milestone releases in the usual order: CCL, then Yaci, then Yano. It can st
 
 | ID | What | Entry | Exit |
 |---|---|---|---|
-| M0 | Stack merged and released (D10). ADR 0002's standing D8 items in Yaci. New module; raw views moved with no behaviour change. Baselines recorded: speed (I10), report, accept/reject sets | ADR accepted | Report at 42,215; G3, G5 pass; baselines committed |
+| M0 | Stack merged and released (D10). ADR 0002's standing D8 items in Yaci. New module; raw views moved with no behaviour change. Baselines recorded: speed (I10), report, accept/reject sets | ADR accepted | Report at 42,215; G3, G5 pass; baselines committed; I10's limit confirmed or changed from the baseline (Q3) |
 | M1 | **Pilot: certificates**, through all three projects. `CertKind` table, `RawCertificate` reader, `FormatPolicy`, Yaci and CCL mappers, Yano policy | M0 | The decision below |
-| M2 | Block, envelope and header. `EraSpec` complete for Shelley to Conway. Yaci's `BlockHeaderSerializer` and extractors move | M1 passes | I5, I6, I10, I11; G3 |
+| M2 | Block, envelope and header. `EraSpec` complete for Shelley to Conway. Yaci's `BlockHeaderSerializer` and extractors move | M1 passes | I5, I6, I10, I11, I12; G3 |
 | M3 | Transaction body, inputs, outputs, values, withdrawals, mint | M2 | I5, I6, I8; G3, G6 |
 | M4 | Witnesses, scripts, datums, redeemers, auxiliary data | M3 | I5, I6, I8, I9, I11; G3, G6 |
 | M5 | Governance, `ProtocolParamUpdate`, pre-Conway `update`. Includes checking whether parameter key 17 changes meaning at Babbage (Alonzo's field is `CoinsPerUTxOWord`, Babbage's `CoinsPerUTxOByte`) | M4 | I3, I5, I6; G3, G6 |
@@ -452,11 +480,11 @@ The maintainer makes this call from the measured results.
 | CCL model classes and signatures | None |
 | `Transaction.deserialize` results | Same, by I5 and I6 |
 | Yaci models and listeners | None |
-| `BlockSerializer` | Same class and result |
-| Yaci's inner serializers | Deprecated at M6, removed later |
+| `BlockSerializer` | Same class. Same result, including the null era for an unknown era (I12), except the differences listed in D8 |
+| Yaci's inner serializers | Deprecated at M6, removed after one major release or two minor releases (Q5) |
 | `transaction.raw` | Pre-release API. Same package in a new artifact, which arrives transitively. `RawDatum.toPlutusData` and `RawScript.toScript` become helpers (Q2) |
 | `EraRules` | Package-private, so no impact |
-| `RawBlock.of(bytes)` | Same. New `of(BlockEnvelope)`. A new exception type for unknown eras extends the current one |
+| `RawBlock.of(bytes)` | Same. New `of(BlockEnvelope)` and `readAs(BlockEnvelope, Era)`. A new exception type for unknown eras extends the current one |
 | Native image | Views use no reflection. `native-image-test` runs on each milestone |
 | New artifact | `cardano-client-ledger-cbor`, added to the published set by the existing build logic |
 | Wire format | None. The reader only reads |
@@ -471,7 +499,7 @@ The maintainer makes this call from the measured results.
 | Generate readers from CDDL | A rewrite with a code generator to maintain, and CDDL does not state every decoder rule. Used as a check instead (I3) |
 | Reader with a strict or version parameter, as Amaru does | CCL also serves transaction builders and chain followers, which should not get ledger rejections. It would have a decoder version in every public path, for one consumer. `FormatPolicy` keeps that in Yano |
 | A class per era (`ConwayTxBody`, `BabbageTxBody`) | Most fields are the same across eras (section 1.4), so this repeats them, and every new era copies a class |
-| Keep the reader in `transaction-spec` | Works, but only review stops a view importing a model. Open as Q1 |
+| Keep the reader in `transaction-spec` | Works, but only review stops a view importing a model. Rejected in Q1 |
 | Runtime flag choosing old or new parsers | Keeps both parsers alive and doubles test paths (D8) |
 | Move Byron into CCL | Yaci is the only reader and no one else needs it. No duplication to remove |
 
@@ -485,26 +513,33 @@ The maintainer makes this call from the measured results.
 | Tables grow beyond what is readable | Pilot judges this first. Only records and unions use tables; recursive and one-off shapes stay as code |
 | Slower sync, with lazy views over spans in place of a tree | I10. It may equally turn out faster, but this has not been measured |
 | The work stalls half way, leaving four readers | Each milestone is complete on its own, and old code for a migrated area is deleted in that milestone or M6 |
+| Yaci reads a future era with the newest tables and misreads a key that changed meaning | Same exposure as today (D4). `Block.era` stays null, so a listener can tell. M7 adds the era properly |
 | Dijkstra changes before it freezes | Only used as a design check here. M7 waits for the freeze |
 | Yano's existing strictness is lost while moving to a policy | I7 at each step: the set of missed samples can only shrink |
 
 ## 11. Open questions
 
-**Q1. Module name and whether to have a module.** Options: (a) `ledger-cbor`; (b) `cbor`, which is shorter but suggests
-general CBOR, which stays in `common`; (c) no module, a package in `transaction-spec` guarded by a test. Lean: (a).
+All five were decided by the maintainer on 2026-11-05. They stay here for the record.
+
+**Q1. Module name and whether to have a module.** Options were (a) `ledger-cbor`; (b) `cbor`, which is shorter but
+suggests general CBOR, which stays in `common`; (c) no module, a package in `transaction-spec` guarded by a test.
+**Decided: (a).**
 
 **Q2. Pre-release API change.** `RawDatum.toPlutusData()` and `RawScript.toScript()` cannot move with their classes.
-Options: (a) static helpers in `transaction-spec`, with a release note, since these shipped only in pre-releases; (b)
-keep the classes in `transaction-spec` and have new views in a new package, leaving two sets of views. Lean: (a).
+Options were (a) static helpers in `transaction-spec`, with a release note, since these shipped only in pre-releases;
+(b) keep the classes in `transaction-spec` and have new views in a new package, leaving two sets of views.
+**Decided: (a).**
 
-**Q3. The 10% speed limit in I10.** It is a proposed figure with no measurement behind it. Lean: record the M0 baseline
-first, then confirm or change it.
+**Q3. The 10% speed limit in I10.** It is a proposed figure with no measurement behind it. **Decided: record the M0
+baseline first, then confirm or change it.** This is part of M0's exit.
 
-**Q4. When to run M1 relative to ADR 0002's other Yaci work.** Options: (a) M0 first, as written; (b) start the pilot on
-a branch now against the stack. Lean: (a), as a baseline measured against unreleased code would have to be redone.
+**Q4. When to run M1 relative to ADR 0002's other Yaci work.** Options were (a) M0 first, as written; (b) start the
+pilot on a branch now against the stack. **Decided: (a),** as a baseline measured against unreleased code would have to
+be redone.
 
 **Q5. Yaci serializer removal timing.** The plan deprecates at M6 and removes later, and Yaci's outside users cannot be
-seen. Lean: keep deprecated classes for at least two minor releases.
+seen. **Decided: deprecated classes stay until one major release or two minor releases have shipped with the
+deprecation in place.**
 
 ## 12. Related findings (out of scope)
 
@@ -517,3 +552,6 @@ seen. Lean: keep deprecated classes for at least two minor releases.
 ## 13. Revision history
 
 - **r1** (2026-11-05): initial proposal.
+- **r2** (2026-11-05; responds to the automated Aster review of `38316c73` and the maintainer's decisions): unknown era
+  in Yaci → new `RawBlock.readAs` and `EraSpec.newest()` in D4, Yaci's dispatch table, new I12, D8's list and known
+  differences, M2 exit, Compatibility, Risks; Q1-Q5 decided, with M0's exit, D8 and Compatibility following them.
