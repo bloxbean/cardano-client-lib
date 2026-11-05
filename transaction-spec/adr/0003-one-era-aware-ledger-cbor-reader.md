@@ -1,6 +1,6 @@
 # ADR 0003: One Era-Aware Ledger CBOR Reader
 
-**Status**: Proposed
+**Status**: Accepted (design only; implementation has not started)
 **Date**: 2026-11-05
 **Risk**: High. This changes the code that reads every block and transaction in CCL, Yaci and Yano, and a shared bug
 would reach all three.
@@ -629,3 +629,5 @@ conforming node would not send. (b) is the answer if G3 finds any.
   regressions, Q6 opened for the differences; F2 → D8 corrections list, I6 exceptions with expected values, M2, M5,
   Compatibility, Risks; F3 → D6's walk contract, required flag in D3, new I13, M1's keyed-record proof and fall back
   condition; F4 → I7 per sample on the strict side, M0 baseline, M6, Risks.
+- **Status change** (2026-11-05): Accepted by the maintainer, after reviewer1's design approval of r3 at `97a35678`. No
+  other text changed. Q6 and the `costModelsHash` decision stay open for M2 and M5.
