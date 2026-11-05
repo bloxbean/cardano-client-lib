@@ -17,6 +17,9 @@ Per block (Shelley to Conway):
 - `RawBlock`: era detection against the block envelope, the header shape (TPraos or Praos), the block body hash
   against the header, and that transaction bodies, witness sets, auxiliary data keys and invalid transaction
   indexes line up.
+- `RawHeader`: the block number, slot, block hash and block body hash against the raw bytes; the block number and
+  slot against Yaci's header reader, which is what chain-sync delivers. The blocks whose hash differs from Yaci's,
+  which hashes a re-encoding of the header, are counted (`header_hash_differs_from_yaci`).
 
 Per transaction:
 

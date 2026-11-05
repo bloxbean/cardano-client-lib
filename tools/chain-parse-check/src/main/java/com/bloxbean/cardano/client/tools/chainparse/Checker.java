@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.tools.chainparse;
 
+import co.nstant.in.cbor.model.Array;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
@@ -9,6 +10,7 @@ import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.raw.RawBlock;
 import com.bloxbean.cardano.client.transaction.raw.RawDatum;
+import com.bloxbean.cardano.client.transaction.raw.RawHeader;
 import com.bloxbean.cardano.client.transaction.raw.RawOutput;
 import com.bloxbean.cardano.client.transaction.raw.RawRedeemer;
 import com.bloxbean.cardano.client.transaction.raw.RawScript;
@@ -20,6 +22,9 @@ import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScriptEvaluator;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.yaci.core.model.HeaderBody;
+import com.bloxbean.cardano.yaci.core.model.serializers.BlockHeaderSerializer;
+import com.bloxbean.cardano.yaci.core.util.CborSerializationUtil;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -103,6 +108,7 @@ final class Checker {
         } catch (Throwable t) {
             issue("body_hash_error", null, trace(t), null, bytes);
         }
+        rawHeader(rb, headerBodyHash, bytes);
 
         // independent tx count alignment
         List<CborSpan> bodies = blk.get(1).items();
@@ -135,6 +141,35 @@ final class Checker {
             }
         }
         state.countBlock();
+    }
+
+    /**
+     * {@code RawHeader} against the values read from the raw bytes above, and against Yaci's header reader, which is
+     * what chain-sync delivers. Yaci hashes a re-encoding of the header, so a block hash that differs is counted, not
+     * reported: ADR 0003 D8 expects it on a header that is not minimally encoded.
+     */
+    private void rawHeader(RawBlock rb, byte[] ownBodyHash, byte[] bytes) {
+        try {
+            RawHeader header = rb.rawHeader();
+            if (header.blockNumber() != blockNo || header.slot() != slot)
+                issue("raw_header_position", null, "raw bytes " + blockNo + "/" + slot + " RawHeader "
+                        + header.blockNumber() + "/" + header.slot(), null, bytes);
+            if (!hex(header.hash()).equals(blockHash))
+                issue("raw_header_hash", null, "raw bytes " + blockHash + " RawHeader " + hex(header.hash()), null,
+                        bytes);
+            if (!Arrays.equals(header.bodyHash(), ownBodyHash))
+                issue("raw_header_body_hash", null, "raw bytes " + hex(ownBodyHash) + " RawHeader "
+                        + hex(header.bodyHash()), null, bytes);
+            HeaderBody yaci = BlockHeaderSerializer.INSTANCE.getBlockHeaderFromHeaderArray(
+                    (Array) CborSerializationUtil.deserializeOne(rb.header().bytes())).getHeaderBody();
+            if (yaci.getBlockNumber() != header.blockNumber() || yaci.getSlot() != header.slot())
+                issue("raw_header_yaci", null, "Yaci " + yaci.getBlockNumber() + "/" + yaci.getSlot() + " RawHeader "
+                        + header.blockNumber() + "/" + header.slot(), null, bytes);
+            if (!hex(header.hash()).equals(yaci.getBlockHash()))
+                state.inc(era, "header_hash_differs_from_yaci", 1);
+        } catch (Throwable t) {
+            issue("raw_header_error", null, trace(t), null, bytes);
+        }
     }
 
     private void tx(RawBlock rb, int i, CborSpan ownBody, boolean hasAux) {
