@@ -11,7 +11,12 @@ import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.raw.RawBlock;
 import com.bloxbean.cardano.client.transaction.raw.RawDatum;
 import com.bloxbean.cardano.client.transaction.raw.RawHeader;
+import com.bloxbean.cardano.client.transaction.raw.FormatPolicy;
+import com.bloxbean.cardano.client.transaction.raw.RawInput;
 import com.bloxbean.cardano.client.transaction.raw.RawOutput;
+import com.bloxbean.cardano.client.transaction.raw.RawTxBody;
+import com.bloxbean.cardano.client.transaction.raw.RawValue;
+import com.bloxbean.cardano.client.transaction.raw.TxBodyField;
 import com.bloxbean.cardano.client.transaction.raw.RawRedeemer;
 import com.bloxbean.cardano.client.transaction.raw.RawScript;
 import com.bloxbean.cardano.client.transaction.raw.RawTx;
@@ -259,6 +264,39 @@ final class Checker {
             scriptDataHash(c, tx, rb.era(), witnessLangs);
         if (t != null)
             model(c, t, tx, redeemers);
+        typedBody(c, tx, rb.era());
+    }
+
+    /** Every typed field of the body, and the walk over its tables: nothing valid on chain is rejected (D5). */
+    private void typedBody(Ctx c, RawTx tx, Era bodyEra) {
+        try {
+            TxBodyField.RECORD.walk(tx.body(), bodyEra, FormatPolicy.ACCEPT_ALL);
+            RawTxBody body = tx.body(bodyEra);
+            body.inputs().forEach(RawInput::index);
+            body.outputs().forEach(this::amount);
+            body.fee();
+            body.ttl();
+            body.certificates();
+            body.withdrawals();
+            body.auxDataHash();
+            body.validityStart();
+            body.mint();
+            body.scriptDataHash();
+            body.collateral();
+            body.requiredSigners();
+            body.networkId();
+            body.collateralReturn().ifPresent(this::amount);
+            body.totalCollateral();
+            body.referenceInputs();
+            state.inc(era, "typed_bodies", 1);
+        } catch (Throwable e) {
+            c.issue("typed_body", trace(e));
+        }
+    }
+
+    private void amount(RawOutput output) {
+        output.addressBytes();
+        output.amount().ifPresent(RawValue::multiAssets);
     }
 
     private void script(Ctx c, RawScript s, String where, boolean mustHold, Set<String> vkeys, Long ib, Long ih) {

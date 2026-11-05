@@ -3,8 +3,9 @@
 
 For each era with a table it compares the certificate tags and their items, the transaction body and witness set keys
 with their required flags and types, the rules a certificate is made of (credential, drep, relay, anchor,
-pool_metadata, move_instantaneous_reward), and the block and header layouts the era names in EraSpec. Run it by hand,
-and on each bump of the ledger pin:
+pool_metadata, move_instantaneous_reward), the rules a transaction body is made of (transaction_input, both forms of
+an output, datum_option, value, multiasset, mint, withdrawals), and the block and header layouts the era names in
+EraSpec. Run it by hand, and on each bump of the ledger pin:
 
     tools/cddl-table-check/check_tables.py --ledger <cardano-ledger checkout> [--commit <sha>]
 
@@ -42,6 +43,9 @@ TYPES = {
     "major_protocol_version": "MAJOR_PROTOCOL_VERSION", "uint .size 4": "MINOR_PROTOCOL_VERSION",
     "block_body_size : uint .size 4": "UINT", "operational_cert": "OPERATIONAL_CERT",
     "protocol_version": "PROTOCOL_VERSION", "bytes .size 80": "BYTES",
+    "address": "ADDRESS", "value": "VALUE", "datum_option": "DATUM_OPTION", "script_ref": "SCRIPT_REF", "data": "DATA",
+    "uint .size 2": "UINT", "uint": "UINT", "asset_name": "ASSET_NAME", "int64": "INT64",
+    "nonzero_int64": "NONZERO_INT64",
 }
 SHAPES = [
     (r"\[\* ", "LIST"), (r"\[\+ ", "NONEMPTY_LIST"), (r"set<", "SET"), (r"nonempty_set<", "NONEMPTY_SET"),
@@ -181,9 +185,60 @@ def nested_kinds(view):
             for m in re.finditer(r"[A-Z_0-9]+\((\d+)((?:, FieldType\.\w+)*)\)", body)}
 
 
-def credential_table():
+def member_table(view):
     return {int(tag): [item.strip().replace("FieldType.", "")] for tag, item
-            in re.findall(r"FieldSpec\.member\((\d+), Era\.\w+, null, (FieldType\.\w+)\)", java("RawCredential"))}
+            in re.findall(r"FieldSpec\.member\((\d+), Era\.\w+, null, (FieldType\.\w+)\)", java(view))}
+
+
+def output_table(era):
+    return {int(a[0]): (a[1], a[2] == "true") for _, a in rows("TxOutputField") if valid_in(era, era_of(a[3]), None)}
+
+
+def table_rows(view, name):
+    """The rows of a positional table written as FieldSpec.of(...): (FieldType, required), by position."""
+    source = java(view)
+    start = source.index(f'RecordSpec.positional("{name}"')
+    body = source[start:source.index(";", start)]
+    return {int(m[0]): (m[1], m[2] == "true") for m in
+            re.findall(r"FieldSpec\.of\((\d+), FieldType\.(\w+), (true|false)", body)}
+
+
+def array_fields(rule_name, cddl_text):
+    """{position: (FieldType, required)} of an array rule, with its optional items."""
+    fields = {}
+    for position, item in enumerate(split_top(rule(cddl_text, rule_name).strip()[1:-1], ",")):
+        fields[position] = (field_type(item.lstrip("? "), cddl_text), not item.startswith("?"))
+    return fields
+
+
+def value_rule(cddl_text):
+    """(the coin's FieldType, the array form's items, the multiasset's quantity), of coin / [coin, multiasset<q>]."""
+    coin, array = split_top(rule(cddl_text, "value"), "/")
+    items = split_top(array[1:-1], ",")
+    quantity = re.fullmatch(r"multiasset<(\w+)>", items[1]).group(1)
+    return field_type(coin, cddl_text), [field_type(item, cddl_text) for item in items], field_type(quantity, cddl_text)
+
+
+def assets_rule(text, cddl_text):
+    """(policy id, the assets' shape, asset name, quantity) of {* policy_id => {+ asset_name => quantity}}."""
+    match = re.fullmatch(r"\{([*+]) (\w+) => \{([*+]) (\w+) => (\w+)\}\}", text)
+    return [field_type(match.group(2), cddl_text), "NONEMPTY_MAP" if match.group(3) == "+" else "MAP",
+            field_type(match.group(4), cddl_text), field_type(match.group(5), cddl_text)]
+
+
+def multiasset_table(name, era):
+    """What RawMultiAsset's table of this name holds in the era, in the order of assets_rule."""
+    args = re.search(r'table\("' + name + r'", FieldType\.(\w+), FieldType\.(\w+)\)', java("RawMultiAsset"))
+    source = java("RawMultiAsset")
+    key = re.search(r'name, FieldType\.(\w+),\s*FieldSpec\.of\(0, FieldType\.(\w+), false, Era\.Mary', source)
+    asset = re.search(r'name \+ " assets", FieldType\.(\w+),', source).group(1)
+    return [key.group(1), key.group(2), asset, args.group(2) if era == "Conway" else args.group(1)]
+
+
+def entries_table(view):
+    """(key type, value type) of a map of like entries."""
+    found = re.search(r'RecordSpec\.entries\("\w+", FieldType\.(\w+),\s*FieldSpec\.of\(0, FieldType\.(\w+)', java(view))
+    return [found.group(1), found.group(2)]
 
 
 def positional(view, name=r"\w+"):
@@ -226,7 +281,33 @@ def main():
         compare("body key", keyed_rule("transaction_body", text), body, problems)
         compare("witness key", keyed_rule("transaction_witness_set", text), witnesses, problems)
         compare("relay", union_members("relay", text), nested_kinds("RawRelay"), problems)
-        compare("credential", union_members("credential", text), credential_table(), problems)
+        compare("credential", union_members("credential", text), member_table("RawCredential"), problems)
+        compare("transaction_input", {"items": array_items("transaction_input", text)},
+                {"items": positional("RawInput")}, problems)
+        legacy = "alonzo_transaction_output" if rule(text, "alonzo_transaction_output") else "transaction_output"
+        expected = array_fields(legacy, text)
+        if expected[1][0] == "COIN":  # to Allegra a value is a coin, which RawValue.RECORD reads
+            expected[1] = ("VALUE", True)
+        actual = {position: row for position, row in table_rows("RawOutput", "alonzo_transaction_output").items()
+                  if position in expected or ERAS.index(era) >= ERAS.index("Alonzo")}
+        compare("legacy output", expected, actual, problems)
+        if rule(text, "babbage_transaction_output"):
+            compare("map output", keyed_rule("babbage_transaction_output", text), output_table(era), problems)
+            compare("datum_option", union_members("datum_option", text), member_table("RawDatum"), problems)
+        withdrawals = re.fullmatch(r"\{[*+] (\w+) => (\w+)\}", rule(text, "withdrawals")).groups()
+        compare("withdrawals", {"items": [field_type(item, text) for item in withdrawals]},
+                {"items": entries_table("RawWithdrawal")}, problems)
+        if rule(text, "value"):
+            coin, items, quantity = value_rule(text)
+            compare("value", {"coin": coin, "items": items, "quantity": quantity},
+                    {"coin": "COIN", "items": [row[0] for row in table_rows("RawValue", "value").values()],
+                     "quantity": multiasset_table("multiasset", era)[3]}, problems)
+            compare("multiasset", {"items": assets_rule(rule(text, "multiasset<a0>").replace("a0", "uint"), text)[:3]},
+                    {"items": multiasset_table("multiasset", era)[:3]}, problems)
+            mint = rule(text, "mint")
+            quantity = re.fullmatch(r"multiasset<(\w+)>", mint)
+            mint = rule(text, "multiasset<a0>").replace("a0", quantity.group(1)) if quantity else mint
+            compare("mint", {"items": assets_rule(mint, text)}, {"items": multiasset_table("mint", era)}, problems)
         if rule(text, "drep"):
             compare("drep", union_members("drep", text), nested_kinds("RawDRep"), problems)
         if rule(text, "anchor"):
