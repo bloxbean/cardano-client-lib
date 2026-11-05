@@ -11,7 +11,7 @@ import lombok.*;
 import java.math.BigInteger;
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 @Data
@@ -102,7 +102,7 @@ public class Redeemer {
         Redeemer redeemer = new Redeemer();
 
         //tag
-        int tagValue = toIntExact(tagDI);
+        int tagValue = toUnsignedInt(tagDI);
         if (tagValue == 0) {
             redeemer.setTag(RedeemerTag.Spend);
         } else if (tagValue == 1) {
@@ -143,7 +143,7 @@ public class Redeemer {
         Redeemer redeemer = new Redeemer();
 
         //tag
-        int tagValue = toIntExact(tagDI);
+        int tagValue = toUnsignedInt(tagDI);
         if (tagValue == 0) {
             redeemer.setTag(RedeemerTag.Spend);
         } else if (tagValue == 1) {

@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.transaction.spec.governance;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 public enum Vote {
     NO(0), YES(1), ABSTAIN(2);
@@ -27,7 +27,7 @@ public enum Vote {
      * @return
      */
     public static Vote deserialize(UnsignedInteger voteDI) {
-        int vote = toIntExact(voteDI);
+        int vote = toUnsignedInt(voteDI);
         switch (vote) {
             case 0:
                 return Vote.NO;

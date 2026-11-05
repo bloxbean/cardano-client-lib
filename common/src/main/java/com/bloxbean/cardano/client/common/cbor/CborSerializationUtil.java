@@ -28,7 +28,7 @@ public class CborSerializationUtil {
         if (MajorType.UNSIGNED_INTEGER.equals(valueItem.getMajorType())
                 || MajorType.NEGATIVE_INTEGER.equals(valueItem.getMajorType())) {
             value = ((Number) valueItem).getValue();
-        } else if (MajorType.BYTE_STRING.equals(valueItem.getMajorType()) && valueItem.getTag() != null) { //For BigNum. >  2 pow 64 Tag 2
+        } else if (MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
             if (valueItem.getTag().getValue() == 2) { //positive
                 value = CborSpan.bignum(true, ((ByteString) valueItem).getBytes());
             } else if (valueItem.getTag().getValue() == 3) { //Negative
@@ -71,31 +71,30 @@ public class CborSerializationUtil {
     }
 
     /**
-     * Convert a CBOR DataItem to int, rejecting a value an int cannot hold instead of wrapping it as {@link #toInt}
-     * does.
-     * @param valueItem an integer or bignum
+     * Read a position the ledger defines as unsigned into an int, rejecting anything else, or a value an int cannot hold,
+     * instead of wrapping it as {@link #toInt} does.
+     * @param valueItem a CBOR unsigned integer
      * @return the value
-     * @throws CborRuntimeException if the value does not fit in an int
+     * @throws CborRuntimeException for a negative integer, a bignum, any other item, or a value above
+     *                              {@link Integer#MAX_VALUE}
      */
-    public static int toIntExact(DataItem valueItem) {
-        BigInteger value = getBigInteger(valueItem);
-        if (value == null || value.bitLength() > 31)
-            throw new CborRuntimeException("Expected a 32-bit integer, found : " + describe(valueItem));
-        return value.intValue();
+    public static int toUnsignedInt(DataItem valueItem) {
+        if (!(valueItem instanceof UnsignedInteger) || ((UnsignedInteger) valueItem).getValue().bitLength() > 31)
+            throw new CborRuntimeException("Expected an unsigned integer that fits an int, found : " + describe(valueItem));
+        return ((UnsignedInteger) valueItem).getValue().intValue();
     }
 
     /**
-     * Convert a CBOR DataItem to a long holding an unsigned 64-bit value. A value at or above 2^63 reads as negative
-     * through the long, and {@link #unsignedLongItem(long)} writes it back exactly.
-     * @param valueItem an integer or bignum
+     * Read an unsigned 64-bit position into a long. A value at or above 2^63 reads as negative through the long, and
+     * {@link #unsignedLongItem(long)} writes it back exactly.
+     * @param valueItem a CBOR unsigned integer
      * @return the value's 64 bits
-     * @throws CborRuntimeException if the value is negative or does not fit in 64 bits
+     * @throws CborRuntimeException for a negative integer, a bignum, or any other item
      */
     public static long toUnsignedLong(DataItem valueItem) {
-        BigInteger value = getBigInteger(valueItem);
-        if (value == null || value.signum() < 0 || value.bitLength() > 64)
+        if (!(valueItem instanceof UnsignedInteger) || ((UnsignedInteger) valueItem).getValue().bitLength() > 64)
             throw new CborRuntimeException("Expected an unsigned 64-bit integer, found : " + describe(valueItem));
-        return value.longValue();
+        return ((UnsignedInteger) valueItem).getValue().longValue();
     }
 
     // Untrusted data can nest deeply, and a DataItem's own toString recurses through it.

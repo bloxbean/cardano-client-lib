@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.common.cbor;
 
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.NegativeInteger;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.math.BigInteger;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,11 +37,11 @@ class CborNumericsTest {
     }
 
     @Test
-    void toIntExactReadsAnIntAndRejectsAnythingWider() {
-        assertThat(toIntExact(new UnsignedInteger(Integer.MAX_VALUE))).isEqualTo(Integer.MAX_VALUE);
-        assertThatThrownBy(() -> toIntExact(new UnsignedInteger(BigInteger.ONE.shiftLeft(31))))
+    void toUnsignedIntReadsAnIntAndRejectsAnythingWider() {
+        assertThat(toUnsignedInt(new UnsignedInteger(Integer.MAX_VALUE))).isEqualTo(Integer.MAX_VALUE);
+        assertThatThrownBy(() -> toUnsignedInt(new UnsignedInteger(BigInteger.ONE.shiftLeft(31))))
                 .isInstanceOf(CborRuntimeException.class);
-        assertThatThrownBy(() -> toIntExact(new UnsignedInteger(BigInteger.ONE.shiftLeft(32).add(BigInteger.TWO))))
+        assertThatThrownBy(() -> toUnsignedInt(new UnsignedInteger(BigInteger.ONE.shiftLeft(32).add(BigInteger.TWO))))
                 .isInstanceOf(CborRuntimeException.class);
     }
 
@@ -59,7 +60,15 @@ class CborNumericsTest {
         DataItem untaggedBytes = new ByteString(new byte[]{1});
 
         for (DataItem item : new DataItem[]{deep, untaggedBytes}) {
-            assertThatThrownBy(() -> toIntExact(item)).isInstanceOf(CborRuntimeException.class);
+            assertThatThrownBy(() -> toUnsignedInt(item)).isInstanceOf(CborRuntimeException.class);
+            assertThatThrownBy(() -> toUnsignedLong(item)).isInstanceOf(CborRuntimeException.class);
+        }
+    }
+
+    @Test
+    void aNegativeIntegerOrBignumIsNotAnUnsignedInteger() {
+        for (DataItem item : new DataItem[]{new NegativeInteger(-1), bignum(2, new byte[]{0}), bignum(2, new byte[]{1})}) {
+            assertThatThrownBy(() -> toUnsignedInt(item)).isInstanceOf(CborRuntimeException.class);
             assertThatThrownBy(() -> toUnsignedLong(item)).isInstanceOf(CborRuntimeException.class);
         }
     }
