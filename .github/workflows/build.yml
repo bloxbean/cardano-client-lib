@@ -111,7 +111,7 @@ jobs:
           -PcborDataset="$RUNNER_TEMP/cbor-dataset/dataset" -PskipSigning=true --stacktrace
       - name: Fail if the gate was skipped
         run: >-
-          grep -q 'tests="2" skipped="0" failures="0" errors="0"'
+          grep -q 'tests="3" skipped="0" failures="0" errors="0"'
           transaction-spec/build/test-results/test/TEST-*CborCorpusConformanceTest.xml
 
   jmt-postgresql:
