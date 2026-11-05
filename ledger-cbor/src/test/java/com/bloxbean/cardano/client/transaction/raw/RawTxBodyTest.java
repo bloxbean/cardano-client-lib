@@ -124,6 +124,16 @@ class RawTxBodyTest {
     }
 
     @Test
+    void aKeyOfAnotherTypeIsNotAByteStringKeyWithTheSameContent() {
+        // a text key first, then a byte string key with its bytes: two keys, as a decoded map has them
+        String text = "78" + RA.substring(2);
+        RawTxBody body = RawTxBody.lenient(span("a4" + MIN + "05" + "a2" + text + "01" + RA + "02"), Era.Conway);
+        assertThatThrownBy(body::withdrawals).isInstanceOf(CborRuntimeException.class);
+        assertThat(RawItems.distinct(span("a2" + "00" + "01" + "40" + "02"), "map")).hasSize(2);
+        assertThat(RawItems.distinct(span("a2" + "4161" + "01" + "5f4161ff" + "02"), "map")).hasSize(1);
+    }
+
+    @Test
     void anEraIsRequired() {
         assertThatThrownBy(() -> RawTx.of(tx("a3" + MIN)).body(null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> RawTxBody.lenient(span("a0"), null)).isInstanceOf(IllegalArgumentException.class);

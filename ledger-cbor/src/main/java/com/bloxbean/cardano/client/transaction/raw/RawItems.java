@@ -165,8 +165,10 @@ public final class RawItems {
         return ((UnsignedInteger) index).getValue().intValue();
     }
 
-    // What makes two byte string keys equal.
+    // What makes two byte string keys equal. A key of another type is its bytes, so it never equals a byte string.
     static Object identity(CborSpan key) {
+        if (key.majorType() != 2)
+            return List.of(ByteBuffer.wrap(key.bytes()));
         if (!key.isTagged()) {
             if (key.isIndefinite())
                 return ByteBuffer.wrap(key.byteString());
