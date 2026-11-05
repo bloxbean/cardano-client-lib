@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Conformance gate over cardano-cbor-dataset's valid Conway samples: each must decode into CCL's model and re-encode to
@@ -159,6 +160,21 @@ class CborCorpusConformanceTest {
                 .as("listed samples that now pass: remove them from " + MISSES).isEmpty();
     }
 
+    /** A listed sample must not hide a new overflow, so an overflow is never a miss. */
+    @Test
+    void aStackOverflowFailsTheGate() throws IOException {
+        Path input = validSamples().get(0);
+        Rule decoderOverflows = new Rule(cbor -> {
+            throw new StackOverflowError();
+        }, null);
+        Rule encoderOverflows = new Rule(cbor -> cbor, model -> {
+            throw new StackOverflowError();
+        });
+
+        assertThatThrownBy(() -> miss(decoderOverflows, input)).isInstanceOf(StackOverflowError.class);
+        assertThatThrownBy(() -> miss(encoderOverflows, input)).isInstanceOf(StackOverflowError.class);
+    }
+
     /** @param kind {@code rejected} by the decoder, {@code encoder} failure, or re-encoding {@code differs} */
     private record Miss(String kind, String detail) {
     }
@@ -169,10 +185,14 @@ class CborCorpusConformanceTest {
         if (rule == null) {
             return new Miss("rejected", "no decoder for this rule");
         }
+        return miss(rule, input);
+    }
+
+    private static Miss miss(Rule rule, Path input) throws IOException {
         Object model;
         try {
             model = rule.decoder().decode(Files.readAllBytes(input));
-        } catch (Exception | StackOverflowError e) {
+        } catch (Exception e) {
             return new Miss("rejected", e.toString());
         }
         if (rule.encoder() == null) {
@@ -183,7 +203,7 @@ class CborCorpusConformanceTest {
             Object encoded = rule.encoder().encode(model);
             byte[] bytes = encoded instanceof byte[] b ? b : CborSerializationUtil.serialize((DataItem) encoded, false);
             normalized = CborNormalizer.normalize(bytes);
-        } catch (Exception | StackOverflowError e) {
+        } catch (Exception e) {
             return new Miss("encoder", e.toString());
         }
         return Arrays.equals(normalized, Files.readAllBytes(expectedOf(input))) ? null
