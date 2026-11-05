@@ -177,6 +177,28 @@ class TransactionOutputBytesTest {
                 .isFalse();
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            // CBOR keys that differ but are one Plutus key, so the conversion to the model drops a pair
+            "81a2a000bfff01, a1a001, 81a1a001",
+            "81a2d8798000d86682008001, a1d8798001, 81a1d8798001",
+            "81a20100c2410102, a10102, 81a10102",
+            // model keys that differ but encode the same, so the encoding keeps one pair
+            "81a29fff018002, a18002, 81a18002",
+            // the same pairs of such keys in another order, which the encoding can't show
+            "81a29fff018001, a280019fff01, 81a18001",
+    })
+    void replacingAMapThatLostAPairWritesTheReplacement(String original, String replacement, String model)
+            throws Exception {
+        TransactionOutput unchanged = decode(original);
+        assertThat(written(unchanged)).isEqualTo(original);
+
+        TransactionOutput output = decode(original);
+        ((ListPlutusData) output.getInlineDatum()).getPlutusDataList().set(0, datum(replacement));
+
+        assertThat(written(output)).isEqualTo(model);
+    }
+
     @Test
     void movingARepeatedMapWithinAListWritesTheModel() throws Exception {
         TransactionOutput output = decode("82" + REPEATED + COLLAPSED);

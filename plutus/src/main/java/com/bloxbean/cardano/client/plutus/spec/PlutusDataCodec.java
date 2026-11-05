@@ -99,7 +99,6 @@ final class PlutusDataCodec {
             if (depth == 0)
                 return null;
             MapPlutusData map = new MapPlutusData();
-            keepRepeatedEntries(map, (Map) item);
             EntryIterator entries = new EntryIterator((Map) item);
             while (entries.hasNext()) {
                 PlutusData key = decodeShallow(entries.next(), depth - 1);
@@ -108,6 +107,7 @@ final class PlutusDataCodec {
                     return null;
                 map.put(key, value);
             }
+            keepRepeatedEntries(map, (Map) item);
             return map;
         }
         return leaf(item);
@@ -268,6 +268,7 @@ final class PlutusDataCodec {
 
     private static final class MapFrame extends DecodeFrame {
         private final EntryIterator entries;
+        private final Map source;
         private final MapPlutusData map = new MapPlutusData();
         private PlutusData key;
         private boolean keyDone;
@@ -275,7 +276,7 @@ final class PlutusDataCodec {
         MapFrame(DecodeFrame parent, Map source) {
             super(parent);
             this.entries = new EntryIterator(source);
-            keepRepeatedEntries(map, source);
+            this.source = source;
         }
 
         @Override
@@ -301,13 +302,24 @@ final class PlutusDataCodec {
 
         @Override
         PlutusData result() {
+            keepRepeatedEntries(map, source);
             return map;
         }
     }
 
+    // What the datum key needs of the pairs this map lost. CBOR keys that differ can also be one Plutus key, such as
+    // a0 and bfff, which drops a pair during the conversion. The source's own encoding still holds that pair.
     private static void keepRepeatedEntries(MapPlutusData map, Map source) {
-        if (source instanceof EncodedKeyMap && ((EncodedKeyMap) source).hasRepeatedKey())
-            ((PlutusDataMap) map.getMap()).setRepeatedEntries(((EncodedKeyMap) source).getRepeatedEntries());
+        Array repeated = source instanceof EncodedKeyMap ? ((EncodedKeyMap) source).getRepeatedEntries() : null;
+        if (map.getMap().size() < source.getKeys().size()) {
+            Array entries = new Array();
+            if (repeated != null)
+                entries.add(repeated);
+            entries.add(source);
+            repeated = entries;
+        }
+        if (repeated != null)
+            ((PlutusDataMap) map.getMap()).setRepeatedEntries(repeated);
     }
 
     // Keys and values of a cbor-java map in order: its key list and values share the insertion order, so they are
@@ -571,17 +583,21 @@ final class PlutusDataCodec {
     private static final int NESTED_RECORD = 1;
 
     /**
-     * What tells two datums apart when deciding whether retained bytes still represent one (ADR 0002 D6.3): the
-     * non-canonical encoding, which sees order and values, plus a record of each map's repeated entries with its place
-     * in the walk. A record says whether its map is in the model or inside another record's entries, so the two can't
-     * pass for each other.
+     * What tells two datums apart when deciding whether retained bytes still represent one (ADR 0002 D6.3): the model's
+     * values and pairs in order, plus a record of the pairs each map lost when decoded, with its place in the walk. A
+     * record says whether its map is in the model or inside another record's entries, so the two can't pass for each
+     * other.
      * A map that repeated a key encodes like one that did not, so replacing a child can leave the encoding unchanged.
      * A map keeps its record for life, so one cleared and refilled with the same entries still counts as unchanged.
      * Nothing recurses.
      */
     static byte[] datumKey(PlutusData root) throws CborSerializationException, CborException {
         ByteArrayOutputStream key = new ByteArrayOutputStream();
-        key.writeBytes(CborSerializationUtil.serialize(encode(root), false));
+        // Every value and pair the model holds, in order. Its encoding would not do: model keys that differ can encode
+        // the same, such as an empty list's two forms, and the encoding then keeps only one of those pairs.
+        byte[] model = modelKey(root, true);
+        key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(model.length), false));
+        key.writeBytes(model);
 
         ArrayDeque<PlutusData> pending = new ArrayDeque<>();
         pending.push(root);
@@ -817,13 +833,17 @@ final class PlutusDataCodec {
      * value; any other implementation of {@link PlutusData} by its own serialization.
      */
     static byte[] equalityKey(PlutusData root) {
+        return modelKey(root, false);
+    }
+
+    private static byte[] modelKey(PlutusData root, boolean inOrder) {
         Bytes out = new Bytes();
-        KeyFrame top = writeKeyNode(root, out, null);
+        KeyFrame top = writeKeyNode(root, out, null, inOrder);
         while (top != null) {
             if (top.hasNext()) {
                 PlutusData child = top.next();
                 Bytes childOut = top.childBuffer();
-                KeyFrame opened = writeKeyNode(child, childOut, top);
+                KeyFrame opened = writeKeyNode(child, childOut, top, inOrder);
                 if (opened != null)
                     top = opened;
                 else
@@ -848,7 +868,7 @@ final class PlutusDataCodec {
     private static final int KEY_OTHER = 6;
 
     // Writes a leaf completely, or a container's head and returns a frame for its children.
-    private static KeyFrame writeKeyNode(PlutusData data, Bytes out, KeyFrame parent) {
+    private static KeyFrame writeKeyNode(PlutusData data, Bytes out, KeyFrame parent, boolean inOrder) {
         if (data == null) {
             out.write(KEY_NULL);
             return null;
@@ -880,7 +900,7 @@ final class PlutusDataCodec {
                 return null;
             }
             out.writeInt(map.size());
-            if (map.size() > 1)
+            if (map.size() > 1 && !inOrder)
                 return new SortedEntriesFrame(parent, out, map);
             return map.isEmpty() ? null : new KeyListFrame(parent, out, new MapItems(map));
         }
