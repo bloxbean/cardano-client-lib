@@ -34,7 +34,7 @@ public class Nonce {
         if (di == null) return null;
 
         List<DataItem> dataItemList = ((Array) di).getDataItems();
-        int i = CborSerializationUtil.toIntExact(dataItemList.get(0));
+        int i = CborSerializationUtil.toUnsignedInt(dataItemList.get(0));
 
         if (i == 0) {
             return new Nonce(null);

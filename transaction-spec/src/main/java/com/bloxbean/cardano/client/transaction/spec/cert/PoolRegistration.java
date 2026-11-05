@@ -142,7 +142,7 @@ public class PoolRegistration implements Certificate {
         }
 
         UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || toIntExact(type) != 3)
+        if (type == null || toUnsignedInt(type) != 3)
             throw new CborDeserializationException("PoolRegistration deserialization failed. Invalid type : "
                     + type != null ? String.valueOf(type.getValue().intValue()) : null);
 
@@ -202,7 +202,7 @@ public class PoolRegistration implements Certificate {
 
     private static Relay deserializeRelay(DataItem relayDI) throws CborDeserializationException, CborException {
         List<DataItem> relayItems = ((Array) relayDI).getDataItems();
-        int type = toIntExact(relayItems.get(0));
+        int type = toUnsignedInt(relayItems.get(0));
 
         Integer port = null;
         String dns = null;
@@ -212,7 +212,7 @@ public class PoolRegistration implements Certificate {
             Inet6Address ipv6 = null;
 
             DataItem itemDI = relayItems.get(1);
-            port = itemDI != SimpleValue.NULL ? toIntExact(itemDI) : null;
+            port = itemDI != SimpleValue.NULL ? toUnsignedInt(itemDI) : null;
 
             itemDI = relayItems.get(2);
             if (itemDI != SimpleValue.NULL) {
@@ -240,7 +240,7 @@ public class PoolRegistration implements Certificate {
             return new SingleHostAddr(port, ipv4, ipv6);
         } else if (type == 1) {
             DataItem itemDI = relayItems.get(1);
-            port = itemDI != SimpleValue.NULL ? toIntExact(itemDI) : null;
+            port = itemDI != SimpleValue.NULL ? toUnsignedInt(itemDI) : null;
 
             itemDI = relayItems.get(2);
             dns = itemDI != SimpleValue.NULL ? toUnicodeString(itemDI) : null;

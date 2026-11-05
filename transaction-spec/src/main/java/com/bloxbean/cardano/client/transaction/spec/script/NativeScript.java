@@ -17,7 +17,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 @JsonDeserialize(using = NativeScriptDeserializer.class)
 public interface NativeScript extends Script {
@@ -114,7 +114,7 @@ public interface NativeScript extends Script {
             throw new CborRuntimeException("Reference Script deserialization failed. Invalid no of DataItem : " + dataItemList.size());
         }
 
-        int type = toIntExact(dataItemList.get(0));
+        int type = toUnsignedInt(dataItemList.get(0));
 
         if (type != 0)
             throw new CborRuntimeException("NativeScript deserialization failed from ScriptRef bytes. Invalid type : " + type);

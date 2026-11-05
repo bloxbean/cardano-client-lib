@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 import java.util.Objects;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 @Data
@@ -41,7 +41,7 @@ public class GovActionId {
                     + diList.size());
 
         String txId = HexUtil.encodeHexString(((ByteString) diList.get(0)).getBytes());
-        int govActionIndex = toIntExact(diList.get(1));
+        int govActionIndex = toUnsignedInt(diList.get(1));
 
         return new GovActionId(txId, govActionIndex);
     }
