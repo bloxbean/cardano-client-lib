@@ -20,8 +20,10 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * a {@link RawTx}; and the block body hash.
  * <p>
  * Accepts the hard-fork combinator envelope {@code [era, block]}, or the bare block with its era given, either one
- * optionally wrapped in tag 24; or a {@link BlockEnvelope}. The era decides the layouts and the rules that differ
- * between eras ({@code EraSpec}). Checked when the view is created, as the ledger's decoder checks them (D6):
+ * optionally wrapped in tag 24; or a {@link BlockEnvelope}. {@link BlockEnvelope#eraIndexOf(byte[])} and
+ * {@link BlockEnvelope#headerOf(byte[])}, which read a damaged block, do not look into tag 24: give them the envelope.
+ * The era decides the layouts and the rules that differ between eras ({@code EraSpec}). Checked when the view is
+ * created, as the ledger's decoder checks them (D6):
  * <ul>
  *     <li>as many witness sets as transaction bodies;</li>
  *     <li>aux data map keys are transaction indexes; a repeated index keeps the last value until Babbage and is
@@ -50,8 +52,6 @@ public final class RawBlock {
         if (block.majorType() != 4 || block.tag() != -1)
             throw error("A block is an untagged array", block);
         List<CborSpan> parts = block.items();
-        if (parts.size() == 2)
-            throw error("Dijkstra blocks ([header, block_body]) are not supported", block);
         if (parts.size() != rules.blockLayout.items)
             throw error("A " + era + " block has " + rules.blockLayout.items + " items, found " + parts.size(), block);
         header = parts.get(0);

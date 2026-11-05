@@ -10,7 +10,8 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
  * {@link RawBlock#readAs(BlockEnvelope, com.bloxbean.cardano.client.spec.Era)} read it.
  * <p>
  * A block that is damaged has no envelope by these rules, as creating one walks every byte. {@link #eraIndexOf(byte[])}
- * and {@link #headerOf(byte[])} read only as far as they need, so what comes after may be malformed or missing.
+ * and {@link #headerOf(byte[])} read only as far as they need, so what comes after may be malformed or missing. Unlike
+ * {@link #of(byte[])}, they do not look into tag 24.
  */
 public final class BlockEnvelope {
     private static final int EMBEDDED_CBOR = 24;

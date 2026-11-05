@@ -186,7 +186,7 @@ class BlockEnvelopeTest {
                 .isInstanceOf(UnsupportedEraException.class).hasMessageContaining("Byron");
         assertThatThrownBy(() -> RawBlock.of(bytes("8208" + CONWAY_BLOCK))).hasMessageContaining("Dijkstra");
         assertThatThrownBy(() -> RawBlock.of(bytes("82" + HEADER + "80"), Era.Conway))
-                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Dijkstra");
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Conway block has 5 items, found 2");
     }
 
     /** The view does not look into the header until asked, as it did not before. */

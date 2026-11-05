@@ -141,8 +141,9 @@ class RawBlockScenarioTest {
                     .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Byron");
         assertThatThrownBy(() -> of(envelope(8, "82" + HEADER + "80")))
                 .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Dijkstra");
+        // a block of two items given another era is a block of that era with the wrong number of items
         assertThatThrownBy(() -> RawBlock.of(decodeHexString("82" + HEADER + "80"), Era.Conway))
-                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Dijkstra");
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Conway block has 5 items, found 2");
         assertThatThrownBy(() -> of(envelope(9, block("a0", "80")))).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> Era.fromValue(1)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("Byron");
         assertThat(Era.fromValue(5)).isEqualTo(Era.Alonzo);

@@ -65,7 +65,10 @@ public final class CborSpan {
     private final byte[] buffer;
     private final int offset;
     private final int length;
-    // Listed once: a walk and the views of a record read the same containers, and a listing skips every child.
+    // Listed once: a walk and the views of a record read the same containers, and a listing skips every child. Not
+    // volatile, and safe to share between threads: each memo is reached only through final fields (a span's, an
+    // unmodifiable list's, a SimpleImmutableEntry's), so a thread that sees one sees it whole (JLS 17.5), and a thread
+    // that sees null lists the same items again.
     private List<CborSpan> children;
     private List<Map.Entry<CborSpan, CborSpan>> entries;
     private CborSpan untagged;
