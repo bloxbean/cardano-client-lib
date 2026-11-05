@@ -158,6 +158,11 @@ public final class CborSpan {
         Objects.requireNonNull(buffer, "buffer");
         Objects.checkFromToIndex(offset, limit, buffer.length);
 
+        CborHead head = new CborHead();
+        int definiteEnd = skipDefinite(buffer, offset, limit, head);
+        if (definiteEnd >= 0)
+            return definiteEnd;
+
         // Frame d: remaining[d] items still to read (INDEFINITE until BREAK), kind[d] its FRAME_* kind.
         // Each push consumes at least one input byte, so the stack never exceeds the input length.
         int[] remaining = new int[16];
@@ -166,7 +171,6 @@ public final class CborSpan {
         remaining[0] = 1;
         kind[0] = FRAME_ROOT;
 
-        CborHead head = new CborHead();
         int pos = offset;
         boolean afterTag = false;
         while (true) {
@@ -244,6 +248,40 @@ public final class CborSpan {
         }
     }
 
+    // Without an indefinite length no frames are needed, only the count of items still to read, and most items have
+    // none. Returns the end of the item, or -1 to leave it to the walker with frames, which also reports a truncation
+    // or a misplaced BREAK. A head it rejects, it rejects as the walker does, having read the same heads.
+    private static int skipDefinite(byte[] buffer, int offset, int limit, CborHead head) {
+        long pending = 1;
+        int pos = offset;
+        while (pending > 0) {
+            if (pos >= limit || (buffer[pos] & 0xff) == BREAK)
+                return -1;
+            head.read(buffer, pos, limit);
+            pos = head.end;
+            switch (head.major) {
+                case MAJOR_TAG:
+                    continue;
+                case MAJOR_BYTES:
+                case MAJOR_TEXT:
+                    if (head.indefinite)
+                        return -1;
+                    pos = CborHead.checkedStringEnd(head, pos, limit);
+                    break;
+                case MAJOR_ARRAY:
+                case MAJOR_MAP:
+                    if (head.indefinite)
+                        return -1;
+                    pending += CborHead.checkedCount(head, head.major == MAJOR_ARRAY ? 1 : 2, pos, limit);
+                    break;
+                default:
+                    break;
+            }
+            pending--;
+        }
+        return pos;
+    }
+
     /**
      * @return the buffer this span points into (not a copy)
      */
@@ -297,6 +335,13 @@ public final class CborSpan {
     public long tag() {
         CborHead head = head(offset);
         return head.major == MAJOR_TAG ? head.argument : -1;
+    }
+
+    /**
+     * @return whether the item has a tag, which {@link #tag()} cannot tell for the tag number 2^64 - 1
+     */
+    public boolean isTagged() {
+        return head(offset).major == MAJOR_TAG;
     }
 
     /**
@@ -544,7 +589,8 @@ public final class CborSpan {
             throw CborHead.error(major == MAJOR_ARRAY ? "expected a CBOR array" : "expected a CBOR map", offset);
         int end = offset + length;
         int pos = head.end;
-        List<CborSpan> children = new ArrayList<>();
+        List<CborSpan> children = new ArrayList<>(head.indefinite ? 10
+                : (head.major == MAJOR_ARRAY ? 1 : 2) * (int) head.argument);
         // The span was walked when it was created, so the children are well-formed; an indefinite container ends
         // at its BREAK, a definite one at the end of the span.
         while (pos < end && (!head.indefinite || (buffer[pos] & 0xff) != BREAK)) {

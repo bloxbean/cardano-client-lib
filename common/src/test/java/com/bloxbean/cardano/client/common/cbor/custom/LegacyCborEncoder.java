@@ -17,7 +17,8 @@ import java.util.TreeMap;
  * The recursive encoder that {@link CustomCborEncoder} was before it became iterative (with the CustomMapEncoder it
  * used), kept as a test oracle: the iterative encoder must produce the same bytes. Like it, it closes an indefinite
  * array that does not end with a BREAK item (as CborSerializationUtil.deserialize gives one) with a BREAK, and an empty
- * indefinite map too, which the recursive encoder left without its BREAK, so unterminated.
+ * indefinite map too, which the recursive encoder left without its BREAK, so unterminated, and it writes a tag number
+ * of 2^63 or more in 8 bytes.
  */
 @SuppressWarnings("deprecation")
 public class LegacyCborEncoder extends CborEncoder {
@@ -46,7 +47,9 @@ public class LegacyCborEncoder extends CborEncoder {
         if (dataItem == null) {
             dataItem = SimpleValue.NULL;
         }
-        if (dataItem.getMajorType().equals(MajorType.MAP)) {
+        if (dataItem instanceof Tag && ((Tag) dataItem).getValue() < 0) {
+            encodeLargeTag((Tag) dataItem);
+        } else if (dataItem.getMajorType().equals(MajorType.MAP)) {
             if (dataItem.hasTag()) {
                 encode(dataItem.getTag());
             }
@@ -71,6 +74,19 @@ public class LegacyCborEncoder extends CborEncoder {
             encode(Special.BREAK);
         } else {
             super.encode(dataItem);
+        }
+    }
+
+    // A tag number of 2^63 or more: cbor-java's signed comparisons write it as other, invalid bytes.
+    private void encodeLargeTag(Tag tag) throws CborException {
+        if (tag.hasTag())
+            encode(tag.getTag());
+        try {
+            outputStream.write(MajorType.TAG.getValue() << 5 | 27);
+            for (int shift = 56; shift >= 0; shift -= 8)
+                outputStream.write((int) (tag.getValue() >> shift));
+        } catch (IOException e) {
+            throw new CborException(e);
         }
     }
 
