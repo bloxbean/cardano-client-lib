@@ -28,7 +28,7 @@ public class CborSerializationUtil {
         if (MajorType.UNSIGNED_INTEGER.equals(valueItem.getMajorType())
                 || MajorType.NEGATIVE_INTEGER.equals(valueItem.getMajorType())) {
             value = ((Number) valueItem).getValue();
-        } else if (MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
+        } else if (MajorType.BYTE_STRING.equals(valueItem.getMajorType()) && valueItem.getTag() != null) { //For BigNum. >  2 pow 64 Tag 2
             if (valueItem.getTag().getValue() == 2) { //positive
                 value = CborSpan.bignum(true, ((ByteString) valueItem).getBytes());
             } else if (valueItem.getTag().getValue() == 3) { //Negative
@@ -80,7 +80,7 @@ public class CborSerializationUtil {
     public static int toIntExact(DataItem valueItem) {
         BigInteger value = getBigInteger(valueItem);
         if (value == null || value.bitLength() > 31)
-            throw new CborRuntimeException("Expected a 32-bit integer, found : " + valueItem);
+            throw new CborRuntimeException("Expected a 32-bit integer, found : " + describe(valueItem));
         return value.intValue();
     }
 
@@ -94,8 +94,13 @@ public class CborSerializationUtil {
     public static long toUnsignedLong(DataItem valueItem) {
         BigInteger value = getBigInteger(valueItem);
         if (value == null || value.signum() < 0 || value.bitLength() > 64)
-            throw new CborRuntimeException("Expected an unsigned 64-bit integer, found : " + valueItem);
+            throw new CborRuntimeException("Expected an unsigned 64-bit integer, found : " + describe(valueItem));
         return value.longValue();
+    }
+
+    // Untrusted data can nest deeply, and a DataItem's own toString recurses through it.
+    private static String describe(DataItem item) {
+        return item instanceof Number ? ((Number) item).getValue().toString() : item.getMajorType().toString();
     }
 
     /**
