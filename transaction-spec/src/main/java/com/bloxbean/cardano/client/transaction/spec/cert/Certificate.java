@@ -2,99 +2,71 @@ package com.bloxbean.cardano.client.transaction.spec.cert;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-import java.util.List;
 import java.util.Objects;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 public interface Certificate {
 
     static Certificate deserialize(Array certArray) throws CborDeserializationException {
         Objects.requireNonNull(certArray);
 
-        List<DataItem> dataItemList = certArray.getDataItems();
-        if (dataItemList == null || dataItemList.size() < 2) {
-            throw new CborDeserializationException("Certificate deserialization failed. Invalid number of DataItem(s) : "
-                    + (dataItemList != null ? String.valueOf(dataItemList.size()) : null));
-        }
-
-        UnsignedInteger typeUI = (UnsignedInteger) dataItemList.get(0);
-        int type = toUnsignedInt(typeUI);
-
-        Certificate certificate;
-        switch (type) {
-            case 0:
-                certificate = StakeRegistration.deserialize(certArray);
-                break;
-            case 1:
-                certificate = StakeDeregistration.deserialize(certArray);
-                break;
-            case 2:
-                certificate = StakeDelegation.deserialize(certArray);
-                break;
-            case 3:
-                certificate = PoolRegistration.deserialize(certArray);
-                break;
-            case 4:
-                certificate = PoolRetirement.deserialize(certArray);
-                break;
-            case 5:
-                certificate = GenesisKeyDelegation.deserialize(certArray);
-                break;
-            case 6:
-                certificate = MoveInstataneous.deserialize(certArray);
-                break;
-            case 7:
-                certificate = RegCert.deserialize(certArray);
-                break;
-            case 8:
-                certificate = UnregCert.deserialize(certArray);
-                break;
-            case 9:
-                certificate = VoteDelegCert.deserialize(certArray);
-                break;
-            case 10:
-                certificate = StakeVoteDelegCert.deserialize(certArray);
-                break;
-            case 11:
-                certificate = StakeRegDelegCert.deserialize(certArray);
-                break;
-            case 12:
-                certificate = VoteRegDelegCert.deserialize(certArray);
-                break;
-            case 13:
-                certificate = StakeVoteRegDelegCert.deserialize(certArray);
-                break;
-            case 14:
-                certificate = AuthCommitteeHotCert.deserialize(certArray);
-                break;
-            case 15:
-                certificate = ResignCommitteeColdCert.deserialize(certArray);
-                break;
-            case 16:
-                certificate = RegDRepCert.deserialize(certArray);
-                break;
-            case 17:
-                certificate = UnregDRepCert.deserialize(certArray);
-                break;
-            case 18:
-                certificate = UpdateDRepCert.deserialize(certArray);
-                break;
+        CborSpan span = RawModels.span(certArray);
+        CertKind kind = CertKind.of(span).orElseThrow(() ->
+                new CborDeserializationException("Certificate deserialization failed. Unknown type"));
+        RawCertificate cert = RawCertificate.lenient(kind, span);
+        switch (kind) {
+            case STAKE_REGISTRATION:
+                return StakeRegistration.from(cert);
+            case STAKE_DEREGISTRATION:
+                return StakeDeregistration.from(cert);
+            case STAKE_DELEGATION:
+                return StakeDelegation.from(cert);
+            case POOL_REGISTRATION:
+                return PoolRegistration.from(cert);
+            case POOL_RETIREMENT:
+                return PoolRetirement.from(cert);
+            case GENESIS_KEY_DELEGATION:
+                return GenesisKeyDelegation.from(cert);
+            case MOVE_INSTANTANEOUS_REWARDS:
+                return MoveInstataneous.from(cert);
+            case REG_CERT:
+                return RegCert.from(cert);
+            case UNREG_CERT:
+                return UnregCert.from(cert);
+            case VOTE_DELEG_CERT:
+                return VoteDelegCert.from(cert);
+            case STAKE_VOTE_DELEG_CERT:
+                return StakeVoteDelegCert.from(cert);
+            case STAKE_REG_DELEG_CERT:
+                return StakeRegDelegCert.from(cert);
+            case VOTE_REG_DELEG_CERT:
+                return VoteRegDelegCert.from(cert);
+            case STAKE_VOTE_REG_DELEG_CERT:
+                return StakeVoteRegDelegCert.from(cert);
+            case AUTH_COMMITTEE_HOT_CERT:
+                return AuthCommitteeHotCert.from(cert);
+            case RESIGN_COMMITTEE_COLD_CERT:
+                return ResignCommitteeColdCert.from(cert);
+            case REG_DREP_CERT:
+                return RegDRepCert.from(cert);
+            case UNREG_DREP_CERT:
+                return UnregDRepCert.from(cert);
+            case UPDATE_DREP_CERT:
+                return UpdateDRepCert.from(cert);
             default:
-                throw new CborDeserializationException("Certificate deserialization failed. Unknown type : " + type);
+                throw new CborDeserializationException("Certificate deserialization failed. Unknown type : " + kind);
         }
-
-        return certificate;
     }
 
     default Array serialize() throws CborSerializationException {

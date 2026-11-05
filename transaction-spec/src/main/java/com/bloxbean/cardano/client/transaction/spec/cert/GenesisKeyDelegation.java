@@ -2,17 +2,14 @@ package com.bloxbean.cardano.client.transaction.spec.cert;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
-
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toBytes;
 
 @Getter
 @NoArgsConstructor
@@ -40,21 +37,11 @@ public class GenesisKeyDelegation implements Certificate {
     }
 
     public static GenesisKeyDelegation deserialize(Array genesisKeyDelArray) throws CborDeserializationException {
-        List<DataItem> dataItemList = genesisKeyDelArray.getDataItems();
-        if (dataItemList == null || dataItemList.size() != 4) {
-            throw new CborDeserializationException("GenesisKeyDelegation deserialization failed. Invalid number of DataItem(s) : "
-                    + (dataItemList != null ? String.valueOf(dataItemList.size()) : null));
-        }
+        return from(RawCertificate.lenient(CertKind.GENESIS_KEY_DELEGATION, RawModels.span(genesisKeyDelArray)));
+    }
 
-        UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || toUnsignedInt(type) != 5)
-            throw new CborDeserializationException("GenesisKeyDelegation deserialization failed. Invalid type : "
-                    + type != null ? String.valueOf(type.getValue().intValue()) : null);
-
-        byte[] genesisHash = toBytes(dataItemList.get(1));
-        byte[] genesisDelegateHash = toBytes(dataItemList.get(2));
-        byte[] vrfKeyHash = toBytes(dataItemList.get(3));
-
-        return new GenesisKeyDelegation(genesisHash, genesisDelegateHash, vrfKeyHash);
+    static GenesisKeyDelegation from(RawCertificate cert) throws CborDeserializationException {
+        RawModels.exact(cert);
+        return new GenesisKeyDelegation(cert.genesisHash(), cert.genesisDelegateHash(), cert.vrfKeyHash());
     }
 }

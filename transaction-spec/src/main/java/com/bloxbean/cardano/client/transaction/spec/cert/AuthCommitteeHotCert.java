@@ -1,15 +1,16 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
-import java.util.List;
 import java.util.Objects;
 
 @Data
@@ -36,11 +37,11 @@ public class AuthCommitteeHotCert implements Certificate {
     }
 
     public static AuthCommitteeHotCert deserialize(Array certArray) {
-        List<DataItem> dataItemList = certArray.getDataItems();
+        return from(RawCertificate.lenient(CertKind.AUTH_COMMITTEE_HOT_CERT, RawModels.span(certArray)));
+    }
 
-        Credential committeeColdCred = CredentialSerializer.deserialize((Array) dataItemList.get(1));
-        Credential committeeHotCred = CredentialSerializer.deserialize((Array) dataItemList.get(2));
-
-        return new AuthCommitteeHotCert(committeeColdCred, committeeHotCred);
+    static AuthCommitteeHotCert from(RawCertificate cert) {
+        return new AuthCommitteeHotCert(RawModels.credential(cert.credential()),
+                RawModels.credential(cert.hotCredential()));
     }
 }

@@ -7,11 +7,13 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
-import java.util.List;
 import java.util.Objects;
 
 @Data
@@ -41,16 +43,10 @@ public class UpdateDRepCert implements Certificate {
     }
 
     public static UpdateDRepCert deserialize(DataItem di) {
-        Array certArray = (Array) di;
-        List<DataItem> dataItemList = certArray.getDataItems();
+        return from(RawCertificate.lenient(CertKind.UPDATE_DREP_CERT, RawModels.span(di)));
+    }
 
-        Credential drepCred = CredentialSerializer.deserialize((Array) dataItemList.get(1));
-
-        var anchorDI = dataItemList.get(2);
-        Anchor anchor = null;
-        if (anchorDI != SimpleValue.NULL)
-            anchor = Anchor.deserialize((Array) anchorDI);
-
-        return new UpdateDRepCert(drepCred, anchor);
+    static UpdateDRepCert from(RawCertificate cert) {
+        return new UpdateDRepCert(RawModels.credential(cert.credential()), RawModels.anchor(cert.anchor()));
     }
 }

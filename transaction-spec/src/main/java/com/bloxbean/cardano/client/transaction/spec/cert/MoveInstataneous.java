@@ -4,17 +4,15 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.raw.RawCredential;
+import com.bloxbean.cardano.client.transaction.raw.RawMir;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
 import java.math.BigInteger;
-import java.util.Collection;
 import java.util.LinkedHashMap;
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
-import static com.bloxbean.cardano.client.transaction.spec.cert.MirPot.RESERVES;
-import static com.bloxbean.cardano.client.transaction.spec.cert.MirPot.TREASURY;
 
 @Getter
 @NoArgsConstructor
@@ -61,44 +59,27 @@ public class MoveInstataneous implements Certificate {
     }
 
     public static MoveInstataneous deserialize(Array moveInstantaneousArr) throws CborDeserializationException {
-        List<DataItem> dataItemList = moveInstantaneousArr.getDataItems();
-        if (dataItemList == null || dataItemList.size() != 2) {
-            throw new CborDeserializationException("MoveInstantaneous Rewards deserialization failed. Invalid number of DataItem(s) : "
-                    + (dataItemList != null ? String.valueOf(dataItemList.size()) : null));
-        }
+        return from(RawCertificate.lenient(CertKind.MOVE_INSTANTANEOUS_REWARDS, RawModels.span(moveInstantaneousArr)));
+    }
 
-        UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || toUnsignedInt(type) != 6)
-            throw new CborDeserializationException("MoveInstantaneous Rewards deserialization failed. Invalid type : "
-                    + type != null ? String.valueOf(type.getValue().intValue()) : null);
-
-        List<DataItem> moveInstDIList = ((Array) dataItemList.get(1)).getDataItems();
-
-        MirPot pot = null;
-        int fundsDrawnFrom = toUnsignedInt(moveInstDIList.get(0));
-        if (fundsDrawnFrom == 0)
-            pot = RESERVES;
-        if (fundsDrawnFrom == 1)
-            pot = TREASURY;
-
-        java.util.Map stakeCredentialsMap = new LinkedHashMap();
+    static MoveInstataneous from(RawCertificate cert) throws CborDeserializationException {
+        RawMir mir = RawModels.exact(cert).moveInstantaneousReward();
+        java.util.Map<StakeCredential, BigInteger> stakeCredentialsMap = new LinkedHashMap<>();
         BigInteger accountingPotCoin = null;
-        DataItem fundsMoveDI = moveInstDIList.get(1);
-        if (fundsMoveDI.getMajorType() == MajorType.MAP) { //funds are moved to stake credentials
-            co.nstant.in.cbor.model.Map fundsMoveDIMap = (co.nstant.in.cbor.model.Map) fundsMoveDI;
-
-            Collection<DataItem> keys = fundsMoveDIMap.getKeys();
-            for (DataItem key : keys) {
-                DataItem deltaCoinDI = fundsMoveDIMap.get(key);
-                BigInteger deltaCoinValue = getBigInteger(deltaCoinDI);
-                StakeCredential stakeCredential = StakeCredential.deserialize((Array) key);
-                stakeCredentialsMap.put(stakeCredential, deltaCoinValue);
-            }
-        } else { //funds are given to the other accounting pot
-            accountingPotCoin = getBigInteger(fundsMoveDI);
+        if (mir.movesToCredentials()) {
+            for (java.util.Map.Entry<RawCredential, BigInteger> target : mir.targets())
+                stakeCredentialsMap.put(RawModels.stakeCredential(target.getKey()), target.getValue());
+        } else {
+            accountingPotCoin = mir.coin();
         }
+        return new MoveInstataneous(pot(mir.pot()), accountingPotCoin, stakeCredentialsMap);
+    }
 
-        return new MoveInstataneous(pot, accountingPotCoin, stakeCredentialsMap);
-
+    private static MirPot pot(int value) {
+        for (MirPot pot : MirPot.values()) {
+            if (pot.getValue() == value)
+                return pot;
+        }
+        return null;
     }
 }

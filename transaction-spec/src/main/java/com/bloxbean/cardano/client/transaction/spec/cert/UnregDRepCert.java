@@ -6,14 +6,14 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
 import java.math.BigInteger;
-import java.util.List;
 import java.util.Objects;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
 
 @Data
 @AllArgsConstructor
@@ -39,11 +39,10 @@ public class UnregDRepCert implements Certificate {
     }
 
     public static UnregDRepCert deserialize(DataItem di) {
-        Array certArray = (Array) di;
-        List<DataItem> dataItemList = certArray.getDataItems();
+        return from(RawCertificate.lenient(CertKind.UNREG_DREP_CERT, RawModels.span(di)));
+    }
 
-        Credential drepCred = CredentialSerializer.deserialize((Array) dataItemList.get(1));
-        BigInteger coin = getBigInteger(dataItemList.get(2));
-        return new UnregDRepCert(drepCred, coin);
+    static UnregDRepCert from(RawCertificate cert) {
+        return new UnregDRepCert(RawModels.credential(cert.credential()), cert.coin());
     }
 }

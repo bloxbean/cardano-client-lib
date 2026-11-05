@@ -2,17 +2,14 @@ package com.bloxbean.cardano.client.transaction.spec.cert;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.Getter;
-
-import java.util.List;
-import java.util.Objects;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 @Getter
 public class StakeDelegation implements Certificate {
@@ -27,26 +24,12 @@ public class StakeDelegation implements Certificate {
     }
 
     public static StakeDelegation deserialize(Array stRegArray) throws CborDeserializationException {
-        Objects.requireNonNull(stRegArray);
+        return from(RawCertificate.lenient(CertKind.STAKE_DELEGATION, RawModels.span(stRegArray)));
+    }
 
-        List<DataItem> dataItemList = stRegArray.getDataItems();
-        if (dataItemList == null || dataItemList.size() != 3) {
-            throw new CborDeserializationException("StakeDelegation deserialization failed. Invalid number of DataItem(s) : "
-                    + (dataItemList != null ? String.valueOf(dataItemList.size()) : null));
-        }
-
-        UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || toUnsignedInt(type) != 2)
-            throw new CborDeserializationException("StakeRegistration deserialization failed. Invalid type : "
-                    + type != null ? String.valueOf(type.getValue().intValue()) : null);
-
-        Array stakeCredArray = (Array) dataItemList.get(1);
-        StakeCredential stakeCredential = StakeCredential.deserialize(stakeCredArray);
-
-        ByteString poolKeyHashDI = (ByteString) dataItemList.get(2);
-        StakePoolId stakePoolId = new StakePoolId(poolKeyHashDI.getBytes());
-
-        return new StakeDelegation(stakeCredential, stakePoolId);
+    static StakeDelegation from(RawCertificate cert) throws CborDeserializationException {
+        RawModels.exact(cert);
+        return new StakeDelegation(RawModels.stakeCredential(cert.credential()), new StakePoolId(cert.poolKeyHash()));
     }
 
     @Override

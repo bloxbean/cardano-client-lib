@@ -1,17 +1,14 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.Getter;
-
-import java.util.List;
-import java.util.Objects;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 @Getter
 public class StakeRegistration implements Certificate {
@@ -24,24 +21,11 @@ public class StakeRegistration implements Certificate {
     }
 
     public static StakeRegistration deserialize(Array stRegArray) throws CborDeserializationException {
-        Objects.requireNonNull(stRegArray);
+        return from(RawCertificate.lenient(CertKind.STAKE_REGISTRATION, RawModels.span(stRegArray)));
+    }
 
-        List<DataItem> dataItemList = stRegArray.getDataItems();
-        if (dataItemList == null || dataItemList.size() != 2) {
-            throw new CborDeserializationException("StakeRegistration deserialization failed. Invalid number of DataItem(s) : "
-                    + (dataItemList != null ? String.valueOf(dataItemList.size()) : null));
-        }
-
-        UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || toUnsignedInt(type) != 0)
-            throw new CborDeserializationException("StakeRegistration deserialization failed. Invalid type : "
-                    + type != null ? String.valueOf(type.getValue().intValue()) : null);
-
-        Array stakeCredArray = (Array) dataItemList.get(1);
-
-        StakeCredential stakeCredential = StakeCredential.deserialize(stakeCredArray);
-
-        return new StakeRegistration(stakeCredential);
+    static StakeRegistration from(RawCertificate cert) throws CborDeserializationException {
+        return new StakeRegistration(RawModels.stakeCredential(RawModels.exact(cert).credential()));
     }
 
     @Override

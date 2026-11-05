@@ -1,15 +1,15 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
 import java.math.BigInteger;
-import java.util.List;
 import java.util.Objects;
 
 @Data
@@ -35,13 +35,11 @@ public class UnregCert implements Certificate {
         return certArray;
     }
 
-    @SneakyThrows
     public static UnregCert deserialize(Array certArray) {
-        List<DataItem> dataItemList = certArray.getDataItems();
+        return from(RawCertificate.lenient(CertKind.UNREG_CERT, RawModels.span(certArray)));
+    }
 
-        StakeCredential stakeCredential = StakeCredential.deserialize((Array) dataItemList.get(1));
-        BigInteger coin = CborSerializationUtil.getBigInteger(dataItemList.get(2));
-
-        return new UnregCert(stakeCredential, coin);
+    static UnregCert from(RawCertificate cert) {
+        return new UnregCert(RawModels.stakeCredential(cert.credential()), cert.coin());
     }
 }

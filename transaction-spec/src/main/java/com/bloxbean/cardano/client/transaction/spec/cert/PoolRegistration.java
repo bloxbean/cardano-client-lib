@@ -8,6 +8,11 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.raw.RawPoolMetadata;
+import com.bloxbean.cardano.client.transaction.raw.RawRelay;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.serializers.ByteArrayToHexSerializer;
 import com.bloxbean.cardano.client.util.serializers.HexToByteArrayDeserializer;
@@ -20,6 +25,7 @@ import lombok.*;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.util.*;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
@@ -133,126 +139,59 @@ public class PoolRegistration implements Certificate {
     }
 
     public static PoolRegistration deserialize(DataItem di) throws CborDeserializationException {
-        Array poolRegistrationArr = (Array) di;
+        return from(RawCertificate.lenient(CertKind.POOL_REGISTRATION, RawModels.span(di)));
+    }
 
-        List<DataItem> dataItemList = poolRegistrationArr.getDataItems();
-        if (dataItemList == null || dataItemList.size() != 10) {
-            throw new CborDeserializationException("PoolRegistration deserialization failed. Invalid number of DataItem(s) : "
-                    + (dataItemList != null ? String.valueOf(dataItemList.size()) : null));
-        }
-
-        UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || toUnsignedInt(type) != 3)
-            throw new CborDeserializationException("PoolRegistration deserialization failed. Invalid type : "
-                    + type != null ? String.valueOf(type.getValue().intValue()) : null);
-
-        //List<DataItem> paramDataItems = ((Array)dataItemList.get(1)).getDataItems();
-        byte[] operator = toBytes(dataItemList.get(1));
-        byte[] vrfKeyHash = toBytes(dataItemList.get(2));
-        BigInteger pledge = getBigInteger(dataItemList.get(3));
-        BigInteger cost = getBigInteger(dataItemList.get(4));
-
-        RationalNumber marginDI = (RationalNumber) dataItemList.get(5);
-        UnitInterval margin = new UnitInterval(getBigInteger(marginDI.getNumerator()), getBigInteger(marginDI.getDenominator()));
-        String rewardAccount = toHex(dataItemList.get(6));
-
-        //Pool Owners0
+    static PoolRegistration from(RawCertificate cert) throws CborDeserializationException {
+        RawModels.exact(cert);
         Set<String> poolOwners = new HashSet<>();
-        List<DataItem> poolOwnersDataItems = withoutBreak(((Array) dataItemList.get(7)).getDataItems());
-        for (DataItem poolOwnerDI : poolOwnersDataItems) {
-            poolOwners.add(toHex(poolOwnerDI));
-        }
+        for (byte[] poolOwner : cert.poolOwners())
+            poolOwners.add(HexUtil.encodeHexString(poolOwner));
 
-        //Relays
         List<Relay> relays = new ArrayList<>();
         try {
-            List<DataItem> relaysDataItems = withoutBreak(((Array) dataItemList.get(8)).getDataItems());
-            for (DataItem relayDI : relaysDataItems) {
-                relays.add(deserializeRelay(relayDI));
-            }
+            for (RawRelay relay : cert.relays())
+                relays.add(relay(relay));
         } catch (Exception e) {
             throw new CborDeserializationException("Deserialization error", e);
         }
 
-        //pool metadata
-        DataItem poolMetaDataDI = dataItemList.get(9);
-        String metadataUrl = null;
-        String metadataHash = null;
-        if (poolMetaDataDI != SimpleValue.NULL) {
-            List<DataItem> poolMetadataDataItems = ((Array) poolMetaDataDI).getDataItems();
-            metadataUrl = toUnicodeString(poolMetadataDataItems.get(0));
-            metadataHash = toHex(poolMetadataDataItems.get(1));
-        }
-
-        PoolRegistration poolRegistration = PoolRegistration.builder()
-                .operator(operator)
-                .vrfKeyHash(vrfKeyHash)
-                .pledge(pledge)
-                .cost(cost)
-                .margin(margin)
-                .rewardAccount(rewardAccount)
+        RawPoolMetadata metadata = cert.poolMetadata().orElse(null);
+        return PoolRegistration.builder()
+                .operator(cert.poolKeyHash())
+                .vrfKeyHash(cert.vrfKeyHash())
+                .pledge(cert.pledge())
+                .cost(cert.cost())
+                .margin(cert.margin())
+                .rewardAccount(HexUtil.encodeHexString(cert.rewardAccount()))
                 .poolOwners(poolOwners)
                 .relays(relays)
-                .poolMetadataUrl(metadataUrl)
-                .poolMetadataHash(metadataHash)
+                .poolMetadataUrl(metadata != null ? metadata.url() : null)
+                .poolMetadataHash(metadata != null ? HexUtil.encodeHexString(metadata.hash()) : null)
                 .build();
-
-        return poolRegistration;
     }
 
-    private static Relay deserializeRelay(DataItem relayDI) throws CborDeserializationException, CborException {
-        List<DataItem> relayItems = ((Array) relayDI).getDataItems();
-        int type = toUnsignedInt(relayItems.get(0));
-
-        Integer port = null;
-        String dns = null;
-
-        if (type == 0) { //Single host addr
-            Inet4Address ipv4 = null;
-            Inet6Address ipv6 = null;
-
-            DataItem itemDI = relayItems.get(1);
-            port = itemDI != SimpleValue.NULL ? toUnsignedInt(itemDI) : null;
-
-            itemDI = relayItems.get(2);
-            if (itemDI != SimpleValue.NULL) {
-                byte[] ipv4Bytes = toBytes(itemDI);
-                try {
-                    ipv4 = (Inet4Address) Inet4Address.getByAddress(ipv4Bytes);
-                } catch (Exception ex) {
-                    throw new CborDeserializationException("Unable to convert byte[] to ipv4 address, {}, cbor: {}" +
-                            HexUtil.encodeHexString(CborSerializationUtil.serialize(relayDI)), ex);
-                }
-            }
-
-            //ipv6
-            itemDI = relayItems.get(3);
-            if (itemDI != SimpleValue.NULL) {
-                byte[] ipv6Bytes = toBytes(itemDI);
-                try {
-                    ipv6 = (Inet6Address) Inet6Address.getByAddress(ipv6Bytes);
-                } catch (Exception ex) {
-                    throw new CborDeserializationException("Unable to convert byte[] to ipv6 address, {}, cbor: {}" +
-                            HexUtil.encodeHexString(CborSerializationUtil.serialize(relayDI)), ex);
-                }
-            }
-
-            return new SingleHostAddr(port, ipv4, ipv6);
-        } else if (type == 1) {
-            DataItem itemDI = relayItems.get(1);
-            port = itemDI != SimpleValue.NULL ? toUnsignedInt(itemDI) : null;
-
-            itemDI = relayItems.get(2);
-            dns = itemDI != SimpleValue.NULL ? toUnicodeString(itemDI) : null;
-
-            return new SingleHostName(port, dns);
-        } else if (type == 2) {
-            DataItem itemDI = relayItems.get(1);
-            dns = itemDI != SimpleValue.NULL ? toUnicodeString(itemDI) : null;
-
-            return new MultiHostName(dns);
+    private static Relay relay(RawRelay relay) throws CborDeserializationException {
+        switch (relay.kind()) {
+            case SINGLE_HOST_ADDR:
+                return new SingleHostAddr(relay.port(), address(relay.ipv4(), Inet4Address.class),
+                        address(relay.ipv6(), Inet6Address.class));
+            case SINGLE_HOST_NAME:
+                return new SingleHostName(relay.port(), relay.dnsName());
+            default:
+                return new MultiHostName(relay.dnsName());
         }
-        throw new CborDeserializationException("Relay deserialization failed. Invalid type : " + type);
+    }
+
+    private static <T extends InetAddress> T address(byte[] bytes, Class<T> type) throws CborDeserializationException {
+        if (bytes == null)
+            return null;
+        try {
+            return type.cast(InetAddress.getByAddress(bytes));
+        } catch (Exception ex) {
+            throw new CborDeserializationException("Unable to convert byte[] to " + type.getSimpleName() + ": "
+                    + HexUtil.encodeHexString(bytes), ex);
+        }
     }
 
     /**

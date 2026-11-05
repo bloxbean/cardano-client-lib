@@ -7,14 +7,16 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Objects;
 
 @Data
@@ -43,17 +45,10 @@ public class ResignCommitteeColdCert implements Certificate {
     }
 
     public static ResignCommitteeColdCert deserialize(DataItem di) {
-        Array certArray = (Array) di;
-        List<DataItem> dataItemList = certArray.getDataItems();
+        return from(RawCertificate.lenient(CertKind.RESIGN_COMMITTEE_COLD_CERT, RawModels.span(di)));
+    }
 
-        Credential committeeColdCred = CredentialSerializer.deserialize((Array) dataItemList.get(1));
-
-        var anchorDI = dataItemList.get(2);
-        Anchor anchor = null;
-        if (anchorDI != SimpleValue.NULL) {
-            anchor = Anchor.deserialize((Array) anchorDI);
-        }
-
-        return new ResignCommitteeColdCert(committeeColdCred, anchor);
+    static ResignCommitteeColdCert from(RawCertificate cert) {
+        return new ResignCommitteeColdCert(RawModels.credential(cert.credential()), RawModels.anchor(cert.anchor()));
     }
 }

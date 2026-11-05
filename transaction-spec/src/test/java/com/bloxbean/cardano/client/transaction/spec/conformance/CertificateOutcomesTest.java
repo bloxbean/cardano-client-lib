@@ -90,7 +90,8 @@ class CertificateOutcomesTest {
     private static java.util.Map<String, java.util.Map<String, Entry>> rules() {
         java.util.Map<String, java.util.Map<String, Entry>> rules = new TreeMap<>();
         rules.put("certificate", certificateEntries());
-        rules.put("certificates", java.util.Map.of("TransactionBody", c -> body(cat(hex("a4" + MIN_BODY_KEYS + "04"), c))));
+        rules.put("certificates", java.util.Map.of("TransactionBody",
+                c -> body(cat(hex("a4" + MIN_BODY_KEYS + "04"), c))));
         rules.put("transaction_body", java.util.Map.of("TransactionBody", CertificateOutcomesTest::body));
         for (String rule : List.of("credential", "stake_credential", "drep_credential", "committee_cold_credential",
                 "committee_hot_credential")) {
@@ -109,7 +110,8 @@ class CertificateOutcomesTest {
                 hex("80"), c)));
         rules.put("unit_interval", java.util.Map.of("PoolRegistration", c -> pool(c, hex(REWARD_ACCOUNT), hex("80"),
                 hex("f6"))));
-        rules.put("reward_account", java.util.Map.of("PoolRegistration", c -> pool(hex(MARGIN), c, hex("80"), hex("f6"))));
+        rules.put("reward_account", java.util.Map.of("PoolRegistration",
+                c -> pool(hex(MARGIN), c, hex("80"), hex("f6"))));
         return rules;
     }
 

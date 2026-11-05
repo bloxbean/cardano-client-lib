@@ -3,7 +3,6 @@ package com.bloxbean.cardano.client.transaction.spec.cert;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
@@ -12,13 +11,11 @@ import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Script;
+import com.bloxbean.cardano.client.transaction.raw.RawCredential;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 @Getter
 @EqualsAndHashCode
@@ -66,22 +63,10 @@ public class StakeCredential {
     }
 
     public static StakeCredential deserialize(Array stakeCredArray) throws CborDeserializationException {
-        List<DataItem> dataItemList = stakeCredArray.getDataItems();
-        if (dataItemList == null || dataItemList.size() != 2)
-            throw new CborDeserializationException("StakeCredential deserialization failed. Invalid number of DataItem(s) : "
-                    + (dataItemList != null ? String.valueOf(dataItemList.size()) : null));
-
-        UnsignedInteger typeDI = (UnsignedInteger) dataItemList.get(0);
-        ByteString hashDI = (ByteString) dataItemList.get(1);
-
-        int type = toUnsignedInt(typeDI);
-        if (type == 0) {
-            return StakeCredential.fromKeyHash(hashDI.getBytes());
-        } else if (type == 1) {
-            return StakeCredential.fromScriptHash(hashDI.getBytes());
-        } else {
-            throw new CborDeserializationException("StakeCredential deserialization failed. Invalid StakeCredType : "
-                    + type);
+        try {
+            return RawModels.stakeCredential(RawCredential.of(RawModels.span(stakeCredArray)));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("StakeCredential deserialization failed", e);
         }
     }
 

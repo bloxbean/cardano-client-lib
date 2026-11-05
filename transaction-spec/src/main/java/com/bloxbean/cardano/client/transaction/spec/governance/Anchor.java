@@ -4,12 +4,12 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnicodeString;
+import com.bloxbean.cardano.client.transaction.raw.RawAnchor;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.List;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
 
@@ -41,13 +41,6 @@ public class Anchor {
     }
 
     public static Anchor deserialize(Array array) {
-        List<DataItem> diList = definiteItems(array, "anchor");
-        if (diList.size() != 2)
-            throw new IllegalArgumentException("Invalid anchor array. Expected 2 items. Found : " + diList.size());
-
-        String anchorUrl = toUnicodeString(diList.get(0));
-        byte[] anchorDataHash = toBytes(diList.get(1));
-
-        return new Anchor(anchorUrl, anchorDataHash);
+        return RawModels.anchor(RawAnchor.of(RawModels.span(array)));
     }
 }
