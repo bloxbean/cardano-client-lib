@@ -46,6 +46,9 @@ public final class RecordSpec {
     private final int requiredArity;
     private final FieldType keyType;
     private final long tag;
+    // the rows in the table's order, and those of each key below 64, for field(key, era)
+    private final FieldSpec[] rows;
+    private final FieldSpec[][] rowsByKey;
 
     private RecordSpec(String name, Shape shape, List<FieldSpec> fields, int firstPosition) {
         this(name, shape, fields, firstPosition, null, NO_TAG);
@@ -60,6 +63,12 @@ public final class RecordSpec {
         this.requiredArity = firstPosition + (int) fields.stream().filter(FieldSpec::required).count();
         this.keyType = keyType;
         this.tag = tag;
+        this.rows = this.fields.toArray(new FieldSpec[0]);
+        this.rowsByKey = new FieldSpec[Long.SIZE][];
+        for (int key = 0; key < Long.SIZE; key++) {
+            long wanted = key;
+            this.rowsByKey[key] = this.fields.stream().filter(row -> row.key() == wanted).toArray(FieldSpec[]::new);
+        }
     }
 
     static RecordSpec keyed(String name, List<FieldSpec> rows) {
@@ -155,7 +164,7 @@ public final class RecordSpec {
      */
     public FieldSpec field(long key, Era era) {
         FieldSpec found = null;
-        for (FieldSpec row : fields) {
+        for (FieldSpec row : key >= 0 && key < Long.SIZE ? rowsByKey[(int) key] : rows) {
             if (row.key() != key)
                 continue;
             if (row.validIn(era))

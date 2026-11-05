@@ -330,7 +330,8 @@ public final class CborSpan {
      * @return the CBOR major type (0-7) of the item, looking through any tags
      */
     public int majorType() {
-        return itemHead().major;
+        // a span is well-formed, so an untagged item's first byte says its major type
+        return isTagged() ? itemHead().major : (buffer[offset] & 0xff) >>> 5;
     }
 
     /**
@@ -338,15 +339,14 @@ public final class CborSpan {
      * returned as negative values (unsigned 64-bit).
      */
     public long tag() {
-        CborHead head = head(offset);
-        return head.major == MAJOR_TAG ? head.argument : -1;
+        return isTagged() ? head(offset).argument : -1;
     }
 
     /**
      * @return whether the item has a tag, which {@link #tag()} cannot tell for the tag number 2^64 - 1
      */
     public boolean isTagged() {
-        return head(offset).major == MAJOR_TAG;
+        return (buffer[offset] & 0xff) >>> 5 == MAJOR_TAG;
     }
 
     /**
@@ -368,6 +368,8 @@ public final class CborSpan {
      * @return the payload, or this span
      */
     public CborSpan untagIf(long tag) {
+        if (!isTagged())
+            return this;
         CborHead head = head(offset);
         return head.major == MAJOR_TAG && head.argument == tag ? untagged(head) : this;
     }
@@ -382,7 +384,8 @@ public final class CborSpan {
      * @return true if the item (looking through tags) is an indefinite-length string, array or map
      */
     public boolean isIndefinite() {
-        return itemHead().indefinite;
+        // a well-formed untagged item has additional information 31 only if it is an indefinite string or container
+        return isTagged() ? itemHead().indefinite : (buffer[offset] & 0x1f) == 31;
     }
 
     /**

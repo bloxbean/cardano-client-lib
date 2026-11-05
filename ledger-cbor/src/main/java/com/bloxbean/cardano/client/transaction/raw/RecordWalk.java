@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.spec.Era;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import java.util.Map;
 final class RecordWalk {
     private static final int MAJOR_ARRAY = 4;
     private static final int MAJOR_TAG = 6;
+    private static final int MAJOR_BYTES = 2;
 
     private RecordWalk() {
     }
@@ -54,18 +56,28 @@ final class RecordWalk {
     }
 
     private static void keyed(RecordSpec record, CborSpan container, Era era, FormatPolicy policy) {
-        // the usual keys, unsigned integers below 64, are counted in a mask; any other key and a repeat in a map
+        List<Map.Entry<CborSpan, CborSpan>> entries = RawItems.map(container, record.name());
+        // The usual keys are counted without a map: unsigned integers below 64 in a mask, and a run of definite byte
+        // strings from the first entry, each above the one before, which are distinct. Any other key, and a repeat,
+        // is counted in a map, which then takes the run.
         long small = 0;
         Map<Object, Integer> seen = null;
-        for (Map.Entry<CborSpan, CborSpan> entry : RawItems.map(container, record.name())) {
-            CborSpan key = entry.getKey();
-            CborSpan value = entry.getValue();
+        int ordered = 0;
+        for (int i = 0; i < entries.size(); i++) {
+            CborSpan key = entries.get(i).getKey();
+            CborSpan value = entries.get(i).getValue();
             int smallKey = smallKey(key);
             BigInteger integer = smallKey >= 0 ? null : integerKey(key);
             int occurrence = 0;
-            if (smallKey < 0 || (small & 1L << smallKey) != 0) {
-                if (seen == null)
+            if (smallKey < 0 && ordered == i && byteStringAbove(key, i == 0 ? null : entries.get(i - 1).getKey())) {
+                ordered++;
+            } else if (smallKey < 0 || (small & 1L << smallKey) != 0) {
+                if (seen == null) {
                     seen = new HashMap<>();
+                    for (int j = 0; j < ordered; j++)
+                        seen.put(decodedKey(entries.get(j).getKey(), null), 1);
+                    ordered = -1;
+                }
                 Object decoded = smallKey >= 0 ? BigInteger.valueOf(smallKey) : decodedKey(key, integer);
                 // the first entry of a small key is in the mask
                 occurrence = seen.merge(decoded, 1, Integer::sum) - (smallKey >= 0 ? 0 : 1);
@@ -85,6 +97,28 @@ final class RecordWalk {
             if (field.requiredIn(era) && !has(field.key(), small, seen))
                 policy.missing(record, field, container, era);
         }
+    }
+
+    // Whether a key is an untagged definite byte string whose content is above that of the previous key, if any.
+    private static boolean byteStringAbove(CborSpan key, CborSpan previous) {
+        int start = byteStringContent(key);
+        if (start < 0)
+            return false;
+        if (previous == null)
+            return true;
+        int end = key.offset() + key.length();
+        int previousStart = byteStringContent(previous);
+        return Arrays.compareUnsigned(key.buffer(), start, end, previous.buffer(), previousStart,
+                previous.offset() + previous.length()) > 0;
+    }
+
+    // Where the content of an untagged definite byte string starts, or -1 for any other item.
+    private static int byteStringContent(CborSpan item) {
+        int initial = item.buffer()[item.offset()] & 0xff;
+        if (initial >>> 5 != MAJOR_BYTES || (initial & 0x1f) > 27)
+            return -1;
+        int info = initial & 0x1f;
+        return item.offset() + 1 + (info < 24 ? 0 : 1 << (info - 24));
     }
 
     private static boolean has(long key, long small, Map<Object, Integer> seen) {
