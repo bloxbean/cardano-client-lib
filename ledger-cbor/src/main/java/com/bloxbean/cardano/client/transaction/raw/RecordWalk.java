@@ -39,6 +39,9 @@ final class RecordWalk {
         FieldSpec row = byMajorTypeRow(record, item, era);
         if (row == null)
             throw RawTx.error("A " + record.name() + " cannot be of major type " + item.majorType(), item);
+        // the form the item has, which a policy cannot tell belongs to the era from what follows: an empty container
+        // reports nothing else
+        policy.entry(record, row, null, item, 0, era);
         if (row.type().container())
             value(row, item, era, policy);
         else if (row.record() != null)

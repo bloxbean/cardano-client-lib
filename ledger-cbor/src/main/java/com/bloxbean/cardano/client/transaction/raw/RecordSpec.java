@@ -25,10 +25,10 @@ public final class RecordSpec {
         POSITIONAL,
         /**
          * An item whose CBOR major type picks a row: its {@link FieldSpec#record()} if it has one, or else a value of
-         * its type. Such as an output, an array or a map, or a value, a coin or an array. A policy is told of the
-         * record the row names, and not of this one. An item of another major type is one the walk cannot enter. A row
-         * with major type 6 is for an item in the tag of its {@code record}; an item in any other tag is read by the
-         * type inside.
+         * its type. Such as an output, an array or a map, or a value, a coin or an array. A policy is told of the row
+         * as an entry of this record, and then of what the row names (see {@link FormatPolicy}). An item of another
+         * major type is one the walk cannot enter. A row with major type 6 is for an item in the tag of its
+         * {@code record}; an item in any other tag is read by the type inside.
          */
         BY_MAJOR_TYPE
     }

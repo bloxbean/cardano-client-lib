@@ -181,6 +181,43 @@ class RecordWalkTest {
                 "check HASH32 4100");
     }
 
+    /** A form chosen by the item's major type is reported, so an empty one outside its era is seen. */
+    @Test
+    void aRecordOfAShapePerContainerReportsTheRowItsItemPicks() {
+        assertThat(walk(RawValue.RECORD, "80", Era.Mary)).containsExactly(
+                "entry value 4:VALUE key=null value=80 occurrence=0",
+                "enter value 80",
+                "missing value 0:COIN",
+                "missing value 1:MAP");
+        assertThat(walk(RawValue.RECORD, "05", Era.Shelley)).containsExactly(
+                "entry value 0:COIN key=null value=05 occurrence=0",
+                "check COIN 05");
+
+        // a policy that knows no layout rejects each form outside its era, empty or not
+        FormatPolicy inEra = new FormatPolicy() {
+            @Override
+            public void entry(RecordSpec record, FieldSpec field, CborSpan key, CborSpan value, int occurrence,
+                              Era era) {
+                if (field == null || !field.validIn(era))
+                    throw new IllegalStateException(record + " " + key);
+            }
+        };
+        List<Object[]> outOfEra = List.of(
+                new Object[]{RawValue.RECORD, "80", Era.Shelley},
+                new Object[]{RawOutput.RECORD, "a0", Era.Alonzo},
+                new Object[]{RawAuxData.RECORD, "d90103a0", Era.Shelley},
+                new Object[]{RawAuxData.RECORD, "80", Era.Shelley},
+                new Object[]{RawRedeemer.RECORD, "a0", Era.Babbage});
+        for (Object[] input : outOfEra) {
+            RecordSpec record = (RecordSpec) input[0];
+            assertThatThrownBy(() -> record.walk(span((String) input[1]), (Era) input[2], inEra))
+                    .as("%s %s", record, input[1]).isInstanceOf(IllegalStateException.class);
+            record.walk(span((String) input[1]), Era.Conway, FormatPolicy.ACCEPT_ALL);
+        }
+        RawValue.RECORD.walk(span("80"), Era.Mary, inEra);
+        RawOutput.RECORD.walk(span("a0"), Era.Babbage, inEra);
+    }
+
     @Test
     void policyCanRejectByThrowing() {
         FormatPolicy rejectAll = new FormatPolicy() {

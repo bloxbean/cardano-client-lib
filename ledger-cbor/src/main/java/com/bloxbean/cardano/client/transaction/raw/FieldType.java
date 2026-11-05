@@ -114,8 +114,11 @@ public enum FieldType {
     AUXILIARY_DATA,
     MAP,
     NONEMPTY_MAP,
-    /** An array, of any length. */
+    /** {@code [* a]}: an array, of any length. */
     LIST(Shape.COLLECTION),
+    /** {@code [+ a]}: an array of at least one item, such as the list form of Conway's redeemers. */
+    NONEMPTY_ARRAY(Shape.COLLECTION),
+    /** {@code nonempty_list<a>}: an array of at least one item, optionally in tag 258 as a set is. */
     NONEMPTY_LIST(Shape.COLLECTION),
     /** An array, optionally in tag 258. */
     SET(Shape.COLLECTION),

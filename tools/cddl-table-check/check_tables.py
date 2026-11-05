@@ -72,7 +72,7 @@ ITEM_TABLES = {
     "plutus_v3_script": "RawScript.PLUTUS", "plutus_data": "RawDatum.DATA",
 }
 SHAPES = [
-    (r"\[\* ", "LIST"), (r"\[\+ ", "NONEMPTY_LIST"), (r"set<", "SET"), (r"nonempty_set<", "NONEMPTY_SET"),
+    (r"\[\* ", "LIST"), (r"\[\+ ", "NONEMPTY_ARRAY"), (r"set<", "SET"), (r"nonempty_set<", "NONEMPTY_SET"),
     (r"nonempty_oset<", "NONEMPTY_SET"), (r"nonempty_list<", "NONEMPTY_LIST"), (r"\{\* ", "MAP"),
     (r"\{\+ ", "NONEMPTY_MAP"),
 ]

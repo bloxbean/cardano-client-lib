@@ -44,7 +44,7 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, 
     /** The {@code redeemers} rule: a list to Babbage, and a list or a map in Conway, neither empty. */
     static final RecordSpec RECORD = RecordSpec.byMajorType("redeemers",
             FieldSpec.of(MAJOR_ARRAY, FieldType.LIST, false, Era.Alonzo, Era.Babbage, ITEM),
-            FieldSpec.of(MAJOR_ARRAY, FieldType.NONEMPTY_LIST, false, Era.Conway, null, ITEM),
+            FieldSpec.of(MAJOR_ARRAY, FieldType.NONEMPTY_ARRAY, false, Era.Conway, null, ITEM),
             FieldSpec.of(MAJOR_MAP, FieldType.NONEMPTY_MAP, false, Era.Conway, null, MAP));
 
     /**

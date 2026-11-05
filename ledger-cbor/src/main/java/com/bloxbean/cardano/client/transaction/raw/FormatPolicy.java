@@ -16,9 +16,12 @@ import com.bloxbean.cardano.client.spec.Era;
  *     <li>A map of like entries ({@link RecordSpec#keyType()}) reports every entry with the same {@code field}, and
  *     checks each key with its type, and walks it if its type has a table, such as a redeemer's key. Keys that decode
  *     alike are one key for {@code occurrence}.</li>
- *     <li>A record with a shape per container ({@link RecordSpec.Shape#BY_MAJOR_TYPE}) is not reported: the record its
- *     item's major type picks is, or the item is checked if that is a leaf. A row that says only what container the
- * item     is checks it, and then walks its table.</li>
+ *     <li>A record with a shape per container ({@link RecordSpec.Shape#BY_MAJOR_TYPE}) is not entered. It reports the
+ *     row its item's major type picks as an entry with a null {@code key} and the whole item as {@code value}, so that
+ *     {@link FieldSpec#validIn(Era)} says whether that form belongs to the era, even for an empty container; the
+ *     row's {@link FieldSpec#key()} is the major type. Then the record the row names is walked, or the item is checked
+ *     with the row's type and, for a row that says only what container the item is, each item is walked with its
+ *     table.</li>
  * </ul>
  */
 public interface FormatPolicy {

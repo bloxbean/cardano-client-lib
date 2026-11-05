@@ -255,6 +255,7 @@ class RawWitnessSetTest {
                 "check BYTES 4104",
                 "entry transaction_witness_set 1:NONEMPTY_LIST key=01 value=81" + NATIVE + " occurrence=0",
                 "check NONEMPTY_LIST 81" + NATIVE,
+                "entry native_script 4:NATIVE_SCRIPT key=null value=" + NATIVE + " occurrence=0",
                 "check NATIVE_SCRIPT " + NATIVE);
         assertThat(walk("a2" + "0381" + "41aa" + "0481" + "d87980", Era.Conway))
                 .contains("check NONEMPTY_SET 8141aa", "check PLUTUS_SCRIPT 41aa", "check PLUTUS_DATA d87980");
@@ -279,7 +280,8 @@ class RawWitnessSetTest {
                 "enter transaction_witness_set a1" + "0581" + item,
                 "entry transaction_witness_set 5:REDEEMERS key=05 value=81" + item + " occurrence=0",
                 "check REDEEMERS 81" + item,
-                "check NONEMPTY_LIST 81" + item,
+                "entry redeemers 4:NONEMPTY_ARRAY key=null value=81" + item + " occurrence=0",
+                "check NONEMPTY_ARRAY 81" + item,
                 "enter redeemer " + item,
                 "entry redeemer 0:REDEEMER_TAG key=null value=00 occurrence=0",
                 "check REDEEMER_TAG 00",
@@ -302,6 +304,7 @@ class RawWitnessSetTest {
                 "enter transaction_witness_set a1" + "05a1" + key + value,
                 "entry transaction_witness_set 5:REDEEMERS key=05 value=a1" + key + value + " occurrence=0",
                 "check REDEEMERS a1" + key + value,
+                "entry redeemers 5:NONEMPTY_MAP key=null value=a1" + key + value + " occurrence=0",
                 "check NONEMPTY_MAP a1" + key + value,
                 "enter redeemers_map a1" + key + value,
                 "entry redeemers_map 0:REDEEMER_VALUE key=" + key + " value=" + value + " occurrence=0",

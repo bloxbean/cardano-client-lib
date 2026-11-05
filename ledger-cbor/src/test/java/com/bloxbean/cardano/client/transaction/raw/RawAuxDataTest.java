@@ -163,22 +163,28 @@ class RawAuxDataTest {
 
     @Test
     void aWalkEntersEveryForm() {
-        assertThat(walkAux(METADATA, Era.Shelley)).containsExactly("check METADATA " + METADATA);
+        assertThat(walkAux(METADATA, Era.Shelley)).containsExactly(
+                "entry auxiliary_data 5:METADATA key=null value=" + METADATA + " occurrence=0",
+                "check METADATA " + METADATA);
         String array = "82" + METADATA + "81" + NATIVE;
         assertThat(walkAux(array, Era.Mary)).containsExactly(
+                "entry auxiliary_data 4:AUXILIARY_DATA key=null value=" + array + " occurrence=0",
                 "enter auxiliary_data_array " + array,
                 "entry auxiliary_data_array 0:METADATA key=null value=" + METADATA + " occurrence=0",
                 "check METADATA " + METADATA,
                 "entry auxiliary_data_array 1:LIST key=null value=81" + NATIVE + " occurrence=0",
                 "check LIST 81" + NATIVE,
+                "entry native_script 4:NATIVE_SCRIPT key=null value=" + NATIVE + " occurrence=0",
                 "check NATIVE_SCRIPT " + NATIVE);
         String map = "d90103" + "a3" + "00" + METADATA + "02" + "8141aa" + "05" + "80";
         assertThat(walkAux(map, Era.Conway)).containsExactly(
+                "entry auxiliary_data 6:AUXILIARY_DATA key=null value=" + map + " occurrence=0",
                 "enter auxiliary_data_map " + map,
                 "entry auxiliary_data_map 0:METADATA key=00 value=" + METADATA + " occurrence=0",
                 "check METADATA " + METADATA,
                 "entry auxiliary_data_map 2:LIST key=02 value=8141aa occurrence=0",
                 "check LIST 8141aa",
+                "entry plutus_script 2:PLUTUS_SCRIPT key=null value=41aa occurrence=0",
                 "check PLUTUS_SCRIPT 41aa",
                 "entry auxiliary_data_map null key=05 value=80 occurrence=0");
         assertThat(AuxDataField.RECORD.tag()).isEqualTo(259);
@@ -187,7 +193,9 @@ class RawAuxDataTest {
 
     @Test
     void aWalkLeavesAnyOtherTagToThePolicyAndRejectsWhatItCannotEnter() {
-        assertThat(walkAux("c1" + METADATA, Era.Conway)).containsExactly("check METADATA c1" + METADATA);
+        assertThat(walkAux("c1" + METADATA, Era.Conway)).containsExactly(
+                "entry auxiliary_data 5:METADATA key=null value=c1" + METADATA + " occurrence=0",
+                "check METADATA c1" + METADATA);
         assertThat(walkAux("c1" + "82" + METADATA + "80", Era.Conway)).contains("enter auxiliary_data_array c182"
                 + METADATA + "80");
         for (String bad : List.of("00", "4100", "f5", "d9010300"))
