@@ -60,19 +60,37 @@ public final class RawTx {
      */
     public static RawTx of(byte[] txCbor) {
         CborSpan tx = CborSpan.of(txCbor);
+        List<CborSpan> items = items(tx);
+        return items.size() == 3 ? new RawTx(tx, items.get(0), items.get(1), aux(items.get(2)), true, false)
+                : new RawTx(tx, items.get(0), items.get(1), aux(items.get(3)), items.get(2).asBoolean(), true);
+    }
+
+    /**
+     * Walks the body and the witness set with a policy (ADR 0003 D6). A view rejects a record that repeats a key when
+     * it is created, and a policy must see that entry, so a walk takes the bytes.
+     *
+     * @param txCbor a transaction, exactly one CBOR item
+     * @param era    the era to read it in
+     * @param policy the policy, which throws to reject
+     * @throws CborRuntimeException if the bytes are not well-formed CBOR or not a Shelley-family transaction, or the
+     *                              policy accepts a value the walk cannot enter
+     */
+    public static void walk(byte[] txCbor, Era era, FormatPolicy policy) {
+        List<CborSpan> items = items(CborSpan.of(txCbor));
+        TxBodyField.RECORD.walk(items.get(0), era, policy);
+        WitnessSetField.RECORD.walk(items.get(1), era, policy);
+    }
+
+    // The items of a transaction: [body, witnesses, aux / null] or [body, witnesses, isValid, aux / null].
+    private static List<CborSpan> items(CborSpan tx) {
         if (tx.majorType() != 4 || tx.tag() != -1)
             throw error("A transaction is an untagged array", tx);
         List<CborSpan> items = tx.items();
-        switch (items.size()) {
-            case 3:
-                return new RawTx(tx, items.get(0), items.get(1), aux(items.get(2)), true, false);
-            case 4:
-                return new RawTx(tx, items.get(0), items.get(1), aux(items.get(3)), items.get(2).asBoolean(), true);
-            case 2:
-                throw error("Byron transactions ([tx, witnesses]) are not supported", tx);
-            default:
-                throw error("A transaction has 3 or 4 items, found " + items.size(), tx);
-        }
+        if (items.size() == 2)
+            throw error("Byron transactions ([tx, witnesses]) are not supported", tx);
+        if (items.size() != 3 && items.size() != 4)
+            throw error("A transaction has 3 or 4 items, found " + items.size(), tx);
+        return items;
     }
 
     // A transaction of a block, from the block's parallel arrays.

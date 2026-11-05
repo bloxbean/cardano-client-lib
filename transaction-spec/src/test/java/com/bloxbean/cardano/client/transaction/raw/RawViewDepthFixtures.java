@@ -1,9 +1,13 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import co.nstant.in.cbor.model.Array;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
+import com.bloxbean.cardano.client.transaction.spec.cert.RegCert;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScriptEvaluator;
 import com.bloxbean.cardano.client.transaction.util.RealCborFixturesAccess;
@@ -67,6 +71,12 @@ final class RawViewDepthFixtures {
         datum("redeemer data, array form (16,240 levels)", new RawDatum(tx.redeemers().get(0).data()), redeemerData);
         tx = tx(BODY, "a105a1820000" + "82" + redeemerData + "820000", "f6");
         datum("redeemer data, map form (16,240 levels)", new RawDatum(tx.redeemers().get(0).data()), redeemerData);
+
+        // a certificate model re-encodes its item for the reader (ADR 0003 D7)
+        String deepCoin = "81".repeat(16_250) + "00";
+        Array certificate = (Array) CborSerializationUtil.deserialize(
+                decodeHexString("8307" + "8200581c" + KEY_HASH + deepCoin));
+        check(((RegCert) Certificate.deserialize(certificate)).getCoin() == null, "certificate: a deep item at a coin");
 
         String[][] metadata = {
                 {"metadata lists (16,250 levels)", "a100" + "81".repeat(16_250) + "00"},
