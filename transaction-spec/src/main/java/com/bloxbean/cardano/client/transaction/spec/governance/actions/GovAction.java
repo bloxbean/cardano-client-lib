@@ -6,7 +6,7 @@ import co.nstant.in.cbor.model.SimpleValue;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 /**
  * gov_action =
@@ -25,7 +25,7 @@ public interface GovAction {
 
     static GovAction deserialize(Array govActionArray) {
         DataItem fistItem = govActionArray.getDataItems().get(0);
-        int actionType = toIntExact(fistItem);
+        int actionType = toUnsignedInt(fistItem);
         switch (actionType) {
             case 0:
                 return ParameterChangeAction.deserialize(govActionArray);

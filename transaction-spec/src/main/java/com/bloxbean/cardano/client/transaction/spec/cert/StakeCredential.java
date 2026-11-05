@@ -18,7 +18,7 @@ import lombok.Getter;
 
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 @Getter
 @EqualsAndHashCode
@@ -74,7 +74,7 @@ public class StakeCredential {
         UnsignedInteger typeDI = (UnsignedInteger) dataItemList.get(0);
         ByteString hashDI = (ByteString) dataItemList.get(1);
 
-        int type = toIntExact(typeDI);
+        int type = toUnsignedInt(typeDI);
         if (type == 0) {
             return StakeCredential.fromKeyHash(hashDI.getBytes());
         } else if (type == 1) {

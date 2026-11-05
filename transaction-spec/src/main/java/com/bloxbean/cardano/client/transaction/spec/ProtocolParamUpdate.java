@@ -307,7 +307,7 @@ public class ProtocolParamUpdate {
         Long maxTxSize = itemDI != null? toUnsignedLong(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(4));
-        Integer maxBlockHeaderSize = itemDI != null? toIntExact(itemDI) : null;
+        Integer maxBlockHeaderSize = itemDI != null? toUnsignedInt(itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(5));
         BigInteger keyDeposit = itemDI != null? getBigInteger(itemDI): null;
@@ -319,7 +319,7 @@ public class ProtocolParamUpdate {
         Long maxEpoch = itemDI != null? toUnsignedLong(itemDI): null;
 
         itemDI = map.get(new UnsignedInteger(8));
-        Integer nOpt = itemDI != null? toIntExact(itemDI): null;
+        Integer nOpt = itemDI != null? toUnsignedInt(itemDI): null;
 
         itemDI = map.get(new UnsignedInteger(9));
         Rational poolPledgeInfluence = itemDI != null? toRational((RationalNumber) itemDI): null;
@@ -369,10 +369,10 @@ public class ProtocolParamUpdate {
         Long maxValueSize = itemDI != null? toUnsignedLong(itemDI): null;
 
         itemDI = map.get(new UnsignedInteger(23));
-        Integer collateralPercent = itemDI != null? toIntExact(itemDI): null;
+        Integer collateralPercent = itemDI != null? toUnsignedInt(itemDI): null;
 
         itemDI = map.get(new UnsignedInteger(24));
-        Integer maxCollateralPercent = itemDI != null? toIntExact(itemDI): null;
+        Integer maxCollateralPercent = itemDI != null? toUnsignedInt(itemDI): null;
 
         itemDI = map.get(new UnsignedInteger(25));
         PoolVotingThresholds poolVotingThresholds = itemDI != null
@@ -383,7 +383,7 @@ public class ProtocolParamUpdate {
                 ? DRepVotingThresholds.deserialize((Array) itemDI) : null;
 
         itemDI = map.get(new UnsignedInteger(27));
-        Integer committeeMinSize = itemDI != null? toIntExact(itemDI): null;
+        Integer committeeMinSize = itemDI != null? toUnsignedInt(itemDI): null;
 
         itemDI = map.get(new UnsignedInteger(28));
         Long committeeMaxTermLength = itemDI != null? toUnsignedLong(itemDI): null;

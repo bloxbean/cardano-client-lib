@@ -15,7 +15,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 @Data
 @AllArgsConstructor
@@ -70,7 +70,7 @@ public abstract class PlutusScript implements Script {
             throw new CborRuntimeException("PlutusScript deserialization failed. Invalid no of DataItem");
         }
 
-        int type = toIntExact(dataItemList.get(0));
+        int type = toUnsignedInt(dataItemList.get(0));
         ByteString scriptBytes = ((ByteString) dataItemList.get(1));
         try {
             if (type == 1) {

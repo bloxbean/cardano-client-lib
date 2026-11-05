@@ -10,7 +10,7 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 
 public class CredentialSerializer {
     public static Credential deserialize(Array stakeCredArray)  {
@@ -22,7 +22,7 @@ public class CredentialSerializer {
         UnsignedInteger typeDI = (UnsignedInteger) dataItemList.get(0);
         ByteString hashDI = (ByteString) dataItemList.get(1);
 
-        int type = toIntExact(typeDI);
+        int type = toUnsignedInt(typeDI);
         if (type == 0) {
             return Credential.fromKey(hashDI.getBytes());
         } else if (type == 1) {

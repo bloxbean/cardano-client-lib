@@ -12,7 +12,7 @@ import lombok.ToString;
 
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toHex;
 
 @Getter
@@ -88,7 +88,7 @@ public class DRep {
     public static DRep deserialize(DataItem di) {
         List<DataItem> dataItemList = ((Array) di).getDataItems();
 
-        int key = toIntExact(dataItemList.get(0));
+        int key = toUnsignedInt(dataItemList.get(0));
 
         switch (key) {
             case 0:
