@@ -25,8 +25,8 @@ public final class RecordSpec {
         POSITIONAL,
         /**
          * An item whose CBOR major type picks a row: its {@link FieldSpec#record()} if it has one, or else a value of
-         * its type. Such as an output, an array or a map, or a value, a coin or an array. A policy is told of the record
-         * the row names, and not of this one. An item of another major type is one the walk cannot enter.
+         * its type. Such as an output, an array or a map, or a value, a coin or an array. A policy is told of the
+         * record the row names, and not of this one. An item of another major type is one the walk cannot enter.
          */
         BY_MAJOR_TYPE
     }
@@ -169,9 +169,10 @@ public final class RecordSpec {
 
     /**
      * Walks a value of this record with a policy. For each record, nested ones included: {@link FormatPolicy#enter},
-     * then per entry {@link FormatPolicy#entry}, {@link FormatPolicy#check} of a typed key if it has one, of the value if
-     * the field is known and the walk of the value if it has a table, and finally {@link FormatPolicy#missing}. Recursive types are leaves, and tables nest to
-     * a small fixed depth, so a walk is stack-safe whatever the input (ADR 0003 I9).
+     * then per entry {@link FormatPolicy#entry}, {@link FormatPolicy#check} of a typed key if it has one, of the value
+     * if the field is known and the walk of the value if it has a table, and finally {@link FormatPolicy#missing}.
+     * Recursive types are leaves, and tables nest to a small fixed depth, so a walk is stack-safe whatever the input
+     * (ADR 0003 I9).
      *
      * @param value  the record as encoded
      * @param era    the era to read it in

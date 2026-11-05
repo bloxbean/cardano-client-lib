@@ -13,8 +13,8 @@ import java.util.Optional;
  * {@code {0: address, 1: value, ? 2: datum_option, ? 3: script_ref}}.
  * <p>
  * {@link RawTx#outputs()} reads every item when it creates the view, and rejects anything but the shapes above, with no
- * tags. {@link #lenient(CborSpan)} reads what the models of {@code transaction-spec} have always accepted, which ADR 0003
- * D7 keeps until a separate decision changes it: an item is read when it is asked for, its tags are looked through, a
+ * tags. {@link #lenient(CborSpan)} reads what the models of {@code transaction-spec} have always accepted, which ADR
+ * 0003 D7 keeps until a separate decision changes it: an item is read when it is asked for, its tags are looked through, a
  * map form may lack its address, a datum option's bytes and a script reference need no tag 24 and are not looked into,
  * and a datum option of another kind holds no datum.
  */

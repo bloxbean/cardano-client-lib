@@ -359,7 +359,8 @@ class RawCertificateTest {
         assertThat(read.get(0).kind()).isEqualTo(RawRelay.Kind.MULTI_HOST_NAME);
         assertThatThrownBy(() -> read.get(1)).isInstanceOf(CborRuntimeException.class);
 
-        RawRelay relay = RawRelay.of(CborSpan.of(HexUtil.decodeHexString("84" + "00" + "f6" + "44" + "7f000001" + "f6")));
+        RawRelay relay = RawRelay.of(
+                CborSpan.of(HexUtil.decodeHexString("84" + "00" + "f6" + "44" + "7f000001" + "f6")));
         assertThat(relay.kind()).isEqualTo(RawRelay.Kind.SINGLE_HOST_ADDR);
         assertThat(relay.port()).isEmpty();
         assertThat(relay.ipv4()).isPresent();
@@ -368,8 +369,10 @@ class RawCertificateTest {
 
     @Test
     void aMirNamesItsPot() {
-        assertThat(of("82" + "06" + "82" + "00" + "01").moveInstantaneousReward().namedPot()).contains(RawMir.Pot.RESERVES);
-        assertThat(of("82" + "06" + "82" + "01" + "01").moveInstantaneousReward().namedPot()).contains(RawMir.Pot.TREASURY);
+        assertThat(of("82" + "06" + "82" + "00" + "01").moveInstantaneousReward().namedPot())
+                .contains(RawMir.Pot.RESERVES);
+        assertThat(of("82" + "06" + "82" + "01" + "01").moveInstantaneousReward().namedPot())
+                .contains(RawMir.Pot.TREASURY);
         assertThat(of("82" + "06" + "82" + "02" + "01").moveInstantaneousReward().namedPot()).isEmpty();
     }
 }
