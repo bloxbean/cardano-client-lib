@@ -35,6 +35,9 @@ Per transaction:
   key 11.
 - `Transaction.deserialize`: succeeds, and the model agrees with the raw view on inputs, outputs, fee, TTL,
   validity start, auxiliary data hash, script data hash, `isValid`, witness counts and redeemers.
+- The typed views: `RawTx.body(era)`, `RawTx.witnessSet(era)` and `RawTx.auxData(era)` read every field they type.
+- `RawTx.walk`: the walk over all the ledger tables reports no field unknown or outside its era, and no required field
+  missing (`table_entry`, `table_missing`).
 
 ### What it does not check
 

@@ -16,7 +16,9 @@ import com.bloxbean.cardano.client.transaction.raw.RawInput;
 import com.bloxbean.cardano.client.transaction.raw.RawOutput;
 import com.bloxbean.cardano.client.transaction.raw.RawTxBody;
 import com.bloxbean.cardano.client.transaction.raw.RawValue;
-import com.bloxbean.cardano.client.transaction.raw.TxBodyField;
+import com.bloxbean.cardano.client.transaction.raw.RawWitnessSet;
+import com.bloxbean.cardano.client.transaction.raw.RecordSpec;
+import com.bloxbean.cardano.client.transaction.raw.FieldSpec;
 import com.bloxbean.cardano.client.transaction.raw.RawRedeemer;
 import com.bloxbean.cardano.client.transaction.raw.RawScript;
 import com.bloxbean.cardano.client.transaction.raw.RawTx;
@@ -265,12 +267,54 @@ final class Checker {
         if (t != null)
             model(c, t, tx, redeemers);
         typedBody(c, tx, rb.era());
+        typedWitnessesAndAux(c, tx, rb.era());
+        walk(c, rb, i);
     }
 
-    /** Every typed field of the body, and the walk over its tables: nothing valid on chain is rejected (D5). */
+    /** The transaction's walk, over all its tables: on a chain, every field of every record is one its era has (D6). */
+    private void walk(Ctx c, RawBlock rb, int i) {
+        try {
+            RawTx.walk(rb.txBytes(i), rb.era(), new FormatPolicy() {
+                @Override
+                public void entry(RecordSpec record, FieldSpec field, CborSpan key, CborSpan value, int occurrence,
+                                  Era era) {
+                    if (field == null || !field.validIn(era))
+                        c.issue("table_entry", record + " key " + (key != null ? hex(key.bytes()) : "position"));
+                }
+
+                @Override
+                public void missing(RecordSpec record, FieldSpec field, CborSpan container, Era era) {
+                    c.issue("table_missing", record + " has no " + field.type());
+                }
+            });
+            state.inc(era, "walked_txs", 1);
+        } catch (Throwable e) {
+            c.issue("walk", trace(e));
+        }
+    }
+
+    /** Every typed field of the witness set and the aux data: nothing valid on chain is rejected (D5). */
+    private void typedWitnessesAndAux(Ctx c, RawTx tx, Era txEra) {
+        try {
+            RawWitnessSet witnesses = tx.witnessSet(txEra);
+            witnesses.vkeyWitnesses();
+            witnesses.bootstrapWitnesses();
+            witnesses.datums();
+            witnesses.scripts();
+            witnesses.redeemers().ifPresent(redeemers -> redeemers.forEach(RawRedeemer::units));
+            tx.auxData(txEra).ifPresent(aux -> {
+                aux.metadata();
+                aux.scripts();
+            });
+            state.inc(era, "typed_witnesses", 1);
+        } catch (Throwable e) {
+            c.issue("typed_witnesses", trace(e));
+        }
+    }
+
+    /** Every typed field of the body: nothing valid on chain is rejected (D5). */
     private void typedBody(Ctx c, RawTx tx, Era bodyEra) {
         try {
-            TxBodyField.RECORD.walk(tx.body(), bodyEra, FormatPolicy.ACCEPT_ALL);
             RawTxBody body = tx.body(bodyEra);
             body.inputs().forEach(RawInput::index);
             body.outputs().forEach(this::amount);

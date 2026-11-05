@@ -4,8 +4,10 @@
 For each era with a table it compares the certificate tags and their items, the transaction body and witness set keys
 with their required flags and types, the rules a certificate is made of (credential, drep, relay, anchor,
 pool_metadata, move_instantaneous_reward), the rules a transaction body is made of (transaction_input, both forms of
-an output, datum_option, value, multiasset, mint, withdrawals), and the block and header layouts the era names in
-EraSpec. Run it by hand, and on each bump of the ledger pin:
+an output, datum_option, value, multiasset, mint, withdrawals), the rules a witness set is made of (the table of each
+field's items, vkeywitness, bootstrap_witness, both forms of redeemers, ex_units), auxiliary data in all its forms, the
+transaction's own array, and the block and header layouts the era names in EraSpec. Run it by hand, and on each bump
+of the ledger pin:
 
     tools/cddl-table-check/check_tables.py --ledger <cardano-ledger checkout> [--commit <sha>]
 
@@ -45,7 +47,17 @@ TYPES = {
     "protocol_version": "PROTOCOL_VERSION", "bytes .size 80": "VRF_PROOF",
     "address": "ADDRESS", "value": "VALUE", "datum_option": "DATUM_OPTION", "script_ref": "SCRIPT_REF", "data": "DATA",
     "uint .size 2": "UINT16", "uint": "UINT", "asset_name": "ASSET_NAME", "int64": "INT64",
-    "nonzero_int64": "NONZERO_INT64",
+    "nonzero_int64": "NONZERO_INT64", "bool": "BOOL", "transaction_body": "TRANSACTION_BODY",
+    "transaction_witness_set": "TRANSACTION_WITNESS_SET", "auxiliary_data/ nil": "OPTIONAL_AUXILIARY_DATA",
+    "metadata/ nil": "OPTIONAL_AUXILIARY_DATA", "metadata": "METADATA", "redeemer_tag": "REDEEMER_TAG",
+    "tag : redeemer_tag": "REDEEMER_TAG", "index : uint .size 4": "UINT32", "plutus_data": "PLUTUS_DATA",
+    "ex_units": "EX_UNITS", "0 .. max_int64": "EX_UNIT",
+}
+# The table of an item of a witness set's or aux data's list.
+ITEM_TABLES = {
+    "vkeywitness": "RawVkeyWitness.RECORD", "bootstrap_witness": "RawBootstrapWitness.RECORD",
+    "native_script": "RawScript.NATIVE", "plutus_v1_script": "RawScript.PLUTUS", "plutus_v2_script": "RawScript.PLUTUS",
+    "plutus_v3_script": "RawScript.PLUTUS", "plutus_data": "RawDatum.DATA",
 }
 SHAPES = [
     (r"\[\* ", "LIST"), (r"\[\+ ", "NONEMPTY_LIST"), (r"set<", "SET"), (r"nonempty_set<", "NONEMPTY_SET"),
@@ -177,6 +189,80 @@ def witness_table(era):
     return {int(a[0]): (a[1], False) for _, a in rows("WitnessSetField") if valid_in(era, era_of(a[2]), era_of(a[3]))}
 
 
+def witness_item_tables(era):
+    return {int(a[0]): a[4] for _, a in rows("WitnessSetField") if valid_in(era, era_of(a[2]), era_of(a[3]))
+            and a[1] != "REDEEMERS"}
+
+
+def item_tables(rule_name, cddl_text):
+    """{key: table of an item} of the fields of a map rule that are lists."""
+    tables = {}
+    for entry in split_top(rule(cddl_text, rule_name).strip()[1:-1], ","):
+        match = re.fullmatch(r"\?\s*(\d+)\s*:\s*(?:\[[*+] |(?:nonempty_)?(?:set|list|oset)<)(\w+)\s*[\]>]", entry)
+        if match:
+            tables[int(match.group(1))] = ITEM_TABLES[match.group(2)]
+    return tables
+
+
+def aux_map_table(era):
+    return {int(a[0]): (a[1].replace("FieldType.", ""), False) for _, a in rows("AuxDataField")
+            if valid_in(era, era_of(a[2]), None)}
+
+
+def aux_map_item_tables(era):
+    return {int(a[0]): a[3] for _, a in rows("AuxDataField") if valid_in(era, era_of(a[2]), None) and a[3] != "null"}
+
+
+def transaction_table(era):
+    """The form of the transaction's own array that the era has: (FieldType, required), by position."""
+    return {position: row for name in ("pre_alonzo_transaction", "transaction")
+            for position, row, until in tagged_rows("RawTx", name) if valid_in(era, *until)}
+
+
+def tagged_rows(view, name):
+    """The rows of a positional table written as FieldSpec.of(...), with the eras they are valid for."""
+    source = java(view)
+    start = source.index(f'RecordSpec.positional("{name}"')
+    body = source[start:source.index(";", start)]
+    return [(int(m[0]), (m[1], m[2] == "true"), (m[3], era_of(m[4]))) for m in
+            re.findall(r"FieldSpec\.of\((\d+), FieldType\.(\w+), (true|false), Era\.(\w+), (null|Era\.\w+)", body)]
+
+
+def by_major_rows(view, name):
+    """{major type: (FieldType, table of the row, first era, last era)} of a table of rows by major type."""
+    source = java(view)
+    start = source.index(f'RecordSpec.byMajorType("{name}"')
+    body = source[start:source.index(";", start)]
+    return [(m[0], m[1], m[2], m[3], m[4]) for m in re.findall(
+        r"FieldSpec\.of\((\w+), FieldType\.(\w+), false, Era\.(\w+), (null|Era\.\w+)(?:, (\w[\w.]*))?\)", body)]
+
+
+def redeemers_table(era):
+    """(the array form's type, the map form's type), by the rows valid in the era; None for a form it does not have."""
+    forms = {"array": None, "map": None}
+    for major, field_type_name, start, until, _ in by_major_rows("RawRedeemer", "redeemers"):
+        if valid_in(era, start, era_of(until)):
+            forms["array" if major == "MAJOR_ARRAY" else "map"] = field_type_name
+    return forms
+
+
+def redeemers_rule(cddl_text):
+    """What the redeemers rule has: the shape of each form, and each form's items by FieldType."""
+    forms = {"array": None, "map": None}
+    items = {}
+    for form in split_top(rule(cddl_text, "redeemers"), "/"):
+        form = form.strip()
+        if form.startswith("["):
+            forms["array"] = field_type(re.sub(r"^\[\s*([*+])\s*", r"[\1 ", form), cddl_text)
+            items["redeemer"] = list(array_fields("redeemer", cddl_text).values())
+        else:
+            shape, key, value = re.fullmatch(r"\{\s*([*+])\s*\[(.*?)\]\s*=>\s*\[(.*)\]\s*\}", form).groups()
+            forms["map"] = "NONEMPTY_MAP" if shape == "+" else "MAP"
+            items["redeemer_key"] = [field_type(item, cddl_text) for item in split_top(key, ",")]
+            items["redeemer_value"] = [field_type(item, cddl_text) for item in split_top(value, ",")]
+    return forms, items
+
+
 def nested_kinds(view):
     source = java(view)
     body = source[source.index("enum Kind") :]
@@ -280,6 +366,41 @@ def main():
         compare("certificate", union_members("certificate", text), certs, problems)
         compare("body key", keyed_rule("transaction_body", text), body, problems)
         compare("witness key", keyed_rule("transaction_witness_set", text), witnesses, problems)
+        compare("witness item table", item_tables("transaction_witness_set", text), witness_item_tables(era), problems)
+        compare("vkeywitness", {"items": array_items("vkeywitness", text)}, {"items": positional("RawVkeyWitness")},
+                problems)
+        compare("bootstrap_witness", {"items": array_items("bootstrap_witness", text)},
+                {"items": positional("RawBootstrapWitness")}, problems)
+        if rule(text, "redeemers"):
+            forms, items = redeemers_rule(text)
+            compare("redeemers forms", forms, redeemers_table(era), problems)
+            for name, types in items.items():
+                expected = [t[0] if isinstance(t, tuple) else t for t in types]
+                compare(name, {"items": expected}, {"items": positional("RawRedeemer", name)}, problems)
+            compare("ex_units", {"items": array_items("ex_units", text)}, {"items": positional("RawExUnits")}, problems)
+        expected_tx = array_fields("transaction", text)
+        compare("transaction", expected_tx, transaction_table(era), problems)
+        aux = rule(text, "auxiliary_data")
+        if aux:
+            forms = [form.strip() for form in split_top(aux, "/")]
+            actual_forms = ["metadata"]
+            if valid_in(era, "Allegra", None):
+                actual_forms.append("auxiliary_data_array")
+            if valid_in(era, "Alonzo", None):
+                actual_forms.append("auxiliary_data_map")
+            compare("aux data forms", {"forms": forms}, {"forms": actual_forms}, problems)
+            compare("auxiliary_data_array", array_fields("auxiliary_data_array", text),
+                    {p: row for p, row, _ in tagged_rows("RawAuxData", "auxiliary_data_array")}, problems)
+            scripts = rule(text, "auxiliary_data_array")
+            if "auxiliary_scripts" not in scripts or rule(text, "auxiliary_scripts") != "[* native_script]":
+                problems.append("auxiliary_data_array: its scripts are not [* native_script]")
+            if rule(text, "auxiliary_data_map"):
+                inner = re.fullmatch(r"#6\.259\(\s*(\{.*\})\s*\)", rule(text, "auxiliary_data_map")).group(1)
+                wrapped = text + "\nauxiliary_data_map_fields = " + inner + "\n"
+                compare("auxiliary_data_map", keyed_rule("auxiliary_data_map_fields", wrapped), aux_map_table(era),
+                        problems)
+                compare("auxiliary_data_map item table", item_tables("auxiliary_data_map_fields", wrapped),
+                        aux_map_item_tables(era), problems)
         compare("relay", union_members("relay", text), nested_kinds("RawRelay"), problems)
         compare("credential", union_members("credential", text), member_table("RawCredential"), problems)
         compare("transaction_input", {"items": array_items("transaction_input", text)},
