@@ -17,6 +17,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Collections;
 import java.util.HexFormat;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -157,6 +158,23 @@ class TransactionOutputBytesTest {
         ((ListPlutusData) output.getInlineDatum()).getPlutusDataList().set(0, datum("a2a1010100a1010101"));
 
         assertThat(written(output)).isEqualTo("81a1a1010101");
+    }
+
+    @Test
+    void replacingChildrenSoARepeatMovesFromInsideARepeatedValueToAnotherMapWritesTheReplacement() throws Exception {
+        TransactionOutput output = decode("82a10101a20183a20100010100000100");
+        List<PlutusData> children = ((ListPlutusData) output.getInlineDatum()).getPlutusDataList();
+
+        children.set(0, datum("a201000101"));
+        children.set(1, datum("a20183a1010100000100"));
+
+        assertThat(written(output)).isEqualTo("82a10101a10100");
+    }
+
+    @Test
+    void aRepeatInsideARepeatedValueAndOneInTheKeptValueHaveDifferentKeys() throws Exception {
+        assertThat(PlutusData.representsBytes(datum("a201a1000001a200010001"), hex("a201a20001000001a10001")))
+                .isFalse();
     }
 
     @Test

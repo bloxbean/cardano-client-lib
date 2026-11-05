@@ -567,9 +567,14 @@ final class PlutusDataCodec {
 
     // ---- whether data still represents the bytes it was decoded from
 
+    private static final int MODEL_RECORD = 0;
+    private static final int NESTED_RECORD = 1;
+
     /**
      * What tells two datums apart when deciding whether retained bytes still represent one (ADR 0002 D6.3): the
-     * non-canonical encoding, which sees order and values, plus each map's repeated entries with its place in the walk.
+     * non-canonical encoding, which sees order and values, plus a record of each map's repeated entries with its place
+     * in the walk. A record says whether its map is in the model or inside another record's entries, so the two can't
+     * pass for each other.
      * A map that repeated a key encodes like one that did not, so replacing a child can leave the encoding unchanged.
      * A map keeps its record for life, so one cleared and refilled with the same entries still counts as unchanged.
      * Nothing recurses.
@@ -596,18 +601,23 @@ final class PlutusDataCodec {
                 });
                 Array repeated = map instanceof PlutusDataMap ? ((PlutusDataMap) map).getRepeatedEntries() : null;
                 if (repeated != null) {
-                    key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(node), false));
-                    writeRepeatedEntries(key, repeated);
+                    writeRepeatRecord(key, MODEL_RECORD, node, repeated);
+                    writeRepeatsWithin(key, repeated);
                 }
             }
         }
         return key.toByteArray();
     }
 
-    // A repeated entry's own encoding hides any key it repeats in turn, so those are written too.
-    private static void writeRepeatedEntries(ByteArrayOutputStream key, Array repeated) throws CborException {
+    private static void writeRepeatRecord(ByteArrayOutputStream key, int kind, long place, Array repeated)
+            throws CborException {
+        key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(kind), false));
+        key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(place), false));
         key.writeBytes(CborSerializationUtil.serialize(repeated, false));
+    }
 
+    // A repeated entry's own encoding hides any key it repeats in turn, so those are written too.
+    private static void writeRepeatsWithin(ByteArrayOutputStream key, Array repeated) throws CborException {
         ArrayDeque<DataItem> pending = new ArrayDeque<>();
         pending.push(repeated);
         long item = 0;
@@ -621,8 +631,7 @@ final class PlutusDataCodec {
                 ((Map) data).getValues().forEach(pending::push);
                 Array nested = data instanceof EncodedKeyMap ? ((EncodedKeyMap) data).getRepeatedEntries() : null;
                 if (nested != null) {
-                    key.writeBytes(CborSerializationUtil.serialize(new UnsignedInteger(item), false));
-                    key.writeBytes(CborSerializationUtil.serialize(nested, false));
+                    writeRepeatRecord(key, NESTED_RECORD, item, nested);
                     pending.push(nested);
                 }
             }
