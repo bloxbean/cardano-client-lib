@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
@@ -340,7 +340,7 @@ public class TransactionBody {
         //network Id
         UnsignedInteger networkIdUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(15));
         if (networkIdUI != null) {
-            int networkIdInt = toIntExact(networkIdUI);
+            int networkIdInt = toUnsignedInt(networkIdUI);
             if (networkIdInt == 0) {
                 transactionBody.setNetworkId(NetworkId.TESTNET);
             } else if (networkIdInt == 1) {

@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 @Getter
@@ -57,7 +57,7 @@ public class Update {
             deProtoParamUpdatesMap.put(genesisHash, protocolParamUpdate);
         }
 
-        int epoch = toIntExact(updateItems.get(1));
+        int epoch = toUnsignedInt(updateItems.get(1));
 
         return new Update(deProtoParamUpdatesMap, epoch);
     }

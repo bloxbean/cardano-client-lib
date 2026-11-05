@@ -11,7 +11,7 @@ import lombok.*;
 
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIntExact;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toBytes;
@@ -46,7 +46,7 @@ public class PoolRetirement implements Certificate {
         }
 
         UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || toIntExact(type) != 4)
+        if (type == null || toUnsignedInt(type) != 4)
             throw new CborDeserializationException("PoolRetirement deserialization failed. Invalid type : "
                     + type != null ? String.valueOf(type.getValue().intValue()) : null);
 
