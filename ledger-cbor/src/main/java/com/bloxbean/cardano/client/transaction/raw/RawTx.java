@@ -210,7 +210,7 @@ public final class RawTx {
     public Optional<byte[]> scriptDataHash(Era era, byte[] languageViews) {
         if (era == null || languageViews == null)
             throw new IllegalArgumentException("era and languageViews are required (a0 for no language views)");
-        byte[] absentRedeemers = EraRules.of(era).absentRedeemers();
+        byte[] absentRedeemers = EraSpec.of(era).absentRedeemers();
         Optional<CborSpan> redeemers = witnessField(5);
         Optional<CborSpan> datums = witnessField(4);
         boolean noRedeemers = redeemers.map(field -> field.size() == 0).orElse(true);

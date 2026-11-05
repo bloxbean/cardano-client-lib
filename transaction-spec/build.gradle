@@ -2,6 +2,7 @@ dependencies {
     api project(':common')
     api project(':crypto')
     api project(':common-spec')
+    api project(':ledger-cbor')
     api project(":address")
     api project(':metadata')
     api project(':plutus')

@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.plutus.spec.CostModel;
@@ -174,7 +175,7 @@ class RawTxRealCorpusTest {
         for (RawScript script : raw.scripts()) {
             count(seen, new String[]{"native script", "Plutus V1 script", "Plutus V2 script", "Plutus V3 script"}[script.type()]);
             // the model hashes like the original bytes when it re-encodes to them
-            var model = script.toScript();
+            var model = RawModels.toScript(script);
             if (script.type() != 0 || Arrays.equals(((NativeScript) model).serializeScriptBody(), script.span().bytes()))
                 assertThat(model.getScriptHash()).as(name).isEqualTo(script.hash());
         }
@@ -182,11 +183,11 @@ class RawTxRealCorpusTest {
         for (RawDatum datum : raw.witnessDatums()) {
             count(seen, "witness datum");
             assertThat(datum.hash()).isEqualTo(blake2bHash256(datum.span().bytes()));
-            datum.toPlutusData();
+            RawModels.toPlutusData(datum);
         }
         for (RawRedeemer redeemer : raw.redeemers()) {
             assertThat(redeemer.tag()).isBetween(0, 5);
-            new RawDatum(redeemer.data()).toPlutusData();
+            RawModels.toPlutusData(new RawDatum(redeemer.data()));
         }
         raw.witnessField(5).ifPresent(field -> count(seen, field.majorType() == 4 ? "redeemers array form" : "redeemers map form"));
         for (RawOutput output : raw.outputs()) {
@@ -194,11 +195,11 @@ class RawTxRealCorpusTest {
                 count(seen, "legacy output with datum hash");
             if (output.inlineDatum().isPresent()) {
                 count(seen, "inline datum");
-                output.inlineDatum().get().toPlutusData();
+                RawModels.toPlutusData(output.inlineDatum().get());
             }
             if (output.scriptRef().isPresent()) {
                 count(seen, "reference script");
-                assertThat(output.scriptRef().get().toScript().getScriptHash()).isEqualTo(output.scriptRef().get().hash());
+                assertThat(RawModels.toScript(output.scriptRef().get()).getScriptHash()).isEqualTo(output.scriptRef().get().hash());
             }
         }
         raw.collateralReturn().ifPresent(output -> count(seen, "collateral return"));

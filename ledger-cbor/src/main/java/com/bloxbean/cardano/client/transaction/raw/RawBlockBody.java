@@ -46,7 +46,7 @@ public final class RawBlockBody {
      * @throws NullPointerException     if the era or the transactions are null
      */
     public static RawBlockBody of(Era era, List<byte[]> transactions) {
-        EraRules rules = EraRules.of(Objects.requireNonNull(era, "era is null"));
+        EraSpec rules = EraSpec.of(Objects.requireNonNull(era, "era is null"));
         Objects.requireNonNull(transactions, "transactions is null");
         int count = transactions.size();
         List<RawTx> txs = new ArrayList<>(count);

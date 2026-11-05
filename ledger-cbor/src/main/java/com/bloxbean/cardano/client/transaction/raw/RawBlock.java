@@ -20,7 +20,7 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * a {@link RawTx}; and the block body hash.
  * <p>
  * Accepts the hard-fork combinator envelope {@code [era, block]}, or the bare block with its era given, either one
- * optionally wrapped in tag 24. The era decides the rules that differ between eras ({@code EraRules}). Checked when the
+ * optionally wrapped in tag 24. The era decides the rules that differ between eras ({@code EraSpec}). Checked when the
  * view is created, as the ledger's decoder checks them (D6):
  * <ul>
  *     <li>as many witness sets as transaction bodies;</li>
@@ -35,7 +35,7 @@ public final class RawBlock {
     private static final int EMBEDDED_CBOR = 24;
 
     private final Era era;
-    private final EraRules rules;
+    private final EraSpec rules;
     private final CborSpan header;
     private final CborSpan transactionBodies;
     private final CborSpan transactionWitnessSets;
@@ -48,7 +48,7 @@ public final class RawBlock {
 
     private RawBlock(Era era, CborSpan block) {
         this.era = era;
-        this.rules = EraRules.of(era);
+        this.rules = EraSpec.of(era);
         if (block.majorType() != 4 || block.tag() != -1)
             throw error("A block is an untagged array", block);
         List<CborSpan> parts = block.items();

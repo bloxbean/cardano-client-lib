@@ -1,0 +1,21 @@
+// ADR 0003: the one reader of the Shelley-family ledger format. It holds no model and no ledger rule, and the build
+// enforces that: no model is on its classpath.
+dependencies {
+    api project(':common')
+    api project(':common-spec')
+
+    testImplementation(project(':test-support')) {
+        exclude group: 'net.jqwik'
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Ledger CBOR'
+                description = 'Cardano Client Lib - era-aware reader of the ledger CBOR format'
+            }
+        }
+    }
+}

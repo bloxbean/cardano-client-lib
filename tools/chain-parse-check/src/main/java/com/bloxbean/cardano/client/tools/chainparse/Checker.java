@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.tools.chainparse;
 
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.plutus.spec.Language;
@@ -231,7 +232,7 @@ final class Checker {
         byte[] raw = s.hash();
         Script m;
         try {
-            m = s.toScript();
+            m = RawModels.toScript(s);
         } catch (Throwable e) {
             c.issue("script_decode_" + where, "type " + s.type() + " hash " + hex(raw) + ": " + trace(e));
             return;
@@ -272,7 +273,7 @@ final class Checker {
         byte[] raw = d.hash();
         PlutusData pd;
         try {
-            pd = d.toPlutusData();
+            pd = RawModels.toPlutusData(d);
         } catch (Throwable e) {
             c.issue("datum_decode_" + where, "hash " + hex(raw) + ": " + trace(e));
             return;

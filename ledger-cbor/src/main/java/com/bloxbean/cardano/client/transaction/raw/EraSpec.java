@@ -3,14 +3,14 @@ package com.bloxbean.cardano.client.transaction.raw;
 import com.bloxbean.cardano.client.spec.Era;
 
 /**
- * The rules of the raw views that depend on the era (ADR 0001 D8), in one table: the only place where the views branch
- * on the era. Everything else is the same in every Shelley-family era: records are read by key and unknown keys are
+ * The rules of the ledger format that depend on the era (ADR 0001 D8, ADR 0003 D3), in one table: the only place where
+ * the reader branches on the era. Everything else is the same in every Shelley-family era: records are read by key and unknown keys are
  * passed through, a duplicate record key is rejected, tag 258 is accepted on sets, and both redeemer forms and every aux
  * data shape are read wherever they occur, as the ledger's decoders of later eras still accept the earlier shapes.
  * <p>
  * Adding an era means adding its {@link Era} constant and its row here.
  */
-enum EraRules {
+public enum EraSpec {
     //       era          invalid_transactions  duplicate aux index  absent redeemers
     SHELLEY(Era.Shelley, false, false, null),
     ALLEGRA(Era.Allegra, false, false, null),
@@ -36,19 +36,19 @@ enum EraRules {
      */
     private final byte[] absentRedeemers;
 
-    EraRules(Era era, boolean invalidTransactions, boolean rejectsDuplicateAuxIndex, byte[] absentRedeemers) {
+    EraSpec(Era era, boolean invalidTransactions, boolean rejectsDuplicateAuxIndex, byte[] absentRedeemers) {
         this.era = era;
         this.invalidTransactions = invalidTransactions;
         this.rejectsDuplicateAuxIndex = rejectsDuplicateAuxIndex;
         this.absentRedeemers = absentRedeemers;
     }
 
-    static EraRules of(Era era) {
-        for (EraRules rules : values()) {
+    static EraSpec of(Era era) {
+        for (EraSpec rules : values()) {
             if (rules.era == era)
                 return rules;
         }
-        throw new IllegalArgumentException("No raw view rules for era " + era);
+        throw new IllegalArgumentException("No rules for era " + era);
     }
 
     /**

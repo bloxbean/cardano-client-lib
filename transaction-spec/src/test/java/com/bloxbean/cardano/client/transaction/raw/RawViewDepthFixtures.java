@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
@@ -85,7 +86,7 @@ final class RawViewDepthFixtures {
         check(encodeHexString(tx.txId()).equals(trigger.txHash()), "trigger: TxId");
         RawScript script = tx.scripts().get(0);
         check(encodeHexString(script.hash()).equals(RealCborFixturesAccess.TRIGGER_NATIVE_SCRIPT_HASH), "trigger: script hash");
-        NativeScript model = (NativeScript) script.toScript();
+        NativeScript model = (NativeScript) RawModels.toScript(script);
         check(Arrays.equals(model.getScriptHash(), script.hash()), "trigger: model script hash");
         Set<String> vkeyHashes = new HashSet<>();
         tx.vkeyWitnesses().forEach(witness -> vkeyHashes.add(encodeHexString(Blake2bUtil.blake2bHash224(witness.get(0).byteString()))));
@@ -112,7 +113,7 @@ final class RawViewDepthFixtures {
         check(script.type() == 0 && Arrays.equals(script.span().bytes(), original), name + ": span");
         byte[] expected = Blake2bUtil.blake2bHash224(decodeHexString("00" + hex));
         check(Arrays.equals(script.hash(), expected), name + ": script hash");
-        NativeScript model = (NativeScript) script.toScript();
+        NativeScript model = (NativeScript) RawModels.toScript(script);
         check(Arrays.equals(model.getScriptHash(), expected), name + ": model script hash");
         check(NativeScriptEvaluator.evaluate(model, Set.of(KEY_HASH), null, null), name + ": holds with the signature");
         check(!NativeScriptEvaluator.evaluate(model, Set.of(), null, null), name + ": fails without it");
@@ -121,7 +122,7 @@ final class RawViewDepthFixtures {
     private static void datum(String name, RawDatum datum, String hex) throws Exception {
         check(Arrays.equals(datum.span().bytes(), decodeHexString(hex)), name + ": span");
         check(Arrays.equals(datum.hash(), hash256(hex)), name + ": datum hash");
-        PlutusData model = datum.toPlutusData();
+        PlutusData model = RawModels.toPlutusData(datum);
         check(Arrays.equals(model.getDatumHashAsBytes(), datum.hash()), name + ": model datum hash");
     }
 

@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.spec.Era;
@@ -89,14 +90,14 @@ class RawViewMalformedTest {
         tx.vkeyWitnesses();
         tx.bootstrapWitnesses();
         for (RawOutput output : tx.outputs()) {
-            output.inlineDatum().ifPresent(datum -> decode(datum::toPlutusData, datum.hash()));
-            output.scriptRef().ifPresent(script -> decode(script::toScript, script.hash()));
+            output.inlineDatum().ifPresent(datum -> decode(() -> RawModels.toPlutusData(datum), datum.hash()));
+            output.scriptRef().ifPresent(script -> decode(() -> RawModels.toScript(script), script.hash()));
         }
         tx.collateralReturn();
-        tx.witnessDatums().forEach(datum -> decode(datum::toPlutusData, datum.hash()));
-        tx.redeemers().forEach(redeemer -> decode(new RawDatum(redeemer.data())::toPlutusData, null));
-        tx.scripts().forEach(script -> decode(script::toScript, script.hash()));
-        tx.auxScripts().forEach(script -> decode(script::toScript, script.hash()));
+        tx.witnessDatums().forEach(datum -> decode(() -> RawModels.toPlutusData(datum), datum.hash()));
+        tx.redeemers().forEach(redeemer -> decode(() -> RawModels.toPlutusData(new RawDatum(redeemer.data())), null));
+        tx.scripts().forEach(script -> decode(() -> RawModels.toScript(script), script.hash()));
+        tx.auxScripts().forEach(script -> decode(() -> RawModels.toScript(script), script.hash()));
         tx.scriptDataHash(Era.Conway, decodeHexString("a0"));
         tx.span();
     }
