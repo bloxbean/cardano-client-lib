@@ -13,6 +13,10 @@ import com.bloxbean.cardano.client.spec.Era;
  *     member.</li>
  *     <li>A positional record has no key in its bytes, so {@code key} is null and {@link FieldSpec#key()} is the
  *     position. An item beyond the record's last position has a null {@code field}.</li>
+ *     <li>A map of like entries ({@link RecordSpec#keyType()}) reports every entry with the same {@code field}, and
+ *     checks each key with its type. Keys that decode alike are one key for {@code occurrence}.</li>
+ *     <li>A record with a shape per container ({@link RecordSpec.Shape#BY_MAJOR_TYPE}) is not reported: the record its
+ *     item's major type picks is, or the item is checked if that is a leaf.</li>
  * </ul>
  */
 public interface FormatPolicy {

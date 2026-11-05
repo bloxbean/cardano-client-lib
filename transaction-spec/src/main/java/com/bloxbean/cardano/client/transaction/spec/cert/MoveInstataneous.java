@@ -72,14 +72,8 @@ public class MoveInstataneous implements Certificate {
         } else {
             accountingPotCoin = mir.coin();
         }
-        return new MoveInstataneous(pot(mir.pot()), accountingPotCoin, stakeCredentialsMap);
-    }
-
-    private static MirPot pot(int value) {
-        for (MirPot pot : MirPot.values()) {
-            if (pot.getValue() == value)
-                return pot;
-        }
-        return null;
+        MirPot pot = mir.namedPot().map(named -> named == RawMir.Pot.RESERVES ? MirPot.RESERVES : MirPot.TREASURY)
+                .orElse(null);
+        return new MoveInstataneous(pot, accountingPotCoin, stakeCredentialsMap);
     }
 }

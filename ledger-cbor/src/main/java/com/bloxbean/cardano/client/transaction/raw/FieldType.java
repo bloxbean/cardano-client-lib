@@ -46,6 +46,15 @@ public enum FieldType {
     OPERATIONAL_CERT,
     PROTOCOL_VERSION,
     TRANSACTION_OUTPUT,
+    ADDRESS,
+    VALUE,
+    DATUM_OPTION,
+    /** Plutus data in tag 24, as encoded. */
+    DATA,
+    SCRIPT_REF,
+    ASSET_NAME,
+    INT64,
+    NONZERO_INT64,
     UPDATE,
     REDEEMERS,
     MAP,
@@ -110,6 +119,12 @@ public enum FieldType {
             case CERTIFICATE_LIST:
             case NONEMPTY_CERTIFICATE_SET:
                 return CertKind.RECORD;
+            case TRANSACTION_OUTPUT:
+                return RawOutput.RECORD;
+            case VALUE:
+                return RawValue.RECORD;
+            case DATUM_OPTION:
+                return RawDatum.OPTION;
             default:
                 return null;
         }

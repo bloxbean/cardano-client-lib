@@ -7,12 +7,18 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A move_instantaneous_reward as received, {@code [0 / 1, {* stake_credential => delta_coin} / coin]}: the funds move
  * to stake credentials, or to the other accounting pot.
  */
 public final class RawMir {
+    /** The accounting pots funds are drawn from. */
+    public enum Pot {
+        RESERVES, TREASURY
+    }
+
     static final RecordSpec RECORD = RecordSpec.positional("move_instantaneous_reward", FieldType.UINT,
             FieldType.MIR_TARGET);
 
@@ -33,6 +39,14 @@ public final class RawMir {
      */
     public int pot() {
         return RawItems.smallUnsigned(record.value(FieldType.UINT));
+    }
+
+    /**
+     * @return the pot the funds are drawn from, or empty if {@link #pot()} names none, which is the policy's to reject
+     */
+    public Optional<Pot> namedPot() {
+        int pot = pot();
+        return pot < Pot.values().length ? Optional.of(Pot.values()[pot]) : Optional.empty();
     }
 
     /**

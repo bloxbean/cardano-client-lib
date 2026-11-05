@@ -5,8 +5,8 @@ import com.bloxbean.cardano.client.spec.Era;
 /**
  * One row of a ledger record table (ADR 0003 D3).
  *
- * @param key      the map key of a keyed record, the tag of a tagged union's member, or the position in a positional
- *                 record
+ * @param key      the map key of a keyed record, the tag of a tagged union's member, the position in a positional
+ *                 record, or the major type of a record that has a shape per container; 0 in a map of like entries
  * @param type     the value's type
  * @param required whether the record must have the field in the eras it is valid for
  * @param from     the first era of the field
@@ -17,6 +17,10 @@ public record FieldSpec(long key, FieldType type, boolean required, Era from, Er
 
     static FieldSpec of(long key, FieldType type, boolean required, Era from, Era until) {
         return new FieldSpec(key, type, required, from, until, type.record());
+    }
+
+    static FieldSpec of(long key, FieldType type, boolean required, Era from, Era until, RecordSpec record) {
+        return new FieldSpec(key, type, required, from, until, record);
     }
 
     /** @return a member of a tagged union, whose items are read with its own table */
@@ -30,6 +34,14 @@ public record FieldSpec(long key, FieldType type, boolean required, Era from, Er
      */
     public boolean validIn(Era era) {
         return era.compareTo(from) >= 0 && (until == null || era.compareTo(until) <= 0);
+    }
+
+    /**
+     * @param era an era
+     * @return whether the field's last era is before this era
+     */
+    boolean endedBefore(Era era) {
+        return until != null && era.compareTo(until) > 0;
     }
 
     /**

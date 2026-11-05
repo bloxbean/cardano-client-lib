@@ -86,7 +86,10 @@ public enum CertKind {
      *                              integer that fits an int
      */
     public static Optional<CertKind> of(CborSpan certificate) {
-        List<CborSpan> items = RawItems.array(certificate, RECORD.name());
+        return of(RawItems.array(certificate, RECORD.name()), certificate);
+    }
+
+    static Optional<CertKind> of(List<CborSpan> items, CborSpan certificate) {
         if (items.isEmpty())
             throw RawTx.error("A certificate has a tag", certificate);
         int tag = RawItems.smallUnsigned(items.get(0));

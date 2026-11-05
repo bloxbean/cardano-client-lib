@@ -174,23 +174,24 @@ public class PoolRegistration implements Certificate {
     private static Relay relay(RawRelay relay) throws CborDeserializationException {
         switch (relay.kind()) {
             case SINGLE_HOST_ADDR:
-                return new SingleHostAddr(relay.port(), address(relay.ipv4(), Inet4Address.class),
+                return new SingleHostAddr(relay.port().orElse(null), address(relay.ipv4(), Inet4Address.class),
                         address(relay.ipv6(), Inet6Address.class));
             case SINGLE_HOST_NAME:
-                return new SingleHostName(relay.port(), relay.dnsName());
+                return new SingleHostName(relay.port().orElse(null), relay.dnsName().orElse(null));
             default:
-                return new MultiHostName(relay.dnsName());
+                return new MultiHostName(relay.dnsName().orElse(null));
         }
     }
 
-    private static <T extends InetAddress> T address(byte[] bytes, Class<T> type) throws CborDeserializationException {
-        if (bytes == null)
+    private static <T extends InetAddress> T address(Optional<byte[]> bytes, Class<T> type)
+            throws CborDeserializationException {
+        if (bytes.isEmpty())
             return null;
         try {
-            return type.cast(InetAddress.getByAddress(bytes));
+            return type.cast(InetAddress.getByAddress(bytes.get()));
         } catch (Exception ex) {
             throw new CborDeserializationException("Unable to convert byte[] to " + type.getSimpleName() + ": "
-                    + HexUtil.encodeHexString(bytes), ex);
+                    + HexUtil.encodeHexString(bytes.get()), ex);
         }
     }
 

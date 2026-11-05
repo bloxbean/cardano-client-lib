@@ -16,17 +16,31 @@ final class RecordWalk {
     }
 
     static void walk(RecordSpec record, CborSpan container, Era era, FormatPolicy policy) {
+        if (record.shape() == RecordSpec.Shape.BY_MAJOR_TYPE) {
+            byMajorType(record, container, era, policy);
+            return;
+        }
         policy.enter(record, container, era);
         switch (record.shape()) {
             case KEYED:
                 keyed(record, container, era, policy);
                 break;
             case TAGGED:
-                tagged(record, container, era, policy);
+                tagged(record, container, RawItems.array(container, record.name()), era, policy);
                 break;
             default:
-                positional(record, container, era, policy);
+                positional(record, container, RawItems.array(container, record.name()), era, policy);
         }
+    }
+
+    private static void byMajorType(RecordSpec record, CborSpan item, Era era, FormatPolicy policy) {
+        FieldSpec row = record.field(item.majorType(), era);
+        if (row == null)
+            throw RawTx.error("A " + record.name() + " cannot be of major type " + item.majorType(), item);
+        if (row.record() != null)
+            walk(row.record(), item, era, policy);
+        else
+            policy.check(row.type(), item, era);
     }
 
     private static void keyed(RecordSpec record, CborSpan container, Era era, FormatPolicy policy) {
@@ -35,9 +49,12 @@ final class RecordWalk {
             CborSpan key = entry.getKey();
             CborSpan value = entry.getValue();
             BigInteger integer = integerKey(key);
-            int occurrence = seen.merge(integer != null ? integer : ByteBuffer.wrap(key.bytes()), 1, Integer::sum) - 1;
-            FieldSpec field = field(record, integer, era);
+            int occurrence = seen.merge(decodedKey(key, integer), 1, Integer::sum) - 1;
+            // every entry of a map of like entries has the same field
+            FieldSpec field = record.keyType() != null ? record.field(0, era) : field(record, integer, era);
             policy.entry(record, field, key, value, occurrence, era);
+            if (record.keyType() != null)
+                policy.check(record.keyType(), key, era);
             if (field != null)
                 value(field, value, era, policy);
         }
@@ -47,19 +64,30 @@ final class RecordWalk {
         }
     }
 
-    private static void tagged(RecordSpec record, CborSpan container, Era era, FormatPolicy policy) {
-        List<CborSpan> items = RawItems.array(container, record.name());
+    // Keys that decode alike are one key, however they are encoded.
+    private static Object decodedKey(CborSpan key, BigInteger integer) {
+        if (integer != null)
+            return integer;
+        return key.majorType() == 2 ? RawItems.identity(key) : ByteBuffer.wrap(key.bytes());
+    }
+
+    /** For a caller that has listed the items of the union's value, which has told the policy it entered. */
+    static void tagged(RecordSpec record, CborSpan container, List<CborSpan> items, Era era, FormatPolicy policy) {
         if (items.isEmpty())
             throw RawTx.error("A " + record.name() + " has a tag", container);
         CborSpan tag = items.get(0);
         FieldSpec field = field(record, integerKey(tag), era);
         policy.entry(record, field, tag, container, 0, era);
-        if (field != null)
-            value(field, container, era, policy);
+        if (field != null) {
+            // the member's items are the union's, and are not listed again
+            policy.check(field.type(), container, era);
+            policy.enter(field.record(), container, era);
+            positional(field.record(), container, items, era, policy);
+        }
     }
 
-    private static void positional(RecordSpec record, CborSpan container, Era era, FormatPolicy policy) {
-        List<CborSpan> items = RawItems.array(container, record.name());
+    private static void positional(RecordSpec record, CborSpan container, List<CborSpan> items, Era era,
+                                   FormatPolicy policy) {
         // a member of a tagged union starts after the tag, which the union has reported
         for (int position = record.firstPosition(); position < items.size(); position++) {
             CborSpan value = items.get(position);
@@ -89,7 +117,7 @@ final class RecordWalk {
 
     // The value of an untagged integer key, or null.
     private static BigInteger integerKey(CborSpan key) {
-        return key.tag() == -1 && key.majorType() <= 1 ? key.asBigInteger() : null;
+        return !key.isTagged() && key.majorType() <= 1 ? key.asBigInteger() : null;
     }
 
     private static FieldSpec field(RecordSpec record, BigInteger key, Era era) {

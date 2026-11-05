@@ -2,9 +2,11 @@ package com.bloxbean.cardano.client.transaction.raw;
 
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 
 import java.math.BigInteger;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -26,10 +28,10 @@ public final class RawCertificate {
     private final PositionalRecord record;
     private final boolean lenient;
 
-    private RawCertificate(CertKind kind, CborSpan span, boolean lenient) {
+    private RawCertificate(CertKind kind, CborSpan span, List<CborSpan> items, boolean lenient) {
         this.kind = kind;
         this.span = span;
-        this.record = PositionalRecord.member(CertKind.RECORD, kind.tag(), span, !lenient);
+        this.record = PositionalRecord.of(kind.member().record(), span, items, !lenient);
         this.lenient = lenient;
     }
 
@@ -40,8 +42,9 @@ public final class RawCertificate {
      *                              it does not have the items of its tag
      */
     public static RawCertificate of(CborSpan span) {
-        CertKind kind = CertKind.of(span).orElseThrow(() -> error("Unknown certificate tag", span));
-        return new RawCertificate(kind, span, false);
+        List<CborSpan> items = RawItems.array(span, CertKind.RECORD.name());
+        CertKind kind = CertKind.of(items, span).orElseThrow(() -> error("Unknown certificate tag", span));
+        return new RawCertificate(kind, span, items, false);
     }
 
     /**
@@ -55,7 +58,32 @@ public final class RawCertificate {
      * @throws CborRuntimeException if it is not an array or has too few items
      */
     public static RawCertificate lenient(CertKind kind, CborSpan span) {
-        return new RawCertificate(kind, span, true);
+        return new RawCertificate(kind, span, RawItems.array(span, CertKind.RECORD.name()), true);
+    }
+
+    /**
+     * Reads a certificate by position as {@link #lenient(CertKind, CborSpan)} does, as the kind its tag names.
+     *
+     * @param span a certificate as encoded
+     * @return the view, or empty for an unknown tag
+     * @throws CborRuntimeException if it is not an array starting with an unsigned integer that fits an int, or has too
+     *                              few items
+     */
+    public static Optional<RawCertificate> lenient(CborSpan span) {
+        List<CborSpan> items = RawItems.array(span, CertKind.RECORD.name());
+        return CertKind.of(items, span).map(kind -> new RawCertificate(kind, span, items, true));
+    }
+
+    /**
+     * Walks this certificate with a policy, as {@code CertKind.RECORD.walk} does, without listing its items again.
+     *
+     * @param era    the era to read it in
+     * @param policy the policy, which throws to reject
+     * @throws CborRuntimeException if the policy accepts a value the walk cannot enter
+     */
+    public void walk(Era era, FormatPolicy policy) {
+        policy.enter(CertKind.RECORD, span, era);
+        RecordWalk.tagged(CertKind.RECORD, span, record.items(), era, policy);
     }
 
     /**
@@ -164,11 +192,23 @@ public final class RawCertificate {
         return owners;
     }
 
+    /**
+     * @return the relays; each is read when it is asked for, so one that is not a relay fails only there
+     */
     public List<RawRelay> relays() {
-        List<RawRelay> relays = new ArrayList<>();
-        for (CborSpan relay : RawItems.array(record.value(FieldType.RELAY_LIST), FieldType.RELAY_LIST.name()))
-            relays.add(RawRelay.read(relay, !lenient));
-        return relays;
+        List<CborSpan> relays = RawItems.array(record.value(FieldType.RELAY_LIST), FieldType.RELAY_LIST.name());
+        boolean exact = !lenient;
+        return new AbstractList<>() {
+            @Override
+            public RawRelay get(int index) {
+                return RawRelay.read(relays.get(index), exact);
+            }
+
+            @Override
+            public int size() {
+                return relays.size();
+            }
+        };
     }
 
     /**

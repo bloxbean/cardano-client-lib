@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.transaction.raw;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 
 import java.util.List;
+import java.util.Optional;
 
 import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
 
@@ -29,17 +30,17 @@ final class PositionalRecord {
         return new PositionalRecord(span, spec, RawItems.array(span, spec.name()), exact);
     }
 
+    /** For a caller that has listed the record's items. */
+    static PositionalRecord of(RecordSpec spec, CborSpan span, List<CborSpan> items, boolean exact) {
+        return new PositionalRecord(span, spec, items, exact);
+    }
+
     /** @return the member of the union that the first item names, or an error for an unknown tag */
     static PositionalRecord member(RecordSpec union, CborSpan span, boolean exact) {
         List<CborSpan> items = RawItems.array(span, union.name());
         if (items.isEmpty())
             throw error("A " + union.name() + " has a tag", span);
         return new PositionalRecord(span, memberSpec(union, RawItems.smallUnsigned(items.get(0)), span), items, exact);
-    }
-
-    /** @return the member with this tag; the first item is not read */
-    static PositionalRecord member(RecordSpec union, long tag, CborSpan span, boolean exact) {
-        return new PositionalRecord(span, memberSpec(union, tag, span), RawItems.array(span, union.name()), exact);
     }
 
     private static RecordSpec memberSpec(RecordSpec union, long tag, CborSpan span) {
@@ -49,6 +50,10 @@ final class PositionalRecord {
         return member.record();
     }
 
+    List<CborSpan> items() {
+        return items;
+    }
+
     /** @return the tag of a member of a union */
     int tag() {
         return RawItems.smallUnsigned(items.get(0));
@@ -56,7 +61,7 @@ final class PositionalRecord {
 
     void checkArity(boolean exact) {
         int arity = spec.arity();
-        if (items.size() < arity || (exact && items.size() > arity))
+        if (items.size() < spec.requiredArity() || (exact && items.size() > arity))
             throw error("A " + spec.name() + " has " + arity + " items, found " + items.size(), span);
     }
 
@@ -70,6 +75,15 @@ final class PositionalRecord {
                 return of(field.record(), items.get((int) field.key()), true);
         }
         return this;
+    }
+
+    /** @return the item of the record's first field of this type, or empty if the record stops before it */
+    Optional<CborSpan> optional(FieldType type) {
+        for (FieldSpec field : spec.fields()) {
+            if (field.type() == type)
+                return field.key() < items.size() ? Optional.of(items.get((int) field.key())) : Optional.empty();
+        }
+        return Optional.empty();
     }
 
     /** @return the item of the record's first field of this type */

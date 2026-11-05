@@ -78,14 +78,14 @@ class RawCertificateTest {
 
         List<RawRelay> relays = cert.relays();
         assertThat(relays.get(0).kind()).isEqualTo(RawRelay.Kind.SINGLE_HOST_ADDR);
-        assertThat(relays.get(0).port()).isEqualTo(3000);
-        assertThat(hex(relays.get(0).ipv4())).isEqualTo("7f000001");
-        assertThat(hex(relays.get(0).ipv6())).isEqualTo("01".repeat(16));
+        assertThat(relays.get(0).port()).contains(3000);
+        assertThat(hex(relays.get(0).ipv4().orElseThrow())).isEqualTo("7f000001");
+        assertThat(hex(relays.get(0).ipv6().orElseThrow())).isEqualTo("01".repeat(16));
         assertThat(relays.get(1).kind()).isEqualTo(RawRelay.Kind.SINGLE_HOST_NAME);
-        assertThat(relays.get(1).port()).isNull();
-        assertThat(relays.get(1).dnsName()).isEqualTo("a");
+        assertThat(relays.get(1).port()).isEmpty();
+        assertThat(relays.get(1).dnsName()).contains("a");
         assertThat(relays.get(2).kind()).isEqualTo(RawRelay.Kind.MULTI_HOST_NAME);
-        assertThat(relays.get(2).dnsName()).isEqualTo("b");
+        assertThat(relays.get(2).dnsName()).contains("b");
 
         assertThat(cert.poolMetadata().orElseThrow().url()).isEqualTo("c");
         assertThat(hex(cert.poolMetadata().orElseThrow().hash())).isEqualTo("01");
@@ -331,5 +331,45 @@ class RawCertificateTest {
                 "check DNS_NAME 6161",
                 "check URL 6161",
                 "check BYTES 4100");
+    }
+
+    @Test
+    void aWalkOfTheViewReportsWhatAWalkOfTheTableDoes() {
+        String poolRegistration = "8a" + "03" + "581c" + "11".repeat(28) + "5820" + "22".repeat(32) + "00" + "00"
+                + "d81e820001" + "581de1" + "33".repeat(28) + "80" + "81" + "8302" + "6161" + "00" + "f6";
+        for (String certificate : List.of("8200" + "8200" + "581c" + "11".repeat(28), poolRegistration)) {
+            CborSpan span = CborSpan.of(HexUtil.decodeHexString(certificate));
+            RecordingPolicy table = new RecordingPolicy();
+            CertKind.RECORD.walk(span, Era.Conway, table);
+            RecordingPolicy view = new RecordingPolicy();
+            RawCertificate.lenient(span).orElseThrow().walk(Era.Conway, view);
+            assertThat(view.events).isEqualTo(table.events).isNotEmpty();
+        }
+        assertThat(RawCertificate.lenient(CborSpan.of(HexUtil.decodeHexString("811863")))).isEmpty();
+    }
+
+    @Test
+    void aRelayIsReadWhenItIsAskedFor() {
+        String relays = "82" + "82026161" + "00";
+        RawCertificate cert = RawCertificate.of(CborSpan.of(HexUtil.decodeHexString("8a" + "03" + "581c"
+                + "11".repeat(28) + "5820" + "22".repeat(32) + "00" + "00" + "d81e820001" + "581de1" + "33".repeat(28)
+                + "80" + relays + "f6")));
+        List<RawRelay> read = cert.relays();
+        assertThat(read).hasSize(2);
+        assertThat(read.get(0).kind()).isEqualTo(RawRelay.Kind.MULTI_HOST_NAME);
+        assertThatThrownBy(() -> read.get(1)).isInstanceOf(CborRuntimeException.class);
+
+        RawRelay relay = RawRelay.of(CborSpan.of(HexUtil.decodeHexString("84" + "00" + "f6" + "44" + "7f000001" + "f6")));
+        assertThat(relay.kind()).isEqualTo(RawRelay.Kind.SINGLE_HOST_ADDR);
+        assertThat(relay.port()).isEmpty();
+        assertThat(relay.ipv4()).isPresent();
+        assertThat(relay.ipv6()).isEmpty();
+    }
+
+    @Test
+    void aMirNamesItsPot() {
+        assertThat(of("82" + "06" + "82" + "00" + "01").moveInstantaneousReward().namedPot()).contains(RawMir.Pot.RESERVES);
+        assertThat(of("82" + "06" + "82" + "01" + "01").moveInstantaneousReward().namedPot()).contains(RawMir.Pot.TREASURY);
+        assertThat(of("82" + "06" + "82" + "02" + "01").moveInstantaneousReward().namedPot()).isEmpty();
     }
 }

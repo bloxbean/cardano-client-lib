@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -21,9 +22,12 @@ import java.util.Optional;
  * Accepts the submission form {@code [body, witnesses, aux / null]} (any era; valid) and the Alonzo form
  * {@code [body, witnesses, isValid, aux / null]}. A view is era-agnostic: records are read by key, unknown keys are passed
  * through, tag 258 is accepted on sets, and both redeemer forms and every aux data shape are read. Only
- * {@link #scriptDataHash(Era, byte[])} depends on the era. A record with a repeated key is rejected, as the ledger
- * rejects it: the body, the witness set and the tag-259 aux data when the view is created, and an output in map form
- * (and the collateral return) when it is read with {@link #outputs()} or {@link #collateralReturn()}.
+ * {@link #scriptDataHash(Era, byte[])} and the typed fields of {@link #body(Era)} depend on the era. A record with a
+ * repeated key is rejected, as the ledger rejects it: the body, the witness set and the tag-259 aux data when the view
+ * is created, and an output in map form (and the collateral return) when it is read with {@link #outputs()} or
+ * {@link #collateralReturn()}.
+ * <p>
+ * {@link #lenient(byte[])} reads what the models of {@code transaction-spec} have always accepted, for them to map.
  * <p>
  * Byron transactions are not supported.
  */
@@ -39,6 +43,7 @@ public final class RawTx {
     private final List<Map.Entry<CborSpan, CborSpan>> auxFields;
     private final boolean valid;
     private final boolean validityFlag;
+    private final boolean lenient;
 
     private RawTx(CborSpan span, CborSpan body, CborSpan witnessSet, CborSpan auxData, boolean valid, boolean validityFlag) {
         this.span = span;
@@ -50,6 +55,20 @@ public final class RawTx {
         this.auxFields = auxData != null && auxData.tag() == 259 ? record(auxData.untag(), "aux data") : null;
         this.valid = valid;
         this.validityFlag = validityFlag;
+        this.lenient = false;
+    }
+
+    private RawTx(CborSpan span, List<CborSpan> items) {
+        this.span = span;
+        this.body = items.get(0);
+        this.witnessSet = items.get(1);
+        this.bodyFields = RawItems.record(body, "transaction body");
+        this.witnessFields = null;
+        this.auxData = aux(items.get(items.size() - 1));
+        this.auxFields = null;
+        this.validityFlag = items.size() == 4;
+        this.valid = !validityFlag || items.get(2).asBoolean();
+        this.lenient = true;
     }
 
     /**
@@ -63,6 +82,25 @@ public final class RawTx {
         List<CborSpan> items = items(tx);
         return items.size() == 3 ? new RawTx(tx, items.get(0), items.get(1), aux(items.get(2)), true, false)
                 : new RawTx(tx, items.get(0), items.get(1), aux(items.get(3)), items.get(2).asBoolean(), true);
+    }
+
+    /**
+     * Reads a transaction as the models always have (ADR 0003 D7): a tag on the transaction or on a record is looked
+     * through, and a key of any kind may not repeat in the body. The witness set and the aux data are read when they
+     * are asked for. What decoding the body to a tree rejects is rejected here too, so a model mapped from this view
+     * accepts what the tree did.
+     *
+     * @param txCbor a transaction, exactly one CBOR item
+     * @return the view
+     * @throws CborRuntimeException if the bytes are not well-formed CBOR, or not an array of 3 or 4 items whose first
+     *                              is a map that repeats no key
+     */
+    public static RawTx lenient(byte[] txCbor) {
+        CborSpan tx = CborSpan.of(txCbor);
+        List<CborSpan> items = checkedItems(RawItems.array(tx, "transaction"), tx);
+        // what is read from spans here: the witness set and the aux data are decoded when they are read
+        CborSerializationUtil.checkTags(tx.isTagged() ? tx : items.get(0));
+        return new RawTx(tx, items);
     }
 
     /**
@@ -85,7 +123,10 @@ public final class RawTx {
     private static List<CborSpan> items(CborSpan tx) {
         if (tx.majorType() != 4 || tx.tag() != -1)
             throw error("A transaction is an untagged array", tx);
-        List<CborSpan> items = tx.items();
+        return checkedItems(tx.items(), tx);
+    }
+
+    private static List<CborSpan> checkedItems(List<CborSpan> items, CborSpan tx) {
         if (items.size() == 2)
             throw error("Byron transactions ([tx, witnesses]) are not supported", tx);
         if (items.size() != 3 && items.size() != 4)
@@ -119,7 +160,13 @@ public final class RawTx {
     static Optional<CborSpan> field(List<Map.Entry<CborSpan, CborSpan>> record, long key) {
         for (Map.Entry<CborSpan, CborSpan> entry : record) {
             CborSpan candidate = entry.getKey();
-            if (candidate.majorType() != 0 || candidate.tag() != -1)
+            // the usual key is one byte, which is the key itself if it is an unsigned integer below 24
+            if (candidate.length() == 1) {
+                if (key < 24 && (candidate.buffer()[candidate.offset()] & 0xff) == key)
+                    return Optional.of(entry.getValue());
+                continue;
+            }
+            if (candidate.majorType() != 0 || candidate.isTagged())
                 continue;
             // an 8-byte argument may not fit a long
             boolean matches = candidate.length() == 9 ? candidate.asBigInteger().equals(BigInteger.valueOf(key))
@@ -170,6 +217,15 @@ public final class RawTx {
 
     public CborSpan body() {
         return body;
+    }
+
+    /**
+     * @param era the era to read the body in
+     * @return the body's typed fields
+     * @throws IllegalArgumentException if the era is null
+     */
+    public RawTxBody body(Era era) {
+        return new RawTxBody(body, bodyFields, era, lenient);
     }
 
     public CborSpan witnessSet() {
@@ -257,7 +313,7 @@ public final class RawTx {
      * @return the field as encoded, or empty if absent
      */
     public Optional<CborSpan> witnessField(int key) {
-        return field(witnessFields, key);
+        return field(witnessFields != null ? witnessFields : RawItems.map(witnessSet, "witness set"), key);
     }
 
     /**
@@ -342,9 +398,11 @@ public final class RawTx {
         }
         if (auxData.tag() != 259)
             throw error("Unknown aux data shape", auxData);
+        List<Map.Entry<CborSpan, CborSpan>> fields = auxFields != null ? auxFields : RawItems.map(auxData, "aux data");
         for (int key = 1; key <= 4; key++) {
             int type = key - 1;
-            field(auxFields, key).ifPresent(list -> list.items().forEach(script -> scripts.add(new RawScript(type, script))));
+            field(fields, key).ifPresent(
+                    list -> list.items().forEach(script -> scripts.add(new RawScript(type, script))));
         }
         return scripts;
     }

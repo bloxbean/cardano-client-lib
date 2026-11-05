@@ -32,16 +32,29 @@ class RecordWalkDepthTest {
         walk("a3008001800200", "a10481" + DEEP_LIST);
         walk("a3008001800200", "a105818400" + "00" + DEEP_LIST + "820000");
         // a value in a leaf of the body, under a known and an unknown key, as a key, and repeated
-        walk("a3" + "00" + DEEP_LIST + "01" + DEEP_MAP + "0200", "a0");
+        walk("a3" + "0080" + "0180" + "02" + DEEP_LIST, "a0");
         walk("a4008001800200" + "18" + "63" + DEEP_LIST, "a0");
         walk("a4008001800200" + DEEP_LIST + "00", "a1" + DEEP_MAP + "00");
-        walk("a4" + "1800" + DEEP_LIST + "0080" + "0180" + "0200", "a0");
+        walk("a4" + "1800" + "80" + "0080" + "0180" + "02" + DEEP_MAP, "a0");
         // a run of tags on a record and on a key
         walk(DEEP_TAGS + "a3008001800200", DEEP_TAGS + "a0");
         walk("a4008001800200" + DEEP_TAGS + "00" + "00", "a0");
         // a value where a table expects a record, and tags on the items of a set
         walk("a4008001800200" + "04" + DEEP_TAGS + "81" + DEEP_TAGS + "82" + DEEP_TAGS + "00" + DEEP_TAGS + CRED, "a0");
         walk("a4008001800200" + "04" + "81" + "8300" + DEEP_LIST + "00", "a0");
+        // a deep value at each kind of table of a body: the walk reports it or cannot enter it
+        rejected("a3" + "00" + DEEP_MAP + "0180" + "0200");
+        rejected("a3" + "0080" + "01" + DEEP_MAP + "0200");
+        rejected("a3" + "0080" + "0181" + DEEP_TAGS + "00" + "0200");
+        rejected("a3" + "00" + "81" + DEEP_TAGS + "00" + "0180" + "0200");
+        walk("a3" + "0081" + "82" + DEEP_LIST + DEEP_MAP + "0180" + "0200", "a0");
+        rejected("a3" + "0080" + "018182" + DEEP_LIST + DEEP_MAP + "0200");
+        walk("a3" + "0080" + "018182" + DEEP_LIST + "82" + DEEP_LIST + DEEP_MAP + "0200", "a0");
+        walk("a3" + "0080" + "0181a2" + "00" + DEEP_LIST + "02" + "82" + "00" + DEEP_LIST + "0200", "a0");
+        walk("a3" + "0080" + "01818240" + "82" + DEEP_LIST + "a1" + "40" + "a1" + "40" + DEEP_LIST + "0200", "a0");
+        walk("a4" + "0080" + "0180" + "0200" + "05" + "a1" + DEEP_LIST + DEEP_MAP, "a0");
+        walk("a4" + "0080" + "0180" + "0200" + "09" + "a1" + DEEP_TAGS + "40" + "a1" + DEEP_LIST + DEEP_MAP, "a0");
+        rejected("a4" + "0080" + "0180" + "0200" + "10" + DEEP_TAGS + "00");
         // a certificate alone: a deep value at each kind of table
         cert("83" + "02" + DEEP_LIST + "00");
         cert("82" + "00" + "82" + DEEP_LIST + "00");
@@ -51,6 +64,24 @@ class RecordWalkDepthTest {
         cert("8a" + "03" + DEEP_LIST + DEEP_MAP + DEEP_LIST + DEEP_MAP + DEEP_LIST + DEEP_MAP + DEEP_LIST + "81"
                 + DEEP_LIST.substring(2) + DEEP_MAP);
         cert("82" + "06" + "82" + DEEP_LIST + DEEP_MAP);
+        // the views of a body, on the same values
+        view("a3" + "00" + DEEP_LIST + "0180" + "0200");
+        view("a3" + "0081" + "82" + DEEP_LIST + "00" + "0180" + "0200");
+        view("a3" + "0080" + "01" + DEEP_MAP + "0200");
+        view("a3" + "0080" + "0181" + "82" + DEEP_LIST + "00" + "0200");
+        view("a3" + "0080" + "0181" + "8240" + DEEP_LIST + "0200");
+        view("a3" + "0080" + "0181" + "82" + "40" + "8200" + DEEP_MAP + "0200");
+        view("a3" + "0080" + "0181" + "82" + "40" + "8200" + "a1" + "40" + DEEP_MAP + "0200");
+        view("a3" + "0080" + "0181" + "a2" + "00" + "40" + "01" + DEEP_LIST + "0200");
+        view("a3" + "0080" + "0181" + "a3" + "00" + "40" + "0100" + "02" + DEEP_LIST + "0200");
+        view("a3" + "0080" + "0181" + "a3" + "00" + "40" + "0100" + "03" + DEEP_LIST + "0200");
+        view("a4" + "0080" + "0180" + "0200" + "05" + DEEP_MAP);
+        view("a4" + "0080" + "0180" + "0200" + "05" + "a1" + DEEP_LIST + "00");
+        view("a4" + "0080" + "0180" + "0200" + "09" + "a1" + DEEP_TAGS + "40" + "a1" + "40" + DEEP_LIST);
+        view("a4" + "0080" + "0180" + "0200" + "04" + DEEP_LIST);
+        view("a4" + "0080" + "0180" + "0200" + "1864" + DEEP_LIST);
+        view("a4" + "0080" + "0180" + "0200" + DEEP_LIST + "00");
+        view(DEEP_TAGS + "a3" + "0080" + "0180" + "02" + DEEP_TAGS + "00");
         // the accessors, on the same values
         assertThat(RawCertificate.lenient(CertKind.REG_CERT, span("83" + "07" + CRED + DEEP_LIST)).coin()).isNull();
         assertThatThrownBy(() -> RawCertificate.of(span("83" + "07" + CRED + DEEP_LIST)).coin())
@@ -119,6 +150,26 @@ class RecordWalkDepthTest {
         AtomicInteger calls = new AtomicInteger();
         RawTx.walk(HexUtil.decodeHexString("84" + body + witnesses + "f5f6"), Era.Conway, new CountingPolicy(calls));
         assertThat(calls.get()).isPositive();
+    }
+
+    // Each accessor reads its field, or rejects it, on the reader's and the models' readings of the body.
+    private static void view(String body) {
+        readAll(CborSpan.of(HexUtil.decodeHexString(body)));
+    }
+
+    private static void readAll(CborSpan body) {
+        for (Runnable read : RawTxBodyTest.accessors(RawTxBody.lenient(body, Era.Conway))) {
+            try {
+                read.run();
+            } catch (RuntimeException e) {
+                // a rejection, not an overflow: a stack overflow is an Error and fails the test
+                assertThat(e).isNotInstanceOf(IllegalStateException.class);
+            }
+        }
+    }
+
+    private static void rejected(String body) {
+        assertRejected(() -> walk(body, "a0"));
     }
 
     private static void cert(String certificate) {

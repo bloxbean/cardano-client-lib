@@ -1,10 +1,15 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import co.nstant.in.cbor.model.SimpleValue;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
+import com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -15,48 +20,110 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * Reading one item of a ledger record. Tags are looked through, as the models' decoders always have (ADR 0003 D5): a
  * policy that cares sees them on the span. Strings may be chunked and integers non-minimal.
  */
-final class RawItems {
+public final class RawItems {
     private static final long RATIONAL = 30;
 
     private RawItems() {
     }
 
-    static CborSpan content(CborSpan item) {
+    public static CborSpan content(CborSpan item) {
         CborSpan content = item;
-        while (content.tag() != -1)
+        while (content.isTagged())
             content = content.untag();
         return content;
     }
 
-    static List<CborSpan> array(CborSpan item, String what) {
+    public static List<CborSpan> array(CborSpan item, String what) {
         CborSpan content = content(item);
         if (content.majorType() != 4)
             throw error("A " + what + " is an array", item);
         return content.items();
     }
 
-    static List<Map.Entry<CborSpan, CborSpan>> map(CborSpan item, String what) {
+    public static List<Map.Entry<CborSpan, CborSpan>> map(CborSpan item, String what) {
         CborSpan content = content(item);
         if (content.majorType() != 5)
             throw error("A " + what + " is a map", item);
         return content.entries();
     }
 
-    static byte[] bytes(CborSpan item) {
+    /**
+     * The entries of a record as the models read it: a map, tags looked through, whose keys of any kind are all
+     * distinct. Keys are equal as a decoded map's are (D7): by value, and with the same tags.
+     */
+    static List<Map.Entry<CborSpan, CborSpan>> record(CborSpan item, String what) {
+        List<Map.Entry<CborSpan, CborSpan>> entries = map(item, what);
+        if (repeatsKey(entries))
+            throw error("The " + what + " repeats a key", item);
+        return entries;
+    }
+
+    private static boolean repeatsKey(List<Map.Entry<CborSpan, CborSpan>> entries) {
+        long seen = 0;
+        for (Map.Entry<CborSpan, CborSpan> entry : entries) {
+            CborSpan key = entry.getKey();
+            // any key but the usual one byte unsigned ones is compared as a decoded map compares it
+            int value = key.length() == 1 ? key.buffer()[key.offset()] & 0xff : Integer.MAX_VALUE;
+            if (value >= 24)
+                return repeatsDecodedKey(entries);
+            if ((seen & (1L << value)) != 0)
+                return true;
+            seen |= 1L << value;
+        }
+        return false;
+    }
+
+    private static boolean repeatsDecodedKey(List<Map.Entry<CborSpan, CborSpan>> entries) {
+        EncodedKeyMap decoded = new EncodedKeyMap(entries.size());
+        for (Map.Entry<CborSpan, CborSpan> entry : entries)
+            decoded.put(CborSerializationUtil.deserialize(entry.getKey().bytes()), SimpleValue.NULL);
+        return decoded.hasRepeatedKey();
+    }
+
+    /**
+     * The entries of a map with byte string keys, one per key: a repeated key keeps its first position and its last
+     * value, as a decoded map and the ledger's map decoder before Conway keep them, and the span still has every entry.
+     * Keys are equal as a decoded map's are: the same bytes, however chunked, and the same tags.
+     */
+    static List<Map.Entry<CborSpan, CborSpan>> distinct(CborSpan item, String what) {
+        List<Map.Entry<CborSpan, CborSpan>> entries = map(item, what);
+        if (entries.size() < 2)
+            return entries;
+        Map<Object, Map.Entry<CborSpan, CborSpan>> distinct = new LinkedHashMap<>(2 * entries.size());
+        for (Map.Entry<CborSpan, CborSpan> entry : entries)
+            distinct.put(identity(entry.getKey()), entry);
+        return new ArrayList<>(distinct.values());
+    }
+
+    // What makes two byte string keys equal.
+    static Object identity(CborSpan key) {
+        if (!key.isTagged())
+            return ByteBuffer.wrap(key.byteString());
+        List<Object> tagsAndBytes = new ArrayList<>();
+        CborSpan content = key;
+        while (content.isTagged()) {
+            tagsAndBytes.add(content.tag());
+            content = content.untag();
+        }
+        tagsAndBytes.add(ByteBuffer.wrap(content.byteString()));
+        return tagsAndBytes;
+    }
+
+    public static byte[] bytes(CborSpan item) {
         return content(item).byteString();
     }
 
-    static String text(CborSpan item) {
+    public static String text(CborSpan item) {
         return content(item).text();
     }
 
     /** @return the value, or null for an untagged null */
-    static <T> T nullable(CborSpan item, Function<CborSpan, T> read) {
+    public static <T> T nullable(CborSpan item, Function<CborSpan, T> read) {
         return item.isNull() ? null : read.apply(item);
     }
 
     /** @return an unsigned integer that fits an int */
-    static int smallUnsigned(CborSpan item) {
+    public static int smallUnsigned(CborSpan item) {
         BigInteger value = unsigned(item);
         if (value.bitLength() >= Integer.SIZE)
             throw error("Expected an unsigned integer that fits an int, found " + value, item);
@@ -64,11 +131,12 @@ final class RawItems {
     }
 
     /** @return the 64 bits of an unsigned integer: a value of 2^63 or more reads as negative */
-    static long unsignedLong(CborSpan item) {
+    public static long unsignedLong(CborSpan item) {
         return unsigned(item).longValue();
     }
 
-    private static BigInteger unsigned(CborSpan item) {
+    /** @return an unsigned integer of any size */
+    public static BigInteger unsigned(CborSpan item) {
         CborSpan content = content(item);
         if (content.majorType() != 0)
             throw error("Expected an unsigned integer", item);
@@ -77,7 +145,7 @@ final class RawItems {
 
     private static BigInteger integer(CborSpan item) {
         CborSpan content = item;
-        while (content.tag() != -1 && content.tag() != 2 && content.tag() != 3)
+        while (content.isTagged() && content.tag() != 2 && content.tag() != 3)
             content = content.untag();
         return content.asBigInteger();
     }
@@ -93,15 +161,15 @@ final class RawItems {
     }
 
     /** @return an integer or a bignum; lenient, what {@link #lenientInteger} reads */
-    static BigInteger integer(CborSpan item, boolean lenient) {
+    public static BigInteger integer(CborSpan item, boolean lenient) {
         return lenient ? lenientInteger(item) : integer(item);
     }
 
     /** @return a rational, tag 30 on {@code [int, int]} */
-    static UnitInterval rational(CborSpan item, boolean lenient) {
+    public static UnitInterval rational(CborSpan item, boolean lenient) {
         boolean tagged = false;
         CborSpan content = item;
-        while (content.tag() != -1) {
+        while (content.isTagged()) {
             tagged |= content.tag() == RATIONAL;
             content = content.untag();
         }

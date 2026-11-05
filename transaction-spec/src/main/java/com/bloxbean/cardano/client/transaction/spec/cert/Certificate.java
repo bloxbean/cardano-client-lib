@@ -3,7 +3,6 @@ package com.bloxbean.cardano.client.transaction.spec.cert;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
-import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
@@ -21,10 +20,17 @@ public interface Certificate {
     static Certificate deserialize(Array certArray) throws CborDeserializationException {
         Objects.requireNonNull(certArray);
 
-        CborSpan span = RawModels.span(certArray);
-        CertKind kind = CertKind.of(span).orElseThrow(() ->
-                new CborDeserializationException("Certificate deserialization failed. Unknown type"));
-        RawCertificate cert = RawCertificate.lenient(kind, span);
+        return from(RawCertificate.lenient(RawModels.span(certArray)).orElseThrow(() ->
+                new CborDeserializationException("Certificate deserialization failed. Unknown type")));
+    }
+
+    /**
+     * @param cert a certificate as received
+     * @return its model
+     * @throws CborDeserializationException if it is not what its kind's model reads
+     */
+    static Certificate from(RawCertificate cert) throws CborDeserializationException {
+        CertKind kind = cert.kind();
         switch (kind) {
             case STAKE_REGISTRATION:
                 return StakeRegistration.from(cert);
