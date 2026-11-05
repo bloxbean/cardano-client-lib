@@ -1,11 +1,14 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
 import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.DataItem;
 
 import java.util.AbstractMap;
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -23,6 +26,8 @@ final class PlutusDataMap extends AbstractMap<PlutusData, PlutusData> {
     private final LinkedHashMap<Object, PlutusData> entries = new LinkedHashMap<>();
     // what the decoded CBOR repeated, see PlutusDataCodec.datumKey; null for almost every map
     private Array repeatedEntries;
+    // what converting to Plutus keys dropped, see PlutusDataCodec.datumKey; null for almost every map
+    private List<LostPair> lostPairs;
 
     Array getRepeatedEntries() {
         return repeatedEntries;
@@ -30,6 +35,23 @@ final class PlutusDataMap extends AbstractMap<PlutusData, PlutusData> {
 
     void setRepeatedEntries(Array repeatedEntries) {
         this.repeatedEntries = repeatedEntries;
+    }
+
+    /** A pair a decoded map lost because its CBOR key differs from an earlier one but is the same Plutus key. */
+    record LostPair(long position, DataItem keyItem, PlutusData key, PlutusData value) {
+    }
+
+    List<LostPair> getLostPairs() {
+        return lostPairs;
+    }
+
+    void putDecoded(long position, DataItem keyItem, PlutusData key, PlutusData value) {
+        PlutusData replaced = put(key, value);
+        if (replaced != null) {
+            if (lostPairs == null)
+                lostPairs = new ArrayList<>(1);
+            lostPairs.add(new LostPair(position, keyItem, key, replaced));
+        }
     }
 
     @Override

@@ -183,6 +183,12 @@ class TransactionOutputBytesTest {
             "81a2a000bfff01, a1a001, 81a1a001",
             "81a2d8798000d86682008001, a1d8798001, 81a1d8798001",
             "81a20100c2410102, a10102, 81a10102",
+            // the same lost pair at another position
+            "81a3a000bfff010203, a3a0000203bfff01, 81a20203a001",
+            // a key repeated in the CBOR and equal to one in another form, whose order only their forms show
+            "81a3c241010101200100, a30120c241010001c24101, 81a10100",
+            // the same, with a key's definite and indefinite forms
+            "81a3a020bfffa0a080, bfbfff80a020a0a0ff, 81a1a0a0",
             // model keys that differ but encode the same, so the encoding keeps one pair
             "81a29fff018002, a18002, 81a18002",
             // the same pairs of such keys in another order, which the encoding can't show
