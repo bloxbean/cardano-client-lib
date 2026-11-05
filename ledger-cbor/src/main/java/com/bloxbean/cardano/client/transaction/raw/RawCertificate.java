@@ -1,0 +1,193 @@
+package com.bloxbean.cardano.client.transaction.raw;
+
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.UnitInterval;
+
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
+
+/**
+ * A certificate as received, read from its original bytes by the {@link CertKind} table, in any era: a certificate
+ * outside its era is the policy's to reject (ADR 0003 D5). Accessors read an item when they are called, and throw
+ * {@link CborRuntimeException} if it is not what the table says or the kind has no such item. Tags on an item are
+ * looked through, and any array may be indefinite. Hash lengths, ranges and the like are not checked.
+ * <p>
+ * {@link #of(CborSpan)} reads the format as ADR 0003 D5 sets it. {@link #lenient(CertKind, CborSpan)} reads what
+ * this module's models have always accepted, which ADR 0003 D7 keeps until a separate decision changes it.
+ */
+public final class RawCertificate {
+    private final CertKind kind;
+    private final CborSpan span;
+    private final PositionalRecord record;
+    private final boolean lenient;
+
+    private RawCertificate(CertKind kind, CborSpan span, boolean lenient) {
+        this.kind = kind;
+        this.span = span;
+        this.record = PositionalRecord.member(CertKind.RECORD, kind.tag(), span, !lenient);
+        this.lenient = lenient;
+    }
+
+    /**
+     * @param span a certificate as encoded
+     * @return the view
+     * @throws CborRuntimeException if it is not an array, its tag is unknown, or
+     *                              it does not have the items of its tag
+     */
+    public static RawCertificate of(CborSpan span) {
+        CertKind kind = CertKind.of(span).orElseThrow(() -> error("Unknown certificate tag", span));
+        return new RawCertificate(kind, span, false);
+    }
+
+    /**
+     * Reads a certificate by position, as the models always have: the tag is not compared with the kind, items after
+     * the last position are ignored here and in a relay, a DRep, pool metadata and a move_instantaneous_reward, and a
+     * position of a number holding something else reads as null.
+     *
+     * @param kind the kind to read it as
+     * @param span a certificate as encoded
+     * @return the view
+     * @throws CborRuntimeException if it is not an array or has too few items
+     */
+    public static RawCertificate lenient(CertKind kind, CborSpan span) {
+        return new RawCertificate(kind, span, true);
+    }
+
+    /**
+     * For a view from {@link #lenient(CertKind, CborSpan)}: checks what the models check on the certificates that
+     * existed before Conway.
+     *
+     * @return this view
+     * @throws CborRuntimeException if the certificate's tag is not this kind's,
+     *                              or it has more items than the table
+     */
+    public RawCertificate exact() {
+        if (PositionalRecord.tag(CertKind.RECORD, span) != kind.tag())
+            throw error("Expected a certificate of tag " + kind.tag(), span);
+        PositionalRecord.member(CertKind.RECORD, kind.tag(), span, true);
+        return this;
+    }
+
+    public CertKind kind() {
+        return kind;
+    }
+
+    /**
+     * @return the certificate as encoded
+     */
+    public CborSpan span() {
+        return span;
+    }
+
+    /**
+     * @return the stake, DRep or cold committee credential
+     */
+    public RawCredential credential() {
+        return RawCredential.of(record.value(FieldType.CREDENTIAL));
+    }
+
+    /**
+     * @return the hot committee credential
+     */
+    public RawCredential hotCredential() {
+        return RawCredential.of(record.value(FieldType.CREDENTIAL, 1));
+    }
+
+    /**
+     * @return the pool key hash: of a delegation or a retirement, or the operator of a registration
+     */
+    public byte[] poolKeyHash() {
+        return RawItems.bytes(record.value(FieldType.HASH28));
+    }
+
+    /**
+     * @return the deposit, or the refund of an unregistration
+     */
+    public BigInteger coin() {
+        return RawItems.integer(record.value(FieldType.COIN), lenient);
+    }
+
+    public RawDRep drep() {
+        CborSpan drep = record.value(FieldType.DREP);
+        return lenient ? RawDRep.lenient(drep) : RawDRep.of(drep);
+    }
+
+    /**
+     * @return the anchor, or empty if it is null
+     */
+    public Optional<RawAnchor> anchor() {
+        return Optional.ofNullable(RawItems.nullable(record.value(FieldType.OPTIONAL_ANCHOR), RawAnchor::of));
+    }
+
+    /**
+     * @return the epoch of a pool retirement, its 64 bits: a value of 2^63 or more reads as negative
+     */
+    public long epoch() {
+        return RawItems.unsignedLong(record.value(FieldType.UINT));
+    }
+
+    /**
+     * @return the VRF key hash of a pool registration or a genesis key delegation
+     */
+    public byte[] vrfKeyHash() {
+        return RawItems.bytes(record.value(FieldType.HASH32));
+    }
+
+    public BigInteger pledge() {
+        return RawItems.integer(record.value(FieldType.COIN), lenient);
+    }
+
+    public BigInteger cost() {
+        return RawItems.integer(record.value(FieldType.COIN, 1), lenient);
+    }
+
+    public UnitInterval margin() {
+        return RawItems.rational(record.value(FieldType.UNIT_INTERVAL), lenient);
+    }
+
+    public byte[] rewardAccount() {
+        return RawItems.bytes(record.value(FieldType.REWARD_ACCOUNT));
+    }
+
+    /**
+     * @return the owners' key hashes, in encoded order with any repeated hash kept
+     */
+    public List<byte[]> poolOwners() {
+        List<byte[]> owners = new ArrayList<>();
+        for (CborSpan owner : RawItems.array(record.value(FieldType.SET), FieldType.SET.name()))
+            owners.add(RawItems.bytes(owner));
+        return owners;
+    }
+
+    public List<RawRelay> relays() {
+        List<RawRelay> relays = new ArrayList<>();
+        for (CborSpan relay : RawItems.array(record.value(FieldType.RELAY_LIST), FieldType.RELAY_LIST.name()))
+            relays.add(RawRelay.read(relay, !lenient));
+        return relays;
+    }
+
+    /**
+     * @return the pool metadata, or empty if it is null
+     */
+    public Optional<RawPoolMetadata> poolMetadata() {
+        CborSpan metadata = record.value(FieldType.OPTIONAL_POOL_METADATA);
+        return Optional.ofNullable(RawItems.nullable(metadata, item -> RawPoolMetadata.read(item, !lenient)));
+    }
+
+    public byte[] genesisHash() {
+        return RawItems.bytes(record.value(FieldType.HASH28));
+    }
+
+    public byte[] genesisDelegateHash() {
+        return RawItems.bytes(record.value(FieldType.HASH28, 1));
+    }
+
+    public RawMir moveInstantaneousReward() {
+        return RawMir.read(record.value(FieldType.MIR), lenient);
+    }
+}
