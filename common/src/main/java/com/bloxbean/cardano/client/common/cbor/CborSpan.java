@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +65,8 @@ public final class CborSpan {
     private final byte[] buffer;
     private final int offset;
     private final int length;
+    // Listed once: a walk and the views of a record read the same containers, and a listing skips every child.
+    private List<CborSpan> children;
 
     private CborSpan(byte[] buffer, int offset, int length) {
         this.buffer = buffer;
@@ -587,6 +590,8 @@ public final class CborSpan {
         CborHead head = untaggedHead();
         if (head.major != major)
             throw CborHead.error(major == MAJOR_ARRAY ? "expected a CBOR array" : "expected a CBOR map", offset);
+        if (this.children != null)
+            return this.children;
         int end = offset + length;
         int pos = head.end;
         List<CborSpan> children = new ArrayList<>(head.indefinite ? 10
@@ -598,7 +603,8 @@ public final class CborSpan {
             children.add(new CborSpan(buffer, pos, next - pos));
             pos = next;
         }
-        return children;
+        this.children = Collections.unmodifiableList(children);
+        return this.children;
     }
 
     private byte[] stringPayload(int major) {
