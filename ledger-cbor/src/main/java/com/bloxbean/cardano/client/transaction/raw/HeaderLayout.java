@@ -13,6 +13,7 @@ import static com.bloxbean.cardano.client.transaction.raw.FieldType.PROTOCOL_VER
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.SEQUENCE_NUMBER;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.SIGNATURE;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.UINT;
+import static com.bloxbean.cardano.client.transaction.raw.FieldType.UINT32;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.VKEY;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.VRF_CERT;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.VRF_VKEY;
@@ -24,9 +25,10 @@ import static com.bloxbean.cardano.client.transaction.raw.FieldType.VRF_VKEY;
  */
 enum HeaderLayout {
     //   block_number, slot, prev_hash, issuer_vkey, vrf_vkey, VRF results, block_body_size, block_body_hash, groups
-    FLAT_15(UINT, UINT, OPTIONAL_HASH32, VKEY, VRF_VKEY, VRF_CERT, VRF_CERT, UINT, HASH32,
+    FLAT_15(UINT, UINT, OPTIONAL_HASH32, VKEY, VRF_VKEY, VRF_CERT, VRF_CERT, UINT32, HASH32,
             KES_VKEY, SEQUENCE_NUMBER, KES_PERIOD, SIGNATURE, MAJOR_PROTOCOL_VERSION, MINOR_PROTOCOL_VERSION),
-    NESTED_10(UINT, UINT, OPTIONAL_HASH32, VKEY, VRF_VKEY, VRF_CERT, UINT, HASH32, OPERATIONAL_CERT, PROTOCOL_VERSION);
+    NESTED_10(UINT, UINT, OPTIONAL_HASH32, VKEY, VRF_VKEY, VRF_CERT, UINT32, HASH32, OPERATIONAL_CERT,
+            PROTOCOL_VERSION);
 
     final RecordSpec body;
 

@@ -6,7 +6,7 @@ import com.bloxbean.cardano.client.common.cbor.CborSpan;
  * A VRF result as received, {@code [bytes, bytes .size 80]}: the output and its proof.
  */
 public final class RawVrfCert {
-    static final RecordSpec RECORD = RecordSpec.positional("vrf_cert", FieldType.BYTES, FieldType.BYTES);
+    static final RecordSpec RECORD = RecordSpec.positional("vrf_cert", FieldType.BYTES, FieldType.VRF_PROOF);
 
     private final PositionalRecord record;
 
@@ -26,6 +26,6 @@ public final class RawVrfCert {
      * @return the proof, of any length
      */
     public byte[] proof() {
-        return RawItems.bytes(record.value(FieldType.BYTES, 1));
+        return RawItems.bytes(record.value(FieldType.VRF_PROOF));
     }
 }

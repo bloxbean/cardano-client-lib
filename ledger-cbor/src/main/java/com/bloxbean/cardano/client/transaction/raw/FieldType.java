@@ -7,6 +7,10 @@ package com.bloxbean.cardano.client.transaction.raw;
  */
 public enum FieldType {
     UINT,
+    /** {@code uint .size 2}. */
+    UINT16,
+    /** {@code uint .size 4}. */
+    UINT32,
     COIN,
     POSITIVE_COIN,
     NETWORK_ID,
@@ -35,6 +39,8 @@ public enum FieldType {
     SIGNATURE,
     VRF_VKEY,
     VRF_CERT,
+    /** {@code bytes .size 80}. */
+    VRF_PROOF,
     KES_VKEY,
     KES_SIGNATURE,
     SEQUENCE_NUMBER,

@@ -53,7 +53,12 @@ public final class RawOutput {
         this.fields = fields;
     }
 
-    static RawOutput of(CborSpan output) {
+    /**
+     * @param output an output as encoded
+     * @return the view, every item read
+     * @throws CborRuntimeException if it is not one of the shapes above
+     */
+    public static RawOutput of(CborSpan output) {
         boolean array = output.majorType() == MAJOR_ARRAY;
         if (array && output.isTagged())
             throw RawTx.error("A legacy output has no tag", output);

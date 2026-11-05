@@ -8,7 +8,7 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
  * view is created, and an item is read when it is asked for. Hash lengths and ranges are not checked (ADR 0003 D5).
  */
 public final class RawInput {
-    static final RecordSpec RECORD = RecordSpec.positional("transaction_input", FieldType.HASH32, FieldType.UINT);
+    static final RecordSpec RECORD = RecordSpec.positional("transaction_input", FieldType.HASH32, FieldType.UINT16);
 
     private final CborSpan span;
     private final PositionalRecord record;
@@ -46,6 +46,6 @@ public final class RawInput {
      * @throws CborRuntimeException if it is not an unsigned integer that fits an int
      */
     public int index() {
-        return RawItems.smallUnsigned(record.value(FieldType.UINT));
+        return RawItems.smallUnsigned(record.value(FieldType.UINT16));
     }
 }

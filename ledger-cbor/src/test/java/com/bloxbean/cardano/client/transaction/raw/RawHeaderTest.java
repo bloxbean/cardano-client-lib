@@ -271,4 +271,23 @@ class RawHeaderTest {
         assertThat(nested.events).anyMatch(event -> event.startsWith("enter protocol_version"));
         assertThat(nested.events).contains("check MINOR_PROTOCOL_VERSION " + MINOR);
     }
+
+    /** With no era: the header's record, then its body in the layout it has, told of that layout's first era. */
+    @Test
+    void aWalkOfAHeaderReadsItsBodyInItsLayout() {
+        RecordingPolicy flat = new RecordingPolicy();
+        RawHeader.walk(span("82" + "8f" + FLAT_ITEMS + "40"), flat);
+        assertThat(flat.events.get(0)).startsWith("enter header");
+        assertThat(flat.events).anyMatch(event -> event.startsWith("enter header_body"));
+        assertThat(flat.events).anyMatch(event -> event.startsWith("check KES_SIGNATURE"));
+        assertThat(flat.events).anyMatch(event -> event.startsWith("check UINT32"));
+        assertThat(flat.events).anyMatch(event -> event.startsWith("check VRF_PROOF"));
+
+        RecordingPolicy nested = new RecordingPolicy();
+        RawHeader.walk(span("82" + "8a" + NESTED_ITEMS + "40"), nested);
+        assertThat(nested.events).anyMatch(event -> event.startsWith("enter operational_cert"));
+
+        assertThatThrownBy(() -> RawHeader.walk(span("82" + "83000000" + "40"), new RecordingPolicy()))
+                .isInstanceOf(CborRuntimeException.class);
+    }
 }

@@ -41,10 +41,10 @@ TYPES = {
     "signature": "SIGNATURE", "vrf_vkey": "VRF_VKEY", "vrf_cert": "VRF_CERT", "kes_vkey": "KES_VKEY",
     "kes_signature": "KES_SIGNATURE", "sequence_number": "SEQUENCE_NUMBER", "kes_period": "KES_PERIOD",
     "major_protocol_version": "MAJOR_PROTOCOL_VERSION", "uint .size 4": "MINOR_PROTOCOL_VERSION",
-    "block_body_size : uint .size 4": "UINT", "operational_cert": "OPERATIONAL_CERT",
-    "protocol_version": "PROTOCOL_VERSION", "bytes .size 80": "BYTES",
+    "block_body_size : uint .size 4": "UINT32", "operational_cert": "OPERATIONAL_CERT",
+    "protocol_version": "PROTOCOL_VERSION", "bytes .size 80": "VRF_PROOF",
     "address": "ADDRESS", "value": "VALUE", "datum_option": "DATUM_OPTION", "script_ref": "SCRIPT_REF", "data": "DATA",
-    "uint .size 2": "UINT", "uint": "UINT", "asset_name": "ASSET_NAME", "int64": "INT64",
+    "uint .size 2": "UINT16", "uint": "UINT", "asset_name": "ASSET_NAME", "int64": "INT64",
     "nonzero_int64": "NONZERO_INT64",
 }
 SHAPES = [

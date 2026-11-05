@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.spec.Era;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -14,7 +15,9 @@ import java.util.Optional;
  * may be indefinite, strings chunked and integers non-minimal. Hash and key lengths and ranges are not checked (D5).
  */
 public final class RawHeader {
-    static final RecordSpec HEADER = RecordSpec.positional("header", FieldType.HEADER_BODY, FieldType.KES_SIGNATURE);
+    /** The {@code header} rule; its body's table depends on the layout, see {@link #walk(CborSpan, FormatPolicy)}. */
+    public static final RecordSpec HEADER = RecordSpec.positional("header", FieldType.HEADER_BODY,
+            FieldType.KES_SIGNATURE);
     static final RecordSpec OPERATIONAL_CERT = RecordSpec.positional("operational_cert", FieldType.KES_VKEY,
             FieldType.SEQUENCE_NUMBER, FieldType.KES_PERIOD, FieldType.SIGNATURE);
     static final RecordSpec PROTOCOL_VERSION = RecordSpec.positional("protocol_version",
@@ -58,10 +61,37 @@ public final class RawHeader {
     }
 
     /**
+     * Walks a header with a policy (ADR 0003 D6): {@link #HEADER}, then its body in the layout with as many items as it
+     * has, for a caller with no era, as {@link #of(CborSpan)}. The policy is told the first era of that layout, which
+     * belongs to every row of its tables.
+     *
+     * @param span   a header as encoded
+     * @param policy the policy, which throws to reject
+     * @throws CborRuntimeException if the policy accepts a value the walk cannot enter, or the body has the items of no
+     *                              layout
+     */
+    public static void walk(CborSpan span, FormatPolicy policy) {
+        List<CborSpan> items = RawItems.array(span, HEADER.name());
+        if (items.isEmpty())
+            throw RawTx.error("A header has a body", span);
+        HeaderLayout layout = HeaderLayout.ofShape(items.get(0));
+        Era era = EraSpec.firstWith(layout);
+        HEADER.walk(span, era, policy);
+        layout.body.walk(items.get(0), era, policy);
+    }
+
+    /**
      * @return the header as encoded
      */
     public CborSpan span() {
         return span;
+    }
+
+    /**
+     * @return the header body as encoded
+     */
+    public CborSpan bodySpan() {
+        return header.value(FieldType.HEADER_BODY);
     }
 
     /**
@@ -130,7 +160,7 @@ public final class RawHeader {
      * @return the block body size the header declares, its 64 bits
      */
     public long bodySize() {
-        return number(body, FieldType.UINT, 2);
+        return number(body, FieldType.UINT32, 0);
     }
 
     /**

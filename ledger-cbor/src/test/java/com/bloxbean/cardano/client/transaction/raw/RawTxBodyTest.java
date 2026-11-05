@@ -293,7 +293,7 @@ class RawTxBodyTest {
         assertThat(policy.events).contains(
                 "enter transaction_input " + INPUT,
                 "check HASH32 " + H32,
-                "check UINT 05",
+                "check UINT16 05",
                 "enter alonzo_transaction_output " + legacy,
                 "check ADDRESS " + ADDR,
                 "check VALUE 01",
@@ -338,7 +338,7 @@ class RawTxBodyTest {
         RecordingPolicy policy = new RecordingPolicy();
         TxBodyField.RECORD.walk(span("a3" + "00" + "81" + "81" + H32 + "01" + "81" + "84" + ADDR + "01" + H32 + "00"
                 + "0200"), Era.Conway, policy);
-        assertThat(policy.events).contains("missing transaction_input 1:UINT",
+        assertThat(policy.events).contains("missing transaction_input 1:UINT16",
                 "entry alonzo_transaction_output null key=null value=00 occurrence=0");
     }
 

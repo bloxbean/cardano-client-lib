@@ -57,6 +57,15 @@ public enum EraSpec {
         throw new IllegalArgumentException("No rules for era " + era);
     }
 
+    // The first era that names this layout.
+    static Era firstWith(HeaderLayout layout) {
+        for (EraSpec rules : values()) {
+            if (rules.headerLayout == layout)
+                return rules.era;
+        }
+        throw new IllegalArgumentException("No era has " + layout);
+    }
+
     /**
      * @param index an era index of the hard-fork combinator
      * @return the row of that index
