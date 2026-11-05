@@ -60,6 +60,20 @@ class RecordWalkTest {
     }
 
     @Test
+    void aByteStringIsCountedByItsContentInsideAnArrayKeyToo() {
+        // "a", h'61', h'61' with a longer head, [0, h'61'], [0, h'61'] with a longer head, [0, "a"]
+        String map = "a6" + "6161" + "01" + "4161" + "02" + "580161" + "03" + "82004161" + "04" + "8200580161" + "05"
+                + "82006161" + "06";
+        assertThat(walk(KEYED, map, Era.Conway)).filteredOn(event -> event.startsWith("entry")).containsExactly(
+                "entry keyed null key=6161 value=01 occurrence=0",
+                "entry keyed null key=4161 value=02 occurrence=0",
+                "entry keyed null key=580161 value=03 occurrence=1",
+                "entry keyed null key=82004161 value=04 occurrence=0",
+                "entry keyed null key=8200580161 value=05 occurrence=1",
+                "entry keyed null key=82006161 value=06 occurrence=0");
+    }
+
+    @Test
     void aKeyInNoTableOrNotAnIntegerHasANullField() {
         assertThat(walk(KEYED, "a8" + "0000" + "0a01" + "2002" + "6161" + "03" + "6161" + "04" + "c24100" + "05"
                         + "d81e00" + "06" + "1bffffffffffffffff" + "07", Era.Conway)).containsExactly(

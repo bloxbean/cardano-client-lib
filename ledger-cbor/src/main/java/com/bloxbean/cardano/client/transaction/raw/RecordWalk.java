@@ -4,7 +4,6 @@ import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.spec.Era;
 
 import java.math.BigInteger;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -132,15 +131,15 @@ final class RecordWalk {
             return integer;
         if (key.majorType() == MAJOR_ARRAY && !key.isTagged())
             return arrayKey(key);
-        return key.majorType() == 2 ? RawItems.identity(key) : ByteBuffer.wrap(key.bytes());
+        return RawItems.identity(key);
     }
 
-    // An array of scalars, such as a redeemer's [tag, index]; an item that is no integer is compared by its bytes.
+    // An array of scalars, such as a redeemer's [tag, index] or a voter's [tag, hash]; each item as a key of its own.
     private static List<Object> arrayKey(CborSpan key) {
         List<Object> items = new ArrayList<>();
         for (CborSpan item : key.items()) {
             BigInteger integer = integerKey(item);
-            items.add(integer != null ? integer : ByteBuffer.wrap(item.bytes()));
+            items.add(integer != null ? integer : RawItems.identity(item));
         }
         return items;
     }
