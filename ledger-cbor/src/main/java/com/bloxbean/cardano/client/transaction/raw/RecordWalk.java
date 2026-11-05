@@ -92,7 +92,9 @@ final class RecordWalk {
             if (field != null)
                 value(field, value, era, policy);
         }
-        for (FieldSpec field : record.fields()) {
+        List<FieldSpec> fields = record.fields();
+        for (int i = 0; i < fields.size(); i++) {
+            FieldSpec field = fields.get(i);
             if (field.requiredIn(era) && !has(field.key(), small, seen))
                 policy.missing(record, field, container, era);
         }
@@ -168,7 +170,9 @@ final class RecordWalk {
             if (field != null)
                 value(field, value, era, policy);
         }
-        for (FieldSpec field : record.fields()) {
+        List<FieldSpec> fields = record.fields();
+        for (int i = 0; i < fields.size(); i++) {
+            FieldSpec field = fields.get(i);
             if (field.requiredIn(era) && field.key() >= items.size())
                 policy.missing(record, field, container, era);
         }
@@ -180,8 +184,10 @@ final class RecordWalk {
         if (nested == null || (field.type().nullable() && value.isNull()))
             return;
         if (field.type().collection()) {
-            for (CborSpan item : RawItems.array(value, field.type().name()))
-                walk(nested, item, era, policy);
+            // by index: an iterator of each list would be the walk's most frequent allocation
+            List<CborSpan> items = RawItems.array(value, field.type().name());
+            for (int i = 0; i < items.size(); i++)
+                walk(nested, items.get(i), era, policy);
         } else {
             walk(nested, value, era, policy);
         }
