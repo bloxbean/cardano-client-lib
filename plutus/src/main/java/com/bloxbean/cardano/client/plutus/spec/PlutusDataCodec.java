@@ -9,11 +9,13 @@ import co.nstant.in.cbor.model.Special;
 import co.nstant.in.cbor.model.Tag;
 import co.nstant.in.cbor.model.UnicodeString;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -95,13 +97,14 @@ final class PlutusDataCodec {
             if (depth == 0)
                 return null;
             MapPlutusData map = new MapPlutusData();
+            markRepeatedKey(map, (Map) item);
             EntryIterator entries = new EntryIterator((Map) item);
             while (entries.hasNext()) {
                 PlutusData key = decodeShallow(entries.next(), depth - 1);
                 PlutusData value = key == null ? null : decodeShallow(entries.next(), depth - 1);
                 if (value == null)
                     return null;
-                map.put(key, value);
+                ((PlutusDataMap) map.getMap()).putDecoded(key, value);
             }
             return map;
         }
@@ -270,6 +273,7 @@ final class PlutusDataCodec {
         MapFrame(DecodeFrame parent, Map source) {
             super(parent);
             this.entries = new EntryIterator(source);
+            markRepeatedKey(map, source);
         }
 
         @Override
@@ -288,7 +292,7 @@ final class PlutusDataCodec {
                 key = child;
                 keyDone = true;
             } else {
-                map.put(key, child);
+                ((PlutusDataMap) map.getMap()).putDecoded(key, child);
                 keyDone = false;
             }
         }
@@ -297,6 +301,11 @@ final class PlutusDataCodec {
         PlutusData result() {
             return map;
         }
+    }
+
+    private static void markRepeatedKey(MapPlutusData map, Map source) {
+        if (source instanceof EncodedKeyMap && ((EncodedKeyMap) source).hasRepeatedKey())
+            ((PlutusDataMap) map.getMap()).markLostPairs();
     }
 
     // Keys and values of a cbor-java map in order: its key list and values share the insertion order, so they are
@@ -554,6 +563,63 @@ final class PlutusDataCodec {
         }
     }
 
+    // ---- whether data still represents the bytes it was decoded from
+
+    /**
+     * The maps in this datum that lost a pair when decoded, in walk order: the CBOR repeated a key, or CBOR keys that
+     * differ are one Plutus key, such as a0 and bfff. Their model can't show what they lost, so only these same objects
+     * can stand for the bytes they came from, at the same places (ADR 0002 D6.3). Almost every datum has none. Nothing
+     * recurses.
+     */
+    static List<LossyMap> mapsThatLostPairs(PlutusData root) {
+        List<LossyMap> found = new ArrayList<>(0);
+        ArrayDeque<PlutusData> pending = new ArrayDeque<>();
+        pending.push(root);
+        long place = 0;
+        while (!pending.isEmpty()) {
+            PlutusData data = pending.pop();
+            place++;
+            if (data instanceof ListPlutusData) {
+                List<PlutusData> items = ((ListPlutusData) data).getPlutusDataList();
+                if (items != null)
+                    items.forEach(pending::push);
+            } else if (data instanceof ConstrPlutusData) {
+                if (((ConstrPlutusData) data).getData() != null)
+                    pending.push(((ConstrPlutusData) data).getData());
+            } else if (data instanceof MapPlutusData) {
+                java.util.Map<PlutusData, PlutusData> map = ((MapPlutusData) data).getMap();
+                if (map == null)
+                    continue;
+                map.forEach((key, value) -> {
+                    pending.push(key);
+                    pending.push(value);
+                });
+                if (map instanceof PlutusDataMap && ((PlutusDataMap) map).hasLostPairs())
+                    found.add(new LossyMap(place, data));
+            }
+        }
+        return found;
+    }
+
+    record LossyMap(long place, PlutusData map) {
+    }
+
+    static boolean sameMaps(List<LossyMap> current, List<?> decoded) {
+        if (current.size() != decoded.size())
+            return false;
+        for (int i = 0; i < current.size(); i++) {
+            LossyMap other = (LossyMap) decoded.get(i);
+            if (current.get(i).place() != other.place() || current.get(i).map() != other.map())
+                return false;
+        }
+        return true;
+    }
+
+    /** The model's values and pairs in order, which an in-place change at any depth alters. */
+    static byte[] orderedKey(PlutusData root) {
+        return modelKey(root, true);
+    }
+
     // ---- equals and hashCode
 
     /**
@@ -733,13 +799,17 @@ final class PlutusDataCodec {
      * value; any other implementation of {@link PlutusData} by its own serialization.
      */
     static byte[] equalityKey(PlutusData root) {
+        return modelKey(root, false);
+    }
+
+    private static byte[] modelKey(PlutusData root, boolean inOrder) {
         Bytes out = new Bytes();
-        KeyFrame top = writeKeyNode(root, out, null);
+        KeyFrame top = writeKeyNode(root, out, null, inOrder);
         while (top != null) {
             if (top.hasNext()) {
                 PlutusData child = top.next();
                 Bytes childOut = top.childBuffer();
-                KeyFrame opened = writeKeyNode(child, childOut, top);
+                KeyFrame opened = writeKeyNode(child, childOut, top, inOrder);
                 if (opened != null)
                     top = opened;
                 else
@@ -764,7 +834,7 @@ final class PlutusDataCodec {
     private static final int KEY_OTHER = 6;
 
     // Writes a leaf completely, or a container's head and returns a frame for its children.
-    private static KeyFrame writeKeyNode(PlutusData data, Bytes out, KeyFrame parent) {
+    private static KeyFrame writeKeyNode(PlutusData data, Bytes out, KeyFrame parent, boolean inOrder) {
         if (data == null) {
             out.write(KEY_NULL);
             return null;
@@ -796,7 +866,7 @@ final class PlutusDataCodec {
                 return null;
             }
             out.writeInt(map.size());
-            if (map.size() > 1)
+            if (map.size() > 1 && !inOrder)
                 return new SortedEntriesFrame(parent, out, map);
             return map.isEmpty() ? null : new KeyListFrame(parent, out, new MapItems(map));
         }

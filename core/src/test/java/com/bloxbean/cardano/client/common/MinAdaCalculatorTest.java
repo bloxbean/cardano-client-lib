@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.common;
 
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
@@ -32,6 +33,21 @@ public class MinAdaCalculatorTest {
                 .coinsPerUtxoSize("4310")
                 .build();
         minAdaCalculator = new MinAdaCalculator(protocolParams);
+    }
+
+    @Test
+    void decodedOutputIsMeasuredByTheBytesItWrites() throws Exception {
+        // An inline datum repeating a key: decoding keeps one pair, and the output writes the original two
+        String address = "581d60" + "00".repeat(28);
+        byte[] outputBytes = HexUtil.decodeHexString("a300" + address + "011a001e8480" + "028201d81845a201000101");
+        TransactionOutput output = TransactionOutput.deserialize(CborSerializationUtil.deserialize(outputBytes));
+        int size = CborSerializationUtil.serialize(output.serialize()).length;
+
+        assertThat(size, is(outputBytes.length));
+        assertThat(minAdaCalculator.calculateMinAda(output),
+                is(minAdaCalculator.calculateMinAda(output.copy())));
+        assertThat(minAdaCalculator.calculateMinAda(output),
+                is(BigInteger.valueOf(4310).multiply(BigInteger.valueOf(size + 160))));
     }
 
     @Test
