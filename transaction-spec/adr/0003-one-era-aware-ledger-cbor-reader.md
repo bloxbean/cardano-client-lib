@@ -186,10 +186,10 @@ existing layouts and adds only what truly changed.
 ```java
 // Illustrative
 enum TxBodyField {
-    FEE(2, COIN, SHELLEY, null),
-    UPDATE(6, UPDATE_PROPOSAL, SHELLEY, BABBAGE),
-    REQUIRED_SIGNERS(14, KEY_HASH_SET, ALONZO, CONWAY),
-    GUARDS(14, GUARD_SET, DIJKSTRA, null);        // same key, new meaning
+    FEE(2, COIN, REQUIRED, SHELLEY, null),
+    UPDATE(6, UPDATE_PROPOSAL, OPTIONAL, SHELLEY, BABBAGE),
+    REQUIRED_SIGNERS(14, KEY_HASH_SET, OPTIONAL, ALONZO, CONWAY),
+    GUARDS(14, GUARD_SET, OPTIONAL, DIJKSTRA, null);        // same key, new meaning
 }
 
 enum CertKind {
@@ -216,8 +216,8 @@ what needs no era: spans, the transaction id and raw field access by key. Typed 
 
 Three entry points, so that deciding what a block is never requires being able to parse it:
 
-1. **`BlockEnvelope.of(bytes)`**, or `of(span)` for a caller holding a span, reads `[era, block]`, optionally in tag 24 as `RawBlock` allows today, and returns the
-   era index and the block's span. It accepts any index, including Byron and eras CCL does not know. It rejects only
+1. **`BlockEnvelope.of(bytes)`**, or `of(span)` for a caller holding a span, reads `[era, block]`, optionally in tag 24
+   as `RawBlock` allows today, and returns the era index and the block's span. It accepts any index, including Byron and eras CCL does not know. It rejects only
    bytes that are not such an envelope.
 2. **`RawBlock.of(envelope)`** reads a known Shelley-family era through its layout. An unknown era raises a specific
    `UnsupportedEraException`.
@@ -242,7 +242,8 @@ era was not recognised. Adding an era to `EraSpec` moves `newest()` to it. CCL's
 choose `readAs` only if they want this behaviour.
 
 New reading in this decision: `RawHeader` with both layouts, giving block number, slot, previous hash, keys, VRF
-results, body size and hash, operational certificate, protocol version and the header hash.
+results, body size and hash, operational certificate, protocol version and the header hash. The header hash is
+Blake2b-256 of the header's original bytes (I8), which corrects Yaci on some encodings (D8, corrections).
 
 `RawBlock`'s public methods that apply to every layout stay the same: `era()`, `header()`, `txCount()`, `tx(i)`,
 `txBytes(i)`, `invalidTxIndexes()`, `bodyHash()`. The layout is an internal strategy. Methods that only make sense for
@@ -283,13 +284,36 @@ The tables make a walk possible that the reader owns and the caller's policy obs
 
 ```java
 // Illustrative
-public interface FormatPolicy {
-    void check(FieldType type, CborSpan value, Era era);   // throws to reject
-    FormatPolicy ACCEPT_ALL = (type, value, era) -> {};
+public interface FormatPolicy {                  // every method throws to reject; the defaults do nothing
+    default void enter(RecordSpec record, CborSpan container, Era era) {}
+    default void entry(RecordSpec record, FieldSpec field, CborSpan key, CborSpan value, int occurrence, Era era) {}
+    default void missing(RecordSpec record, FieldSpec field, CborSpan container, Era era) {}
+    default void check(FieldType type, CborSpan value, Era era) {}
+    FormatPolicy ACCEPT_ALL = new FormatPolicy() {};
 }
 
 rawTx.walk(era, policy);
 ```
+
+**The walk's contract.** Today's rules need to see what accessors hide: at pinned Yano, `readBody()` rejects unknown keys,
+duplicate keys and missing keys 0, 1 and 2, before any value is read. So the walk reports structure as well as values:
+
+- **`enter`** is called with the original container before anything is normalised, so its head, tag and length form are
+  visible.
+- **`entry`** is called for every raw entry of a keyed record, in source order. Duplicates and unknown keys are not
+  dropped.
+  - `field` is null if the key is in no era's table, or is not an integer.
+  - `field.validIn(era)` says whether a known field belongs to this era.
+  - `occurrence` counts earlier entries with the same decoded key, so `02` and `1802` are the same key. The raw `key`
+    span still shows the encoding.
+- **`missing`** is called after the entries, for each field the table marks required in this era and the record lacks.
+- **Other records.** A tagged union is the same with its tag as the key. A positional record is the same with its
+  position as the key, so a short record reports `missing` and a long one reports entries with a null `field`.
+- **`check`** is called for each known value with its type, and a recursive type is one value.
+
+`RecordSpec` and `FieldSpec` come from the tables and carry the key, type, era range and required flag. The policy therefore asks
+"is this field unknown, repeated, out of era or missing" without knowing a key number, which is what D1 requires. If the
+policy accepts a value that the walk cannot enter, the reader rejects it as D5 says.
 
 - The walk goes over the same tables as the accessors, so it has no second copy of the layout.
 - `FieldType` is a small set of CDDL types: `HASH28`, `COIN`, `NONEMPTY_SET`, `UNIT_INTERVAL` and so on.
@@ -347,6 +371,32 @@ populated `Block`:
   shape than the newest.
 - `RawBlock`'s checks from ADR 0001 D6 (D5's third row) reject mismatched counts and bad indexes in a block that Yaci's
   serializer does not check for.
+
+Four inputs pin all this from M2 on. They use Yaci's fixture `core/src/test/resources/block/preprod292683.txt`, which has
+three transactions, and were reproduced by the review of this ADR against Yaci `7c1638a`:
+
+| Change to the fixture | Yaci today | Under this ADR | Status |
+|---|---|---|---|
+| Envelope era 6 changed to 9 | Populated, `era` null, 3 bodies and 3 witnesses | Same | I12 |
+| A top-level `00` appended | Populated | Same | Kept, as listed above |
+| Witness array replaced with `80` | Populated, 3 bodies and 0 witnesses | `onParsingError` | Q6 |
+| Invalid-index list replaced with `8103` | Populated, `invalidTransactions` is `[3]` | `onParsingError` | Q6 |
+
+**Corrections.** Some of Yaci's results are wrong on some inputs, and the migration should change them. Each one goes in
+an approved list, with a release note, and I6 checks it against an expected value computed outside both parsers. The
+comparator never normalises a listed field away.
+
+| Field | Today | After | Milestone |
+|---|---|---|---|
+| `HeaderBody.blockHash` | Blake2b-256 of a re-encoding of the header (`BlockHeaderSerializer`, both branches) | Blake2b-256 of the original header bytes | M2 |
+| `costModelsHash` | Blake2b-256 of a re-encoding (`UpdateSerializer`) | To decide at M5 from G3's results. Moving to original bytes is the default under I8. This field may differ on real chain data, so it needs its own look | M5 |
+
+Take that fixture and change only the block number's encoding, from `1a0004774b` to `1b000000000004774b`, which D5
+accepts. Yaci still reports `1cf993e9...d248`, while the hash of the bytes received is `73ee9b5e...03ae`. Haskell keeps a
+header's original bytes and hashes those: at the pinned ledger commit, `Praos/BlockHeader.hs` and `TPraos/BlockHeader.hs`
+in `libs/cardano-protocol` define headers as `MemoBytes` and use `getMemoSafeHash`. So the second value is the right one
+for such a header. This is not a claim that such a header is valid on chain. On the unchanged fixture the two agree. G3
+reports how many real headers change; this has not been measured.
 
 No runtime switch between old and new parsers is added. Each step is proven before release by comparing old and new
 output (I5, I6), and then the old code is deleted. A flag would keep two parsers alive, which is the problem this ADR
@@ -433,13 +483,14 @@ depends on this path.
 | I3 | Field tables match the pinned CDDL for every era | D3 | Tool in `tools/`, run on each ledger pin bump |
 | I4 | No public signature of a stable model or a Yaci serializer changes or disappears in a migration step, except through a deprecation that has shipped | D7, D8 | G5 |
 | I5 | For each migrated entry point, old and new accept and reject the same inputs, over the whole dataset and real blocks. Any difference is listed and approved | D5, D7, D8 | Differential test; G3 |
-| I6 | Old and new produce equal models over the valid dataset samples and full chain replays, for CCL and Yaci | D7, D8 | Differential test; G3 |
-| I7 | Yano's report misses a subset of the baseline's samples, and the strict side alone rejects at least 31,679 of 31,761 invalid samples | D6, D9 | G6 |
+| I6 | Old and new produce equal models over the valid dataset samples and full chain replays, for CCL and Yaci. The only exceptions are fields on D8's approved correction list, each compared to an independently computed expected value | D7, D8 | Differential test; G3 |
+| I7 | Two separate checks per sample, against M0's baseline. Yano's report misses a subset of the baseline's samples. And the strict side alone rejects a superset of what it rejected in the baseline (31,679 of 31,761 invalid samples today), apart from corrections listed and approved. A count alone does not pass | D6, D9 | G6, including after M6 removes the model decoder from the harness. A gate test: one rejection lost and another gained, with equal totals, must fail |
 | I8 | Every hash and every byte-exact field comes from original bytes | D5 | ADR 0001 fixtures; golden tests from #741 |
 | I9 | Reading and walking stay stack-safe at maximum nesting | D5, D6 | ADR 0001 depth fixtures, on the walk as well |
 | I10 | Parse time and allocation on the same blocks stay within 10% of the M0 baseline (proposed figure) | D8 | Benchmark, recorded per milestone |
 | I11 | A bad witness or auxiliary data item still does not fail its block, and listeners see the same errors | D5, D8 | Regression tests from D8's list |
 | I12 | In Yaci, an unknown era index in the newest layout reaches listeners as a populated `Block` with a null era, and one that does not fit the layout raises `onParsingError`. `RawBlock.of` still rejects it | D4, D8 | Regression tests: a valid Conway block with its index changed, written before the code moves, and a two-item block |
+| I13 | Yano's body and witness checks for unknown keys, duplicate keys, including differently encoded equal keys, and missing required fields are expressed through the walk with no key number in the policy | D1, D6 | M1's keyed-record proof |
 
 Gates reused from ADR 0002: **G3** `tools/chain-parse-check` full replay on mainnet, preprod and preview, before and
 after; **G5** downstream suites against a CCL snapshot: Yaci `core`, JuLC, Yano `ledger-rules`, `ledger-conformance` and
@@ -452,13 +503,13 @@ Each milestone releases in the usual order: CCL, then Yaci, then Yano. It can st
 
 | ID | What | Entry | Exit |
 |---|---|---|---|
-| M0 | Stack merged and released (D10). ADR 0002's standing D8 items in Yaci. New module; raw views moved with no behaviour change. Baselines recorded: speed (I10), report, accept/reject sets | ADR accepted | Report at 42,215; G3, G5 pass; baselines committed; I10's limit confirmed or changed from the baseline (Q3) |
-| M1 | **Pilot: certificates**, through all three projects. `CertKind` table, `RawCertificate` reader, `FormatPolicy`, Yaci and CCL mappers, Yano policy | M0 | The decision below |
-| M2 | Block, envelope and header. `EraSpec` complete for Shelley to Conway. Yaci's `BlockHeaderSerializer` and extractors move | M1 passes | I5, I6, I10, I11, I12; G3 |
+| M0 | Stack merged and released (D10). ADR 0002's standing D8 items in Yaci. New module; raw views moved with no behaviour change. Baselines recorded: speed (I10), report, accept/reject sets, and the per-sample outcome of Yano's strict side alone (I7) | ADR accepted | Report at 42,215; G3, G5 pass; baselines committed; I10's limit confirmed or changed from the baseline (Q3) |
+| M1 | **Pilot: certificates**, through all three projects. `CertKind` table, `RawCertificate` reader, `FormatPolicy`, Yaci and CCL mappers, Yano policy. Also the keyed-record proof below | M0 | The decision below |
+| M2 | Block, envelope and header. `EraSpec` complete for Shelley to Conway. Yaci's `BlockHeaderSerializer` and extractors move | M1 passes | I5, I6, I10, I11, I12; G3; D8's four inputs and hash correction tested; Q6 decided |
 | M3 | Transaction body, inputs, outputs, values, withdrawals, mint | M2 | I5, I6, I8; G3, G6 |
 | M4 | Witnesses, scripts, datums, redeemers, auxiliary data | M3 | I5, I6, I8, I9, I11; G3, G6 |
-| M5 | Governance, `ProtocolParamUpdate`, pre-Conway `update`. Includes checking whether parameter key 17 changes meaning at Babbage (Alonzo's field is `CoinsPerUTxOWord`, Babbage's `CoinsPerUTxOByte`) | M4 | I3, I5, I6; G3, G6 |
-| M6 | Cleanup. Yaci's inner serializers deprecated. Yano's old reading code and the G7 differential jobs deleted. Yano's harness reads each rule directly | M5 | Report no lower; `StrictElements` gone |
+| M5 | Governance, `ProtocolParamUpdate`, pre-Conway `update`. Includes deciding `costModelsHash` (D8), and checking whether parameter key 17 changes meaning at Babbage (Alonzo's field is `CoinsPerUTxOWord`, Babbage's `CoinsPerUTxOByte`) | M4 | I3, I5, I6; G3, G6 |
+| M6 | Cleanup. Yaci's inner serializers deprecated. Yano's old reading code and the G7 differential jobs deleted. Yano's harness reads each rule directly | M5 | Report no lower; I7's two checks still pass; `StrictElements` gone |
 | M7 | Dijkstra, as D4 sets out | Era frozen for a hard fork | Dijkstra dataset samples pass; report extended |
 | M8 | Listener ADR in Yaci (D11) | M6; maintainer's decision | Separate ADR |
 
@@ -466,10 +517,22 @@ Each milestone releases in the usual order: CCL, then Yaci, then Yano. It can st
 involve no hashing, so a mistake is cheap. Today's code is 903 lines in Yaci, 350 in Yano's `RawCertificate`, and
 certificate classes of 1,801 lines in CCL, of which the writers stay.
 
-- **Continue** if all of these hold: certificate format knowledge exists only in `ledger-cbor`; I5, I6, I7, I10 pass;
+- **Continue** if all of these hold: certificate format knowledge exists only in `ledger-cbor`; I5, I6, I7, I10, I13 pass;
   Yaci's and Yano's certificate reading code each get smaller; and Yano's `HaskellPolicy` is straightforward to read.
-- **Fall back** if the Yano part fails: keep D1-D5 and D7-D8 for CCL and Yaci, and Yano keeps its reader (ADR 0002 D9).
+- **Fall back** if the Yano part fails, including a current rejection that cannot be written without layout knowledge
+  in the policy: keep D1-D5 and D7-D8 for CCL and Yaci, and Yano keeps its reader (ADR 0002 D9). Any check left out on
+  purpose is recorded here.
 - **Stop** if the mappers end up no simpler than the old serializers: keep ADR 0002's boundary and record why here.
+
+**The keyed-record proof.** Certificates are mostly tagged and positional, so they do not prove the boundary for keyed
+records. M1 therefore also builds the transaction body and witness set tables and walks them with Yano's policy, with no
+mapper or accessor work. These inputs must get the same outcome as Yano's reader:
+
+- a body with no fee
+- an unknown body key, and an unknown witness key
+- a repeated key, and equal keys encoded differently (`02` and `1802`)
+
+Yano's strict reader is deleted only after this and the rest of the plan pass (M6).
 
 The maintainer makes this call from the measured results.
 
@@ -480,7 +543,8 @@ The maintainer makes this call from the measured results.
 | CCL model classes and signatures | None |
 | `Transaction.deserialize` results | Same, by I5 and I6 |
 | Yaci models and listeners | None |
-| `BlockSerializer` | Same class. Same result, including the null era for an unknown era (I12), except the differences listed in D8 |
+| `BlockSerializer` | Same class. Same result, including the null era for an unknown era (I12), except the differences listed in D8, pending Q6 |
+| `HeaderBody.blockHash` | Same on minimally encoded headers. Corrected to the hash of the original bytes otherwise, with a release note (D8) |
 | Yaci's inner serializers | Deprecated at M6, removed after one major release or two minor releases (Q5) |
 | `transaction.raw` | Pre-release API. Same package in a new artifact, which arrives transitively. `RawDatum.toPlutusData` and `RawScript.toScript` become helpers (Q2) |
 | `EraRules` | Package-private, so no impact |
@@ -507,19 +571,19 @@ The maintainer makes this call from the measured results.
 
 | Risk | Mitigation |
 |---|---|
-| A reader bug affects CCL, Yaci and Yano together, as they no longer differ | Dataset, I5 and I6 before each release; G3 on real chains. The strict figure in I7 is measured for the policy alone. This risk does not go away, and we accept it in exchange for bugs being fixed once |
+| A reader bug affects CCL, Yaci and Yano together, as they no longer differ | Dataset, I5 and I6 before each release; G3 on real chains. I7 checks the policy alone, sample by sample. This risk does not go away, and we accept it in exchange for bugs being fixed once |
 | Sync breaks on an old block | Lazy reads, the G3 full replay per milestone, and Yaci's `onParsingError` stays. One milestone at a time, so a failure has a small search space |
-| Mappers change results subtly, such as a null against an empty list | I6 compares models for equality. `equals` must cover the fields, and Yaci's models are Lombok `@EqualsAndHashCode`. Models without it get compared by JSON |
+| Mappers change results subtly, such as a null against an empty list | I6 compares models for equality, and only D8's approved corrections may differ. `equals` must cover the fields, and Yaci's models are Lombok `@EqualsAndHashCode`. Models without it get compared by JSON |
 | Tables grow beyond what is readable | Pilot judges this first. Only records and unions use tables; recursive and one-off shapes stay as code |
 | Slower sync, with lazy views over spans in place of a tree | I10. It may equally turn out faster, but this has not been measured |
 | The work stalls half way, leaving four readers | Each milestone is complete on its own, and old code for a migrated area is deleted in that milestone or M6 |
 | Yaci reads a future era with the newest tables and misreads a key that changed meaning | Same exposure as today (D4). `Block.era` stays null, so a listener can tell. M7 adds the era properly |
 | Dijkstra changes before it freezes | Only used as a design check here. M7 waits for the freeze |
-| Yano's existing strictness is lost while moving to a policy | I7 at each step: the set of missed samples can only shrink |
+| Yano's existing strictness is lost while moving to a policy | I7 at each step, per sample: the missed samples can only shrink and the strict side's rejections can only grow, so a loss cannot hide behind a gain or behind CCL's decoder. I13 covers structural rules |
 
 ## 11. Open questions
 
-All five were decided by the maintainer on 2026-11-05. They stay here for the record.
+The maintainer decided Q1 to Q5 on 2026-11-05, and they stay here for the record. Q6 is open.
 
 **Q1. Module name and whether to have a module.** Options were (a) `ledger-cbor`; (b) `cbor`, which is shorter but
 suggests general CBOR, which stays in `common`; (c) no module, a package in `transaction-spec` guarded by a test.
@@ -541,6 +605,12 @@ be redone.
 seen. **Decided: deprecated classes stay until one major release or two minor releases have shipped with the
 deprecation in place.**
 
+**Q6. Yaci's known differences (D8), to decide at M2.** A block whose shape contradicts its era's row, or which has
+mismatched counts or bad indexes, is delivered today and would raise `onParsingError`. Options: (a) accept this as a
+listed compatibility change, with a release note; (b) add a structural `RawBlock` entry point without these checks, for
+Yaci, so nothing narrows. Lean: (a), if G3 finds no real block affected, because a listener then never gets a block that a
+conforming node would not send. (b) is the answer if G3 finds any.
+
 ## 12. Related findings (out of scope)
 
 - ADR 0001's status line and section 7 are stale, as ADR 0002 section 1.5 notes.
@@ -555,3 +625,7 @@ deprecation in place.**
 - **r2** (2026-11-05; responds to the automated Aster review of `38316c73` and the maintainer's decisions): unknown era
   in Yaci → new `RawBlock.readAs` and `EraSpec.newest()` in D4, Yaci's dispatch table, new I12, D8's list and known
   differences, M2 exit, Compatibility, Risks; Q1-Q5 decided, with M0's exit, D8 and Compatibility following them.
+- **r3** (2026-11-05; responds to reviewer1's rounds on `38316c73` and `dc6cefe5`): F1 → D8's four inputs as M2
+  regressions, Q6 opened for the differences; F2 → D8 corrections list, I6 exceptions with expected values, M2, M5,
+  Compatibility, Risks; F3 → D6's walk contract, required flag in D3, new I13, M1's keyed-record proof and fall back
+  condition; F4 → I7 per sample on the strict side, M0 baseline, M6, Risks.
