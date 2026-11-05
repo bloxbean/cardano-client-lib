@@ -60,6 +60,18 @@ final class PositionalRecord {
             throw error("A " + spec.name() + " has " + arity + " items, found " + items.size(), span);
     }
 
+    /**
+     * @return the record holding a group's items: the array of this record's field of the group's type, or this record
+     * itself if it has no such field, as a group may be written in line
+     */
+    PositionalRecord group(FieldType type) {
+        for (FieldSpec field : spec.fields()) {
+            if (field.type() == type)
+                return of(field.record(), items.get((int) field.key()), true);
+        }
+        return this;
+    }
+
     /** @return the item of the record's first field of this type */
     CborSpan value(FieldType type) {
         return value(type, 0);

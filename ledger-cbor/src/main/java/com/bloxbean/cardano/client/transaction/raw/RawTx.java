@@ -16,7 +16,7 @@ import java.util.Optional;
  * A transaction as received, read from its original bytes: every accessor returns spans of the caller's buffer, and
  * every hash is taken from the bytes the ledger hashes, never from a re-encoded model (ADR 0001 D2, D3). Reading is
  * lazy and iterative, so content of any nesting depth is handled on any thread; the unbounded types (Plutus data, native
- * scripts) are only decoded on request ({@link RawDatum#toPlutusData()}, {@link RawScript#toScript()}).
+ * scripts) stay spans here, and the models are built from them by {@code RawModels} in {@code transaction-spec}.
  * <p>
  * Accepts the submission form {@code [body, witnesses, aux / null]} (any era; valid) and the Alonzo form
  * {@code [body, witnesses, isValid, aux / null]}. A view is era-agnostic: records are read by key, unknown keys are passed

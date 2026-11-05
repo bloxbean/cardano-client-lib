@@ -20,8 +20,8 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * a {@link RawTx}; and the block body hash.
  * <p>
  * Accepts the hard-fork combinator envelope {@code [era, block]}, or the bare block with its era given, either one
- * optionally wrapped in tag 24. The era decides the rules that differ between eras ({@code EraSpec}). Checked when the
- * view is created, as the ledger's decoder checks them (D6):
+ * optionally wrapped in tag 24; or a {@link BlockEnvelope}. The era decides the layouts and the rules that differ
+ * between eras ({@code EraSpec}). Checked when the view is created, as the ledger's decoder checks them (D6):
  * <ul>
  *     <li>as many witness sets as transaction bodies;</li>
  *     <li>aux data map keys are transaction indexes; a repeated index keeps the last value until Babbage and is
@@ -32,8 +32,6 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * blocks (era 8, {@code [header, block_body]}) are not supported.
  */
 public final class RawBlock {
-    private static final int EMBEDDED_CBOR = 24;
-
     private final Era era;
     private final EraSpec rules;
     private final CborSpan header;
@@ -54,13 +52,13 @@ public final class RawBlock {
         List<CborSpan> parts = block.items();
         if (parts.size() == 2)
             throw error("Dijkstra blocks ([header, block_body]) are not supported", block);
-        if (parts.size() != rules.blockBodyParts() + 1)
-            throw error("A " + era + " block has " + (rules.blockBodyParts() + 1) + " items, found " + parts.size(), block);
+        if (parts.size() != rules.blockLayout.items)
+            throw error("A " + era + " block has " + rules.blockLayout.items + " items, found " + parts.size(), block);
         header = parts.get(0);
         transactionBodies = parts.get(1);
         transactionWitnessSets = parts.get(2);
         auxiliaryDataSet = parts.get(3);
-        invalidTransactions = rules.invalidTransactions ? parts.get(4) : null;
+        invalidTransactions = rules.blockLayout.invalidTransactions() ? parts.get(4) : null;
         bodies = transactionBodies.items();
         witnessSets = transactionWitnessSets.items();
         if (bodies.size() != witnessSets.size())
@@ -91,31 +89,45 @@ public final class RawBlock {
         return parse(blockCbor, era);
     }
 
+    /**
+     * @param envelope a block in its envelope
+     * @return the view, of the era the envelope names
+     * @throws UnsupportedEraException if the envelope's era index has no {@link EraSpec} row
+     * @throws CborRuntimeException    if the bytes are not a block of that era, or break a rule above
+     */
+    public static RawBlock of(BlockEnvelope envelope) {
+        return new RawBlock(EraSpec.ofIndex(envelope.eraIndex()).era, envelope.block());
+    }
+
+    /**
+     * Reads a block with a named era's layouts and field tables, whatever index the envelope carries. This is always
+     * the caller's choice, for an era it does not know: a key whose meaning changed in that era is misread, and
+     * {@link #of} never falls back to this. {@link #era()} is the named era, and {@link BlockEnvelope#eraIndex()} stays
+     * the fact.
+     *
+     * @param envelope a block in its envelope
+     * @param era      the era to read it as, such as {@link EraSpec#newest()}
+     * @return the view
+     * @throws CborRuntimeException if the bytes are not a block of that era, or break a rule above
+     */
+    public static RawBlock readAs(BlockEnvelope envelope, Era era) {
+        if (era == null)
+            throw new IllegalArgumentException("era is null");
+        return new RawBlock(era, envelope.block());
+    }
+
     private static RawBlock parse(byte[] bytes, Era expected) {
-        CborSpan top = CborSpan.of(bytes);
-        if (top.tag() == EMBEDDED_CBOR)
-            top = top.embedded();
-        // the envelope [era, block] is the one block-level array of two items with an integer first
-        boolean envelope = top.majorType() == 4 && top.tag() == -1 && top.size() == 2 && top.get(0).majorType() == 0;
-        if (!envelope) {
+        CborSpan top = BlockEnvelope.content(CborSpan.of(bytes));
+        if (!BlockEnvelope.isEnvelope(top)) {
             if (expected == null)
                 throw error("A block without its [era, block] envelope needs its era: use RawBlock.of(bytes, era)", top);
             return new RawBlock(expected, top);
         }
-        long index = top.get(0).asLong();
-        if (index == 0 || index == 1)
-            throw error("Byron blocks (era " + index + ") are not supported", top);
-        if (index == 8)
-            throw error("Dijkstra blocks (era 8) are not supported", top);
-        Era era;
-        try {
-            era = Era.fromValue((int) Math.min(index, Integer.MAX_VALUE));
-        } catch (IllegalArgumentException e) {
-            throw error("Unknown era " + index, top);
-        }
+        BlockEnvelope envelope = BlockEnvelope.of(top);
+        Era era = EraSpec.ofIndex(envelope.eraIndex()).era;
         if (expected != null && expected != era)
             throw error("The envelope's era is " + era + ", expected " + expected, top);
-        return new RawBlock(era, top.get(1));
+        return new RawBlock(era, envelope.block());
     }
 
     private CborSpan[] auxDataByIndex() {
@@ -159,6 +171,14 @@ public final class RawBlock {
         return header;
     }
 
+    /**
+     * @return the header, read with this era's layout when this is called: the block's other checks do not look into it
+     * @throws CborRuntimeException if the header does not have the items of the layout
+     */
+    public RawHeader rawHeader() {
+        return RawHeader.of(header, era);
+    }
+
     public CborSpan transactionBodies() {
         return transactionBodies;
     }
@@ -191,7 +211,8 @@ public final class RawBlock {
      * @throws CborRuntimeException if one of its records repeats a key
      */
     public RawTx tx(int i) {
-        return RawTx.inBlock(bodies.get(i), witnessSets.get(i), auxData[i], !isInvalid(i), rules.invalidTransactions);
+        return RawTx.inBlock(bodies.get(i), witnessSets.get(i), auxData[i], !isInvalid(i),
+                rules.blockLayout.invalidTransactions());
     }
 
     /**

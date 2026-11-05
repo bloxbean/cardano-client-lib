@@ -330,8 +330,8 @@ class CborSpanTest {
     }
 
     /**
-     * {@link CborSpan#at} does not look at what follows the item. A caller that must fail on a malformed value after it,
-     * and tolerate a well-formed one, walks them with {@link CborSpan#skip}.
+     * {@link CborSpan#at} does not look at what follows the item. A caller that must fail on a malformed value after
+     * it, and tolerate a well-formed one, walks them with {@link CborSpan#skip}.
      */
     @Test
     void atDoesNotReadTrailingBytesAndSkipDoes() {

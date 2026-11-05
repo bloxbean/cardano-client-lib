@@ -14,9 +14,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * ADR 0003 I9: a walk stays stack-safe at any nesting, in the style of {@code RawViewDepthTest}: the nesting of a value
- * at every kind of position, far beyond the largest transaction, on a platform thread with the default stack and on a
- * virtual thread. No test sets {@code -Xss}.
+ * ADR 0003 I9: a walk and the block views stay stack-safe at any nesting, in the style of {@code RawViewDepthTest}: the
+ * nesting of a value at every kind of position, far beyond the largest transaction, on a platform thread with the
+ * default stack and on a virtual thread. No test sets {@code -Xss}.
  */
 class RecordWalkDepthTest {
     private static final int LEVELS = 200_000;
@@ -59,6 +59,56 @@ class RecordWalkDepthTest {
                 .isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> RawCertificate.of(span("84" + "10" + CRED + "00" + DEEP_LIST)).anchor())
                 .isInstanceOf(CborRuntimeException.class);
+        header();
+        block();
+    }
+
+    private static void header() {
+        String flat = "8f" + "00" + "00" + "f6" + "40" + "40" + "824040" + "824040" + "00" + "40"
+                + "40" + "00" + "00" + "40" + "00" + "00";
+        String nested = "8a" + "00" + "00" + "f6" + "40" + "40" + "824040" + "00" + "40" + "8440000040" + "820000";
+        // a run of tags on the header, its body and an item, whose hash is that of the bytes
+        RawHeader tagged = RawHeader.of(span(DEEP_TAGS + "82" + DEEP_TAGS + nested + DEEP_TAGS + "40"));
+        assertThat(tagged.blockNumber()).isZero();
+        assertThat(tagged.bodySignature()).isEmpty();
+        assertThat(tagged.hash()).hasSize(32);
+        // a deep value at each kind of position of a body: an item, a VRF result, a group, in both layouts
+        assertRejected(() -> RawHeader.of(span("82" + flat.replace("f6", DEEP_LIST) + "40")).prevHash());
+        assertRejected(() -> RawHeader.of(span("82" + flat.replace("824040", DEEP_MAP) + "40")).nonceVrf());
+        assertRejected(() -> RawHeader.of(span("82" + nested.replace("824040", "82" + DEEP_LIST + "40") + "40"))
+                .vrfResult().orElseThrow().output());
+        assertRejected(() -> RawHeader.of(span("82" + nested.replace("8440000040", DEEP_LIST) + "40")).hotVkey());
+        assertRejected(() -> RawHeader.of(span("82" + nested.replace("820000", DEEP_MAP) + "40")).protocolMajor());
+        assertRejected(() -> RawHeader.of(span("82" + nested.replace("820000", "82" + DEEP_LIST + "00") + "40"))
+                .protocolMajor());
+        // where the header and its body should be
+        assertRejected(() -> RawHeader.of(span(DEEP_LIST)));
+        assertRejected(() -> RawHeader.of(span("82" + DEEP_LIST + "40")));
+        assertRejected(() -> RawHeader.of(span("82" + DEEP_MAP + "40"), Era.Conway));
+    }
+
+    private static void block() {
+        String header = "82" + DEEP_TAGS + "80" + DEEP_LIST;
+        byte[] deep = HexUtil.decodeHexString("82" + DEEP_TAGS + "07" + "85" + header + DEEP_LIST + DEEP_MAP + DEEP_TAGS
+                + "a0" + DEEP_LIST);
+        assertThat(CborSpan.of(deep).get(1).length()).isPositive();
+        assertRejected(() -> BlockEnvelope.of(deep)); // the index is tagged
+        assertThat(HexUtil.encodeHexString(BlockEnvelope.headerOf(deep).bytes())).isEqualTo(header);
+        assertThat(BlockEnvelope.eraIndexOf(deep)).isEqualTo(7);
+
+        byte[] enveloped = HexUtil.decodeHexString("82" + "07" + "85" + header + DEEP_LIST + DEEP_MAP + "a0" + "80");
+        assertThat(BlockEnvelope.of(enveloped).eraIndex()).isEqualTo(7);
+        assertRejected(() -> RawBlock.of(enveloped));
+        assertRejected(() -> RawBlock.of(BlockEnvelope.of(enveloped)));
+        assertRejected(() -> RawBlock.readAs(BlockEnvelope.of(enveloped), Era.Conway));
+        // tags on the arrays on the way to the header, and damage after a deep header
+        byte[] damaged = HexUtil.decodeHexString(DEEP_TAGS + "82" + "07" + DEEP_TAGS + "85" + header + "fc");
+        assertThat(HexUtil.encodeHexString(BlockEnvelope.headerOf(damaged).bytes())).isEqualTo(header);
+        assertRejected(() -> BlockEnvelope.of(damaged));
+    }
+
+    private static void assertRejected(org.assertj.core.api.ThrowableAssert.ThrowingCallable read) {
+        assertThatThrownBy(read).isInstanceOf(CborRuntimeException.class);
     }
 
     private static CborSpan span(String hex) {

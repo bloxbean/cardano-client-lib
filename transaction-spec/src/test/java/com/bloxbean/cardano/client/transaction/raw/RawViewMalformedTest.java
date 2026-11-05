@@ -71,6 +71,55 @@ class RawViewMalformedTest {
         assertThat(read).isGreaterThan(100);
     }
 
+    /** The block-level entry points on the same mutations: a read or a rejection, whichever entry point is used. */
+    @Test
+    void fuzzedBlocksAreReadOrRejectedByTheEnvelopeAndTheHeader() {
+        List<byte[]> blocks = RealCborFixturesAccess.blocks().stream().map(RealCborFixturesAccess.Block::cbor)
+                .filter(block -> block.length < 20_000).collect(Collectors.toList());
+        Random random = new Random(681_689);
+        long deadline = System.nanoTime() + 120_000_000_000L;
+        int envelopes = 0;
+        int headers = 0;
+        for (int i = 0; i < 20_000; i++) {
+            byte[] input = mutate(blocks.get(random.nextInt(blocks.size())), random);
+            try {
+                BlockEnvelope envelope = BlockEnvelope.of(input);
+                envelopes++;
+                readBlock(RawBlock.readAs(envelope, EraSpec.newest()));
+            } catch (CborRuntimeException expected) {
+                // rejected
+            } catch (RuntimeException | StackOverflowError e) {
+                fail("unexpected " + e + " on fuzz input " + i, e);
+            }
+            try {
+                BlockEnvelope.eraIndexOf(input);
+                readHeader(RawHeader.of(BlockEnvelope.headerOf(input)));
+                headers++;
+            } catch (CborRuntimeException expected) {
+                // rejected
+            } catch (RuntimeException | StackOverflowError e) {
+                fail("unexpected " + e + " on fuzz input " + i, e);
+            }
+            assertThat(System.nanoTime()).as("fuzz loop exceeded its time budget").isLessThan(deadline);
+        }
+        assertThat(envelopes).isGreaterThan(100);
+        assertThat(headers).isGreaterThan(100);
+    }
+
+    /** Declared sizes in a block are not allocated from, and a read stops where the header stops. */
+    @ParameterizedTest
+    @ValueSource(strings = {"9bffffffffffffffff", "82" + "07" + "9bffffffffffffffff", "9a7fffffff" + "07",
+            "82" + "07" + "85" + "9a7fffffff"})
+    void declaredSizesBeyondABlockAreRejectedBeforeAllocating(String hex) {
+        byte[] input = decodeHexString(hex);
+        // loads the classes
+        assertThatThrownBy(() -> BlockEnvelope.headerOf(input)).isInstanceOf(CborRuntimeException.class);
+        long allocatedBefore = allocatedBytes();
+        assertThatThrownBy(() -> BlockEnvelope.headerOf(input)).isInstanceOf(CborRuntimeException.class);
+        assertThatThrownBy(() -> BlockEnvelope.of(input)).isInstanceOf(CborRuntimeException.class);
+        assertThat(allocatedBytes() - allocatedBefore).isLessThan(64 * 1024);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"9bffffffffffffffff", "9a7fffffff00", "84" + "bb0000000100000000", "83" + "a0" + "a0" + "5b7fffffffffffffff",
             "83" + "a0" + "a0" + "7a7fffffff"})
@@ -102,7 +151,35 @@ class RawViewMalformedTest {
         tx.span();
     }
 
+    // Everything a caller can read from a header.
+    private static void readHeader(RawHeader header) {
+        header.hash();
+        header.blockNumber();
+        header.slot();
+        header.prevHash();
+        header.issuerVkey();
+        header.vrfVkey();
+        header.nonceVrf().ifPresent(RawViewMalformedTest::readVrf);
+        header.leaderVrf().ifPresent(RawViewMalformedTest::readVrf);
+        header.vrfResult().ifPresent(RawViewMalformedTest::readVrf);
+        header.bodySize();
+        header.bodyHash();
+        header.hotVkey();
+        header.sequenceNumber();
+        header.kesPeriod();
+        header.sigma();
+        header.protocolMajor();
+        header.protocolMinor();
+        header.bodySignature();
+    }
+
+    private static void readVrf(RawVrfCert vrf) {
+        vrf.output();
+        vrf.proof();
+    }
+
     private static void readBlock(RawBlock block) {
+        readHeader(block.rawHeader());
         block.bodyHash();
         block.invalidTxIndexes();
         for (int i = 0; i < block.txCount(); i++) {

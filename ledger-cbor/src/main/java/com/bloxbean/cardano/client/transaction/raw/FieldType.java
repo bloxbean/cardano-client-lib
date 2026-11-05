@@ -23,6 +23,7 @@ public enum FieldType {
     OPTIONAL_IPV6(Shape.NULLABLE),
     OPTIONAL_ANCHOR(Shape.NULLABLE),
     OPTIONAL_POOL_METADATA(Shape.NULLABLE),
+    OPTIONAL_HASH32(Shape.NULLABLE),
     /** A member of a tagged union, as encoded. */
     MEMBER,
     CREDENTIAL,
@@ -30,6 +31,20 @@ public enum FieldType {
     MIR,
     /** The second item of a move_instantaneous_reward: a map of stake credentials to delta coins, or a coin. */
     MIR_TARGET,
+    VKEY,
+    SIGNATURE,
+    VRF_VKEY,
+    VRF_CERT,
+    KES_VKEY,
+    KES_SIGNATURE,
+    SEQUENCE_NUMBER,
+    KES_PERIOD,
+    MAJOR_PROTOCOL_VERSION,
+    MINOR_PROTOCOL_VERSION,
+    /** The items of a header body, whose table depends on the header's layout. */
+    HEADER_BODY,
+    OPERATIONAL_CERT,
+    PROTOCOL_VERSION,
     TRANSACTION_OUTPUT,
     UPDATE,
     REDEEMERS,
@@ -86,6 +101,12 @@ public enum FieldType {
                 return RawMir.RECORD;
             case RELAY_LIST:
                 return RawRelay.RECORD;
+            case VRF_CERT:
+                return RawVrfCert.RECORD;
+            case OPERATIONAL_CERT:
+                return RawHeader.OPERATIONAL_CERT;
+            case PROTOCOL_VERSION:
+                return RawHeader.PROTOCOL_VERSION;
             case CERTIFICATE_LIST:
             case NONEMPTY_CERTIFICATE_SET:
                 return CertKind.RECORD;

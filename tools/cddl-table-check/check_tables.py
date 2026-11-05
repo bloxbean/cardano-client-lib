@@ -2,8 +2,9 @@
 """ADR 0003 I3: checks the hand-written ledger tables in ledger-cbor against the pinned CDDL, era by era.
 
 For each era with a table it compares the certificate tags and their items, the transaction body and witness set keys
-with their required flags and types, and the rules a certificate is made of (credential, drep, relay, anchor,
-pool_metadata, move_instantaneous_reward). Run it by hand, and on each bump of the ledger pin:
+with their required flags and types, the rules a certificate is made of (credential, drep, relay, anchor,
+pool_metadata, move_instantaneous_reward), and the block and header layouts the era names in EraSpec. Run it by hand,
+and on each bump of the ledger pin:
 
     tools/cddl-table-check/check_tables.py --ledger <cardano-ledger checkout> [--commit <sha>]
 
@@ -35,6 +36,12 @@ TYPES = {
     "transaction_output": "TRANSACTION_OUTPUT", "update": "UPDATE", "redeemers": "REDEEMERS",
     "[* relay]": "RELAY_LIST", "[* certificate]": "CERTIFICATE_LIST", "certificates": "NONEMPTY_CERTIFICATE_SET",
     "set<addr_keyhash>": "KEY_HASH_SET", "0/ 1": "UINT", "{* stake_credential => delta_coin}/ coin": "MIR_TARGET",
+    "header_body": "HEADER_BODY", "block_number": "UINT", "hash32/ nil": "OPTIONAL_HASH32", "vkey": "VKEY",
+    "signature": "SIGNATURE", "vrf_vkey": "VRF_VKEY", "vrf_cert": "VRF_CERT", "kes_vkey": "KES_VKEY",
+    "kes_signature": "KES_SIGNATURE", "sequence_number": "SEQUENCE_NUMBER", "kes_period": "KES_PERIOD",
+    "major_protocol_version": "MAJOR_PROTOCOL_VERSION", "uint .size 4": "MINOR_PROTOCOL_VERSION",
+    "block_body_size : uint .size 4": "UINT", "operational_cert": "OPERATIONAL_CERT",
+    "protocol_version": "PROTOCOL_VERSION", "bytes .size 80": "BYTES",
 }
 SHAPES = [
     (r"\[\* ", "LIST"), (r"\[\+ ", "NONEMPTY_LIST"), (r"set<", "SET"), (r"nonempty_set<", "NONEMPTY_SET"),
@@ -67,7 +74,7 @@ def split_top(body, separator):
             current, i = "", i + len(separator)
             continue
         depth += body[i] in "([{<"
-        depth -= body[i] in ")]}>"
+        depth -= body[i] in ")]}>" and not body.startswith("=>", i - 1)
         current += body[i]
         i += 1
     return parts + [current.strip()] if current.strip() else parts
@@ -75,6 +82,8 @@ def split_top(body, separator):
 
 def field_type(text, cddl_text):
     text = " ".join(text.split())
+    if text in TYPES:
+        return TYPES[text]
     named = re.match(r"^\w+\s*:\s*(.+)$", text)
     if named and not text.startswith("{"):
         text = named.group(1)
@@ -140,7 +149,7 @@ def era_of(token):
 def rows(name):
     """The constants of an enum table, as (constant, [arguments])."""
     source = java(name)
-    body = source[source.index(" enum " + name):]
+    body = source[source.index("enum " + name + " "):]
     body = body[body.index("{") + 1:body.index(";")]
     body = re.sub(r"//[^\n]*", "", body)
     return [(m.group(1), [a.strip() for a in m.group(2).split(",")])
@@ -177,10 +186,20 @@ def credential_table():
             in re.findall(r"FieldSpec\.member\((\d+), Era\.\w+, null, (FieldType\.\w+)\)", java("RawCredential"))}
 
 
-def positional(view):
+def positional(view, name=r"\w+"):
     source = java(view)
-    args = re.search(r'RecordSpec\.positional\("\w+",\s*([^)]*)\)', source).group(1)
+    args = re.search(r'RecordSpec\.positional\("' + name + r'",\s*([^)]*)\)', source).group(1)
     return [a.strip().replace("FieldType.", "") for a in args.split(",")]
+
+
+def era_layouts(era):
+    """The block and header layouts that the era's EraSpec row names."""
+    return next((a[1], a[2]) for _, a in rows("EraSpec") if a[0] == f"Era.{era}")
+
+
+def array_items(rule_name, cddl_text):
+    """The FieldTypes of an array rule, with a group such as operational_cert expanded."""
+    return [field_type(item, cddl_text) for item in group_items(rule(cddl_text, rule_name).strip()[1:-1], cddl_text)]
 
 
 def compare(what, expected, actual, problems):
@@ -221,8 +240,22 @@ def main():
                     {"items": [field_type(i, text) for i in
                                split_top(rule(text, "move_instantaneous_reward")[1:-1], ",")]},
                     {"items": positional("RawMir")}, problems)
+        block_layout, header_layout = era_layouts(era)
+        layouts = dict(rows("BlockLayout") + rows("HeaderLayout"))
+        compare("block", {"items": str(len(split_top(rule(text, "block")[1:-1], ",")))},
+                {"items": layouts[block_layout][0]}, problems)
+        compare("header", {"items": array_items("header", text)}, {"items": positional("RawHeader", "header")},
+                problems)
+        compare("header_body", {"items": array_items("header_body", text)}, {"items": layouts[header_layout]}, problems)
+        compare("vrf_cert", {"items": array_items("vrf_cert", text)}, {"items": positional("RawVrfCert")}, problems)
+        if rule(text, "operational_cert").startswith("["):
+            compare("operational_cert", {"items": array_items("operational_cert", text)},
+                    {"items": positional("RawHeader", "operational_cert")}, problems)
+            compare("protocol_version", {"items": array_items("protocol_version", text)},
+                    {"items": positional("RawHeader", "protocol_version")}, problems)
         status = "OK" if not problems else f"{len(problems)} DIFFERENCES"
-        print(f"{era}: {status}; tags {sorted(certs)}, body keys {sorted(body)}, witness keys {sorted(witnesses)}")
+        print(f"{era}: {status}; tags {sorted(certs)}, body keys {sorted(body)}, witness keys {sorted(witnesses)}, "
+              f"{block_layout}, {header_layout}")
         for problem in problems:
             print("  " + problem)
         problems_total += len(problems)

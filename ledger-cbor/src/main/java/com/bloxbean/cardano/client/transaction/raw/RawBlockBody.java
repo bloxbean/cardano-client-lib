@@ -77,7 +77,7 @@ public final class RawBlockBody {
 
         List<byte[]> parts = new ArrayList<>(List.of(container(4, count, bodies), container(4, count, witnessSets),
                 container(5, auxCount, auxData)));
-        if (rules.invalidTransactions) {
+        if (rules.blockLayout.invalidTransactions()) {
             ByteArrayOutputStream invalidTransactions = new ByteArrayOutputStream();
             invalid.forEach(index -> CborHead.write(invalidTransactions, 0, index));
             parts.add(container(4, invalid.size(), invalidTransactions));

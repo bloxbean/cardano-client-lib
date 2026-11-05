@@ -98,8 +98,8 @@ public final class CborSpan {
     /**
      * Walks to an item of nested arrays and no further: only the heads of the arrays on the path, the items before each
      * index and the item itself are read, so what follows may be malformed or missing. Tags on the arrays are looked
-     * through. For {@code 82 07 85 ...}, {@code arrayItem(bytes, 0)} is the {@code 07} and {@code arrayItem(bytes, 1, 0)}
-     * the first item of the second array.
+     * through. For {@code 82 07 85 ...}, {@code arrayItem(bytes, 0)} is the {@code 07} and
+     * {@code arrayItem(bytes, 1, 0)} the first item of the second array.
      *
      * @param buffer CBOR bytes, with an array at the start
      * @param path   the index in each array on the way down
