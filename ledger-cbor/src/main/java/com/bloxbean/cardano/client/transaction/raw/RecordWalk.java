@@ -54,14 +54,27 @@ final class RecordWalk {
     }
 
     private static void keyed(RecordSpec record, CborSpan container, Era era, FormatPolicy policy) {
-        Map<Object, Integer> seen = new HashMap<>();
+        // the usual keys, unsigned integers below 64, are counted in a mask; any other key and a repeat in a map
+        long small = 0;
+        Map<Object, Integer> seen = null;
         for (Map.Entry<CborSpan, CborSpan> entry : RawItems.map(container, record.name())) {
             CborSpan key = entry.getKey();
             CborSpan value = entry.getValue();
-            BigInteger integer = integerKey(key);
-            int occurrence = seen.merge(decodedKey(key, integer), 1, Integer::sum) - 1;
+            int smallKey = smallKey(key);
+            BigInteger integer = smallKey >= 0 ? null : integerKey(key);
+            int occurrence = 0;
+            if (smallKey < 0 || (small & 1L << smallKey) != 0) {
+                if (seen == null)
+                    seen = new HashMap<>();
+                Object decoded = smallKey >= 0 ? BigInteger.valueOf(smallKey) : decodedKey(key, integer);
+                // the first entry of a small key is in the mask
+                occurrence = seen.merge(decoded, 1, Integer::sum) - (smallKey >= 0 ? 0 : 1);
+            }
+            if (smallKey >= 0)
+                small |= 1L << smallKey;
             // every entry of a map of like entries has the same field
-            FieldSpec field = record.keyType() != null ? record.field(0, era) : field(record, integer, era);
+            FieldSpec field = record.keyType() != null ? record.field(0, era)
+                    : smallKey >= 0 ? record.field(smallKey, era) : field(record, integer, era);
             policy.entry(record, field, key, value, occurrence, era);
             if (record.keyType() != null)
                 key(record.keyType(), key, era, policy);
@@ -69,9 +82,29 @@ final class RecordWalk {
                 value(field, value, era, policy);
         }
         for (FieldSpec field : record.fields()) {
-            if (field.requiredIn(era) && !seen.containsKey(BigInteger.valueOf(field.key())))
+            if (field.requiredIn(era) && !has(field.key(), small, seen))
                 policy.missing(record, field, container, era);
         }
+    }
+
+    private static boolean has(long key, long small, Map<Object, Integer> seen) {
+        if (key >= 0 && key < Long.SIZE)
+            return (small & 1L << key) != 0;
+        return seen != null && seen.containsKey(BigInteger.valueOf(key));
+    }
+
+    // An untagged unsigned integer below 64, however long its head, or -1.
+    private static int smallKey(CborSpan key) {
+        byte[] buffer = key.buffer();
+        int initial = buffer[key.offset()] & 0xff;
+        if (initial < 24)
+            return initial;
+        if (initial > 27)
+            return -1;
+        long value = 0;
+        for (int i = 1; i <= 1 << (initial - 24); i++)
+            value = value << 8 | buffer[key.offset() + i] & 0xff;
+        return Long.compareUnsigned(value, Long.SIZE) < 0 ? (int) value : -1;
     }
 
     private static void key(FieldType type, CborSpan key, Era era, FormatPolicy policy) {

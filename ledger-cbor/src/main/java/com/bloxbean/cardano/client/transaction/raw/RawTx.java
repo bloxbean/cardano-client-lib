@@ -116,7 +116,20 @@ public final class RawTx {
      *                              policy accepts a value the walk cannot enter
      */
     public static void walk(byte[] txCbor, Era era, FormatPolicy policy) {
-        CborSpan tx = CborSpan.of(txCbor);
+        walk(CborSpan.of(txCbor), era, policy);
+    }
+
+    /**
+     * Walks a transaction as {@link #walk(byte[], Era, FormatPolicy)} does. Given the {@link #span()} of a view, the
+     * walk lists each container once for both: a span keeps its listing.
+     *
+     * @param tx     a transaction, as encoded
+     * @param era    the era to read it in
+     * @param policy the policy, which throws to reject
+     * @throws CborRuntimeException if it is not a Shelley-family transaction, or the policy accepts a value the walk
+     *                              cannot enter
+     */
+    public static void walk(CborSpan tx, Era era, FormatPolicy policy) {
         (items(tx).size() == Forms.WITHOUT_FLAG.arity() ? Forms.WITHOUT_FLAG : Forms.WITH_FLAG).walk(tx, era, policy);
     }
 
