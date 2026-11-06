@@ -76,10 +76,15 @@ public final class RawValue {
      * @throws RuntimeException if it is a byte string without a tag, or an indefinite array
      */
     public static Optional<RawValue> lenient(CborSpan span) {
+        return lenient(span, null);
+    }
+
+    // As lenient(span), in an era: from Dijkstra the array may be indefinite.
+    static Optional<RawValue> lenient(CborSpan span, Era era) {
         CborSpan content = RawItems.content(span);
         int major = content.majorType();
         if (major == MAJOR_ARRAY) {
-            if (content.isIndefinite())
+            if (!RawItems.indefiniteRecordsAllowed(era) && content.isIndefinite())
                 throw new CborRuntimeException("Invalid value: expected a definite-length array");
             return Optional.of(content.size() == COIN_AND_ASSETS.arity() ? ofArray(span, true)
                     : new RawValue(span, null, null, true));

@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -78,6 +80,17 @@ class DijkstraReaderTest {
         assertThatThrownBy(block::transactionBodies).isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(block::transactionWitnessSets).isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(block::auxiliaryDataSet).isInstanceOf(UnsupportedOperationException.class);
+        assertThat(hex(block.transaction(1).bytes())).isEqualTo(INVALID);
+        assertThat(block.transaction(1).get(0).bytes()).isEqualTo(block.tx(1).body().bytes());
+    }
+
+    /** A block transaction is a span: its records are not read, so a repeated key is the caller's to judge. */
+    @Test
+    void aUnifiedBlocksTransactionIsItsSpanAsEncoded() {
+        String repeated = "84" + "a4" + BODY.substring(2) + "0218c8" + "a0" + "f6" + "f5";
+        RawBlock block = RawBlock.of(bytes(block("83" + "81" + repeated + "f6" + "f6")));
+        assertThat(hex(block.transaction(0).bytes())).isEqualTo(repeated);
+        assertThatThrownBy(() -> block.tx(0)).isInstanceOf(CborRuntimeException.class);
     }
 
     @Test
@@ -342,6 +355,37 @@ class DijkstraReaderTest {
                 .isPresent();
     }
 
+    /** The ledger reads these records with RecD to version 11 and as definite or indefinite from 12 (Dijkstra). */
+    @Test
+    void aLenientReadInDijkstraAcceptsIndefiniteRecords() {
+        assertThat(RawItems.indefiniteRecordsAllowed(null)).isFalse();
+        assertThat(RawItems.indefiniteRecordsAllowed(Era.Conway)).isFalse();
+        assertThat(RawItems.indefiniteRecordsAllowed(Era.Dijkstra)).isTrue();
+        String value = "9f" + "01" + "a1" + H28 + "a1" + "41aa" + "01" + "ff";
+        String body = "a3" + "00" + "81" + INPUT + "01" + "81" + "82" + ra("60") + value + "02" + "00";
+        RawTx tx = RawTx.lenient(bytes("83" + body + "a0" + "f6"));
+        assertThat(tx.body(Era.Dijkstra).outputs().get(0).amount().orElseThrow().coin()).isEqualTo(BigInteger.ONE);
+        assertThatThrownBy(() -> tx.body(Era.Conway).outputs().get(0).amount())
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("definite-length");
+        assertThatThrownBy(() -> RawValue.lenient(span(value))).isInstanceOf(CborRuntimeException.class);
+        String id = "9f" + H32 + "00" + "ff";
+        assertThatThrownBy(() -> RawGovActionId.lenient(span(id))).isInstanceOf(CborRuntimeException.class);
+        assertThat(RawGovActionId.lenient(span(id), Era.Dijkstra).index()).isZero();
+    }
+
+    /** Read leniently in Dijkstra, as the models read it, a pool registration has its BLS key slot. */
+    @Test
+    void aLenientDijkstraPoolRegistrationHasItsBlsKey() {
+        String withKey = "8b" + "03" + H28 + H32 + BLS_KEY + POOL_REST;
+        RawCertificate read = RawCertificate.lenient(CertKind.POOL_REGISTRATION, span(withKey), Era.Dijkstra);
+        assertThat(hex(read.blsKey().orElseThrow().publicKey())).isEqualTo("aa".repeat(96));
+        assertThat(read.pledge()).isEqualTo(BigInteger.valueOf(1_000_000));
+        assertThat(RawCertificate.lenient(CertKind.POOL_REGISTRATION, span(POOL), Era.Dijkstra).blsKey()).isEmpty();
+        // without an era, by position as before: the BLS key is no slot, so the pledge position holds it
+        assertThat(RawCertificate.lenient(CertKind.POOL_REGISTRATION, span(withKey), null).blsKey()).isEmpty();
+        assertThat(RawCertificate.lenient(CertKind.POOL_REGISTRATION, span(withKey), null).pledge()).isNull();
+    }
+
     /** With no era or an era before Dijkstra, a pool registration reads as it always has. */
     @Test
     void aPoolRegistrationWithoutDijkstraHasNoBlsSlot() {
@@ -462,6 +506,19 @@ class DijkstraReaderTest {
         assertThat(ProtocolParamField.RECORD.field(53, Era.Dijkstra).type()).isEqualTo(FieldType.OPTIONAL_UINT32);
         String update = "a4" + "1825" + "d81e820102" + "1826" + "f6" + "1835" + "f6" + "1830" + "1a000186a0";
         ProtocolParamField.RECORD.walk(span(update), Era.Dijkstra, STRICT);
+        RawProtocolParamUpdate dijkstra = RawProtocolParamUpdate.of(span(update), Era.Dijkstra);
+        assertThat(dijkstra.refScriptCostMultiplier().orElseThrow().getDenominator()).isEqualTo(BigInteger.TWO);
+        assertThat(dijkstra.maxPledgeLeverage()).contains(Optional.empty());
+        assertThat(dijkstra.perasBootstrapRound()).contains(OptionalLong.empty());
+        assertThat(dijkstra.maxRefScriptSizePerEndorserBlock()).hasValue(100_000);
+        assertThat(dijkstra.minPoolMargin()).isEmpty();
+        assertThat(RawProtocolParamUpdate.of(span("a1" + "1835" + "07"), Era.Dijkstra).perasBootstrapRound())
+                .contains(OptionalLong.of(7));
+        RawProtocolParamUpdate conway = RawProtocolParamUpdate.of(span(update), Era.Conway);
+        assertThat(conway.refScriptCostMultiplier()).isEmpty();
+        assertThat(conway.maxPledgeLeverage()).isEmpty();
+        assertThat(conway.perasBootstrapRound()).isEmpty();
+        assertThat(conway.maxRefScriptSizePerEndorserBlock()).isEmpty();
         assertThatThrownBy(() -> ProtocolParamField.RECORD.walk(span(update), Era.Conway, STRICT))
                 .isInstanceOf(IllegalStateException.class);
     }

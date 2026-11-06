@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
 
 import java.math.BigInteger;
@@ -30,9 +31,10 @@ import java.util.*;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.requireDijkstra;
 
 @Data
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor
 @Builder
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -87,6 +89,26 @@ public class PoolRegistration implements Certificate {
      */
     private String poolMetadataHash;
 
+    /**
+     * The pool's BLS key, written after the VRF key hash, and only in Dijkstra.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private BlsKey blsKey;
+
+    /**
+     * The constructor of the fields before Dijkstra, kept for source and binary compatibility; use the builder for the
+     * BLS key.
+     */
+    @SuppressWarnings("java:S107") // the old signature, kept for callers
+    public PoolRegistration(byte[] operator, byte[] vrfKeyHash, BigInteger pledge, BigInteger cost, UnitInterval margin,
+                            String rewardAccount, Set<String> poolOwners, List<Relay> relays, String poolMetadataUrl,
+                            String poolMetadataHash) {
+        this(operator, vrfKeyHash, pledge, cost, margin, rewardAccount, poolOwners, relays, poolMetadataUrl,
+                poolMetadataHash, null);
+    }
+
     @Override
     @JsonIgnore
     public Array serialize(Era era) throws CborSerializationException {
@@ -94,6 +116,10 @@ public class PoolRegistration implements Certificate {
         array.add(new UnsignedInteger(3));
         array.add(new ByteString(operator));
         array.add(new ByteString(vrfKeyHash));
+        if (blsKey != null) {
+            requireDijkstra(era, "PoolRegistration.blsKey");
+            array.add(blsKey.serialize());
+        }
         array.add(new UnsignedInteger(pledge));
         array.add(new UnsignedInteger(cost));
 
@@ -168,6 +194,7 @@ public class PoolRegistration implements Certificate {
                 .relays(relays)
                 .poolMetadataUrl(metadata != null ? metadata.url() : null)
                 .poolMetadataHash(metadata != null ? HexUtil.encodeHexString(metadata.hash()) : null)
+                .blsKey(cert.blsKey().map(BlsKey::from).orElse(null))
                 .build();
     }
 
@@ -233,6 +260,7 @@ public class PoolRegistration implements Certificate {
                 ", relays=" + relays +
                 ", poolMetadataUrl='" + poolMetadataUrl + '\'' +
                 ", poolMetadataHash='" + poolMetadataHash + '\'' +
+                ", blsKey=" + blsKey +
                 '}';
     }
 

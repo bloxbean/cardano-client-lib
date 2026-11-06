@@ -15,6 +15,8 @@ import lombok.*;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
 
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.requireBeforeDijkstra;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -33,6 +35,7 @@ public class MoveInstataneous implements Certificate {
 
     @Override
     public Array serialize(Era era) throws CborSerializationException {
+        requireBeforeDijkstra(era, "A MoveInstataneous certificate (tag 6)");
         Array array = new Array();
         array.add(new UnsignedInteger(6));
 

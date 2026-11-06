@@ -296,6 +296,24 @@ public final class RawBlock {
     }
 
     /**
+     * The i-th transaction of a Dijkstra block as encoded, {@code [body, witnesses, aux / null, isValid]}, for a caller
+     * that takes its parts' spans without reading its records, as {@link #tx(int)} does.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param i the transaction's index in the block
+     * @return the transaction, as encoded
+     * @throws UnsupportedOperationException for a block of an earlier era, whose transactions are in parallel arrays:
+     *                                       use {@link #tx(int)}
+     */
+    public CborSpan transaction(int i) {
+        if (blockBody == null)
+            throw new UnsupportedOperationException("A " + era + " block holds its transactions in parallel arrays: "
+                    + "use tx(i)");
+        return transactions.get(i);
+    }
+
+    /**
      * Assembles a transaction as it was submitted: {@code [body, witnesses, isValid, aux / null]} from Alonzo to
      * Conway, and {@code [body, witnesses, aux / null]} before Alonzo and in Dijkstra, where the flag is the block's.
      *

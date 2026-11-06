@@ -16,7 +16,10 @@ public enum RedeemerTag {
     @JsonProperty("voting")
     Voting(4),
     @JsonProperty("proposing")
-    Proposing(5);
+    Proposing(5),
+    /** Dijkstra's guarding purpose. Experimental: Dijkstra is not final; this may change in any release. */
+    @JsonProperty("guarding")
+    Guarding(6);
 
     public final int value;
 

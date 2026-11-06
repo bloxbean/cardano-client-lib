@@ -58,7 +58,7 @@ public final class RawUpdate {
      * @throws IllegalArgumentException if the era is null
      */
     public static RawUpdate lenient(CborSpan span, Era era) {
-        return new RawUpdate(RawItems.definite(span, RECORD.name()), era, true);
+        return new RawUpdate(RawItems.definite(span, RECORD.name(), era), era, true);
     }
 
     /**

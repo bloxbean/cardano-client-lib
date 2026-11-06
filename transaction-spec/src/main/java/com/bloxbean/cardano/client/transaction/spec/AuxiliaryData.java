@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationExcep
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV4Script;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.raw.RawAuxData;
@@ -20,6 +21,8 @@ import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -29,8 +32,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.isDijkstra;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.requireDijkstra;
+
 @Data
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor
 @Builder
 public class AuxiliaryData {
@@ -48,6 +54,23 @@ public class AuxiliaryData {
 
     @Builder.Default
     private List<PlutusV3Script> plutusV3Scripts = new ArrayList<>();
+
+    /**
+     * The Plutus V4 scripts (key 5 of {@code #6.259}), written only in Dijkstra.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<PlutusV4Script> plutusV4Scripts;
+
+    /**
+     * The constructor of the fields before Dijkstra, kept for source and binary compatibility; use the builder for the
+     * Plutus V4 scripts.
+     */
+    public AuxiliaryData(Metadata metadata, List<NativeScript> nativeScripts, List<PlutusV1Script> plutusV1Scripts,
+                         List<PlutusV2Script> plutusV2Scripts, List<PlutusV3Script> plutusV3Scripts) {
+        this(metadata, nativeScripts, plutusV1Scripts, plutusV2Scripts, plutusV3Scripts, null);
+    }
 
     public DataItem serialize() throws CborSerializationException {
         return serialize(EraSerializationConfig.INSTANCE.getEra());
@@ -93,6 +116,10 @@ public class AuxiliaryData {
             auxiliaryData.getPlutusV2Scripts().add((PlutusV2Script) RawModels.toScript(script));
         for (RawScript script : raw.plutusV3Scripts())
             auxiliaryData.getPlutusV3Scripts().add((PlutusV3Script) RawModels.toScript(script));
+        List<RawScript> plutusV4Scripts = raw.plutusV4Scripts();
+        if (!plutusV4Scripts.isEmpty())
+            auxiliaryData.setPlutusV4Scripts(RawModels.mapAll(plutusV4Scripts,
+                    script -> (PlutusV4Script) RawModels.toScript(script)));
         return auxiliaryData;
     }
 
@@ -124,18 +151,20 @@ public class AuxiliaryData {
     private Map getAuxiliaryData(Era era) throws CborSerializationException {
         Map map = new Map();
 
-        //Shelley-mary format
-        if (metadata != null
+        //Shelley-mary format, before Dijkstra; the ledger writes Dijkstra aux data as the tag-259 map always
+        if (metadata != null && !isDijkstra(era)
                 && (nativeScripts == null || nativeScripts.size() == 0)
                 && (plutusV1Scripts == null || plutusV1Scripts.size() == 0)
-                && (plutusV2Scripts == null || plutusV2Scripts.size() == 0)) {
+                && (plutusV2Scripts == null || plutusV2Scripts.size() == 0)
+                && (plutusV4Scripts == null || plutusV4Scripts.isEmpty())) {
             return metadata.getData();
         }
 
         //Alonzo format
         map.setTag(new Tag(259));
 
-        if (metadata != null) {
+        //Dijkstra leaves out empty metadata, as the ledger does (Alonzo TxAuxData.hs, Omit null)
+        if (metadata != null && !(isDijkstra(era) && metadata.getData().getKeys().isEmpty())) {
             map.put(new UnsignedInteger(0), metadata.getData());
         }
 
@@ -173,6 +202,14 @@ public class AuxiliaryData {
             }
 
             map.put(new UnsignedInteger(4), plutusV3ScriptArray);
+        }
+
+        if (plutusV4Scripts != null && !plutusV4Scripts.isEmpty()) {
+            requireDijkstra(era, "AuxiliaryData.plutusV4Scripts");
+            Array plutusV4ScriptArray = new Array();
+            for (PlutusV4Script plutusV4Script : plutusV4Scripts)
+                plutusV4ScriptArray.add(plutusV4Script.serializeAsDataItem());
+            map.put(new UnsignedInteger(5), plutusV4ScriptArray);
         }
 
         return map;

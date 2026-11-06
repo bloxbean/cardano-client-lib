@@ -104,7 +104,7 @@ class WitnessAndAuxMappingTest {
     @Test
     void redeemerLeniency() throws Exception {
         // an unknown tag is kept as null, and the index is exact
-        Redeemer unknown = Redeemer.deserializePreConway(array("84" + "06" + "1bffffffffffffffff" + "00" + UNITS));
+        Redeemer unknown = Redeemer.deserializePreConway(array("84" + "07" + "1bffffffffffffffff" + "00" + UNITS));
         assertThat(unknown.getTag()).isNull();
         assertThat(unknown.getIndex()).isEqualTo(new BigInteger("18446744073709551615"));
         // a field of neither form holds no redeemer, and leaves the default

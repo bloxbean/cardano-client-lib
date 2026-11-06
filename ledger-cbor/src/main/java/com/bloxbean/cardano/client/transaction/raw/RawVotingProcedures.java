@@ -34,10 +34,12 @@ public final class RawVotingProcedures {
 
     private final CborSpan span;
     private final boolean lenient;
+    private final Era era;
 
-    private RawVotingProcedures(CborSpan span, boolean lenient) {
+    private RawVotingProcedures(CborSpan span, boolean lenient, Era era) {
         this.span = span;
         this.lenient = lenient;
+        this.era = era;
     }
 
     /**
@@ -45,7 +47,7 @@ public final class RawVotingProcedures {
      * @return the view; its items are read by {@link #voters()}
      */
     public static RawVotingProcedures of(CborSpan span) {
-        return new RawVotingProcedures(span, false);
+        return new RawVotingProcedures(span, false, null);
     }
 
     /**
@@ -53,7 +55,12 @@ public final class RawVotingProcedures {
      * @return the view, read as CCL's models read it
      */
     public static RawVotingProcedures lenient(CborSpan span) {
-        return new RawVotingProcedures(span, true);
+        return lenient(span, null);
+    }
+
+    // As lenient(span), in an era: from Dijkstra the records in it may be indefinite.
+    static RawVotingProcedures lenient(CborSpan span, Era era) {
+        return new RawVotingProcedures(span, true, era);
     }
 
     /**
@@ -78,8 +85,8 @@ public final class RawVotingProcedures {
                 CborSpan id = vote.getKey();
                 CborSpan procedure = vote.getValue();
                 read.add(new AbstractMap.SimpleImmutableEntry<>(
-                        lenient ? RawGovActionId.lenient(id) : RawGovActionId.of(id),
-                        lenient ? RawVotingProcedure.lenient(procedure) : RawVotingProcedure.of(procedure)));
+                        lenient ? RawGovActionId.lenient(id, era) : RawGovActionId.of(id),
+                        lenient ? RawVotingProcedure.lenient(procedure, era) : RawVotingProcedure.of(procedure)));
             }
             voters.add(new Votes(voter, read));
         }

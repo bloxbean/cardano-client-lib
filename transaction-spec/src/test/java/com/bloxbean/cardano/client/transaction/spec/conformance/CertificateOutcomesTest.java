@@ -202,6 +202,17 @@ class CertificateOutcomesTest {
         return samples.size() + " " + accepted + " " + HexFormat.of().formatHex(digest.digest(), 0, 12);
     }
 
+    /** The fields ADR 0004 added to these models, described only when set, so the outcomes before it keep theirs. */
+    private static final Set<String> DIJKSTRA_FIELDS = Set.of("blsKey", "guards", "subTransactions",
+            "requiredTopLevelGuards", "directDeposits", "accountBalanceIntervals", "startingAccountBalanceIntervals",
+            "maxRefScriptSizePerBlock", "maxRefScriptSizePerTx", "refScriptCostStride", "refScriptCostMultiplier",
+            "maxPledgeLeverage", "minPoolMargin", "leiosAnnouncementPeriodLength", "leiosVotePeriodLength",
+            "leiosDiffusionPeriodLength", "leiosCommitteeSize", "leiosQuorumStakeThreshold",
+            "maxEndorserBlockReferencesSize", "maxEndorserBlockTxsSize", "maxEndorserBlockExUnits",
+            "maxRefScriptSizePerEndorserBlock", "perasMinCandidateBlockAge", "perasHealingFactor", "perasCertBoost",
+            "perasTargetCommitteeSize", "perasBootstrapRound", "perasQuorumThresholdSafetyMargin",
+            "refInputsCostPerMultiAssetPolicy", "refInputsCostPerDatumByte");
+
     /** The whole model by reflection, as most certificates define no {@code equals}. Sets are sorted. */
     static String describe(Object value) {
         if (value == null || value instanceof String || value instanceof BigInteger || value instanceof Number
@@ -231,6 +242,8 @@ class CertificateOutcomesTest {
                     continue;
                 field.setAccessible(true);
                 try {
+                    if (field.get(value) == null && DIJKSTRA_FIELDS.contains(field.getName()))
+                        continue;
                     out.append(field.getName()).append('=').append(describe(field.get(value))).append(',');
                 } catch (IllegalAccessException e) {
                     throw new IllegalStateException(e);

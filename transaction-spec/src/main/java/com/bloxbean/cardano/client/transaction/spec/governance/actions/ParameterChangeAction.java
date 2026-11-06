@@ -38,7 +38,7 @@ public class ParameterChangeAction implements GovAction {
         else
             array.add(SimpleValue.NULL);
 
-        array.add(protocolParamUpdate.serialize());
+        array.add(protocolParamUpdate.serialize(era));
 
         if (policyHash != null && policyHash.length > 0) {
             if (policyHash.length != 28)

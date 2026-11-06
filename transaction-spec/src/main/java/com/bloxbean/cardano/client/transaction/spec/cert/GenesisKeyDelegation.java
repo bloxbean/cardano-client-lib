@@ -12,6 +12,8 @@ import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.requireBeforeDijkstra;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -28,6 +30,7 @@ public class GenesisKeyDelegation implements Certificate {
 
     @Override
     public Array serialize(Era era) throws CborSerializationException {
+        requireBeforeDijkstra(era, "A GenesisKeyDelegation certificate (tag 5)");
         Array array = new Array();
         array.add(new UnsignedInteger(5));
         array.add(new ByteString(genesisHash));

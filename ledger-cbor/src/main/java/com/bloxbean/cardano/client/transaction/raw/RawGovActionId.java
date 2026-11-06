@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.raw;
 
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
 
 /**
  * A governance action id as received, {@code [transaction_id, gov_action_index : uint .size 2]}.
@@ -34,6 +35,11 @@ public record RawGovActionId(CborSpan span, byte[] transactionId, int index) {
      * @throws CborRuntimeException if {@link #of(CborSpan)} rejects it, or it is indefinite
      */
     public static RawGovActionId lenient(CborSpan span) {
-        return of(RawItems.definite(span, RECORD.name()));
+        return lenient(span, null);
+    }
+
+    // As lenient(span), in an era: from Dijkstra it may be indefinite.
+    static RawGovActionId lenient(CborSpan span, Era era) {
+        return of(RawItems.definite(span, RECORD.name(), era));
     }
 }

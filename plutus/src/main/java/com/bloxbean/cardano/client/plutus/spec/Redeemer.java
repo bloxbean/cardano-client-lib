@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.raw.RawRedeemer;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.*;
@@ -111,11 +112,26 @@ public class Redeemer {
      *                                      integers in a definite array
      */
     public static Redeemer from(RawRedeemer raw) throws CborDeserializationException {
+        return from(raw, null);
+    }
+
+    /**
+     * Reads a redeemer as {@link #from(RawRedeemer)} does, in an era: from Dijkstra its execution units may be
+     * indefinite ({@link ExUnits#from(RawExUnits, Era)}).
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param raw a redeemer as received
+     * @param era the era it was read in, or null
+     * @return the model
+     * @throws CborDeserializationException as {@link #from(RawRedeemer)} does
+     */
+    public static Redeemer from(RawRedeemer raw, Era era) throws CborDeserializationException {
         Redeemer redeemer = new Redeemer();
         redeemer.tag = RedeemerTag.fromValue(raw.tag());
         redeemer.index = raw.unsignedIndex();
         redeemer.data = PlutusData.deserialize(raw.data().bytes());
-        redeemer.exUnits = ExUnits.from(raw.units());
+        redeemer.exUnits = ExUnits.from(raw.units(), era);
         return redeemer;
     }
 

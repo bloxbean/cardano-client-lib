@@ -94,12 +94,14 @@ public final class RawTx {
         return new RawTx(tx, items.get(0), items.get(1), aux(aux), items.get(flag).asBoolean(), true);
     }
 
-    // A sub-transaction of a Dijkstra body, [body, witnesses, aux / null], which has no flag.
-    static RawTx subTransaction(CborSpan tx) {
+    // A sub-transaction of a Dijkstra body, [body, witnesses, aux / null], which has no flag; read as lenient(byte[])
+    // reads a transaction when the body is lenient.
+    static RawTx subTransaction(CborSpan tx, boolean lenient) {
         List<CborSpan> items = RawItems.array(tx, "sub_transaction");
         if (items.size() != WITHOUT_FLAG_ITEMS)
             throw error("A sub-transaction has " + WITHOUT_FLAG_ITEMS + " items, found " + items.size(), tx);
-        return new RawTx(tx, items.get(0), items.get(1), aux(items.get(AUX_POSITION)), true, false);
+        return lenient ? new RawTx(tx, items)
+                : new RawTx(tx, items.get(0), items.get(1), aux(items.get(AUX_POSITION)), true, false);
     }
 
     /**

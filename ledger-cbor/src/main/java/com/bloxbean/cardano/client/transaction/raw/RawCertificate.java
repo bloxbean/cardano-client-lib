@@ -27,12 +27,14 @@ public final class RawCertificate {
     private final CborSpan span;
     private final PositionalRecord record;
     private final boolean lenient;
+    private final Era era;
 
     private RawCertificate(CertKind kind, CborSpan span, List<CborSpan> items, boolean lenient, Era era) {
         this.kind = kind;
         this.span = span;
         this.record = PositionalRecord.of(kind.record(items, era), span, items, !lenient);
         this.lenient = lenient;
+        this.era = era;
     }
 
     /**
@@ -74,7 +76,24 @@ public final class RawCertificate {
      * @throws CborRuntimeException if it is not an array or has too few items
      */
     public static RawCertificate lenient(CertKind kind, CborSpan span) {
-        return new RawCertificate(kind, span, RawItems.array(span, CertKind.RECORD.name()), true, null);
+        return lenient(kind, span, null);
+    }
+
+    /**
+     * Reads a certificate by position as {@link #lenient(CertKind, CborSpan)} does, in an era: from Dijkstra, a pool
+     * registration whose item after the VRF key hash is an array or null has a BLS key slot there ({@link #blsKey()}),
+     * as the ledger reads it.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param kind the kind to read it as
+     * @param span a certificate as encoded
+     * @param era  the era to read it in, or null to read it as {@link #lenient(CertKind, CborSpan)} does
+     * @return the view
+     * @throws CborRuntimeException if it is not an array or has too few items
+     */
+    public static RawCertificate lenient(CertKind kind, CborSpan span, Era era) {
+        return new RawCertificate(kind, span, RawItems.array(span, CertKind.RECORD.name()), true, era);
     }
 
     /**
@@ -170,7 +189,8 @@ public final class RawCertificate {
      * @return the anchor, or empty if it is null
      */
     public Optional<RawAnchor> anchor() {
-        return Optional.ofNullable(RawItems.nullable(record.value(FieldType.OPTIONAL_ANCHOR), RawAnchor::of));
+        return Optional.ofNullable(RawItems.nullable(record.value(FieldType.OPTIONAL_ANCHOR),
+                anchor -> RawAnchor.of(anchor, era)));
     }
 
     /**

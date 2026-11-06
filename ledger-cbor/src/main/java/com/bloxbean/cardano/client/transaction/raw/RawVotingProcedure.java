@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.raw;
 
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
 
 import java.util.Optional;
 
@@ -14,9 +15,11 @@ public final class RawVotingProcedure {
             FieldType.OPTIONAL_ANCHOR);
 
     private final PositionalRecord record;
+    private final Era era;
 
-    private RawVotingProcedure(PositionalRecord record) {
+    private RawVotingProcedure(PositionalRecord record, Era era) {
         this.record = record;
+        this.era = era;
     }
 
     /**
@@ -25,7 +28,7 @@ public final class RawVotingProcedure {
      * @throws CborRuntimeException if it is not an array of two items
      */
     public static RawVotingProcedure of(CborSpan span) {
-        return new RawVotingProcedure(PositionalRecord.of(RECORD, span, true));
+        return new RawVotingProcedure(PositionalRecord.of(RECORD, span, true), null);
     }
 
     /**
@@ -37,7 +40,13 @@ public final class RawVotingProcedure {
      * @throws CborRuntimeException if {@link #of(CborSpan)} rejects it, or it is indefinite
      */
     public static RawVotingProcedure lenient(CborSpan span) {
-        return of(RawItems.definite(span, RECORD.name()));
+        return lenient(span, null);
+    }
+
+    // As lenient(span), in an era: from Dijkstra it, and its anchor, may be indefinite.
+    static RawVotingProcedure lenient(CborSpan span, Era era) {
+        return new RawVotingProcedure(PositionalRecord.of(RECORD, RawItems.definite(span, RECORD.name(), era), true),
+                era);
     }
 
     /**
@@ -51,6 +60,7 @@ public final class RawVotingProcedure {
      * @return the anchor, or empty if it is null
      */
     public Optional<RawAnchor> anchor() {
-        return Optional.ofNullable(RawItems.nullable(record.value(FieldType.OPTIONAL_ANCHOR), RawAnchor::of));
+        return Optional.ofNullable(RawItems.nullable(record.value(FieldType.OPTIONAL_ANCHOR),
+                anchor -> RawAnchor.of(anchor, era)));
     }
 }

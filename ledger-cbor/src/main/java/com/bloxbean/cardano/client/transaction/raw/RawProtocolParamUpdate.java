@@ -170,7 +170,8 @@ public final class RawProtocolParamUpdate {
     }
 
     public Optional<RawExUnitPrices> executionCosts() {
-        return value(ProtocolParamField.EXECUTION_COSTS).map(lenient ? RawExUnitPrices::lenient : RawExUnitPrices::of);
+        return value(ProtocolParamField.EXECUTION_COSTS)
+                .map(item -> lenient ? RawExUnitPrices.lenient(item, era) : RawExUnitPrices.of(item));
     }
 
     public Optional<RawExUnits> maxTxExUnits() {
@@ -243,24 +244,253 @@ public final class RawProtocolParamUpdate {
         return rational(ProtocolParamField.MIN_FEE_REF_SCRIPT_COST_PER_BYTE);
     }
 
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the maximum size of the reference scripts of a block (key 34), its 64 bits
+     */
+    public OptionalLong maxRefScriptSizePerBlock() {
+        return word(since(ProtocolParamField.MAX_REF_SCRIPT_SIZE_PER_BLOCK));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the maximum size of the reference scripts of a transaction (key 35), its 64 bits
+     */
+    public OptionalLong maxRefScriptSizePerTx() {
+        return word(since(ProtocolParamField.MAX_REF_SCRIPT_SIZE_PER_TX));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the reference script cost stride (key 36), its 64 bits
+     */
+    public OptionalLong refScriptCostStride() {
+        return word(since(ProtocolParamField.REF_SCRIPT_COST_STRIDE));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the reference script cost multiplier (key 37)
+     */
+    public Optional<UnitInterval> refScriptCostMultiplier() {
+        return rational(since(ProtocolParamField.REF_SCRIPT_COST_MULTIPLIER));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the maximum pledge leverage (key 38): empty if absent, and an empty value if it is null, no maximum
+     */
+    public Optional<Optional<UnitInterval>> maxPledgeLeverage() {
+        return since(ProtocolParamField.MAX_PLEDGE_LEVERAGE)
+                .map(item -> Optional.ofNullable(RawItems.nullable(item, value -> RawItems.rational(value, lenient))));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the minimum pool margin (key 39)
+     */
+    public Optional<UnitInterval> minPoolMargin() {
+        return rational(since(ProtocolParamField.MIN_POOL_MARGIN));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Leios announcement period length in milliseconds (key 40), its 64 bits
+     */
+    public OptionalLong leiosAnnouncementPeriodLength() {
+        return word(since(ProtocolParamField.LEIOS_ANNOUNCEMENT_PERIOD_LENGTH));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Leios vote period length in milliseconds (key 41), its 64 bits
+     */
+    public OptionalLong leiosVotePeriodLength() {
+        return word(since(ProtocolParamField.LEIOS_VOTE_PERIOD_LENGTH));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Leios diffusion period length in milliseconds (key 42), its 64 bits
+     */
+    public OptionalLong leiosDiffusionPeriodLength() {
+        return word(since(ProtocolParamField.LEIOS_DIFFUSION_PERIOD_LENGTH));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Leios committee size (key 43)
+     */
+    public OptionalInt leiosCommitteeSize() {
+        return small(since(ProtocolParamField.LEIOS_COMMITTEE_SIZE));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Leios quorum stake threshold (key 44)
+     */
+    public Optional<UnitInterval> leiosQuorumStakeThreshold() {
+        return rational(since(ProtocolParamField.LEIOS_QUORUM_STAKE_THRESHOLD));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the maximum size of an endorser block's references (key 45), its 64 bits
+     */
+    public OptionalLong maxEndorserBlockReferencesSize() {
+        return word(since(ProtocolParamField.MAX_ENDORSER_BLOCK_REFERENCES_SIZE));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the maximum size of an endorser block's transactions (key 46), its 64 bits
+     */
+    public OptionalLong maxEndorserBlockTxsSize() {
+        return word(since(ProtocolParamField.MAX_ENDORSER_BLOCK_TXS_SIZE));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the maximum execution units of an endorser block (key 47)
+     */
+    public Optional<RawExUnits> maxEndorserBlockExUnits() {
+        return since(ProtocolParamField.MAX_ENDORSER_BLOCK_EX_UNITS).map(RawExUnits::of);
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the maximum size of the reference scripts of an endorser block (key 48), its 64 bits
+     */
+    public OptionalLong maxRefScriptSizePerEndorserBlock() {
+        return word(since(ProtocolParamField.MAX_REF_SCRIPT_SIZE_PER_ENDORSER_BLOCK));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Peras minimum candidate block age in slots (key 49), its 64 bits
+     */
+    public OptionalLong perasMinCandidateBlockAge() {
+        return word(since(ProtocolParamField.PERAS_MIN_CANDIDATE_BLOCK_AGE));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Peras healing factor (key 50)
+     */
+    public Optional<UnitInterval> perasHealingFactor() {
+        return rational(since(ProtocolParamField.PERAS_HEALING_FACTOR));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Peras certificate boost (key 51)
+     */
+    public OptionalInt perasCertBoost() {
+        return small(since(ProtocolParamField.PERAS_CERT_BOOST));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Peras target committee size (key 52)
+     */
+    public OptionalInt perasTargetCommitteeSize() {
+        return small(since(ProtocolParamField.PERAS_TARGET_COMMITTEE_SIZE));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Peras bootstrap round (key 53), its 64 bits: empty if absent, and an empty value if it is null
+     */
+    public Optional<OptionalLong> perasBootstrapRound() {
+        return since(ProtocolParamField.PERAS_BOOTSTRAP_ROUND).map(item -> item.isNull() ? OptionalLong.empty()
+                : OptionalLong.of(RawItems.unsignedLong(item)));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Peras quorum threshold safety margin (key 54)
+     */
+    public Optional<UnitInterval> perasQuorumThresholdSafetyMargin() {
+        return rational(since(ProtocolParamField.PERAS_QUORUM_THRESHOLD_SAFETY_MARGIN));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the fee per multi-asset policy id in reference inputs (key 55)
+     */
+    public Optional<BigInteger> refInputsCostPerMultiAssetPolicy() {
+        return coin(since(ProtocolParamField.REF_INPUTS_COST_PER_MULTI_ASSET_POLICY));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the fee per datum byte in reference inputs (key 56)
+     */
+    public Optional<BigInteger> refInputsCostPerDatumByte() {
+        return coin(since(ProtocolParamField.REF_INPUTS_COST_PER_DATUM_BYTE));
+    }
+
     // A coin; when lenient, any integer or bignum, and absent if it is no number.
     private Optional<BigInteger> coin(ProtocolParamField field) {
-        return value(field).map(item -> RawItems.coin(item, lenient));
+        return coin(value(field));
+    }
+
+    private Optional<BigInteger> coin(Optional<CborSpan> value) {
+        return value.map(item -> RawItems.coin(item, lenient));
     }
 
     // An unsigned integer whose range is not checked, in 64 bits.
     private OptionalLong word(ProtocolParamField field) {
-        Optional<CborSpan> value = value(field);
+        return word(value(field));
+    }
+
+    private OptionalLong word(Optional<CborSpan> value) {
         return value.isPresent() ? OptionalLong.of(RawItems.unsignedLong(value.get())) : OptionalLong.empty();
     }
 
     private OptionalInt small(ProtocolParamField field) {
-        Optional<CborSpan> value = value(field);
+        return small(value(field));
+    }
+
+    private OptionalInt small(Optional<CborSpan> value) {
         return value.isPresent() ? OptionalInt.of(RawItems.smallUnsigned(value.get())) : OptionalInt.empty();
     }
 
     private Optional<UnitInterval> rational(ProtocolParamField field) {
-        return value(field).map(item -> RawItems.rational(item, lenient));
+        return rational(value(field));
+    }
+
+    private Optional<UnitInterval> rational(Optional<CborSpan> value) {
+        return value.map(item -> RawItems.rational(item, lenient));
+    }
+
+    // A field of an era after the view's is an unknown key there, so it reads as absent, as a field of Dijkstra does
+    // before Dijkstra. The other accessors read their field in any era.
+    private Optional<CborSpan> since(ProtocolParamField field) {
+        return field.spec().startsAfter(era) ? Optional.empty() : value(field);
     }
 
     private Optional<CborSpan> value(ProtocolParamField field) {

@@ -8,6 +8,8 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.raw.RawProposal;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
@@ -39,6 +41,19 @@ public class ProposalProcedure {
     private Anchor anchor;
 
     public DataItem serialize() {
+        return serialize(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    /**
+     * Writes the proposal in an era, which its governance action is written in: a parameter update's Dijkstra keys
+     * only in Dijkstra.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param era the era to write it in
+     * @return the proposal
+     */
+    public DataItem serialize(Era era) {
         Objects.requireNonNull(deposit);
         Objects.requireNonNull(rewardAccount);
         Objects.requireNonNull(govAction);
@@ -54,7 +69,7 @@ public class ProposalProcedure {
             throw new CborRuntimeException("Unable to get address bytes from rewardAddress", e);
         }
 
-        array.add(govAction.serialize());
+        array.add(govAction.serialize(era));
         array.add(anchor.serialize());
 
         return array;

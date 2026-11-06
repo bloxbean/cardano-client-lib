@@ -1,8 +1,11 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -10,20 +13,24 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.spec.NetworkId;
+import com.bloxbean.cardano.client.transaction.raw.RawAccountBalanceInterval;
 import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.raw.RawCredential;
 import com.bloxbean.cardano.client.transaction.raw.RawInput;
 import com.bloxbean.cardano.client.transaction.raw.RawMultiAsset;
 import com.bloxbean.cardano.client.transaction.raw.RawOutput;
 import com.bloxbean.cardano.client.transaction.raw.RawProposal;
-import com.bloxbean.cardano.client.transaction.raw.RawTx;
 import com.bloxbean.cardano.client.transaction.raw.RawTxBody;
 import com.bloxbean.cardano.client.transaction.raw.RawUpdate;
 import com.bloxbean.cardano.client.transaction.raw.RawWithdrawal;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
 import com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures;
+import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.transaction.util.UniqueList;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -31,15 +38,18 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.isDijkstra;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.requireDijkstra;
 
 @Data
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor
 @Builder
 public class TransactionBody {
@@ -91,11 +101,93 @@ public class TransactionBody {
     private BigInteger currentTreasuryValue; //21
     private BigInteger donation; //22
 
+    //Dijkstra
+    /**
+     * The guards (key 14), written in Dijkstra as credentials in a set with tag 258, in list order. Key 14 holds the
+     * guards or {@link #requiredSigners}, not both.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<Credential> guards; //14
+
+    /**
+     * The sub-transactions (key 23) of a top-level body, written in Dijkstra as an array in list order.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<SubTransaction> subTransactions; //23
+
+    /**
+     * The required top-level guards (key 24), written in Dijkstra as a map in Haskell's order of credentials.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<RequiredGuard> requiredTopLevelGuards; //24
+
+    /**
+     * The direct deposits (key 25), a reward address and a coin each, written in Dijkstra as a map in Haskell's order
+     * of reward accounts.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<Withdrawal> directDeposits; //25
+
+    /**
+     * The account balance intervals (key 26), written in Dijkstra as a map in Haskell's order of reward accounts.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<AccountBalanceInterval> accountBalanceIntervals; //26
+
+    /**
+     * The starting account balance intervals (key 27) of a top-level body, written in Dijkstra as a map in Haskell's
+     * order of reward accounts.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<AccountBalanceInterval> startingAccountBalanceIntervals; //27
+
+    /**
+     * The constructor of the fields before Dijkstra, kept for source and binary compatibility; use the builder for the
+     * Dijkstra fields.
+     */
+    @SuppressWarnings("java:S107") // the old signature, kept for callers
+    public TransactionBody(List<TransactionInput> inputs, List<TransactionOutput> outputs, BigInteger fee, long ttl,
+                           List<Certificate> certs, List<Withdrawal> withdrawals, Update update,
+                           byte[] auxiliaryDataHash, long validityStartInterval, List<MultiAsset> mint,
+                           byte[] scriptDataHash, List<TransactionInput> collateral, List<byte[]> requiredSigners,
+                           NetworkId networkId, TransactionOutput collateralReturn, BigInteger totalCollateral,
+                           List<TransactionInput> referenceInputs, VotingProcedures votingProcedures,
+                           List<ProposalProcedure> proposalProcedures, BigInteger currentTreasuryValue,
+                           BigInteger donation) {
+        this(inputs, outputs, fee, ttl, certs, withdrawals, update, auxiliaryDataHash, validityStartInterval, mint,
+                scriptDataHash, collateral, requiredSigners, networkId, collateralReturn, totalCollateral,
+                referenceInputs, votingProcedures, proposalProcedures, currentTreasuryValue, donation, null, null,
+                null, null, null, null);
+    }
+
     public Map serialize() throws CborSerializationException, AddressExcepion {
         return serialize(EraSerializationConfig.INSTANCE.getEra());
     }
 
     public Map serialize(Era era) throws CborSerializationException, AddressExcepion {
+        return serialize(era, false);
+    }
+
+    /**
+     * Writes the body of a top-level transaction or, from Dijkstra, of a sub-transaction, which has no fee (its default
+     * of zero is not written), collateral, collateral return, total collateral, sub-transactions or starting intervals.
+     * A field the era has no place for is an error, not dropped (ADR 0004 D1).
+     */
+    Map serialize(Era era, boolean subTransaction) throws CborSerializationException, AddressExcepion {
+        if (subTransaction)
+            checkSubTransactionBody();
         Map bodyMap = new Map();
 
         Array inputsArray = createArray(era);
@@ -112,10 +204,12 @@ public class TransactionBody {
         }
         bodyMap.put(new UnsignedInteger(1), outputsArray);
 
-        if (fee != null) {
-            bodyMap.put(new UnsignedInteger(2), new UnsignedInteger(fee)); //fee
-        } else {
-            throw new CborSerializationException("Fee cannot be null");
+        if (!subTransaction) { //a sub-transaction has no fee
+            if (fee != null) {
+                bodyMap.put(new UnsignedInteger(2), new UnsignedInteger(fee)); //fee
+            } else {
+                throw new CborSerializationException("Fee cannot be null");
+            }
         }
 
         if (ttl != 0) {
@@ -163,6 +257,18 @@ public class TransactionBody {
                 collateralArray.add(input);
             }
             bodyMap.put(new UnsignedInteger(13), collateralArray);
+        }
+
+        //guards: from Dijkstra, credentials in key 14
+        if (guards != null && !guards.isEmpty()) {
+            requireDijkstra(era, "TransactionBody.guards");
+            if (requiredSigners != null && !requiredSigners.isEmpty())
+                throw new CborSerializationException(
+                        "TransactionBody.requiredSigners and guards both fill key 14: set only one of them");
+            Array guardArray = createArray(era);
+            for (Credential guard : guards)
+                guardArray.add(CredentialSerializer.serialize(guard));
+            bodyMap.put(new UnsignedInteger(14), guardArray);
         }
 
         //required_signers
@@ -215,7 +321,9 @@ public class TransactionBody {
         if (proposalProcedures != null && proposalProcedures.size() > 0) {
             Array proposalProceduresArray = createArray(era);
             for (var proposalProcedure : proposalProcedures) {
-                proposalProceduresArray.add(proposalProcedure.serialize());
+                //before Dijkstra as before ADR 0004, in the configured era
+                proposalProceduresArray.add(isDijkstra(era) ? proposalProcedure.serialize(era)
+                        : proposalProcedure.serialize());
             }
             bodyMap.put(new UnsignedInteger(20), proposalProceduresArray);
         }
@@ -236,7 +344,67 @@ public class TransactionBody {
             bodyMap.put(new UnsignedInteger(22), new UnsignedInteger(donation));
         }
 
+        serializeDijkstraFields(bodyMap, era);
         return bodyMap;
+    }
+
+    // Keys 23 to 27.
+    private void serializeDijkstraFields(Map bodyMap, Era era) throws CborSerializationException, AddressExcepion {
+        if (subTransactions != null && !subTransactions.isEmpty()) {
+            requireDijkstra(era, "TransactionBody.subTransactions");
+            Array subTransactionArray = new Array();
+            for (SubTransaction subTransaction : subTransactions)
+                subTransactionArray.add(subTransaction.serialize(era));
+            bodyMap.put(new UnsignedInteger(23), subTransactionArray);
+        }
+
+        if (requiredTopLevelGuards != null && !requiredTopLevelGuards.isEmpty()) {
+            requireDijkstra(era, "TransactionBody.requiredTopLevelGuards");
+            List<RequiredGuard> sorted = new ArrayList<>(requiredTopLevelGuards);
+            sorted.sort(Comparator.comparing(RequiredGuard::getCredential, Comparators.CREDENTIAL));
+            Map guardMap = new SortedMap();
+            for (RequiredGuard guard : sorted)
+                guardMap.put(CredentialSerializer.serialize(guard.getCredential()),
+                        guard.getData() != null ? guard.getData().serialize() : SimpleValue.NULL);
+            bodyMap.put(new UnsignedInteger(24), guardMap);
+        }
+
+        if (directDeposits != null && !directDeposits.isEmpty()) {
+            requireDijkstra(era, "TransactionBody.directDeposits");
+            bodyMap.put(new UnsignedInteger(25), Withdrawal.serializeInLedgerOrder(directDeposits));
+        }
+
+        putIntervals(bodyMap, 26, "TransactionBody.accountBalanceIntervals", accountBalanceIntervals, era);
+        putIntervals(bodyMap, 27, "TransactionBody.startingAccountBalanceIntervals", startingAccountBalanceIntervals,
+                era);
+    }
+
+    private static void putIntervals(Map bodyMap, int key, String field, List<AccountBalanceInterval> intervals,
+                                     Era era) throws CborSerializationException, AddressExcepion {
+        if (intervals == null || intervals.isEmpty())
+            return;
+        requireDijkstra(era, field);
+        List<AccountBalanceInterval> sorted = new ArrayList<>(intervals);
+        sorted.sort(Comparator.comparing(AccountBalanceInterval::getRewardAddress, Comparators.REWARD_ADDRESS));
+        Map intervalMap = new SortedMap();
+        for (AccountBalanceInterval interval : sorted)
+            intervalMap.put(new ByteString(AddressUtil.addressToBytes(interval.getRewardAddress())),
+                    interval.serializeInterval());
+        bodyMap.put(new UnsignedInteger(key), intervalMap);
+    }
+
+    // A sub-transaction body has none of the top-level-only fields: a fee other than zero, collateral, a collateral
+    // return, total collateral, sub-transactions or starting intervals.
+    private void checkSubTransactionBody() throws CborSerializationException {
+        String field = fee != null && fee.signum() != 0 ? "fee"
+                : collateral != null && !collateral.isEmpty() ? "collateral"
+                : collateralReturn != null ? "collateralReturn"
+                : totalCollateral != null ? "totalCollateral"
+                : subTransactions != null && !subTransactions.isEmpty() ? "subTransactions"
+                : startingAccountBalanceIntervals != null && !startingAccountBalanceIntervals.isEmpty()
+                ? "startingAccountBalanceIntervals" : null;
+        if (field != null)
+            throw new CborSerializationException("A sub-transaction body has no " + field);
     }
 
     public static TransactionBody deserialize(Map bodyMap) throws CborDeserializationException {
@@ -247,11 +415,8 @@ public class TransactionBody {
         }
     }
 
-    static TransactionBody from(RawTx tx) throws CborDeserializationException {
-        return from(tx.body(RawModels.READ_IN));
-    }
-
-    private static TransactionBody from(RawTxBody raw) throws CborDeserializationException {
+    // The body in the view's era: the Dijkstra fields are read only in Dijkstra.
+    static TransactionBody from(RawTxBody raw) throws CborDeserializationException {
         TransactionBody body = new TransactionBody();
 
         body.setInputs(inputs(raw.inputs()));
@@ -315,7 +480,29 @@ public class TransactionBody {
         raw.currentTreasury().ifPresent(body::setCurrentTreasuryValue);
         raw.donation().ifPresent(body::setDonation);
 
+        Optional<List<RawCredential>> guards = raw.guards();
+        if (guards.isPresent())
+            body.setGuards(RawModels.mapAll(guards.get(), RawModels::credential));
+        body.setSubTransactions(orNull(raw.subTransactions(), sub -> SubTransaction.from(sub, raw.era())));
+        body.setRequiredTopLevelGuards(orNull(raw.requiredTopLevelGuards(), guard -> new RequiredGuard(
+                RawModels.credential(guard.credential()),
+                guard.data() != null ? RawModels.toPlutusData(guard.data()) : null)));
+        body.setDirectDeposits(orNull(raw.directDeposits(), Withdrawal::from));
+        body.setAccountBalanceIntervals(orNull(raw.accountBalanceIntervals(), TransactionBody::interval));
+        body.setStartingAccountBalanceIntervals(orNull(raw.startingAccountBalanceIntervals(),
+                TransactionBody::interval));
         return body;
+    }
+
+    // The models of a Dijkstra field's entries, or null if it has none.
+    private static <R, M> List<M> orNull(List<R> raw, RawModels.Mapper<R, M> mapper)
+            throws CborDeserializationException {
+        return raw.isEmpty() ? null : RawModels.mapAll(raw, mapper);
+    }
+
+    private static AccountBalanceInterval interval(RawAccountBalanceInterval raw) {
+        return new AccountBalanceInterval(RawModels.rewardAddress(raw.rewardAccount()), raw.exact(), raw.lower(),
+                raw.upper());
     }
 
     private static List<TransactionInput> inputs(List<RawInput> raw) {

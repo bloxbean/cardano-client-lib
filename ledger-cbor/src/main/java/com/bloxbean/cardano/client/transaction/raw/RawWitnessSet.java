@@ -123,7 +123,7 @@ public final class RawWitnessSet {
      */
     public Optional<List<RawRedeemer>> redeemers() {
         return value(WitnessSetField.REDEEMERS_FIELD)
-                .map(field -> lenient ? RawRedeemer.readLenient(field, tolerant) : RawRedeemer.read(field));
+                .map(field -> lenient ? RawRedeemer.readLenient(field, tolerant, era) : RawRedeemer.read(field));
     }
 
     /**

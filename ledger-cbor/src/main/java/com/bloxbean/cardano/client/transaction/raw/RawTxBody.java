@@ -107,7 +107,7 @@ public final class RawTxBody {
     private RawOutput output(CborSpan output) {
         if (tolerant)
             return RawOutput.tolerant(output);
-        return lenient ? RawOutput.lenient(output) : RawOutput.of(output);
+        return lenient ? RawOutput.lenient(output, era) : RawOutput.of(output);
     }
 
     public Optional<BigInteger> fee() {
@@ -223,7 +223,7 @@ public final class RawTxBody {
 
     public Optional<RawVotingProcedures> votingProcedures() {
         return value(TxBodyField.VOTING_PROCEDURES)
-                .map(lenient ? RawVotingProcedures::lenient : RawVotingProcedures::of);
+                .map(field -> lenient ? RawVotingProcedures.lenient(field, era) : RawVotingProcedures.of(field));
     }
 
     /**
@@ -264,12 +264,14 @@ public final class RawTxBody {
      *
      * @return the sub-transactions of a Dijkstra body (key 23) in encoded order, each {@code [body, witnesses, aux /
      * null]}; none if the field is absent or the view's era is before Dijkstra. A sub-transaction is read as
-     * {@link RawTx#of(byte[])} reads one, and its id is the hash of its body
+     * {@link RawTx#of(byte[])} reads one, or as {@link RawTx#lenient(byte[])} does if this view is lenient, and its id
+     * is the hash of its body
      * @throws CborRuntimeException if one is not an array of three items, or its body or witness set repeats a key
      */
     public List<RawTx> subTransactions() {
         return since(TxBodyField.SUB_TRANSACTIONS)
-                .map(field -> items(field, "sub-transactions", RawTx::subTransaction)).orElse(List.of());
+                .map(field -> items(field, "sub-transactions", tx -> RawTx.subTransaction(tx, lenient)))
+                .orElse(List.of());
     }
 
     /**

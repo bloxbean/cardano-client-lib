@@ -12,6 +12,8 @@ import com.bloxbean.cardano.client.transaction.raw.RawWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.transaction.util.UniqueList;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,9 +24,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.requireDijkstra;
 
 @Data
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor
 @Builder
 public class TransactionWitnessSet {
@@ -52,6 +55,26 @@ public class TransactionWitnessSet {
 
     @Builder.Default
     private List<PlutusV3Script> plutusV3Scripts = new UniqueList<>();
+
+    /**
+     * The Plutus V4 scripts (key 8), written only in Dijkstra.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<PlutusV4Script> plutusV4Scripts;
+
+    /**
+     * The constructor of the fields before Dijkstra, kept for source and binary compatibility; use the builder for the
+     * Plutus V4 scripts.
+     */
+    public TransactionWitnessSet(List<VkeyWitness> vkeyWitnesses, List<NativeScript> nativeScripts,
+                                 List<BootstrapWitness> bootstrapWitnesses, List<PlutusV1Script> plutusV1Scripts,
+                                 List<PlutusData> plutusDataList, List<Redeemer> redeemers,
+                                 List<PlutusV2Script> plutusV2Scripts, List<PlutusV3Script> plutusV3Scripts) {
+        this(vkeyWitnesses, nativeScripts, bootstrapWitnesses, plutusV1Scripts, plutusDataList, redeemers,
+                plutusV2Scripts, plutusV3Scripts, null);
+    }
 
     public Map serialize() throws CborSerializationException {
         return serialize(EraSerializationConfig.INSTANCE.getEra());
@@ -153,6 +176,15 @@ public class TransactionWitnessSet {
             witnessMap.put(new UnsignedInteger(7), plutusV3ScriptArray);
         }
 
+        //Plutus v4 script -- Dijkstra era
+        if (plutusV4Scripts != null && !plutusV4Scripts.isEmpty()) {
+            requireDijkstra(era, "TransactionWitnessSet.plutusV4Scripts");
+            Array plutusV4ScriptArray = createArray(era);
+            for (PlutusV4Script plutusV4Script : plutusV4Scripts)
+                plutusV4ScriptArray.add(plutusV4Script.serializeAsDataItem());
+            witnessMap.put(new UnsignedInteger(8), plutusV4ScriptArray);
+        }
+
         return witnessMap;
     }
 
@@ -177,14 +209,16 @@ public class TransactionWitnessSet {
         set.setPlutusV1Scripts(field(raw.plutusV1Scripts(), script -> (PlutusV1Script) RawModels.toScript(script),
                 set.getPlutusV1Scripts()));
         set.setPlutusDataList(field(raw.datums(), RawModels::toPlutusData, set.getPlutusDataList()));
-        set.setRedeemers(field(raw.redeemers(), Redeemer::from, set.getRedeemers()));
+        set.setRedeemers(field(raw.redeemers(), redeemer -> Redeemer.from(redeemer, raw.era()), set.getRedeemers()));
         set.setPlutusV2Scripts(field(raw.plutusV2Scripts(), script -> (PlutusV2Script) RawModels.toScript(script),
                 set.getPlutusV2Scripts()));
         set.setPlutusV3Scripts(field(raw.plutusV3Scripts(), script -> (PlutusV3Script) RawModels.toScript(script),
                 set.getPlutusV3Scripts()));
+        set.setPlutusV4Scripts(field(raw.plutusV4Scripts(), script -> (PlutusV4Script) RawModels.toScript(script),
+                null));
         boolean empty = set.vkeyWitnesses == null && set.nativeScripts == null && set.bootstrapWitnesses == null
                 && set.plutusV1Scripts == null && set.plutusV2Scripts == null && set.plutusV3Scripts == null
-                && set.plutusDataList == null && set.redeemers == null;
+                && set.plutusV4Scripts == null && set.plutusDataList == null && set.redeemers == null;
         return empty ? null : set;
     }
 

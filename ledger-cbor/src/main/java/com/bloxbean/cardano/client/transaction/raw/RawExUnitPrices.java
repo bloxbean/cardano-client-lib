@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.raw;
 
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 
 /**
@@ -35,7 +36,12 @@ public record RawExUnitPrices(CborSpan span, UnitInterval memory, UnitInterval s
      * @throws CborRuntimeException if they are not a definite array starting with two rationals
      */
     public static RawExUnitPrices lenient(CborSpan span) {
-        return read(span, PositionalRecord.of(RECORD, RawItems.definite(span, RECORD.name()), false), true);
+        return lenient(span, null);
+    }
+
+    // As lenient(span), in an era: from Dijkstra they may be indefinite.
+    static RawExUnitPrices lenient(CborSpan span, Era era) {
+        return read(span, PositionalRecord.of(RECORD, RawItems.definite(span, RECORD.name(), era), false), true);
     }
 
     private static RawExUnitPrices read(CborSpan span, PositionalRecord record, boolean lenient) {

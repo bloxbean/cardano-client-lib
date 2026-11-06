@@ -102,7 +102,7 @@ public final class RawGovAction {
      */
     public Optional<RawGovActionId> previousActionId() {
         return Optional.ofNullable(RawItems.nullable(record.value(FieldType.OPTIONAL_GOV_ACTION_ID),
-                lenient ? RawGovActionId::lenient : RawGovActionId::of));
+                lenient ? id -> RawGovActionId.lenient(id, era) : RawGovActionId::of));
     }
 
     /**
@@ -172,6 +172,6 @@ public final class RawGovAction {
 
     public RawConstitution constitution() {
         CborSpan constitution = record.value(FieldType.CONSTITUTION);
-        return lenient ? RawConstitution.lenient(constitution) : RawConstitution.of(constitution);
+        return lenient ? RawConstitution.lenient(constitution, era) : RawConstitution.of(constitution);
     }
 }

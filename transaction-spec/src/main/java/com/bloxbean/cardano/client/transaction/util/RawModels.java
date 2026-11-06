@@ -14,6 +14,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV4Script;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.raw.RawAnchor;
@@ -21,6 +22,7 @@ import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.raw.RawCredential;
 import com.bloxbean.cardano.client.transaction.raw.RawDRep;
 import com.bloxbean.cardano.client.transaction.raw.RawDatum;
+import com.bloxbean.cardano.client.transaction.raw.RawItems;
 import com.bloxbean.cardano.client.transaction.raw.RawScript;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
@@ -85,9 +87,9 @@ public final class RawModels {
      * {@link RawScript#hash()}.
      *
      * @param script the script as received
-     * @return a {@link NativeScript}, {@link PlutusV1Script}, {@link PlutusV2Script} or {@link PlutusV3Script}
-     * @throws CborDeserializationException if the bytes are not a script of this type, or it is a Plutus V4 script,
-     *                                      which has no model
+     * @return a {@link NativeScript}, {@link PlutusV1Script}, {@link PlutusV2Script}, {@link PlutusV3Script} or
+     * {@link PlutusV4Script} (experimental: Dijkstra is not final; this may change in any release)
+     * @throws CborDeserializationException if the bytes are not a script of this type
      */
     public static Script toScript(RawScript script) throws CborDeserializationException {
         if (script.type() == 0) {
@@ -107,8 +109,7 @@ public final class RawModels {
             case 3:
                 return PlutusV3Script.deserialize(bytes);
             default:
-                throw new CborDeserializationException("A Plutus V" + script.type() + " script has no model, at offset "
-                        + script.span().offset());
+                return PlutusV4Script.deserialize(bytes);
         }
     }
 
@@ -169,11 +170,12 @@ public final class RawModels {
     /**
      * @param anchor an anchor as received
      * @return the anchor
-     * @throws CborRuntimeException if it has an indefinite length, which this module's models reject: the ledger
-     *                              decodes one with {@code RecD}, up to protocol version 11 (Conway)
+     * @throws CborRuntimeException if it has an indefinite length and was read without an era or before Dijkstra:
+     *                              the ledger decodes one with {@code RecD} up to protocol version 11 (Conway)
+     *                              ({@link RawItems#indefiniteRecordsAllowed(Era)})
      */
     public static Anchor anchor(RawAnchor anchor) {
-        if (anchor.span().isIndefinite())
+        if (!RawItems.indefiniteRecordsAllowed(anchor.era()) && anchor.span().isIndefinite())
             throw new CborRuntimeException("Invalid anchor: expected a definite-length array");
         return new Anchor(anchor.url(), anchor.dataHash());
     }

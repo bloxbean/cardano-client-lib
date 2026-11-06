@@ -67,7 +67,12 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, 
      * an                              unsigned integer
      */
     public static RawRedeemer lenient(CborSpan key, CborSpan value) {
-        if (RawItems.indefiniteWhenDecoded(value))
+        return lenient(key, value, null);
+    }
+
+    // As lenient(key, value), in an era: from Dijkstra the value may be indefinite.
+    private static RawRedeemer lenient(CborSpan key, CborSpan value, Era era) {
+        if (!RawItems.indefiniteRecordsAllowed(era) && RawItems.indefiniteWhenDecoded(value))
             throw error("Invalid redeemer value: expected a definite-length array", value);
         return tolerant(key, value);
     }
@@ -92,8 +97,8 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, 
         return redeemers;
     }
 
-    // A tolerant reading lets a map value be indefinite.
-    static List<RawRedeemer> readLenient(CborSpan field, boolean tolerant) {
+    // A tolerant reading lets a map value be indefinite, and so does a reading in Dijkstra.
+    static List<RawRedeemer> readLenient(CborSpan field, boolean tolerant, Era era) {
         List<RawRedeemer> redeemers = new ArrayList<>();
         int major = field.majorType();
         if (major == MAJOR_ARRAY) {
@@ -102,7 +107,7 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, 
         } else if (major == MAJOR_MAP) {
             for (Map.Entry<CborSpan, CborSpan> entry : RawItems.distinctKeys(field, MAP.name()))
                 redeemers.add(tolerant ? tolerant(entry.getKey(), entry.getValue())
-                        : lenient(entry.getKey(), entry.getValue()));
+                        : lenient(entry.getKey(), entry.getValue(), era));
         }
         return redeemers;
     }

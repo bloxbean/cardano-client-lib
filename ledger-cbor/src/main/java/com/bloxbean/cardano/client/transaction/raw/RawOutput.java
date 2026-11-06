@@ -38,19 +38,21 @@ public final class RawOutput {
     private final boolean tolerant;
     private final PositionalRecord legacy;
     private final List<Map.Entry<CborSpan, CborSpan>> fields;
+    private final Era era;
 
     private RawOutput(CborSpan span, boolean lenient, PositionalRecord legacy,
-                      List<Map.Entry<CborSpan, CborSpan>> fields) {
-        this(span, lenient, false, legacy, fields);
+                      List<Map.Entry<CborSpan, CborSpan>> fields, Era era) {
+        this(span, lenient, false, legacy, fields, era);
     }
 
     private RawOutput(CborSpan span, boolean lenient, boolean tolerant, PositionalRecord legacy,
-                      List<Map.Entry<CborSpan, CborSpan>> fields) {
+                      List<Map.Entry<CborSpan, CborSpan>> fields, Era era) {
         this.span = span;
         this.lenient = lenient;
         this.tolerant = tolerant;
         this.legacy = legacy;
         this.fields = fields;
+        this.era = era;
     }
 
     /**
@@ -62,8 +64,8 @@ public final class RawOutput {
         boolean array = output.majorType() == MAJOR_ARRAY;
         if (array && output.isTagged())
             throw RawTx.error("A legacy output has no tag", output);
-        RawOutput read = array ? new RawOutput(output, false, PositionalRecord.of(LEGACY, output, true), null)
-                : new RawOutput(output, false, null, RawTx.record(output, "output"));
+        RawOutput read = array ? new RawOutput(output, false, PositionalRecord.of(LEGACY, output, true), null, null)
+                : new RawOutput(output, false, null, RawTx.record(output, "output"), null);
         read.address();
         read.value();
         read.datumHash();
@@ -78,11 +80,16 @@ public final class RawOutput {
      * @throws CborRuntimeException if it is not an array of 2 or 3 items, or a map that repeats no key
      */
     public static RawOutput lenient(CborSpan output) {
+        return lenient(output, null);
+    }
+
+    // As lenient(output), in an era: from Dijkstra its value may be an indefinite array.
+    static RawOutput lenient(CborSpan output, Era era) {
         int major = output.majorType();
         if (major == MAJOR_ARRAY)
-            return new RawOutput(output, true, PositionalRecord.of(LEGACY, output, true), null);
+            return new RawOutput(output, true, PositionalRecord.of(LEGACY, output, true), null, era);
         if (major == MAJOR_MAP)
-            return new RawOutput(output, true, null, RawItems.record(output, "output"));
+            return new RawOutput(output, true, null, RawItems.record(output, "output"), era);
         throw RawTx.error("An output is an array or a map", output);
     }
 
@@ -97,9 +104,9 @@ public final class RawOutput {
     public static RawOutput tolerant(CborSpan output) {
         int major = output.majorType();
         if (major == MAJOR_ARRAY)
-            return new RawOutput(output, true, true, PositionalRecord.of(LEGACY, output, true), null);
+            return new RawOutput(output, true, true, PositionalRecord.of(LEGACY, output, true), null, null);
         if (major == MAJOR_MAP)
-            return new RawOutput(output, true, true, null, RawItems.lastFirst(output, "output"));
+            return new RawOutput(output, true, true, null, RawItems.lastFirst(output, "output"), null);
         throw RawTx.error("An output is an array or a map", output);
     }
 
@@ -142,7 +149,7 @@ public final class RawOutput {
     public Optional<RawValue> amount() {
         if (tolerant)
             return RawValue.tolerant(value());
-        return lenient ? RawValue.lenient(value()) : Optional.of(RawValue.of(value()));
+        return lenient ? RawValue.lenient(value(), era) : Optional.of(RawValue.of(value()));
     }
 
     /**

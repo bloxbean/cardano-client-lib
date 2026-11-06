@@ -6,6 +6,7 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 
 import java.math.BigInteger;
@@ -64,14 +65,31 @@ public final class RawItems {
     }
 
     /**
-     * @return the item, an array that a decoded tree does not mark as indefinite: what a model reads with
-     * {@code definiteItems}
-     * @throws com.bloxbean.cardano.client.exception.CborRuntimeException if a decoded tree marks it as indefinite
+     * @return the item, an array that a decoded tree does not mark as indefinite, what a model reads with
+     * {@code definiteItems}, unless the era lets a record be indefinite ({@link #indefiniteRecordsAllowed(Era)})
+     * @throws com.bloxbean.cardano.client.exception.CborRuntimeException if the era does not, and a decoded tree marks
+     *                                                                    it as indefinite
      */
-    static CborSpan definite(CborSpan item, String what) {
-        if (indefiniteWhenDecoded(item))
+    static CborSpan definite(CborSpan item, String what, Era era) {
+        if (!indefiniteRecordsAllowed(era) && indefiniteWhenDecoded(item))
             throw error("Invalid " + what + ": expected a definite-length array", item);
         return item;
+    }
+
+    /**
+     * The one rule for the records CCL's models read as definite-length arrays only (ADR 0003 D7): the ledger decodes
+     * them with {@code RecD} up to protocol version 11 (Conway), which rejects an indefinite-length array, and from
+     * version 12 (Dijkstra) accepts either (cardano-ledger {@code natVersion @12}: anchors, governance action ids,
+     * voting and proposal procedures, constitutions, execution units and prices, values, tuples such as a redeemer's
+     * value, and the array form of aux data). A read without an era is a read before Dijkstra.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param era the era a record is read in, or null
+     * @return whether a record read in the era may be an indefinite-length array
+     */
+    public static boolean indefiniteRecordsAllowed(Era era) {
+        return era != null && era.compareTo(Era.Dijkstra) >= 0;
     }
 
     public static List<CborSpan> array(CborSpan item, String what) {

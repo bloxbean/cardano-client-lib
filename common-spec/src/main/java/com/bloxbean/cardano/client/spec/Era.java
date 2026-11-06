@@ -8,7 +8,8 @@ package com.bloxbean.cardano.client.spec;
  * does. CCL's builders do not produce pre-Alonzo shapes; Shelley, Allegra, Mary and Alonzo are for decoding and
  * verifying, for example with {@code RawBlock} and {@code RawTx.scriptDataHash}. Byron (era 0 and 1) has no constant.
  * <p>
- * Dijkstra is read only, and experimental: Dijkstra is not final; this may change in any release.
+ * Dijkstra is experimental: Dijkstra is not final; this may change in any release. The models write it only when it is
+ * named: a transaction's era, or the era given to a {@code serialize(Era)} method (ADR 0004 D1).
  */
 public enum Era {
     Shelley(2),

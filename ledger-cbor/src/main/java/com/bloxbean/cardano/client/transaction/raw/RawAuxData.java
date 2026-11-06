@@ -90,7 +90,7 @@ public final class RawAuxData {
         }
         if (major != MAJOR_ARRAY)
             throw error("Unknown aux data shape", span);
-        if (RawItems.indefiniteWhenDecoded(span))
+        if (!RawItems.indefiniteRecordsAllowed(era) && RawItems.indefiniteWhenDecoded(span))
             throw error("Invalid aux data: expected a definite-length array", span);
         List<CborSpan> items = RawItems.array(span, ARRAY_FORM.name());
         checkArrayForm(items, span);

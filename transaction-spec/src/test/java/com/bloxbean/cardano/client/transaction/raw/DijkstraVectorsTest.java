@@ -2,9 +2,13 @@ package com.bloxbean.cardano.client.transaction.raw;
 
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
-import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV4Script;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
+import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static com.bloxbean.cardano.client.util.HexUtil.decodeHexString;
 import static com.bloxbean.cardano.client.util.HexUtil.encodeHexString;
@@ -127,6 +132,13 @@ class DijkstraVectorsTest {
         for (int i = 0; i < block.txCount(); i++) {
             CborSpan original = transactions.get(i);
             RawTx tx = block.tx(i);
+            // the block transaction as encoded, whose parts are tx(i)'s spans
+            CborSpan transaction = block.transaction(i);
+            assertThat(transaction.bytes()).isEqualTo(original.bytes());
+            assertThat(transaction.get(0).bytes()).isEqualTo(tx.body().bytes());
+            assertThat(transaction.get(1).bytes()).isEqualTo(tx.witnessSet().bytes());
+            assertThat(transaction.get(2).isNull() ? null : transaction.get(2).bytes())
+                    .isEqualTo(tx.auxData().map(CborSpan::bytes).orElse(null));
             assertThat(tx.txId()).isEqualTo(Blake2bUtil.blake2bHash256(original.get(0).bytes()));
             assertThat(tx.isValid()).isEqualTo(original.get(3).asBoolean());
             if (!tx.isValid())
@@ -260,7 +272,7 @@ class DijkstraVectorsTest {
      * reward-account keyed intervals, and pool registrations with and without a BLS key.
      */
     @Test
-    void theLedgersGoldenTransactionHasEveryNewField() throws IOException {
+    void theLedgersGoldenTransactionHasEveryNewField() throws Exception {
         Vector golden = vectors("mempool_tx").stream().filter(v -> v.name().equals("ledger-golden-tx")).findFirst()
                 .orElseThrow();
         RawTx tx = RawTx.of(golden.cbor());
@@ -289,10 +301,105 @@ class DijkstraVectorsTest {
         assertThat(sub.txId()).isEqualTo(Blake2bUtil.blake2bHash256(sub.body().bytes()));
         assertThat(sub.body(Era.Dijkstra).fee()).isEmpty();
         assertThat(sub.witnessSet(Era.Dijkstra).plutusV4Scripts().orElseThrow()).isNotEmpty();
-        // a Plutus V4 script has no model yet (ADR 0004), so the model helper refuses it rather than call it V3
+        // a Plutus V4 script maps to its model (ADR 0004), with the hash of the original bytes
         RawScript v4 = tx.witnessSet(Era.Dijkstra).plutusV4Scripts().orElseThrow().get(0);
-        assertThatThrownBy(() -> RawModels.toScript(v4)).isInstanceOf(CborDeserializationException.class)
-                .hasMessageContaining("Plutus V4");
+        assertThat(RawModels.toScript(v4)).isInstanceOf(PlutusV4Script.class)
+                .satisfies(script -> assertThat(script.getScriptHash()).isEqualTo(v4.hash()));
+
+        // the ledger's encoder wrote keys 14 (tag 258, list order), 25 and 26 (Haskell's order): CCL writes them the
+        // same, item by item. No vector has key 24
+        assertWrittenAsReceived(golden, 14, 25, 26);
+    }
+
+    /** A real transaction with key 27, whose single entry has a chunked account: written item by item the same. */
+    @Test
+    void startingIntervalsAreWrittenAsReceived() throws Exception {
+        assertWrittenAsReceived(vectors("mempool_tx").stream().filter(v -> v.name().equals("musashi-indef-bytes1"))
+                .findFirst().orElseThrow(), 14, 26, 27);
+    }
+
+    // Each body key, read into the model and written in Dijkstra, holds the same items in the same order as received.
+    private static void assertWrittenAsReceived(Vector vector, int... keys) throws Exception {
+        Map<Long, CborSpan> received = new HashMap<>();
+        for (Map.Entry<CborSpan, CborSpan> entry : RawTx.of(vector.cbor()).body().entries())
+            received.put(entry.getKey().asLong(), entry.getValue());
+        byte[] body = CborSpan.of(Transaction.deserialize(vector.cbor(), Era.Dijkstra).serialize()).get(0).bytes();
+        Map<Long, CborSpan> written = new HashMap<>();
+        for (Map.Entry<CborSpan, CborSpan> entry : CborSpan.of(body).entries())
+            written.put(entry.getKey().asLong(), entry.getValue());
+        for (int key : keys)
+            assertSameItems(written.get((long) key), received.get((long) key), vector.name() + " key " + key);
+    }
+
+    // The same items in the same order, with the same tags; a byte string by its content, as chunks are the sender's.
+    private static void assertSameItems(CborSpan written, CborSpan received, String where) {
+        assertThat(written.tag()).as(where).isEqualTo(received.tag());
+        CborSpan left = written.isTagged() ? written.untag() : written;
+        CborSpan right = received.isTagged() ? received.untag() : received;
+        assertThat(left.majorType()).as(where).isEqualTo(right.majorType());
+        switch (left.majorType()) {
+            case 2 -> assertThat(left.byteString()).as(where).isEqualTo(right.byteString());
+            case 4 -> {
+                assertThat(left.items()).as(where).hasSameSizeAs(right.items());
+                for (int i = 0; i < left.items().size(); i++)
+                    assertSameItems(left.items().get(i), right.items().get(i), where + "[" + i + "]");
+            }
+            case 5 -> {
+                assertThat(left.entries()).as(where).hasSameSizeAs(right.entries());
+                for (int i = 0; i < left.entries().size(); i++) {
+                    assertSameItems(left.entries().get(i).getKey(), right.entries().get(i).getKey(),
+                            where + " key " + i);
+                    assertSameItems(left.entries().get(i).getValue(), right.entries().get(i).getValue(),
+                            where + " value " + i);
+                }
+            }
+            default -> assertThat(left.bytes()).as(where).isEqualTo(right.bytes());
+        }
+    }
+
+    /**
+     * ADR 0004 W3, W5: each transaction read into the model in Dijkstra writes back in Dijkstra to bytes that read, in
+     * Dijkstra, to the same model and write the same bytes again; the reader's id of them is the model's
+     * {@code getTxHash}. A transaction marked invalid is not written in Dijkstra.
+     */
+    @Test
+    void everyTransactionWritesBackInDijkstraWithTheSameValues() throws Exception {
+        int written = 0;
+        for (Vector vector : vectors("mempool_tx", "block_tx")) {
+            String name = vector.name();
+            Transaction model = Transaction.deserialize(vector.cbor(), Era.Dijkstra);
+            assertThat(model.getEra()).as(name).isEqualTo(Era.Dijkstra);
+            if (!model.isValid()) {
+                assertThatThrownBy(model::serialize).as(name).hasStackTraceContaining("marked invalid");
+                continue;
+            }
+            byte[] bytes = model.serialize();
+            Transaction read = Transaction.deserialize(bytes, Era.Dijkstra);
+            // the models have no equals throughout (certificates, cost models, metadata): compare what they write,
+            // and the Dijkstra fields, which have
+            assertThat(read.serialize()).as(name).isEqualTo(bytes);
+            TransactionBody body = read.getBody();
+            assertThat(body.getGuards()).as(name).isEqualTo(model.getBody().getGuards());
+            assertThat(body.getRequiredTopLevelGuards()).as(name)
+                    .isEqualTo(model.getBody().getRequiredTopLevelGuards());
+            assertThat(body.getDirectDeposits()).as(name).isEqualTo(model.getBody().getDirectDeposits());
+            assertThat(body.getAccountBalanceIntervals()).as(name)
+                    .isEqualTo(model.getBody().getAccountBalanceIntervals());
+            assertThat(body.getStartingAccountBalanceIntervals()).as(name)
+                    .isEqualTo(model.getBody().getStartingAccountBalanceIntervals());
+            assertThat(plutusV4Scripts(read)).as(name).isEqualTo(plutusV4Scripts(model));
+            RawTx raw = RawTx.of(bytes);
+            assertThat(bytes[0]).as(name).isEqualTo((byte) 0x83);
+            assertThat(encodeHexString(raw.txId())).as(name).isEqualTo(TransactionUtil.getTxHash(model));
+            assertThat(raw.body(Era.Dijkstra).subTransactions()).as(name)
+                    .hasSameSizeAs(RawTx.of(vector.cbor()).body(Era.Dijkstra).subTransactions());
+            written++;
+        }
+        assertThat(written).isEqualTo(17);
+    }
+
+    private static Optional<List<PlutusV4Script>> plutusV4Scripts(Transaction transaction) {
+        return Optional.ofNullable(transaction.getWitnessSet()).map(TransactionWitnessSet::getPlutusV4Scripts);
     }
 
     // Reads every field of the body, the witness set and the aux data in Dijkstra, sub-transactions included.

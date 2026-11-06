@@ -1,0 +1,818 @@
+# ADR 0004 W2: the public constructors, methods and fields, by erased parameter types, of every class ADR 0004
+# touches, read by reflection from CCL e59e9356's compiled classes (before ADR 0004). Each must still exist with the
+# same signature: PublicApiCompatibilityTest. Format: <class>#<init>(<params>), <class>#[static ]<name>(<params>)<return>,
+# <class>#field [static ]<name>:<type>.
+com.bloxbean.cardano.client.plutus.spec.CostMdls#<init>()
+com.bloxbean.cardano.client.plutus.spec.CostMdls#add(com.bloxbean.cardano.client.plutus.spec.CostModel)void
+com.bloxbean.cardano.client.plutus.spec.CostMdls#get(com.bloxbean.cardano.client.plutus.spec.Language)com.bloxbean.cardano.client.plutus.spec.CostModel
+com.bloxbean.cardano.client.plutus.spec.CostMdls#getLanguageViewEncoding()byte[]
+com.bloxbean.cardano.client.plutus.spec.CostMdls#getUnknownCostModels()java.util.Map
+com.bloxbean.cardano.client.plutus.spec.CostMdls#isEmpty()boolean
+com.bloxbean.cardano.client.plutus.spec.CostMdls#serialize()co.nstant.in.cbor.model.Map
+com.bloxbean.cardano.client.plutus.spec.CostMdls#static deserialize(co.nstant.in.cbor.model.DataItem)com.bloxbean.cardano.client.plutus.spec.CostMdls
+com.bloxbean.cardano.client.plutus.spec.CostMdls#static from(com.bloxbean.cardano.client.transaction.raw.RawCostModels)com.bloxbean.cardano.client.plutus.spec.CostMdls
+com.bloxbean.cardano.client.plutus.spec.ExUnits#<init>()
+com.bloxbean.cardano.client.plutus.spec.ExUnits#<init>(java.math.BigInteger,java.math.BigInteger)
+com.bloxbean.cardano.client.plutus.spec.ExUnits#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.plutus.spec.ExUnits#getMem()java.math.BigInteger
+com.bloxbean.cardano.client.plutus.spec.ExUnits#getSteps()java.math.BigInteger
+com.bloxbean.cardano.client.plutus.spec.ExUnits#hashCode()int
+com.bloxbean.cardano.client.plutus.spec.ExUnits#serialize()co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.plutus.spec.ExUnits#setMem(java.math.BigInteger)void
+com.bloxbean.cardano.client.plutus.spec.ExUnits#setSteps(java.math.BigInteger)void
+com.bloxbean.cardano.client.plutus.spec.ExUnits#static builder()com.bloxbean.cardano.client.plutus.spec.ExUnits$ExUnitsBuilder
+com.bloxbean.cardano.client.plutus.spec.ExUnits#static deserialize(co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.plutus.spec.ExUnits
+com.bloxbean.cardano.client.plutus.spec.ExUnits#static from(com.bloxbean.cardano.client.transaction.raw.RawExUnits)com.bloxbean.cardano.client.plutus.spec.ExUnits
+com.bloxbean.cardano.client.plutus.spec.ExUnits#toString()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.ExUnits$ExUnitsBuilder#build()com.bloxbean.cardano.client.plutus.spec.ExUnits
+com.bloxbean.cardano.client.plutus.spec.ExUnits$ExUnitsBuilder#mem(java.math.BigInteger)com.bloxbean.cardano.client.plutus.spec.ExUnits$ExUnitsBuilder
+com.bloxbean.cardano.client.plutus.spec.ExUnits$ExUnitsBuilder#steps(java.math.BigInteger)com.bloxbean.cardano.client.plutus.spec.ExUnits$ExUnitsBuilder
+com.bloxbean.cardano.client.plutus.spec.ExUnits$ExUnitsBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.Language#compareTo(java.lang.Enum)int
+com.bloxbean.cardano.client.plutus.spec.Language#describeConstable()java.util.Optional
+com.bloxbean.cardano.client.plutus.spec.Language#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.plutus.spec.Language#field static PLUTUS_V1:com.bloxbean.cardano.client.plutus.spec.Language
+com.bloxbean.cardano.client.plutus.spec.Language#field static PLUTUS_V2:com.bloxbean.cardano.client.plutus.spec.Language
+com.bloxbean.cardano.client.plutus.spec.Language#field static PLUTUS_V3:com.bloxbean.cardano.client.plutus.spec.Language
+com.bloxbean.cardano.client.plutus.spec.Language#getDeclaringClass()java.lang.Class
+com.bloxbean.cardano.client.plutus.spec.Language#getKey()int
+com.bloxbean.cardano.client.plutus.spec.Language#hashCode()int
+com.bloxbean.cardano.client.plutus.spec.Language#name()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.Language#ordinal()int
+com.bloxbean.cardano.client.plutus.spec.Language#static valueOf(java.lang.Class,java.lang.String)java.lang.Enum
+com.bloxbean.cardano.client.plutus.spec.Language#static valueOf(java.lang.String)com.bloxbean.cardano.client.plutus.spec.Language
+com.bloxbean.cardano.client.plutus.spec.Language#static values()com.bloxbean.cardano.client.plutus.spec.Language[]
+com.bloxbean.cardano.client.plutus.spec.Language#toString()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#<init>()
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#<init>(java.lang.String,java.lang.String,java.lang.String)
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#getCborHex()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#getDescription()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#getLanguage()com.bloxbean.cardano.client.plutus.spec.Language
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#getPolicyId()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#getScriptHash()byte[]
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#getScriptType()int
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#getScriptTypeBytes()byte[]
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#getType()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#hashCode()int
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#scriptRefBytes()byte[]
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#serialize()byte[]
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#serializeAsDataItem()co.nstant.in.cbor.model.ByteString
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#serializeScriptBody()byte[]
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#setCborHex(java.lang.String)void
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#setDescription(java.lang.String)void
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#static deserializeScriptRef(byte[])com.bloxbean.cardano.client.plutus.spec.PlutusScript
+com.bloxbean.cardano.client.plutus.spec.PlutusScript#toString()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.Redeemer#<init>()
+com.bloxbean.cardano.client.plutus.spec.Redeemer#<init>(com.bloxbean.cardano.client.plutus.spec.RedeemerTag,java.math.BigInteger,com.bloxbean.cardano.client.plutus.spec.PlutusData,com.bloxbean.cardano.client.plutus.spec.ExUnits)
+com.bloxbean.cardano.client.plutus.spec.Redeemer#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.plutus.spec.Redeemer#getData()com.bloxbean.cardano.client.plutus.spec.PlutusData
+com.bloxbean.cardano.client.plutus.spec.Redeemer#getExUnits()com.bloxbean.cardano.client.plutus.spec.ExUnits
+com.bloxbean.cardano.client.plutus.spec.Redeemer#getIndex()java.math.BigInteger
+com.bloxbean.cardano.client.plutus.spec.Redeemer#getTag()com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.Redeemer#hashCode()int
+com.bloxbean.cardano.client.plutus.spec.Redeemer#serialize()com.bloxbean.cardano.client.util.Tuple
+com.bloxbean.cardano.client.plutus.spec.Redeemer#serializePreConway()co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.plutus.spec.Redeemer#setData(com.bloxbean.cardano.client.plutus.spec.PlutusData)void
+com.bloxbean.cardano.client.plutus.spec.Redeemer#setExUnits(com.bloxbean.cardano.client.plutus.spec.ExUnits)void
+com.bloxbean.cardano.client.plutus.spec.Redeemer#setIndex(int)void
+com.bloxbean.cardano.client.plutus.spec.Redeemer#setIndex(java.math.BigInteger)void
+com.bloxbean.cardano.client.plutus.spec.Redeemer#setTag(com.bloxbean.cardano.client.plutus.spec.RedeemerTag)void
+com.bloxbean.cardano.client.plutus.spec.Redeemer#static builder()com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder
+com.bloxbean.cardano.client.plutus.spec.Redeemer#static deserialize(co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.plutus.spec.Redeemer
+com.bloxbean.cardano.client.plutus.spec.Redeemer#static deserialize(co.nstant.in.cbor.model.Array,co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.plutus.spec.Redeemer
+com.bloxbean.cardano.client.plutus.spec.Redeemer#static deserializePreConway(co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.plutus.spec.Redeemer
+com.bloxbean.cardano.client.plutus.spec.Redeemer#static from(com.bloxbean.cardano.client.transaction.raw.RawRedeemer)com.bloxbean.cardano.client.plutus.spec.Redeemer
+com.bloxbean.cardano.client.plutus.spec.Redeemer#toString()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder#build()com.bloxbean.cardano.client.plutus.spec.Redeemer
+com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder#data(com.bloxbean.cardano.client.plutus.spec.PlutusData)com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder
+com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder#exUnits(com.bloxbean.cardano.client.plutus.spec.ExUnits)com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder
+com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder#index(int)com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder
+com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder#index(java.math.BigInteger)com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder
+com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder#tag(com.bloxbean.cardano.client.plutus.spec.RedeemerTag)com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder
+com.bloxbean.cardano.client.plutus.spec.Redeemer$RedeemerBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#compareTo(java.lang.Enum)int
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#describeConstable()java.util.Optional
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#field static Cert:com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#field static Mint:com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#field static Proposing:com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#field static Reward:com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#field static Spend:com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#field static Voting:com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#field value:int
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#getDeclaringClass()java.lang.Class
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#hashCode()int
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#name()java.lang.String
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#ordinal()int
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#static convert(java.lang.String)com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#static fromValue(int)com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#static valueOf(java.lang.Class,java.lang.String)java.lang.Enum
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#static valueOf(java.lang.String)com.bloxbean.cardano.client.plutus.spec.RedeemerTag
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#static values()com.bloxbean.cardano.client.plutus.spec.RedeemerTag[]
+com.bloxbean.cardano.client.plutus.spec.RedeemerTag#toString()java.lang.String
+com.bloxbean.cardano.client.spec.Era#compareTo(java.lang.Enum)int
+com.bloxbean.cardano.client.spec.Era#describeConstable()java.util.Optional
+com.bloxbean.cardano.client.spec.Era#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.spec.Era#field static Allegra:com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.spec.Era#field static Alonzo:com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.spec.Era#field static Babbage:com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.spec.Era#field static Conway:com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.spec.Era#field static Dijkstra:com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.spec.Era#field static Mary:com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.spec.Era#field static Shelley:com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.spec.Era#field value:int
+com.bloxbean.cardano.client.spec.Era#getDeclaringClass()java.lang.Class
+com.bloxbean.cardano.client.spec.Era#getValue()int
+com.bloxbean.cardano.client.spec.Era#hashCode()int
+com.bloxbean.cardano.client.spec.Era#name()java.lang.String
+com.bloxbean.cardano.client.spec.Era#ordinal()int
+com.bloxbean.cardano.client.spec.Era#static fromValue(int)com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.spec.Era#static valueOf(java.lang.Class,java.lang.String)java.lang.Enum
+com.bloxbean.cardano.client.spec.Era#static valueOf(java.lang.String)com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.spec.Era#static values()com.bloxbean.cardano.client.spec.Era[]
+com.bloxbean.cardano.client.spec.Era#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.raw.RawAnchor#dataHash()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawAnchor#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawAnchor#static of(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawAnchor
+com.bloxbean.cardano.client.transaction.raw.RawAnchor#url()java.lang.String
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#era()com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#has(com.bloxbean.cardano.client.transaction.raw.AuxDataField)boolean
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#metadata()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#nativeScripts()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#plutusV1Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#plutusV2Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#plutusV3Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#plutusV4Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#scripts()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawAuxData
+com.bloxbean.cardano.client.transaction.raw.RawAuxData#static tolerant(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawAuxData
+com.bloxbean.cardano.client.transaction.raw.RawBlock#auxiliaryDataSet()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawBlock#bodyHash()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawBlock#era()com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.transaction.raw.RawBlock#header()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawBlock#invalidTransactions()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawBlock#invalidTxIndexes()int[]
+com.bloxbean.cardano.client.transaction.raw.RawBlock#leiosCertificate()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawBlock#perasCertificate()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawBlock#rawHeader()com.bloxbean.cardano.client.transaction.raw.RawHeader
+com.bloxbean.cardano.client.transaction.raw.RawBlock#static of(byte[])com.bloxbean.cardano.client.transaction.raw.RawBlock
+com.bloxbean.cardano.client.transaction.raw.RawBlock#static of(byte[],com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawBlock
+com.bloxbean.cardano.client.transaction.raw.RawBlock#static of(com.bloxbean.cardano.client.transaction.raw.BlockEnvelope)com.bloxbean.cardano.client.transaction.raw.RawBlock
+com.bloxbean.cardano.client.transaction.raw.RawBlock#static readAs(com.bloxbean.cardano.client.transaction.raw.BlockEnvelope,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawBlock
+com.bloxbean.cardano.client.transaction.raw.RawBlock#transactionBodies()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawBlock#transactionWitnessSets()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawBlock#tx(int)com.bloxbean.cardano.client.transaction.raw.RawTx
+com.bloxbean.cardano.client.transaction.raw.RawBlock#txBytes(int)byte[]
+com.bloxbean.cardano.client.transaction.raw.RawBlock#txCount()int
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#anchor()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#blsKey()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#coin()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#cost()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#credential()com.bloxbean.cardano.client.transaction.raw.RawCredential
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#drep()com.bloxbean.cardano.client.transaction.raw.RawDRep
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#epoch()long
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#exact()com.bloxbean.cardano.client.transaction.raw.RawCertificate
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#genesisDelegateHash()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#genesisHash()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#hotCredential()com.bloxbean.cardano.client.transaction.raw.RawCredential
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#kind()com.bloxbean.cardano.client.transaction.raw.CertKind
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#margin()com.bloxbean.cardano.client.spec.UnitInterval
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#moveInstantaneousReward()com.bloxbean.cardano.client.transaction.raw.RawMir
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#pledge()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#poolKeyHash()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#poolMetadata()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#poolOwners()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#relays()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#rewardAccount()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan)java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#static lenient(com.bloxbean.cardano.client.transaction.raw.CertKind,com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawCertificate
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#static of(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawCertificate
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#static of(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawCertificate
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#vrfKeyHash()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawCertificate#walk(com.bloxbean.cardano.client.spec.Era,com.bloxbean.cardano.client.transaction.raw.FormatPolicy)void
+com.bloxbean.cardano.client.transaction.raw.RawConstitution#anchor()com.bloxbean.cardano.client.transaction.raw.RawAnchor
+com.bloxbean.cardano.client.transaction.raw.RawConstitution#scriptHash()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawConstitution#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawConstitution
+com.bloxbean.cardano.client.transaction.raw.RawConstitution#static of(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawConstitution
+com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices#<init>(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.UnitInterval,com.bloxbean.cardano.client.spec.UnitInterval)
+com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices#hashCode()int
+com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices#memory()com.bloxbean.cardano.client.spec.UnitInterval
+com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices
+com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices#static of(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices
+com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices#steps()com.bloxbean.cardano.client.spec.UnitInterval
+com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#constitution()com.bloxbean.cardano.client.transaction.raw.RawConstitution
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#kind()com.bloxbean.cardano.client.transaction.raw.GovActionKind
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#membersToAdd()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#membersToRemove()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#policyHash()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#previousActionId()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#protocolParamUpdate()com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#protocolVersion()com.bloxbean.cardano.client.transaction.raw.RawProtocolVersion
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#quorum()com.bloxbean.cardano.client.spec.UnitInterval
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawGovAction
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#static lenient(com.bloxbean.cardano.client.transaction.raw.GovActionKind,com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawGovAction
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#static of(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawGovAction
+com.bloxbean.cardano.client.transaction.raw.RawGovAction#withdrawals()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawGovActionId#<init>(com.bloxbean.cardano.client.common.cbor.CborSpan,byte[],int)
+com.bloxbean.cardano.client.transaction.raw.RawGovActionId#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.raw.RawGovActionId#hashCode()int
+com.bloxbean.cardano.client.transaction.raw.RawGovActionId#index()int
+com.bloxbean.cardano.client.transaction.raw.RawGovActionId#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawGovActionId#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawGovActionId
+com.bloxbean.cardano.client.transaction.raw.RawGovActionId#static of(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawGovActionId
+com.bloxbean.cardano.client.transaction.raw.RawGovActionId#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.raw.RawGovActionId#transactionId()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawItems#static array(com.bloxbean.cardano.client.common.cbor.CborSpan,java.lang.String)java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawItems#static bytes(com.bloxbean.cardano.client.common.cbor.CborSpan)byte[]
+com.bloxbean.cardano.client.transaction.raw.RawItems#static indefiniteWhenDecoded(com.bloxbean.cardano.client.common.cbor.CborSpan)boolean
+com.bloxbean.cardano.client.transaction.raw.RawOutput#address()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawOutput#addressBytes()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawOutput#amount()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawOutput#datumHash()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawOutput#inlineDatum()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawOutput#inlineDatumBytes()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawOutput#scriptRef()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawOutput#scriptRefBytes()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawOutput#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawOutput#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawOutput
+com.bloxbean.cardano.client.transaction.raw.RawOutput#static of(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawOutput
+com.bloxbean.cardano.client.transaction.raw.RawOutput#static tolerant(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawOutput
+com.bloxbean.cardano.client.transaction.raw.RawOutput#value()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawProposal#anchor()com.bloxbean.cardano.client.transaction.raw.RawAnchor
+com.bloxbean.cardano.client.transaction.raw.RawProposal#deposit()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.raw.RawProposal#govAction()com.bloxbean.cardano.client.transaction.raw.RawGovAction
+com.bloxbean.cardano.client.transaction.raw.RawProposal#rewardAccount()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawProposal#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawProposal#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawProposal
+com.bloxbean.cardano.client.transaction.raw.RawProposal#static of(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawProposal
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#coinsPerUtxoByte()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#coinsPerUtxoWord()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#collateralPercentage()java.util.OptionalInt
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#committeeTermLimit()java.util.OptionalLong
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#costModels()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#decentralization()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#drepDeposit()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#drepInactivity()java.util.OptionalLong
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#drepVotingThresholds()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#era()com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#executionCosts()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#expansionRate()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#extraEntropy()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#govActionDeposit()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#govActionLifetime()java.util.OptionalLong
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#keyDeposit()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#maxBlockBodySize()java.util.OptionalLong
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#maxBlockExUnits()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#maxBlockHeaderSize()java.util.OptionalInt
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#maxCollateralInputs()java.util.OptionalInt
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#maxEpoch()java.util.OptionalLong
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#maxTxExUnits()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#maxTxSize()java.util.OptionalLong
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#maxValueSize()java.util.OptionalLong
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#minCommitteeSize()java.util.OptionalInt
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#minFeeA()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#minFeeB()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#minFeeRefScriptCostPerByte()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#minPoolCost()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#minUtxoValue()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#nOpt()java.util.OptionalInt
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#poolDeposit()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#poolPledgeInfluence()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#poolVotingThresholds()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#protocolVersion()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#static of(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate
+com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate#treasuryGrowthRate()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#<init>(int,long,com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.common.cbor.CborSpan)
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#data()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#exUnits()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#hashCode()int
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#index()long
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#key()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawRedeemer
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawRedeemer
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#tag()int
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#units()com.bloxbean.cardano.client.transaction.raw.RawExUnits
+com.bloxbean.cardano.client.transaction.raw.RawRedeemer#unsignedIndex()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.raw.RawTx#auxData()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTx#auxData(com.bloxbean.cardano.client.spec.Era)java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTx#auxDataHash()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTx#auxScripts()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTx#body()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawTx#body(com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawTxBody
+com.bloxbean.cardano.client.transaction.raw.RawTx#bodyField(int)java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTx#bodySetItems(int)java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTx#bootstrapWitnesses()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTx#collateralReturn()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTx#isValid()boolean
+com.bloxbean.cardano.client.transaction.raw.RawTx#outputs()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTx#redeemers()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTx#scriptDataHash(com.bloxbean.cardano.client.spec.Era,byte[])java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTx#scripts()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTx#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawTx#static lenient(byte[])com.bloxbean.cardano.client.transaction.raw.RawTx
+com.bloxbean.cardano.client.transaction.raw.RawTx#static of(byte[])com.bloxbean.cardano.client.transaction.raw.RawTx
+com.bloxbean.cardano.client.transaction.raw.RawTx#static walk(byte[],com.bloxbean.cardano.client.spec.Era,com.bloxbean.cardano.client.transaction.raw.FormatPolicy)void
+com.bloxbean.cardano.client.transaction.raw.RawTx#static walk(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era,com.bloxbean.cardano.client.transaction.raw.FormatPolicy)void
+com.bloxbean.cardano.client.transaction.raw.RawTx#txId()byte[]
+com.bloxbean.cardano.client.transaction.raw.RawTx#vkeyWitnesses()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTx#witnessDatums()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTx#witnessField(int)java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTx#witnessSet()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawTx#witnessSet(com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawWitnessSet
+com.bloxbean.cardano.client.transaction.raw.RawTx#witnessSetItems(int)java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#accountBalanceIntervals()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#auxDataHash()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#certificateItems()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#certificates()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#collateral()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#collateralReturn()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#currentTreasury()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#directDeposits()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#donation()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#era()com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#fee()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#guards()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#inputs()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#mint()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#networkId()java.util.OptionalInt
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#outputs()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#proposalProcedures()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#referenceInputs()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#requiredSigners()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#requiredTopLevelGuards()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#scriptDataHash()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#startingAccountBalanceIntervals()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawTxBody
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#static tolerant(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawTxBody
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#subTransactions()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#totalCollateral()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#ttl()java.util.OptionalLong
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#update()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#validityStart()java.util.OptionalLong
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#votingProcedures()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawTxBody#withdrawals()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawUpdate#epoch()long
+com.bloxbean.cardano.client.transaction.raw.RawUpdate#proposals()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawUpdate#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawUpdate#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawUpdate
+com.bloxbean.cardano.client.transaction.raw.RawUpdate#static of(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawUpdate
+com.bloxbean.cardano.client.transaction.raw.RawValue#coin()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.raw.RawValue#multiAssets()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawValue#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawValue#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan)java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawValue#static of(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawValue
+com.bloxbean.cardano.client.transaction.raw.RawValue#static tolerant(com.bloxbean.cardano.client.common.cbor.CborSpan)java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawVotingProcedure#anchor()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawVotingProcedure#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawVotingProcedure
+com.bloxbean.cardano.client.transaction.raw.RawVotingProcedure#static of(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawVotingProcedure
+com.bloxbean.cardano.client.transaction.raw.RawVotingProcedure#vote()int
+com.bloxbean.cardano.client.transaction.raw.RawVotingProcedures#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawVotingProcedures#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawVotingProcedures
+com.bloxbean.cardano.client.transaction.raw.RawVotingProcedures#static of(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.transaction.raw.RawVotingProcedures
+com.bloxbean.cardano.client.transaction.raw.RawVotingProcedures#voters()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#bootstrapWitnesses()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#datums()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#era()com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#nativeScripts()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#plutusV1Scripts()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#plutusV2Scripts()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#plutusV3Scripts()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#plutusV4Scripts()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#redeemers()java.util.Optional
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#scripts()java.util.List
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#span()com.bloxbean.cardano.client.common.cbor.CborSpan
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#static lenient(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawWitnessSet
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#static tolerant(com.bloxbean.cardano.client.common.cbor.CborSpan,com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.raw.RawWitnessSet
+com.bloxbean.cardano.client.transaction.raw.RawWitnessSet#vkeyWitnesses()java.util.Optional
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#<init>()
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#<init>(com.bloxbean.cardano.client.metadata.Metadata,java.util.List,java.util.List,java.util.List,java.util.List)
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#getAuxiliaryDataHash()byte[]
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#getAuxiliaryDataHash(com.bloxbean.cardano.client.spec.Era)byte[]
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#getMetadata()com.bloxbean.cardano.client.metadata.Metadata
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#getNativeScripts()java.util.List
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#getPlutusV1Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#getPlutusV2Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#getPlutusV3Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#serialize()co.nstant.in.cbor.model.DataItem
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#serialize(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.DataItem
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#setMetadata(com.bloxbean.cardano.client.metadata.Metadata)void
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#setNativeScripts(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#setPlutusV1Scripts(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#setPlutusV2Scripts(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#setPlutusV3Scripts(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#static builder()com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#static deserialize(co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.transaction.spec.AuxiliaryData
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#static deserialize(co.nstant.in.cbor.model.Map)com.bloxbean.cardano.client.transaction.spec.AuxiliaryData
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder#build()com.bloxbean.cardano.client.transaction.spec.AuxiliaryData
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder#metadata(com.bloxbean.cardano.client.metadata.Metadata)com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder#nativeScripts(java.util.List)com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder#plutusV1Scripts(java.util.List)com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder#plutusV2Scripts(java.util.List)com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder#plutusV3Scripts(java.util.List)com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder
+com.bloxbean.cardano.client.transaction.spec.AuxiliaryData$AuxiliaryDataBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.Comparators#field static ASSET:java.util.Comparator
+com.bloxbean.cardano.client.transaction.spec.Comparators#field static ASSET_LEDGER:java.util.Comparator
+com.bloxbean.cardano.client.transaction.spec.Comparators#field static CREDENTIAL:java.util.Comparator
+com.bloxbean.cardano.client.transaction.spec.Comparators#field static GOV_ACTION_ID:java.util.Comparator
+com.bloxbean.cardano.client.transaction.spec.Comparators#field static POLICY:java.util.Comparator
+com.bloxbean.cardano.client.transaction.spec.Comparators#field static VOTER:java.util.Comparator
+com.bloxbean.cardano.client.transaction.spec.Comparators#field static WITHDRAWAL:java.util.Comparator
+com.bloxbean.cardano.client.transaction.spec.Comparators#field static WITHDRAWAL_BYTES:java.util.Comparator
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#<init>()
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#<init>(java.math.BigInteger,java.math.BigInteger,java.lang.Integer,java.lang.Integer,java.lang.Integer,java.math.BigInteger,java.math.BigInteger,java.lang.Integer,java.lang.Integer,com.bloxbean.cardano.client.spec.Rational,com.bloxbean.cardano.client.spec.UnitInterval,com.bloxbean.cardano.client.spec.UnitInterval,com.bloxbean.cardano.client.spec.UnitInterval,com.bloxbean.cardano.client.transaction.Nonce,com.bloxbean.cardano.client.transaction.spec.ProtocolVersion,java.math.BigInteger,java.math.BigInteger,java.math.BigInteger,com.bloxbean.cardano.client.plutus.spec.CostMdls,com.bloxbean.cardano.client.plutus.spec.ExUnitPrices,com.bloxbean.cardano.client.plutus.spec.ExUnits,com.bloxbean.cardano.client.plutus.spec.ExUnits,java.lang.Long,java.lang.Integer,java.lang.Integer)
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#<init>(java.math.BigInteger,java.math.BigInteger,java.lang.Long,java.lang.Long,java.lang.Integer,java.math.BigInteger,java.math.BigInteger,java.lang.Long,java.lang.Integer,com.bloxbean.cardano.client.spec.Rational,com.bloxbean.cardano.client.spec.UnitInterval,com.bloxbean.cardano.client.spec.UnitInterval,com.bloxbean.cardano.client.spec.UnitInterval,com.bloxbean.cardano.client.transaction.Nonce,com.bloxbean.cardano.client.transaction.spec.ProtocolVersion,java.math.BigInteger,java.math.BigInteger,java.math.BigInteger,com.bloxbean.cardano.client.plutus.spec.CostMdls,com.bloxbean.cardano.client.plutus.spec.ExUnitPrices,com.bloxbean.cardano.client.plutus.spec.ExUnits,com.bloxbean.cardano.client.plutus.spec.ExUnits,java.lang.Long,java.lang.Integer,java.lang.Integer,com.bloxbean.cardano.client.transaction.spec.governance.PoolVotingThresholds,com.bloxbean.cardano.client.transaction.spec.governance.DRepVotingThresholds,java.lang.Integer,java.lang.Long,java.lang.Long,java.math.BigInteger,java.math.BigInteger,java.lang.Long,com.bloxbean.cardano.client.spec.Rational)
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getAdaPerUtxoByte()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getCollateralPercent()java.lang.Integer
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getCommitteeMaxTermLength()java.lang.Long
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getCommitteeMinSize()java.lang.Integer
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getCostModels()com.bloxbean.cardano.client.plutus.spec.CostMdls
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getDecentralisationConstant()com.bloxbean.cardano.client.spec.UnitInterval
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getDrepActivity()java.lang.Long
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getDrepDeposit()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getDrepVotingThresholds()com.bloxbean.cardano.client.transaction.spec.governance.DRepVotingThresholds
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getExecutionCosts()com.bloxbean.cardano.client.plutus.spec.ExUnitPrices
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getExpansionRate()com.bloxbean.cardano.client.spec.UnitInterval
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getExtraEntropy()com.bloxbean.cardano.client.transaction.Nonce
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getGovActionDeposit()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getGovActionLifetime()java.lang.Long
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getKeyDeposit()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMaxBlockExUnits()com.bloxbean.cardano.client.plutus.spec.ExUnits
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMaxBlockHeaderSize()java.lang.Integer
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMaxBlockSize()java.lang.Long
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMaxCollateralInputs()java.lang.Integer
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMaxEpoch()java.lang.Long
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMaxTxExUnits()com.bloxbean.cardano.client.plutus.spec.ExUnits
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMaxTxSize()java.lang.Long
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMaxValSize()java.lang.Long
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMinFeeA()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMinFeeB()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMinFeeRefScriptCostPerByte()com.bloxbean.cardano.client.spec.Rational
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMinPoolCost()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getMinUtxo()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getNOpt()java.lang.Integer
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getPoolDeposit()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getPoolPledgeInfluence()com.bloxbean.cardano.client.spec.Rational
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getPoolVotingThresholds()com.bloxbean.cardano.client.transaction.spec.governance.PoolVotingThresholds
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getProtocolVersion()com.bloxbean.cardano.client.transaction.spec.ProtocolVersion
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#getTreasuryGrowthRate()com.bloxbean.cardano.client.spec.UnitInterval
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#serialize()co.nstant.in.cbor.model.DataItem
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#static builder()com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#static deserialize(co.nstant.in.cbor.model.DataItem)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#static from(com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#adaPerUtxoByte(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#build()com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#collateralPercent(java.lang.Integer)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#committeeMaxTermLength(java.lang.Long)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#committeeMinSize(java.lang.Integer)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#costModels(com.bloxbean.cardano.client.plutus.spec.CostMdls)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#decentralisationConstant(com.bloxbean.cardano.client.spec.UnitInterval)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#drepActivity(java.lang.Long)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#drepDeposit(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#drepVotingThresholds(com.bloxbean.cardano.client.transaction.spec.governance.DRepVotingThresholds)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#executionCosts(com.bloxbean.cardano.client.plutus.spec.ExUnitPrices)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#expansionRate(com.bloxbean.cardano.client.spec.UnitInterval)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#extraEntropy(com.bloxbean.cardano.client.transaction.Nonce)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#govActionDeposit(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#govActionLifetime(java.lang.Long)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#keyDeposit(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxBlockExUnits(com.bloxbean.cardano.client.plutus.spec.ExUnits)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxBlockHeaderSize(java.lang.Integer)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxBlockSize(java.lang.Integer)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxBlockSizeLong(java.lang.Long)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxCollateralInputs(java.lang.Integer)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxEpoch(java.lang.Integer)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxEpochLong(java.lang.Long)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxTxExUnits(com.bloxbean.cardano.client.plutus.spec.ExUnits)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxTxSize(java.lang.Integer)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxTxSizeLong(java.lang.Long)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#maxValSize(java.lang.Long)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#minFeeA(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#minFeeB(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#minFeeRefScriptCostPerByte(com.bloxbean.cardano.client.spec.Rational)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#minPoolCost(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#minUtxo(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#nOpt(java.lang.Integer)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#poolDeposit(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#poolPledgeInfluence(com.bloxbean.cardano.client.spec.Rational)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#poolVotingThresholds(com.bloxbean.cardano.client.transaction.spec.governance.PoolVotingThresholds)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#protocolVersion(com.bloxbean.cardano.client.transaction.spec.ProtocolVersion)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder#treasuryGrowthRate(com.bloxbean.cardano.client.spec.UnitInterval)com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate$ProtocolParamUpdateBuilder
+com.bloxbean.cardano.client.transaction.spec.Transaction#<init>()
+com.bloxbean.cardano.client.transaction.spec.Transaction#<init>(com.bloxbean.cardano.client.spec.Era,com.bloxbean.cardano.client.transaction.spec.TransactionBody,com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet,boolean,com.bloxbean.cardano.client.transaction.spec.AuxiliaryData)
+com.bloxbean.cardano.client.transaction.spec.Transaction#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.Transaction#getAuxiliaryData()com.bloxbean.cardano.client.transaction.spec.AuxiliaryData
+com.bloxbean.cardano.client.transaction.spec.Transaction#getBody()com.bloxbean.cardano.client.transaction.spec.TransactionBody
+com.bloxbean.cardano.client.transaction.spec.Transaction#getEra()com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.transaction.spec.Transaction#getMetadata()com.bloxbean.cardano.client.metadata.Metadata
+com.bloxbean.cardano.client.transaction.spec.Transaction#getWitnessSet()com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet
+com.bloxbean.cardano.client.transaction.spec.Transaction#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.Transaction#isValid()boolean
+com.bloxbean.cardano.client.transaction.spec.Transaction#serialize()byte[]
+com.bloxbean.cardano.client.transaction.spec.Transaction#serializeToHex()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.Transaction#setAuxiliaryData(com.bloxbean.cardano.client.transaction.spec.AuxiliaryData)void
+com.bloxbean.cardano.client.transaction.spec.Transaction#setBody(com.bloxbean.cardano.client.transaction.spec.TransactionBody)void
+com.bloxbean.cardano.client.transaction.spec.Transaction#setEra(com.bloxbean.cardano.client.spec.Era)void
+com.bloxbean.cardano.client.transaction.spec.Transaction#setMetadata(com.bloxbean.cardano.client.metadata.Metadata)void
+com.bloxbean.cardano.client.transaction.spec.Transaction#setValid(boolean)void
+com.bloxbean.cardano.client.transaction.spec.Transaction#setWitnessSet(com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet)void
+com.bloxbean.cardano.client.transaction.spec.Transaction#static builder()com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder
+com.bloxbean.cardano.client.transaction.spec.Transaction#static deserialize(byte[])com.bloxbean.cardano.client.transaction.spec.Transaction
+com.bloxbean.cardano.client.transaction.spec.Transaction#toJson()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.Transaction#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder#auxiliaryData(com.bloxbean.cardano.client.transaction.spec.AuxiliaryData)com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder
+com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder#body(com.bloxbean.cardano.client.transaction.spec.TransactionBody)com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder
+com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder#build()com.bloxbean.cardano.client.transaction.spec.Transaction
+com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder#era(com.bloxbean.cardano.client.spec.Era)com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder
+com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder#isValid(boolean)com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder
+com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder#metadata(com.bloxbean.cardano.client.metadata.Metadata)com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder
+com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder#witnessSet(com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet)com.bloxbean.cardano.client.transaction.spec.Transaction$TransactionBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#<init>()
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#<init>(java.util.List,java.util.List,java.math.BigInteger,long,java.util.List,java.util.List,com.bloxbean.cardano.client.transaction.spec.Update,byte[],long,java.util.List,byte[],java.util.List,java.util.List,com.bloxbean.cardano.client.spec.NetworkId,com.bloxbean.cardano.client.transaction.spec.TransactionOutput,java.math.BigInteger,java.util.List,com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures,java.util.List,java.math.BigInteger,java.math.BigInteger)
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getAuxiliaryDataHash()byte[]
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getCerts()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getCollateral()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getCollateralReturn()com.bloxbean.cardano.client.transaction.spec.TransactionOutput
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getCurrentTreasuryValue()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getDonation()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getFee()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getInputs()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getMint()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getNetworkId()com.bloxbean.cardano.client.spec.NetworkId
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getOutputs()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getProposalProcedures()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getReferenceInputs()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getRequiredSigners()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getScriptDataHash()byte[]
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getTotalCollateral()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getTtl()long
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getUpdate()com.bloxbean.cardano.client.transaction.spec.Update
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getValidityStartInterval()long
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getVotingProcedures()com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#getWithdrawals()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#serialize()co.nstant.in.cbor.model.Map
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#serialize(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.Map
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setAuxiliaryDataHash(byte[])void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setCerts(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setCollateral(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setCollateralReturn(com.bloxbean.cardano.client.transaction.spec.TransactionOutput)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setCurrentTreasuryValue(java.math.BigInteger)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setDonation(java.math.BigInteger)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setFee(java.math.BigInteger)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setInputs(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setMint(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setNetworkId(com.bloxbean.cardano.client.spec.NetworkId)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setOutputs(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setProposalProcedures(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setReferenceInputs(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setRequiredSigners(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setScriptDataHash(byte[])void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setTotalCollateral(java.math.BigInteger)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setTtl(long)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setUpdate(com.bloxbean.cardano.client.transaction.spec.Update)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setValidityStartInterval(long)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setVotingProcedures(com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#setWithdrawals(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#static builder()com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#static deserialize(co.nstant.in.cbor.model.Map)com.bloxbean.cardano.client.transaction.spec.TransactionBody
+com.bloxbean.cardano.client.transaction.spec.TransactionBody#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#auxiliaryDataHash(byte[])com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#build()com.bloxbean.cardano.client.transaction.spec.TransactionBody
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#certs(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#collateral(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#collateralReturn(com.bloxbean.cardano.client.transaction.spec.TransactionOutput)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#currentTreasuryValue(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#donation(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#fee(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#inputs(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#mint(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#networkId(com.bloxbean.cardano.client.spec.NetworkId)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#outputs(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#proposalProcedures(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#referenceInputs(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#requiredSigners(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#scriptDataHash(byte[])com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#totalCollateral(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#ttl(long)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#update(com.bloxbean.cardano.client.transaction.spec.Update)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#validityStartInterval(long)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#votingProcedures(com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder#withdrawals(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionBody$TransactionBodyBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#<init>()
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#<init>(java.util.List,java.util.List,java.util.List,java.util.List,java.util.List,java.util.List,java.util.List,java.util.List)
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#getBootstrapWitnesses()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#getNativeScripts()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#getPlutusDataList()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#getPlutusV1Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#getPlutusV2Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#getPlutusV3Scripts()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#getRedeemers()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#getVkeyWitnesses()java.util.List
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#serialize()co.nstant.in.cbor.model.Map
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#serialize(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.Map
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#setBootstrapWitnesses(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#setNativeScripts(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#setPlutusDataList(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#setPlutusV1Scripts(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#setPlutusV2Scripts(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#setPlutusV3Scripts(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#setRedeemers(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#setVkeyWitnesses(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#static builder()com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#static deserialize(co.nstant.in.cbor.model.Map)com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#bootstrapWitnesses(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#build()com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#nativeScripts(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#plutusDataList(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#plutusV1Scripts(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#plutusV2Scripts(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#plutusV3Scripts(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#redeemers(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder#vkeyWitnesses(java.util.List)com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet$TransactionWitnessSetBuilder
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#<init>()
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#<init>(java.lang.String,java.math.BigInteger)
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#getCoin()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#getRewardAddress()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#serialize(co.nstant.in.cbor.model.Map)void
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#static builder()com.bloxbean.cardano.client.transaction.spec.Withdrawal$WithdrawalBuilder
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#static deserialize(co.nstant.in.cbor.model.Map,co.nstant.in.cbor.model.DataItem)com.bloxbean.cardano.client.transaction.spec.Withdrawal
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#static serialize(java.util.List)co.nstant.in.cbor.model.Map
+com.bloxbean.cardano.client.transaction.spec.Withdrawal#static serializeInLedgerOrder(java.util.List)co.nstant.in.cbor.model.Map
+com.bloxbean.cardano.client.transaction.spec.Withdrawal$WithdrawalBuilder#build()com.bloxbean.cardano.client.transaction.spec.Withdrawal
+com.bloxbean.cardano.client.transaction.spec.Withdrawal$WithdrawalBuilder#coin(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.Withdrawal$WithdrawalBuilder
+com.bloxbean.cardano.client.transaction.spec.Withdrawal$WithdrawalBuilder#rewardAddress(java.lang.String)com.bloxbean.cardano.client.transaction.spec.Withdrawal$WithdrawalBuilder
+com.bloxbean.cardano.client.transaction.spec.Withdrawal$WithdrawalBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#<init>()
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#<init>(byte[],byte[],byte[])
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#getCborHex()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#getGenesisDelegateHash()byte[]
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#getGenesisHash()byte[]
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#getType()com.bloxbean.cardano.client.transaction.spec.cert.CertificateType
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#getVrfKeyHash()byte[]
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#serialize()co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#serialize(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#static builder()com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation$GenesisKeyDelegationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#static deserialize(co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation
+com.bloxbean.cardano.client.transaction.spec.cert.GenesisKeyDelegation#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#<init>()
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#<init>(com.bloxbean.cardano.client.transaction.spec.cert.MirPot,java.math.BigInteger,java.util.Map)
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#getAccountingPotCoin()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#getCborHex()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#getPot()com.bloxbean.cardano.client.transaction.spec.cert.MirPot
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#getStakeCredentialCoinMap()java.util.Map
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#getType()com.bloxbean.cardano.client.transaction.spec.cert.CertificateType
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#serialize()co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#serialize(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#static builder()com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous$MoveInstataneousBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#static deserialize(co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous
+com.bloxbean.cardano.client.transaction.spec.cert.MoveInstataneous#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#<init>()
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#<init>(byte[],byte[],java.math.BigInteger,java.math.BigInteger,com.bloxbean.cardano.client.spec.UnitInterval,java.lang.String,java.util.Set,java.util.List,java.lang.String,java.lang.String)
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getBech32PoolId()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getCborHex()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getCost()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getMargin()com.bloxbean.cardano.client.spec.UnitInterval
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getOperator()byte[]
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getPledge()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getPoolMetadataHash()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getPoolMetadataUrl()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getPoolOwners()java.util.Set
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getRelays()java.util.List
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getRewardAccount()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getType()com.bloxbean.cardano.client.transaction.spec.cert.CertificateType
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#getVrfKeyHash()byte[]
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#serialize()co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#serialize(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setCost(java.math.BigInteger)void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setMargin(com.bloxbean.cardano.client.spec.UnitInterval)void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setOperator(byte[])void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setPledge(java.math.BigInteger)void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setPoolMetadataHash(java.lang.String)void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setPoolMetadataUrl(java.lang.String)void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setPoolOwners(java.util.Set)void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setRelays(java.util.List)void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setRewardAccount(java.lang.String)void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#setVrfKeyHash(byte[])void
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#static builder()com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#static deserialize(co.nstant.in.cbor.model.DataItem)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#static deserialize(java.lang.String)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#build()com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#cost(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#margin(com.bloxbean.cardano.client.spec.UnitInterval)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#operator(byte[])com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#pledge(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#poolMetadataHash(java.lang.String)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#poolMetadataUrl(java.lang.String)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#poolOwners(java.util.Set)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#relays(java.util.List)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#rewardAccount(java.lang.String)com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder#vrfKeyHash(byte[])com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration$PoolRegistrationBuilder
+com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration#<init>(com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential)
+com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration#getCborHex()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration#getStakeCredential()com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential
+com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration#getType()com.bloxbean.cardano.client.transaction.spec.cert.CertificateType
+com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration#serialize()co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration#serialize(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration#static deserialize(co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration
+com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration#<init>(com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential)
+com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration#getCborHex()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration#getStakeCredential()com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential
+com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration#getType()com.bloxbean.cardano.client.transaction.spec.cert.CertificateType
+com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration#serialize()co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration#serialize(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration#static deserialize(co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#<init>()
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#<init>(java.math.BigInteger,java.lang.String,com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction,com.bloxbean.cardano.client.transaction.spec.governance.Anchor)
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#getAnchor()com.bloxbean.cardano.client.transaction.spec.governance.Anchor
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#getDeposit()java.math.BigInteger
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#getGovAction()com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#getRewardAccount()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#serialize()co.nstant.in.cbor.model.DataItem
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#setAnchor(com.bloxbean.cardano.client.transaction.spec.governance.Anchor)void
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#setDeposit(java.math.BigInteger)void
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#setGovAction(com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction)void
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#setRewardAccount(java.lang.String)void
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#static builder()com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#static deserialize(co.nstant.in.cbor.model.DataItem)com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#static from(com.bloxbean.cardano.client.transaction.raw.RawProposal)com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder#anchor(com.bloxbean.cardano.client.transaction.spec.governance.Anchor)com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder#build()com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder#deposit(java.math.BigInteger)com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder#govAction(com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction)com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder#rewardAccount(java.lang.String)com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder
+com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure$ProposalProcedureBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#<init>()
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#<init>(com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId,com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate,byte[])
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#equals(java.lang.Object)boolean
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#getPolicyHash()byte[]
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#getPrevGovActionId()com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#getProtocolParamUpdate()com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#getType()com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionType
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#hashCode()int
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#serialize()co.nstant.in.cbor.model.DataItem
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#serialize(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.Array
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#setPolicyHash(byte[])void
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#setPrevGovActionId(com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId)void
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#setProtocolParamUpdate(com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate)void
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#static builder()com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction$ParameterChangeActionBuilder
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#static deserialize(co.nstant.in.cbor.model.Array)com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction$ParameterChangeActionBuilder#build()com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction$ParameterChangeActionBuilder#policyHash(byte[])com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction$ParameterChangeActionBuilder
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction$ParameterChangeActionBuilder#prevGovActionId(com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId)com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction$ParameterChangeActionBuilder
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction$ParameterChangeActionBuilder#protocolParamUpdate(com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate)com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction$ParameterChangeActionBuilder
+com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction$ParameterChangeActionBuilder#toString()java.lang.String
+com.bloxbean.cardano.client.transaction.util.RawModels#field static READ_IN:com.bloxbean.cardano.client.spec.Era
+com.bloxbean.cardano.client.transaction.util.RawModels#static anchor(com.bloxbean.cardano.client.transaction.raw.RawAnchor)com.bloxbean.cardano.client.transaction.spec.governance.Anchor
+com.bloxbean.cardano.client.transaction.util.RawModels#static anchor(java.util.Optional)com.bloxbean.cardano.client.transaction.spec.governance.Anchor
+com.bloxbean.cardano.client.transaction.util.RawModels#static credential(com.bloxbean.cardano.client.transaction.raw.RawCredential)com.bloxbean.cardano.client.address.Credential
+com.bloxbean.cardano.client.transaction.util.RawModels#static drep(com.bloxbean.cardano.client.transaction.raw.RawDRep)com.bloxbean.cardano.client.transaction.spec.governance.DRep
+com.bloxbean.cardano.client.transaction.util.RawModels#static exact(com.bloxbean.cardano.client.transaction.raw.RawCertificate)com.bloxbean.cardano.client.transaction.raw.RawCertificate
+com.bloxbean.cardano.client.transaction.util.RawModels#static mapAll(java.util.List,com.bloxbean.cardano.client.transaction.util.RawModels$Mapper)java.util.List
+com.bloxbean.cardano.client.transaction.util.RawModels#static rewardAddress(byte[])java.lang.String
+com.bloxbean.cardano.client.transaction.util.RawModels#static stakeCredential(com.bloxbean.cardano.client.transaction.raw.RawCredential)com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential
+com.bloxbean.cardano.client.transaction.util.RawModels#static toMetadata(com.bloxbean.cardano.client.common.cbor.CborSpan)com.bloxbean.cardano.client.metadata.cbor.CBORMetadata
+com.bloxbean.cardano.client.transaction.util.RawModels#static toPlutusData(com.bloxbean.cardano.client.transaction.raw.RawDatum)com.bloxbean.cardano.client.plutus.spec.PlutusData
+com.bloxbean.cardano.client.transaction.util.RawModels#static toScript(com.bloxbean.cardano.client.transaction.raw.RawScript)com.bloxbean.cardano.client.spec.Script
+com.bloxbean.cardano.client.transaction.util.SerializationUtil#<init>()
+com.bloxbean.cardano.client.transaction.util.SerializationUtil#static createArray(com.bloxbean.cardano.client.spec.Era)co.nstant.in.cbor.model.Array

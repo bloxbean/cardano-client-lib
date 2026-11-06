@@ -50,8 +50,8 @@ public final class RawProposal {
      * @throws IllegalArgumentException if the era is null
      */
     public static RawProposal lenient(CborSpan span, Era era) {
-        return new RawProposal(span, PositionalRecord.of(RECORD, RawItems.definite(span, RECORD.name()), false), era,
-                true);
+        return new RawProposal(span, PositionalRecord.of(RECORD, RawItems.definite(span, RECORD.name(), era), false),
+                era, true);
     }
 
     /**
@@ -81,6 +81,6 @@ public final class RawProposal {
     }
 
     public RawAnchor anchor() {
-        return RawAnchor.of(record.value(FieldType.ANCHOR));
+        return RawAnchor.of(record.value(FieldType.ANCHOR), era);
     }
 }

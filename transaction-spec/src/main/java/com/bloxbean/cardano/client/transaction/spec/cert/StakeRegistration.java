@@ -11,6 +11,8 @@ import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.Getter;
 
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.requireBeforeDijkstra;
+
 @Getter
 public class StakeRegistration implements Certificate {
     private final CertificateType type = CertificateType.STAKE_REGISTRATION;
@@ -31,6 +33,7 @@ public class StakeRegistration implements Certificate {
 
     @Override
     public Array serialize(Era era) throws CborSerializationException {
+        requireBeforeDijkstra(era, "A StakeRegistration certificate (tag 0)");
         if (stakeCredential == null)
             throw new CborSerializationException("StakeRegistration serialization failed. StakeCredential is NULL");
 

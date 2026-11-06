@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.raw;
 
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
 
 import java.util.Optional;
 
@@ -14,9 +15,11 @@ public final class RawConstitution {
             FieldType.OPTIONAL_HASH28);
 
     private final PositionalRecord record;
+    private final Era era;
 
-    private RawConstitution(PositionalRecord record) {
+    private RawConstitution(PositionalRecord record, Era era) {
         this.record = record;
+        this.era = era;
     }
 
     /**
@@ -25,7 +28,7 @@ public final class RawConstitution {
      * @throws CborRuntimeException if it is not an array of two items
      */
     public static RawConstitution of(CborSpan span) {
-        return new RawConstitution(PositionalRecord.of(RECORD, span, true));
+        return new RawConstitution(PositionalRecord.of(RECORD, span, true), null);
     }
 
     /**
@@ -37,11 +40,16 @@ public final class RawConstitution {
      * @throws CborRuntimeException if {@link #of(CborSpan)} rejects it, or it is indefinite
      */
     public static RawConstitution lenient(CborSpan span) {
-        return of(RawItems.definite(span, RECORD.name()));
+        return lenient(span, null);
+    }
+
+    // As lenient(span), in an era: from Dijkstra it, and its anchor, may be indefinite.
+    static RawConstitution lenient(CborSpan span, Era era) {
+        return new RawConstitution(PositionalRecord.of(RECORD, RawItems.definite(span, RECORD.name(), era), true), era);
     }
 
     public RawAnchor anchor() {
-        return RawAnchor.of(record.value(FieldType.ANCHOR));
+        return RawAnchor.of(record.value(FieldType.ANCHOR), era);
     }
 
     /**

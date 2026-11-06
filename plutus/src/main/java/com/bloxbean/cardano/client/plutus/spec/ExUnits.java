@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.raw.RawExUnits;
 import com.bloxbean.cardano.client.transaction.raw.RawItems;
 import lombok.AllArgsConstructor;
@@ -45,7 +46,22 @@ public class ExUnits {
      * decodes                                      them with {@code RecD}
      */
     public static ExUnits from(RawExUnits raw) throws CborDeserializationException {
-        if (RawItems.indefiniteWhenDecoded(raw.span()))
+        return from(raw, null);
+    }
+
+    /**
+     * Reads execution units as {@link #from(RawExUnits)} does, in an era: from Dijkstra they may be indefinite
+     * ({@link RawItems#indefiniteRecordsAllowed(Era)}).
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param raw execution units as received
+     * @param era the era they were read in, or null
+     * @return the model
+     * @throws CborDeserializationException if they have an indefinite length and the era does not allow it
+     */
+    public static ExUnits from(RawExUnits raw, Era era) throws CborDeserializationException {
+        if (!RawItems.indefiniteRecordsAllowed(era) && RawItems.indefiniteWhenDecoded(raw.span()))
             throw new CborDeserializationException("Invalid ex_units: expected a definite-length array");
         return new ExUnits(raw.mem(), raw.steps());
     }
