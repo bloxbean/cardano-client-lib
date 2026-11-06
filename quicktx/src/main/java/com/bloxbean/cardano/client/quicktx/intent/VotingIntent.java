@@ -4,8 +4,10 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
+import com.bloxbean.cardano.client.function.helper.VoterUtil;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.governance.Vote;
 import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
@@ -27,9 +29,16 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigInteger;
+import java.util.Optional;
+
 /**
  * Intention for voting operations.
  * Maps to GovTx.createVote(Voter, GovActionId, Vote, Anchor, PlutusData) operations.
+ * <p>
+ * The voting redeemer index is the voter's position in ledger order ({@link VoterUtil}), computed from the voters
+ * in the same Tx. Limitation: all voting intents should be in one Tx. When several Txs are composed into one
+ * transaction, a voter added by a later Tx (script or key) can shift the index already computed for an earlier Tx.
  */
 @Data
 @Builder(toBuilder = true)
@@ -348,64 +357,119 @@ public class VotingIntent implements TxIntent {
             // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank())
                 throw new TxBuildException("From address is required for voting");
+
+            // Add voting procedure here so that every voter is in the body before apply() computes redeemer indices
+            try {
+                if (txn.getBody().getVotingProcedures() == null)
+                    txn.getBody().setVotingProcedures(new VotingProcedures());
+
+                txn.getBody().getVotingProcedures().add(resolveVoter(), resolveGovActionId(),
+                        new VotingProcedure(resolveVote(), resolveAnchor()));
+            } catch (Exception e) {
+                throw new TxBuildException("Failed to apply VotingIntention: " + e.getMessage(), e);
+            }
         };
     }
 
     @Override
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {
+            PlutusData rdData;
+            Voter _voter;
             try {
-                Voter _voter = voter;
-                if (_voter == null && voterHex != null && !voterHex.isEmpty()) {
-                    Array voterArray = (Array) CborSerializationUtil.deserialize(HexUtil.decodeHexString(voterHex));
-                    _voter = Voter.deserialize(voterArray);
-                }
-
-                GovActionId _gaid = govActionId;
-                if (_gaid == null && govActionTxHash != null && govActionIndex != null) {
-                    _gaid = new GovActionId(govActionTxHash, govActionIndex);
-                }
-
-                Vote _vote = vote;
-                if (_vote == null && voteDecision != null) {
-                    _vote = Vote.valueOf(voteDecision.toUpperCase());
-                }
-
-                Anchor anch = anchor;
-                if (anch == null && anchorUrl != null) {
-                    byte[] hash = (anchorHash != null && !anchorHash.isEmpty()) ? HexUtil.decodeHexString(anchorHash) : null;
-                    anch = new Anchor(anchorUrl, hash);
-                }
-
-                if (txn.getBody().getVotingProcedures() == null)
-                    txn.getBody().setVotingProcedures(new VotingProcedures());
-
-                txn.getBody().getVotingProcedures().add(_voter, _gaid, new VotingProcedure(_vote, anch));
-
-                // Add voting redeemer if provided
-                PlutusData rdData = redeemer;
-                if (rdData == null && redeemerHex != null && !redeemerHex.isEmpty()) {
-                    rdData = PlutusData.deserialize(HexUtil.decodeHexString(redeemerHex));
-                }
-                if (rdData != null) {
-                    if (txn.getWitnessSet() == null)
-                        txn.setWitnessSet(new com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet());
-                    int idx = 0; // approximation
-                    Redeemer rd = Redeemer.builder()
-                            .tag(RedeemerTag.Voting)
-                            .data(rdData)
-                            .index(java.math.BigInteger.valueOf(idx))
-                            .exUnits(ExUnits.builder()
-                                    .mem(java.math.BigInteger.valueOf(10000))
-                                    .steps(java.math.BigInteger.valueOf(1000))
-                                    .build())
-                            .build();
-                    txn.getWitnessSet().getRedeemers().add(rd);
-                }
+                rdData = resolveRedeemer();
+                if (rdData == null)
+                    return;
+                _voter = resolveVoter();
             } catch (Exception e) {
                 throw new TxBuildException("Failed to apply VotingIntention: " + e.getMessage(), e);
             }
+
+            // Voting redeemer index is the voter's position in ledger order, not insertion order
+            int index = VoterUtil.getIndexByVoter(VoterUtil.getSortedVoters(txn.getBody().getVotingProcedures()), _voter);
+            if (index < 0)
+                throw new TxBuildException("Voter not found in voting procedures: " + _voter);
+
+            if (txn.getWitnessSet() == null)
+                txn.setWitnessSet(new TransactionWitnessSet());
+
+            // A voter voting on several governance actions has one entry in voting procedures, so one redeemer
+            BigInteger redeemerIndex = BigInteger.valueOf(index);
+            Optional<Redeemer> existing = txn.getWitnessSet().getRedeemers().stream()
+                    .filter(rd -> rd.getTag() == RedeemerTag.Voting && redeemerIndex.equals(rd.getIndex()))
+                    .findFirst();
+            if (existing.isPresent()) {
+                if (!sameData(existing.get().getData(), rdData))
+                    throw new TxBuildException("Conflicting voting redeemers for voter: " + _voter);
+                return;
+            }
+
+            Redeemer rd = Redeemer.builder()
+                    .tag(RedeemerTag.Voting)
+                    .data(rdData)
+                    .index(redeemerIndex)
+                    .exUnits(ExUnits.builder()
+                            .mem(BigInteger.valueOf(10000))
+                            .steps(BigInteger.valueOf(1000))
+                            .build())
+                    .build();
+            txn.getWitnessSet().getRedeemers().add(rd);
         };
+    }
+
+    // Resolve from runtime objects first, then from serialized fields. These never write back to the intent,
+    // so a reused intent resolves fresh values.
+
+    private Voter resolveVoter() throws Exception {
+        if (voter != null)
+            return voter;
+        if (voterHex != null && !voterHex.isEmpty()) {
+            Array voterArray = (Array) CborSerializationUtil.deserialize(HexUtil.decodeHexString(voterHex));
+            return Voter.deserialize(voterArray);
+        }
+        return null;
+    }
+
+    private GovActionId resolveGovActionId() {
+        if (govActionId != null)
+            return govActionId;
+        if (govActionTxHash != null && govActionIndex != null)
+            return new GovActionId(govActionTxHash, govActionIndex);
+        return null;
+    }
+
+    private Vote resolveVote() {
+        if (vote != null)
+            return vote;
+        if (voteDecision != null)
+            return Vote.valueOf(voteDecision.toUpperCase());
+        return null;
+    }
+
+    private Anchor resolveAnchor() {
+        if (anchor != null)
+            return anchor;
+        if (anchorUrl != null) {
+            byte[] hash = (anchorHash != null && !anchorHash.isEmpty()) ? HexUtil.decodeHexString(anchorHash) : null;
+            return new Anchor(anchorUrl, hash);
+        }
+        return null;
+    }
+
+    private PlutusData resolveRedeemer() throws Exception {
+        if (redeemer != null)
+            return redeemer;
+        if (redeemerHex != null && !redeemerHex.isEmpty())
+            return PlutusData.deserialize(HexUtil.decodeHexString(redeemerHex));
+        return null;
+    }
+
+    private static boolean sameData(PlutusData a, PlutusData b) {
+        try {
+            return a.serializeToHex().equals(b.serializeToHex());
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override
