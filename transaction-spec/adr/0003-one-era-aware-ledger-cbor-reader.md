@@ -677,6 +677,12 @@ validation path or only to the readers CCL and Yaci users call.
 - Yaci: `BlockSerializer.deserialize` wraps only CCL's `CborRuntimeException` (and stack exhaustion); another runtime
   exception escapes as it is, and the agents catch it. A certificate array of fewer than two items still reads as a
   stake registration, as before.
+- Yano's decoder for M7. Haskell decodes an era's blocks and transactions at the era's lowest major version
+  (`eraDecoder`, `eraProtVerLow`), not at the current protocol version, so Conway always decodes at 9. Yano picks its
+  policy by era (`HaskellPolicy.forEra`): Conway at 9, any other era refused. M7 adds Dijkstra at 12, where a RecD
+  record such as auxiliary data `[metadata, scripts]` may be indefinite, and checks the two auxiliary data forms whose
+  decoders change at 12: a plain metadata map (`decodeShelleyPv12`) and `#6.259` (`decodeSparseKeyed` in place of
+  `SparseKeyed`). Dijkstra's ledger rules in Yano are outside this ADR.
 
 - CCL's `crypto`, `crypto-ext`, `cip8`, `cip30` and `merkle` modules still decode with cbor-java's decoder, which can
   tag its shared simple values for the whole JVM. The reader paths no longer do.
@@ -783,3 +789,5 @@ found no real block affected.
 - **r4** (2026-11-06; implementation of M0 to M6): new section 7.1 records the gates, I10, the decisions taken during
   implementation, corrections to D2, D3, D5, D6, D7 and D8, the differences for approval, and what is left open; status
   line and the note under it; Q6 implemented as (a). The design text above section 7.1 is unchanged.
+- **r5** (2026-11-06): section 7.1's "Left open" gains Yano's decoder for M7 (decoding by era, the Dijkstra entry
+  and the auxiliary data forms to check at version 12). No other text changed.
