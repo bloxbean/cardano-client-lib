@@ -138,8 +138,9 @@ public final class RawTxBody {
 
     private RawCertificate certificate(CborSpan certificate) {
         if (!lenient)
-            return RawCertificate.of(certificate);
-        return RawCertificate.lenient(certificate).orElseThrow(() -> error("Unknown certificate tag", certificate));
+            return RawCertificate.of(certificate, era);
+        return RawCertificate.lenient(certificate, era)
+                .orElseThrow(() -> error("Unknown certificate tag", certificate));
     }
 
     /**
@@ -248,6 +249,70 @@ public final class RawTxBody {
                 : RawItems.unsigned(value));
     }
 
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the guards of a Dijkstra body (key 14) in encoded order, a key hash read as a key credential; or empty if
+     * the field is absent or the view's era is before Dijkstra. That the items have one form is policy
+     */
+    public Optional<List<RawCredential>> guards() {
+        return since(TxBodyField.GUARDS).map(field -> items(field, "guards", RawCredential::guard));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the sub-transactions of a Dijkstra body (key 23) in encoded order, each {@code [body, witnesses, aux /
+     * null]}; none if the field is absent or the view's era is before Dijkstra. A sub-transaction is read as
+     * {@link RawTx#of(byte[])} reads one, and its id is the hash of its body
+     * @throws CborRuntimeException if one is not an array of three items, or its body or witness set repeats a key
+     */
+    public List<RawTx> subTransactions() {
+        return since(TxBodyField.SUB_TRANSACTIONS)
+                .map(field -> items(field, "sub-transactions", RawTx::subTransaction)).orElse(List.of());
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the required top-level guards of a Dijkstra body (key 24), every entry in encoded order; none if the
+     * field is absent or the view's era is before Dijkstra
+     */
+    public List<RawTopLevelGuard> requiredTopLevelGuards() {
+        return since(TxBodyField.REQUIRED_TOP_LEVEL_GUARDS).map(RawTopLevelGuard::read).orElse(List.of());
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the direct deposits of a Dijkstra body (key 25), a reward account and a coin each, read as
+     * {@link #withdrawals()} reads withdrawals; none if the field is absent or the view's era is before Dijkstra
+     */
+    public List<RawWithdrawal> directDeposits() {
+        return since(TxBodyField.DIRECT_DEPOSITS).map(RawWithdrawal::read).orElse(List.of());
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the account balance intervals of a Dijkstra body (key 26), every entry in encoded order; none if the
+     * field is absent or the view's era is before Dijkstra
+     */
+    public List<RawAccountBalanceInterval> accountBalanceIntervals() {
+        return since(TxBodyField.ACCOUNT_BALANCE_INTERVALS).map(RawAccountBalanceInterval::read).orElse(List.of());
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the starting account balance intervals of a Dijkstra top-level body (key 27), every entry in encoded
+     * order; none if the field is absent or the view's era is before Dijkstra
+     */
+    public List<RawAccountBalanceInterval> startingAccountBalanceIntervals() {
+        return since(TxBodyField.STARTING_ACCOUNT_BALANCE_INTERVALS).map(RawAccountBalanceInterval::read)
+                .orElse(List.of());
+    }
+
     private List<RawInput> inputs(CborSpan field) {
         return items(field, "set of inputs", RawInput::of);
     }
@@ -267,6 +332,12 @@ public final class RawTxBody {
 
     private CborSpan required(TxBodyField field) {
         return value(field).orElseThrow(() -> error("A transaction body without " + field, span));
+    }
+
+    // A field of an era after the view's is an unknown key there, so it reads as absent, as a field of Dijkstra does
+    // before Dijkstra. The other accessors read the newest row of their field in any era.
+    private Optional<CborSpan> since(TxBodyField field) {
+        return field.spec().startsAfter(era) ? Optional.empty() : value(field);
     }
 
     private Optional<CborSpan> value(TxBodyField field) {

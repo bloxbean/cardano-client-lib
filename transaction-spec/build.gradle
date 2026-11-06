@@ -8,6 +8,7 @@ dependencies {
     api project(':plutus')
 
     implementation(libs.guava)
+    testImplementation(testFixtures(project(':ledger-cbor')))
     testImplementation(project(':test-support')) {
         exclude group: 'net.jqwik'
     }

@@ -9,7 +9,11 @@ field's items, vkeywitness, bootstrap_witness, both forms of redeemers, ex_units
 transaction's own array, the parameter update with every key and the rules it is made of (nonce, cost_models,
 ex_unit_prices, both voting thresholds), the update before Conway, governance (gov_action and each kind, voter,
 gov_action_id, voting_procedure(s), proposal_procedure, constitution), and the block and header layouts the era names
-in EraSpec. Run it by hand, and on each bump of the ledger pin:
+in EraSpec. For Dijkstra (ADR 0003 D4a) also: the mempool and block forms of a transaction, the sub-transaction and
+its body, the guard item, the new body maps (required_top_level_guards, direct_deposits, account balance intervals),
+pool registration with an optional BLS key, header_version_info, eb_references_announcement and the Leios
+certificate. The 10-item Dijkstra header is consensus's, not in the CDDL: the CDDL's header_body is checked against the
+layout of the era with as many items. Run it by hand, and on each bump of the ledger pin:
 
     tools/cddl-table-check/check_tables.py --ledger <cardano-ledger checkout> [--commit <sha>]
 
@@ -21,8 +25,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-PINNED = "f649f9751074d2ab3de033fc3912f29c9862c1f5"
-ERAS = ["Shelley", "Allegra", "Mary", "Alonzo", "Babbage", "Conway"]
+PINNED = "95b369053fd32422695a81fb7d5289d6dd35eee2"
+ERAS = ["Shelley", "Allegra", "Mary", "Alonzo", "Babbage", "Conway", "Dijkstra"]
 SOURCES = (Path(__file__).resolve().parents[2]
            / "ledger-cbor/src/main/java/com/bloxbean/cardano/client/transaction/raw")
 
@@ -64,13 +68,25 @@ TYPES = {
     "{* committee_cold_credential => epoch}": "COMMITTEE_TERMS", "constitution": "CONSTITUTION",
     "gov_action": "GOV_ACTION", "anchor": "ANCHOR", "vote": "VOTE", "voter": "VOTER", "gov_action_id": "GOV_ACTION_ID",
     "voting_procedure": "VOTING_PROCEDURE",
+    "header_version_info": "PROTOCOL_VERSION", "eb_references_announcement/ nil": "OPTIONAL_EB_REFERENCES_ANNOUNCEMENT",
+    "true": "BOOL", "bls_key/ nil": "OPTIONAL_BLS_KEY", "bytes .size 96": "BYTES", "bytes .size 48": "BYTES",
+    "bytes .size 32": "BYTES", "bytes .size 64": "BYTES", "bytes .size (0 .. 8192)": "BYTES",
+    "plutus_data/ nil": "OPTIONAL_PLUTUS_DATA", "coin/ nil": "OPTIONAL_COIN",
+    "account_balance_interval": "ACCOUNT_BALANCE_INTERVAL",
+    "credential": "CREDENTIAL", "sub_transaction_body": "SUB_TRANSACTION_BODY", "positive_word32": "POSITIVE_UINT32",
+    "positive_interval": "POSITIVE_INTERVAL", "max_pledge_leverage": "OPTIONAL_NONNEGATIVE_INTERVAL",
+    "nil/ uint .size 4": "OPTIONAL_UINT32",
 }
 # The table of an item of a witness set's or aux data's list.
 ITEM_TABLES = {
     "vkeywitness": "RawVkeyWitness.RECORD", "bootstrap_witness": "RawBootstrapWitness.RECORD",
     "native_script": "RawScript.NATIVE", "plutus_v1_script": "RawScript.PLUTUS", "plutus_v2_script": "RawScript.PLUTUS",
-    "plutus_v3_script": "RawScript.PLUTUS", "plutus_data": "RawDatum.DATA",
+    "plutus_v3_script": "RawScript.PLUTUS", "plutus_v4_script": "RawScript.PLUTUS", "plutus_data": "RawDatum.DATA",
 }
+# Where a table follows the ledger's code rather than the CDDL: (rule, key) -> (FieldType, required), from Dijkstra.
+# Guards may be empty and lack tag 258: decodeGuards has no failOnNull (Dijkstra TxBody.hs at the pin, 399-401 and
+# 1663-1679), though the CDDL says nonempty_set / nonempty_oset.
+CODE_OVER_CDDL = {("transaction_body", 14): ("SET", False), ("sub_transaction_body", 14): ("SET", False)}
 SHAPES = [
     (r"\[\* ", "LIST"), (r"\[\+ ", "NONEMPTY_ARRAY"), (r"set<", "SET"), (r"nonempty_set<", "NONEMPTY_SET"),
     (r"nonempty_oset<", "NONEMPTY_SET"), (r"nonempty_list<", "NONEMPTY_LIST"), (r"\{\* ", "MAP"),
@@ -152,13 +168,32 @@ def union_members(rule_name, cddl_text):
     return members
 
 
+def union_forms(rule_name, cddl_text):
+    """As union_members, each tag with every form it has: an optional item, such as a pool's BLS key, gives a form
+    without it and one with it. {tag: sorted [[FieldType...]]}."""
+    body = rule(cddl_text, rule_name).strip()
+    members = {}
+    for alternative in split_top(body[1:-1], "//"):
+        group = rule(cddl_text, alternative) or alternative
+        items = group_items(group.strip(), cddl_text)
+        forms = [[]]
+        for item in items[1:]:
+            typed = field_type(item.lstrip("? "), cddl_text)
+            forms = [form + [typed] for form in forms] + (forms if item.startswith("?") else [])
+        members[int(items[0])] = sorted(forms)
+    return members
+
+
 def keyed_rule(rule_name, cddl_text):
-    """{key: (FieldType, required)} of a map rule."""
+    """{key: (FieldType, required)} of a map rule, with CODE_OVER_CDDL applied where the CDDL has the rule's key."""
     body = rule(cddl_text, rule_name).strip()
     fields = {}
     for entry in split_top(body[1:-1], ","):
         match = re.fullmatch(r"(\?\s*)?(\d+)\s*:\s*(.+)", entry)
         fields[int(match.group(2))] = (field_type(match.group(3), cddl_text), match.group(1) is None)
+    for (name, key), row in CODE_OVER_CDDL.items():
+        if name == rule_name and key in fields and rule(cddl_text, "sub_transaction_body"):
+            fields[key] = row
     return fields
 
 
@@ -176,7 +211,7 @@ def era_of(token):
 
 def rows(name):
     """The constants of an enum table, as (constant, [arguments])."""
-    source = java(name)
+    source = re.sub(r"/\*.*?\*/", "", java(name), flags=re.S)
     body = source[source.index("enum " + name + " "):]
     body = body[body.index("{") + 1:body.index(";")]
     body = re.sub(r"//[^\n]*", "", body)
@@ -185,16 +220,23 @@ def rows(name):
 
 
 def cert_table(era):
+    """{tag: sorted [[FieldType...]]}: every member of the certificate union valid in the era, the enum's rows and
+    the extra member a tag may have, such as a pool registration with a BLS key."""
+    members = [(args[0], args[1], args[2], args[3:]) for _, args in rows("CertKind")]
+    for tag, start, until, items in re.findall(
+            r"FieldSpec\.member\((\d+), Era\.(\w+), (null|Era\.\w+),\s*([^;]*?)\);", java("CertKind")):
+        members.append((tag, "Era." + start, until, [item.strip() for item in items.split(",")]))
     table = {}
-    for _, args in rows("CertKind"):
-        if valid_in(era, era_of(args[1]), era_of(args[2])):
-            table[int(args[0])] = args[3:]
-    return table
+    for tag, start, until, items in members:
+        if valid_in(era, era_of(start), era_of(until)):
+            table.setdefault(int(tag), []).append(items)
+    return {tag: sorted(forms) for tag, forms in table.items()}
 
 
-def body_table(era):
+def body_table(era, level=None):
+    """{key: (FieldType, required)} of the body rows valid in the era; with a level, only the rows of that level."""
     return {int(a[0]): (a[1], a[2] == "true") for _, a in rows("TxBodyField")
-            if valid_in(era, era_of(a[3]), era_of(a[4]))}
+            if valid_in(era, era_of(a[4]), era_of(a[5])) and level in (None, a[3])}
 
 
 def witness_table(era):
@@ -225,10 +267,24 @@ def aux_map_item_tables(era):
     return {int(a[0]): a[3] for _, a in rows("AuxDataField") if valid_in(era, era_of(a[2]), None) and a[3] != "null"}
 
 
-def transaction_table(era):
-    """The form of the transaction's own array that the era has: (FieldType, required), by position."""
-    return {position: row for name in ("pre_alonzo_transaction", "transaction")
-            for position, row, until in tagged_rows("RawTx", name) if valid_in(era, *until)}
+def transaction_forms(era):
+    """Each form of the transaction's own array that the era has: {position: (FieldType, required)}, sorted."""
+    forms = []
+    for name in ("pre_alonzo_transaction", "transaction", "block_transaction"):
+        form = {position: row for position, row, until in tagged_rows("RawTx", name) if valid_in(era, *until)}
+        if form:
+            forms.append(form)
+    return sorted(forms, key=str)
+
+
+def cddl_transaction_forms(cddl_text):
+    """The forms of the transaction rule; from Dijkstra, those of mempool_transaction and block_transaction."""
+    if rule(cddl_text, "transaction"):
+        return [array_fields("transaction", cddl_text)]
+    forms = [{position: (field_type(item, cddl_text), True) for position, item in
+              enumerate(split_top(form.strip()[1:-1], ","))}
+             for form in split_top(rule(cddl_text, "mempool_transaction"), "/")]
+    return sorted(forms + [array_fields("block_transaction", cddl_text)], key=str)
 
 
 def tagged_rows(view, name):
@@ -331,7 +387,7 @@ def multiasset_table(name, era):
     source = java("RawMultiAsset")
     key = re.search(r'name, FieldType\.(\w+),\s*FieldSpec\.of\(0, FieldType\.(\w+), false, Era\.Mary', source)
     asset = re.search(r'name \+ " assets", FieldType\.(\w+),', source).group(1)
-    return [key.group(1), key.group(2), asset, args.group(2) if era == "Conway" else args.group(1)]
+    return [key.group(1), key.group(2), asset, args.group(2) if valid_in(era, "Conway", None) else args.group(1)]
 
 
 def entries_table(view, name=r"\w+"):
@@ -380,13 +436,55 @@ def positional(view, name=r"\w+"):
 
 
 def era_layouts(era):
-    """The block and header layouts that the era's EraSpec row names."""
-    return next((a[1], a[2]) for _, a in rows("EraSpec") if a[0] == f"Era.{era}")
+    """The block layout and the header layouts that the era's EraSpec row names."""
+    row = re.search(r"\(Era\." + era + r", (\w+), .*?((?:FLAT|NESTED)_\d+(?:, (?:FLAT|NESTED)_\d+)*)\)[,;]",
+                    java("EraSpec"))
+    return row.group(1), row.group(2).split(", ")
 
 
 def array_items(rule_name, cddl_text):
     """The FieldTypes of an array rule, with a group such as operational_cert expanded."""
     return [field_type(item, cddl_text) for item in group_items(rule(cddl_text, rule_name).strip()[1:-1], cddl_text)]
+
+
+def dijkstra_rules(text, problems):
+    """The rules Dijkstra adds (ADR 0003 D4a)."""
+    compare("sub_transaction_body key", keyed_rule("sub_transaction_body", text), body_table("Dijkstra", "ANY"),
+            problems)
+    compare("sub_transaction", array_fields("sub_transaction", text),
+            {p: row for p, row, _ in tagged_rows("TxBodyField", "sub_transaction")}, problems)
+    guard_forms = sorted(field_type(re.fullmatch(r"\w+<(\w+)>", form.strip()).group(1), text)
+                         for form in split_top(rule(text, "guards"), "/"))
+    compare("guard", {"items": guard_forms},
+            {"items": sorted(row[1] for row in by_major_rows("RawCredential", "guard"))}, problems)
+    for name, view, table in (("required_top_level_guards", "RawTopLevelGuard", "required_top_level_guards"),
+                              ("direct_deposits", "RawWithdrawal", "withdrawals"),
+                              ("account_balance_intervals", "RawAccountBalanceInterval", "account_balance_intervals"),
+                              ("starting_account_balance_intervals", "RawAccountBalanceInterval",
+                               "account_balance_intervals")):
+        key, value = re.fullmatch(r"\{\+ (\w+) => (.+)\}", rule(text, name)).groups()
+        compare(name, {"items": [field_type(key, text), field_type(value, text)]},
+                {"items": entries_table(view, table)}, problems)
+    interval = [form.strip() for form in split_top(rule(text, "account_balance_interval"), "/")]
+    bounds = [[field_type(item, text) for item in split_top(form[1:-1], ",")] for form in interval
+              if form.startswith("[")]
+    nullable = ["OPTIONAL_COIN" if any(form[i] == "OPTIONAL_COIN" for form in bounds) else bounds[0][i]
+                for i in range(len(bounds[0]))]
+    compare("account_balance_interval", {"forms": sorted(form for form in interval if not form.startswith("[")),
+                                         "bounds": nullable},
+            {"forms": ["coin"], "bounds": positional("RawAccountBalanceInterval", "account_balance_bounds")},
+            problems)
+    compare("header_version_info", {"items": len(array_items("header_version_info", text))},
+            {"items": len(positional("RawHeader", "protocol_version"))}, problems)
+    compare("eb_references_announcement",
+            {"items": ["UINT32" if item == "MINOR_PROTOCOL_VERSION" else item
+                       for item in array_items("eb_references_announcement", text)]},
+            {"items": positional("RawEbReferencesAnnouncement")}, problems)
+    compare("bls_key", {"items": array_items("bls_key", text)}, {"items": positional("RawBlsKey")}, problems)
+    compare("leios_certificate", {"items": array_items("leios_certificate", text)},
+            {"items": positional("RawLeiosCertificate")}, problems)
+    compare("block_body", {"items": len(split_top(rule(text, "block_body")[1:-1], ","))},
+            {"items": int(re.search(r"BLOCK_BODY_ITEMS = (\d+);", java("RawBlock")).group(1))}, problems)
 
 
 def compare(what, expected, actual, problems):
@@ -409,7 +507,7 @@ def main():
         text = cddl(options.ledger, options.commit, era)
         problems = []
         certs, body, witnesses = cert_table(era), body_table(era), witness_table(era)
-        compare("certificate", union_members("certificate", text), certs, problems)
+        compare("certificate", union_forms("certificate", text), certs, problems)
         compare("body key", keyed_rule("transaction_body", text), body, problems)
         compare("witness key", keyed_rule("transaction_witness_set", text), witnesses, problems)
         compare("witness item table", item_tables("transaction_witness_set", text), witness_item_tables(era), problems)
@@ -424,8 +522,8 @@ def main():
                 expected = [t[0] if isinstance(t, tuple) else t for t in types]
                 compare(name, {"items": expected}, {"items": positional("RawRedeemer", name)}, problems)
             compare("ex_units", {"items": array_items("ex_units", text)}, {"items": positional("RawExUnits")}, problems)
-        expected_tx = array_fields("transaction", text)
-        compare("transaction", expected_tx, transaction_table(era), problems)
+        compare("transaction forms", {"forms": cddl_transaction_forms(text)}, {"forms": transaction_forms(era)},
+                problems)
         aux = rule(text, "auxiliary_data")
         if aux:
             forms = [form.strip() for form in split_top(aux, "/")]
@@ -467,7 +565,8 @@ def main():
         if rule(text, "value"):
             coin, items, quantity = value_rule(text)
             compare("value", {"coin": coin, "items": items, "quantity": quantity},
-                    {"coin": "COIN", "items": [row[0] for row in table_rows("RawValue", "value").values()],
+                    {"coin": "COIN", "items": [row[0] for _, row, until in tagged_rows("RawValue", "value")
+                                               if valid_in(era, *until)],
                      "quantity": multiasset_table("multiasset", era)[3]}, problems)
             compare("multiasset", {"items": assets_rule(rule(text, "multiasset<a0>").replace("a0", "uint"), text)[:3]},
                     {"items": multiasset_table("multiasset", era)[:3]}, problems)
@@ -488,13 +587,18 @@ def main():
                     {"items": [field_type(i, text) for i in
                                split_top(rule(text, "move_instantaneous_reward")[1:-1], ",")]},
                     {"items": positional("RawMir")}, problems)
-        block_layout, header_layout = era_layouts(era)
+        block_layout, header_layouts = era_layouts(era)
         layouts = dict(rows("BlockLayout") + rows("HeaderLayout"))
         compare("block", {"items": str(len(split_top(rule(text, "block")[1:-1], ",")))},
                 {"items": layouts[block_layout][0]}, problems)
         compare("header", {"items": array_items("header", text)}, {"items": positional("RawHeader", "header")},
                 problems)
-        compare("header_body", {"items": array_items("header_body", text)}, {"items": layouts[header_layout]}, problems)
+        header_body = array_items("header_body", text)
+        compare("header_body", {"items": header_body},
+                {"items": next((layouts[name] for name in header_layouts if len(layouts[name]) == len(header_body)),
+                               None)}, problems)
+        if rule(text, "sub_transaction_body"):
+            dijkstra_rules(text, problems)
         compare("vrf_cert", {"items": array_items("vrf_cert", text)}, {"items": positional("RawVrfCert")}, problems)
         if rule(text, "operational_cert").startswith("["):
             compare("operational_cert", {"items": array_items("operational_cert", text)},
@@ -539,7 +643,7 @@ def main():
                         {"items": ["UNIT_INTERVAL"] * enum_size("RawVotingThresholds", enum)}, problems)
         status = "OK" if not problems else f"{len(problems)} DIFFERENCES"
         print(f"{era}: {status}; tags {sorted(certs)}, body keys {sorted(body)}, witness keys {sorted(witnesses)}, "
-              f"parameter keys {sorted(params)}, {block_layout}, {header_layout}")
+              f"parameter keys {sorted(params)}, {block_layout}, {', '.join(header_layouts)}")
         for problem in problems:
             print("  " + problem)
         problems_total += len(problems)

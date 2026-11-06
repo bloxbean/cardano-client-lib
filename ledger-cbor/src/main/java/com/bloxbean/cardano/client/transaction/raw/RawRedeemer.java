@@ -21,7 +21,7 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * neither form holds no redeemer, and a map keeps one entry per key, equal as a decoded map's are, with the key's first
  * encoding. A view of {@link RawWitnessSet#tolerant} reads a map as they do, and a map value may be indefinite.
  *
- * @param tag     the purpose: 0 spend, 1 mint, 2 cert, 3 reward, 4 voting, 5 proposing
+ * @param tag     the purpose: 0 spend, 1 mint, 2 cert, 3 reward, 4 voting, 5 proposing, and from Dijkstra 6 guarding
  * @param index   the index of the item the redeemer is for, its 64 bits: see {@link #unsignedIndex()}
  * @param data    the redeemer data, as encoded (see {@link RawDatum} to hash or decode it)
  * @param exUnits the execution units {@code [mem, steps]}, as encoded
@@ -42,10 +42,12 @@ public record RawRedeemer(int tag, long index, CborSpan data, CborSpan exUnits, 
     /** The map form. */
     static final RecordSpec MAP = RecordSpec.entries("redeemers_map", FieldType.REDEEMER_KEY,
             FieldSpec.of(0, FieldType.REDEEMER_VALUE, false, Era.Conway, null));
-    /** The {@code redeemers} rule: a list to Babbage, and a list or a map in Conway, neither empty. */
+    /**
+     * The {@code redeemers} rule: a list to Babbage, a list or a map in Conway, neither empty, and a map from Dijkstra.
+     */
     static final RecordSpec RECORD = RecordSpec.byMajorType("redeemers",
             FieldSpec.of(MAJOR_ARRAY, FieldType.LIST, false, Era.Alonzo, Era.Babbage, ITEM),
-            FieldSpec.of(MAJOR_ARRAY, FieldType.NONEMPTY_ARRAY, false, Era.Conway, null, ITEM),
+            FieldSpec.of(MAJOR_ARRAY, FieldType.NONEMPTY_ARRAY, false, Era.Conway, Era.Conway, ITEM),
             FieldSpec.of(MAJOR_MAP, FieldType.NONEMPTY_MAP, false, Era.Conway, null, MAP));
 
     /**

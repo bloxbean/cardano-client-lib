@@ -19,8 +19,10 @@ import java.util.Optional;
  * lazy and iterative, so content of any nesting depth is handled on any thread; the unbounded types (Plutus data, native
  * scripts) stay spans here, and the models are built from them by {@code RawModels} in {@code transaction-spec}.
  * <p>
- * Accepts the submission form {@code [body, witnesses, aux / null]} (any era; valid) and the Alonzo form
- * {@code [body, witnesses, isValid, aux / null]}. A view is era-agnostic: records are read by key, unknown keys are passed
+ * Accepts the submission form {@code [body, witnesses, aux / null]} (any era; valid), the Alonzo form
+ * {@code [body, witnesses, isValid, aux / null]}, and the form of a transaction in a Dijkstra block,
+ * {@code [body, witnesses, aux / null, isValid]}; the two forms of four items are told apart by which item is a CBOR
+ * boolean, as aux data never is. A view is era-agnostic: records are read by key, unknown keys are passed
  * through, tag 258 is accepted on sets, and both redeemer forms and every aux data shape are read. Only
  * {@link #scriptDataHash(Era, byte[])} and the typed fields of {@link #body(Era)}, {@link #witnessSet(Era)} and
  * {@link #auxData(Era)} depend on the era. A record with a
@@ -33,6 +35,10 @@ import java.util.Optional;
  * Byron transactions are not supported.
  */
 public final class RawTx {
+    private static final int AUX_POSITION = 2;
+    private static final int FLAG_LAST = 3;
+    private static final int WITHOUT_FLAG_ITEMS = 3;
+
     private final CborSpan span;
     private final CborSpan body;
     private final CborSpan witnessSet;
@@ -64,10 +70,11 @@ public final class RawTx {
         this.witnessSet = items.get(1);
         this.bodyFields = RawItems.record(body, "transaction body");
         this.witnessFields = null;
-        this.auxData = aux(items.get(items.size() - 1));
+        int flag = flagPosition(items);
+        this.auxData = aux(items.get(flag == AUX_POSITION ? FLAG_LAST : AUX_POSITION));
         this.auxFields = null;
-        this.validityFlag = items.size() == 4;
-        this.valid = !validityFlag || items.get(2).asBoolean();
+        this.validityFlag = flag >= 0;
+        this.valid = !validityFlag || items.get(flag).asBoolean();
         this.lenient = true;
     }
 
@@ -80,8 +87,35 @@ public final class RawTx {
     public static RawTx of(byte[] txCbor) {
         CborSpan tx = CborSpan.of(txCbor);
         List<CborSpan> items = items(tx);
-        return items.size() == 3 ? new RawTx(tx, items.get(0), items.get(1), aux(items.get(2)), true, false)
-                : new RawTx(tx, items.get(0), items.get(1), aux(items.get(3)), items.get(2).asBoolean(), true);
+        int flag = flagPosition(items);
+        if (flag < 0)
+            return new RawTx(tx, items.get(0), items.get(1), aux(items.get(AUX_POSITION)), true, false);
+        CborSpan aux = items.get(flag == AUX_POSITION ? FLAG_LAST : AUX_POSITION);
+        return new RawTx(tx, items.get(0), items.get(1), aux(aux), items.get(flag).asBoolean(), true);
+    }
+
+    // A sub-transaction of a Dijkstra body, [body, witnesses, aux / null], which has no flag.
+    static RawTx subTransaction(CborSpan tx) {
+        List<CborSpan> items = RawItems.array(tx, "sub_transaction");
+        if (items.size() != WITHOUT_FLAG_ITEMS)
+            throw error("A sub-transaction has " + WITHOUT_FLAG_ITEMS + " items, found " + items.size(), tx);
+        return new RawTx(tx, items.get(0), items.get(1), aux(items.get(AUX_POSITION)), true, false);
+    }
+
+    /**
+     * The position of a transaction's validity flag: the third item, the Alonzo form, unless only the fourth is a CBOR
+     * boolean, the form of a transaction in a Dijkstra block; or -1 if it has three items.
+     */
+    private static int flagPosition(List<CborSpan> items) {
+        if (items.size() == WITHOUT_FLAG_ITEMS)
+            return -1;
+        return !isBoolean(items.get(AUX_POSITION)) && isBoolean(items.get(FLAG_LAST)) ? FLAG_LAST : AUX_POSITION;
+    }
+
+    // An untagged CBOR true or false.
+    static boolean isBoolean(CborSpan item) {
+        int initial = item.buffer()[item.offset()] & 0xff;
+        return item.length() == 1 && (initial == 0xf4 || initial == 0xf5);
     }
 
     /**
@@ -106,8 +140,11 @@ public final class RawTx {
     /**
      * Walks the transaction with a policy (ADR 0003 D6): its own array, the body, the witness set, the validity flag
      * and the aux data. A view rejects a record that repeats a key when it is created, and a policy must see that
-     * entry, so a walk takes the bytes. The form {@code [body, witnesses, aux / null]} has its rows to Mary, and the
-     * form with the flag from Alonzo on: outside them, {@link FieldSpec#validIn(Era)} tells the policy.
+     * entry, so a walk takes the bytes. The form {@code [body, witnesses, aux / null]} has its rows to Mary and from
+     * Dijkstra on, the form with the flag third from Alonzo on, and the form with the flag last, a transaction in a
+     * Dijkstra block, from Dijkstra on: outside them, {@link FieldSpec#validIn(Era)} tells the policy. A Dijkstra
+     * body's sub-transactions are walked with the body table's rows that a sub-transaction body may have
+     * ({@link TxBodyField#SUB_RECORD}).
      *
      * @param txCbor a transaction, exactly one CBOR item
      * @param era    the era to read it in
@@ -130,24 +167,37 @@ public final class RawTx {
      *                              cannot enter
      */
     public static void walk(CborSpan tx, Era era, FormatPolicy policy) {
-        (items(tx).size() == Forms.WITHOUT_FLAG.arity() ? Forms.WITHOUT_FLAG : Forms.WITH_FLAG).walk(tx, era, policy);
+        List<CborSpan> items = items(tx);
+        RecordSpec form = items.size() == WITHOUT_FLAG_ITEMS ? Forms.WITHOUT_FLAG
+                : flagPosition(items) == FLAG_LAST ? Forms.FLAG_LAST : Forms.WITH_FLAG;
+        form.walk(tx, era, policy);
     }
 
-    // The tables of the transaction's own array. A holder of its own, so that nothing reading a table initializes
-    // RawTx.
+    // The tables of the transaction's own array, by form: without a flag (to Mary, and again from Dijkstra), with the
+    // flag third (from Alonzo) and with it last (from Dijkstra). A holder of its own, so that nothing reading a table
+    // initializes RawTx.
     private static final class Forms {
         static final RecordSpec WITHOUT_FLAG = RecordSpec.positional("pre_alonzo_transaction", List.of(
                 FieldSpec.of(0, FieldType.TRANSACTION_BODY, true, Era.Shelley, Era.Mary, TxBodyField.RECORD),
                 FieldSpec.of(1, FieldType.TRANSACTION_WITNESS_SET, true, Era.Shelley, Era.Mary, WitnessSetField.RECORD),
-                FieldSpec.of(2, FieldType.OPTIONAL_AUXILIARY_DATA, true, Era.Shelley, Era.Mary)));
+                FieldSpec.of(2, FieldType.OPTIONAL_AUXILIARY_DATA, true, Era.Shelley, Era.Mary),
+                FieldSpec.of(0, FieldType.TRANSACTION_BODY, true, Era.Dijkstra, null, TxBodyField.RECORD),
+                FieldSpec.of(1, FieldType.TRANSACTION_WITNESS_SET, true, Era.Dijkstra, null, WitnessSetField.RECORD),
+                FieldSpec.of(2, FieldType.OPTIONAL_AUXILIARY_DATA, true, Era.Dijkstra, null)));
         static final RecordSpec WITH_FLAG = RecordSpec.positional("transaction", List.of(
                 FieldSpec.of(0, FieldType.TRANSACTION_BODY, true, Era.Alonzo, null, TxBodyField.RECORD),
                 FieldSpec.of(1, FieldType.TRANSACTION_WITNESS_SET, true, Era.Alonzo, null, WitnessSetField.RECORD),
                 FieldSpec.of(2, FieldType.BOOL, true, Era.Alonzo, null),
                 FieldSpec.of(3, FieldType.OPTIONAL_AUXILIARY_DATA, true, Era.Alonzo, null)));
+        static final RecordSpec FLAG_LAST = RecordSpec.positional("block_transaction", List.of(
+                FieldSpec.of(0, FieldType.TRANSACTION_BODY, true, Era.Dijkstra, null, TxBodyField.RECORD),
+                FieldSpec.of(1, FieldType.TRANSACTION_WITNESS_SET, true, Era.Dijkstra, null, WitnessSetField.RECORD),
+                FieldSpec.of(2, FieldType.OPTIONAL_AUXILIARY_DATA, true, Era.Dijkstra, null),
+                FieldSpec.of(3, FieldType.BOOL, true, Era.Dijkstra, null)));
     }
 
-    // The items of a transaction: [body, witnesses, aux / null] or [body, witnesses, isValid, aux / null].
+    // The items of a transaction: [body, witnesses, aux / null], [body, witnesses, isValid, aux / null] or
+    // [body, witnesses, aux / null, isValid].
     private static List<CborSpan> items(CborSpan tx) {
         if (tx.majorType() != 4 || tx.tag() != -1)
             throw error("A transaction is an untagged array", tx);
@@ -162,7 +212,8 @@ public final class RawTx {
         return items;
     }
 
-    // A transaction of a block, from the block's parallel arrays.
+    // A transaction of a block, from the block's parallel arrays or a Dijkstra block's transaction; with no validity
+    // flag, assemble() writes the form without one.
     static RawTx inBlock(CborSpan body, CborSpan witnessSet, CborSpan auxData, boolean valid, boolean validityFlag) {
         return new RawTx(null, body, witnessSet, auxData, valid, validityFlag);
     }
@@ -301,7 +352,7 @@ public final class RawTx {
 
     /**
      * @return false when phase-2 validation failed: the {@code isValid} flag, or for a transaction of a block, its index is
-     * in {@code invalid_transactions}; true before Alonzo
+     * in {@code invalid_transactions} or its Dijkstra flag; true before Alonzo and for a sub-transaction
      */
     public boolean isValid() {
         return valid;
@@ -396,38 +447,40 @@ public final class RawTx {
     }
 
     /**
-     * @return the witness datums (witness field 4), every entry in encoded order
+     * @return the witness datums (witness field 4), every entry in encoded order, read in Conway
      */
     public List<RawDatum> witnessDatums() {
-        return newestWitnessSet().datums().orElse(List.of());
+        return conwayWitnessSet().datums().orElse(List.of());
     }
 
     /**
      * @return the redeemers (witness field 5), from the array form or the Conway map form, in encoded order with any
-     * repeated key kept (the ledger keeps the last value of a repeated key)
+     * repeated key kept (the ledger keeps the last value of a repeated key), read in Conway
      */
     public List<RawRedeemer> redeemers() {
-        return newestWitnessSet().redeemers().orElse(List.of());
+        return conwayWitnessSet().redeemers().orElse(List.of());
     }
 
     /**
-     * @return the witness scripts: native (witness field 1), Plutus V1 (3), V2 (6) and V3 (7)
+     * @return the witness scripts: native (witness field 1), Plutus V1 (3), V2 (6) and V3 (7), read in Conway; read a
+     * Dijkstra witness set with {@link #witnessSet(Era)} for its Plutus V4 scripts
      */
     public List<RawScript> scripts() {
-        return newestWitnessSet().scripts();
+        return conwayWitnessSet().scripts();
     }
 
-    // For the accessors that take no era. No key of a witness set has changed its meaning yet.
-    private RawWitnessSet newestWitnessSet() {
-        return witnessSet(EraSpec.newest());
+    // For the accessors that take no era, which read as Conway does.
+    private RawWitnessSet conwayWitnessSet() {
+        return witnessSet(Era.Conway);
     }
 
     /**
      * @return the aux data scripts: native scripts of {@code [metadata, scripts]}, and native and Plutus V1-V3 scripts of
-     * {@code #6.259({...})} (keys 1-4); none for a metadata map
+     * {@code #6.259({...})} (keys 1-4); none for a metadata map. Read in Conway: read Dijkstra aux data with
+     * {@link #auxData(Era)} for its Plutus V4 scripts
      */
     public List<RawScript> auxScripts() {
-        return auxData(EraSpec.newest()).map(RawAuxData::scripts).orElse(List.of());
+        return auxData(Era.Conway).map(RawAuxData::scripts).orElse(List.of());
     }
 
     /**

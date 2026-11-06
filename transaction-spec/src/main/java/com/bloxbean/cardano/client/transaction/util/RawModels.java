@@ -86,7 +86,8 @@ public final class RawModels {
      *
      * @param script the script as received
      * @return a {@link NativeScript}, {@link PlutusV1Script}, {@link PlutusV2Script} or {@link PlutusV3Script}
-     * @throws CborDeserializationException if the bytes are not a script of this type
+     * @throws CborDeserializationException if the bytes are not a script of this type, or it is a Plutus V4 script,
+     *                                      which has no model
      */
     public static Script toScript(RawScript script) throws CborDeserializationException {
         if (script.type() == 0) {
@@ -103,8 +104,11 @@ public final class RawModels {
                 return PlutusV1Script.deserialize(bytes);
             case 2:
                 return PlutusV2Script.deserialize(bytes);
-            default:
+            case 3:
                 return PlutusV3Script.deserialize(bytes);
+            default:
+                throw new CborDeserializationException("A Plutus V" + script.type() + " script has no model, at offset "
+                        + script.span().offset());
         }
     }
 

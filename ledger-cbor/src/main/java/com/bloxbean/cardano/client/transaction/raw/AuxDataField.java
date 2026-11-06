@@ -7,7 +7,8 @@ import java.util.List;
 
 /**
  * The fields of the {@code auxiliary_data_map} rule, read from the pinned CDDL ({@code eras/*}{@code /impl/cddl/data}):
- * a keyed record in tag 259, the form of auxiliary data from Alonzo on.
+ * a keyed record in tag 259, the form of auxiliary data from Alonzo on. The row of key 5, Plutus V4 scripts, is
+ * experimental: Dijkstra is not final; this may change in any release.
  */
 public enum AuxDataField {
     //       key  type                from         table of an item
@@ -15,7 +16,8 @@ public enum AuxDataField {
     NATIVE_SCRIPTS(1, FieldType.LIST, Era.Alonzo, RawScript.NATIVE),
     PLUTUS_V1_SCRIPTS(2, FieldType.LIST, Era.Alonzo, RawScript.PLUTUS),
     PLUTUS_V2_SCRIPTS(3, FieldType.LIST, Era.Babbage, RawScript.PLUTUS),
-    PLUTUS_V3_SCRIPTS(4, FieldType.LIST, Era.Conway, RawScript.PLUTUS);
+    PLUTUS_V3_SCRIPTS(4, FieldType.LIST, Era.Conway, RawScript.PLUTUS),
+    PLUTUS_V4_SCRIPTS(5, FieldType.LIST, Era.Dijkstra, RawScript.PLUTUS);
 
     private static final long TAG = 259;
 

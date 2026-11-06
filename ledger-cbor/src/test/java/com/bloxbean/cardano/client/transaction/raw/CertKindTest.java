@@ -18,14 +18,21 @@ class CertKindTest {
     void everyTagHasItsEras() {
         Set<Era> shelleyToBabbage = EnumSet.range(Era.Shelley, Era.Babbage);
         Set<Era> shelleyToConway = EnumSet.range(Era.Shelley, Era.Conway);
-        Set<Era> conway = EnumSet.of(Era.Conway);
+        Set<Era> shelleyOn = EnumSet.allOf(Era.class);
+        Set<Era> conwayOn = EnumSet.range(Era.Conway, Era.Dijkstra);
         for (CertKind kind : CertKind.values()) {
-            Set<Era> eras = kind.tag() <= 4 ? shelleyToConway : kind.tag() <= 6 ? shelleyToBabbage : conway;
+            // Dijkstra drops tags 0, 1, 5 and 6 (Dijkstra/TxCert.hs)
+            Set<Era> eras = kind.tag() <= 1 ? shelleyToConway : kind.tag() <= 4 ? shelleyOn
+                    : kind.tag() <= 6 ? shelleyToBabbage : conwayOn;
             for (Era era : Era.values())
                 assertThat(kind.member().validIn(era)).as(kind + " in " + era).isEqualTo(eras.contains(era));
         }
+        for (Era era : Era.values()) {
+            assertThat(CertKind.POOL_REGISTRATION_WITH_BLS_KEY.validIn(era)).as("BLS key in " + era)
+                    .isEqualTo(era == Era.Dijkstra);
+        }
         assertThat(CertKind.values()).hasSize(19);
-        assertThat(CertKind.RECORD.fields()).hasSize(19);
+        assertThat(CertKind.RECORD.fields()).hasSize(20);
     }
 
     @Test

@@ -9,6 +9,10 @@ import static com.bloxbean.cardano.client.transaction.raw.FieldType.COIN;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.EX_UNITS;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.NONCE;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.NONNEGATIVE_INTERVAL;
+import static com.bloxbean.cardano.client.transaction.raw.FieldType.OPTIONAL_NONNEGATIVE_INTERVAL;
+import static com.bloxbean.cardano.client.transaction.raw.FieldType.OPTIONAL_UINT32;
+import static com.bloxbean.cardano.client.transaction.raw.FieldType.POSITIVE_INTERVAL;
+import static com.bloxbean.cardano.client.transaction.raw.FieldType.POSITIVE_UINT32;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.UINT;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.UINT16;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.UINT32;
@@ -20,7 +24,9 @@ import static com.bloxbean.cardano.client.transaction.raw.FieldType.UNIT_INTERVA
  * type, and key 17 changes meaning at Babbage: coins per UTxO word (8 bytes) in Alonzo, coins per UTxO byte from
  * Babbage. The CDDL types both {@code coin} and calls both "ada per utxo byte"; the ledger at the pin decodes key 17 as
  * {@code CoinPerWord} in Alonzo ({@code Alonzo/PParams.hs}, {@code PParamUpdate 17 ppuCoinsPerUTxOWordL}) and
- * {@code CoinPerByte} from Babbage ({@code Babbage/PParams.hs}, {@code PParamUpdate 17 ppuCoinsPerUTxOByteL}).
+ * {@code CoinPerByte} from Babbage ({@code Babbage/PParams.hs}, {@code PParamUpdate 17 ppuCoinsPerUTxOByteL}). Keys 34
+ * to 56 are new in Dijkstra ({@code Dijkstra/PParams.hs}); key 53 is {@code nil / uint .size 4}
+ * ({@code encodeNullStrictMaybe}). Their rows are experimental: Dijkstra is not final; this may change in any release.
  */
 public enum ProtocolParamField {
     // key, type, from, until
@@ -60,7 +66,30 @@ public enum ProtocolParamField {
     GOV_ACTION_DEPOSIT(30, COIN, Era.Conway, null),
     DREP_DEPOSIT(31, COIN, Era.Conway, null),
     DREP_INACTIVITY(32, UINT32, Era.Conway, null),
-    MIN_FEE_REF_SCRIPT_COST_PER_BYTE(33, NONNEGATIVE_INTERVAL, Era.Conway, null);
+    MIN_FEE_REF_SCRIPT_COST_PER_BYTE(33, NONNEGATIVE_INTERVAL, Era.Conway, null),
+    MAX_REF_SCRIPT_SIZE_PER_BLOCK(34, UINT32, Era.Dijkstra, null),
+    MAX_REF_SCRIPT_SIZE_PER_TX(35, UINT32, Era.Dijkstra, null),
+    REF_SCRIPT_COST_STRIDE(36, POSITIVE_UINT32, Era.Dijkstra, null),
+    REF_SCRIPT_COST_MULTIPLIER(37, POSITIVE_INTERVAL, Era.Dijkstra, null),
+    MAX_PLEDGE_LEVERAGE(38, OPTIONAL_NONNEGATIVE_INTERVAL, Era.Dijkstra, null),
+    MIN_POOL_MARGIN(39, UNIT_INTERVAL, Era.Dijkstra, null),
+    LEIOS_ANNOUNCEMENT_PERIOD_LENGTH(40, UINT32, Era.Dijkstra, null),
+    LEIOS_VOTE_PERIOD_LENGTH(41, UINT32, Era.Dijkstra, null),
+    LEIOS_DIFFUSION_PERIOD_LENGTH(42, UINT32, Era.Dijkstra, null),
+    LEIOS_COMMITTEE_SIZE(43, UINT16, Era.Dijkstra, null),
+    LEIOS_QUORUM_STAKE_THRESHOLD(44, UNIT_INTERVAL, Era.Dijkstra, null),
+    MAX_ENDORSER_BLOCK_REFERENCES_SIZE(45, UINT32, Era.Dijkstra, null),
+    MAX_ENDORSER_BLOCK_TXS_SIZE(46, UINT32, Era.Dijkstra, null),
+    MAX_ENDORSER_BLOCK_EX_UNITS(47, EX_UNITS, Era.Dijkstra, null),
+    MAX_REF_SCRIPT_SIZE_PER_ENDORSER_BLOCK(48, UINT32, Era.Dijkstra, null),
+    PERAS_MIN_CANDIDATE_BLOCK_AGE(49, UINT32, Era.Dijkstra, null),
+    PERAS_HEALING_FACTOR(50, POSITIVE_INTERVAL, Era.Dijkstra, null),
+    PERAS_CERT_BOOST(51, UINT16, Era.Dijkstra, null),
+    PERAS_TARGET_COMMITTEE_SIZE(52, UINT16, Era.Dijkstra, null),
+    PERAS_BOOTSTRAP_ROUND(53, OPTIONAL_UINT32, Era.Dijkstra, null),
+    PERAS_QUORUM_THRESHOLD_SAFETY_MARGIN(54, UNIT_INTERVAL, Era.Dijkstra, null),
+    REF_INPUTS_COST_PER_MULTI_ASSET_POLICY(55, COIN, Era.Dijkstra, null),
+    REF_INPUTS_COST_PER_DATUM_BYTE(56, COIN, Era.Dijkstra, null);
 
     /** The {@code protocol_param_update} rule, a keyed record. */
     public static final RecordSpec RECORD;

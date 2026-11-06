@@ -11,7 +11,8 @@ import java.util.List;
 /**
  * A script as received: a witness or aux data script, or a reference script ({@code script_ref}).
  *
- * @param type 0 native, 1 Plutus V1, 2 Plutus V2, 3 Plutus V3 (the {@code script_ref} numbering)
+ * @param type 0 native, 1 Plutus V1, 2 Plutus V2, 3 Plutus V3, 4 Plutus V4 (the {@code script_ref} numbering; Plutus V4
+ *             is experimental: Dijkstra is not final; this may change in any release)
  * @param span a native script, or the byte string of a Plutus script, as encoded
  */
 public record RawScript(int type, CborSpan span) {
@@ -19,6 +20,7 @@ public record RawScript(int type, CborSpan span) {
     static final int PLUTUS_V1_TYPE = 1;
     static final int PLUTUS_V2_TYPE = 2;
     static final int PLUTUS_V3_TYPE = 3;
+    static final int PLUTUS_V4_TYPE = 4;
 
     private static final int MAJOR_BYTES = 2;
     private static final int MAJOR_ARRAY = 4;
@@ -30,7 +32,7 @@ public record RawScript(int type, CborSpan span) {
             FieldSpec.of(MAJOR_BYTES, FieldType.PLUTUS_SCRIPT, false, Era.Alonzo, null));
 
     public RawScript {
-        if (type < NATIVE_TYPE || type > PLUTUS_V3_TYPE)
+        if (type < NATIVE_TYPE || type > PLUTUS_V4_TYPE)
             throw new CborRuntimeException("Unknown script type " + type + " at offset " + span.offset());
     }
 

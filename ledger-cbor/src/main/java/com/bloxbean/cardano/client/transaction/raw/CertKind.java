@@ -16,6 +16,7 @@ import static com.bloxbean.cardano.client.transaction.raw.FieldType.HASH32;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.KEY_HASH_SET;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.MIR;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.OPTIONAL_ANCHOR;
+import static com.bloxbean.cardano.client.transaction.raw.FieldType.OPTIONAL_BLS_KEY;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.OPTIONAL_POOL_METADATA;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.RELAY_LIST;
 import static com.bloxbean.cardano.client.transaction.raw.FieldType.REWARD_ACCOUNT;
@@ -24,7 +25,12 @@ import static com.bloxbean.cardano.client.transaction.raw.FieldType.UNIT_INTERVA
 
 /**
  * The certificate table: every tag of the {@code certificate} rule in any era, with the eras it is valid for and the
- * items after the tag. Read from the pinned CDDL ({@code eras/*}{@code /impl/cddl/data}).
+ * items after the tag. Read from the pinned CDDL ({@code eras/*}{@code /impl/cddl/data}). From Dijkstra a pool
+ * registration may also have a BLS key, or null, after its VRF key hash ({@code StakePool.hs}): the union then has a
+ * second member of tag 3 with one item more, {@link #POOL_REGISTRATION_WITH_BLS_KEY}. Read in Dijkstra, a registration
+ * has that slot when the item after its VRF key hash is an array (the key) or null, as the ledger peeks at it; read
+ * with no era or in an earlier era, it has none. That member is experimental: Dijkstra is not final; this may change
+ * in any release.
  */
 public enum CertKind {
     //                      tag  from         until        items after the tag
@@ -49,6 +55,14 @@ public enum CertKind {
     UNREG_DREP_CERT(17, Era.Conway, null, CREDENTIAL, COIN),
     UPDATE_DREP_CERT(18, Era.Conway, null, CREDENTIAL, OPTIONAL_ANCHOR);
 
+    /**
+     * The member of a pool registration with a BLS key or null, from Dijkstra. Experimental: Dijkstra is not final;
+     * this may change in any release.
+     */
+    public static final FieldSpec POOL_REGISTRATION_WITH_BLS_KEY = FieldSpec.member(3, Era.Dijkstra, null, HASH28,
+            HASH32, OPTIONAL_BLS_KEY, COIN, COIN, UNIT_INTERVAL, REWARD_ACCOUNT, KEY_HASH_SET, RELAY_LIST,
+            OPTIONAL_POOL_METADATA);
+
     /** The {@code certificate} rule, a tagged union. */
     public static final RecordSpec RECORD;
 
@@ -56,6 +70,7 @@ public enum CertKind {
         List<FieldSpec> members = new ArrayList<>();
         for (CertKind kind : values())
             members.add(kind.member);
+        members.add(POOL_REGISTRATION_WITH_BLS_KEY);
         RECORD = RecordSpec.tagged("certificate", members);
     }
 
@@ -73,10 +88,17 @@ public enum CertKind {
     }
 
     /**
-     * @return the row of the {@code certificate} union, with the eras the tag is valid for
+     * @return the row of the {@code certificate} union, with the eras the tag is valid for; for a pool registration,
+     * the form without a BLS key
      */
     public FieldSpec member() {
         return member;
+    }
+
+    // The table of a certificate of this kind with these items: in an era from Dijkstra, a pool registration with an
+    // array or null after its VRF key hash has a BLS key slot; with no era, the member.
+    RecordSpec record(List<CborSpan> items, Era era) {
+        return era == null ? member.record() : RECORD.withOptionalItem(member, items, era).record();
     }
 
     /**

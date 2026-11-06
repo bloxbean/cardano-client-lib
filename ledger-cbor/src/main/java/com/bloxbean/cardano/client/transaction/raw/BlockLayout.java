@@ -1,13 +1,17 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
 /**
- * The layouts of a Shelley-family block, which {@link EraSpec} names per era. Both hold the transactions in parallel
- * arrays, {@code [header, transaction_bodies, transaction_witness_sets, auxiliary_data_set (, invalid_transactions)]},
- * so {@link RawBlock} reads them once, by position.
+ * The layouts of a Shelley-family block, which {@link EraSpec} names per era. The parallel layouts hold the
+ * transactions in parallel arrays, {@code [header, transaction_bodies, transaction_witness_sets, auxiliary_data_set
+ * (, invalid_transactions)]}; the unified layout of Dijkstra holds each transaction whole, {@code [header, [[* [body,
+ * witnesses, aux / null, isValid]], leios_certificate / null, peras_certificate / null]]} ({@code Dijkstra/Block.hs},
+ * {@code BlockBody/Internal.hs}). {@link RawBlock} reads either.
  */
 enum BlockLayout {
     PARALLEL_4(4),
-    PARALLEL_5(5);
+    PARALLEL_5(5),
+    /** Experimental: Dijkstra is not final; this may change in any release. */
+    UNIFIED(2);
 
     final int items;
 

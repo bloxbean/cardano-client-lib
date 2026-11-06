@@ -176,7 +176,7 @@ class RawAuxDataTest {
                 "check LIST 81" + NATIVE,
                 "entry native_script 4:NATIVE_SCRIPT key=null value=" + NATIVE + " occurrence=0",
                 "check NATIVE_SCRIPT " + NATIVE);
-        String map = "d90103" + "a3" + "00" + METADATA + "02" + "8141aa" + "05" + "80";
+        String map = "d90103" + "a3" + "00" + METADATA + "02" + "8141aa" + "06" + "80";
         assertThat(walkAux(map, Era.Conway)).containsExactly(
                 "entry auxiliary_data 6:AUXILIARY_DATA key=null value=" + map + " occurrence=0",
                 "enter auxiliary_data_map " + map,
@@ -186,8 +186,11 @@ class RawAuxDataTest {
                 "check LIST 8141aa",
                 "entry plutus_script 2:PLUTUS_SCRIPT key=null value=41aa occurrence=0",
                 "check PLUTUS_SCRIPT 41aa",
-                "entry auxiliary_data_map null key=05 value=80 occurrence=0");
+                "entry auxiliary_data_map null key=06 value=80 occurrence=0");
         assertThat(AuxDataField.RECORD.tag()).isEqualTo(259);
+        // key 5, Plutus V4 scripts, is known from Dijkstra and unknown before (ADR 0003 D4a)
+        assertThat(AuxDataField.RECORD.field(5, Era.Conway)).isNull();
+        assertThat(AuxDataField.RECORD.field(5, Era.Dijkstra).validIn(Era.Dijkstra)).isTrue();
         assertThat(RawRedeemer.RECORD.tag()).isEqualTo(-1);
     }
 

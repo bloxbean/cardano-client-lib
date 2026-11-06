@@ -35,6 +35,7 @@ public final class RecordSpec {
 
     private static final long NO_TAG = -1;
     private static final int MAJOR_BYTES = 2;
+    private static final int MAJOR_ARRAY = 4;
     /** An item of a set of key hashes, for a set whose type does not say what its items are. */
     static final RecordSpec KEY_HASH = byMajorType("addr_keyhash",
             FieldSpec.of(MAJOR_BYTES, FieldType.HASH28, false, Era.Shelley, null));
@@ -43,6 +44,7 @@ public final class RecordSpec {
     private final Shape shape;
     private final List<FieldSpec> fields;
     private final int firstPosition;
+    private final int arity;
     private final int requiredArity;
     private final FieldType keyType;
     private final long tag;
@@ -60,7 +62,10 @@ public final class RecordSpec {
         this.shape = shape;
         this.fields = List.copyOf(fields);
         this.firstPosition = firstPosition;
-        this.requiredArity = firstPosition + (int) fields.stream().filter(FieldSpec::required).count();
+        // a position may have a row per era range, as the rows of a key do
+        this.arity = firstPosition + (int) fields.stream().mapToLong(FieldSpec::key).distinct().count();
+        this.requiredArity = firstPosition
+                + (int) fields.stream().filter(FieldSpec::required).mapToLong(FieldSpec::key).distinct().count();
         this.keyType = keyType;
         this.tag = tag;
         this.rows = this.fields.toArray(new FieldSpec[0]);
@@ -122,7 +127,7 @@ public final class RecordSpec {
 
     // The number of items of a positional record, with the tag of a member.
     int arity() {
-        return firstPosition + fields.size();
+        return arity;
     }
 
     // The fewest items of a positional record, with the tag of a member.
@@ -159,20 +164,36 @@ public final class RecordSpec {
     /**
      * @param key a key, tag or position
      * @param era the era being read
-     * @return the row of that key valid in the era, or else any row of that key, or null if no era has the key. A key
-     * can have several rows when its type or its meaning changes between eras.
+     * @return the row of that key valid in the era, or else any row of that key, or null if no era has the key. In a
+     * keyed record of fields (not a map of like entries, which has a {@link #keyType()}), a key whose rows all start
+     * after the era has none: a field of a later era is an unknown key in an earlier one, as that era's ledger reads a
+     * sparse map ({@code decodeSparseKeyed}), so its value is not walked. A key can have several rows when its type or
+     * its meaning changes between eras.
      */
     public FieldSpec field(long key, Era era) {
-        FieldSpec found = null;
+        return row(key, era, shape != Shape.KEYED || keyType != null);
+    }
+
+    // As field(), with any row of a later era last, for a record by major type: an item of a form the walk does not
+    // know is one it cannot enter, so a form of a later era is reported for the policy to reject.
+    FieldSpec form(long key, Era era) {
+        return row(key, era, true);
+    }
+
+    private FieldSpec row(long key, Era era, boolean later) {
+        FieldSpec ended = null;
+        FieldSpec started = null;
         for (FieldSpec row : key >= 0 && key < Long.SIZE ? rowsByKey[(int) key] : rows) {
             if (row.key() != key)
                 continue;
             if (row.validIn(era))
                 return row;
-            if (found == null)
-                found = row;
+            if (!row.startsAfter(era) && ended == null)
+                ended = row;
+            if (row.startsAfter(era) && started == null)
+                started = row;
         }
-        return found;
+        return ended != null || !later ? ended : started;
     }
 
     /**
@@ -185,13 +206,36 @@ public final class RecordSpec {
         return row.endedBefore(era) && field(row.key(), era).validIn(era);
     }
 
-    // The member of a tagged union with this tag, in any era, or null; a tag keeps one layout in every era.
+    // The member of a tagged union with this tag, in any era, or null; a tag keeps one layout in every era, except
+    // that one may gain an optional item, which withOptionalItem() picks.
     FieldSpec member(long tag) {
         for (FieldSpec row : fields) {
             if (row.key() == tag)
                 return row;
         }
         return null;
+    }
+
+    /**
+     * The member of a tagged union for a value of the era: this one, or another member of its tag valid in the era
+     * that has one item more when the value has that item, an array or null at its position. The ledger tells an
+     * optional item so, peeking at it: a pool registration's BLS key, from Dijkstra ({@code StakePool.hs}).
+     */
+    FieldSpec withOptionalItem(FieldSpec member, List<CborSpan> items, Era era) {
+        List<FieldSpec> rows = member.record().fields();
+        for (FieldSpec row : fields) {
+            if (row.key() != member.key() || !row.validIn(era) || row.record().fields().size() != rows.size() + 1)
+                continue;
+            List<FieldSpec> longer = row.record().fields();
+            int slot = 0;
+            while (slot < rows.size() && rows.get(slot).type() == longer.get(slot).type())
+                slot++;
+            int position = (int) longer.get(slot).key();
+            if (position < items.size() && (items.get(position).isNull()
+                    || items.get(position).majorType() == MAJOR_ARRAY && !items.get(position).isTagged()))
+                return row;
+        }
+        return member;
     }
 
     /**

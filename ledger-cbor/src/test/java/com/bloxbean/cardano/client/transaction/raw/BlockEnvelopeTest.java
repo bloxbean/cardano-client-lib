@@ -20,6 +20,7 @@ class BlockEnvelopeTest {
     private static final String HEADER = RawHeaderTest.NESTED_HEADER;
     private static final String CONWAY_BLOCK = "85" + HEADER + "80" + "80" + "a0" + "80";
     private static final String SHELLEY_BLOCK = "84" + RawHeaderTest.FLAT_HEADER + "80" + "80" + "a0";
+    private static final String DIJKSTRA_BLOCK = "82" + HEADER + "83" + "80" + "f6" + "f6";
 
     private static byte[] bytes(String hex) {
         return decodeHexString(hex);
@@ -112,7 +113,7 @@ class BlockEnvelopeTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"00, 0", "01, 1", "08, 8", "09, 9", "1864, 100", "1bffffffffffffffff, -1"})
+    @CsvSource({"00, 0", "01, 1", "09, 9", "1864, 100", "1bffffffffffffffff, -1"})
     void anEraWithoutARowIsRejectedAsUnsupported(String index, long expected) {
         byte[] block = bytes("82" + index + CONWAY_BLOCK);
         assertThatThrownBy(() -> RawBlock.of(BlockEnvelope.of(block)))
@@ -122,14 +123,26 @@ class BlockEnvelopeTest {
         assertThatThrownBy(() -> RawBlock.of(block)).isInstanceOf(UnsupportedEraException.class);
     }
 
+    /** ADR 0003 D4a: index 8 has a row, Dijkstra's. */
+    @Test
+    void dijkstraHasARow() {
+        RawBlock block = RawBlock.of(envelope("8208" + DIJKSTRA_BLOCK));
+        assertThat(block.era()).isEqualTo(Era.Dijkstra);
+        assertThat(block.txCount()).isZero();
+        assertThat(RawBlock.of(bytes("8208" + DIJKSTRA_BLOCK)).era()).isEqualTo(Era.Dijkstra);
+    }
+
     @Test
     void readAsReadsWhateverTheIndexCarries() {
         for (String index : new String[]{"00", "02", "07", "08", "09", "1bffffffffffffffff"}) {
             BlockEnvelope envelope = envelope("82" + index + CONWAY_BLOCK);
-            RawBlock block = RawBlock.readAs(envelope, EraSpec.newest());
+            RawBlock block = RawBlock.readAs(envelope, Era.Conway);
             assertThat(block.era()).isEqualTo(Era.Conway);
             assertThat(hex(block.header())).isEqualTo(HEADER);
             assertThat(block.rawHeader().vrfResult()).isPresent();
+            RawBlock dijkstra = RawBlock.readAs(envelope("82" + index + DIJKSTRA_BLOCK), EraSpec.newest());
+            assertThat(dijkstra.era()).isEqualTo(Era.Dijkstra);
+            assertThat(hex(dijkstra.header())).isEqualTo(HEADER);
         }
         assertThat(envelope("8209" + CONWAY_BLOCK).eraIndex()).isEqualTo(9);
         assertThat(RawBlock.readAs(envelope("8207" + SHELLEY_BLOCK), Era.Mary).era()).isEqualTo(Era.Mary);
@@ -137,12 +150,16 @@ class BlockEnvelopeTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    /** D4 and D8: a block that does not fit the named era's layouts is a parse failure, not an unsupported era. */
+    /**
+     * D4 and D8: a block that does not fit the named era's layouts is a parse failure, not an unsupported era. From
+     * D4a the newest is Dijkstra, so a Conway block at an unknown index is one (I12).
+     */
     @Test
     void readAsRejectsWhatDoesNotFitTheLayout() {
-        String[] others = {"8209" + "82" + HEADER + "80", // Dijkstra's two items
-                "8209" + SHELLEY_BLOCK, // an older layout than the newest
-                "8209" + "86" + CONWAY_BLOCK.substring(2) + "80",
+        String[] others = {"8209" + CONWAY_BLOCK, // an older layout than the newest
+                "8209" + SHELLEY_BLOCK,
+                "8209" + "82" + HEADER + "80", // a block body of no three items
+                "8209" + "83" + DIJKSTRA_BLOCK.substring(2) + "80",
                 "8209" + "00"};
         for (String other : others) {
             assertThatThrownBy(() -> RawBlock.readAs(envelope(other), EraSpec.newest()))
@@ -184,7 +201,8 @@ class BlockEnvelopeTest {
                 .isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> RawBlock.of(bytes("8201" + CONWAY_BLOCK), Era.Conway))
                 .isInstanceOf(UnsupportedEraException.class).hasMessageContaining("Byron");
-        assertThatThrownBy(() -> RawBlock.of(bytes("8208" + CONWAY_BLOCK))).hasMessageContaining("Dijkstra");
+        assertThatThrownBy(() -> RawBlock.of(bytes("8208" + CONWAY_BLOCK)))
+                .hasMessageContaining("Dijkstra block has 2 items, found 5");
         assertThatThrownBy(() -> RawBlock.of(bytes("82" + HEADER + "80"), Era.Conway))
                 .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Conway block has 5 items, found 2");
     }

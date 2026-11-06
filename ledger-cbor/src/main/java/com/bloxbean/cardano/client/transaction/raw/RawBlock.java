@@ -30,13 +30,26 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  *     rejected in Conway;</li>
  *     <li>{@code invalid_transactions} are strictly ascending transaction indexes.</li>
  * </ul>
- * A transaction's records are checked when it is read with {@link #tx(int)}. Byron blocks (era 0 and 1) and Dijkstra
- * blocks (era 8, {@code [header, block_body]}) are not supported.
+ * A transaction's records are checked when it is read with {@link #tx(int)}. Byron blocks (era 0 and 1) are not
+ * supported.
+ * <p>
+ * A Dijkstra block (era 8) is {@code [header, block_body]}, whose body is {@code [transactions, leios_certificate /
+ * null, peras_certificate / null]} and holds each transaction whole, {@code [body, witnesses, aux / null, isValid]}
+ * (ADR 0003 D4a). Checked when the view is created: the body is an array of three items, its transactions an array of
+ * arrays of four items each ending in a CBOR boolean. Such a block has no parallel arrays:
+ * {@link #transactionBodies()}, {@link #transactionWitnessSets()} and {@link #auxiliaryDataSet()} throw, and
+ * {@link #invalidTransactions()} is empty. Reading Dijkstra is experimental: Dijkstra is not final; this may change in
+ * any release.
  */
 public final class RawBlock {
+    private static final int MAJOR_ARRAY = 4;
+    private static final int BLOCK_BODY_ITEMS = 3;
+    private static final int BLOCK_TRANSACTION_ITEMS = 4;
+
     private final Era era;
     private final EraSpec rules;
     private final CborSpan header;
+    // the parallel layouts
     private final CborSpan transactionBodies;
     private final CborSpan transactionWitnessSets;
     private final CborSpan auxiliaryDataSet;
@@ -44,17 +57,35 @@ public final class RawBlock {
     private final List<CborSpan> bodies;
     private final List<CborSpan> witnessSets;
     private final CborSpan[] auxData;
+    // the unified layout
+    private final CborSpan blockBody;
+    private final List<CborSpan> transactions;
     private final int[] invalidIndexes;
 
     private RawBlock(Era era, CborSpan block) {
         this.era = era;
         this.rules = EraSpec.of(era);
-        if (block.majorType() != 4 || block.tag() != -1)
+        if (block.majorType() != MAJOR_ARRAY || block.tag() != -1)
             throw error("A block is an untagged array", block);
         List<CborSpan> parts = block.items();
         if (parts.size() != rules.blockLayout.items)
             throw error("A " + era + " block has " + rules.blockLayout.items + " items, found " + parts.size(), block);
         header = parts.get(0);
+        if (rules.blockLayout == BlockLayout.UNIFIED) {
+            transactionBodies = null;
+            transactionWitnessSets = null;
+            auxiliaryDataSet = null;
+            invalidTransactions = null;
+            bodies = null;
+            witnessSets = null;
+            auxData = null;
+            blockBody = parts.get(1);
+            transactions = blockTransactions(blockBody);
+            invalidIndexes = invalidFlags(transactions);
+            return;
+        }
+        blockBody = null;
+        transactions = null;
         transactionBodies = parts.get(1);
         transactionWitnessSets = parts.get(2);
         auxiliaryDataSet = parts.get(3);
@@ -65,6 +96,33 @@ public final class RawBlock {
             throw error(bodies.size() + " transaction bodies but " + witnessSets.size() + " witness sets", block);
         auxData = auxDataByIndex();
         invalidIndexes = invalidIndexes();
+    }
+
+    // The transactions of a unified block body, each [body, witnesses, aux / null, isValid].
+    private static List<CborSpan> blockTransactions(CborSpan body) {
+        if (body.majorType() != MAJOR_ARRAY || body.tag() != -1 || body.size() != BLOCK_BODY_ITEMS)
+            throw error("A block body is an untagged array of " + BLOCK_BODY_ITEMS + " items", body);
+        CborSpan transactions = body.get(0);
+        if (transactions.majorType() != MAJOR_ARRAY || transactions.tag() != -1)
+            throw error("A block body's transactions are an untagged array", transactions);
+        List<CborSpan> items = transactions.items();
+        for (CborSpan tx : items) {
+            if (tx.majorType() != MAJOR_ARRAY || tx.tag() != -1 || tx.size() != BLOCK_TRANSACTION_ITEMS
+                    || !RawTx.isBoolean(tx.get(BLOCK_TRANSACTION_ITEMS - 1)))
+                throw error("A block transaction is [body, witnesses, aux / null, isValid]", tx);
+        }
+        return items;
+    }
+
+    // The positions of the transactions whose flag is false, ascending.
+    private static int[] invalidFlags(List<CborSpan> transactions) {
+        int[] invalid = new int[transactions.size()];
+        int count = 0;
+        for (int i = 0; i < invalid.length; i++) {
+            if (!transactions.get(i).get(BLOCK_TRANSACTION_ITEMS - 1).asBoolean())
+                invalid[count++] = i;
+        }
+        return Arrays.copyOf(invalid, count);
     }
 
     /**
@@ -179,30 +237,47 @@ public final class RawBlock {
         return RawHeader.of(header, era);
     }
 
+    /**
+     * @return the transaction bodies, as encoded
+     * @throws UnsupportedOperationException for a Dijkstra block, which has no such array
+     */
     public CborSpan transactionBodies() {
-        return transactionBodies;
+        return parallel(transactionBodies, "transaction bodies");
     }
 
+    /**
+     * @return the witness sets, as encoded
+     * @throws UnsupportedOperationException for a Dijkstra block, which has no such array
+     */
     public CborSpan transactionWitnessSets() {
-        return transactionWitnessSets;
+        return parallel(transactionWitnessSets, "witness sets");
     }
 
     /**
      * @return the aux data map, {@code {* transaction_index => auxiliary_data}}
+     * @throws UnsupportedOperationException for a Dijkstra block, which has no such map
      */
     public CborSpan auxiliaryDataSet() {
-        return auxiliaryDataSet;
+        return parallel(auxiliaryDataSet, "aux data map");
+    }
+
+    private CborSpan parallel(CborSpan part, String what) {
+        if (blockBody != null)
+            throw new UnsupportedOperationException("A " + era + " block holds each transaction whole and has no "
+                    + what + ": use tx(i)");
+        return part;
     }
 
     /**
-     * @return the indexes of the transactions that failed phase-2 validation (Alonzo on), as encoded
+     * @return the indexes of the transactions that failed phase-2 validation (Alonzo to Conway), as encoded; empty for
+     * a Dijkstra block, whose transactions carry their flags (see {@link #invalidTxIndexes()})
      */
     public Optional<CborSpan> invalidTransactions() {
         return Optional.ofNullable(invalidTransactions);
     }
 
     public int txCount() {
-        return bodies.size();
+        return blockBody != null ? transactions.size() : bodies.size();
     }
 
     /**
@@ -211,13 +286,18 @@ public final class RawBlock {
      * @throws CborRuntimeException if one of its records repeats a key
      */
     public RawTx tx(int i) {
+        if (blockBody != null) {
+            List<CborSpan> items = transactions.get(i).items();
+            CborSpan aux = items.get(2);
+            return RawTx.inBlock(items.get(0), items.get(1), aux.isNull() ? null : aux, !isInvalid(i), false);
+        }
         return RawTx.inBlock(bodies.get(i), witnessSets.get(i), auxData[i], !isInvalid(i),
                 rules.blockLayout.invalidTransactions());
     }
 
     /**
-     * Assembles a transaction as it was submitted: {@code [body, witnesses, isValid, aux / null]} from Alonzo, and
-     * {@code [body, witnesses, aux / null]} before.
+     * Assembles a transaction as it was submitted: {@code [body, witnesses, isValid, aux / null]} from Alonzo to
+     * Conway, and {@code [body, witnesses, aux / null]} before Alonzo and in Dijkstra, where the flag is the block's.
      *
      * @param i the transaction's index in the block
      * @return the transaction bytes, a new buffer
@@ -227,18 +307,47 @@ public final class RawBlock {
     }
 
     /**
-     * @return the indexes of the transactions that failed phase-2 validation, ascending; none before Alonzo
+     * @return the indexes of the transactions that failed phase-2 validation, ascending; none before Alonzo. In
+     * Dijkstra, the positions of the transactions whose flag is false
      */
     public int[] invalidTxIndexes() {
         return invalidIndexes.clone();
     }
 
     /**
-     * @return the block body hash: {@code blake2b256} of the concatenated {@code blake2b256} hashes of the transaction
-     * bodies, witness sets, aux data map and, from Alonzo, invalid transactions, each as encoded (shelley and alonzo
-     * {@code BlockBody/Internal.hs}); the block header carries it
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Leios certificate of a Dijkstra block, or empty if it is null or the block is of an earlier era
+     * @throws CborRuntimeException if it is not an array of two byte strings
+     */
+    public Optional<RawLeiosCertificate> leiosCertificate() {
+        if (blockBody == null)
+            return Optional.empty();
+        return Optional.ofNullable(RawItems.nullable(blockBody.get(1), RawLeiosCertificate::of));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Peras certificate of a Dijkstra block as encoded, a byte string; empty if it is null or the block is
+     * of an earlier era
+     */
+    public Optional<CborSpan> perasCertificate() {
+        if (blockBody == null)
+            return Optional.empty();
+        CborSpan peras = blockBody.get(2);
+        return peras.isNull() ? Optional.empty() : Optional.of(peras);
+    }
+
+    /**
+     * @return the block body hash, which the block header carries: {@code blake2b256} of the concatenated
+     * {@code blake2b256} hashes of the transaction bodies, witness sets, aux data map and, from Alonzo, invalid
+     * transactions, each as encoded (shelley and alonzo {@code BlockBody/Internal.hs}); in Dijkstra,
+     * {@code blake2b256} of the whole block body as encoded (dijkstra {@code BlockBody/Internal.hs})
      */
     public byte[] bodyHash() {
+        if (blockBody != null)
+            return Blake2bUtil.blake2bHash256(blockBody.bytes());
         List<byte[]> parts = new ArrayList<>(List.of(transactionBodies.bytes(), transactionWitnessSets.bytes(),
                 auxiliaryDataSet.bytes()));
         if (invalidTransactions != null)

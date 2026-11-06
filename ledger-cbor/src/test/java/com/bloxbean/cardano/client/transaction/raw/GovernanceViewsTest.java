@@ -181,7 +181,8 @@ class GovernanceViewsTest {
         FieldSpec bytes = ProtocolParamField.COINS_PER_UTXO_BYTE.spec();
         assertThat(ProtocolParamField.RECORD.field(17, Era.Alonzo)).isSameAs(word);
         assertThat(ProtocolParamField.RECORD.field(17, Era.Babbage)).isSameAs(bytes);
-        assertThat(ProtocolParamField.RECORD.field(17, Era.Mary).validIn(Era.Mary)).isFalse();
+        // a key of a later era is unknown in a keyed record (ADR 0003 D4a)
+        assertThat(ProtocolParamField.RECORD.field(17, Era.Mary)).isNull();
     }
 
     @Test
@@ -399,9 +400,9 @@ class GovernanceViewsTest {
 
         String alonzo = "a4" + MIN + "06" + "82" + "a1" + H28 + parametersOf(Era.Alonzo) + "00";
         assertThat(unknown(alonzo, Era.Alonzo)).isEmpty();
-        // a Conway field in an Alonzo update is known, and outside its era
+        // a Conway field in an Alonzo update is a key the Alonzo ledger does not know
         assertThat(unknown("a4" + MIN + "06" + "82" + "a1" + H28 + "a1" + "181e" + "00" + "00", Era.Alonzo))
-                .containsExactly("protocol_param_update 30");
+                .containsExactly("protocol_param_update 181e");
     }
 
     // The parameter update of everyParameter's keys valid in an era.
@@ -409,7 +410,8 @@ class GovernanceViewsTest {
         StringBuilder entries = new StringBuilder();
         int count = 0;
         for (Map.Entry<CborSpan, CborSpan> entry : span(everyParameter()).entries()) {
-            if (ProtocolParamField.RECORD.field(entry.getKey().asLong(), era).validIn(era)) {
+            FieldSpec row = ProtocolParamField.RECORD.field(entry.getKey().asLong(), era);
+            if (row != null && row.validIn(era)) {
                 entries.append(hex(entry.getKey().bytes())).append(hex(entry.getValue().bytes()));
                 count++;
             }

@@ -9,10 +9,11 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * A block header as received, {@code [header_body, body_signature]}, in either {@link HeaderLayout} (ADR 0003 D4). The
- * arrays of the header and its body are checked when the view is created. Accessors read an item when they are called,
- * and throw {@link CborRuntimeException} if it is not what the table says. Tags on an item are looked through, arrays
- * may be indefinite, strings chunked and integers non-minimal. Hash and key lengths and ranges are not checked (D5).
+ * A block header as received, {@code [header_body, body_signature]}, in any {@link HeaderLayout} (ADR 0003 D4, D4a).
+ * The arrays of the header and its body are checked when the view is created. Accessors read an item when they are
+ * called, and throw {@link CborRuntimeException} if it is not what the table says. Tags on an item are looked through,
+ * arrays may be indefinite, strings chunked and integers non-minimal. Hash and key lengths and ranges are not checked
+ * (D5).
  */
 public final class RawHeader {
     static final RecordSpec HEADER = RecordSpec.positional("header", FieldType.HEADER_BODY, FieldType.KES_SIGNATURE);
@@ -35,14 +36,16 @@ public final class RawHeader {
 
     /**
      * @param span a header as encoded
-     * @param era  the era whose layout it has
+     * @param era  the era whose layouts it may have: of Dijkstra's two, the one with as many items as the header body
+     *             has
      * @return the view
-     * @throws CborRuntimeException if it does not have the items of that layout
+     * @throws CborRuntimeException if it does not have the items of a layout of that era
      */
     public static RawHeader of(CborSpan span, Era era) {
         if (era == null)
             throw new IllegalArgumentException("era is null");
-        return new RawHeader(span, PositionalRecord.of(HEADER, span, true), EraSpec.of(era).headerLayout);
+        PositionalRecord header = PositionalRecord.of(HEADER, span, true);
+        return new RawHeader(span, header, EraSpec.of(era).headerLayout(header.value(FieldType.HEADER_BODY)));
     }
 
     /**
@@ -55,27 +58,53 @@ public final class RawHeader {
      */
     public static RawHeader of(CborSpan span) {
         PositionalRecord header = PositionalRecord.of(HEADER, span, true);
-        return new RawHeader(span, header, HeaderLayout.ofShape(header.value(FieldType.HEADER_BODY)));
+        return new RawHeader(span, header, HeaderLayout.ofShape(header.value(FieldType.HEADER_BODY),
+                EraSpec.headerLayoutsTo(EraSpec.newest())));
     }
 
     /**
      * Walks a header with a policy (ADR 0003 D6): the header's record, then its body in the layout with as many items
-     * as it has, for a caller with no era, as {@link #of(CborSpan)}. Every row of these tables holds in every era, so the
-     * policy is told the newest.
+     * as it has, for a caller with no era. The layouts are those of the eras to Conway, and the policy is told Conway,
+     * as every row of these tables holds in each of them; a Dijkstra header is walked with
+     * {@link #walk(CborSpan, Era, FormatPolicy)}.
      *
      * @param span   a header as encoded
      * @param policy the policy, which throws to reject
      * @throws CborRuntimeException if the policy accepts a value the walk cannot enter, or the body has the items of no
-     *                              layout
+     *                              layout to Conway
      */
     public static void walk(CborSpan span, FormatPolicy policy) {
+        walk(span, Era.Conway, HeaderLayout.ofShape(body(span), EraSpec.headerLayoutsTo(Era.Conway)), policy);
+    }
+
+    /**
+     * Walks a header with a policy (ADR 0003 D6): the header's record, then its body in the layout of the era with as
+     * many items as it has.
+     * <p>
+     * Experimental for Dijkstra: Dijkstra is not final; this may change in any release.
+     *
+     * @param span   a header as encoded
+     * @param era    the era to read it in
+     * @param policy the policy, which throws to reject
+     * @throws CborRuntimeException if the policy accepts a value the walk cannot enter, or the body has the items of no
+     *                              layout of the era
+     */
+    public static void walk(CborSpan span, Era era, FormatPolicy policy) {
+        if (era == null)
+            throw new IllegalArgumentException("era is null");
+        walk(span, era, EraSpec.of(era).headerLayout(body(span)), policy);
+    }
+
+    private static void walk(CborSpan span, Era era, HeaderLayout layout, FormatPolicy policy) {
+        HEADER.walk(span, era, policy);
+        layout.body.walk(body(span), era, policy);
+    }
+
+    private static CborSpan body(CborSpan span) {
         List<CborSpan> items = RawItems.array(span, HEADER.name());
         if (items.isEmpty())
             throw RawTx.error("A header has a body", span);
-        HeaderLayout layout = HeaderLayout.ofShape(items.get(0));
-        Era era = EraSpec.newest();
-        HEADER.walk(span, era, policy);
-        layout.body.walk(items.get(0), era, policy);
+        return items.get(0);
     }
 
     /**
@@ -144,10 +173,10 @@ public final class RawHeader {
     }
 
     /**
-     * @return the one VRF result of a header in the nested layout (from Babbage), or else empty
+     * @return the one VRF result of a header in a nested layout (from Babbage), or else empty
      */
     public Optional<RawVrfCert> vrfResult() {
-        return layout == HeaderLayout.NESTED_10 ? Optional.of(vrf(0)) : Optional.empty();
+        return layout != HeaderLayout.FLAT_15 ? Optional.of(vrf(0)) : Optional.empty();
     }
 
     private RawVrfCert vrf(int nth) {
@@ -197,17 +226,41 @@ public final class RawHeader {
     }
 
     /**
-     * @return the protocol version's major part, its 64 bits
+     * @return the protocol version's major part, its 64 bits. In Dijkstra the pair is {@code header_version_info}, and
+     * this is the highest major version the block's producer supports
      */
     public long protocolMajor() {
         return number(body.group(FieldType.PROTOCOL_VERSION), FieldType.MAJOR_PROTOCOL_VERSION, 0);
     }
 
     /**
-     * @return the protocol version's minor part, its 64 bits
+     * @return the protocol version's minor part, its 64 bits. In Dijkstra the pair is {@code header_version_info}, and
+     * this is the software tag the block's producer reports
      */
     public long protocolMinor() {
         return number(body.group(FieldType.PROTOCOL_VERSION), FieldType.MINOR_PROTOCOL_VERSION, 0);
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return {@code block_body_contains_leios_cert} of a 12-item Dijkstra header, or empty in any other layout
+     * @throws CborRuntimeException if it is not a CBOR boolean
+     */
+    public Optional<Boolean> leiosCertInBody() {
+        return body.optional(FieldType.BOOL).map(item -> RawItems.content(item).asBoolean());
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the endorser block announcement of a 12-item Dijkstra header, or empty if it is null or the header has
+     * another layout
+     * @throws CborRuntimeException if it is not an array of a byte string and an unsigned integer
+     */
+    public Optional<RawEbReferencesAnnouncement> ebReferencesAnnouncement() {
+        return body.optional(FieldType.OPTIONAL_EB_REFERENCES_ANNOUNCEMENT)
+                .map(item -> RawItems.nullable(item, RawEbReferencesAnnouncement::of));
     }
 
     /**

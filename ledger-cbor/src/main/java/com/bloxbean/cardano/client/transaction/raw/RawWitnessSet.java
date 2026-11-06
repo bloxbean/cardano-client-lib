@@ -86,21 +86,21 @@ public final class RawWitnessSet {
      * @return the vkey witnesses, or empty if the field is absent
      */
     public Optional<List<RawVkeyWitness>> vkeyWitnesses() {
-        return items(WitnessSetField.VKEY_WITNESSES, RawVkeyWitness::of);
+        return items(WitnessSetField.VKEY_WITNESSES_SET, RawVkeyWitness::of);
     }
 
     /**
      * @return the native scripts, or empty if the field is absent
      */
     public Optional<List<RawScript>> nativeScripts() {
-        return scripts(RawScript.NATIVE_TYPE, WitnessSetField.NATIVE_SCRIPTS);
+        return scripts(RawScript.NATIVE_TYPE, WitnessSetField.NATIVE_SCRIPTS_SET);
     }
 
     /**
      * @return the bootstrap witnesses, or empty if the field is absent
      */
     public Optional<List<RawBootstrapWitness>> bootstrapWitnesses() {
-        return items(WitnessSetField.BOOTSTRAP_WITNESSES, RawBootstrapWitness::of);
+        return items(WitnessSetField.BOOTSTRAP_WITNESSES_SET, RawBootstrapWitness::of);
     }
 
     /**
@@ -114,7 +114,7 @@ public final class RawWitnessSet {
      * @return the datums in encoded order, with any repeated datum kept, or empty if the field is absent
      */
     public Optional<List<RawDatum>> datums() {
-        return items(WitnessSetField.PLUTUS_DATA, RawDatum::new);
+        return items(WitnessSetField.PLUTUS_DATA_SET, RawDatum::new);
     }
 
     /**
@@ -141,13 +141,26 @@ public final class RawWitnessSet {
     }
 
     /**
-     * @return every script: native, then Plutus V1 to V3
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Plutus V4 scripts (key 8), or empty if the field is absent or the view's era is before Dijkstra,
+     * where key 8 is unknown
+     */
+    public Optional<List<RawScript>> plutusV4Scripts() {
+        if (WitnessSetField.PLUTUS_V4_SCRIPTS.spec().startsAfter(era))
+            return Optional.empty();
+        return scripts(RawScript.PLUTUS_V4_TYPE, WitnessSetField.PLUTUS_V4_SCRIPTS);
+    }
+
+    /**
+     * @return every script: native, then Plutus V1 to V4
      */
     public List<RawScript> scripts() {
         List<RawScript> scripts = new ArrayList<>(nativeScripts().orElse(List.of()));
         scripts.addAll(plutusV1Scripts().orElse(List.of()));
         scripts.addAll(plutusV2Scripts().orElse(List.of()));
         scripts.addAll(plutusV3Scripts().orElse(List.of()));
+        scripts.addAll(plutusV4Scripts().orElse(List.of()));
         return scripts;
     }
 

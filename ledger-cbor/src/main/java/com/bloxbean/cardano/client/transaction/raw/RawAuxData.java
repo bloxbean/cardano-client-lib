@@ -188,13 +188,27 @@ public final class RawAuxData {
     }
 
     /**
-     * @return every script: native, then Plutus V1 to V3
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the Plutus V4 scripts of the keyed form (key 5), none if there are none or the view's era is before
+     * Dijkstra, where key 5 is unknown
+     * @throws CborRuntimeException if the field is not an array
+     */
+    public List<RawScript> plutusV4Scripts() {
+        if (AuxDataField.PLUTUS_V4_SCRIPTS.spec().startsAfter(era))
+            return List.of();
+        return scripts(RawScript.PLUTUS_V4_TYPE, AuxDataField.PLUTUS_V4_SCRIPTS);
+    }
+
+    /**
+     * @return every script: native, then Plutus V1 to V4
      */
     public List<RawScript> scripts() {
         List<RawScript> scripts = new ArrayList<>(nativeScripts());
         scripts.addAll(plutusV1Scripts());
         scripts.addAll(plutusV2Scripts());
         scripts.addAll(plutusV3Scripts());
+        scripts.addAll(plutusV4Scripts());
         return scripts;
     }
 

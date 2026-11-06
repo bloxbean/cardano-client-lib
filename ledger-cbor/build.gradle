@@ -1,3 +1,7 @@
+plugins {
+    id 'java-test-fixtures'
+}
+
 // ADR 0003: the one reader of the Shelley-family ledger format. It holds no model and no ledger rule, and the build
 // enforces that: no model is on its classpath.
 dependencies {
@@ -8,6 +12,10 @@ dependencies {
         exclude group: 'net.jqwik'
     }
 }
+
+// The test fixtures (a strict policy for reader tests) are for this build's tests only, never published.
+components.java.withVariantsFromConfiguration(configurations.testFixturesApiElements) { skip() }
+components.java.withVariantsFromConfiguration(configurations.testFixturesRuntimeElements) { skip() }
 
 publishing {
     publications {

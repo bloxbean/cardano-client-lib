@@ -23,10 +23,14 @@ public final class RawValue {
     private static final int MAJOR_BYTES = 2;
     private static final int MAJOR_ARRAY = 4;
 
-    /** The array form, {@code [coin, multiasset]}. */
+    /**
+     * The array form, {@code [coin, multiasset]}; from Dijkstra the multiasset map may not be empty (experimental:
+     * Dijkstra is not final; this may change in any release).
+     */
     static final RecordSpec COIN_AND_ASSETS = RecordSpec.positional("value", List.of(
             FieldSpec.of(0, FieldType.COIN, true, Era.Mary, null),
-            FieldSpec.of(1, FieldType.MAP, true, Era.Mary, null, RawMultiAsset.VALUE)));
+            FieldSpec.of(1, FieldType.MAP, true, Era.Mary, Era.Conway, RawMultiAsset.VALUE),
+            FieldSpec.of(1, FieldType.NONEMPTY_MAP, true, Era.Dijkstra, null, RawMultiAsset.VALUE)));
     /**
      * The {@code value} rule: a coin or the array form. A walk gives a policy a coin of any integer or bignum to check,
      * and {@link #of(CborSpan)} reads only an unsigned integer, as it reads every coin.

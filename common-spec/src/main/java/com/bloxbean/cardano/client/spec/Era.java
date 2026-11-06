@@ -6,8 +6,9 @@ package com.bloxbean.cardano.client.spec;
  * <p>
  * Transaction serialization distinguishes Conway from the eras before it, so Shelley to Alonzo serialize as Babbage
  * does. CCL's builders do not produce pre-Alonzo shapes; Shelley, Allegra, Mary and Alonzo are for decoding and
- * verifying, for example with {@code RawBlock} and {@code RawTx.scriptDataHash}. Byron (era 0 and 1) and later eras
- * have no constant.
+ * verifying, for example with {@code RawBlock} and {@code RawTx.scriptDataHash}. Byron (era 0 and 1) has no constant.
+ * <p>
+ * Dijkstra is read only, and experimental: Dijkstra is not final; this may change in any release.
  */
 public enum Era {
     Shelley(2),
@@ -15,7 +16,9 @@ public enum Era {
     Mary(4),
     Alonzo(5),
     Babbage(6),
-    Conway(7);
+    Conway(7),
+    /** Experimental: Dijkstra is not final; this may change in any release. */
+    Dijkstra(8);
 
     public final int value;
     Era(int value) {

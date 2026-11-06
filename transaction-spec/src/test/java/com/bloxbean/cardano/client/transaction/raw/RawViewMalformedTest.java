@@ -85,7 +85,7 @@ class RawViewMalformedTest {
             try {
                 BlockEnvelope envelope = BlockEnvelope.of(input);
                 envelopes++;
-                readBlock(RawBlock.readAs(envelope, EraSpec.newest()));
+                readBlock(RawBlock.readAs(envelope, Era.Conway));
             } catch (CborRuntimeException expected) {
                 // rejected
             } catch (RuntimeException | StackOverflowError e) {

@@ -51,8 +51,8 @@ final class RecordWalk {
     }
 
     private static FieldSpec byMajorTypeRow(RecordSpec record, CborSpan item, Era era) {
-        FieldSpec tagged = item.isTagged() ? record.field(MAJOR_TAG, era) : null;
-        return tagged != null && tagged.record().tag() == item.tag() ? tagged : record.field(item.majorType(), era);
+        FieldSpec tagged = item.isTagged() ? record.form(MAJOR_TAG, era) : null;
+        return tagged != null && tagged.record().tag() == item.tag() ? tagged : record.form(item.majorType(), era);
     }
 
     private static void keyed(RecordSpec record, CborSpan container, Era era, FormatPolicy policy) {
@@ -153,6 +153,8 @@ final class RecordWalk {
             throw RawTx.error("A " + record.name() + " has a tag", container);
         CborSpan tag = items.get(0);
         FieldSpec field = field(record, integerKey(tag), era);
+        if (field != null)
+            field = record.withOptionalItem(field, items, era);
         policy.entry(record, field, tag, container, 0, era);
         if (field != null) {
             // the member's items are the union's, and are not listed again

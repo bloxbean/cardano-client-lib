@@ -22,6 +22,13 @@ public enum FieldType {
     DNS_NAME,
     UNIT_INTERVAL,
     NONNEGATIVE_INTERVAL,
+    /**
+     * {@code #6.30([positive_int, positive_int])}. Experimental: Dijkstra is not final; this may change in any
+     * release.
+     */
+    POSITIVE_INTERVAL,
+    /** {@code 1 .. max_word32}. Experimental: Dijkstra is not final; this may change in any release. */
+    POSITIVE_UINT32,
     /** The types that may be null. */
     OPTIONAL_PORT(Shape.NULLABLE),
     OPTIONAL_IPV4(Shape.NULLABLE),
@@ -33,6 +40,24 @@ public enum FieldType {
     OPTIONAL_GOV_ACTION_ID(Shape.NULLABLE),
     /** A script hash or null, such as a guardrails script hash. */
     OPTIONAL_HASH28(Shape.NULLABLE),
+    /**
+     * {@code eb_references_announcement / nil}, {@code [hash32, uint .size 4]}. Experimental: Dijkstra is not final;
+     * this may change in any release.
+     */
+    OPTIONAL_EB_REFERENCES_ANNOUNCEMENT(Shape.NULLABLE),
+    /**
+     * {@code bls_key / nil}, {@code [bytes .size 96, bytes .size 48]}. Experimental: Dijkstra is not final; this may
+     * change in any release.
+     */
+    OPTIONAL_BLS_KEY(Shape.NULLABLE),
+    /** {@code plutus_data / nil}. Experimental: Dijkstra is not final; this may change in any release. */
+    OPTIONAL_PLUTUS_DATA(Shape.NULLABLE),
+    /** {@code coin / nil}. Experimental: Dijkstra is not final; this may change in any release. */
+    OPTIONAL_COIN(Shape.NULLABLE),
+    /** {@code nil / uint .size 4}. Experimental: Dijkstra is not final; this may change in any release. */
+    OPTIONAL_UINT32(Shape.NULLABLE),
+    /** {@code nonnegative_interval / nil}. Experimental: Dijkstra is not final; this may change in any release. */
+    OPTIONAL_NONNEGATIVE_INTERVAL(Shape.NULLABLE),
     /** A member of a tagged union, as encoded. */
     MEMBER,
     CREDENTIAL,
@@ -93,6 +118,8 @@ public enum FieldType {
     COMMITTEE_TERMS,
     BOOL,
     TRANSACTION_BODY,
+    /** A Dijkstra sub-transaction's body. Experimental: Dijkstra is not final; this may change in any release. */
+    SUB_TRANSACTION_BODY,
     TRANSACTION_WITNESS_SET,
     REDEEMERS,
     REDEEMER_TAG,
@@ -112,6 +139,11 @@ public enum FieldType {
     METADATA,
     /** The array or the keyed form of auxiliary data, as encoded. */
     AUXILIARY_DATA,
+    /**
+     * {@code coin / [coin / nil, coin / nil]}: an exact balance, or its bounds. Experimental: Dijkstra is not final;
+     * this may change in any release.
+     */
+    ACCOUNT_BALANCE_INTERVAL,
     MAP,
     NONEMPTY_MAP,
     /** {@code [* a]}: an array, of any length. */
@@ -221,6 +253,14 @@ public enum FieldType {
             case GOV_ACTION_ID:
             case OPTIONAL_GOV_ACTION_ID:
                 return RawGovActionId.RECORD;
+            case OPTIONAL_EB_REFERENCES_ANNOUNCEMENT:
+                return RawEbReferencesAnnouncement.RECORD;
+            case OPTIONAL_BLS_KEY:
+                return RawBlsKey.RECORD;
+            case ACCOUNT_BALANCE_INTERVAL:
+                return RawAccountBalanceInterval.RECORD;
+            case SUB_TRANSACTION_BODY:
+                return TxBodyField.SUB_RECORD;
             case VOTING_PROCEDURE:
                 return RawVotingProcedure.RECORD;
             case GOV_ACTION:

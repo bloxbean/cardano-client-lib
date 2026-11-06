@@ -23,6 +23,15 @@ public record FieldSpec(long key, FieldType type, boolean required, Era from, Er
         return new FieldSpec(key, type, required, from, until, record);
     }
 
+    /**
+     * @return the table of the value, or of each item of a collection, or null for a leaf: the row's own, or else its
+     * type's, which a table that its own rows refer to resolves once it exists (a Dijkstra sub-transaction's body)
+     */
+    @Override
+    public RecordSpec record() {
+        return record != null ? record : type.record();
+    }
+
     /** @return a member of a tagged union, whose items are read with its own table */
     static FieldSpec member(long tag, Era from, Era until, FieldType... items) {
         return new FieldSpec(tag, FieldType.MEMBER, false, from, until, RecordSpec.member(tag, items));
@@ -42,6 +51,14 @@ public record FieldSpec(long key, FieldType type, boolean required, Era from, Er
      */
     boolean endedBefore(Era era) {
         return until != null && era.compareTo(until) > 0;
+    }
+
+    /**
+     * @param era an era
+     * @return whether the field's first era is after this era
+     */
+    boolean startsAfter(Era era) {
+        return era.compareTo(from) < 0;
     }
 
     /**

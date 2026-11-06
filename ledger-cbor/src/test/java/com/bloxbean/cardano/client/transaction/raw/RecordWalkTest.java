@@ -110,8 +110,9 @@ class RecordWalkTest {
         String body = "a2000002" + "41aa";
         assertThat(walk(KEYED, body, Era.Babbage)).contains("entry keyed 2:HASH28 key=02 value=41aa occurrence=0");
         assertThat(walk(KEYED, body, Era.Conway)).contains("entry keyed 2:HASH32 key=02 value=41aa occurrence=0");
-        // no row is valid in Shelley: the first row of the key is reported, and it says it is outside its era
-        assertThat(walk(KEYED, body, Era.Shelley)).contains("entry keyed 2:HASH28 key=02 value=41aa occurrence=0");
+        // no row has started by Shelley: the key is unknown there, as that era's ledger reads it, and is not walked
+        assertThat(walk(KEYED, body, Era.Shelley)).contains("entry keyed null key=02 value=41aa occurrence=0")
+                .doesNotContain("check HASH28 41aa");
     }
 
     @Test

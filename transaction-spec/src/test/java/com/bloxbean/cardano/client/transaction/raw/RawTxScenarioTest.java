@@ -213,7 +213,7 @@ class RawTxScenarioTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "a3" + "00" + ADDRESS + "01" + "00" + "02" + "8202" + "00",                 // unknown datum option
-            "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "44" + "8204" + "8100",      // unknown script type
+            "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "44" + "8205" + "8100",      // unknown script type
             "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "4c" + "821b0000000100000001" + "8100", // type 2^32 + 1
             "a1" + "00" + ADDRESS,                                                       // no value
             "81" + ADDRESS,                                                              // a legacy output of one item
@@ -228,6 +228,16 @@ class RawTxScenarioTest {
     void malformedOutputsAreRejected(String output) {
         RawTx raw = tx("a3" + "0080" + "0181" + output + "0200", "a0", "f6");
         assertThatThrownBy(raw::outputs).isInstanceOf(CborRuntimeException.class);
+    }
+
+    /** ADR 0003 D4a: a script reference of type 4, Plutus V4, now reads in every era; 5 is still unknown. */
+    @Test
+    void aPlutusV4ScriptReferenceReads() {
+        String output = "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "44" + "8204" + "4100";
+        RawScript script = RawOutput.of(CborSpan.of(decodeHexString(output))).scriptRef().orElseThrow();
+        assertThat(script.type()).isEqualTo(4);
+        assertThatThrownBy(() -> RawOutput.of(CborSpan.of(decodeHexString(output.replace("8204", "8205")))))
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Unknown script type 5");
     }
 
     /**

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -26,7 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link BlockEnvelope} and {@link RawHeader} on every real block (Shelley to Conway; mainnet, preprod, preview): the
+ * {@link BlockEnvelope} and {@link RawHeader} on every real block (Shelley to Conway; mainnet, preprod, preview; the
+ * Dijkstra vectors are DijkstraVectorsTest's): the
  * header fields against the same items decoded by cbor-java, by the CDDL's positions written out here; the header hash
  * against the on-chain block hash; the block number against the chain; the declared body against the body. And what a
  * damaged real block does.
@@ -53,7 +55,8 @@ class RawHeaderRealCorpusTest {
             assertSameHeader(RawHeader.of(raw.header()), header);
             assertSameHeader(RawHeader.of(raw.header(), era), header);
         }
-        assertThat(eras).containsExactlyInAnyOrder(Era.values());
+        // no real network has a final Dijkstra block: DijkstraVectorsTest reads the Dijkstra vectors (ADR 0003 I15)
+        assertThat(eras).containsExactlyInAnyOrderElementsOf(EnumSet.range(Era.Shelley, Era.Conway));
     }
 
     private static long bodySize(RawBlock raw) {
@@ -169,7 +172,7 @@ class RawHeaderRealCorpusTest {
                 if (other.blockLayout != own.blockLayout) {
                     assertThatThrownBy(() -> RawBlock.readAs(envelope, named)).as(block.name())
                             .isInstanceOf(CborRuntimeException.class);
-                } else if (other.headerLayout != own.headerLayout) {
+                } else if (!other.headerLayouts.containsAll(own.headerLayouts)) {
                     RawBlock read = RawBlock.readAs(envelope, named);
                     assertThat(read.era()).isEqualTo(named);
                     assertThatThrownBy(read::rawHeader).as(block.name()).isInstanceOf(CborRuntimeException.class);
@@ -183,13 +186,16 @@ class RawHeaderRealCorpusTest {
         }
     }
 
-    /** An era index this reader does not know, on a real block of the newest layouts (ADR 0003 I12). */
+    /**
+     * An era index this reader does not know, on a real Conway block (ADR 0003 I12): read only when asked, and from
+     * D4a the newest layouts are Dijkstra's, so read as the newest it does not fit and is a parse failure.
+     */
     @Test
     void anUnknownIndexOnARealBlockIsReadOnlyWhenAsked() {
         int read = 0;
         for (RealCborFixturesAccess.Block block : RealCborFixturesAccess.blocks()) {
             RawBlock raw = RawBlock.of(block.cbor());
-            if (raw.era() != EraSpec.newest())
+            if (raw.era() != Era.Conway)
                 continue;
             byte[] renamed = block.cbor().clone();
             renamed[1] = 9; // 82 07 ...
@@ -197,9 +203,11 @@ class RawHeaderRealCorpusTest {
             assertThatThrownBy(() -> RawBlock.of(renamed)).isInstanceOf(UnsupportedEraException.class);
             assertThatThrownBy(() -> RawBlock.of(BlockEnvelope.of(renamed)))
                     .isInstanceOf(UnsupportedEraException.class);
-            RawBlock asNewest = RawBlock.readAs(BlockEnvelope.of(renamed), EraSpec.newest());
-            assertThat(asNewest.txCount()).isEqualTo(raw.txCount());
-            assertThat(asNewest.rawHeader().blockNumber()).isEqualTo(block.blockHeight());
+            assertThatThrownBy(() -> RawBlock.readAs(BlockEnvelope.of(renamed), EraSpec.newest()))
+                    .isInstanceOf(CborRuntimeException.class).isNotInstanceOf(UnsupportedEraException.class);
+            RawBlock asConway = RawBlock.readAs(BlockEnvelope.of(renamed), Era.Conway);
+            assertThat(asConway.txCount()).isEqualTo(raw.txCount());
+            assertThat(asConway.rawHeader().blockNumber()).isEqualTo(block.blockHeight());
             read++;
         }
         assertThat(read).isPositive();
@@ -230,7 +238,8 @@ class RawHeaderRealCorpusTest {
         for (RealCborFixturesAccess.Block block : RealCborFixturesAccess.blocks()) {
             RawBlock raw = RawBlock.of(block.cbor());
             int[] unknown = {0};
-            EraSpec.of(raw.era()).headerLayout.body.walk(raw.header().get(0), raw.era(), new FormatPolicy() {
+            HeaderLayout layout = EraSpec.of(raw.era()).headerLayout(raw.header().get(0));
+            layout.body.walk(raw.header().get(0), raw.era(), new FormatPolicy() {
                 @Override
                 public void entry(RecordSpec record, FieldSpec field, CborSpan key, CborSpan value, int occurrence,
                                   Era era) {

@@ -26,10 +26,21 @@ class EraSpecTest {
             assertThat(row.blockLayout).isEqualTo(BlockLayout.PARALLEL_4);
         for (EraSpec row : List.of(EraSpec.ALONZO, EraSpec.BABBAGE, EraSpec.CONWAY))
             assertThat(row.blockLayout).isEqualTo(BlockLayout.PARALLEL_5);
+        assertThat(EraSpec.DIJKSTRA.blockLayout).isEqualTo(BlockLayout.UNIFIED);
         for (EraSpec row : List.of(EraSpec.SHELLEY, EraSpec.ALLEGRA, EraSpec.MARY, EraSpec.ALONZO))
-            assertThat(row.headerLayout).isEqualTo(HeaderLayout.FLAT_15);
+            assertThat(row.headerLayouts).containsExactly(HeaderLayout.FLAT_15);
         for (EraSpec row : List.of(EraSpec.BABBAGE, EraSpec.CONWAY))
-            assertThat(row.headerLayout).isEqualTo(HeaderLayout.NESTED_10);
+            assertThat(row.headerLayouts).containsExactly(HeaderLayout.NESTED_10);
+        // ADR 0003 D4a: node 11.2.0 sends the 10-item Praos header, Leios networks the 12-item one
+        assertThat(EraSpec.DIJKSTRA.headerLayouts).containsExactly(HeaderLayout.NESTED_10, HeaderLayout.NESTED_12);
+    }
+
+    /** A header with no era may have any layout; one walked as Conway, only those of the eras to Conway (I14). */
+    @Test
+    void theHeaderLayoutsOfTheErasToOne() {
+        assertThat(EraSpec.headerLayoutsTo(Era.Mary)).containsExactly(HeaderLayout.FLAT_15);
+        assertThat(EraSpec.headerLayoutsTo(Era.Conway)).containsExactly(HeaderLayout.FLAT_15, HeaderLayout.NESTED_10);
+        assertThat(EraSpec.headerLayoutsTo(Era.Dijkstra)).containsExactly(HeaderLayout.values());
     }
 
     @Test
@@ -38,13 +49,16 @@ class EraSpecTest {
         assertThat(BlockLayout.PARALLEL_4.invalidTransactions()).isFalse();
         assertThat(BlockLayout.PARALLEL_5.items).isEqualTo(5);
         assertThat(BlockLayout.PARALLEL_5.invalidTransactions()).isTrue();
+        assertThat(BlockLayout.UNIFIED.items).isEqualTo(2);
+        assertThat(BlockLayout.UNIFIED.invalidTransactions()).isFalse();
         assertThat(HeaderLayout.FLAT_15.body.arity()).isEqualTo(15);
         assertThat(HeaderLayout.NESTED_10.body.arity()).isEqualTo(10);
+        assertThat(HeaderLayout.NESTED_12.body.arity()).isEqualTo(12);
     }
 
     @Test
     void newestIsTheLastRow() {
-        assertThat(EraSpec.newest()).isEqualTo(Era.Conway);
+        assertThat(EraSpec.newest()).isEqualTo(Era.Dijkstra);
     }
 
     @Test
@@ -54,7 +68,7 @@ class EraSpecTest {
     }
 
     @ParameterizedTest
-    @ValueSource(longs = {0, 1, 8, 9, 1000, Long.MAX_VALUE, -1})
+    @ValueSource(longs = {0, 1, 9, 1000, Long.MAX_VALUE, -1})
     void anIndexWithoutARowIsUnsupported(long index) {
         assertThatThrownBy(() -> EraSpec.ofIndex(index)).isInstanceOfSatisfying(UnsupportedEraException.class,
                 e -> assertThat(e.eraIndex()).isEqualTo(index));

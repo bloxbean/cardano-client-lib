@@ -41,8 +41,13 @@ class RawHeaderTest {
     private static final String NESTED_ITEMS = NUMBER + SLOT_ITEM + PREV + ISSUER + VRF_KEY + VRF_1 + SIZE + BODY_HASH
             + "84" + HOT + SEQUENCE + KES + SIGMA + "82" + MAJOR + MINOR;
 
+    private static final String EB_HASH = bytes32("ab");
+    private static final String EB_ANNOUNCEMENT = "82" + EB_HASH + "1904d3";
+
     static final String FLAT_HEADER = "82" + "8f" + FLAT_ITEMS + BODY_SIGNATURE;
     static final String NESTED_HEADER = "82" + "8a" + NESTED_ITEMS + BODY_SIGNATURE;
+    /** The 12-item Leios header of Dijkstra's CDDL: a Leios certificate in the body, an endorser block announced. */
+    static final String LEIOS_HEADER = "82" + "8c" + NESTED_ITEMS + "f5" + EB_ANNOUNCEMENT + BODY_SIGNATURE;
 
     private static String bytes32(String value) {
         return "5820" + value.repeat(32);
@@ -102,6 +107,67 @@ class RawHeaderTest {
     void theNestedLayoutIsReadFromBabbage(Era era) {
         assertNested(RawHeader.of(span(NESTED_HEADER), era));
         assertThatThrownBy(() -> RawHeader.of(span(FLAT_HEADER), era)).isInstanceOf(CborRuntimeException.class);
+    }
+
+    /** ADR 0003 D4a: Dijkstra has the 10-item header node 11.2.0 sends and the 12-item Leios header, by shape. */
+    @Test
+    void dijkstraReadsBothNestedLayouts() {
+        RawHeader leios = RawHeader.of(span(LEIOS_HEADER), Era.Dijkstra);
+        assertNested(leios);
+        assertThat(leios.leiosCertInBody()).contains(true);
+        RawEbReferencesAnnouncement announcement = leios.ebReferencesAnnouncement().orElseThrow();
+        assertThat(hex(announcement.hash())).isEqualTo("ab".repeat(32));
+        assertThat(announcement.size()).isEqualTo(1235);
+        assertThat(leios.hash()).isEqualTo(Blake2bUtil.blake2bHash256(decodeHexString(LEIOS_HEADER)));
+        assertThat(RawHeader.of(span(LEIOS_HEADER)).ebReferencesAnnouncement()).isPresent();
+
+        RawHeader praos = RawHeader.of(span(NESTED_HEADER), Era.Dijkstra);
+        assertNested(praos);
+        assertThat(praos.leiosCertInBody()).isEmpty();
+        assertThat(praos.ebReferencesAnnouncement()).isEmpty();
+        assertThat(RawHeader.of(span(NESTED_HEADER)).leiosCertInBody()).isEmpty();
+
+        RawHeader none = RawHeader.of(span(LEIOS_HEADER.replace("f5" + EB_ANNOUNCEMENT, "f4" + "f6")), Era.Dijkstra);
+        assertThat(none.leiosCertInBody()).contains(false);
+        assertThat(none.ebReferencesAnnouncement()).isEmpty();
+        assertThatThrownBy(() -> RawHeader.of(span(FLAT_HEADER), Era.Dijkstra))
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("10 or 12 items, found 15");
+
+        RawHeader badFlag = RawHeader.of(span(LEIOS_HEADER.replace("f5" + EB_ANNOUNCEMENT, "00" + "00")));
+        assertThat(badFlag.slot()).isEqualTo(SLOT);
+        assertThatThrownBy(badFlag::leiosCertInBody).isInstanceOf(CborRuntimeException.class);
+        assertThatThrownBy(badFlag::ebReferencesAnnouncement).isInstanceOf(CborRuntimeException.class);
+    }
+
+    /** ADR 0003 I14: a 12-item header is refused where Conway is meant, as it was before D4a. */
+    @Test
+    void aTwelveItemHeaderIsRefusedAsConway() {
+        for (Era era : new Era[]{Era.Babbage, Era.Conway}) {
+            assertThatThrownBy(() -> RawHeader.of(span(LEIOS_HEADER), era))
+                    .isInstanceOf(CborRuntimeException.class).hasMessageContaining("10 items, found 12");
+        }
+        assertThatThrownBy(() -> RawHeader.walk(span(LEIOS_HEADER), new RecordingPolicy()))
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("15 or 10 items, found 12");
+        assertThatThrownBy(() -> RawHeader.walk(span(LEIOS_HEADER), Era.Conway, new RecordingPolicy()))
+                .isInstanceOf(CborRuntimeException.class);
+    }
+
+    @Test
+    void aWalkOfADijkstraHeaderReadsEitherLayout() {
+        RecordingPolicy leios = new RecordingPolicy();
+        RawHeader.walk(span(LEIOS_HEADER), Era.Dijkstra, leios);
+        assertThat(leios.events).noneMatch(event -> event.contains("missing") || event.contains(" null "));
+        assertThat(leios.events).contains("check BOOL f5", "enter eb_references_announcement " + EB_ANNOUNCEMENT);
+
+        RecordingPolicy praos = new RecordingPolicy();
+        RawHeader.walk(span(NESTED_HEADER), Era.Dijkstra, praos);
+        assertThat(praos.events).noneMatch(event -> event.contains("missing") || event.contains(" null "));
+        assertThat(praos.events).anyMatch(event -> event.startsWith("enter protocol_version"));
+
+        assertThatThrownBy(() -> RawHeader.walk(span(FLAT_HEADER), Era.Dijkstra, new RecordingPolicy()))
+                .isInstanceOf(CborRuntimeException.class);
+        assertThatThrownBy(() -> RawHeader.walk(span(LEIOS_HEADER), null, new RecordingPolicy()))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

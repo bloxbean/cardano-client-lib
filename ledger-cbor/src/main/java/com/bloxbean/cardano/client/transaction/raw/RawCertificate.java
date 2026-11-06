@@ -28,10 +28,10 @@ public final class RawCertificate {
     private final PositionalRecord record;
     private final boolean lenient;
 
-    private RawCertificate(CertKind kind, CborSpan span, List<CborSpan> items, boolean lenient) {
+    private RawCertificate(CertKind kind, CborSpan span, List<CborSpan> items, boolean lenient, Era era) {
         this.kind = kind;
         this.span = span;
-        this.record = PositionalRecord.of(kind.member().record(), span, items, !lenient);
+        this.record = PositionalRecord.of(kind.record(items, era), span, items, !lenient);
         this.lenient = lenient;
     }
 
@@ -42,9 +42,25 @@ public final class RawCertificate {
      *                              it does not have the items of its tag
      */
     public static RawCertificate of(CborSpan span) {
+        return of(span, null);
+    }
+
+    /**
+     * Reads a certificate as {@link #of(CborSpan)} does, in an era: from Dijkstra, a pool registration whose item after
+     * the VRF key hash is an array or null has a BLS key slot there ({@link #blsKey()}), as the ledger reads it.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param span a certificate as encoded
+     * @param era  the era to read it in, or null to read it as {@link #of(CborSpan)} does
+     * @return the view
+     * @throws CborRuntimeException if it is not an array, its tag is unknown, or
+     *                              it does not have the items of its tag
+     */
+    public static RawCertificate of(CborSpan span, Era era) {
         List<CborSpan> items = RawItems.array(span, CertKind.RECORD.name());
         CertKind kind = CertKind.of(items, span).orElseThrow(() -> error("Unknown certificate tag", span));
-        return new RawCertificate(kind, span, items, false);
+        return new RawCertificate(kind, span, items, false, era);
     }
 
     /**
@@ -58,7 +74,7 @@ public final class RawCertificate {
      * @throws CborRuntimeException if it is not an array or has too few items
      */
     public static RawCertificate lenient(CertKind kind, CborSpan span) {
-        return new RawCertificate(kind, span, RawItems.array(span, CertKind.RECORD.name()), true);
+        return new RawCertificate(kind, span, RawItems.array(span, CertKind.RECORD.name()), true, null);
     }
 
     /**
@@ -70,8 +86,13 @@ public final class RawCertificate {
      *                              few items
      */
     public static Optional<RawCertificate> lenient(CborSpan span) {
+        return lenient(span, null);
+    }
+
+    // As lenient(span), in an era: see of(span, era).
+    static Optional<RawCertificate> lenient(CborSpan span, Era era) {
         List<CborSpan> items = RawItems.array(span, CertKind.RECORD.name());
-        return CertKind.of(items, span).map(kind -> new RawCertificate(kind, span, items, true));
+        return CertKind.of(items, span).map(kind -> new RawCertificate(kind, span, items, true, era));
     }
 
     /**
@@ -180,6 +201,16 @@ public final class RawCertificate {
 
     public byte[] rewardAccount() {
         return RawItems.bytes(record.value(FieldType.REWARD_ACCOUNT));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the BLS key of a pool registration read in Dijkstra, or empty if it is null or the registration has none
+     * @throws CborRuntimeException if it is not an array of two byte strings
+     */
+    public Optional<RawBlsKey> blsKey() {
+        return record.optional(FieldType.OPTIONAL_BLS_KEY).map(item -> RawItems.nullable(item, RawBlsKey::of));
     }
 
     /**
