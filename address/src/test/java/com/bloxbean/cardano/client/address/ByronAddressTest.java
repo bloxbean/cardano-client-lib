@@ -86,6 +86,17 @@ class ByronAddressTest {
 
         assertThat(address.getProtocolMagic()).hasValue(1);
         assertThat(address.getDerivationPath()).isEmpty();
+        assertThat(address.getUnknownAttributes()).containsOnlyKeys(3, 255);
+        assertThat(address.getUnknownAttributes().get(3)).isEqualTo(new byte[]{(byte) 0xff, (byte) 0xff});
+        assertThat(address.getUnknownAttributes().get(255)).isEmpty();
+    }
+
+    @Test
+    void anAddressWithKnownAttributesOnlyHasNoUnknownOnes() {
+        ByronAddress address = new ByronAddress(envelope("83" + ROOT_ITEM + "a2" + "01" + bstr("41aa") + "02" + bstr("01") + "00"));
+
+        assertThat(address.getDerivationPath()).hasValue(new byte[]{(byte) 0xaa});
+        assertThat(address.getUnknownAttributes()).isEmpty();
     }
 
     @Test

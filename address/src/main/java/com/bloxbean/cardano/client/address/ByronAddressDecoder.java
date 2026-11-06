@@ -3,6 +3,8 @@ package com.bloxbean.cardano.client.address;
 import com.bloxbean.cardano.client.crypto.exception.AddressFormatException;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.zip.CRC32;
 
 /**
@@ -63,6 +65,7 @@ final class ByronAddressDecoder {
 
         byte[] derivationPath = null;
         Long protocolMagic = null;
+        Map<Integer, byte[]> unknownAttributes = new LinkedHashMap<>();
         int attributeCount = reader.readMapHeader();
         long previousKey = -1;
         for (int i = 0; i < attributeCount; i++) {
@@ -80,6 +83,8 @@ final class ByronAddressDecoder {
                 CborReader nested = new CborReader(value);
                 protocolMagic = nested.readUint(MAX_UINT32, true);
                 nested.requireEnd();
+            } else {
+                unknownAttributes.put((int) key, value);
             }
         }
 
@@ -89,7 +94,7 @@ final class ByronAddressDecoder {
             throw invalid("unknown address type " + typeValue);
         reader.requireEnd();
 
-        return new Decoded(root, derivationPath, protocolMagic, type);
+        return new Decoded(root, derivationPath, protocolMagic, unknownAttributes, type);
     }
 
     private static AddressFormatException invalid(String reason) {
@@ -100,12 +105,15 @@ final class ByronAddressDecoder {
         final byte[] root;
         final byte[] derivationPath;
         final Long protocolMagic;
+        final Map<Integer, byte[]> unknownAttributes;
         final ByronAddressType type;
 
-        private Decoded(byte[] root, byte[] derivationPath, Long protocolMagic, ByronAddressType type) {
+        private Decoded(byte[] root, byte[] derivationPath, Long protocolMagic, Map<Integer, byte[]> unknownAttributes,
+                        ByronAddressType type) {
             this.root = root;
             this.derivationPath = derivationPath;
             this.protocolMagic = protocolMagic;
+            this.unknownAttributes = unknownAttributes;
             this.type = type;
         }
     }
