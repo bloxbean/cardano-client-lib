@@ -1,6 +1,6 @@
 # ADR 0004: Dijkstra in CCL's Transaction Model, as an Opt-In Era
 
-**Status**: Proposed
+**Status**: Proposed. W-M1 is implemented on CCL branch `feat/ledger-cbor` (section 7.1)
 **Date**: 2026-11-06
 **Risk**: Medium. The models are CCL's most used public API, and a change to their Conway bytes would change
 transaction ids for every user. Dijkstra itself is experimental, so its own risk is low.
@@ -102,7 +102,7 @@ transaction marked invalid (Q2).
 | `AuxiliaryData` | `plutusV4Scripts` | Key 5 of `#6.259` |
 | `PoolRegistration` | `blsKey` (`BlsKey`: 96-byte key, 48-byte proof) | After the VRF key hash, only when present |
 | `CostMdls` | A Plutus V4 cost model. One the caller adds as `PLUTUS_V4` is a known language, in the language view as V2 and V3 are (`Alonzo/PParams.hs:559-573`). A language-3 model read from bytes stays in `getUnknownCostMdls()` unless it is read in Dijkstra, so era-less reads, their writes and their language views keep today's bytes | As today |
-| `ProtocolParamUpdate` | Fields for keys 34-56. Key 53 has three states, as Haskell's `StrictMaybe` inside an update: absent, set to nil, or set to a number. Its field is an `Optional<Long>` that is null when absent and empty for nil, the one exception to the model's plain nullable fields | Only when set |
+| `ProtocolParamUpdate` | Fields for keys 34-56. Keys 38 and 53 have three states, as Haskell writes both with `encodeNullStrictMaybe` inside an update (`Core/PParams.hs:369-379`, `Dijkstra/PParams.hs:1064-1081`): absent, set to nil, or set to a value. Their fields are `Optional`s that are null when absent and empty for nil (r2: key 38 was missed in r1), the only exceptions to the model's plain nullable fields | Only when set |
 
 `requiredSigners` stays, and keeps its default of an empty list. Both it and `guards` fill key 14, so both non-empty is
 an error. `requiredSigners` written for
@@ -147,6 +147,11 @@ pre-existing public constructor by its parameter types.
 - **Maps keyed by credential or reward account** (keys 24-27): Haskell's `Ord` order, by ADR 0002 D6.1's rule, since
   no hardware wallet signs a Dijkstra transaction yet (Q1). `Comparators` already holds both orders.
 - **Pool registration:** ten fields with a BLS key, nine without; null is never written.
+- **Auxiliary data:** always the `#6.259` map, as Haskell writes it (`TxAuxData.hs:145-167`); the shorter forms CCL
+  writes in earlier eras are not used (r2).
+- **Container lengths** (r2): CCL writes definite lengths, as all its writers do. Haskell switches to indefinite
+  lengths above 23 entries (`Encoder.hs:363-443`); the ledger reads both, so above 23 entries the bytes differ from a
+  Haskell-built transaction, as they already do in Conway.
 - **Everything else** keeps ADR 0002's rules: the body map in ascending key order (CIP-21), sets with tag 258 from
   Conway, redeemers as a map. Haskell writes body keys in its constructor order (0, 13, 18, 1, ...), and the ledger
   accepts either; ascending order is what a hardware wallet needs and what CCL writes today.
@@ -184,6 +189,39 @@ any release, as ADR 0003 D4a does. ADR 0003's M7b removes the marking.
 |---|---|---|---|
 | W-M1 | D1-D6 | ADR 0003 M7a's reader | W1-W5 |
 | W-M2 | QuickTx and builders for Dijkstra | Dijkstra final (ADR 0003 M7b); a separate decision | Separate ADR |
+
+### 7.1 Implementation record: W-M1 (r2)
+
+W-M1 is implemented on CCL branch `feat/ledger-cbor`, on top of ADR 0003's M7a reader, and was reviewed by a Fable pass
+and a Codex pass over two rounds before commit.
+
+| Invariant | Result |
+|---|---|
+| W1 | The full CCL suite fails the same tests as the base commit. The Conway dataset gate (2,837 samples at `4fd977b2`) and `certificate-outcomes.txt` are unchanged. `toJson` of objects built the old way is byte-identical to the base commit's output: the new fields are left out while null. A language-3 cost model read without an era stays unknown, with the same bytes and language view. A body written before Dijkstra still writes its proposals in the configured era, pinned with Babbage bytes |
+| W2 | 814 public signatures of the 54 classes the change touches, read from the base commit's compiled classes, all still exist |
+| W3 | 17 golden and real-network transactions read in Dijkstra and write back in the 3-item form. The new body keys 14, 25, 26 and 27, re-encoded, equal the ledger golden's and a Musashi transaction's original items, in order and with tags; no vector has key 24. Dijkstra model gate: 3,802 dataset samples, 123 listed misses, each a re-encoding difference from D4's choices (tag 258 on sets, CCL's map order, legacy outputs, credential-form guards, the tag-259 auxiliary data form), and the one disputed label (ADR 0003 section 7.2) |
+| W4 | One error test per Dijkstra-only field before Dijkstra, including a standalone sub-transaction, and per removed value in Dijkstra |
+| W5 | The reader's id of each re-encoding equals `getTxHash` |
+
+**Decisions taken during implementation.**
+
+- **Indefinite-length records in Dijkstra.** CCL's lenient and tolerant views required definite-length records, which is
+  Haskell's rule only before version 12. A view read in Dijkstra now accepts both (`RawItems.indefiniteRecordsAllowed`);
+  era-less reads and earlier eras are unchanged. Without it, a real Dijkstra transaction with such a record could not be
+  read into the models, and Yaci would fail its block.
+- **Keys 38 and 53** have three states (D2). JSON writes absent as nothing, nil as `null`, and a value as itself.
+- **Auxiliary data** in Dijkstra is always the `#6.259` map, with empty metadata left out as Haskell does (D4).
+- **Container lengths** stay definite (D4).
+- **Additions for Yaci:** `RawCertificate.lenient(kind, span, era)` and `RawBlock.transaction(int)`, so Yaci reads
+  Dijkstra pool registrations and transactions as tolerantly as earlier eras.
+
+**Differences for existing callers.** Reading: a `[6, credential]` native script, redeemer tag 6 and script type 4,
+which threw, now read as `RequireGuard`, `Guarding` and `PlutusV4Script`. `CostMdls.add` of a `PLUTUS_V4` model
+replaces a language-3 model read as unknown. `toString` and `hashCode` include the new fields. Writing is unchanged
+for everything a caller could build before.
+
+**Left open.** Before Dijkstra, `AuxiliaryData` with metadata and only Plutus V3 scripts takes the metadata-only form
+and drops the scripts. This predates ADR 0004, and fixing it changes Conway bytes, so it is left for its own issue.
 
 ## 8. Compatibility
 
@@ -239,3 +277,5 @@ form, and key 14 reads differently in the two eras. Lean: no; the caller names t
   53's three states and intervals with no bound (D2); the hash-code claim (D3); `CostMdls` and the new public methods
   (W1, section 8); Q3's reason. Round 2: Fable approved; Codex's F10, a language-3 cost model's language view, is
   answered in D2's `CostMdls` row and W1.
+- **r2** (2026-11-07): section 7.1 records W-M1's implementation; key 38's three states (D2); auxiliary data and
+  container lengths (D4); status line.
