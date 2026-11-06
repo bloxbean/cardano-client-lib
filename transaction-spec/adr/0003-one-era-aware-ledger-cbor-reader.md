@@ -849,6 +849,26 @@ commit; their findings are folded in below.
 - A later era's key in a keyed record is unknown, and `RecordSpec.field` returns null for it (above).
 - The array redeemer row ends at Conway; witness keys 0, 1, 2, 4 and the multi-asset map have Dijkstra rows (above).
 
+**Yaci (r8).** On Yaci branch `feat/ledger-cbor-reader`, against CCL `9ada74fe`, reviewed by a Fable pass and a Codex
+pass over three rounds. Dijkstra blocks reach listeners with `Block.era` Dijkstra, through block fetch and local chain
+sync; the tests check them against the source's recorded header hashes, block numbers and slots, and transaction ids
+hashed by an independent Blake2b. Byron to Conway delivery is unchanged: the parallel layouts keep their own path.
+Implementation choices:
+
+- A Dijkstra transaction's parts come from `RawBlock.transaction(i)`'s spans, not a `RawTx`, and certificates are read
+  with `RawCertificate.lenient(kind, span, era)`, so Dijkstra is read as tolerantly as Conway: a repeated body key
+  keeps its last value, and a pool registration's trailing items are ignored.
+- `TxCborUtil` writes a Dijkstra transaction's 3-item form from the block model, equal byte for byte to
+  `RawBlock.txBytes(i)`, since its caller has no `RawBlock`.
+- Chain-sync headers are read in their HFC variant's era, so a 12-item header is refused unless it is Dijkstra's.
+
+Differences for approval, beyond D4a's: a native script of a type Yaci's JSON writer does not know, at the top or
+nested, is kept with no JSON and a parse error, keeping its type and hash, in every era, where it was dropped or left
+out of its parent's tree; a malformed known script still fails its block as before. Only Dijkstra's type 6 or invalid
+data reaches this. A chain-sync header must have its era's number of items (15 to Alonzo, 10 for Babbage and Conway,
+10 or 12 for Dijkstra), where any shape was read; real headers are not affected, and a header of the wrong shape now
+fails as other malformed headers do. `localstate.api.Era.fromInt(7)` and the new `TxBodyType.DIJKSTRA` resolve.
+
 **Left open.** A non-nil Peras certificate, real parameter updates with keys 40-56, a script-credential guard on a
 real network, and rejection cases for the block, header and interval rules have no vector. The disputed dataset label
 is to be reported upstream.
@@ -873,6 +893,8 @@ is to be reported upstream.
 | `EraSpec.newest()` (r6) | Becomes Dijkstra. Era-less reads that meant Conway name Conway, so no Conway result changes (I14) |
 | `RawBlock` on a Dijkstra block (r6) | The parallel-array accessors throw and `invalidTransactions()` is empty; the layout-neutral accessors work (D4a) |
 | Yaci, unknown era index 9 or more (r6) | A Conway-shaped block now raises `onParsingError`, where it reached listeners with a null era; a Dijkstra-shaped one reaches them with a null era (D4a, I12) |
+| Yaci native scripts of an unknown type (r8) | Kept with a parse error in every era, where they were dropped (section 7.2) |
+| Yaci chain-sync headers (r8) | Read in their variant's era: a header of another era's shape fails (section 7.2) |
 | `RawHeader.protocolMinor()` on a Dijkstra header (r6) | Returns the software tag, the second number of the pair, as consensus reads it (D4a) |
 
 ## 9. Alternatives considered
@@ -981,3 +1003,4 @@ under ADR 0004's constructor rule. Lean: (b), so fields arrive with a user and t
   key is unknown in a keyed record; the BLS slot by Haskell's peek; version-12 set rows; the dataset pin moved to
   `4fd977b2`; a disputed dataset label) and the differences for approval. Status line and section 4's dataset row
   follow. The decisions D1-D11 and D4a are unchanged.
+- **r8** (2026-11-07): section 7.2 records Yaci's part of M7a and its differences; two section 8 rows.
