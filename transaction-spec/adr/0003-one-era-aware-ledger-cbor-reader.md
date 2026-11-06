@@ -1,7 +1,7 @@
 # ADR 0003: One Era-Aware Ledger CBOR Reader
 
 **Status**: Accepted. M0 to M6 are implemented (section 7.1). r6 splits M7: M7a, experimental Dijkstra and Leios
-reading (D4a), is in progress; M7b and M8 are not started
+reading (D4a), is implemented in CCL (section 7.2); M7b and M8 are not started
 **Date**: 2026-11-05
 **Risk**: High. This changes the code that reads every block and transaction in CCL, Yaci and Yano, and a shared bug
 would reach all three.
@@ -126,7 +126,7 @@ Out of scope:
 | Amaru, Dingo | `798b170`, `efa65af`. Read only |
 | cardano-ledger, Dijkstra (r6) | `95b369053fd32422695a81fb7d5289d6dd35eee2`, cardano-ledger-dijkstra 0.5.0.0. Its Dijkstra CDDL and codecs equal `54e24ba4` (0.4.0.0), which cardano-node 11.2.0 ships; in the libraries both use, the only codec difference is the IPv4 relay byte order. `eb_references` from master `9d20aed5ebeca80c89d8882bd9e58c620a0cff92`, its only CDDL addition |
 | ouroboros-consensus (r6) | 5.2.0.0, `952b7020172dd7ab135b66e736da070309b47909`, the version cardano-node 11.2.0 uses. Envelopes and the Dijkstra header shape |
-| cardano-cbor-dataset (r6) | `d4709b12`, as pinned for the report. Its Dijkstra samples were generated with cardano-ledger `6176e413` (2026-09-01), before the block, header and several rules changed; D4a lists which rules are still valid at the pin |
+| cardano-cbor-dataset (r6) | `d4709b12`, as pinned for the report; CCL's gates move to `4fd977b2` in r7, whose Dijkstra files are the same (section 7.2). Its Dijkstra samples were generated with cardano-ledger `6176e413` (2026-09-01), before the block, header and several rules changed; D4a lists which rules are still valid at the pin |
 | Dijkstra test vectors (r6) | cardano-ledger `95b36905` and master `7827506b` goldens; ouroboros-consensus `69d53918` goldens (ledger `b21c518e`); pallas `4b76c2e8` `test_data/dijkstra-fixtures.md` (Musashi, `prototype-2026w36`, ledger `1587f21a`; rc-2026w42 transactions); gouroboros v0.217.1 (`3032c7c9`) test data (DijkstraNet, cardano-node 11.2.0; `rc-2026w41` devnet; Musashi); KleioScan API, fetched 2026-11-06. The fixture file records each item's source |
 
 Measurements from Yano's report on the CBOR stack, with the harness using the new writers: 42,215 of 42,675. Yano's
@@ -796,6 +796,63 @@ validation path or only to the readers CCL and Yaci users call.
 - Yaci's `UtxoByAddressQuery` caller decoder is unchecked, and `deserializeDI(di, txBytes)` ignored `di` (now
   deprecated).
 
+### 7.2 Implementation record: M7a (r7)
+
+M7a is implemented in `ledger-cbor` on CCL branch `feat/ledger-cbor`, built and tested against local snapshots, with no
+release. Yaci's part follows in its branch. The code was reviewed in two rounds by a Fable pass and a Codex pass before
+commit; their findings are folded in below.
+
+**Gates.**
+
+| Gate | Result |
+|---|---|
+| I2, I3 | `EraSpecTest` covers `Era.Dijkstra`. `tools/cddl-table-check` matches every table in all seven eras at `95b36905`, with one recorded exception: body key 14 `guards` is `SET`, since Haskell accepts empty guards (`decodeGuards`, no `failOnNull`), where the CDDL says `nonempty_set` |
+| I8 | Every Dijkstra hash comes from original bytes: block body, header, transaction and sub-transaction ids, endorser-block references |
+| I14 | The Conway gates give the same results before and after at the same dataset pin; the full CCL suite fails the same tests as the base commit, with byte-identical messages. A 12-item header is still refused in Conway; Dijkstra keys in a Conway walk are unknown keys, as before (below) |
+| I15 | All 43 vectors pass: 18 blocks (header hash, number, slot, body hash, previous hash, transaction count, Leios certificate), 2 headers, 17 transactions (ids from the body's original bytes, sub-transactions, Plutus V4 scripts), 3 Leios certificates and 3 endorser-block references (hash and size as announced). Each block, header and transaction walks in Dijkstra under a strict test policy that checks every field's shape; dataset: 7,576 valid samples of 50 rules read and walk under the same policy; 7,575 pass and 1 is disputed (below) |
+
+**Decisions taken during implementation.**
+
+- **A key from a later era is unknown.** In a keyed record (body, witness set, auxiliary data map, parameter update),
+  a key whose every row starts after the era being walked has no row in that era: the walk reports it as an unknown
+  key, with a null field, and does not enter its value, and `RecordSpec.field` returns null for it. This is Haskell's
+  own view, "Unknown field key", and keeps every Conway walk as it was before Dijkstra's rows existed. It also applies
+  to earlier eras: a Conway key in a Babbage body is now unknown rather than out of era. Tagged unions, positional
+  records, records chosen by major type, and maps of like entries such as the redeemer map keep D6's out-of-era
+  report. Typed accessors added for Dijkstra are empty before it.
+- **The BLS key slot follows Haskell's peek.** With an era from Dijkstra, a pool registration's item after the VRF key
+  hash is the BLS slot when it is an array or null (`StakePool.hs:749-757`). Era-less reads, and reads before
+  Dijkstra, are unchanged: `RawCertificate.of` still rejects 11 items and `lenient` still ignores a trailing item.
+  `RawCertificate.of(span, era)` is added.
+- **Version-12 set rows.** Witness keys 0, 1, 2 and 4 are non-empty sets from Dijkstra, and the value's multi-asset map
+  is non-empty, as the CDDL and the version-12 decoders say; their earlier rows end at Conway. A position of a
+  positional record may now have one row per era range, and `RecordSpec.arity()` counts positions.
+- **Dataset pin.** CCL's conformance gates move from `95e9e7c2` to `4fd977b2`, upstream's head, so the Conway and
+  Dijkstra gates share one pin. Every Conway file of `95e9e7c2` is byte-identical at `4fd977b2`, which adds 1,437; Dijkstra's files equal `d4709b12`'s. Run at both pins, the 59,076 outcomes the two share are identical, so no sample that passed became a miss. The model gate goes from 2,705 to 2,837 valid samples, all 132 new ones passing; `certificate-outcomes.txt` gains the new samples' lines, among them a valid `unit_interval` with a bignum numerator that `PoolRegistration`'s margin does not read, and two invalid negative ratios it reads, as the models always have (D7)
+- **A dataset label disputed.** `dijkstra/transaction_witness_set/manual-valid/bootstrap-witnesses-empty` is labelled
+  valid, but witness key 2 is decoded with `decodeNonEmptySetLikeEnforceNoDuplicates` at version 12, both at the pin and
+  at the dataset's generation commit `6176e413`. The reader accepts it; the gate's strict policy rejects it and lists
+  it as disputed.
+
+**Differences for the maintainer's approval** (I5). None occurs in a Conway dataset sample or a real Conway block.
+
+- `RawTx.of` and `lenient` read `[body, wits, aux / nil, bool]` in any era, where they rejected it; the walk reports
+  it with the `block_transaction` table, valid from Dijkstra, so a policy rejects it earlier.
+- `RawOutput.scriptRef()` reads `[4, bytes]`, a Plutus V4 script, in any era, where it rejected it; type 5 is still
+  rejected. `RawModels.toScript` of a V4 script throws, as there is no V4 model until ADR 0004.
+- Era-less `RawHeader.of(span)` reads a 12-item header body; `RawHeader.of(span, Era.Conway)` and
+  `RawHeader.walk(span, policy)` still refuse it.
+- `RawBlock.of` reads index 8 as Dijkstra, where it threw `UnsupportedEraException`; a Conway-shaped block at index 8
+  fails to parse. `RawBlock.readAs(envelope, EraSpec.newest())` reads Dijkstra's layout, so a Conway-shaped block at
+  an unknown index fails (I12, re-pinned).
+- `EraSpec.newest()` is Dijkstra; `Era.values()` and `Era.fromValue(8)` include it.
+- A later era's key in a keyed record is unknown, and `RecordSpec.field` returns null for it (above).
+- The array redeemer row ends at Conway; witness keys 0, 1, 2, 4 and the multi-asset map have Dijkstra rows (above).
+
+**Left open.** A non-nil Peras certificate, real parameter updates with keys 40-56, a script-credential guard on a
+real network, and rejection cases for the block, header and interval rules have no vector. The disputed dataset label
+is to be reported upstream.
+
 ## 8. Compatibility
 
 | Item | Impact |
@@ -920,3 +977,7 @@ under ADR 0004's constructor rule. Lean: (b), so fields arrive with a user and t
   by a Fable pass and a Codex pass; their findings are folded in (header version pair read in both layouts, the
   `newest()` callers, I12's re-pin, Yaci's invalid transactions, the block and sub-transaction forms, both-nil
   intervals, vector provenance).
+- **r7** (2026-11-07): new section 7.2 records M7a's implementation in CCL: gates, the decisions taken (a later era's
+  key is unknown in a keyed record; the BLS slot by Haskell's peek; version-12 set rows; the dataset pin moved to
+  `4fd977b2`; a disputed dataset label) and the differences for approval. Status line and section 4's dataset row
+  follow. The decisions D1-D11 and D4a are unchanged.
