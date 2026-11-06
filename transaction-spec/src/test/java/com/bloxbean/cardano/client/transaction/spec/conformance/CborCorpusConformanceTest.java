@@ -52,7 +52,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * one that misses in a different way, so the list stays exact and can only shrink.
  *
  * <p>Runs only with {@code -PcborDataset=<dataset dir>}, as in CI's CBOR conformance job. The dataset is fetched at a
- * pinned commit, never copied here, because it has no licence.</p>
+ * pinned commit, 4fd977b2 ({@code CBOR_DATASET_REVISION} in CI), never copied here, because it has no licence.</p>
  *
  * <p>What it does not cover: invalid samples, as rejecting them is the job of a strict reader, not of these model
  * decoders (transaction-spec/adr/0002-cbor-conformance-across-ccl-yaci-yano-julc.md, D10); cbor-java's decoder trees,
@@ -155,7 +155,7 @@ class CborCorpusConformanceTest {
         }
         Map<String, String> listed = listedMisses();
 
-        assertThat(samples).as("valid samples in the pinned corpus").isEqualTo(2705);
+        assertThat(samples).as("valid samples in the pinned corpus").isEqualTo(2837);
         assertThat(misses.keySet().stream().filter(id -> !misses.get(id).equals(listed.get(id)))
                 .map(id -> id + " " + misses.get(id) + ": " + details.get(id)).collect(Collectors.toList()))
                 .as("misses that are new, or differ from the list").isEmpty();
