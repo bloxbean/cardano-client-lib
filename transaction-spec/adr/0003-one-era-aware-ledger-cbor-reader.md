@@ -1,6 +1,7 @@
 # ADR 0003: One Era-Aware Ledger CBOR Reader
 
-**Status**: Accepted. M0 to M6 are implemented (section 7.1); M7 and M8 are not started
+**Status**: Accepted. M0 to M6 are implemented (section 7.1). r6 splits M7: M7a, experimental Dijkstra and Leios
+reading (D4a), is in progress; M7b and M8 are not started
 **Date**: 2026-11-05
 **Risk**: High. This changes the code that reads every block and transaction in CCL, Yaci and Yano, and a shared bug
 would reach all three.
@@ -14,7 +15,7 @@ raw views. ADR 0002 fixes the conformance gaps and shares the primitives. This A
 ledger format is read in one place, in CCL, and each project keeps only its own models and rules on top.
 
 **Implementation.** M0 to M6 are implemented, and section 7.1 records how each exit was met and what differs from
-this design. Code snippets in the decisions are illustrative.
+this design. r6 adds D4a and M7a, which replace D4's Dijkstra example. Code snippets in the decisions are illustrative.
 
 ## 1. Context
 
@@ -95,7 +96,8 @@ Out of scope:
 - Writers. CCL's `serialize` methods and the map order work in #744 stay as they are.
 - Byron and node-to-client results. Yaci stays their only reader, so they are not duplicated.
 - `julc-core`, which stays free of CCL for consensus-critical Plutus Data (ADR 0002 D2).
-- Implementing Dijkstra now. It is used here only to test the design (D4).
+- Dijkstra's ledger rules, and writing Dijkstra. Reading Dijkstra is in scope from r6, marked experimental until the
+  era is final (D4a, M7a). CCL's Dijkstra models and writers are ADR 0004's subject.
 - Ledger validation in CCL. It remains out of scope, as in ADR 0001 section 2.
 
 ## 3. Threat model and trust assumptions
@@ -122,6 +124,10 @@ Out of scope:
 | cardano-ledger | `f649f9751074d2ab3de033fc3912f29c9862c1f5`, as in ADR 0001; `eras/*/impl/cddl/data/*.cddl`. ADR 0002's `6176e413` remains its pin for Conway conformance. Dijkstra is still in development and may change |
 | cardano-cbor-dataset | `95e9e7c296ca1b641c8d99af2ab7c286a90caebf`. Conway: 42,675 samples. Dijkstra: 39,668 samples in 99 rules, of which 12,135 valid and 223 manual-valid. Fetched, never vendored, as the repository has no licence file |
 | Amaru, Dingo | `798b170`, `efa65af`. Read only |
+| cardano-ledger, Dijkstra (r6) | `95b369053fd32422695a81fb7d5289d6dd35eee2`, cardano-ledger-dijkstra 0.5.0.0. Its Dijkstra CDDL and codecs equal `54e24ba4` (0.4.0.0), which cardano-node 11.2.0 ships; in the libraries both use, the only codec difference is the IPv4 relay byte order. `eb_references` from master `9d20aed5ebeca80c89d8882bd9e58c620a0cff92`, its only CDDL addition |
+| ouroboros-consensus (r6) | 5.2.0.0, `952b7020172dd7ab135b66e736da070309b47909`, the version cardano-node 11.2.0 uses. Envelopes and the Dijkstra header shape |
+| cardano-cbor-dataset (r6) | `d4709b12`, as pinned for the report. Its Dijkstra samples were generated with cardano-ledger `6176e413` (2026-09-01), before the block, header and several rules changed; D4a lists which rules are still valid at the pin |
+| Dijkstra test vectors (r6) | cardano-ledger `95b36905` and master `7827506b` goldens; ouroboros-consensus `69d53918` goldens (ledger `b21c518e`); pallas `4b76c2e8` `test_data/dijkstra-fixtures.md` (Musashi, `prototype-2026w36`, ledger `1587f21a`; rc-2026w42 transactions); gouroboros v0.217.1 (`3032c7c9`) test data (DijkstraNet, cardano-node 11.2.0; `rc-2026w41` devnet; Musashi); KleioScan API, fetched 2026-11-06. The fixture file records each item's source |
 
 Measurements from Yano's report on the CBOR stack, with the harness using the new writers: 42,215 of 42,675. Yano's
 strict reader alone rejects 31,679 of 31,761 invalid samples; CCL's decoders alone reject 19,132. `main` on CCL pre7
@@ -180,7 +186,7 @@ existing layouts and adds only what truly changed.
 | Shelley, Allegra, Mary | `PARALLEL_4` | `FLAT_15` |
 | Alonzo | `PARALLEL_5` | `FLAT_15` |
 | Babbage, Conway | `PARALLEL_5` | `NESTED_10` |
-| Dijkstra (when added) | `UNIFIED_2` | `NESTED_10` |
+| Dijkstra (r6, D4a) | `UNIFIED` | `NESTED_10` or `NESTED_12`, by shape |
 
 **A table per keyed record or tagged union, with the eras each field is valid for.**
 
@@ -234,7 +240,7 @@ layout keeps syncing, and that must not be lost. Yaci's wrapper dispatches on th
 | Envelope index | Yaci | Result |
 |---|---|---|
 | 0, 1 | Its Byron serializers | As today |
-| 2 to 7 | `RawBlock.of(envelope)` | `Block.era` set |
+| 2 to 7 (r6: 2 to 8, D4a) | `RawBlock.of(envelope)` | `Block.era` set |
 | Anything else | `RawBlock.readAs(envelope, EraSpec.newest())` | Populated `Block` with a null era. A block that does not fit that layout, such as Dijkstra's two items, is a parse failure and raises `onParsingError` (I12) |
 
 Reading an unknown era with the newest tables can misread a key whose meaning changed, as key 14 does in Dijkstra. That
@@ -254,7 +260,104 @@ parallel arrays (`transactionBodies()` and others) throw a clear error on a unif
 constant, one `EraSpec` row reusing `NESTED_10`, one new layout `UNIFIED_2` with its body hash, field rows for keys 14
 and 23-27, removal bounds on certificate tags 0 and 1, and new readers for sub-transactions and the Leios and Peras
 certificates. Nothing else in the module branches on era. The dataset's 39,668 Dijkstra samples will be an independent
-check when the era is frozen (M7). Until then, Dijkstra stays rejected, as ADR 0001 decided.
+check when the era is frozen (M7). Until then, Dijkstra stays rejected, as ADR 0001 decided. (r6: this example was
+checked against `f649f975`. At the current pin the header and block body differ, and D4a replaces it.)
+
+### D4a. Dijkstra and Leios, read as experimental (r6)
+
+Leios work is starting in Yaci, and it builds on Dijkstra's block, header and transaction formats. Reading them in
+`ledger-cbor` now means that work has one reader to build on, and it tests D3 and D4 on a real era while this ADR is
+open. Dijkstra is not final: cardano-node 11.2.0, which carries it, is a pre-release that enables it only behind
+`ExperimentalHardForksEnabled`. So everything this decision adds is **experimental**: each public type and method added
+for Dijkstra or Leios says so in its Javadoc ("Experimental: Dijkstra is not final; this may change in any release"),
+and M7b removes that marking once the era is final.
+
+**Pin.** cardano-ledger `95b36905` (cardano-ledger-dijkstra 0.5.0.0). Its Dijkstra CDDL and codecs equal those of
+`54e24ba4` (0.4.0.0), the version cardano-node 11.2.0 builds with. ouroboros-consensus 5.2.0.0 (`952b7020`), the version
+11.2.0 uses, decides the envelope and the header shape. Leios endorser-block references come from cardano-ledger master
+`9d20aed5`, where they are the only CDDL addition. Section 4 has the full pins. The facts below were read from the code
+at these pins, not from the CDDL alone; where the two differ, the code decides, and the table says so.
+
+| Item | At the pin | Reader |
+|---|---|---|
+| Era | Envelope index 8 for blocks; 7 in the HFC sum for headers and transactions (consensus `Cardano/Node.hs:180`, `Cardano/Block.hs:284-293`) | `Era.Dijkstra(8)` in `common-spec`, after Conway. One `EraSpec` row |
+| Block | `[header, block_body]`. `block_body = [transactions, leios_certificate / nil, peras_certificate / nil]`, each transaction `[body, wits, aux / nil, is_valid]`, with no `invalid_transactions` list and no ordering rule (`Dijkstra/Block.hs:27-42`, `BlockBody/Internal.hs:184-208`, `Tx.hs:175-182`) | New block layout `UNIFIED`. `txCount()`, `tx(i)`, `txBytes(i)`, `bodyHash()` work as for the parallel layouts. `invalidTxIndexes()` lists the positions whose flag is false. `invalidTransactions()` is empty, and `transactionBodies()`, `transactionWitnessSets()` and `auxiliaryDataSet()` throw, as D4 already says |
+| Body hash | Blake2b-256 of the whole `block_body`'s original bytes (`BlockBody/Internal.hs:120`). The CDDL's "merkle triple root" comment is a leftover | `bodyHash()` hashes the body span (I8) |
+| Header | Consensus 5.2.0.0 uses the Praos header for Dijkstra, the 10-item `header_body` of Babbage and Conway, and reads its `protocol_version` pair as `header_version_info`, `[highest supported major, software tag]` (`HFEras.hs:69, 97-120`). The CDDL's 12-item `header_body` is the ledger's Leios header (`cardano-protocol`, `Leios/BlockHeader.hs:217-246`), which no released node sends; Leios prototype networks do. Item 9 has the same shape in both | The Dijkstra row allows `NESTED_10` and a new `NESTED_12`, whose items 10 and 11 are `block_body_contains_leios_cert` and `eb_references_announcement / nil`. A header is read in the layout of its era with as many items as it has, so a 12-item header is still refused in Conway. `protocolMajor()` and `protocolMinor()` read item 9 in every layout, and their Javadoc says that in Dijkstra the pair is the highest supported major version and the software tag. New `leiosCertInBody()` and `ebReferencesAnnouncement()` (hash, size) are present only in `NESTED_12`. The header hash stays the hash of the original bytes |
+| Transaction | Submitted as `[body, wits, aux / nil]`, or the legacy `[body, wits, true, aux / nil]`; `false` fails. Relayed and sent in the 3-item form. In a block, `[body, wits, aux / nil, is_valid]` (`Tx.hs:147-182, 500-533`) | `RawTx.of` and `RawTx.lenient`, which the models read through, read the three forms. The 4-item forms are told apart by which item is a bool, as auxiliary data never is. `isValid()` gives the flag in both. `false` in a submitted transaction is a rule, so it is policy (D6). The walk picks a table by arity and flag position: the 3-item form has rows to Mary and a second table from Dijkstra on, since `FieldSpec` holds one era range; the flag-third form from Alonzo on; the flag-last form from Dijkstra on. `tx(i)` and `txBytes(i)` of a Dijkstra block give the 3-item form from the original spans |
+| Body key 14 | `guards = nonempty_set<addr_keyhash> / nonempty_oset<credential>`. The decoder picks the form from the first element; mixing fails; empty is accepted (`TxBody.hs:1659-1679`) | Row `GUARDS` from Dijkstra; `RawTxBody.guards()` returns credentials, a key hash read as a key credential. `requiredSigners()` is empty in Dijkstra, as `replacedIn` already does |
+| Body keys 23-27 | `sub_transactions`, `required_top_level_guards`, `direct_deposits`, `account_balance_intervals`, `starting_account_balance_intervals`. An interval is a coin or `[lower / nil, upper / nil]`, and both bounds nil fails (`Dijkstra/Scripts.hs:684-696`) | Five rows and their accessors. Both bounds nil is read, and is policy |
+| Sub-transactions | `[sub_body, wits, aux / nil]`, with no flag. A sub body is the body without keys 2, 13, 16, 17, 23 and 27, which Haskell rejects as unknown keys; it requires keys 0 and 1 only (`TxBody.hs:362-480`). A sub-transaction's id is the hash of its body | The body table gains a top-level-only column, and the sub body is a second `RecordSpec` over the other rows, with the fee not required. So a walk reports a top-level-only key in a sub body as unknown, and a policy rejects it as Haskell does without naming a key. Each sub-transaction is a `RawTx` that reads and walks its body with that table |
+| Witness set | Key 8 is Plutus V4. Redeemers are a map only: the array form fails at decode from version 12. Redeemer tag 6 is guarding (`Alonzo/TxWits.hs:566-666`, `Scripts.hs:173-182`) | Row `PLUTUS_V4_SCRIPTS` from Dijkstra. The array redeemer row ends at Conway, so a policy can reject it |
+| Scripts | `script_ref` type 4 is Plutus V4; native script type 6 is `script_require_guard`; auxiliary data `#6.259` key 5 is Plutus V4 | `RawScript` accepts type 4; `AuxDataField` row for key 5. Native scripts stay one leaf (D3) |
+| Certificates | Tags 2, 3, 4 and 7-18. Tags 0, 1, 5 and 6 fail (`Dijkstra/TxCert.hs:239-250`). Pool parameters take an optional BLS key after the VRF key hash: 9 fields, or 10 when the slot holds a BLS key or null (`StakePool.hs:686-757`) | `CertKind` already bounds 0, 1, 5 and 6. Pool registration picks one of two records by arity, as the transaction forms do |
+| Parameter update | Keys 34-56 are new; 53 is `nil / uint` (`Dijkstra/PParams.hs:741-796, 806-876, 880-1123`) | `ProtocolParamField` rows from Dijkstra |
+| Leios certificate | `[signers : bytes .size (0..8192), signature : bytes .size 48]`. Not checked by BBODY at the pin | `RawBlock.leiosCertificate()`, an optional view of the two byte strings |
+| Peras certificate | Plain bytes. Validation always fails at the pin, so a valid block has nil (`BlockBody/Internal.hs:243-246`) | `RawBlock.perasCertificate()`, an optional span |
+| Endorser-block references (master) | `nonempty_omap<hash32, uint .size 4>`: wire order kept, duplicate keys fail, empty fails; hashed over its original bytes (`Block/Endorser.hs:57-79`). The keys are a whole-transaction hash whose definition changed between the pin and master (the four component hashes at `Tx.hs:444-470`; the block form's bytes in master's golden `hashtx.hex`) | `RawEbReferences.of(bytes)`: entries in wire order and `hash()`. The transaction hash is left to the Leios work until it settles |
+
+**What is not the reader's.** Decoding at version 12 changes rules as well as shapes: chunked byte strings and
+indefinite records are accepted; duplicate key witnesses, bootstrap witnesses, native scripts and datums fail; a
+bootstrap chain code must have 32 bytes; the outer multi-asset map must be non-empty; tag 30 becomes mandatory on unit
+intervals; array redeemers and both-nil intervals fail. These are decoder-version rules, so they belong to a policy at
+version 12 (D6). Yano adds that policy when it adds Dijkstra (M7b). The reader already accepts every shape involved (D5).
+
+**`EraSpec.newest()` moves to Dijkstra.** Every caller that used it to mean "the current era" means Conway today, and
+names Conway instead, so its result does not change (I14):
+
+- CCL: `RawHeader.walk(span, policy)`, which Yano's header policy calls, and `RawTx`'s era-less `redeemers()`,
+  `scripts()`, `witnessDatums()` and `auxScripts()`. `RawHeader.walk` gains an overload with an era, which Dijkstra
+  headers use. A Dijkstra caller of the others reads the witness set or auxiliary data with its era.
+- Yaci: the six deprecated era-less serializer entry points.
+
+Only Yaci's fallback for an unknown index, 9 or more, keeps `newest()`, and that is what D4 intends: it reads with
+Dijkstra's tables. A Conway-shaped block at index 9 or more then fails to parse and raises `onParsingError`, where it
+was a populated `Block` with a null era; a Dijkstra-shaped one is the populated `Block`. I12 is re-pinned to that
+(section 8).
+
+**No switch.** A Dijkstra block is read only when its envelope says Dijkstra, and that index appears only after a hard
+fork to version 12. A caller that reads a transaction names the era, as D3 already requires. Writing Dijkstra needs an
+explicit era as well, which is ADR 0004's subject.
+
+**Yaci.** `Era.Dijkstra(8)` and `EraUtil`; D4's dispatch table routes 2 to 8 to `RawBlock.of`. `BlockSerializer`
+reads a `UNIFIED` block through `tx(i)`, and takes invalid transactions from `invalidTxIndexes()` in every era, with
+null only before Alonzo as today, so a Dijkstra transaction whose flag is false is reported. The header mapper is
+unchanged: `ProtocolVersion` carries the version pair, which in Dijkstra is the highest supported major version and
+the software tag. `TxBodyType` gains Dijkstra (7) for submission, and `TxCborUtil` takes Dijkstra transactions from
+`txBytes(i)`. Dijkstra-only fields are not added to Yaci's models here (Q7): listeners reach them through the
+transaction's CBOR and CCL's views.
+
+**Yano.** Unchanged. `HaskellPolicy.forEra` keeps refusing Dijkstra, and Yano's header policy keeps refusing a 12-item
+header (I14).
+
+**Test vectors (I15).** Each source is pinned in section 4, and none was produced by running a node or a tool here.
+Expected values are checked against values this code did not compute, each named by what it hashes:
+
+- **cardano-cbor-dataset** `d4709b12`: the samples of the 87 rules whose definition, with every rule it refers to, is
+  unchanged between `6176e413` and the pin (10,759 valid, 20,551 invalid), and the samples of 7 changed rules that
+  provably reach no changed part (965 valid, 2,747 invalid). Block, block body, header, header body and account
+  balance intervals have none. The dataset has no licence, so it is fetched, never vendored, as for Conway.
+- **cardano-ledger** at the pin: the golden Dijkstra transaction (a sub-transaction, Plutus V4 witnesses, a script
+  credential guard, reward-account-keyed intervals, pool registrations with and without a BLS key) and the Leios
+  certificate goldens; master's 1,000-signer certificate.
+- **ouroboros-consensus** `69d53918` goldens, which pin ledger `b21c518e`: a 12-item Dijkstra header and a transaction
+  with its id.
+- **Real networks, all Haskell nodes:** the first DijkstraNet block and header from a cardano-node 11.2.0 relay (10-item
+  header; its block hash and previous hash as gouroboros v0.217.1 records them); 15 Musashi blocks (ouroboros-leios
+  `prototype-2026w36`, ledger `1587f21a`, 12-item headers, three with Leios certificates), each with the header hash
+  the node's own index records; two Leios devnet blocks (`rc-2026w41`), one certifying the other; three endorser-block
+  references, each with the hash and size its announcing header carries; transactions with sub-transactions and Plutus
+  V4 witnesses, each with its id (Blake2b-256 of the body). From pallas `4b76c2e8` and gouroboros v0.217.1 test data
+  (Apache-2.0) and the KleioScan explorer. `1587f21a`'s CDDL differs from the pin only by additions.
+- **Not used:** fixtures that a third-party library built by hand, such as pallas's proposal and script transactions,
+  and the ledger's whole-transaction `hashtx.hex`, which is not a transaction id.
+
+The Apache-2.0 files and the chain data go into the test resources with a file recording each one's source; the
+dataset stays fetched.
+
+Not covered by any vector: a non-nil Peras certificate, real parameter updates with keys 40-56, guards with a script
+credential on a real network, and rejection cases for the block, header and interval rules. Those rules are tested
+only for acceptance.
 
 ### D5. What the reader accepts and rejects
 
@@ -378,7 +481,7 @@ three transactions, and were reproduced by the review of this ADR against Yaci `
 
 | Change to the fixture | Yaci today | Under this ADR | Status |
 |---|---|---|---|
-| Envelope era 6 changed to 9 | Populated, `era` null, 3 bodies and 3 witnesses | Same | I12 |
+| Envelope era 6 changed to 9 | Populated, `era` null, 3 bodies and 3 witnesses | Same (r6: `onParsingError`, as index 9 reads with Dijkstra's tables; D4a) | I12 |
 | A top-level `00` appended | Populated | Same | Kept, as listed above |
 | Witness array replaced with `80` | Populated, 3 bodies and 0 witnesses | `onParsingError` | Q6 |
 | Invalid-index list replaced with `8103` | Populated, `invalidTransactions` is `[3]` | `onParsingError` | Q6 |
@@ -490,8 +593,10 @@ depends on this path.
 | I9 | Reading and walking stay stack-safe at maximum nesting | D5, D6 | ADR 0001 depth fixtures, on the walk as well |
 | I10 | Parse time and allocation on the same blocks stay within 10% of the M0 baseline (proposed figure) | D8 | Benchmark, recorded per milestone |
 | I11 | A bad witness or auxiliary data item still does not fail its block, and listeners see the same errors | D5, D8 | Regression tests from D8's list |
-| I12 | In Yaci, an unknown era index in the newest layout reaches listeners as a populated `Block` with a null era, and one that does not fit the layout raises `onParsingError`. `RawBlock.of` still rejects it | D4, D8 | Regression tests: a valid Conway block with its index changed, written before the code moves, and a two-item block |
+| I12 | In Yaci, an unknown era index in the newest layout reaches listeners as a populated `Block` with a null era, and one that does not fit the layout raises `onParsingError`. `RawBlock.of` still rejects it | D4, D8 | Regression tests: a valid Conway block with its index changed, written before the code moves, and a two-item block. From r6 the newest layout is Dijkstra's: a Dijkstra block with index 9 is the populated `Block`, and the Conway block with index 9 raises `onParsingError` (D4a) |
 | I13 | Yano's body and witness checks for unknown keys, duplicate keys, including differently encoded equal keys, and missing required fields are expressed through the walk with no key number in the policy | D1, D6 | M1's keyed-record proof |
+| I14 | Adding Dijkstra changes no outcome for an earlier era: CCL's dataset gates, G3, G5 and G6 give the same results as before M7a | D4a | The existing gates, run before and after; tests that a 12-item header is still refused by Yano's Conway header policy, and that a Conway witness set with an unknown key 8 still gives the same `scripts()` |
+| I15 | Every valid Dijkstra test vector reads and walks with no rejection, and every hash and id matches the vector's, compared on the reader's original bytes. Vectors come only from Haskell code or from networks of Haskell nodes, never from this code or a third party's hand-built fixtures; each rule the vectors miss is listed | D4a | M7a's vector suite |
 
 Gates reused from ADR 0002: **G3** `tools/chain-parse-check` full replay on mainnet, preprod and preview, before and
 after; **G5** downstream suites against a CCL snapshot: Yaci `core`, JuLC, Yano `ledger-rules`, `ledger-conformance` and
@@ -511,7 +616,8 @@ Each milestone releases in the usual order: CCL, then Yaci, then Yano. It can st
 | M4 | Witnesses, scripts, datums, redeemers, auxiliary data | M3 | I5, I6, I8, I9, I11; G3, G6 |
 | M5 | Governance, `ProtocolParamUpdate`, pre-Conway `update`. Includes deciding `costModelsHash` (D8), and checking whether parameter key 17 changes meaning at Babbage (Alonzo's field is `CoinsPerUTxOWord`, Babbage's `CoinsPerUTxOByte`) | M4 | I3, I5, I6; G3, G6 |
 | M6 | Cleanup. Yaci's inner serializers deprecated. Yano's old reading code and the G7 differential jobs deleted. Yano's harness reads each rule directly | M5 | Report no lower; I7's two checks still pass; `StrictElements` gone |
-| M7 | Dijkstra, as D4 sets out | Era frozen for a hard fork | Dijkstra dataset samples pass; report extended |
+| M7a | Dijkstra and Leios reading, experimental (D4a). Yaci delivers Dijkstra blocks to listeners | M6; the r6 pin and its test vectors | I2, I3 at the r6 pin, I8, I14, I15; G5 |
+| M7b | Dijkstra final: the experimental marking goes, pins move to the release that forks, Yano gains its version-12 policy | Era frozen for a hard fork: a cardano-node release that forks into Dijkstra without `ExperimentalHardForksEnabled` | Dijkstra dataset samples pass at the new pin; report extended |
 | M8 | Listener ADR in Yaci (D11) | M6; maintainer's decision | Separate ADR |
 
 **M1's decision.** Certificates are the pilot because they exist in all three projects, have 19 tags across eras, and
@@ -610,6 +716,7 @@ validation path or only to the readers CCL and Yaci users call.
   tree entry points (`deserializeDI(DataItem)` and similar) are deprecated for removal under Q5. The `byte[]` readers
   read source bytes and stay. `BlockHeaderSerializer.deserialize*` stays, as chain sync and block fetch use it.
 - **CCL models read in Conway.** `RawModels.READ_IN` pins the era the models read with. M7 must decide what it becomes.
+  (r6: it stays Conway, named explicitly (D4a); ADR 0004 adds reading with a named era.)
 
 **Corrections to this ADR.**
 
@@ -679,7 +786,7 @@ validation path or only to the readers CCL and Yaci users call.
   stake registration, as before.
 - Yano's decoder for M7. Haskell decodes an era's blocks and transactions at the era's lowest major version
   (`eraDecoder`, `eraProtVerLow`), not at the current protocol version, so Conway always decodes at 9. Yano picks its
-  policy by era (`HaskellPolicy.forEra`): Conway at 9, any other era refused. M7 adds Dijkstra at 12, where a RecD
+  policy by era (`HaskellPolicy.forEra`): Conway at 9, any other era refused. M7b adds Dijkstra at 12, where a RecD
   record such as auxiliary data `[metadata, scripts]` may be indefinite, and checks the two auxiliary data forms whose
   decoders change at 12: a plain metadata map (`decodeShelleyPv12`) and `#6.259` (`decodeSparseKeyed` in place of
   `SparseKeyed`). Dijkstra's ledger rules in Yano are outside this ADR.
@@ -705,6 +812,11 @@ validation path or only to the readers CCL and Yaci users call.
 | Native image | Views use no reflection. `native-image-test` runs on each milestone |
 | New artifact | `cardano-client-ledger-cbor`, added to the published set by the existing build logic |
 | Wire format | None. The reader only reads |
+| `Era` (r6) | Gains `Dijkstra(8)` after Conway. CCL has no `switch` on it. Experimental (D4a) |
+| `EraSpec.newest()` (r6) | Becomes Dijkstra. Era-less reads that meant Conway name Conway, so no Conway result changes (I14) |
+| `RawBlock` on a Dijkstra block (r6) | The parallel-array accessors throw and `invalidTransactions()` is empty; the layout-neutral accessors work (D4a) |
+| Yaci, unknown era index 9 or more (r6) | A Conway-shaped block now raises `onParsingError`, where it reached listeners with a null era; a Dijkstra-shaped one reaches them with a null era (D4a, I12) |
+| `RawHeader.protocolMinor()` on a Dijkstra header (r6) | Returns the software tag, the second number of the pair, as consensus reads it (D4a) |
 
 ## 9. Alternatives considered
 
@@ -731,7 +843,9 @@ validation path or only to the readers CCL and Yaci users call.
 | Slower sync, with lazy views over spans in place of a tree | I10. It may equally turn out faster, but this has not been measured |
 | The work stalls half way, leaving four readers | Each milestone is complete on its own, and old code for a migrated area is deleted in that milestone or M6 |
 | Yaci reads a future era with the newest tables and misreads a key that changed meaning | Same exposure as today (D4). `Block.era` stays null, so a listener can tell. M7 adds the era properly |
-| Dijkstra changes before it freezes | Only used as a design check here. M7 waits for the freeze |
+| Dijkstra or Leios changes before they freeze (r6) | Everything added is marked experimental, M7a reads one pinned release, and M7b moves the pin. The change lands in the tables (D3), not across the code |
+| A node starts sending the 12-item Leios header (r6) | Both header shapes are read, picked by arity (D4a) |
+| Too few independent Dijkstra vectors (r6) | I15 takes only Haskell or real-network vectors and lists what they miss. M7b runs the regenerated dataset |
 | Yano's existing strictness is lost while moving to a policy | I7 at each step, per sample: the missed samples can only shrink and the strict side's rejections can only grow, so a loss cannot hide behind a gain or behind CCL's decoder. I13 covers structural rules |
 
 ## 11. Open questions
@@ -766,11 +880,17 @@ Yaci, so nothing narrows. Lean: (a), if G3 finds no real block affected, because
 conforming node would not send. (b) is the answer if G3 finds any. **Implemented: (a).** G3 and the full-chain streams
 found no real block affected.
 
+**Q7. Dijkstra fields in Yaci's models (r6).** M7a delivers Dijkstra blocks with Yaci's existing fields; guards, keys
+23-27, Plutus V4 scripts, the Leios and Peras certificates and the Leios header fields are reached through CCL's
+views. Options: (a) add them to Yaci's models now; (b) let the Leios branch add the ones it uses, as additive fields
+under ADR 0004's constructor rule. Lean: (b), so fields arrive with a user and the format is closer to final.
+
 ## 12. Related findings (out of scope)
 
 - ADR 0001's status line and section 7 are stale, as ADR 0002 section 1.5 notes.
 - Yaci's `Era` has no constant for later eras, and `EraUtil.getEra` returns null for them, so `Block.era` can be null.
-- The dataset carries Dijkstra samples that no Java reader in these projects covers yet.
+- The dataset carries Dijkstra samples that no Java reader in these projects covers yet. (r6: M7a reads the ones still
+  valid at its pin.)
 - In `CertificateSerializer`, a genesis delegation that fails to parse prints a stack trace and returns an empty
   certificate. M1's regression tests have to pin this, and a separate decision should remove it.
 
@@ -791,3 +911,12 @@ found no real block affected.
   line and the note under it; Q6 implemented as (a). The design text above section 7.1 is unchanged.
 - **r5** (2026-11-06): section 7.1's "Left open" gains Yano's decoder for M7 (decoding by era, the Dijkstra entry
   and the auxiliary data forms to check at version 12). No other text changed.
+- **r6** (2026-11-06): Dijkstra reading becomes experimental work now, for the Leios work in Yaci. New D4a, with the
+  pin read from the code (cardano-ledger 0.5.0.0, ouroboros-consensus 5.2.0.0): the block body hash is one hash, the
+  Dijkstra header on the wire is the 10-item Praos header with the 12-item Leios header also read, the other changes,
+  the callers of `EraSpec.newest()`, and the test vectors for I15. M7 splits into M7a and M7b; new I14 and I15; Scope,
+  section 4, D3's row, D4's example and dispatch table, D8's index-9 row, I12, section 7.1's two M7 notes,
+  Compatibility, Risks, new Q7 and section 12 follow. Writers stay out of scope, in ADR 0004. Reviewed before commit
+  by a Fable pass and a Codex pass; their findings are folded in (header version pair read in both layouts, the
+  `newest()` callers, I12's re-pin, Yaci's invalid transactions, the block and sub-transaction forms, both-nil
+  intervals, vector provenance).
