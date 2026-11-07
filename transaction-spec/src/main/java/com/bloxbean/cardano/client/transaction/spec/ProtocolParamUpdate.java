@@ -21,6 +21,8 @@ import com.bloxbean.cardano.client.transaction.raw.RawNonce;
 import com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
@@ -47,6 +49,8 @@ public class ProtocolParamUpdate {
     private BigInteger keyDeposit; //5
     private BigInteger poolDeposit; //6
     private Long maxEpoch; //7
+    // The getter, getNOpt, names the JSON property nopt; naming the field so lets the property be read back.
+    @JsonProperty("nopt")
     private Integer nOpt; //8
     private Rational poolPledgeInfluence; //rational //9
     private UnitInterval expansionRate; //unit interval //10
@@ -128,6 +132,7 @@ public class ProtocolParamUpdate {
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonSerialize(using = NilOrValueJsonSerializer.class)
+    @JsonDeserialize(using = NilOrValueJsonDeserializer.class)
     private Optional<Rational> maxPledgeLeverage; //38
 
     /**
@@ -250,6 +255,7 @@ public class ProtocolParamUpdate {
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonSerialize(using = NilOrValueJsonSerializer.class)
+    @JsonDeserialize(using = NilOrValueJsonDeserializer.class)
     private Optional<Long> perasBootstrapRound; //53
 
     /**

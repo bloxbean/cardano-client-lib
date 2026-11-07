@@ -198,6 +198,39 @@ class DijkstraReaderTest {
                 .subTransactions()).isInstanceOf(CborRuntimeException.class);
     }
 
+    /**
+     * A sub-transaction body is read at sub level: keys 2, 13, 16, 17, 23 and 27, which only a top-level body may have
+     * and the ledger reads there as unknown (Dijkstra {@code TxBody.hs}), are absent, so a nested key 23 is not
+     * entered. Read as a top-level body, the same bytes have them.
+     */
+    @Test
+    void aSubTransactionBodyHasNoTopLevelOnlyField() {
+        String subBody = "a8" + "00" + "81" + INPUT + "01" + "80" + "02" + "07" + "0d" + "81" + INPUT
+                + "10" + "82" + "4100" + "01" + "11" + "05" + "17" + "81" + SUB_TX + "181b" + "a1" + ra("e1") + "01";
+        String body = "a4" + "00" + "81" + INPUT + "01" + "80" + "02" + "1864" + "17" + "81" + "83" + subBody + "a0"
+                + "f6";
+        List<RawTxBody> subBodies = List.of(dijkstra(body).subTransactions().get(0).body(Era.Dijkstra),
+                RawTxBody.lenient(span(body), Era.Dijkstra).subTransactions().get(0).body(Era.Dijkstra),
+                RawTxBody.tolerant(span(body), Era.Dijkstra).subTransactions().get(0).body(Era.Dijkstra));
+        for (RawTxBody sub : subBodies) {
+            assertThat(sub.fee()).isEmpty();
+            assertThat(sub.collateral()).isEmpty();
+            assertThat(sub.collateralReturn()).isEmpty();
+            assertThat(sub.totalCollateral()).isEmpty();
+            assertThat(sub.subTransactions()).isEmpty();
+            assertThat(sub.startingAccountBalanceIntervals()).isEmpty();
+            assertThat(sub.inputs()).hasSize(1);
+        }
+
+        RawTxBody asTopLevel = dijkstra(subBody);
+        assertThat(asTopLevel.fee()).contains(BigInteger.valueOf(7));
+        assertThat(asTopLevel.collateral()).isPresent();
+        assertThat(asTopLevel.collateralReturn()).isPresent();
+        assertThat(asTopLevel.totalCollateral()).contains(BigInteger.valueOf(5));
+        assertThat(asTopLevel.subTransactions()).hasSize(1);
+        assertThat(asTopLevel.startingAccountBalanceIntervals()).hasSize(1);
+    }
+
     /** A key only a top-level body may have is unknown in a sub-transaction body, as the ledger reads it. */
     @Test
     void aTopLevelOnlyKeyInASubTransactionBodyIsUnknown() {

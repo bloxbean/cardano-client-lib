@@ -293,6 +293,15 @@
       "condition": {
         "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
+      "type": "com.bloxbean.cardano.client.transaction.spec.NilOrValueJsonDeserializer",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": []
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
       "type": "com.bloxbean.cardano.client.transaction.spec.NilOrValueJsonSerializer",
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,

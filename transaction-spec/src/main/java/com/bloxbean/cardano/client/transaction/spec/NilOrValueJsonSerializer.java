@@ -10,9 +10,11 @@ import java.util.Optional;
 /**
  * Writes a parameter that a Dijkstra update can set to nil (keys 38 and 53) as JSON without Jackson's JDK 8 module: an
  * empty Optional, nil, as {@code null}, and a value as the value. An absent parameter is a null field, which is left
- * out.
+ * out. {@link NilOrValueJsonDeserializer} reads it back.
+ * <p>
+ * Experimental: Dijkstra is not final; this may change in any release.
  */
-class NilOrValueJsonSerializer extends StdSerializer<Optional<?>> {
+public class NilOrValueJsonSerializer extends StdSerializer<Optional<?>> {
 
     @SuppressWarnings("unchecked")
     public NilOrValueJsonSerializer() {

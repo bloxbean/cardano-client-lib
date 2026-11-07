@@ -29,6 +29,11 @@ import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
  * {@link #tolerant(CborSpan, Era)} is for a chain follower, which must not lose a block its node has accepted; it reads
  * the update and the governance fields as {@code lenient} does, and the treasury value and the donation as any integer
  * or bignum, or absent if it is no number.
+ * <p>
+ * The body of a Dijkstra sub-transaction, from {@link RawTx#body(Era)} of one of {@link #subTransactions()}, is read
+ * at sub level: a field only a top-level body may have ({@link TxBodyField#topLevelOnly()}: keys 2, 13, 16, 17, 23
+ * and 27) reads as absent, as the ledger reads those keys of a sub-transaction body as unknown (Dijkstra
+ * {@code TxBody.hs}). Experimental: Dijkstra is not final; this may change in any release.
  */
 public final class RawTxBody {
     private final CborSpan span;
@@ -36,13 +41,14 @@ public final class RawTxBody {
     private final Era era;
     private final boolean lenient;
     private final boolean tolerant;
+    private final boolean sub;
 
-    RawTxBody(CborSpan span, List<Map.Entry<CborSpan, CborSpan>> fields, Era era, boolean lenient) {
-        this(span, fields, era, lenient, false);
+    RawTxBody(CborSpan span, List<Map.Entry<CborSpan, CborSpan>> fields, Era era, boolean lenient, boolean sub) {
+        this(span, fields, era, lenient, false, sub);
     }
 
     private RawTxBody(CborSpan span, List<Map.Entry<CborSpan, CborSpan>> fields, Era era, boolean lenient,
-                      boolean tolerant) {
+                      boolean tolerant, boolean sub) {
         if (era == null)
             throw new IllegalArgumentException("era is null");
         this.span = span;
@@ -50,6 +56,7 @@ public final class RawTxBody {
         this.era = era;
         this.lenient = lenient;
         this.tolerant = tolerant;
+        this.sub = sub;
     }
 
     /**
@@ -59,7 +66,7 @@ public final class RawTxBody {
      * @throws CborRuntimeException if it is not a map, or it repeats a key
      */
     public static RawTxBody lenient(CborSpan span, Era era) {
-        return new RawTxBody(span, RawItems.record(span, "transaction body"), era, true);
+        return new RawTxBody(span, RawItems.record(span, "transaction body"), era, true, false);
     }
 
     /**
@@ -74,7 +81,7 @@ public final class RawTxBody {
      */
     public static RawTxBody tolerant(CborSpan span, Era era) {
         CborSerializationUtil.checkTags(span);
-        return new RawTxBody(span, RawItems.lastFirst(span, "transaction body"), era, true, true);
+        return new RawTxBody(span, RawItems.lastFirst(span, "transaction body"), era, true, true, false);
     }
 
     /**
@@ -342,8 +349,9 @@ public final class RawTxBody {
         return field.spec().startsAfter(era) ? Optional.empty() : value(field);
     }
 
+    // A sub-transaction body has no top-level-only field: the ledger reads such a key there as unknown.
     private Optional<CborSpan> value(TxBodyField field) {
-        if (TxBodyField.RECORD.replacedIn(field.spec(), era))
+        if (TxBodyField.RECORD.replacedIn(field.spec(), era) || sub && field.topLevelOnly())
             return Optional.empty();
         return RawTx.field(fields, field.spec().key());
     }

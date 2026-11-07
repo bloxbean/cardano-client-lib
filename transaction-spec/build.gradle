@@ -9,6 +9,8 @@ dependencies {
 
     implementation(libs.guava)
     testImplementation(testFixtures(project(':ledger-cbor')))
+    // DijkstraModelTest: keys 38 and 53 round-trip with and without Jackson's JDK 8 module.
+    testImplementation(libs.jackson.datatype.jdk8)
     testImplementation(project(':test-support')) {
         exclude group: 'net.jqwik'
     }

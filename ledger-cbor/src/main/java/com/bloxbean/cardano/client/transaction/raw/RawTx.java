@@ -49,8 +49,11 @@ public final class RawTx {
     private final boolean valid;
     private final boolean validityFlag;
     private final boolean lenient;
+    // A sub-transaction's body is read at sub level.
+    private final boolean subTransaction;
 
-    private RawTx(CborSpan span, CborSpan body, CborSpan witnessSet, CborSpan auxData, boolean valid, boolean validityFlag) {
+    private RawTx(CborSpan span, CborSpan body, CborSpan witnessSet, CborSpan auxData, boolean valid,
+                  boolean validityFlag, boolean subTransaction) {
         this.span = span;
         this.body = body;
         this.witnessSet = witnessSet;
@@ -62,9 +65,10 @@ public final class RawTx {
         this.valid = valid;
         this.validityFlag = validityFlag;
         this.lenient = false;
+        this.subTransaction = subTransaction;
     }
 
-    private RawTx(CborSpan span, List<CborSpan> items) {
+    private RawTx(CborSpan span, List<CborSpan> items, boolean subTransaction) {
         this.span = span;
         this.body = items.get(0);
         this.witnessSet = items.get(1);
@@ -76,6 +80,7 @@ public final class RawTx {
         this.validityFlag = flag >= 0;
         this.valid = !validityFlag || items.get(flag).asBoolean();
         this.lenient = true;
+        this.subTransaction = subTransaction;
     }
 
     /**
@@ -89,9 +94,9 @@ public final class RawTx {
         List<CborSpan> items = items(tx);
         int flag = flagPosition(items);
         if (flag < 0)
-            return new RawTx(tx, items.get(0), items.get(1), aux(items.get(AUX_POSITION)), true, false);
+            return new RawTx(tx, items.get(0), items.get(1), aux(items.get(AUX_POSITION)), true, false, false);
         CborSpan aux = items.get(flag == AUX_POSITION ? FLAG_LAST : AUX_POSITION);
-        return new RawTx(tx, items.get(0), items.get(1), aux(aux), items.get(flag).asBoolean(), true);
+        return new RawTx(tx, items.get(0), items.get(1), aux(aux), items.get(flag).asBoolean(), true, false);
     }
 
     // A sub-transaction of a Dijkstra body, [body, witnesses, aux / null], which has no flag; read as lenient(byte[])
@@ -100,8 +105,8 @@ public final class RawTx {
         List<CborSpan> items = RawItems.array(tx, "sub_transaction");
         if (items.size() != WITHOUT_FLAG_ITEMS)
             throw error("A sub-transaction has " + WITHOUT_FLAG_ITEMS + " items, found " + items.size(), tx);
-        return lenient ? new RawTx(tx, items)
-                : new RawTx(tx, items.get(0), items.get(1), aux(items.get(AUX_POSITION)), true, false);
+        return lenient ? new RawTx(tx, items, true)
+                : new RawTx(tx, items.get(0), items.get(1), aux(items.get(AUX_POSITION)), true, false, true);
     }
 
     /**
@@ -136,7 +141,7 @@ public final class RawTx {
         List<CborSpan> items = checkedItems(RawItems.array(tx, "transaction"), tx);
         // what is read from spans here: the witness set and the aux data are checked when they are read
         CborSerializationUtil.checkTags(tx.isTagged() ? tx : items.get(0));
-        return new RawTx(tx, items);
+        return new RawTx(tx, items, false);
     }
 
     /**
@@ -217,7 +222,7 @@ public final class RawTx {
     // A transaction of a block, from the block's parallel arrays or a Dijkstra block's transaction; with no validity
     // flag, assemble() writes the form without one.
     static RawTx inBlock(CborSpan body, CborSpan witnessSet, CborSpan auxData, boolean valid, boolean validityFlag) {
-        return new RawTx(null, body, witnessSet, auxData, valid, validityFlag);
+        return new RawTx(null, body, witnessSet, auxData, valid, validityFlag, false);
     }
 
     private static CborSpan aux(CborSpan item) {
@@ -304,11 +309,12 @@ public final class RawTx {
 
     /**
      * @param era the era to read the body in
-     * @return the body's typed fields
+     * @return the body's typed fields; a sub-transaction's are read at sub level, without the fields only a top-level
+     * body may have (see {@link RawTxBody})
      * @throws IllegalArgumentException if the era is null
      */
     public RawTxBody body(Era era) {
-        return new RawTxBody(body, bodyFields, era, lenient);
+        return new RawTxBody(body, bodyFields, era, lenient, subTransaction);
     }
 
     public CborSpan witnessSet() {

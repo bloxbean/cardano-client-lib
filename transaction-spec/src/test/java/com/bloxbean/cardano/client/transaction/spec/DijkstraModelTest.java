@@ -47,6 +47,7 @@ import com.bloxbean.cardano.client.transaction.spec.governance.actions.UpdateCom
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -560,6 +561,40 @@ class DijkstraModelTest {
         assertThat(json.has("perasCertBoost")).isFalse();
         assertThat(new ObjectMapper().readTree(JsonUtil.getPrettyJson(ProtocolParamUpdate.builder()
                 .perasBootstrapRound(Optional.of(7L)).build())).get("perasBootstrapRound").asLong()).isEqualTo(7);
+    }
+
+    /**
+     * ADR 0003 D4b: keys 38 and 53 keep their three states through JSON, with a bare mapper, as Yaci Store reads
+     * models, and with Jackson's JDK 8 module: absent stays null, nil stays empty, a value stays that value. Key 8,
+     * {@code nopt}, round-trips with them.
+     */
+    @Test
+    void nilOrValueParametersRoundTripThroughJson() throws Exception {
+        List<ObjectMapper> mappers = List.of(new ObjectMapper(), new ObjectMapper().registerModule(new Jdk8Module()));
+        List<ProtocolParamUpdate> updates = List.of(
+                ProtocolParamUpdate.builder().minFeeA(BigInteger.ONE).nOpt(500).build(),
+                ProtocolParamUpdate.builder().maxPledgeLeverage(Optional.empty())
+                        .perasBootstrapRound(Optional.empty()).build(),
+                ProtocolParamUpdate.builder().maxPledgeLeverage(Optional.of(rational(3, 2)))
+                        .perasBootstrapRound(Optional.of(0xffffffffL)).build(),
+                ProtocolParamUpdate.builder().perasBootstrapRound(Optional.of(0L)).build());
+        for (ObjectMapper mapper : mappers) {
+            for (ProtocolParamUpdate update : updates) {
+                String json = mapper.writeValueAsString(update);
+                ProtocolParamUpdate read = mapper.readValue(json, ProtocolParamUpdate.class);
+                assertThat(read.getMaxPledgeLeverage()).as(json).isEqualTo(update.getMaxPledgeLeverage());
+                assertThat(read.getPerasBootstrapRound()).as(json).isEqualTo(update.getPerasBootstrapRound());
+                assertThat(read).as(json).isEqualTo(update);
+            }
+        }
+        ProtocolParamUpdate populated = mappers.get(0).readValue(mappers.get(0).writeValueAsString(updates.get(2)),
+                ProtocolParamUpdate.class);
+        assertThat(populated.getMaxPledgeLeverage()).contains(rational(3, 2));
+        assertThat(populated.getMaxPledgeLeverage().get()).isInstanceOf(Rational.class);
+        assertThat(populated.getPerasBootstrapRound()).contains(4294967295L);
+        String withNOpt = mappers.get(0).writeValueAsString(updates.get(0));
+        assertThat(withNOpt).contains("\"nopt\":500").doesNotContain("nOpt");
+        assertThat(mappers.get(0).readValue(withNOpt, ProtocolParamUpdate.class).getNOpt()).isEqualTo(500);
     }
 
     // ---- version 12: records the ledger reads as definite or indefinite ----

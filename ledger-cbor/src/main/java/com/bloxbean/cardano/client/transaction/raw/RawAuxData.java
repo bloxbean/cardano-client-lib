@@ -160,7 +160,8 @@ public final class RawAuxData {
 
     /**
      * @param field a field of the keyed form
-     * @return whether the aux data has it: the other forms have none of its fields
+     * @return whether the aux data has it: the other forms have none of its fields, and a Dijkstra field (key 5) is an
+     * unknown key, so absent, before Dijkstra
      */
     public boolean has(AuxDataField field) {
         return field(field).isPresent();
@@ -195,8 +196,6 @@ public final class RawAuxData {
      * @throws CborRuntimeException if the field is not an array
      */
     public List<RawScript> plutusV4Scripts() {
-        if (AuxDataField.PLUTUS_V4_SCRIPTS.spec().startsAfter(era))
-            return List.of();
         return scripts(RawScript.PLUTUS_V4_TYPE, AuxDataField.PLUTUS_V4_SCRIPTS);
     }
 
@@ -224,8 +223,11 @@ public final class RawAuxData {
         return scripts;
     }
 
+    // A field of Dijkstra is an unknown key before it, so it reads as absent there, as in RawTxBody.since. The fields
+    // of earlier eras keep their tolerant reading in every era (ADR 0003 I14, D5).
     private Optional<CborSpan> field(AuxDataField field) {
-        if (fields == null || AuxDataField.RECORD.replacedIn(field.spec(), era))
+        if (fields == null || AuxDataField.RECORD.replacedIn(field.spec(), era)
+                || field.spec().from() == Era.Dijkstra && field.spec().startsAfter(era))
             return Optional.empty();
         return RawTx.field(fields, field.key());
     }

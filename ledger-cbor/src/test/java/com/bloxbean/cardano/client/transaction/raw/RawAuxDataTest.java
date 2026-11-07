@@ -39,6 +39,46 @@ class RawAuxDataTest {
         return scripts.stream().map(script -> script.type() + ":" + hex(script.span())).toList();
     }
 
+    /**
+     * ADR 0003 D4b: a Dijkstra field is an unknown key before Dijkstra, so absent from every accessor, {@code has}
+     * included, as {@code RawTxBody} reads Dijkstra's fields. Key 5, Plutus V4, is Dijkstra's.
+     */
+    @Test
+    void aKeyOfALaterEraIsAbsent() {
+        String withV4 = "d90103" + "a2" + "00" + METADATA + "05" + "8141dd";
+        for (RawAuxData conway : List.of(lenient(withV4), tx(withV4).auxData(Era.Conway).orElseThrow())) {
+            assertThat(conway.has(AuxDataField.PLUTUS_V4_SCRIPTS)).isFalse();
+            assertThat(conway.plutusV4Scripts()).isEmpty();
+            assertThat(conway.scripts()).isEmpty();
+            assertThat(conway.has(AuxDataField.METADATA)).isTrue();
+        }
+        RawAuxData dijkstra = RawAuxData.lenient(span(withV4), Era.Dijkstra);
+        assertThat(dijkstra.has(AuxDataField.PLUTUS_V4_SCRIPTS)).isTrue();
+        assertThat(scriptsOf(dijkstra.plutusV4Scripts())).containsExactly("4:41dd");
+        assertThat(RawAuxData.lenient(span("d90103a10580"), Era.Dijkstra).has(AuxDataField.PLUTUS_V4_SCRIPTS))
+                .isTrue();
+    }
+
+    /**
+     * ADR 0003 I14, D5: the fields of earlier eras keep their tolerant reading in an era before their own, as before
+     * D4b, though Haskell rejects these inputs: Plutus V2 scripts in Alonzo, Plutus V3 scripts in Babbage, and the
+     * keyed form's metadata in Shelley.
+     */
+    @Test
+    void anEarlierEraKeyIsStillReadBeforeItsEra() {
+        RawAuxData alonzo = RawAuxData.lenient(span("d90103a1038141aa"), Era.Alonzo);
+        assertThat(alonzo.has(AuxDataField.PLUTUS_V2_SCRIPTS)).isTrue();
+        assertThat(scriptsOf(alonzo.plutusV2Scripts())).containsExactly("2:41aa");
+
+        RawAuxData babbage = RawAuxData.lenient(span("d90103a1048141bb"), Era.Babbage);
+        assertThat(babbage.has(AuxDataField.PLUTUS_V3_SCRIPTS)).isTrue();
+        assertThat(scriptsOf(babbage.plutusV3Scripts())).containsExactly("3:41bb");
+
+        RawAuxData shelley = RawAuxData.lenient(span("d90103a100a10102"), Era.Shelley);
+        assertThat(shelley.has(AuxDataField.METADATA)).isTrue();
+        assertThat(hex(shelley.metadata().orElseThrow())).isEqualTo("a10102");
+    }
+
     @Test
     void everyFormOnBothReadings() {
         for (RawAuxData map : List.of(lenient(METADATA), tx(METADATA).auxData(Era.Conway).orElseThrow())) {

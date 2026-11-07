@@ -2,7 +2,7 @@
 
 **Status**: Accepted. M0 to M6 are implemented (section 7.1). r6 splits M7: M7a, experimental Dijkstra and Leios
 reading (D4a), is implemented in CCL (section 7.2). r9 decides Q7: Yaci's models gain Dijkstra's fields in M7c
-(D4b). M7b, M7c and M8 are not started
+(D4b), and M7c is implemented (section 7.3). M7b and M8 are not started
 **Date**: 2026-11-05
 **Risk**: High. This changes the code that reads every block and transaction in CCL, Yaci and Yano, and a shared bug
 would reach all three.
@@ -1024,6 +1024,63 @@ fails as other malformed headers do. `localstate.api.Era.fromInt(7)` and the new
 real network, and rejection cases for the block, header and interval rules have no vector. The disputed dataset label
 is to be reported upstream.
 
+### 7.3 Implementation record: M7c (r10)
+
+M7c is implemented in CCL on `feat/ledger-cbor`, and in Yaci and Yano on their local branches. It was built and tested
+against local snapshots, with no release. The code was reviewed by a Fable pass and a Codex pass before commit, over
+three rounds, and their findings are folded in below.
+
+**Gates.**
+
+| Gate | Result |
+|---|---|
+| I14 | CCL's dataset gates, Yaci `core` (1,176 tests, 0 failures) and `helper` (28), and Yano's G5 suites give the same results as before: `ledger-rules` 436, `ledger-conformance` 182 with 1 skipped, `tx-services` 49 with 5 skipped, test by test |
+| I16, JSON | 148 JSON pins, generated at Yaci `51e7870`, cover Byron to Conway blocks, Dijkstra blocks, a witness set and 55 governance bodies, each read with CBOR output off and on. All 138 pre-Dijkstra pins are byte-identical. The 10 Dijkstra pins are identical once D4b's fields are removed. Both reviewers regenerated the pins from `51e7870` and got identical files |
+| I16, API | 1,378 public signatures of 97 types at `51e7870` still exist, builders included |
+| I16, three states | Keys 38 and 53 round-trip absent, nil and a value through a bare `ObjectMapper` and through one with the JDK 8 module, in CCL and in Yaci. Word32 keys keep 2^31 and 2^32 - 1 |
+| I16, vectors | Each new field read from a Dijkstra vector equals the vector's value, taken from its source (the ledger golden in `Examples.hs`, KleioScan, pallas) or decoded by a test-only CBOR reader written from RFC 8949 that shares no code with the reader under test |
+
+**Decisions taken during implementation.**
+
+- **Sub-transaction bodies are read at sub level.** CCL's `RawTx.subTransaction` marks its body view, and a sub-level
+  `RawTxBody` hides the six top-level-only keys: 2, 13, 16, 17, 23 and 27, those the ledger guards with `STopTx`
+  (`Dijkstra/TxBody.hs`). Yaci maps that view once, so nothing recurses and a forbidden key in a sub-body is never mapped.
+  CCL's own models gain the same fix. Top-level and pre-Dijkstra reads are unchanged.
+- **A later era's aux data key.** `RawAuxData` hides key 5 (Plutus V4) before Dijkstra in `has()` and in its accessor,
+  so Yaci has no era rule. Keys 0 to 4 read as before in every era.
+- **`nopt`.** CCL's `ProtocolParamUpdate.nOpt` gains `@JsonProperty("nopt")`, so the whole model round-trips through a
+  bare mapper. The JSON it writes is byte-identical.
+- **Interval equality.** Yaci's `NonNegativeInterval` compared every two intervals as equal: its `@EqualsAndHashCode` did
+  not call the superclass. It now compares numerator and denominator (below).
+- **Native image.** Yaci's own `reflect-config.json` registers `Credential`, used by the guard JSON, and the six new
+  models. Yano reuses them from Yaci's jar. A test checks the entries; no native image was built.
+
+**Differences for the maintainer's approval** (I5). None occurs in a real block of an earlier era: the JSON pins are
+unchanged.
+
+- A malformed type-6 native script, such as `[6]`, fails its block in every era. Type 6 is now a known script type, and a
+  malformed known script fails (section 7.2). M7a kept it with a parse error.
+- A sub-transaction body with a repeated key fails its block. CCL reads sub-transactions with its lenient view, which
+  rejects repeats, while a top-level body keeps the last value (section 7.2). Haskell rejects a repeated key at every
+  level (`decodeSparseKeyed`), so no valid block is lost. The tolerant and lenient views differ otherwise only on shapes
+  that Haskell's decoders also refuse.
+- `NonNegativeInterval.equals` and `hashCode` now use the interval's value. This changes the equality of
+  `ProtocolParamUpdate`'s `poolPledgeInfluence`, `priceMem`, `priceStep`, `minFeeRefScriptCostPerByte` and the new
+  interval keys. It also changes every type that holds a `ProtocolParamUpdate`: `Update`, `ParameterChangeAction`,
+  `ProposalProcedure`, `TransactionBody` and `Block`. Two models that differ only in such an interval compared equal
+  before.
+- D4b's two era-less mappings: a type-6 native script gets the guard JSON, and redeemer tag 6 is `Guarding`, in any era.
+
+**Left open.**
+- No vector has a non-nil Peras certificate, real parameter updates with keys 34 to 56, or a guard native script; these
+  are tested with constructed inputs.
+- No source records an endorser-block announcement hash or BLS key value, so those are checked against bytes decoded
+  independently.
+- Native images were not built.
+- Yaci's handshake classes (`N2NVersionData`, `N2CVersionData`, `OldN2CVersionData`) share the equality defect and are out
+  of scope.
+- The listener prerequisites in D4b remain for Yano and Yaci Store.
+
 ## 8. Compatibility
 
 | Item | Impact |
@@ -1047,6 +1104,7 @@ is to be reported upstream.
 | Yaci native scripts of an unknown type (r8) | Kept with a parse error in every era, where they were dropped (section 7.2) |
 | Yaci chain-sync headers (r8) | Read in their variant's era: a header of another era's shape fails (section 7.2) |
 | Yaci models (r9) | New nullable fields, every public constructor kept, `Block.toBuilder` (D4b, I16). Enums gain `PlutusScriptV4` and `Guarding`; a native script of type 6 gets a JSON form, in any era. A Dijkstra body's `requiredSigners` are its key guards, as Haskell's `reqSignerHashesTxBodyG` |
+| Yaci `NonNegativeInterval` equality (r10) | Compares the interval's value; before, any two intervals were equal. Changes `equals` of `ProtocolParamUpdate` and of every model that holds one (section 7.3) |
 | Listeners before Dijkstra (r9) | Must apply sub-transactions to the UTxO (`helper`'s `utxos` are top-level only), and handle Plutus V4 and the guarding purpose; Yaci Store's script store rejects V4 today. Yano reloads stored proposals with their era. Local-state query results stay Conway-shaped (D4b) |
 | `NilOrValueJsonSerializer` (r9) | Public, with a new `NilOrValueJsonDeserializer`, so CCL's and Yaci's keys 38 and 53 round-trip without the JDK 8 module. `Rational` gains a `@JsonCreator` |
 | `RawHeader.protocolMinor()` on a Dijkstra header (r6) | Returns the software tag, the second number of the pair, as consensus reads it (D4a) |
@@ -1167,3 +1225,6 @@ models (D4b, M7c).
   Yaci's parameter types and writer; the constructor inventory and the archive copy; absent against empty; the era-less
   enum mappings; no duplicate sub-transaction id; `Long` for Word32 keys; `Rational`'s JSON creator; reading stored
   proposals with their era). Both approved: Fable in round 2, Codex in round 3.
+- **r10** (2026-11-07): new section 7.3 records M7c's implementation: gates, the decisions taken (sub-transaction
+  bodies read at sub level, the aux data key 5 hidden before Dijkstra, `nopt`, interval equality, native image) and the
+  differences for approval. Status line and a section 8 row follow. D4b is unchanged.
