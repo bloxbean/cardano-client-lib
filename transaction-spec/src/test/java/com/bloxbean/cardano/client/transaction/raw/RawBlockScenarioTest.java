@@ -134,15 +134,20 @@ class RawBlockScenarioTest {
                 .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Conway");
     }
 
+    /** Byron is not supported; Dijkstra (8) is read with its own layout from ADR 0003 D4a. */
     @Test
-    void byronAndDijkstraAreNotSupported() {
+    void byronIsNotSupportedAndDijkstraHasItsLayout() {
         for (int era : new int[]{0, 1})
             assertThatThrownBy(() -> of(envelope(era, "83" + "80" + "80" + "80")))
                     .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Byron");
+        assertThat(of(envelope(8, "82" + HEADER + "83" + "80" + "f6" + "f6")).era()).isEqualTo(Era.Dijkstra);
         assertThatThrownBy(() -> of(envelope(8, "82" + HEADER + "80")))
-                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Dijkstra");
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("block body");
+        assertThatThrownBy(() -> of(envelope(8, block("a0", "80"))))
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Dijkstra block has 2 items");
+        // a block of two items given another era is a block of that era with the wrong number of items
         assertThatThrownBy(() -> RawBlock.of(decodeHexString("82" + HEADER + "80"), Era.Conway))
-                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Dijkstra");
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Conway block has 5 items, found 2");
         assertThatThrownBy(() -> of(envelope(9, block("a0", "80")))).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> Era.fromValue(1)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("Byron");
         assertThat(Era.fromValue(5)).isEqualTo(Era.Alonzo);

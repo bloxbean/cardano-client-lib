@@ -28,9 +28,9 @@ import java.util.TreeMap;
  * Containers are encoded with an explicit stack instead of recursion, so items of any nesting depth encode on any
  * thread. The output is the same as the cbor-java based encoder it replaces, byte for byte: maps that need canonical
  * ordering buffer their encoded entries and sort them by unsigned lexicographic order of the key bytes; everything else
- * streams. The one difference: an indefinite array is closed with a BREAK whether or not its last item is
+ * streams. The differences: an indefinite array is closed with a BREAK whether or not its last item is
  * {@link Special#BREAK}, as {@link com.bloxbean.cardano.client.common.cbor.CborSerializationUtil#deserialize(byte[])}
- * leaves that item out.
+ * leaves that item out, and an empty indefinite map is closed too, as it was left unterminated.
  */
 public class CustomCborEncoder extends CborEncoder {
     private static final BigInteger MINUS_ONE = BigInteger.valueOf(-1);
@@ -444,12 +444,13 @@ public class CustomCborEncoder extends CborEncoder {
                         out.write(MajorType.MAP.getValue() << 5 | 31);
                     else
                         writeHead(out, MajorType.MAP, size);
-                    // as before, an empty map ends right after its head, even an indefinite one; a single entry needs
-                    // no sorting, so it streams
+                    // a single entry needs no sorting, so it streams
                     if (size > 1 && (sortAllMaps || (canonical && !map.isChunked() && !(map instanceof SortedMap))))
                         frame = new SortedMapFrame(parent, out, map, map.isChunked());
                     else if (size > 0)
                         frame = new StreamingMapFrame(parent, out, map, map.isChunked());
+                    else if (map.isChunked())
+                        writeBreak(out);
                     break;
                 }
                 case BYTE_STRING:
@@ -478,16 +479,23 @@ public class CustomCborEncoder extends CborEncoder {
             return frame;
         }
 
-        // Tags are chained from the innermost (on the item) outwards; they are written outermost first.
+        // Tags are chained from the innermost (on the item) outwards; they are written outermost first. cbor-java's
+        // decoder sets a tag on its shared false, true, null, undefined and BREAK, for the whole JVM, when it reads one
+        // tagged (d818f6), so such a tag belongs to no item being written, and is not written.
         private static void writeTags(DataItem item, Buffer out) {
             Tag tag = item.getTag();
-            if (tag == null)
+            if (tag == null || isShared(item))
                 return;
             List<Tag> chain = new ArrayList<>();
             for (; tag != null; tag = tag.getTag())
                 chain.add(tag);
             for (int i = chain.size() - 1; i >= 0; i--)
                 writeHead(out, MajorType.TAG, chain.get(i).getValue());
+        }
+
+        private static boolean isShared(DataItem item) {
+            return item == SimpleValue.NULL || item == SimpleValue.TRUE || item == SimpleValue.FALSE
+                    || item == SimpleValue.UNDEFINED || item == Special.BREAK;
         }
 
         // As CustomByteStringEncoder and cbor-java's ByteStringEncoder.
@@ -602,10 +610,15 @@ public class CustomCborEncoder extends CborEncoder {
             }
         }
 
-        // As cbor-java's AbstractEncoder.encodeTypeAndLength(MajorType, long), including its signed comparisons.
+        // As cbor-java's AbstractEncoder.encodeTypeAndLength(MajorType, long), except that a tag number of 2^63 or
+        // more, a negative long here, is written as 8 bytes: cbor-java's signed comparisons write other, invalid bytes.
         private static void writeHead(Buffer out, MajorType majorType, long length) {
             int symbol = majorType.getValue() << 5;
-            if (length <= 23L) {
+            if (length < 0) {
+                out.write(symbol | 27);
+                for (int shift = 56; shift >= 0; shift -= 8)
+                    out.write((int) (length >> shift));
+            } else if (length <= 23L) {
                 out.write((int) (symbol | length));
             } else if (length <= 255L) {
                 out.write(symbol | 24);

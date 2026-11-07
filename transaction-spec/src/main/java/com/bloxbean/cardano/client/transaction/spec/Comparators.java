@@ -46,13 +46,21 @@ public class Comparators {
             .thenComparing(Credential::getBytes, Arrays::compareUnsigned);
 
     /**
-     * Haskell's {@code AccountAddress}: network, then {@link #CREDENTIAL}. For treasury withdrawals, and for working out
-     * {@code Reward} redeemer indexes.
+     * Haskell's {@code AccountAddress}, of a bech32 reward address: network, then {@link #CREDENTIAL}. For the maps a
+     * Dijkstra body keys by reward account.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
      */
-    public static final Comparator<Withdrawal> WITHDRAWAL = Comparator.comparing(
-            (Withdrawal withdrawal) -> new Address(withdrawal.getRewardAddress()),
+    public static final Comparator<String> REWARD_ADDRESS = Comparator.comparing(Address::new,
             Comparator.comparingInt((Address address) -> address.getNetwork().getNetworkId())
                     .thenComparing(Comparators::delegationCredential, CREDENTIAL));
+
+    /**
+     * Haskell's {@code AccountAddress}: {@link #REWARD_ADDRESS}. For treasury withdrawals, direct deposits, and for
+     * working out {@code Reward} redeemer indexes.
+     */
+    public static final Comparator<Withdrawal> WITHDRAWAL = Comparator.comparing(Withdrawal::getRewardAddress,
+            REWARD_ADDRESS);
 
     /**
      * CIP-21: the reward account's bytes, so a key (e0, e1) before a script (f0, f1). For the transaction body's

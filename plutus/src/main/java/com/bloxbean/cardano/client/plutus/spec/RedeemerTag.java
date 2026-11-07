@@ -16,12 +16,23 @@ public enum RedeemerTag {
     @JsonProperty("voting")
     Voting(4),
     @JsonProperty("proposing")
-    Proposing(5);
+    Proposing(5),
+    /** Dijkstra's guarding purpose. Experimental: Dijkstra is not final; this may change in any release. */
+    @JsonProperty("guarding")
+    Guarding(6);
 
     public final int value;
 
     RedeemerTag(int value) {
         this.value = value;
+    }
+
+    /**
+     * @param value a redeemer tag's number
+     * @return the tag, or null if there is none with this number
+     */
+    public static RedeemerTag fromValue(int value) {
+        return Arrays.stream(values()).filter(tag -> tag.value == value).findFirst().orElse(null);
     }
 
     public static RedeemerTag convert(String redeemerTag) {

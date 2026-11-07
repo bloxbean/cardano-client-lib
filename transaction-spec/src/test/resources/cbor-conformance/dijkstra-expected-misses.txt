@@ -1,0 +1,126 @@
+# ADR 0004 W3: usable Dijkstra samples (dijkstra-usable-valid.txt) that CCL's models, read and written in Dijkstra,
+# do not re-encode to the reference: <rule>/<sample> <how it misses> <why>. See CborCorpusConformanceTest. The
+# reference keeps the sample's own encoding (the ledger re-emits received bytes); CCL writes its own (ADR 0002, D4).
+sub_transaction_body/00005-81ba7b6f54e77d4b differs CCL encoding: outputs as legacy arrays, map entries in CCL order
+sub_transaction_body/00018-8b96973365ee6ec4 differs CCL encoding: key-hash guards written as credentials (D4), outputs as legacy arrays, sets tagged 258, map entries in CCL order
+sub_transaction_body/00021-2d82a64feaa31b73 differs CCL encoding: key-hash guards written as credentials (D4), outputs as legacy arrays, sets tagged 258, map entries in CCL order
+sub_transaction_body/00028-8ee8b2cca58d63be differs CCL encoding: outputs as legacy arrays, sets tagged 258, map entries in CCL order
+sub_transaction_body/00029-17fb3e335aa2c67c differs CCL encoding: key-hash guards written as credentials (D4), outputs as legacy arrays, sets tagged 258, map entries in CCL order
+sub_transaction_body/00032-44135bff6d4c0fd0 differs CCL encoding: outputs as legacy arrays, sets tagged 258, map entries in CCL order
+sub_transaction_body/00053-097018d9512a711a differs CCL encoding: sets tagged 258, map entries in CCL order
+sub_transaction_body/00066-d2eb803993e224f7 differs CCL encoding: key-hash guards written as credentials (D4), outputs as legacy arrays, sets tagged 258, map entries in CCL order
+sub_transaction_body/00097-67ef849601418215 differs CCL encoding: outputs as legacy arrays, sets tagged 258, map entries in CCL order
+sub_transaction_body/widest-heads-2 differs CCL encoding: outputs as legacy arrays, sets tagged 258, map entries in CCL order
+transaction/00011-89d293cc9d2c4fc4 differs CCL encoding: key-hash guards written as credentials (D4), outputs as legacy arrays, sets tagged 258, map entries in CCL order, aux data in the tag-259 form
+transaction_body/00006-9967b2f63f1bfcf6 differs CCL encoding: outputs as legacy arrays, sets tagged 258, map entries in CCL order
+transaction_body/00029-5c61c21e468c4974 differs CCL encoding: key-hash guards written as credentials (D4), sets tagged 258, map entries in CCL order, aux data in the tag-259 form
+transaction_body/00055-d28e92e15681ba75 differs CCL encoding: outputs as legacy arrays, sets tagged 258, map entries in CCL order
+transaction_witness_set/00001-ade16a2d99b16c48 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00002-080973014ff5d87b differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00003-a53c871e7dc25d3e differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00004-b0bbeb1b8e267192 differs CCL encoding: sets tagged 258
+transaction_witness_set/00005-9452478931d341d9 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00006-cf5cc92eb8b21dba differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00007-ea1331e3552ab0d5 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00008-2f0697b342067040 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00009-b39e4d40266d0e87 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00010-171e561e881810ab differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00011-34368fd8af20d5fd differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00012-b8a2b62e5637e3d6 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00013-9a23d4289cf099cf differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00014-4d4e3dad070697bd differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00015-48c0422a7816aba8 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00016-f1b9a43827708d91 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00017-992b142da330278d differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00018-9a9b981bfe6b9801 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00019-f516596c2e1c78d1 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00020-8a8b3c85837ed7ac differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00021-9b52eb3f5dddd412 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00022-e2e024e1b36be911 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00023-99610e0877335f8f differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00024-5b6eb958a80948db differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00025-44f77e015e9e1534 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00026-049c86e374beca89 differs CCL encoding: sets tagged 258
+transaction_witness_set/00027-d4ffa394fef1d5fc differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00028-fe8356862fd5bf8d differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00029-8bf1de9b644b354c differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00030-9e6e906c03bca6d8 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00031-135cd25ba4ff4ebf differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00032-932b35415285493e differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00033-9a7ea6e857f06c86 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00034-8ed2082e6e590e61 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00035-85548d17e71e3efa differs CCL encoding: sets tagged 258
+transaction_witness_set/00036-ceadae4c7d22a301 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00037-afd83013ba397daf differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00038-fb03ffb8b32bbce5 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00039-a628b83cbaa4b4d6 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00040-692340f5b8d92204 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00041-93454c132f8788fb differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00042-9e955acc9d459b7e differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00043-1c005cea788d67e9 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00044-8d46e88a16282d9d differs CCL encoding: sets tagged 258
+transaction_witness_set/00045-de96c3fa74adc2a7 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00046-6d758f96eba24454 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00047-2e2dc7a0d2ba0b95 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00048-cf0ec04d28b3e792 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00049-da821d6d5d795acc differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00050-f9a6e5a62cd84cc9 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00051-b5bf3e7c8f84ad9e differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00052-5b405a61c6fa2ed1 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00053-03de600e3ead8069 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00054-dff624c562f326b0 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00055-348b6ce576e9d7a3 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00056-ff1b8682bef5cb73 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00057-288265cad69039c7 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00058-33180e68f04db26b differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00059-f6caa7a379470c1e differs CCL encoding: map entries in CCL order
+transaction_witness_set/00060-3d276f8101721f7a differs CCL encoding: map entries in CCL order
+transaction_witness_set/00061-b9265454b4734a4b differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00062-c1ac996e7c7d9ad0 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00063-5c97dc4d9fa973c9 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00064-e50b87869c36b3b2 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00065-49d6a4a48dc9c899 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00066-baeaeebe8c10067f differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00067-9067a6c529b84f9c differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00068-60ae4a2fa28e1105 differs CCL encoding: map entries in CCL order
+transaction_witness_set/00069-07ac52128fb2a5c7 differs CCL encoding: sets tagged 258
+transaction_witness_set/00070-c6d11fdc9c335a1f differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00071-5d98cb4157387be7 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00072-03c7b51cd6b6070d differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00073-4b95f547607431c6 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00074-bebbb818ec07b923 differs CCL encoding: map entries in CCL order
+transaction_witness_set/00075-eb8ea2a16fac6571 differs CCL encoding: map entries in CCL order
+transaction_witness_set/00076-de0afb920110116f differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00077-0035b94a025a11af differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00078-aa870104d88f50b2 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00079-8efb37f1a332275e differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00080-1d81cc638b736938 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00081-3ea45681029f4597 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00082-21d6ef3daaac5088 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00083-d39c30f40710e2f3 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00084-998749cedf4a8e4f differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00085-506211a561c266a9 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00086-f4d537c6b384ac7f differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00087-1955f0febc5c4f30 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00088-017c90946dfb2e46 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00089-72677c135cd31c61 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00090-41efdcf9f13b1188 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00091-aff7e35d2c0308e7 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00092-eae3b7c9ef6cc223 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00093-c3d90c173c0b4a88 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00094-2a9b0d92d269afca differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00095-0b445a8d0e436b5d differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00096-653696a73e278dda differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00097-bc98d4d88ecb954e differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00098-3a21ae944a8d47ea differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00099-aed9ecc92cac1af8 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/00100-a75154f52fed56b8 differs CCL encoding: sets tagged 258
+transaction_witness_set/bootstrap-witnesses-empty differs disputed label (ADR 0003 7.2): an empty bootstrap set, which the model does not write
+transaction_witness_set/wide-heads-1 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/wide-heads-2 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/wide-heads-3 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/wide-heads-4 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/widest-heads-1 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/widest-heads-2 differs CCL encoding: sets tagged 258, map entries in CCL order
+transaction_witness_set/widest-heads-3 differs CCL encoding: sets tagged 258
+transaction_witness_set/widest-heads-4 differs CCL encoding: sets tagged 258, map entries in CCL order

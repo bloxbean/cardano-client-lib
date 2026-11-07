@@ -1,16 +1,15 @@
 package com.bloxbean.cardano.client.transaction;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.raw.RawNonce;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-
-import java.util.List;
 
 
 @Getter
@@ -32,17 +31,14 @@ public class Nonce {
 
     public static Nonce deserialize(DataItem di) throws CborDeserializationException {
         if (di == null) return null;
+        return from(RawNonce.lenient(CborSerializationUtil.span(di)));
+    }
 
-        List<DataItem> dataItemList = ((Array) di).getDataItems();
-        int i = CborSerializationUtil.toUnsignedInt(dataItemList.get(0));
-
-        if (i == 0) {
-            return new Nonce(null);
-        } else if (i == 1) {
-            byte[] hash = CborSerializationUtil.toBytes(dataItemList.get(1));
-            return new Nonce(hash);
-        } else {
-            throw new CborDeserializationException("Nonce deserialization failed. No variant matched. i=" + i);
-        }
+    /**
+     * @param raw a nonce as received
+     * @return the model, with no hash for the neutral nonce
+     */
+    public static Nonce from(RawNonce raw) {
+        return new Nonce(raw.hash().orElse(null));
     }
 }

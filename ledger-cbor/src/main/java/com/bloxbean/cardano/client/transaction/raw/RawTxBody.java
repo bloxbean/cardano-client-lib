@@ -1,0 +1,358 @@
+package com.bloxbean.cardano.client.transaction.raw;
+
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
+
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
+import java.util.function.Function;
+
+import static com.bloxbean.cardano.client.transaction.raw.RawTx.error;
+
+/**
+ * A transaction body read in an era (ADR 0003 D3): {@link TxBodyField} says which key a field has, and a key that means
+ * something else in the era reads as absent. A field outside its era is otherwise read like any other: that is the
+ * policy's to reject (D5), through {@link RawTx#walk}. Accessors read an item when they are called, and throw
+ * {@link CborRuntimeException} if it is not what the table says. Tags on an item are looked through, sets may have tag
+ * 258 or not and any array may be indefinite. Hash lengths, ranges and empty sets are not checked.
+ * <p>
+ * A view from {@link #lenient(CborSpan, Era)} reads what the models of {@code transaction-spec} have always accepted,
+ * which D7 keeps until a separate decision changes it. See {@link RawOutput}, {@link RawValue}, {@link RawCertificate},
+ * {@link RawUpdate}, {@link RawVotingProcedures} and {@link RawProposal} for what that means for them.
+ * {@link #tolerant(CborSpan, Era)} is for a chain follower, which must not lose a block its node has accepted; it reads
+ * the update and the governance fields as {@code lenient} does, and the treasury value and the donation as any integer
+ * or bignum, or absent if it is no number.
+ * <p>
+ * The body of a Dijkstra sub-transaction, from {@link RawTx#body(Era)} of one of {@link #subTransactions()}, is read
+ * at sub level: a field only a top-level body may have ({@link TxBodyField#topLevelOnly()}: keys 2, 13, 16, 17, 23
+ * and 27) reads as absent, as the ledger reads those keys of a sub-transaction body as unknown (Dijkstra
+ * {@code TxBody.hs}). Experimental: Dijkstra is not final; this may change in any release.
+ */
+public final class RawTxBody {
+    private final CborSpan span;
+    private final List<Map.Entry<CborSpan, CborSpan>> fields;
+    private final Era era;
+    private final boolean lenient;
+    private final boolean tolerant;
+    private final boolean sub;
+
+    RawTxBody(CborSpan span, List<Map.Entry<CborSpan, CborSpan>> fields, Era era, boolean lenient, boolean sub) {
+        this(span, fields, era, lenient, false, sub);
+    }
+
+    private RawTxBody(CborSpan span, List<Map.Entry<CborSpan, CborSpan>> fields, Era era, boolean lenient,
+                      boolean tolerant, boolean sub) {
+        if (era == null)
+            throw new IllegalArgumentException("era is null");
+        this.span = span;
+        this.fields = fields;
+        this.era = era;
+        this.lenient = lenient;
+        this.tolerant = tolerant;
+        this.sub = sub;
+    }
+
+    /**
+     * @param span a body as encoded
+     * @param era  the era to read it in
+     * @return the view, read as the models read one
+     * @throws CborRuntimeException if it is not a map, or it repeats a key
+     */
+    public static RawTxBody lenient(CborSpan span, Era era) {
+        return new RawTxBody(span, RawItems.record(span, "transaction body"), era, true, false);
+    }
+
+    /**
+     * Reads a body as {@link #lenient(CborSpan, Era)} does, except that a repeated key means its last value, here and in
+     * an output, and that outputs and withdrawals are read with {@link RawOutput#tolerant(CborSpan)} and
+     * {@link RawWithdrawal#tolerant(CborSpan)}. What decoding the body to a tree rejects is rejected.
+     *
+     * @param span a body as encoded
+     * @param era  the era to read it in
+     * @return the view
+     * @throws CborRuntimeException if it is not a map, or decoding it would reject it
+     */
+    public static RawTxBody tolerant(CborSpan span, Era era) {
+        CborSerializationUtil.checkTags(span);
+        return new RawTxBody(span, RawItems.lastFirst(span, "transaction body"), era, true, true, false);
+    }
+
+    /**
+     * @return the body as encoded
+     */
+    public CborSpan span() {
+        return span;
+    }
+
+    public Era era() {
+        return era;
+    }
+
+    /**
+     * @return the inputs
+     * @throws CborRuntimeException if the body has none
+     */
+    public List<RawInput> inputs() {
+        return inputs(required(TxBodyField.INPUTS));
+    }
+
+    /**
+     * @return the outputs
+     * @throws CborRuntimeException if the body has none
+     */
+    public List<RawOutput> outputs() {
+        return items(required(TxBodyField.OUTPUTS), "outputs", this::output);
+    }
+
+    private RawOutput output(CborSpan output) {
+        if (tolerant)
+            return RawOutput.tolerant(output);
+        return lenient ? RawOutput.lenient(output, era) : RawOutput.of(output);
+    }
+
+    public Optional<BigInteger> fee() {
+        return value(TxBodyField.FEE).map(RawItems::unsigned);
+    }
+
+    /**
+     * @return the time to live, its 64 bits
+     */
+    public OptionalLong ttl() {
+        return number(TxBodyField.TTL);
+    }
+
+    /**
+     * @return the certificates, none if the field is absent
+     */
+    public List<RawCertificate> certificates() {
+        return value(TxBodyField.CERTIFICATES).map(field -> items(field, "certificates", this::certificate))
+                .orElse(List.of());
+    }
+
+    /**
+     * @return the certificates as encoded, for a caller that reads them itself; none if the field is absent
+     */
+    public List<CborSpan> certificateItems() {
+        return value(TxBodyField.CERTIFICATES).map(field -> RawItems.array(field, "certificates")).orElse(List.of());
+    }
+
+    private RawCertificate certificate(CborSpan certificate) {
+        if (!lenient)
+            return RawCertificate.of(certificate, era);
+        return RawCertificate.lenient(certificate, era)
+                .orElseThrow(() -> error("Unknown certificate tag", certificate));
+    }
+
+    /**
+     * @return the withdrawals, one per reward account, in the order of their first entries; a repeated account has its
+     * last amount, and the span has every entry. None if the field is absent
+     */
+    public List<RawWithdrawal> withdrawals() {
+        return value(TxBodyField.WITHDRAWALS).map(tolerant ? RawWithdrawal::tolerant : RawWithdrawal::read)
+                .orElse(List.of());
+    }
+
+    /**
+     * @return the update of the protocol parameters before Conway, its parameter updates read in this view's era
+     */
+    public Optional<RawUpdate> update() {
+        return value(TxBodyField.UPDATE_PROPOSAL)
+                .map(update -> lenient ? RawUpdate.lenient(update, era) : RawUpdate.of(update, era));
+    }
+
+    public Optional<byte[]> auxDataHash() {
+        return value(TxBodyField.AUX_DATA_HASH).map(RawItems::bytes);
+    }
+
+    /**
+     * @return the validity interval's start, its 64 bits
+     */
+    public OptionalLong validityStart() {
+        return number(TxBodyField.VALIDITY_START);
+    }
+
+    /**
+     * @return the mint, one entry per policy and per asset name, as {@link #withdrawals()} has; none if the field is
+     * absent
+     */
+    public List<RawMultiAsset> mint() {
+        return value(TxBodyField.MINT).map(field -> RawMultiAsset.read(field, lenient)).orElse(List.of());
+    }
+
+    public Optional<byte[]> scriptDataHash() {
+        return value(TxBodyField.SCRIPT_DATA_HASH).map(RawItems::bytes);
+    }
+
+    /**
+     * @return the collateral inputs, or empty if the field is absent
+     */
+    public Optional<List<RawInput>> collateral() {
+        return value(TxBodyField.COLLATERAL).map(this::inputs);
+    }
+
+    /**
+     * @return the required signers' key hashes in encoded order, with any repeated hash kept, or empty if the field is
+     * absent or its key means something else in this era
+     */
+    public Optional<List<byte[]>> requiredSigners() {
+        return value(TxBodyField.REQUIRED_SIGNERS).map(field -> items(field, "required signers", RawItems::bytes));
+    }
+
+    /**
+     * @return the network id, as encoded; which values exist is not checked
+     */
+    public OptionalInt networkId() {
+        Optional<CborSpan> field = value(TxBodyField.NETWORK);
+        return field.isPresent() ? OptionalInt.of(RawItems.smallUnsigned(field.get())) : OptionalInt.empty();
+    }
+
+    public Optional<RawOutput> collateralReturn() {
+        return value(TxBodyField.COLLATERAL_RETURN).map(this::output);
+    }
+
+    public Optional<BigInteger> totalCollateral() {
+        return value(TxBodyField.TOTAL_COLLATERAL).map(RawItems::unsigned);
+    }
+
+    /**
+     * @return the reference inputs, or empty if the field is absent
+     */
+    public Optional<List<RawInput>> referenceInputs() {
+        return value(TxBodyField.REFERENCE_INPUTS).map(this::inputs);
+    }
+
+    public Optional<RawVotingProcedures> votingProcedures() {
+        return value(TxBodyField.VOTING_PROCEDURES)
+                .map(field -> lenient ? RawVotingProcedures.lenient(field, era) : RawVotingProcedures.of(field));
+    }
+
+    /**
+     * @return the proposal procedures in encoded order, with any repeated one kept, read in this view's era; or empty
+     * if the field is absent
+     */
+    public Optional<List<RawProposal>> proposalProcedures() {
+        return value(TxBodyField.PROPOSAL_PROCEDURES).map(field -> items(field, "proposal procedures",
+                proposal -> lenient ? RawProposal.lenient(proposal, era) : RawProposal.of(proposal, era)));
+    }
+
+    /**
+     * @return the current treasury value; read as the models read it, any integer that is not a bignum
+     */
+    public Optional<BigInteger> currentTreasury() {
+        if (tolerant)
+            return value(TxBodyField.CURRENT_TREASURY).map(value -> RawItems.integer(value, true));
+        return value(TxBodyField.CURRENT_TREASURY).map(lenient ? RawItems::number : RawItems::unsigned);
+    }
+
+    public Optional<BigInteger> donation() {
+        return value(TxBodyField.DONATION).map(value -> tolerant ? RawItems.integer(value, true)
+                : RawItems.unsigned(value));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the guards of a Dijkstra body (key 14) in encoded order, a key hash read as a key credential; or empty if
+     * the field is absent or the view's era is before Dijkstra. That the items have one form is policy
+     */
+    public Optional<List<RawCredential>> guards() {
+        return since(TxBodyField.GUARDS).map(field -> items(field, "guards", RawCredential::guard));
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the sub-transactions of a Dijkstra body (key 23) in encoded order, each {@code [body, witnesses, aux /
+     * null]}; none if the field is absent or the view's era is before Dijkstra. A sub-transaction is read as
+     * {@link RawTx#of(byte[])} reads one, or as {@link RawTx#lenient(byte[])} does if this view is lenient, and its id
+     * is the hash of its body
+     * @throws CborRuntimeException if one is not an array of three items, or its body or witness set repeats a key
+     */
+    public List<RawTx> subTransactions() {
+        return since(TxBodyField.SUB_TRANSACTIONS)
+                .map(field -> items(field, "sub-transactions", tx -> RawTx.subTransaction(tx, lenient)))
+                .orElse(List.of());
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the required top-level guards of a Dijkstra body (key 24), every entry in encoded order; none if the
+     * field is absent or the view's era is before Dijkstra
+     */
+    public List<RawTopLevelGuard> requiredTopLevelGuards() {
+        return since(TxBodyField.REQUIRED_TOP_LEVEL_GUARDS).map(RawTopLevelGuard::read).orElse(List.of());
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the direct deposits of a Dijkstra body (key 25), a reward account and a coin each, read as
+     * {@link #withdrawals()} reads withdrawals; none if the field is absent or the view's era is before Dijkstra
+     */
+    public List<RawWithdrawal> directDeposits() {
+        return since(TxBodyField.DIRECT_DEPOSITS).map(RawWithdrawal::read).orElse(List.of());
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the account balance intervals of a Dijkstra body (key 26), every entry in encoded order; none if the
+     * field is absent or the view's era is before Dijkstra
+     */
+    public List<RawAccountBalanceInterval> accountBalanceIntervals() {
+        return since(TxBodyField.ACCOUNT_BALANCE_INTERVALS).map(RawAccountBalanceInterval::read).orElse(List.of());
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return the starting account balance intervals of a Dijkstra top-level body (key 27), every entry in encoded
+     * order; none if the field is absent or the view's era is before Dijkstra
+     */
+    public List<RawAccountBalanceInterval> startingAccountBalanceIntervals() {
+        return since(TxBodyField.STARTING_ACCOUNT_BALANCE_INTERVALS).map(RawAccountBalanceInterval::read)
+                .orElse(List.of());
+    }
+
+    private List<RawInput> inputs(CborSpan field) {
+        return items(field, "set of inputs", RawInput::of);
+    }
+
+    private static <T> List<T> items(CborSpan field, String what, Function<CborSpan, T> read) {
+        List<CborSpan> items = RawItems.array(field, what);
+        List<T> views = new ArrayList<>(items.size());
+        for (CborSpan item : items)
+            views.add(read.apply(item));
+        return views;
+    }
+
+    private OptionalLong number(TxBodyField field) {
+        Optional<CborSpan> value = value(field);
+        return value.isPresent() ? OptionalLong.of(RawItems.unsignedLong(value.get())) : OptionalLong.empty();
+    }
+
+    private CborSpan required(TxBodyField field) {
+        return value(field).orElseThrow(() -> error("A transaction body without " + field, span));
+    }
+
+    // A field of an era after the view's is an unknown key there, so it reads as absent, as a field of Dijkstra does
+    // before Dijkstra. The other accessors read the newest row of their field in any era.
+    private Optional<CborSpan> since(TxBodyField field) {
+        return field.spec().startsAfter(era) ? Optional.empty() : value(field);
+    }
+
+    // A sub-transaction body has no top-level-only field: the ledger reads such a key there as unknown.
+    private Optional<CborSpan> value(TxBodyField field) {
+        if (TxBodyField.RECORD.replacedIn(field.spec(), era) || sub && field.topLevelOnly())
+            return Optional.empty();
+        return RawTx.field(fields, field.spec().key());
+    }
+}

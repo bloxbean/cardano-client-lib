@@ -1,18 +1,18 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
 import java.math.BigInteger;
-import java.util.List;
 import java.util.Objects;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
 
 @Data
 @AllArgsConstructor
@@ -40,14 +40,12 @@ public class VoteRegDelegCert implements Certificate {
         return certArray;
     }
 
-    @SneakyThrows
     public static VoteRegDelegCert deserialize(Array certArray) {
-        List<DataItem> dataItemList = certArray.getDataItems();
+        return from(RawCertificate.lenient(CertKind.VOTE_REG_DELEG_CERT, CborSerializationUtil.span(certArray)));
+    }
 
-        StakeCredential stakeCredential = StakeCredential.deserialize((Array) dataItemList.get(1));
-        DRep drep = DRep.deserialize(dataItemList.get(2));
-        BigInteger coin = getBigInteger(dataItemList.get(3));
-
-        return new VoteRegDelegCert(stakeCredential, drep, coin);
+    static VoteRegDelegCert from(RawCertificate cert) {
+        return new VoteRegDelegCert(RawModels.stakeCredential(cert.credential()), RawModels.drep(cert.drep()),
+                cert.coin());
     }
 }

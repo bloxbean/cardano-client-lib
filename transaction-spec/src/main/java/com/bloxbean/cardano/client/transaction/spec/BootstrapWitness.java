@@ -1,15 +1,15 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.transaction.raw.RawBootstrapWitness;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -32,22 +32,15 @@ public class BootstrapWitness {
     }
 
     public static BootstrapWitness deserialize(Array bootstrapWitnessArrayDI) throws CborDeserializationException {
-        List<DataItem> dataItemList = bootstrapWitnessArrayDI.getDataItems();
-        if (dataItemList == null || dataItemList.size() != 4)
-            throw new CborDeserializationException("BootstrapWitness deserialization error. Invalid no of DataItem");
+        try {
+            return from(RawBootstrapWitness.of(CborSerializationUtil.span(bootstrapWitnessArrayDI)));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("BootstrapWitness deserialization failed", e);
+        }
+    }
 
-        DataItem vkeyDI = dataItemList.get(0);
-        DataItem sigDI = dataItemList.get(1);
-        DataItem chainCodeDI = dataItemList.get(2);
-        DataItem attributesDI = dataItemList.get(3);
-
-        BootstrapWitness bootstrapWitness = new BootstrapWitness();
-        bootstrapWitness.setPublicKey(((ByteString) vkeyDI).getBytes());
-        bootstrapWitness.setSignature(((ByteString) sigDI).getBytes());
-        bootstrapWitness.setChainCode(((ByteString) chainCodeDI).getBytes());
-        bootstrapWitness.setAttributes(((ByteString) attributesDI).getBytes());
-
-        return bootstrapWitness;
+    static BootstrapWitness from(RawBootstrapWitness raw) {
+        return new BootstrapWitness(raw.publicKey(), raw.signature(), raw.chainCode(), raw.attributes());
     }
 
 }
