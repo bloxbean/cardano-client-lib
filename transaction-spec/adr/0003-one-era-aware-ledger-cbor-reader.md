@@ -1,7 +1,8 @@
 # ADR 0003: One Era-Aware Ledger CBOR Reader
 
 **Status**: Accepted. M0 to M6 are implemented (section 7.1). r6 splits M7: M7a, experimental Dijkstra and Leios
-reading (D4a), is implemented in CCL (section 7.2); M7b and M8 are not started
+reading (D4a), is implemented in CCL (section 7.2). r9 decides Q7: Yaci's models gain Dijkstra's fields in M7c
+(D4b). M7b, M7c and M8 are not started
 **Date**: 2026-11-05
 **Risk**: High. This changes the code that reads every block and transaction in CCL, Yaci and Yano, and a shared bug
 would reach all three.
@@ -325,7 +326,7 @@ null only before Alonzo as today, so a Dijkstra transaction whose flag is false 
 unchanged: `ProtocolVersion` carries the version pair, which in Dijkstra is the highest supported major version and
 the software tag. `TxBodyType` gains Dijkstra (7) for submission, and `TxCborUtil` takes Dijkstra transactions from
 `txBytes(i)`. Dijkstra-only fields are not added to Yaci's models here (Q7): listeners reach them through the
-transaction's CBOR and CCL's views.
+transaction's CBOR and CCL's views. r9: they are added in M7c (D4b).
 
 **Yano.** Unchanged. `HaskellPolicy.forEra` keeps refusing Dijkstra, and Yano's header policy keeps refusing a 12-item
 header (I14).
@@ -358,6 +359,154 @@ dataset stays fetched.
 Not covered by any vector: a non-nil Peras certificate, real parameter updates with keys 40-56, guards with a script
 credential on a real network, and rejection cases for the block, header and interval rules. Those rules are tested
 only for acceptance.
+
+### D4b. Dijkstra fields in Yaci's models (r9)
+
+Q7 is decided as (a): Yaci's models gain Dijkstra's fields now, in M7c, so that the Leios work and a later Dijkstra
+network test start from them. Everything added is experimental, as in D4a, and carries the same Javadoc.
+
+**Source of the values.** Every new field is mapped from a CCL view that M7a already reads (D8: Yaci adds no format
+knowledge). Read in an era before Dijkstra, those views return empty, so a Conway block maps as before.
+
+| Yaci model | New field | Type | From |
+|---|---|---|---|
+| `TransactionBody` | `guards` (key 14 in Dijkstra) | `List<Credential>`, in encoded order | `RawTxBody.guards()` |
+| | `subTransactions` (23) | `List<SubTransaction>` | `RawTxBody.subTransactions()` |
+| | `requiredTopLevelGuards` (24) | `List<TopLevelGuard>` | `RawTxBody.requiredTopLevelGuards()` |
+| | `directDeposits` (25) | `Map<String, BigInteger>`, keyed as `withdrawals` is | `RawTxBody.directDeposits()` |
+| | `accountBalanceIntervals` (26), `startingAccountBalanceIntervals` (27) | `Map<String, AccountBalanceInterval>`, keyed as `withdrawals` is | `RawTxBody.accountBalanceIntervals()`, `startingAccountBalanceIntervals()` |
+| `Witnesses` | `plutusV4Scripts` (8) | `List<PlutusScript>` | `RawWitnessSet.plutusV4Scripts()` |
+| `AuxData` | `plutusV4Scripts` (5) | `List<PlutusScript>` | `RawAuxData.plutusV4Scripts()` |
+| `PoolParams` | `blsKey` | `BlsKey` | `RawCertificate.blsKey()` |
+| `ProtocolParamUpdate` | keys 34-56, one field each, named after CCL's `ProtocolParamField` rows | Yaci's conventions (below) | `RawProtocolParamUpdate` |
+| `Block` | `leiosCertificate`, `perasCertificate` | `LeiosCertificate`; the Peras certificate's bytes as hex | `RawBlock.leiosCertificate()`, `perasCertificate()` |
+| `HeaderBody` | `leiosCertInBody`, `ebAnnouncement` (12-item header only) | `Boolean`; `EbAnnouncement` | `RawHeader.leiosCertInBody()`, `ebReferencesAnnouncement()` |
+
+**New small models.** Each is a Lombok value class, like its neighbours.
+- `SubTransaction`: `body` (a `TransactionBody`), `witnesses` (a `Witnesses`) and `auxData` (an `AuxData`, or null).
+  - Its id is `body.txHash`, the hash of the body's original bytes (I8), so there is no second copy.
+  - A sub-transaction body has none of keys 2, 13, 16, 17, 23 and 27 (ADR 0004 D2). So `fee`, `collateralInputs`,
+    `collateralReturn`, `totalCollateral`, `subTransactions` and `startingAccountBalanceIntervals` are null in it.
+- `TopLevelGuard`: `credential`, and `datum` (Yaci's `Datum`, or null). The datum is built from the entry's source bytes,
+  as witness datums are (`DataItemIsolation`), so its hash follows I8.
+- `AccountBalanceInterval`: either `exact`, or `inclusiveLower` and `exclusiveUpper`, where either bound may be null.
+  The names follow Haskell's `Inclusive Coin` and `Exclusive Coin` (`Dijkstra/Scripts.hs:670-674`) and CCL's model.
+- `BlsKey`: `publicKey` and `proofOfPossession`, as hex.
+- `LeiosCertificate`: `signers` and `signature`, as hex.
+- `EbAnnouncement`: `hash` (hex) and `size`.
+
+**Parameter types follow Yaci's model, not CCL's.**
+
+| Keys | Haskell type | Yaci type |
+|---|---|---|
+| 39, 44, 54 | unit interval | Yaci `UnitInterval` |
+| 37, 50, and 38's value | positive or non-negative interval | `NonNegativeInterval` (the type `priceMem` uses) |
+| Word32 keys: 34-36, 40-42, 45, 46, 48, 49 and 53's value | `Word32`; 36 is `NonZero Word32`, and 40-42 are `Milliseconds32`, a Word32 (`PParams.hs:706`) | `Long`, with no narrowing: `UpdateSerializer`'s 32-bit cast (`low32`) is kept for the old keys only, as an `Integer` would turn 4294967295 into -1 |
+| Word16 keys: 43, 51, 52 | `Word16` | `Integer` |
+| 55, 56 | coin | `BigInteger` |
+| 47 | ex-units | split into `maxEndorserBlockExMem` and `maxEndorserBlockExSteps`, as 20 and 21 are |
+
+**Enumerations and native scripts.**
+- New constants: `PlutusScriptType.PlutusScriptV4`, `RedeemerTag.Guarding(6)` (JSON `guarding`), and
+  `NativeScriptType.REQUIRE_GUARD = 6`. The redeemer mapper maps tag 6, which it leaves null today.
+- A native script of type 6 gets JSON: `{"type": "guard", "credential": {...}}`, with the credential written as Yaci's
+  `Credential` is.
+- Where the name comes from: Yaci's native-script JSON uses cardano-cli's names (`sig`, `all`, `any`, `atLeast`, `after`,
+  `before`), not the ledger's (`TimeStart`, `TimeExpire`: `Allegra/Scripts.hs:311-318`). cardano-cli has no name for the
+  guard. So Yaci takes the ledger's kind `Guard` (`Dijkstra/Scripts.hs:385-390`) in its own lower-case style. CCL's
+  `RequireGuard` has no JSON form to reuse.
+- These mappings take no era, as today:
+  - A type-6 script in an earlier era's block was kept with a parse error (section 7.2); it now gets the guard JSON.
+  - A redeemer tag 6 in an earlier era was null; it is now `Guarding`.
+
+  Both inputs are invalid before Dijkstra. Both are listed differences, each with a regression test.
+
+**Absent and empty.**
+- Each new field is null when the field is absent, and carries `@JsonInclude(NON_NULL)`. This keeps Conway JSON
+  unchanged.
+- Only `guards` can be present and empty in Haskell: `decodeGuards` has no `failOnNull`. Key 23 is a non-empty set, and
+  24 to 27 use `failOnNull` (`Dijkstra/TxBody.hs:438-470`).
+- CCL reads 23 to 27 tolerantly and returns an empty list for both absent and empty. Yaci maps both to null. Since a
+  present empty value is invalid, nothing a valid chain carries is lost.
+- `Witnesses` is the exception. Every list there is empty, never null, when absent, and Haskell rejects an empty key 8
+  (`scriptDecoderV9`). So `plutusV4Scripts` follows its neighbours: an empty list, with `@JsonInclude(NON_EMPTY)` to keep
+  Conway JSON unchanged.
+- `AuxData`'s script lists are null when absent, and `plutusV4Scripts` follows them.
+
+**`requiredSigners` in Dijkstra.** Haskell keeps required signers as a derived view of the guards:
+`reqSignerHashesTxBodyG` is the key hashes of the key-credential guards (`Dijkstra/TxBody.hs:1417-1424`), and UTXOW
+needs their VKey witnesses through it (`Dijkstra/UTxO.hs:160`, `getConwayWitsVKeyNeeded`).
+- The mapper does the same. For a Dijkstra body, `requiredSigners` is the set of hex key hashes of the key guards. It is
+  null when key 14 is absent, and an empty set when the guards hold no key credential, as a Conway body's present but
+  empty key 14 gives today.
+- `guards` keeps the full ordered list, scripts included.
+- `RawTxBody.requiredSigners()` stays empty in Dijkstra, as the view reads key 14's own meaning.
+- Yaci Store stores and serves this field (`TransactionProcessor`, the Blockfrost `required_signers` endpoint), so
+  leaving it null would silently empty it for every Dijkstra transaction.
+
+**Parameter keys 38 and 53.** These have three states (ADR 0004 D2): absent, nil, or a value.
+- Each is an `Optional`: null when absent, empty when nil, and present with a value.
+- The model must round-trip through any `ObjectMapper`, with or without Jackson's JDK 8 module. Yaci Store reads Yaci
+  models with a bare `new ObjectMapper()` (`RemoteEventConsumer`).
+- CCL's `NilOrValueJsonSerializer` therefore becomes public. It gains a matching `NilOrValueJsonDeserializer`: a JSON
+  null gives an empty `Optional`, a value gives `Optional.of` it, and a missing field stays null.
+- Both are field annotations, used by CCL's model and by Yaci's two fields. Tests round-trip all three states through a
+  bare mapper and through one with the JDK 8 module, with key 38's interval and key 53's number populated in both
+  models.
+- CCL's `Rational`, key 38's value type, has no constructor Jackson can use. Its existing constructor gains
+  `@JsonCreator`, with `@JsonProperty("numerator")` and `@JsonProperty("denominator")` on its arguments, which is
+  additive.
+- Two details in the deserializer matter:
+  - It overrides `getNullValue` to return an empty `Optional`. Jackson routes a JSON null there, not to `deserialize`,
+    so without the override nil would become absent.
+  - It is a `ContextualDeserializer`, which takes the content type from the property. One class then serves
+    `Optional<Rational>`, `Optional<Long>`, `Optional<NonNegativeInterval>` and `Optional<Integer>`.
+
+**Writers.** Yaci's builder of transactions stays out of scope, but a Yaci writer of a changed model must not silently
+drop a new field (ADR 0004 D1).
+- `UpdateSerializer.serializePPUpdate` writes keys 34 to 56, as the key-by-key inverse of `read`. `GovActionSerializer`
+  calls it, and Yano persists proposals through that path for enactment (`GovernanceCborCodec`).
+- That is the only Yaci writer that builds a changed model's bytes from its fields. The other `serialize` and
+  `serializeDI` overrides in `core` are on classes that gain nothing (`Credential`, `StakeCredential`, `ExUnits`,
+  `GovActionId`). `TxCborUtil` writes from the `cbor` fields byte for byte (section 7.2), so it is unaffected.
+- Reading back what this writer wrote needs the era. `GovActionSerializer.deserialize(bytes)` reads as Conway, so CCL's
+  view drops keys 34 to 56 there (`RawProtocolParamUpdate.since`). Yaci adds `deserialize(bytes, era)`; the era-less
+  method keeps reading as Conway. Yano's `GovernanceCborCodec` reloads proposals era-less, so passing the proposal's era
+  is a Yano prerequisite before Dijkstra (section 8). A Yaci test writes a Dijkstra `ParameterChange` and reads it back
+  with its era.
+- Tests write and read keys 34 to 56 at the boundaries of their types: 2^31 and 2^32 - 1 for the Word32 keys.
+
+**API compatibility.** This follows ADR 0004's constructor rule.
+- A class that gains fields makes its Lombok all-args constructor private, and keeps **every** existing public
+  constructor with exactly today's parameters. That is, for example, three for `AuxData` and two for `Witnesses`.
+- The only main-code caller in Yano is `YaciBlockDecoder`, which rebuilds a block whose era is null with the old 7-item
+  `new Block(...)`. Tests call `new Block(...)` and the 6-argument `new AuxData(...)`. Yano's `new PoolParams(...)` in
+  `ledger-rules` is its own record, and Yaci Store's main code calls none of these constructors.
+- The old constructors leave the new fields null, except `Witnesses.plutusV4Scripts`, which they set to an empty list
+  as its neighbours are. A copy through them drops the new fields, so:
+  - `Block` gains `toBuilder`;
+  - `YaciBlockDecoder` copies with it, keeping the Leios and Peras fields of an unknown-index Dijkstra block (I12);
+  - a test covers that path.
+- Builders gain the new setters.
+- `equals`, `hashCode` and `toString` include the new fields in classes that already generate them. `PoolParams`, which
+  has no `@EqualsAndHashCode`, does not gain one.
+
+**What listeners must still do.** Yaci maps the block; it does not apply ledger rules. Five things are left to
+listeners, and are recorded in section 8 as prerequisites before Yano or Yaci Store ingest Dijkstra:
+- **Sub-transactions change the UTxO.** When the top-level transaction is phase-2 valid, each sub-transaction's inputs
+  are spent and its outputs are created under its own id (`Dijkstra/Rules/SubUtxo.hs:255-262`, from LEDGER through
+  SUBLEDGERS). When the top-level transaction is invalid, they do nothing.
+  - `helper`'s `Transaction.utxos` keeps listing only the top-level outputs, and its Javadoc says so.
+  - Adding sub-transaction outputs there without their spent inputs and the inherited validity would apply half the
+    rule. So the whole rule stays with the listener's ledger, where both halves are.
+  - The listener reads them from `body.subTransactions[i].body`.
+- **Plutus V4 scripts and the guarding purpose.** These are new values for consumers. Yaci Store's script store rejects
+  `PlutusScriptV4` (`ScriptUtil`) and skips `Guarding` (`RedeemerDatumMatcher`), and its own `ScriptType` has no V4.
+- **The guards in key 14.** These are the authority for script guards. `requiredSigners` carries only the key hashes.
+- **Yano's proposal store** must reload a Dijkstra proposal with its era (`GovernanceCborCodec`, through the new
+  `GovActionSerializer.deserialize(bytes, era)`).
+- **Local-state query results** for Dijkstra parameters keep their Conway shape. Their format is the node's query codec,
+  not the ledger CDDL, and M7b revisits it.
 
 ### D5. What the reader accepts and rejects
 
@@ -597,6 +746,7 @@ depends on this path.
 | I13 | Yano's body and witness checks for unknown keys, duplicate keys, including differently encoded equal keys, and missing required fields are expressed through the walk with no key number in the policy | D1, D6 | M1's keyed-record proof |
 | I14 | Adding Dijkstra changes no outcome for an earlier era: CCL's dataset gates, G3, G5 and G6 give the same results as before M7a | D4a | The existing gates, run before and after; tests that a 12-item header is still refused by Yano's Conway header policy, and that a Conway witness set with an unknown key 8 still gives the same `scripts()` |
 | I15 | Every valid Dijkstra test vector reads and walks with no rejection, and every hash and id matches the vector's, compared on the reader's original bytes. Vectors come only from Haskell code or from networks of Haskell nodes, never from this code or a third party's hand-built fixtures; each rule the vectors miss is listed | D4a | M7a's vector suite |
+| I16 | (r9) Yaci's Dijkstra fields come only from CCL's views. A block of an earlier era maps to equal models with byte-identical JSON before and after M7c, apart from D4b's two listed era-less mappings (a type-6 native script, redeemer tag 6), and every public constructor and method of a changed Yaci model still exists. Keys 38 and 53 round-trip in all three states through any `ObjectMapper`. Each new field read from a Dijkstra vector equals the vector's value, taken from the vector's own source and not from this code | D4b | Yaci `core` and `helper` suites; a JSON pin of fixtures from every era against the M7a commit; a signature listing against it, as ADR 0004 W2; M7a's vectors mapped to Yaci's models |
 
 Gates reused from ADR 0002: **G3** `tools/chain-parse-check` full replay on mainnet, preprod and preview, before and
 after; **G5** downstream suites against a CCL snapshot: Yaci `core`, JuLC, Yano `ledger-rules`, `ledger-conformance` and
@@ -618,6 +768,7 @@ Each milestone releases in the usual order: CCL, then Yaci, then Yano. It can st
 | M6 | Cleanup. Yaci's inner serializers deprecated. Yano's old reading code and the G7 differential jobs deleted. Yano's harness reads each rule directly | M5 | Report no lower; I7's two checks still pass; `StrictElements` gone |
 | M7a | Dijkstra and Leios reading, experimental (D4a). Yaci delivers Dijkstra blocks to listeners | M6; the r6 pin and its test vectors | I2, I3 at the r6 pin, I8, I14, I15; G5 |
 | M7b | Dijkstra final: the experimental marking goes, pins move to the release that forks, Yano gains its version-12 policy | Era frozen for a hard fork: a cardano-node release that forks into Dijkstra without `ExperimentalHardForksEnabled` | Dijkstra dataset samples pass at the new pin; report extended |
+| M7c | (r9) Dijkstra fields in Yaci's models, experimental (D4b): CCL's nil-or-value JSON codec public, Yaci's models, mappers and `serializePPUpdate`, Yano's `YaciBlockDecoder` copy | M7a | I14, I16; G5 |
 | M8 | Listener ADR in Yaci (D11) | M6; maintainer's decision | Separate ADR |
 
 **M1's decision.** Certificates are the pilot because they exist in all three projects, have 19 tags across eras, and
@@ -895,6 +1046,9 @@ is to be reported upstream.
 | Yaci, unknown era index 9 or more (r6) | A Conway-shaped block now raises `onParsingError`, where it reached listeners with a null era; a Dijkstra-shaped one reaches them with a null era (D4a, I12) |
 | Yaci native scripts of an unknown type (r8) | Kept with a parse error in every era, where they were dropped (section 7.2) |
 | Yaci chain-sync headers (r8) | Read in their variant's era: a header of another era's shape fails (section 7.2) |
+| Yaci models (r9) | New nullable fields, every public constructor kept, `Block.toBuilder` (D4b, I16). Enums gain `PlutusScriptV4` and `Guarding`; a native script of type 6 gets a JSON form, in any era. A Dijkstra body's `requiredSigners` are its key guards, as Haskell's `reqSignerHashesTxBodyG` |
+| Listeners before Dijkstra (r9) | Must apply sub-transactions to the UTxO (`helper`'s `utxos` are top-level only), and handle Plutus V4 and the guarding purpose; Yaci Store's script store rejects V4 today. Yano reloads stored proposals with their era. Local-state query results stay Conway-shaped (D4b) |
+| `NilOrValueJsonSerializer` (r9) | Public, with a new `NilOrValueJsonDeserializer`, so CCL's and Yaci's keys 38 and 53 round-trip without the JDK 8 module. `Rational` gains a `@JsonCreator` |
 | `RawHeader.protocolMinor()` on a Dijkstra header (r6) | Returns the software tag, the second number of the pair, as consensus reads it (D4a) |
 
 ## 9. Alternatives considered
@@ -963,6 +1117,8 @@ found no real block affected.
 23-27, Plutus V4 scripts, the Leios and Peras certificates and the Leios header fields are reached through CCL's
 views. Options: (a) add them to Yaci's models now; (b) let the Leios branch add the ones it uses, as additive fields
 under ADR 0004's constructor rule. Lean: (b), so fields arrive with a user and the format is closer to final.
+**Decided (r9, maintainer, 2026-11-07): (a)**, so that the Leios work and a Dijkstra network test start from Yaci's
+models (D4b, M7c).
 
 ## 12. Related findings (out of scope)
 
@@ -1004,3 +1160,10 @@ under ADR 0004's constructor rule. Lean: (b), so fields arrive with a user and t
   `4fd977b2`; a disputed dataset label) and the differences for approval. Status line and section 4's dataset row
   follow. The decisions D1-D11 and D4a are unchanged.
 - **r8** (2026-11-07): section 7.2 records Yaci's part of M7a and its differences; two section 8 rows.
+- **r9** (2026-11-07): Q7 decided as (a) by the maintainer. New D4b: Dijkstra fields in Yaci's models, from CCL's views,
+  null when absent, with ADR 0004's constructor rule. New I16 and M7c; the status line, D4a's Yaci note, section 8 and
+  Q7 follow. Reviewed before commit by a Fable pass and a Codex pass; their findings are folded in (required signers
+  from the key guards, as Haskell; three-state JSON both ways; sub-transaction UTxO rule stated and left to listeners;
+  Yaci's parameter types and writer; the constructor inventory and the archive copy; absent against empty; the era-less
+  enum mappings; no duplicate sub-transaction id; `Long` for Word32 keys; `Rational`'s JSON creator; reading stored
+  proposals with their era). Both approved: Fable in round 2, Codex in round 3.
