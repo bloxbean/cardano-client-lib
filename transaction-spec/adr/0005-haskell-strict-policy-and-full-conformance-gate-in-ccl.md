@@ -276,7 +276,8 @@ p.script(bytes);                    // script = [language, script]
 - **The strict transaction read is the first decoding verdict.** Once it accepts, Yano's mapping rejects nothing (J5).
   Yano's admission also builds CCL's model, which can still fail on a gap in the model; J10 lists each such gap.
 - **Package-private helpers.** `StrictCbor` and `CborCanonical` stay internal. Yano's five direct `StrictCbor` callers
-  (section 1.3: three outside the package, and `RawScript.fromScriptRef` and `RawOutput.accepted`, which stay) move to
+  (section 1.3: `ShelleyHeaderView`, `ConwayTxInfoTranslator`, `RawParamUpdate`, `RawScript.fromScriptRef` and
+  `RawOutput.accepted`) move to
   `CborSpan`, `RawItems` and the strict reads; a read they need that has no public form is added to `RawItems`, the
   reader's existing class for reading one item.
 - Strict reads are stack-safe as the walk is (J7).
@@ -541,3 +542,4 @@ behaviour; the question moves to CCL with the policy.
   - Five `StrictCbor` callers (Fable F22). D4.
   - The harness finds the checkout root and uses the `git` executable, no Git library (Fable F23). D8.
   - Model-stage exceptions without a checked type are errors and defects to fix (Fable F24). D10.
+  - The five `StrictCbor` callers named, not counted by package (Codex F13, after its approval of `d943dc37`).
