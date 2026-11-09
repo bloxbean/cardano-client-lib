@@ -1,6 +1,6 @@
 # ADR 0005: The Haskell-Strict Decoding Policy and the Full Conformance Gate in CCL
 
-**Status**: Proposed (r3)
+**Status**: Proposed (r4)
 **Date**: 2026-11-09
 **Risk**: High. The policy decides which transactions and block headers Yano accepts. A mistake made while moving it
 changes what a node admits.
@@ -269,12 +269,16 @@ p.script(bytes);                    // script = [language, script]
 - **The block read checks the header.** Today's harness reads a block with `RawBlock.of`, which keeps the header as a
   span without looking into it (`RawBlock.java:73`, `:233`), and then each transaction. So bare Conway bytes
   `85 00 80 80 a0 80`, whose header is `0`, pass. Haskell's block decoder decodes the header. `p.block` reads the header
-  with `HaskellPolicy.header` and checks it is the era's layout. Any sample this changes is a J1 correction.
+  with `HaskellPolicy.header` and checks it is the era's layout. Any sample this changes is a J1 correction. None is
+  expected: at `4fd977b2` no invalid `block` sample differs from a valid block only in its header, so the dataset
+  cannot see this gap, as it cannot see section 1.4's. The header check gets its own unit tests: a malformed header and
+  a header of another era's layout.
 - **The strict transaction read is the first decoding verdict.** Once it accepts, Yano's mapping rejects nothing (J5).
   Yano's admission also builds CCL's model, which can still fail on a gap in the model; J10 lists each such gap.
-- **Package-private helpers.** `StrictCbor` and `CborCanonical` stay internal. Yano's three direct `StrictCbor` callers
-  (section 1.3) move to `CborSpan`, `RawItems` and the strict reads; a read they need that has no public form is added
-  to `RawItems`, the reader's existing class for reading one item.
+- **Package-private helpers.** `StrictCbor` and `CborCanonical` stay internal. Yano's five direct `StrictCbor` callers
+  (section 1.3: three outside the package, and `RawScript.fromScriptRef` and `RawOutput.accepted`, which stay) move to
+  `CborSpan`, `RawItems` and the strict reads; a read they need that has no public form is added to `RawItems`, the
+  reader's existing class for reading one item.
 - Strict reads are stack-safe as the walk is (J7).
 
 ### D5. One conformance harness, in CCL, published
@@ -318,9 +322,14 @@ table these seven have no model stage. Yano attaches its Yaci decoders to them a
   `DECODING_FAILURE`, so no admission outcome changes. Admission is the strict read and the model together, as today;
   what changes is the order, and that every case where they differ is listed (J10) and shown in the report's model
   stage (D10). Closing the gaps is #749's, not a prerequisite here. ADR-060 section 6 is corrected to say this.
-- **Exceptions.** Yano wraps `LedgerDecodingException` in `TxDecodingException` where it calls CCL's strict code:
-  `RawTransaction.parse`, `ShelleyHeaderView`, `PlutusScriptDecoder` (which keeps returning `Malformed`), and
-  `RawScript.fromScriptRef`, which covers its four callers. The other catch sites of section 1.3 then need no change.
+- **Exceptions.** A strict read rejects with any `CborRuntimeException` (D4, D10): `LedgerDecodingException`, the
+  reader's own, and `CborSpan.of`'s and `CborHead`'s for truncated or malformed bytes. So at each boundary where Yano
+  calls CCL's strict code, it translates that whole family into `TxDecodingException`, and lets any other runtime
+  exception through unchanged, as an engine failure. The boundaries: the engine's first call,
+  `HaskellPolicy.transaction` (through `RawTransaction.parse`); `ShelleyHeaderView`; `PlutusScriptDecoder` (which keeps
+  returning `Malformed`); and `RawScript.fromScriptRef`, which covers its four callers. The other catch sites of
+  section 1.3 then need no change. Regression tests: a truncated transaction, a truncated reference script and a
+  truncated Plutus data constant each give the same result as today.
   `RawScript.fromScriptRef` and `RawOutput.accepted` move off `StrictCbor` as D4 says.
 - Deletes what D2 moves.
 - **The report** runs CCL's harness and writes the same report format, version 2, with the Yaci decoders added. The
@@ -332,14 +341,17 @@ table these seven have no model stage. Yano attaches its Yaci decoders to them a
 
 ### D8. Dataset pins
 
-- Yano's report runs at the dataset revision its CCL version's outcomes file was made for. A dataset bump goes through CCL
-  first: CCL moves `CBOR_DATASET_REVISION`, its gate passes with the outcomes file updated after review, and a CCL pre-release
-  carries it. Then Yano moves `corpora.env`.
+- Yano's report runs at the dataset revision its CCL version's outcomes file was made for. A dataset bump goes
+  through CCL first: CCL moves `CBOR_DATASET_REVISION`, its gate passes with the outcomes file updated after review,
+  and a CCL pre-release carries it. Then Yano moves `corpora.env`.
 - The harness checks that the directory it is given is exactly that revision: a git checkout whose `HEAD` is the pin
   and whose working tree is clean, with no modified, deleted or untracked file (`git status --porcelain
   --untracked-files=all` empty). Both CI (`build.yml:104-107`) and Yano's `fetch-corpora.sh` already fetch the dataset
   with git. Git compares contents, so an edited input, expected output or normalization file, or a substituted
   sample, fails the run. A directory that is not such a checkout fails too.
+- The harness is given the dataset's `dataset` subdirectory, as both callers pass it today, and finds the checkout's
+  root with `git rev-parse --show-toplevel`. It runs the `git` executable for these checks, which both CI and Yano's
+  build already need to fetch the dataset; it adds no Git library to the published artifact.
 - So the outcomes file never meets a revision it was not made for, and a sample's identity is its path at that
   revision.
 
@@ -364,7 +376,9 @@ Each sample gets one outcome per stage:
 
 - A sample passes when it is valid and accepted, decoded or not applicable, and matches or not applicable; or when it
   is invalid and rejected. Every other sample is a miss.
-- Any error fails the gate (J11).
+- Any error fails the gate (J11). That includes a `ClassCastException` or `IllegalArgumentException` from a model
+  decoder that declares no checked exception, or from the harness's own casts and placement in the model stage. Such
+  a failure is a model or harness defect to fix in M2, never a reason to widen what counts as "failed".
 - Reason codes are a fixed set (for example `UNKNOWN_FIELD`, `REPEATED_KEY`, `MISSING_FIELD`, `INDEFINITE_RECORD`,
   `HASH_SIZE`, `INTEGER_RANGE`, `NOT_WELL_FORMED`, `STRUCTURE`), named in M1. Messages are free text and are never
   compared.
@@ -429,7 +443,7 @@ Each sample gets one outcome per stage:
 | Copy Yano's policy into CCL's tests only | Two copies of the decoding rules, kept equal by hand. The report Yano publishes would not be what CCL gated |
 | A strict mode or version parameter on the views | Rejected by ADR 0003 section 9 for the default path, and still rejected: the policy stays a separate object |
 | Policy in `transaction-spec` | Mixes rejection with the models; ADR 0003 D2 made `ledger-cbor` a module to stop that |
-| Keep the model decode first in Yano's admission | Admission would then depend on a decoder the gate does not measure, and the report would keep describing a different path from the node's |
+| Keep the model decode first in Yano's admission | Admission would reject first on the lenient model's terms, so a transaction failing both decoders would be reported with the model's reason, not Haskell's. Strict first gives every rejection the strict read can make its Haskell reason code, and leaves the model only J10's listed gaps |
 | Move model restrictions into the policy, so the two decoders agree | The policy would reject what Haskell accepts. J10 lists the gaps instead, and #749 fixes them in the model |
 | Run Yano's report in CCL's CI | CCL would depend on a Yano build, and the dependency runs the wrong way |
 
@@ -518,3 +532,12 @@ behaviour; the question moves to CCL with the policy.
   - Callers (Fable F15): `RawScript.fromScriptRef` and `RawOutput.accepted` use `StrictCbor`; `UtxowSubject` and
     `AmaruTransactionValidator` catch sites; `fromScriptRef` is the wrap point.
   - Section 1.4 says the dataset cannot see the type-6 gap (Fable F17).
+- **r4** (2026-11-09, responds to Fable's approval of `7b233b78` with F21-F24 and Codex's review of it):
+  - Exception boundaries (Codex F12): Yano translates the whole `CborRuntimeException` family a strict read rejects
+    with, at each boundary including the engine's first call; other runtime exceptions stay engine failures;
+    regression tests for truncated inputs. D7.
+  - Alternatives row on strict-first admission gives the real reason (Codex F1).
+  - The dataset cannot see the block-header gap; unit tests named (Fable F21). D4.
+  - Five `StrictCbor` callers (Fable F22). D4.
+  - The harness finds the checkout root and uses the `git` executable, no Git library (Fable F23). D8.
+  - Model-stage exceptions without a checked type are errors and defects to fix (Fable F24). D10.
