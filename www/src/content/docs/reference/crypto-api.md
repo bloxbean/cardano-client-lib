@@ -123,6 +123,19 @@ CryptoConfiguration.INSTANCE.setSigningProvider(new CustomSigningProvider());
 SigningProvider provider = CryptoConfiguration.INSTANCE.getSigningProvider();
 ```
 
+### Choosing the Ed25519 verifier
+
+`verify` gives the outcomes of a cardano-node, which verifies through libsodium: the same input checks (canonical `S`, no small-order `R` or key, canonical key) and the same cofactorless equation. Two verifiers implement it and agree on every input:
+
+- `BouncyCastleEd25519Verifier` (the default) runs on BouncyCastle's field arithmetic and allocates little. It needs bcprov 1.67 or newer. On first use it checks itself against libsodium's verdicts; if the bcprov on the classpath disagrees, `verify` throws a `LinkageError` naming that version.
+- `I2pEd25519Verifier` runs on the `net-i2p-crypto-eddsa` fork that signing uses.
+
+```java
+CryptoConfiguration.INSTANCE.setEd25519Verifier(new I2pEd25519Verifier());
+```
+
+`new EdDSASigningProvider(verifier)` fixes the verifier for one provider instead. Signing does not depend on this choice.
+
 ## Hash Functions
 
 ```java
