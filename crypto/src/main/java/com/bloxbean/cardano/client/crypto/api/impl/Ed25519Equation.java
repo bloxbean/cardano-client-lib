@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.crypto.api.impl;
 
 import org.bouncycastle.math.ec.rfc7748.X25519Field;
+import org.bouncycastle.util.Arrays;
 
 import java.io.InputStream;
 import java.math.BigInteger;
@@ -51,15 +52,16 @@ final class Ed25519Equation {
 
     private static final String SELF_CHECK_ADVICE = "Ed25519 verification uses BouncyCastle's internal field "
             + "arithmetic (org.bouncycastle.math.ec.rfc7748.X25519Field), so it runs only on a bcprov version it "
-            + "agrees with libsodium on. Use bcprov-jdk18on 1.86 (also tested with 1.78.1 and 1.83), report the "
-            + "version found, or select I2pEd25519Verifier with CryptoConfiguration.INSTANCE.setEd25519Verifier.";
+            + "agrees with libsodium on. It needs bcprov 1.67 or newer; use bcprov-jdk18on 1.86 (also tested with "
+            + "1.78.1 and 1.83), report the version found, or select I2pEd25519Verifier with "
+            + "CryptoConfiguration.INSTANCE.setEd25519Verifier.";
 
     /** The group order {@code L}. */
     private static final BigInteger ORDER = BigInteger.TWO.pow(252)
             .add(new BigInteger("27742317777372353535851937790883648493"));
 
     /** {@code d = -121665/121666}, {@code 2d} and {@code 4d}. */
-    private static final int[] D = fieldConstant("a3785913ca4deb75abd841414d0a700098e879777940c78c73fe6f2bee6c0352");
+    private static final int[] D = new int[F.SIZE];
     private static final int[] D2 = new int[F.SIZE];
     private static final int[] D4 = new int[F.SIZE];
 
@@ -70,6 +72,17 @@ final class Ed25519Equation {
     private static final Precomp[] BASE_ODD_MULTIPLES = new Precomp[8];
 
     static {
+        try {
+            buildTables();
+        } catch (LinkageError e) {
+            // A bcprov without the X25519Field this class was written against (before 1.67).
+            throw new LinkageError("Ed25519 verification cannot run on BouncyCastle bcprov " + bouncyCastleVersion()
+                    + ": " + e + ". " + SELF_CHECK_ADVICE, e);
+        }
+    }
+
+    private static void buildTables() {
+        F.decode(HexFormat.of().parseHex("a3785913ca4deb75abd841414d0a700098e879777940c78c73fe6f2bee6c0352"), 0, D);
         F.add(D, D, D2);
         F.normalize(D2);
         F.add(D2, D2, D4);
@@ -119,7 +132,7 @@ final class Ed25519Equation {
      * The caller has checked the lengths and libsodium's input checks; {@code S} is below {@code L}.
      */
     static boolean holds(byte[] publicKey, byte[] message, byte[] signature) {
-        requirePassed(SelfCheck.FAILURE);
+        requirePassed(selfCheck());
         return equationHolds(publicKey, message, signature);
     }
 
@@ -148,9 +161,32 @@ final class Ed25519Equation {
                     "f2ebf3a65afb6702a617fe6dd850790b543bf1e00bf7db36e3f60d1850622253"
                             + "a7d5eaae539a7fc14d0cec6650810690255d2c5b8c2c46f8afbf9e77904b130c", true));
 
-    /** Runs the self-check once, on first use. */
-    private static final class SelfCheck {
-        static final String FAILURE = failures(SELF_CHECK_VECTORS);
+    /** The self-check's outcome once known: {@link #PASSED} or what went wrong. */
+    private static volatile String selfCheckOutcome;
+
+    private static final String PASSED = "passed";
+
+    /**
+     * Runs the self-check on first use and keeps a definite outcome: a pass, wrong verdicts, or a
+     * {@link LinkageError} from the bcprov on the classpath. Any other error, such as an {@link OutOfMemoryError} or a
+     * {@link StackOverflowError}, propagates without an outcome, so the next verification runs the check again.
+     *
+     * @return {@code null} when it passed, otherwise what went wrong
+     */
+    static String selfCheck() {
+        String outcome = selfCheckOutcome;
+        if (outcome == null) {
+            String failure;
+            try {
+                failure = failures(SELF_CHECK_VECTORS);
+            } catch (LinkageError e) {
+                failure = "Ed25519 verification cannot run on BouncyCastle bcprov " + bouncyCastleVersion() + ": " + e
+                        + ". " + SELF_CHECK_ADVICE;
+            }
+            outcome = failure == null ? PASSED : failure;
+            selfCheckOutcome = outcome;
+        }
+        return PASSED.equals(outcome) ? null : outcome;
     }
 
     /** {@code null} when the equation gives each vector libsodium's verdict, otherwise what went wrong. */
@@ -179,7 +215,13 @@ final class Ed25519Equation {
 
     /** The {@code Bundle-Version} of the jar {@link X25519Field} came from, for the self-check's message. */
     static String bouncyCastleVersion() {
-        URL classFile = X25519Field.class.getResource("X25519Field.class");
+        URL classFile;
+        try {
+            classFile = X25519Field.class.getResource("X25519Field.class");
+        } catch (LinkageError e) {
+            // No X25519Field at all: name the jar of a class every bcprov has.
+            classFile = Arrays.class.getResource("Arrays.class");
+        }
         if (classFile == null || !"jar".equals(classFile.getProtocol())) {
             return "of unknown version";
         }
@@ -366,12 +408,6 @@ final class Ed25519Equation {
         F.normalize(y);
         F.encode(y, out, 0);
         out[31] |= (byte) ((x[0] & 1) << 7);
-    }
-
-    private static int[] fieldConstant(String littleEndianHex) {
-        int[] z = new int[F.SIZE];
-        F.decode(HexFormat.of().parseHex(littleEndianHex), 0, z);
-        return z;
     }
 
     // Point representations and formulas after BouncyCastle's Ed25519.

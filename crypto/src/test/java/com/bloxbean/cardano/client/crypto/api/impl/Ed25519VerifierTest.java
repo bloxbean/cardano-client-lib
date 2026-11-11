@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.crypto.api.impl;
 
+import com.bloxbean.cardano.client.crypto.CryptoException;
 import com.bloxbean.cardano.client.crypto.api.Ed25519Verifier;
 import com.bloxbean.cardano.client.crypto.api.SigningProvider;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Both {@link Ed25519Verifier}s against libsodium's verdicts, and against each other.
@@ -78,6 +80,26 @@ class Ed25519VerifierTest {
         assertThat(verifier.verify(new byte[64], new byte[0], null)).isFalse();
         assertThat(verifier.verify(new byte[63], new byte[0], new byte[32])).isFalse();
         assertThat(verifier.verify(new byte[64], new byte[0], new byte[31])).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"bc", "i2p"})
+    void aNullMessageFailsOnlyOnceTheKeyDecodes(String name) {
+        Ed25519Verifier verifier = verifier(name);
+        byte[] signature = HEX.parseHex("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e06522490155"
+                + "5fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b");
+        byte[] notAPoint = new byte[32];
+        notAPoint[0] = 2;
+        assertThat(verifier.verify(signature, null, notAPoint)).isFalse();
+        byte[] key = HEX.parseHex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a");
+        assertThatThrownBy(() -> verifier.verify(signature, null, key)).isInstanceOf(CryptoException.class);
+    }
+
+    @Test
+    void theConfigurationRefusesNoVerifier() {
+        assertThatThrownBy(() -> CryptoConfiguration.INSTANCE.setEd25519Verifier(null))
+                .isInstanceOf(NullPointerException.class);
+        assertThat(CryptoConfiguration.INSTANCE.getEd25519Verifier()).isNotNull();
     }
 
     /** Seeded cases built here; the two verifiers must agree on each. */

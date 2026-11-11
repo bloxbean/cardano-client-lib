@@ -7,6 +7,8 @@ import com.bloxbean.cardano.client.crypto.api.impl.EdDSASigningProvider;
 import com.bloxbean.cardano.client.crypto.bip39.DefaultEntropyProviderImpl;
 import com.bloxbean.cardano.client.crypto.bip39.api.EntropyProvider;
 
+import java.util.Objects;
+
 public enum CryptoConfiguration {
     INSTANCE();
 
@@ -44,7 +46,7 @@ public enum CryptoConfiguration {
      * @param ed25519Verifier the verifier
      */
     public void setEd25519Verifier(Ed25519Verifier ed25519Verifier) {
-        this.ed25519Verifier = ed25519Verifier;
+        this.ed25519Verifier = Objects.requireNonNull(ed25519Verifier, "ed25519Verifier");
     }
 
     public EntropyProvider getEntropyProvider() {

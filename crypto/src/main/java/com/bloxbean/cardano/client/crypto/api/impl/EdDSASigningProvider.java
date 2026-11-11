@@ -100,7 +100,8 @@ public class EdDSASigningProvider implements SigningProvider {
      * <p>
      * The {@link Ed25519Verifier} given to the constructor verifies, or else the one of {@link CryptoConfiguration}:
      * {@link BouncyCastleEd25519Verifier} by default, {@link I2pEd25519Verifier} when selected. Both have these
-     * outcomes.
+     * outcomes. The default throws a {@link LinkageError} when the bcprov on the classpath fails its self-check (it
+     * needs bcprov 1.67 or newer); select {@link I2pEd25519Verifier} to verify without BouncyCastle.
      *
      * @param signature Signature to verify
      * @param message payload

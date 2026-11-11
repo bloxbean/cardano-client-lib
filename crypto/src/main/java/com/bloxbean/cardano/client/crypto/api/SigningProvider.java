@@ -37,6 +37,8 @@ public interface SigningProvider {
      * @param message
      * @param publicKey
      * @return true if signature verification is successful, otherwise false
+     * @throws LinkageError from the default Ed25519 verifier when the bcprov on the classpath fails its self-check;
+     *         see {@code CryptoConfiguration.setEd25519Verifier}
      */
     boolean verify(byte[] signature, byte[] message, byte[] publicKey);
 

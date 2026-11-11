@@ -11,7 +11,7 @@ import com.bloxbean.cardano.client.crypto.api.Ed25519Verifier;
  * BouncyCastle's own {@code Ed25519.verify} is not used: it checks the equation times the cofactor and accepts keys
  * and {@code R} with small-order parts that libsodium rejects. On first use the equation checks itself against
  * libsodium's verdicts and, if the bcprov on the classpath disagrees, every verification throws a
- * {@link LinkageError} that names it.
+ * {@link LinkageError} that names it. It needs bcprov 1.67 or newer.
  */
 public class BouncyCastleEd25519Verifier implements Ed25519Verifier {
 
@@ -20,10 +20,15 @@ public class BouncyCastleEd25519Verifier implements Ed25519Verifier {
         if (!Ed25519InputChecks.pass(signature, publicKey)) {
             return false;
         }
-        if (message == null) {
-            // As I2pEd25519Verifier, whose engine fails on a null message.
-            throw new CryptoException("Signature verification error", new NullPointerException("message"));
+        try {
+            // The key is decoded before the message is read, so a key that is not a curve point gives false.
+            return Ed25519Equation.holds(publicKey, message, signature);
+        } catch (NullPointerException e) {
+            if (message != null) {
+                throw e;
+            }
+            // As I2pEd25519Verifier, whose engine fails on a null message once the key has decoded.
+            throw new CryptoException("Signature verification error", e);
         }
-        return Ed25519Equation.holds(publicKey, message, signature);
     }
 }

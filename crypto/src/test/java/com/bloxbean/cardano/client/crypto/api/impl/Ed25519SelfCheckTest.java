@@ -19,6 +19,8 @@ class Ed25519SelfCheckTest {
     @Test
     void passesOnTheBouncyCastleOnTheClasspath() {
         assertNull(Ed25519Equation.failures(Ed25519Equation.SELF_CHECK_VECTORS));
+        assertNull(Ed25519Equation.selfCheck());
+        assertNull(Ed25519Equation.selfCheck());
         Ed25519Equation.Vector rfc = Ed25519Equation.SELF_CHECK_VECTORS.get(0);
         HexFormat hex = HexFormat.of();
         assertTrue(new BouncyCastleEd25519Verifier().verify(hex.parseHex(rfc.signature()), new byte[0],
