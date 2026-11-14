@@ -26,10 +26,12 @@ public final class RawCredential {
 
     private final CborSpan hash;
     private final boolean script;
+    private final boolean keyHashOnly;
 
-    private RawCredential(CborSpan hash, boolean script) {
+    private RawCredential(CborSpan hash, boolean script, boolean keyHashOnly) {
         this.hash = hash;
         this.script = script;
+        this.keyHashOnly = keyHashOnly;
     }
 
     /**
@@ -40,12 +42,22 @@ public final class RawCredential {
      */
     public static RawCredential of(CborSpan span) {
         PositionalRecord record = PositionalRecord.member(RECORD, span, true);
-        return new RawCredential(record.value(FieldType.HASH28), record.tag() == SCRIPT_HASH.key());
+        return new RawCredential(record.value(FieldType.HASH28), record.tag() == SCRIPT_HASH.key(), false);
     }
 
     // A guard: a key hash is a key credential, as the ledger reads it (Dijkstra TxBody.hs, decodeGuards).
     static RawCredential guard(CborSpan item) {
-        return RawItems.content(item).majorType() == MAJOR_BYTES ? new RawCredential(item, false) : of(item);
+        return RawItems.content(item).majorType() == MAJOR_BYTES ? new RawCredential(item, false, true) : of(item);
+    }
+
+    /**
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @return whether this is a guard written as a bare key hash, the form of Conway's required signers, and not as a
+     * credential
+     */
+    public boolean isKeyHashOnly() {
+        return keyHashOnly;
     }
 
     /**

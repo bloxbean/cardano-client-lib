@@ -151,13 +151,26 @@ public class Transaction {
      * <p>
      * The model keeps one entry per map key in Plutus data and metadata, and serializes in CCL's encoding, so a received
      * transaction may re-encode to other bytes. Take its hashes from the original bytes with {@link RawTx}.
+     * <p>
+     * The fields are read as Conway reads them, and the era is left unset, unless the bytes have a field or form only
+     * a later era has: then they are read in the earliest era that has a place for all of them, as
+     * {@link #deserialize(byte[], Era)} reads them, and that era is set ({@link RawTx#eraOf}). A Dijkstra transaction
+     * with a direct deposit, say, keeps it. A form only a later era allows that its tables do not show, an
+     * indefinite-length record, is rejected as Conway rejects it: read such bytes with {@link #deserialize(byte[], Era)}
+     * (ADR 0004 D5a). Experimental: Dijkstra is not final; this may change in any release.
      *
      * @param bytes the transaction
      * @return the transaction
      * @throws CborDeserializationException if the bytes are not a well-formed Shelley-family transaction
      */
     public static Transaction deserialize(byte[] bytes) throws CborDeserializationException {
-        return deserialize(bytes, RawModels.READ_IN, false);
+        Era era;
+        try {
+            era = RawTx.eraOf(bytes, RawModels.READ_IN);
+        } catch (RuntimeException e) {
+            throw new CborDeserializationException("CBOR deserialization failed", e);
+        }
+        return deserialize(bytes, era, era != RawModels.READ_IN);
     }
 
     /**

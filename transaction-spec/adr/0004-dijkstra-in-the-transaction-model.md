@@ -1,6 +1,6 @@
 # ADR 0004: Dijkstra in CCL's Transaction Model, as an Opt-In Era
 
-**Status**: Proposed. W-M1 is implemented on CCL branch `feat/ledger-cbor` (section 7.1)
+**Status**: Proposed. W-M1 is implemented on CCL branch `feat/ledger-cbor` (section 7.1), with r3's fixes (section 7.2)
 **Date**: 2026-11-06
 **Risk**: Medium. The models are CCL's most used public API, and a change to their Conway bytes would change
 transaction ids for every user. Dijkstra itself is experimental, so its own risk is low.
@@ -67,7 +67,9 @@ codecs to 0.4.0.0 in cardano-node 11.2.0), with file and line citations in the t
 The model always has the Dijkstra fields. Whether they are written depends only on the era the caller names: a
 `Transaction` whose `era` is Dijkstra, `Transaction.serialize(Era)`, which becomes public, or the public
 `serialize(Era)` of a body, witness set or auxiliary data. `EraSerializationConfig` is not a way in: it has no setter,
-and stays so. Code that never names Dijkstra writes exactly the bytes it wrote before (W1).
+and stays so. Code that never names Dijkstra writes exactly the bytes it wrote before (W1). The one other way in is a
+read: `Transaction.deserialize(byte[])` sets Dijkstra on bytes that only Dijkstra reads (D5a, r3), which then write
+back in Dijkstra; bytes Conway reads keep no era, as before.
 
 **The era reaches every nested writer.** Where a writer drops it today, an overload taking the era is added and the
 era-less method keeps its behaviour: `ProposalProcedure.serialize(Era)`, `GovAction` serialization through it, and
@@ -160,13 +162,63 @@ pre-existing public constructor by its parameter types.
 
 `Transaction.deserialize(byte[] bytes, Era era)` is added. It reads through ADR 0003's views with the given era, maps
 the new fields, and sets the transaction's `era`, so serializing it again writes the same era. `deserialize(byte[])`
-keeps reading as Conway (`RawModels.READ_IN`), as it must (Q3).
+reads as Conway (`RawModels.READ_IN`), unless the bytes need a later era (D5a).
+
+**Key 14 keeps its form (r3).** Dijkstra reads key 14 as a set of bare key hashes or of credentials, the first item
+deciding, and keeps the bytes it read (`TxBody.hs`, `decodeGuards`). Read in Dijkstra, bare key hashes, the form a
+Conway body writes, go to `requiredSigners`, which writes them back in that form; credentials go to `guards`. So key 14
+no longer changes a Conway transaction's body when it is read in Dijkstra: written again, the body is as the model
+writes any body (ids still come from the reader, below). `RawCredential.isKeyHashOnly()` tells the forms apart. Two
+cases stay as before: a set mixing both forms, which Haskell rejects, is read into `guards` and written as credentials;
+an empty key 14 is left out on writing.
+
+**A model re-read in its own era (r3).** `TransactionSigner.sign(Transaction, …)` and `TransactionUtil.createCopy`
+write a model, then read the bytes back. They read them in the transaction's era (`TransactionUtil.reread`), so its
+Dijkstra fields stay; with no era, they read as before.
 
 **Ids come from the reader, not the model.** A model keeps no original bytes, and writing it again follows D4, not the
 sender's encoding: ascending body keys, for one. So a model read and written again can have another body hash than
 the bytes it was read from, in Dijkstra as in Conway today. The id of a received transaction is `RawTx`'s, from its
 original bytes (ADR 0003 I15). `TransactionUtil.getTxHash` keeps hashing the model's own encoding, which is the id of
 the transaction the model writes.
+
+### D5a. Reading without an era (r3)
+
+A transaction read without an era is read in the earliest era, from `READ_IN` on, whose tables have a place for every
+key and form it holds (`RawTx.eraOf`). That era is set on the transaction when it is not `READ_IN`; a transaction read
+as Conway keeps no era, as before.
+
+- **The rule is data, as ADR 0003 D3 requires.** The reader walks the bytes in each era in turn with a policy that
+  rejects a key or form the era's tables have no row for. Rows an era dropped still count as read, so an earlier era's
+  transaction stays in `READ_IN`. A key no era has, or bytes that are not a transaction, also stay in `READ_IN`, where
+  the read fails or tolerates them as before.
+- **A form the tables do not show stays in `READ_IN`.** One rule is the reader's, not a table's: from Dijkstra, a record
+  may be an indefinite-length array (`RawItems.indefiniteRecordsAllowed`). Bytes whose only Dijkstra form is such a
+  record are read in Conway, which rejects them with an error, as before: nothing is dropped, and the caller reads
+  them with `deserialize(bytes, Era.Dijkstra)`. Reading them in a later era when Conway's read fails was tried and
+  rejected in review: it would also read in Dijkstra the indefinite-length records Conway rejects on purpose, among
+  them the disputed auxiliary data of ADR 0002 Q1, and give a Conway transaction CCL cannot read a Dijkstra era.
+- **A later era needs only its rows.** When an era after Dijkstra is added to
+  `EraSpec` and its rows to the tables, its transactions are found the same way, with no change to this code. This
+  holds as long as the new era shows a key whose meaning changes by a form of its own, as Dijkstra's key 14 does with
+  credentials: a precondition on the tables of later eras, not something the rule can check. Moving `READ_IN` itself is
+  a separate decision, for when an era drops the forms of the one before.
+- **Bytes both eras read stay in `READ_IN`.** This is a preference for compatibility, not a claim that the eras read
+  such bytes alike: Conway and Dijkstra read them to the same values, with key 14 keeping its form, as far as the
+  model's own normalization goes (D5). One value is named differently: a
+  language-3 cost model is unknown in Conway and `PLUTUS_V4` in Dijkstra (section 8), with the same bytes either way. A
+  Dijkstra node accepts the Conway form `[body, wits, true, aux]` such a transaction then writes, with the same body
+  and id.
+- **Cost.** One walk in Conway for a Conway transaction; a second, in Dijkstra, only when the first meets a later
+  era's key or form. The walk parses the bytes once more: the review measured about 27 ms of walks against 100-120 ms of
+  reads for 5,860 transactions, so about a quarter more time for `deserialize(byte[])`.
+- **Scope.** The rule is `Transaction.deserialize(byte[])`'s. The other era-less model readers
+  (`TransactionBody.deserialize(Map)`, `TransactionWitnessSet.deserialize(Map)`, `AuxiliaryData.deserialize`,
+  `ProposalProcedure.deserialize`, the `GovAction` readers) take decoded values, not bytes, and read as `READ_IN`; CCL's
+  own code reads Dijkstra through `Transaction`. Bytes `READ_IN` reads only leniently, such as a tagged transaction or a
+  body with a key of no era beside a direct deposit, stay in `READ_IN` and drop the Dijkstra fields, as before.
+
+The reader's views still take an era, as ADR 0003 D3 says: `RawTx.eraOf` is how a caller that has none finds one.
 
 ### D6. Experimental
 
@@ -182,6 +234,7 @@ any release, as ADR 0003 D4a does. ADR 0003's M7b removes the marking.
 | W3 | Each valid Dijkstra test vector the models cover reads with `deserialize(bytes, Era.Dijkstra)`, and writes back with `serialize(Era.Dijkstra)` to Haskell's encoding: the dataset's normalised `*.expected.cbor`, as the Conway gate compares, or for other vectors the same value read back. Differences are listed and explained | D2, D4, D5 | The dataset gate run for Dijkstra; the ledger golden transaction; real-network transactions |
 | W4 | A field an earlier era has no place for is never dropped from its bytes: writing it fails. A value Dijkstra removed never reaches Dijkstra's bytes | D1, D4 | Unit tests, one per field |
 | W5 | Writing a model in Dijkstra and reading it back with the reader in Dijkstra gives the same values, and the reader's id of those bytes is the model's `getTxHash` | D4, D5 | Unit tests over every new field |
+| W6 (r3) | Read without an era, a transaction that Conway's tables have a place for is read exactly as before, with no era set; one holding a key or form only a later era's tables have is read in the earliest era with a place for all of it. Signing or copying a model keeps its era's fields, and a key-hash key 14 read in Dijkstra keeps the body's id | D5, D5a | Unit tests per rule; the dataset gate's valid Conway transactions; every committed real transaction, Shelley to Conway; IO's Dijkstra devnet probes (section 7.2) |
 
 ## 7. Milestones
 
@@ -223,6 +276,31 @@ for everything a caller could build before.
 **Left open.** Before Dijkstra, `AuxiliaryData` with metadata and only Plutus V3 scripts takes the metadata-only form
 and drops the scripts. This predates ADR 0004, and fixing it changes Conway bytes, so it is left for its own issue.
 
+### 7.2 Implementation record: r3 (issue #752)
+
+IO's readiness run against `d3324ec3` on a `cardano-testnet` devnet with cardano-node 11.2.0, forked from Conway to
+Dijkstra at protocol version 12 (issue #752), found three model bugs. r3 fixes them (D5, D5a).
+
+| Bug | Fix | Check |
+|---|---|---|
+| `TransactionSigner.sign(Transaction, …)` read the signed bytes back without an era, dropping body keys 23-27; the node rejected a signed direct deposit (`ValueNotConservedUTxO`, `InvalidWitnessesUTXOW`). `TransactionUtil.createCopy` had the same fault | Both re-read in the transaction's era (`TransactionUtil.reread`) | A unit test with a language-3 cost model, which the bytes leave in Conway, fails with the fault put back; on the devnet the same direct deposit is accepted |
+| Dijkstra key 14 of bare key hashes was read as guards and written back as credentials, so the body and id changed | Read into `requiredSigners`, which keeps the form | A unit test, which fails with the fault put back; IO's Conway required-signer transaction, read in Dijkstra, gives the on-chain id |
+| A read without an era dropped Dijkstra fields and gave another id | D5a | Unit tests per rule, each of which fails with the fault put back; 25 of IO's 25 transactions give the on-chain id read without an era (21 before), and in Dijkstra (23 before) |
+
+**W1 and W6.** The full CCL suite (`common-spec`, `ledger-cbor`, `transaction-spec`, `plutus`, `core`, `core-api`,
+`quicktx`, `backend`) passes on JDK 21, and the dataset gate at `4fd977b2` (misses files, certificate outcomes, golden
+bytes) is unchanged. Committed tests pin W6 for Conway: the dataset gate reads each valid Conway transaction in Conway,
+and every committed real transaction and block transaction, Shelley to Conway (pre-Alonzo ones through the rows their
+eras dropped), stays in Conway with no era set. A scan before commit also gave Conway for all 176 transactions of 16
+real Babbage and Conway blocks of Yaci's tests and for the 368 ledger-rules fixtures of the node-diversity corpus, and
+Dijkstra for the dataset's 102 valid Dijkstra transactions. The review's own runs gave Conway for 22,630 Conway dataset
+samples wrapped as transactions and for 117,200 byte-flip mutations of the real ones. IO's QuickTx and model
+probes otherwise give the same results as on `d3324ec3`.
+
+**Left for W-M2 (#752's other items).** QuickTx's stake registration with certificate types 0 and 1, which Dijkstra
+removed; Plutus V4 and the new fields in QuickTx; Plutus V4 cost models from the backends; the reference-script fee
+parameters 36 and 37 in the fee calculation; and backporting the duplicate-witness fix to 0.7.x.
+
 ## 8. Compatibility
 
 | Item | Impact |
@@ -233,7 +311,9 @@ and drops the scripts. This predates ADR 0004, and fixing it changes Conway byte
 | `CostMdls` | A language-3 model read era-less stays unknown, as today; read in Dijkstra, or added by the caller, it is `PLUTUS_V4` (D2, W1) |
 | Builder utilities that list languages (`CostModelUtil`, `tools/chain-parse-check`) | Stop at V3, as before. Plutus V4 in the builders is W-M2's |
 | `Transaction.serialize(Era)`, `ProposalProcedure.serialize(Era)`, `ProtocolParamUpdate.serialize(Era)`, `Transaction.deserialize(byte[], Era)` | New public methods. Additive |
-| `Transaction.deserialize(byte[])` | Unchanged; reads Conway |
+| `Transaction.deserialize(byte[])` | Reads Conway as before, unless the bytes hold a key or form only a later era has: then that era, which it sets (D5a, r3) |
+| `TransactionSigner.sign(Transaction, …)`, `TransactionUtil.createCopy` | Keep a transaction's era's fields; unchanged without an era (D5, r3) |
+| `RawTx.eraOf`, `RawCredential.isKeyHashOnly`, `TransactionUtil.reread` | New public methods. Additive (r3) |
 | `toString` of the models | Shows the new fields as `null` |
 
 ## 9. Alternatives considered
@@ -265,9 +345,12 @@ Dijkstra, these maps are looked at again, as ADR 0002 says of the voting maps.
 (b) write the block form `[body, wits, aux / nil, false]`. Lean: (a). A block producer writes blocks through the
 reader's spans, not through this model.
 
-**Q3. Reading without an era.** Should `deserialize(byte[])` detect Dijkstra? Some bytes could only be Dijkstra, such
-as a 3-item transaction with body keys of Alonzo or later. But the legacy 4-item form with `true` is also Conway's
-form, and key 14 reads differently in the two eras. Lean: no; the caller names the era, as ADR 0003 D3 requires.
+**Q3. Reading without an era.** Resolved in r3: yes, by D5a's rule. Some bytes could only be Dijkstra; the legacy
+4-item form with `true` is also Conway's; and key 14 reads differently in the two eras. D5a reads bytes with a key or
+form only Dijkstra has in Dijkstra, and the rest in Conway, including a 3-item transaction of Conway's keys, which
+writes back in the 4-item form with the same body; D5 makes key 14 read alike in both. The r1 lean, that the caller
+names the era, left callers that have none (the backends, the evaluators, `Account.sign(String)`) silently dropping
+Dijkstra fields (issue #752).
 
 ## 12. Revision history
 
@@ -279,3 +362,8 @@ form, and key 14 reads differently in the two eras. Lean: no; the caller names t
   answered in D2's `CostMdls` row and W1.
 - **r2** (2026-11-07): section 7.1 records W-M1's implementation; key 38's three states (D2); auxiliary data and
   container lengths (D4); status line.
+- **r3** (2026-11-14, responds to issue #752 at `d3324ec3`): a model re-read in its own era and key 14 keeping its form
+  (D5); reading without an era picks the earliest era with a place for every key and form (D5a), which resolves Q3 and
+  is the rule for later eras; W6; section 7.2; compatibility rows. Reviewed before commit by a Fable pass and a Codex
+  pass; their finding on indefinite-length records is answered in D5a, a fallback to a later era having been tried
+  and dropped.

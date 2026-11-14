@@ -104,6 +104,15 @@ class LedgerReaderConformanceTest {
         assertThat(rejected("transaction", span -> RawTx.walk(span.bytes(), Era.Conway, STRUCTURE))).isEmpty();
     }
 
+    /** Read without an era, every valid Conway transaction stays in Conway (ADR 0004 W6). */
+    @Test
+    void everyValidTransactionIsReadInConway() throws IOException {
+        assertThat(rejected("transaction", span -> {
+            if (RawTx.eraOf(span.bytes(), Era.Conway) != Era.Conway)
+                throw new IllegalStateException("read in a later era");
+        })).isEmpty();
+    }
+
     /**
      * The Dijkstra samples generated with cardano-ledger 6176e413 whose rule is unchanged at the pin, or provably
      * reaches no changed part, of every rule with a table or a typed reader: {@code
