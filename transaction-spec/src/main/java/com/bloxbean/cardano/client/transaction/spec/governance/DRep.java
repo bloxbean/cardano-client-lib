@@ -1,19 +1,17 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.transaction.raw.RawDRep;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toHex;
 
 @Getter
 @NoArgsConstructor
@@ -86,23 +84,6 @@ public class DRep {
     }
 
     public static DRep deserialize(DataItem di) {
-        List<DataItem> dataItemList = ((Array) di).getDataItems();
-
-        int key = toUnsignedInt(dataItemList.get(0));
-
-        switch (key) {
-            case 0:
-                String addKeyHash = toHex(dataItemList.get(1));
-                return DRep.addrKeyHash(addKeyHash);
-            case 1:
-                String scriptHash = toHex(dataItemList.get(1));
-                return DRep.scriptHash(scriptHash);
-            case 2:
-                return DRep.abstain();
-            case 3:
-                return DRep.noConfidence();
-            default:
-                throw new IllegalArgumentException("Invalid Drep key: " + key);
-        }
+        return RawModels.drep(RawDRep.lenient(CborSerializationUtil.span(di)));
     }
 }

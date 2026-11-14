@@ -1,0 +1,262 @@
+package com.bloxbean.cardano.client.transaction.raw;
+
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * The table of a ledger record: its shape and its fields, with the eras each field is valid for (ADR 0003 D3). Tables
+ * are written by hand and checked against the pinned CDDL by {@code tools/cddl-table-check}.
+ */
+public final class RecordSpec {
+    /** How a record's fields are found. */
+    public enum Shape {
+        /**
+         * A map, whose keys are the fields; or, if {@link RecordSpec#keyType()} is set, a map of like entries: every
+         * key has that type, and every value the type of the {@link #fields()} row valid in the era.
+         */
+        KEYED,
+        /** An array whose first item is the tag that picks one of the fields. */
+        TAGGED,
+        /** An array whose positions are the fields. */
+        POSITIONAL,
+        /**
+         * An item whose CBOR major type picks a row: its {@link FieldSpec#record()} if it has one, or else a value of
+         * its type. Such as an output, an array or a map, or a value, a coin or an array. A policy is told of the row
+         * as an entry of this record, and then of what the row names (see {@link FormatPolicy}). An item of another
+         * major type is one the walk cannot enter. A row with major type 6 is for an item in the tag of its
+         * {@code record}; an item in any other tag is read by the type inside.
+         */
+        BY_MAJOR_TYPE
+    }
+
+    private static final long NO_TAG = -1;
+    private static final int MAJOR_BYTES = 2;
+    private static final int MAJOR_ARRAY = 4;
+    /** An item of a set of key hashes, for a set whose type does not say what its items are. */
+    static final RecordSpec KEY_HASH = byMajorType("addr_keyhash",
+            FieldSpec.of(MAJOR_BYTES, FieldType.HASH28, false, Era.Shelley, null));
+
+    private final String name;
+    private final Shape shape;
+    private final List<FieldSpec> fields;
+    private final int firstPosition;
+    private final int arity;
+    private final int requiredArity;
+    private final FieldType keyType;
+    private final long tag;
+    // the rows in the table's order, and those of each key below 64, for field(key, era)
+    private final FieldSpec[] rows;
+    private final FieldSpec[][] rowsByKey;
+
+    private RecordSpec(String name, Shape shape, List<FieldSpec> fields, int firstPosition) {
+        this(name, shape, fields, firstPosition, null, NO_TAG);
+    }
+
+    private RecordSpec(String name, Shape shape, List<FieldSpec> fields, int firstPosition, FieldType keyType,
+                       long tag) {
+        this.name = name;
+        this.shape = shape;
+        this.fields = List.copyOf(fields);
+        this.firstPosition = firstPosition;
+        // a position may have a row per era range, as the rows of a key do
+        this.arity = firstPosition + (int) fields.stream().mapToLong(FieldSpec::key).distinct().count();
+        this.requiredArity = firstPosition
+                + (int) fields.stream().filter(FieldSpec::required).mapToLong(FieldSpec::key).distinct().count();
+        this.keyType = keyType;
+        this.tag = tag;
+        this.rows = this.fields.toArray(new FieldSpec[0]);
+        this.rowsByKey = new FieldSpec[Long.SIZE][];
+        for (int key = 0; key < Long.SIZE; key++) {
+            long wanted = key;
+            this.rowsByKey[key] = this.fields.stream().filter(row -> row.key() == wanted).toArray(FieldSpec[]::new);
+        }
+    }
+
+    static RecordSpec keyed(String name, List<FieldSpec> rows) {
+        return new RecordSpec(name, Shape.KEYED, rows, 0);
+    }
+
+    // A map in a tag, whose keys are the fields.
+    static RecordSpec keyed(String name, long tag, List<FieldSpec> rows) {
+        return new RecordSpec(name, Shape.KEYED, rows, 0, null, tag);
+    }
+
+    // A map of like entries: a row per era range of the values' type, each with key 0.
+    static RecordSpec entries(String name, FieldType keyType, FieldSpec... values) {
+        return new RecordSpec(name, Shape.KEYED, List.of(values), 0, keyType, NO_TAG);
+    }
+
+    // A row per major type the item may have, with the major type as its key.
+    static RecordSpec byMajorType(String name, FieldSpec... rows) {
+        return new RecordSpec(name, Shape.BY_MAJOR_TYPE, List.of(rows), 0);
+    }
+
+    static RecordSpec tagged(String name, List<FieldSpec> members) {
+        return new RecordSpec(name, Shape.TAGGED, members, 0);
+    }
+
+    static RecordSpec positional(String name, FieldType... items) {
+        return new RecordSpec(name, Shape.POSITIONAL, rows(0, items), 0);
+    }
+
+    // A positional record whose rows say which items may be left out, from the end.
+    static RecordSpec positional(String name, List<FieldSpec> rows) {
+        return new RecordSpec(name, Shape.POSITIONAL, rows, 0);
+    }
+
+    // A member of a tagged union: its positions start after the tag, which the union has read.
+    static RecordSpec member(long tag, FieldType... items) {
+        return new RecordSpec("member " + tag, Shape.POSITIONAL, rows(1, items), 1);
+    }
+
+    private static List<FieldSpec> rows(int first, FieldType[] items) {
+        List<FieldSpec> rows = new ArrayList<>(items.length);
+        for (int i = 0; i < items.length; i++)
+            rows.add(FieldSpec.of(first + i, items[i], true, Era.Shelley, null));
+        return rows;
+    }
+
+    // The position of a positional record's first field: 1 in a member of a tagged union, after its tag.
+    int firstPosition() {
+        return firstPosition;
+    }
+
+    // The number of items of a positional record, with the tag of a member.
+    int arity() {
+        return arity;
+    }
+
+    // The fewest items of a positional record, with the tag of a member.
+    int requiredArity() {
+        return requiredArity;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public Shape shape() {
+        return shape;
+    }
+
+    public List<FieldSpec> fields() {
+        return fields;
+    }
+
+    /**
+     * @return the type of every key of a map of like entries, or null for any other record
+     */
+    public FieldType keyType() {
+        return keyType;
+    }
+
+    /**
+     * @return the tag a keyed record is in, or -1 if it is in none
+     */
+    public long tag() {
+        return tag;
+    }
+
+    /**
+     * @param key a key, tag or position
+     * @param era the era being read
+     * @return the row of that key valid in the era, or else any row of that key, or null if no era has the key. In a
+     * keyed record of fields (not a map of like entries, which has a {@link #keyType()}), a key whose rows all start
+     * after the era has none: a field of a later era is an unknown key in an earlier one, as that era's ledger reads a
+     * sparse map ({@code decodeSparseKeyed}), so its value is not walked. A key can have several rows when its type or
+     * its meaning changes between eras.
+     */
+    public FieldSpec field(long key, Era era) {
+        return row(key, era, shape != Shape.KEYED || keyType != null);
+    }
+
+    // As field(), with any row of a later era last, for a record by major type: an item of a form the walk does not
+    // know is one it cannot enter, so a form of a later era is reported for the policy to reject.
+    FieldSpec form(long key, Era era) {
+        return row(key, era, true);
+    }
+
+    private FieldSpec row(long key, Era era, boolean later) {
+        FieldSpec ended = null;
+        FieldSpec started = null;
+        for (FieldSpec row : key >= 0 && key < Long.SIZE ? rowsByKey[(int) key] : rows) {
+            if (row.key() != key)
+                continue;
+            if (row.validIn(era))
+                return row;
+            if (!row.startsAfter(era) && ended == null)
+                ended = row;
+            if (row.startsAfter(era) && started == null)
+                started = row;
+        }
+        return ended != null || !later ? ended : started;
+    }
+
+    /**
+     * @param row a row of this record
+     * @param era an era
+     * @return whether the row's key means something else in the era: the row has ended and another row of the key is
+     * valid (ADR 0003 D3). A field that is only outside its era has no other meaning, and stays readable (D5).
+     */
+    boolean replacedIn(FieldSpec row, Era era) {
+        return row.endedBefore(era) && field(row.key(), era).validIn(era);
+    }
+
+    // The member of a tagged union with this tag, in any era, or null; a tag keeps one layout in every era, except
+    // that one may gain an optional item, which withOptionalItem() picks.
+    FieldSpec member(long tag) {
+        for (FieldSpec row : fields) {
+            if (row.key() == tag)
+                return row;
+        }
+        return null;
+    }
+
+    /**
+     * The member of a tagged union for a value of the era: this one, or another member of its tag valid in the era
+     * that has one item more when the value has that item, an array or null at its position. The ledger tells an
+     * optional item so, peeking at it: a pool registration's BLS key, from Dijkstra ({@code StakePool.hs}).
+     */
+    FieldSpec withOptionalItem(FieldSpec member, List<CborSpan> items, Era era) {
+        List<FieldSpec> rows = member.record().fields();
+        for (FieldSpec row : fields) {
+            if (row.key() != member.key() || !row.validIn(era) || row.record().fields().size() != rows.size() + 1)
+                continue;
+            List<FieldSpec> longer = row.record().fields();
+            int slot = 0;
+            while (slot < rows.size() && rows.get(slot).type() == longer.get(slot).type())
+                slot++;
+            int position = (int) longer.get(slot).key();
+            if (position < items.size() && (items.get(position).isNull()
+                    || items.get(position).majorType() == MAJOR_ARRAY && !items.get(position).isTagged()))
+                return row;
+        }
+        return member;
+    }
+
+    /**
+     * Walks a value of this record with a policy. For each record, nested ones included: {@link FormatPolicy#enter},
+     * then per entry {@link FormatPolicy#entry}, {@link FormatPolicy#check} and the walk of a typed key if it has one,
+     * of the value if the field is known and the walk of the value if it has a table, and finally
+     * {@link FormatPolicy#missing}. Recursive types are leaves, and tables nest to a small fixed depth, so a walk is
+     * stack-safe whatever the input (ADR 0003 I9).
+     *
+     * @param value  the record as encoded
+     * @param era    the era to read it in
+     * @param policy the policy, which throws to reject
+     * @throws CborRuntimeException if the policy accepts a value the walk cannot
+     *                              enter: not the map or array a table says it is
+     */
+    public void walk(CborSpan value, Era era, FormatPolicy policy) {
+        RecordWalk.walk(this, value, era, policy);
+    }
+
+    @Override
+    public String toString() {
+        return name;
+    }
+}

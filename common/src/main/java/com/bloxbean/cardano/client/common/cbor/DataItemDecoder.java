@@ -81,6 +81,13 @@ final class DataItemDecoder {
     }
 
     /**
+     * @return the one data item of a span, which has been walked
+     */
+    static DataItem decode(CborSpan item) {
+        return new DataItemDecoder(item.buffer(), item.offset(), item.offset() + item.length()).decodeItem();
+    }
+
+    /**
      * @return every data item in the buffer, in order
      */
     static List<DataItem> decodeAll(byte[] buffer) {
@@ -89,6 +96,59 @@ final class DataItemDecoder {
         while (decoder.pos < decoder.limit)
             items.add(decoder.decodeItem());
         return items;
+    }
+
+    /**
+     * What decoding rejects in a well-formed item, beyond the rules {@link CborSpan} has: {@link #rational(DataItem)}
+     * and {@link #languageTaggedString(DataItem)}. One pass over the heads, without a tree. Whichever of the two is
+     * applied last to an item, the other sees its items, so each is checked on the item's own items.
+     */
+    static void checkTags(byte[] buffer, int start, int end) {
+        CborHead head = new CborHead();
+        boolean rational = false;
+        boolean languageString = false;
+        int pos = start;
+        while (pos < end) {
+            if ((buffer[pos] & 0xff) == BREAK) {
+                pos++;
+                continue;
+            }
+            head.read(buffer, pos, end);
+            int itemStart = pos;
+            pos = head.end;
+            if (head.major == MAJOR_TAG) {
+                rational |= head.argument == TAG_RATIONAL;
+                languageString |= head.argument == TAG_LANGUAGE_STRING;
+                continue;
+            }
+            if (rational || languageString) {
+                List<CborSpan> items = head.major == MAJOR_ARRAY ? CborSpan.at(buffer, itemStart).items() : List.of();
+                if (rational && !isRational(items))
+                    throw new CborRuntimeException("CBOR tag 30 (rational number) must wrap an array of two integers"
+                            + " with a denominator other than 0, at offset " + itemStart);
+                if (languageString && !isLanguageString(items))
+                    throw new CborRuntimeException("CBOR tag 38 (language-tagged string) must wrap an array of two text"
+                            + " strings, at offset " + itemStart);
+                rational = false;
+                languageString = false;
+            }
+            if ((head.major == MAJOR_BYTES || head.major == MAJOR_TEXT) && !head.indefinite)
+                pos += (int) head.argument;
+        }
+    }
+
+    private static boolean isRational(List<CborSpan> items) {
+        if (items.size() != 2 || items.get(0).majorType() > MAJOR_NEGATIVE
+                || items.get(1).majorType() > MAJOR_NEGATIVE)
+            return false;
+        CborSpan denominator = items.get(1);
+        while (denominator.isTagged())
+            denominator = denominator.untag();
+        return denominator.asBigInteger().signum() != 0;
+    }
+
+    private static boolean isLanguageString(List<CborSpan> items) {
+        return items.size() == 2 && items.get(0).majorType() == MAJOR_TEXT && items.get(1).majorType() == MAJOR_TEXT;
     }
 
     // One open container or indefinite string, with the tags read before its head.

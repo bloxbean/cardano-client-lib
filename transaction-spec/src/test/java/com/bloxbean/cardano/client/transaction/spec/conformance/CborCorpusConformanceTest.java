@@ -5,12 +5,20 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.RawCostModels;
+import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
+import com.bloxbean.cardano.client.transaction.raw.RawProposal;
+import com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate;
 import com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate;
+import com.bloxbean.cardano.client.transaction.spec.SubTransaction;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
@@ -52,7 +60,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * one that misses in a different way, so the list stays exact and can only shrink.
  *
  * <p>Runs only with {@code -PcborDataset=<dataset dir>}, as in CI's CBOR conformance job. The dataset is fetched at a
- * pinned commit, never copied here, because it has no licence.</p>
+ * pinned commit, 4fd977b2 ({@code CBOR_DATASET_REVISION} in CI), never copied here, because it has no licence.</p>
  *
  * <p>What it does not cover: invalid samples, as rejecting them is the job of a strict reader, not of these model
  * decoders (transaction-spec/adr/0002-cbor-conformance-across-ccl-yaci-yano-julc.md, D10); cbor-java's decoder trees,
@@ -67,6 +75,9 @@ class CborCorpusConformanceTest {
     private static final String INPUT = ".input.cbor";
     private static final String EXPECTED = ".expected.cbor";
     private static final String MISSES = "/cbor-conformance/expected-misses.txt";
+    private static final String DIJKSTRA_USABLE = "/cbor-conformance/dijkstra-usable-valid.txt";
+    private static final String DIJKSTRA_MISSES = "/cbor-conformance/dijkstra-expected-misses.txt";
+    private static final int DIJKSTRA_SAMPLES = 3802;
 
     private static final String HASH28 = "581c" + "00".repeat(28);
     private static final String HASH32 = "5820" + "00".repeat(32);
@@ -128,6 +139,58 @@ class CborCorpusConformanceTest {
         return rules;
     }
 
+    /**
+     * ADR 0004 W3: the rules of the usable Dijkstra samples that a model covers, read with {@link Era#Dijkstra} and
+     * written with it. A part of a transaction is read inside a minimal Dijkstra transaction, as only
+     * {@link Transaction#deserialize(byte[], Era)} takes an era; a rule whose model has no era reads as in Conway.
+     */
+    private static final Map<String, Rule> DIJKSTRA_RULES = dijkstraRules();
+
+    private static Map<String, Rule> dijkstraRules() {
+        Map<String, Rule> rules = new HashMap<>();
+        for (String rule : List.of("credential", "datum_option", "drep", "relay", "transaction_input",
+                "native_script", "plutus_data"))
+            rules.put(rule, RULES.get(rule));
+        rules.put("transaction_output", new Rule(cbor -> dijkstraTx(bodyWithOutput(cbor), hex("a0"), hex("f6"))
+                .getBody().getOutputs().get(0), RULES.get("transaction_output").encoder()));
+        rules.put("value", new Rule(cbor -> dijkstraTx(bodyWithOutput(cat(hex("82" + ADDRESS), cbor)), hex("a0"),
+                hex("f6")).getBody().getOutputs().get(0).getValue(), RULES.get("value").encoder()));
+        rules.put("voting_procedure", new Rule(cbor -> dijkstraTx(bodyWith("13", cat(hex("a1" + "8200" + HASH28 + "a1"
+                + "82" + HASH32 + "00"), cbor)), hex("a0"), hex("f6")).getBody().getVotingProcedures().getVoting()
+                .values().iterator().next().values().iterator().next(), RULES.get("voting_procedure").encoder()));
+        rules.put("transaction", new Rule(cbor -> Transaction.deserialize(cbor, Era.Dijkstra),
+                model -> ((Transaction) model).serialize(Era.Dijkstra)));
+        rules.put("transaction_body", new Rule(cbor -> dijkstraTx(cbor, hex("a0"), hex("f6")),
+                model -> item((Transaction) model, 0)));
+        rules.put("sub_transaction_body", new Rule(cbor -> dijkstraTx(bodyWith("17", cat(hex("8183"), cbor,
+                hex("a0f6"))), hex("a0"), hex("f6")).getBody().getSubTransactions().get(0),
+                model -> canonical(((SubTransaction) model).serialize(Era.Dijkstra).getDataItems().get(0))));
+        rules.put("transaction_witness_set", new Rule(cbor -> dijkstraTx(hex(MIN_BODY), cbor, hex("f6")),
+                model -> item((Transaction) model, 1)));
+        // as in Conway, aux data is a hash preimage: only reading counts
+        Rule auxiliaryData = new Rule(cbor -> dijkstraTx(hex(MIN_BODY), hex("a0"), cbor), null);
+        for (String rule : List.of("auxiliary_data", "auxiliary_data_map", "auxiliary_data_array"))
+            rules.put(rule, auxiliaryData);
+        rules.put("redeemers", new Rule(cbor -> dijkstraTx(hex(MIN_BODY), cat(hex("a105"), cbor), hex("f6")),
+                null));
+        rules.put("certificate", new Rule(cbor -> dijkstraTx(bodyWith("04", cat(hex("81"), cbor)), hex("a0"),
+                hex("f6")).getBody().getCerts().get(0), model -> ((Certificate) model).serialize(Era.Dijkstra)));
+        rules.put("account_balance_interval", new Rule(cbor -> dijkstraTx(bodyWith("181a", cat(hex("a1"
+                + REWARD_ACCOUNT), cbor)), hex("a0"), hex("f6")).getBody(), model -> ((co.nstant.in.cbor.model.Map)
+                ((TransactionBody) model).serialize(Era.Dijkstra).get(new UnsignedInteger(26))).getValues()
+                .iterator().next()));
+        rules.put("cost_models", new Rule(cbor -> CostMdls.from(RawCostModels.lenient(span(cbor)), Era.Dijkstra),
+                model -> ((CostMdls) model).serialize()));
+        rules.put("gov_action", new Rule(cbor -> GovAction.from(RawGovAction.lenient(span(cbor), Era.Dijkstra)),
+                model -> ((GovAction) model).serialize(Era.Dijkstra)));
+        rules.put("proposal_procedure", new Rule(cbor -> ProposalProcedure.from(RawProposal.lenient(span(cbor),
+                Era.Dijkstra)), model -> ((ProposalProcedure) model).serialize(Era.Dijkstra)));
+        rules.put("protocol_param_update", new Rule(cbor -> ProtocolParamUpdate.from(
+                RawProtocolParamUpdate.lenient(span(cbor), Era.Dijkstra)),
+                model -> ((ProtocolParamUpdate) model).serialize(Era.Dijkstra)));
+        return rules;
+    }
+
     @Test
     void normalizerMatchesTheDatasetVectors() throws IOException {
         List<Path> inputs = files(dataset().resolve("normalization"), INPUT);
@@ -153,14 +216,45 @@ class CborCorpusConformanceTest {
                 details.put(id, miss.detail());
             }
         }
-        Map<String, String> listed = listedMisses();
+        Map<String, String> listed = listedMisses(MISSES);
 
-        assertThat(samples).as("valid samples in the pinned corpus").isEqualTo(2705);
+        assertThat(samples).as("valid samples in the pinned corpus").isEqualTo(2837);
         assertThat(misses.keySet().stream().filter(id -> !misses.get(id).equals(listed.get(id)))
                 .map(id -> id + " " + misses.get(id) + ": " + details.get(id)).collect(Collectors.toList()))
                 .as("misses that are new, or differ from the list").isEmpty();
         assertThat(listed.keySet().stream().filter(id -> !misses.containsKey(id)).collect(Collectors.toList()))
                 .as("listed samples that now pass: remove them from " + MISSES).isEmpty();
+    }
+
+    /**
+     * ADR 0004 W3: the usable Dijkstra samples ({@code cbor-conformance/dijkstra-usable-valid.txt}) of the rules a
+     * model covers, compared as the Conway samples are; the misses are listed with a reason in
+     * {@value #DIJKSTRA_MISSES}.
+     */
+    @Test
+    void onlyTheListedDijkstraSamplesMiss() throws IOException {
+        Map<String, String> misses = new TreeMap<>();
+        Map<String, String> details = new TreeMap<>();
+        Map<String, Integer> samples = new TreeMap<>();
+        for (Path input : dijkstraSamples()) {
+            String rule = input.getParent().getParent().getFileName().toString();
+            samples.merge(rule, 1, Integer::sum);
+            String id = rule + "/" + input.getFileName().toString().replace(INPUT, "");
+            Miss miss = miss(DIJKSTRA_RULES.get(rule), input);
+            if (miss != null) {
+                misses.put(id, miss.kind());
+                details.put(id, miss.detail());
+            }
+        }
+        Map<String, String> listed = listedMisses(DIJKSTRA_MISSES);
+
+        assertThat(samples.values().stream().mapToInt(Integer::intValue).sum()).as("usable Dijkstra samples " + samples)
+                .isEqualTo(DIJKSTRA_SAMPLES);
+        assertThat(misses.keySet().stream().filter(id -> !misses.get(id).equals(listed.get(id)))
+                .map(id -> id + " " + misses.get(id) + ": " + details.get(id)).collect(Collectors.toList()))
+                .as("misses that are new, or differ from the list").isEmpty();
+        assertThat(listed.keySet().stream().filter(id -> !misses.containsKey(id)).collect(Collectors.toList()))
+                .as("listed samples that now pass: remove them from " + DIJKSTRA_MISSES).isEmpty();
     }
 
     /** A listed sample must not hide a new overflow, so an overflow is never a miss. */
@@ -282,11 +376,52 @@ class CborCorpusConformanceTest {
         return input.resolveSibling(input.getFileName().toString().replace(INPUT, EXPECTED));
     }
 
-    private static Map<String, String> listedMisses() throws IOException {
-        try (InputStream in = CborCorpusConformanceTest.class.getResourceAsStream(MISSES)) {
+    /** @return the listed misses, {@code <rule>/<sample> <how it misses>[ <why>]}, by sample */
+    private static Map<String, String> listedMisses(String resource) throws IOException {
+        return lines(resource).stream().map(line -> line.split(" ", 3))
+                .collect(Collectors.toMap(entry -> entry[0], entry -> entry[1]));
+    }
+
+    private static List<String> lines(String resource) throws IOException {
+        try (InputStream in = CborCorpusConformanceTest.class.getResourceAsStream(resource)) {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8).lines().map(String::strip)
-                    .filter(line -> !line.isEmpty() && !line.startsWith("#")).map(line -> line.split(" "))
-                    .collect(Collectors.toMap(entry -> entry[0], entry -> entry[1]));
+                    .filter(line -> !line.isEmpty() && !line.startsWith("#")).collect(Collectors.toList());
         }
+    }
+
+    /** The usable Dijkstra samples of the rules a model covers. */
+    private static List<Path> dijkstraSamples() throws IOException {
+        Path dijkstra = dataset().resolve("dijkstra");
+        return lines(DIJKSTRA_USABLE).stream().map(line -> line.substring(line.indexOf(' ') + 1))
+                .filter(path -> DIJKSTRA_RULES.containsKey(path.substring(0, path.indexOf('/'))))
+                .map(dijkstra::resolve).collect(Collectors.toList());
+    }
+
+    /** A minimal Dijkstra transaction, read in Dijkstra. */
+    private static Transaction dijkstraTx(byte[] body, byte[] witnessSet, byte[] auxiliaryData) throws Exception {
+        return Transaction.deserialize(cat(hex("83"), body, witnessSet, auxiliaryData), Era.Dijkstra);
+    }
+
+    /** The minimal body with one more field, whose key is given encoded and sorts after its three. */
+    private static byte[] bodyWith(String key, byte[] value) {
+        return cat(hex("a4" + MIN_BODY.substring(2) + key), value);
+    }
+
+    /** An item of the transaction as it writes it in Dijkstra. */
+    private static byte[] item(Transaction transaction, int index) throws Exception {
+        return CborSpan.of(transaction.serialize(Era.Dijkstra)).get(index).bytes();
+    }
+
+    /** The minimal body with one output. */
+    private static byte[] bodyWithOutput(byte[] output) {
+        return cat(hex("a3" + "0081" + "82" + HASH32 + "00" + "0181"), output, hex("0200"));
+    }
+
+    private static byte[] canonical(DataItem item) throws Exception {
+        return CborSerializationUtil.serialize(item);
+    }
+
+    private static CborSpan span(byte[] cbor) {
+        return CborSpan.of(cbor);
     }
 }

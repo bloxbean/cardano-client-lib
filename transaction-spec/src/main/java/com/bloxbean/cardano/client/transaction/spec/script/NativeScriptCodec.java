@@ -7,8 +7,11 @@ import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.NegativeInteger;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.math.BigInteger;
@@ -28,7 +31,8 @@ import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.with
  * array {@code [type, fields]} with exactly the fields of its type, definite or indefinite; an unknown type is rejected;
  * a key hash is 28 bytes; {@code m} of {@code atLeast} is a signed 64-bit integer ({@code TimelockMOf !Int}); a slot is
  * an unsigned 64-bit integer. Types 4 and 5 (time locks) exist from Allegra on; Shelley's multisig scripts have types 0-3
- * only.
+ * only. Type 6, Dijkstra's {@code script_require_guard} {@code [6, credential]}, is read in any era, as the reader
+ * reads a native script without an era (ADR 0004 D1).
  * <p>
  * One difference remains: a key hash in an indefinite-length (chunked) byte string is accepted, because the decoded
  * tree joins chunks, while the ledger's {@code decodeBytes} rejects it. A validator of received bytes that must match
@@ -77,9 +81,13 @@ final class NativeScriptCodec {
                     arity(fields, 2, type);
                     script = new RequireTimeAfter(slot(fields.get(1)));
                     break;
-                default:
+                case 5:
                     arity(fields, 2, type);
                     script = new RequireTimeBefore(slot(fields.get(1)));
+                    break;
+                default:
+                    arity(fields, 2, type);
+                    script = new RequireGuard(credential(fields.get(1)));
                     break;
             }
             if (top == null)
@@ -121,7 +129,7 @@ final class NativeScriptCodec {
         DataItem type = fields.get(0);
         if (type instanceof UnsignedInteger && !type.hasTag()) {
             BigInteger value = ((UnsignedInteger) type).getValue();
-            if (value.compareTo(BigInteger.valueOf(5)) <= 0)
+            if (value.compareTo(BigInteger.valueOf(6)) <= 0)
                 return value.intValue();
         }
         throw new CborDeserializationException("NativeScript deserialization failed. Unknown native script type " + describe(type));
@@ -138,6 +146,17 @@ final class NativeScriptCodec {
             throw new CborDeserializationException("NativeScript deserialization failed. Expected a " + KEY_HASH_SIZE
                     + "-byte key hash, found " + describe(item));
         return HexUtil.encodeHexString(((ByteString) item).getBytes());
+    }
+
+    private static Credential credential(DataItem item) throws CborDeserializationException {
+        if (!(item instanceof Array))
+            throw new CborDeserializationException("NativeScript deserialization failed. Expected a credential, found "
+                    + describe(item));
+        try {
+            return CredentialSerializer.deserialize((Array) item);
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("NativeScript deserialization failed. Invalid credential", e);
+        }
     }
 
     private static BigInteger required(DataItem item) throws CborDeserializationException {

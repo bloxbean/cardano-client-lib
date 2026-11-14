@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.util;
 
+import java.util.HexFormat;
+
 public class HexUtil {
     public static String encodeHexString(byte[] byteArray) {
         if (byteArray == null)
@@ -12,14 +14,7 @@ public class HexUtil {
         if (byteArray == null)
             return null;
 
-        StringBuffer hexStringBuffer = new StringBuffer();
-        for (int i = 0; i < byteArray.length; i++) {
-            hexStringBuffer.append(byteToHex(byteArray[i]));
-        }
-        String hexString = hexStringBuffer.toString();
-        if(hexString == null)
-            return null;
-
+        String hexString = HexFormat.of().formatHex(byteArray);
         if(withPrefix)
             return "0x" + hexString;
         else
@@ -37,7 +32,7 @@ public class HexUtil {
 
         byte[] bytes = new byte[hexString.length() / 2];
         for (int i = 0; i < hexString.length(); i += 2) {
-            bytes[i / 2] = hexToByte(hexString.substring(i, i + 2));
+            bytes[i / 2] = (byte) ((toDigit(hexString.charAt(i)) << 4) + toDigit(hexString.charAt(i + 1)));
         }
         return bytes;
     }

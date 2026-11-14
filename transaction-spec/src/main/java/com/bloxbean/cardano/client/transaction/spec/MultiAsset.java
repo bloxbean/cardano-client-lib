@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.*;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
+import com.bloxbean.cardano.client.transaction.raw.RawMultiAsset;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.*;
 
@@ -25,20 +26,14 @@ public class MultiAsset {
     private List<Asset> assets = new ArrayList<>();
 
     public static MultiAsset deserialize(Map multiAssetsMap, DataItem key) {
+        return from(RawMultiAsset.lenient(CborSerializationUtil.span(key), CborSerializationUtil.span(multiAssetsMap.get(key))));
+    }
+
+    static MultiAsset from(RawMultiAsset raw) {
         MultiAsset multiAsset = new MultiAsset();
-        ByteString keyBS = (ByteString) key;
-        multiAsset.setPolicyId(HexUtil.encodeHexString(keyBS.getBytes()));
-
-        Map assetsMap = (Map) multiAssetsMap.get(key);
-        for (DataItem assetKey : assetsMap.getKeys()) {
-            ByteString assetNameBS = (ByteString) assetKey;
-
-            DataItem valueDI = assetsMap.get(assetKey);
-            BigInteger value = CborSerializationUtil.getBigInteger(valueDI);
-
-            String name = HexUtil.encodeHexString(assetNameBS.getBytes(), true);
-            multiAsset.getAssets().add(new Asset(name, value));
-        }
+        multiAsset.setPolicyId(HexUtil.encodeHexString(raw.policyId()));
+        for (RawMultiAsset.Asset asset : raw.assets())
+            multiAsset.getAssets().add(new Asset(HexUtil.encodeHexString(asset.name(), true), asset.quantity()));
         return multiAsset;
     }
 

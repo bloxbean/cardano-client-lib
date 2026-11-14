@@ -1,15 +1,16 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
-import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
 import java.math.BigInteger;
-import java.util.List;
 import java.util.Objects;
 
 @Data
@@ -35,13 +36,11 @@ public class RegCert implements Certificate {
         return certArray;
     }
 
-    @SneakyThrows
     public static RegCert deserialize(Array certArray) {
-        List<DataItem> dataItemList = certArray.getDataItems();
+        return from(RawCertificate.lenient(CertKind.REG_CERT, CborSerializationUtil.span(certArray)));
+    }
 
-        StakeCredential stakeCredential = StakeCredential.deserialize((Array) dataItemList.get(1));
-        BigInteger coin = CborSerializationUtil.getBigInteger(dataItemList.get(2));
-
-        return new RegCert(stakeCredential, coin);
+    static RegCert from(RawCertificate cert) {
+        return new RegCert(RawModels.stakeCredential(cert.credential()), cert.coin());
     }
 }

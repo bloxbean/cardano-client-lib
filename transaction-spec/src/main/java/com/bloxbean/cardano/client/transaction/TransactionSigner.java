@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.util.TransactionBytes;
+import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import lombok.NonNull;
 
 public enum TransactionSigner {
@@ -31,10 +32,7 @@ public enum TransactionSigner {
      */
     public Transaction sign(@NonNull Transaction transaction, @NonNull HdKeyPair hdKeyPair) {
         try {
-            byte[] signedTxBytes = sign(transaction.serialize(), hdKeyPair);
-            var signedTx = Transaction.deserialize(signedTxBytes);
-            signedTx.setEra(transaction.getEra());
-            return signedTx;
+            return TransactionUtil.reread(sign(transaction.serialize(), hdKeyPair), transaction.getEra());
         } catch (CborSerializationException | CborDeserializationException e) {
             throw new CborRuntimeException(e);
         }
@@ -49,10 +47,7 @@ public enum TransactionSigner {
      */
     public Transaction sign(Transaction transaction, SecretKey secretKey) {
         try {
-            byte[] signedTxBytes = sign(transaction.serialize(), secretKey);
-            var signedTx = Transaction.deserialize(signedTxBytes);
-            signedTx.setEra(transaction.getEra());
-            return signedTx;
+            return TransactionUtil.reread(sign(transaction.serialize(), secretKey), transaction.getEra());
         } catch (CborSerializationException | CborDeserializationException e) {
             throw new CborRuntimeException(e);
         }

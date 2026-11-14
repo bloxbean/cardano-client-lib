@@ -85,7 +85,7 @@ jobs:
     name: CBOR conformance corpus
     runs-on: ubuntu-latest
     env:
-      CBOR_DATASET_REVISION: 95e9e7c296ca1b641c8d99af2ab7c286a90caebf
+      CBOR_DATASET_REVISION: 4fd977b201f7426a2983161a702bb127c87973f7
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -111,7 +111,7 @@ jobs:
           -PcborDataset="$RUNNER_TEMP/cbor-dataset/dataset" -PskipSigning=true --stacktrace
       - name: Fail if the gate was skipped
         run: >-
-          grep -q 'tests="3" skipped="0" failures="0" errors="0"'
+          grep -q 'tests="4" skipped="0" failures="0" errors="0"'
           transaction-spec/build/test-results/test/TEST-*CborCorpusConformanceTest.xml
 
   jmt-postgresql:

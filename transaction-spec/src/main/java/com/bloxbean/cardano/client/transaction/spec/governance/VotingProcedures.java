@@ -1,9 +1,12 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
-import co.nstant.in.cbor.model.Array;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
+import com.bloxbean.cardano.client.transaction.raw.RawGovActionId;
+import com.bloxbean.cardano.client.transaction.raw.RawVotingProcedure;
+import com.bloxbean.cardano.client.transaction.raw.RawVotingProcedures;
 import com.bloxbean.cardano.client.transaction.spec.Comparators;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import lombok.AllArgsConstructor;
@@ -68,36 +71,22 @@ public class VotingProcedures {
     }
 
     public static VotingProcedures deserialize(DataItem di) {
-        Map votingProceduresMap = (Map) di;
-
-        VotingProcedures votingProcedures = new VotingProcedures();
-        votingProceduresMap.getKeys().forEach(key -> {
-            Array voterArray = (Array) key;
-            Voter voter = Voter.deserialize(voterArray);
-
-            Map votingProcedureMapDI = (Map) votingProceduresMap.get(key);
-            java.util.Map<GovActionId, VotingProcedure> votingProcedureMap
-                    = deserializeVotingProcedureMap(votingProcedureMapDI);
-            votingProcedures.getVoting().put(voter, votingProcedureMap);
-        });
-
-        return votingProcedures;
+        return from(RawVotingProcedures.lenient(CborSerializationUtil.span(di)));
     }
 
     /**
-     * { + gov_action_id => voting_procedure }
-     *
-     * @param votingProcedureMapDI
-     * @return
+     * @param raw voting procedures as received
+     * @return the model: a voter or an action id that equals an earlier one keeps that one's place and takes the later
+     * value
      */
-    private static java.util.Map<GovActionId, VotingProcedure> deserializeVotingProcedureMap(Map votingProcedureMapDI) {
-        java.util.Map<GovActionId, VotingProcedure> votingProcedureMap = new LinkedHashMap<>();
-        votingProcedureMapDI.getKeys().forEach(key -> {
-            GovActionId govActionId = GovActionId.deserialize(key);
-            VotingProcedure votingProcedure = VotingProcedure.deserialize((Array) votingProcedureMapDI.get(key));
-            votingProcedureMap.put(govActionId, votingProcedure);
-        });
-
-        return votingProcedureMap;
+    public static VotingProcedures from(RawVotingProcedures raw) {
+        VotingProcedures votingProcedures = new VotingProcedures();
+        for (RawVotingProcedures.Votes voter : raw.voters()) {
+            java.util.Map<GovActionId, VotingProcedure> votes = new LinkedHashMap<>();
+            for (java.util.Map.Entry<RawGovActionId, RawVotingProcedure> vote : voter.votes())
+                votes.put(GovActionId.from(vote.getKey()), VotingProcedure.from(vote.getValue()));
+            votingProcedures.getVoting().put(Voter.from(voter.voter()), votes);
+        }
+        return votingProcedures;
     }
 }
