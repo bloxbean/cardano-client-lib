@@ -1,6 +1,6 @@
 # Cardano Client Lib — complete documentation
 
-Latest preview 0.8.0-pre7 (Java 17+) · Latest stable 0.7.3 (Java 11+) · Conway era · generated 2026-11-02
+Latest preview 0.8.0-pre7 (Java 17+) · Latest stable 0.7.3 (Java 11+) · Conway era · generated 2026-11-15
 Source: https://cardano-client.dev
 
 ---

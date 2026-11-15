@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-02",
+  "generatedAt": "2026-11-15",
   "library": "cardano-client-lib",
   "repository": "https://github.com/bloxbean/cardano-client-lib",
   "docs": "https://cardano-client.dev",
@@ -41,6 +41,13 @@
       "entry": "com.bloxbean.cardano.client.spec",
       "tier": "support",
       "artifact": "cardano-client-common-spec"
+    },
+    {
+      "name": "ledger-cbor",
+      "purpose": "",
+      "entry": "",
+      "tier": "support",
+      "artifact": "cardano-client-ledger-cbor"
     },
     {
       "name": "address",
@@ -331,7 +338,7 @@
     }
   ],
   "counts": {
-    "modules": 44,
+    "modules": 45,
     "cips": 8,
     "backends": 4
   }

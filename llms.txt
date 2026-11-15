@@ -176,6 +176,7 @@ All artifacts use group `com.bloxbean.cardano` and version `0.8.0-pre7`.
 - `cardano-client-common` — Shared utilities, network definitions (Networks.mainnet/preprod/preview) and ADA conversion. Entry point: `com.bloxbean.cardano.client.common.model.Networks`
 - `cardano-client-crypto` — BIP32-Ed25519, BIP39 mnemonics and CIP-1852 key derivation. Entry point: `com.bloxbean.cardano.client.crypto`
 - `cardano-client-common-spec` — Shared CBOR spec types used across transaction and ledger modules. Entry point: `com.bloxbean.cardano.client.spec`
+- `cardano-client-ledger-cbor` —  Entry point: ``
 - `cardano-client-transaction-spec` — CDDL-faithful transaction types and CBOR serialization. Entry point: `com.bloxbean.cardano.client.transaction.spec.Transaction`
 - `cardano-client-core-api` — Core abstractions: UtxoSupplier, ProtocolParamsSupplier, TransactionProcessor. Entry point: `com.bloxbean.cardano.client.api.UtxoSupplier`
 - `cardano-client-coinselection` — UTXO selection strategies. Note the default filters UTXOs carrying a datum hash — that matters when spending script outputs. Entry point: `com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy`
