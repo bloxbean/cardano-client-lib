@@ -1,18 +1,28 @@
 package com.bloxbean.cardano.client.transaction;
 
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyGenerator;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
+import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.UnitInterval;
+import com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.Update;
 import com.bloxbean.cardano.client.transaction.spec.VkeyWitness;
+import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
+import com.bloxbean.cardano.client.transaction.util.TransactionBytes;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
+
+import java.math.BigInteger;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -120,4 +130,108 @@ class TransactionSignerTest {
         assertThat(signedTransaction.getAuxiliaryData().serialize()).isEqualTo(originalTransaction.getAuxiliaryData().serialize());
     }
 
+    private static final String GENESIS_HASH = "44".repeat(28);
+
+    /**
+     * #749: a rational keeps its parts through signing, whether it is not in lowest terms, has negative parts or bignum
+     * parts. A pool registration whose margin is one, set on the model or received as CCL writes it, and a protocol
+     * parameter update whose expansion rate is {@code -1/-2}, are signed and co-signed through the model, with both
+     * overloads, without the body changing: the returned transaction's body hashes to what was signed, and every
+     * witness verifies against it.
+     */
+    @Test
+    void signingAModelKeepsItsRationalsAsTheyAre() throws Exception {
+        BigInteger twoTo65 = BigInteger.TWO.pow(65);
+        // 5/100, -1/-2, 1/-3 and 2^65/2^66
+        for (String margin : new String[]{"d81e82051864", "d81e822021", "d81e820122",
+                "d81e82c249020000000000000000c249040000000000000000"}) {
+            String body = poolRegistrationBody(margin);
+            Transaction coSigned = signBothWays(Transaction.deserialize(HexUtil.decodeHexString("84" + body + "a0f5f6")));
+            assertSignedOver(coSigned, Blake2bUtil.blake2bHash256(HexUtil.decodeHexString(body)), 2);
+        }
+
+        for (UnitInterval margin : new UnitInterval[]{ratio(2, 4), ratio(-1, -2),
+                new UnitInterval(twoTo65, twoTo65.shiftLeft(1))}) {
+            Transaction built = Transaction.deserialize(
+                    HexUtil.decodeHexString("84" + poolRegistrationBody("d81e82051864") + "a0f5f6"));
+            ((PoolRegistration) built.getBody().getCerts().get(0)).setMargin(margin);
+            Transaction signed = signBothWays(built);
+            assertSignedOver(signed, bodyHash(built), 2);
+            assertThat(((PoolRegistration) signed.getBody().getCerts().get(0)).getMargin()).isEqualTo(margin);
+        }
+
+        Transaction built = Transaction.deserialize(
+                HexUtil.decodeHexString("84" + poolRegistrationBody("d81e82051864") + "a0f5f6"));
+        built.getBody().setUpdate(new Update(Map.of(GENESIS_HASH,
+                ProtocolParamUpdate.builder().expansionRate(ratio(-1, -2)).build()), 1));
+        Transaction signed = signBothWays(built);
+        assertSignedOver(signed, bodyHash(built), 2);
+        assertThat(signed.getBody().getUpdate().getProtocolParamUpdates().get(GENESIS_HASH).getExpansionRate())
+                .isEqualTo(ratio(-1, -2));
+    }
+
+    /**
+     * #749, ADR 0004 D5: a model keeps no bytes, so a form CCL does not write itself is written in CCL's form, here a
+     * bignum margin part whose value fits 64 bits ({@code c24102}, written {@code 02}). Signing such a received
+     * transaction through the model returns another body; the byte overloads keep the body and its witnesses.
+     */
+    @Test
+    void aReceivedFormThatCclDoesNotWriteChangesTheModelsBody() throws Exception {
+        String body = poolRegistrationBody("d81e82c2410204");
+        byte[] received = HexUtil.decodeHexString("84" + body + "a0f5f6");
+        byte[] receivedBodyHash = Blake2bUtil.blake2bHash256(HexUtil.decodeHexString(body));
+
+        Transaction throughTheModel = TransactionSigner.INSTANCE.sign(Transaction.deserialize(received), secretKey());
+        assertThat(bodyHash(throughTheModel)).isEqualTo(Blake2bUtil.blake2bHash256(
+                HexUtil.decodeHexString(poolRegistrationBody("d81e820204"))));
+        assertThat(bodyHash(throughTheModel)).isNotEqualTo(receivedBodyHash);
+
+        byte[] throughTheBytes = TransactionSigner.INSTANCE.sign(TransactionSigner.INSTANCE.sign(received,
+                secretKey()), keyPair());
+        assertThat(new TransactionBytes(throughTheBytes).getTxBodyBytes()).isEqualTo(HexUtil.decodeHexString(body));
+        assertWitnessesVerify(Transaction.deserialize(throughTheBytes), receivedBodyHash, 2);
+    }
+
+    /** A Conway body with one pool registration of the given margin, sets tagged 258, as CCL writes it. */
+    private static String poolRegistrationBody(String margin) {
+        String pool = "8a" + "03" + "581c" + "11".repeat(28) + "5820" + "22".repeat(32) + "1a000f4240" + "1903e8"
+                + margin + "581de0" + "11".repeat(28) + "d9010280" + "80" + "f6";
+        return "a4" + "00" + "d9010281" + "825820" + "33".repeat(32) + "00" + "0180" + "021a00030d40"
+                + "04" + "d9010281" + pool;
+    }
+
+    /** Signs with an {@link HdKeyPair}, then co-signs with a {@link SecretKey}. */
+    private static Transaction signBothWays(Transaction transaction) throws Exception {
+        return TransactionSigner.INSTANCE.sign(TransactionSigner.INSTANCE.sign(transaction, keyPair()), secretKey());
+    }
+
+    private static SecretKey secretKey() throws Exception {
+        return SecretKey.create(HexUtil.decodeHexString(
+                "ede3104b2f4ff32daa3b620a9a272cd962cf504da44cf1cf0280aff43b65f807"));
+    }
+
+    private static HdKeyPair keyPair() throws Exception {
+        return new HdKeyGenerator().getRootKeyPairFromEntropy(MnemonicCode.INSTANCE.toEntropy(
+                "indicate traffic belt syrup chief accident put upset present short drink bus glide warm roof"));
+    }
+
+    private static byte[] bodyHash(Transaction transaction) throws Exception {
+        return Blake2bUtil.blake2bHash256(new TransactionBytes(transaction.serialize()).getTxBodyBytes());
+    }
+
+    private static UnitInterval ratio(long numerator, long denominator) {
+        return new UnitInterval(BigInteger.valueOf(numerator), BigInteger.valueOf(denominator));
+    }
+
+    private static void assertSignedOver(Transaction transaction, byte[] bodyHash, int witnesses) throws Exception {
+        assertThat(bodyHash(transaction)).isEqualTo(bodyHash);
+        assertWitnessesVerify(transaction, bodyHash, witnesses);
+    }
+
+    private static void assertWitnessesVerify(Transaction transaction, byte[] bodyHash, int witnesses) {
+        assertThat(transaction.getWitnessSet().getVkeyWitnesses()).hasSize(witnesses);
+        for (VkeyWitness witness : transaction.getWitnessSet().getVkeyWitnesses())
+            assertThat(CryptoConfiguration.INSTANCE.getSigningProvider().verify(witness.getSignature(), bodyHash,
+                    witness.getVkey())).isTrue();
+    }
 }

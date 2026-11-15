@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
@@ -12,6 +11,7 @@ import com.bloxbean.cardano.client.transaction.raw.CertKind;
 import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.raw.RawPoolMetadata;
 import com.bloxbean.cardano.client.transaction.raw.RawRelay;
+import com.bloxbean.cardano.client.transaction.util.RationalNumberUtil;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.serializers.ByteArrayToHexSerializer;
@@ -123,12 +123,7 @@ public class PoolRegistration implements Certificate {
         array.add(new UnsignedInteger(pledge));
         array.add(new UnsignedInteger(cost));
 
-        try {
-            array.add(new RationalNumber(
-                    new UnsignedInteger(margin.getNumerator()), new UnsignedInteger(margin.getDenominator())));
-        } catch (CborException e) {
-            throw new CborSerializationException("Serialization error", e);
-        }
+        array.add(RationalNumberUtil.toRationalNumber(margin));
 
         array.add(new ByteString(HexUtil.decodeHexString(rewardAccount)));
 

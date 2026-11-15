@@ -34,7 +34,10 @@ class CheckTagsTest {
             "8200d81e820102", "81d81e00", "a1d81e00d81e820102", "a1d81e82010200", "a100d81e00", "a1d81e00",
             "9fd81e00ff", "bf00d81e00ff", "5f4100ff", "7f6161ff", "4100", "6161", "dbffffffffffffffff00",
             "dbffffffffffffffffd81e00",
-            "d81edbffffffffffffffff820102", "c0c1c2820102", "f6", "f93e00");
+            "d81edbffffffffffffffff820102", "c0c1c2820102", "f6", "f93e00",
+            "d81e82c249020000000000000000c249040000000000000000", "d81e82c24901000000000000000002",
+            "d81e82c3490100000000000000000a", "d81e8201c1c24102", "d81e82c25f4101ff01", "d81e82410101",
+            "d81e82c1410101", "d81e82c2c1410101", "d81e8201c240", "d81e8201c25f40ff", "d81e8201c2c240");
 
     private static boolean decodes(byte[] bytes) {
         try {

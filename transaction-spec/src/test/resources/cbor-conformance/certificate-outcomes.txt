@@ -2,6 +2,10 @@
 # Generated from the decoders at 9f846f67, before certificates moved onto the reader.
 # Pin bump to cardano-cbor-dataset 4fd977b2: only groups with samples new since 95e9e7c2 changed; each sample of
 # 95e9e7c2 has the same outcome at both pins. The new samples' outcomes are this tree's (ADR 0003 M7a).
+# #749: the tree decoder takes a bignum part (tag 2 or 3) of a rational, and a rational keeps its parts as read.
+# Only the two unit_interval groups changed, in 2 samples that were rejected: manual-valid
+# bignum-ratio-reduces-in-range (now 2^65/2^66) and manual-invalid bignum-numerator-above-word64 (now 2^64/1). These
+# lenient models check no ranges and do not reduce; that is the Haskell-strict policy's (ADR 0005).
 anchor invalid-zap-0 Anchor 85 45 469fde3926c4d66e8397083d
 anchor invalid-zap-1 Anchor 100 51 4d3c2eceb58ee8346849fe87
 anchor invalid-zap-2 Anchor 100 49 bd8784de15392fbd636e08c0
@@ -223,8 +227,8 @@ transaction_body invalid-zap-3 TransactionBody 100 0 79b95759a5d97e526ce36a4c
 transaction_body manual-invalid TransactionBody 33 11 489fb048ab6a66f93c4f4b0d
 transaction_body manual-valid TransactionBody 16 16 b9a4ef288f94d9e1db3fc854
 transaction_body valid TransactionBody 98 98 ccfbca78c06ca94e90649c7f
-unit_interval manual-invalid PoolRegistration 11 2 560f78a5a614ba4f61caa669
-unit_interval manual-valid PoolRegistration 6 5 b4ccf749581f96633da1d955
+unit_interval manual-invalid PoolRegistration 11 3 c029a283476727812bdf6fe7
+unit_interval manual-valid PoolRegistration 6 6 483aa0cc6602295ac810c4c6
 unit_interval valid PoolRegistration 100 100 47d92ae0077dbb8ec92e1444
 url invalid-zap-0 Anchor 47 47 c39d2cd5d63bd6df5a7f3082
 url invalid-zap-1 Anchor 100 100 793bbc39767a78942e34c369
