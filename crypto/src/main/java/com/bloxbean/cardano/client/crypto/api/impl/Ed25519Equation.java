@@ -8,7 +8,6 @@ import java.net.JarURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.jar.Manifest;
@@ -57,7 +56,7 @@ final class Ed25519Equation {
             + "CryptoConfiguration.INSTANCE.setEd25519Verifier.";
 
     /** The group order {@code L}. */
-    private static final BigInteger ORDER = BigInteger.TWO.pow(252)
+    private static final BigInteger ORDER = BigInteger.ONE.shiftLeft(252)
             .add(new BigInteger("27742317777372353535851937790883648493"));
 
     /**
@@ -75,7 +74,7 @@ final class Ed25519Equation {
 
     static Tables buildTables() {
         Tables tables = new Tables();
-        F.decode(HexFormat.of().parseHex("a3785913ca4deb75abd841414d0a700098e879777940c78c73fe6f2bee6c0352"), 0,
+        F.decode(hex("a3785913ca4deb75abd841414d0a700098e879777940c78c73fe6f2bee6c0352"), 0,
                 tables.d);
         F.add(tables.d, tables.d, tables.d2);
         F.normalize(tables.d2);
@@ -84,7 +83,7 @@ final class Ed25519Equation {
         F.normalize(d4);
 
         Affine base = new Affine();
-        if (!decodeNegated(tables.d, HexFormat.of().parseHex(
+        if (!decodeNegated(tables.d, hex(
                 "5866666666666666666666666666666666666666666666666666666666666666"), base)) {
             throw new IllegalStateException("the base point does not decode");
         }
@@ -217,18 +216,16 @@ final class Ed25519Equation {
 
     /** {@code null} when the equation gives each vector libsodium's verdict, otherwise what went wrong. */
     static String failures(Tables tables, List<Vector> vectors) {
-        HexFormat hex = HexFormat.of();
         StringBuilder wrong = new StringBuilder();
         for (Vector v : vectors) {
-            boolean actual = equationHolds(tables, hex.parseHex(v.publicKey()), hex.parseHex(v.message()),
-                    hex.parseHex(v.signature()));
+            boolean actual = equationHolds(tables, hex(v.publicKey()), hex(v.message()), hex(v.signature()));
             if (actual != v.libsodium()) {
-                wrong.append(wrong.isEmpty() ? "" : "; ").append(v.name()).append(": ")
+                wrong.append(wrong.length() == 0 ? "" : "; ").append(v.name()).append(": ")
                         .append(actual ? "accepted" : "rejected").append(", libsodium ")
                         .append(v.libsodium() ? "accepts" : "rejects");
             }
         }
-        return wrong.isEmpty() ? null : "Ed25519 verification failed its self-check with BouncyCastle bcprov "
+        return wrong.length() == 0 ? null : "Ed25519 verification failed its self-check with BouncyCastle bcprov "
                 + bouncyCastleVersion() + " (" + wrong + "). " + SELF_CHECK_ADVICE;
     }
 
@@ -263,6 +260,18 @@ final class Ed25519Equation {
             // Only the message of an error already being reported depends on this.
             return "of unknown version (" + e + ")";
         }
+    }
+
+    /**
+     * The bytes of a hex string of this class's own constants. Not {@code java.util.HexFormat}: this code runs on
+     * Android, which has it only from API level 34.
+     */
+    private static byte[] hex(String hex) {
+        byte[] bytes = new byte[hex.length() / 2];
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) Integer.parseInt(hex.substring(2 * i, 2 * i + 2), 16);
+        }
+        return bytes;
     }
 
     /** The equation itself. */
