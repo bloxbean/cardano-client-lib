@@ -60,6 +60,29 @@ class ProtocolParamUpdateConwayTest {
                 drep.getTreasuryWithdrawal())).isEqualTo(intervals(10));
     }
 
+    /**
+     * #749: cardano-cbor-dataset 4fd977b2's conway manual-valid samples of {@code nonnegative_interval} (key 9, the
+     * pledge influence) and {@code unit_interval} (key 10, the expansion rate) whose parts are bignums or negative:
+     * cardano-ledger reads them with {@code n % d} and writes the reduced rational, the sample's expected bytes.
+     */
+    @Test
+    void rationalsAreReadReducedAsTheLedgerReadsThem() throws Exception {
+        String bignumRatio = "d81e82c249020000000000000000c249040000000000000000";
+        String[][] samples = {
+                {"0a", bignumRatio, "d81e820102"}, // unit_interval/bignum-ratio-reduces-in-range
+                {"0a", "d81e822021", "d81e820102"}, // unit_interval/negative-ratio-reduces-in-range
+                {"09", bignumRatio, "d81e820102"}, // nonnegative_interval/bignum-ratio-reduces-in-range
+                // nonnegative_interval/bignum-numerator-reduces-in-range
+                {"09", "d81e82c24901000000000000000002", "d81e821b800000000000000001"}};
+        for (String[] sample : samples) {
+            ProtocolParamUpdate decoded = ProtocolParamUpdate.deserialize(
+                    CborSerializationUtil.deserialize(hex("a1" + sample[0] + sample[1])));
+
+            assertThat(CborSerializationUtil.serialize(decoded.serialize(), false)).as(sample[1])
+                    .isEqualTo(hex("a1" + sample[0] + sample[2]));
+        }
+    }
+
     @Test
     void widenedFieldsKeepTheirWholeValue() throws Exception {
         byte[] update = hex("a3" + "021a80000000" + "031a80000001" + "071affffffff");
@@ -190,18 +213,18 @@ class ProtocolParamUpdateConwayTest {
         assertThat(drep).isEqualTo(hex(rationals(10)));
     }
 
-    /** @return an array of the given number of distinct rationals, 1/21, 2/21 and so on */
+    /** @return an array of the given number of distinct rationals in lowest terms, 1/23, 2/23 and so on */
     private static String rationals(int count) {
         StringBuilder array = new StringBuilder(count == 5 ? "85" : "8a");
         for (int i = 1; i <= count; i++) {
-            array.append("d81e82").append(String.format("%02x", i)).append("15");
+            array.append("d81e82").append(String.format("%02x", i)).append("17");
         }
         return array.toString();
     }
 
     private static List<UnitInterval> intervals(int count) {
         return IntStream.rangeClosed(1, count)
-                .mapToObj(i -> new UnitInterval(BigInteger.valueOf(i), BigInteger.valueOf(21))).toList();
+                .mapToObj(i -> new UnitInterval(BigInteger.valueOf(i), BigInteger.valueOf(23))).toList();
     }
 
     private static UnitInterval third() {

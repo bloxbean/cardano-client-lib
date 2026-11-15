@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 
 import static com.bloxbean.cardano.client.util.HexUtil.decodeHexString;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -283,6 +284,33 @@ class RawCertificateTest {
         assertThatThrownBy(() -> of(String.format(pool, "820102")).margin()).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> of(String.format(pool, "d81e8101")).margin())
                 .isInstanceOf(CborRuntimeException.class);
+    }
+
+    /**
+     * #749: the margin is the value cardano-ledger reads, {@code n % d}: in lowest terms with the sign on the
+     * numerator, whether its parts are integers or bignums, strict or lenient.
+     */
+    @Test
+    void marginIsReducedAsTheLedgerReadsIt() {
+        String pool = "8a" + "03" + KEY1 + VRF + "00" + "00" + "%s" + REWARD_ACCOUNT + "80" + "80" + "f6";
+        Map<String, UnitInterval> margins = Map.of(
+                "d81e822021", ratio(1, 2), // -1 / -2
+                "d81e82c249020000000000000000c249040000000000000000", ratio(1, 2), // 2^65 / 2^66
+                "d81e82c24901000000000000000002", new UnitInterval(BigInteger.TWO.pow(63), BigInteger.ONE),
+                "d81e820204", ratio(1, 2),
+                "d81e820122", ratio(-1, 3), // 1 / -3
+                "d81e820005", ratio(0, 1),
+                "d81e820105", ratio(1, 5));
+        margins.forEach((margin, expected) -> {
+            String cert = String.format(pool, margin);
+            assertThat(of(cert).margin()).as(margin).isEqualTo(expected);
+            assertThat(RawCertificate.lenient(CertKind.POOL_REGISTRATION, span(cert)).margin()).as(margin)
+                    .isEqualTo(expected);
+        });
+    }
+
+    private static UnitInterval ratio(long numerator, long denominator) {
+        return new UnitInterval(BigInteger.valueOf(numerator), BigInteger.valueOf(denominator));
     }
 
     /** ADR 0003 D7: what {@link RawCertificate#lenient} keeps and {@link RawCertificate#of} does not. */

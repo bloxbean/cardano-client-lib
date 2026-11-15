@@ -110,14 +110,14 @@ class IndefiniteLengthArraysTest {
 
     /**
      * A tag 30 rational over an indefinite array: cardano-ledger's decodeRationalWithTag reads the array with
-     * decodeListLenOrIndef.
+     * decodeListLenOrIndef, and holds the rational in lowest terms (here divided by the gcd, 4).
      */
     @Test
     void rationalInAParameterUpdate() throws Exception {
         ProtocolParamUpdate update = ProtocolParamUpdate.deserialize(
                 item("a1" + "09" + "d81e9f1b7ab36c7dc0f2c5041b5e41c33bd6c7a4f4ff"));
-        assertThat(update.getPoolPledgeInfluence().getNumerator()).isEqualTo(new BigInteger("7ab36c7dc0f2c504", 16));
-        assertThat(update.getPoolPledgeInfluence().getDenominator()).isEqualTo(new BigInteger("5e41c33bd6c7a4f4", 16));
+        assertThat(update.getPoolPledgeInfluence().getNumerator()).isEqualTo(new BigInteger("1eacdb1f703cb141", 16));
+        assertThat(update.getPoolPledgeInfluence().getDenominator()).isEqualTo(new BigInteger("179070cef5b1e93d", 16));
     }
 
     @Test

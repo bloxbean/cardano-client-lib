@@ -156,6 +156,7 @@ public class AuxiliaryData {
                 && (nativeScripts == null || nativeScripts.size() == 0)
                 && (plutusV1Scripts == null || plutusV1Scripts.size() == 0)
                 && (plutusV2Scripts == null || plutusV2Scripts.size() == 0)
+                && (plutusV3Scripts == null || plutusV3Scripts.isEmpty())
                 && (plutusV4Scripts == null || plutusV4Scripts.isEmpty())) {
             return metadata.getData();
         }

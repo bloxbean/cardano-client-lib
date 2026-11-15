@@ -330,7 +330,9 @@ public final class RawItems {
         return lenient ? lenientInteger(item) : integer(item);
     }
 
-    /** @return a rational, tag 30 on {@code [int, int]} */
+    /**
+     * @return a rational, tag 30 on {@code [int, int]}, reduced as the ledger reads it ({@link UnitInterval#reduced})
+     */
     static UnitInterval rational(CborSpan item, boolean lenient) {
         boolean tagged = false;
         CborSpan content = item;
@@ -340,6 +342,6 @@ public final class RawItems {
         }
         if (!tagged || content.majorType() != 4 || content.size() != 2)
             throw error("A rational is tag 30 on an array of 2 items", item);
-        return new UnitInterval(integer(content.get(0), lenient), integer(content.get(1), lenient));
+        return UnitInterval.reduced(integer(content.get(0), lenient), integer(content.get(1), lenient));
     }
 }

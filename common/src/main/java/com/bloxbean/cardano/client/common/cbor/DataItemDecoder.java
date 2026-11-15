@@ -35,8 +35,9 @@ import java.util.List;
  * {@code chunked} and holds just its items. An indefinite map is {@code chunked}; chunked byte and text strings are
  * joined and not marked chunked; the innermost tag is attached to the item and outer tags are chained on it; tag 30
  * becomes a {@link RationalNumber} and tag 38 a {@link LanguageTaggedString} (over a definite or an indefinite
- * array); untagged {@code false/true/null/undefined} are cbor-java's singletons; a repeated map key keeps its first
- * position and the last value. Maps are {@link EncodedKeyMap}s.
+ * array), and a bignum part of a rational becomes the integer of its value, which cbor-java rejected; untagged
+ * {@code false/true/null/undefined} are cbor-java's singletons; a repeated map key keeps its first position and the
+ * last value. Maps are {@link EncodedKeyMap}s.
  * <p>
  * Input must be well-formed (RFC 8949 section 5.3), checked with the same head rules as {@link CborSpan}: unlike
  * cbor-java, a misplaced BREAK, a tag on BREAK and an invalid string chunk are rejected. Declared sizes are checked
@@ -51,6 +52,8 @@ final class DataItemDecoder {
     private static final int MAJOR_MAP = 5;
     private static final int MAJOR_TAG = 6;
     private static final int BREAK = 0xff;
+    private static final long TAG_POSITIVE_BIGNUM = 2;
+    private static final long TAG_NEGATIVE_BIGNUM = 3;
     private static final long TAG_RATIONAL = 30;
     private static final long TAG_LANGUAGE_STRING = 38;
     private static final BigInteger MINUS_ONE = BigInteger.ONE.negate();
@@ -138,13 +141,27 @@ final class DataItemDecoder {
     }
 
     private static boolean isRational(List<CborSpan> items) {
-        if (items.size() != 2 || items.get(0).majorType() > MAJOR_NEGATIVE
-                || items.get(1).majorType() > MAJOR_NEGATIVE)
+        if (items.size() != 2)
             return false;
-        CborSpan denominator = items.get(1);
-        while (denominator.isTagged())
-            denominator = denominator.untag();
-        return denominator.asBigInteger().signum() != 0;
+        BigInteger numerator = integer(items.get(0));
+        BigInteger denominator = integer(items.get(1));
+        return numerator != null && denominator != null && denominator.signum() != 0;
+    }
+
+    /** @return the value {@link #integer(DataItem)} reads from the item, or null where it reads none */
+    private static BigInteger integer(CborSpan item) {
+        long innermostTag = -1;
+        CborSpan content = item;
+        while (content.isTagged()) {
+            innermostTag = content.tag();
+            content = content.untag();
+        }
+        if (content.majorType() <= MAJOR_NEGATIVE)
+            return content.asBigInteger();
+        if (content.majorType() == MAJOR_BYTES && (innermostTag == TAG_POSITIVE_BIGNUM
+                || innermostTag == TAG_NEGATIVE_BIGNUM))
+            return CborSpan.bignum(innermostTag == TAG_POSITIVE_BIGNUM, content.byteString());
+        return null;
     }
 
     private static boolean isLanguageString(List<CborSpan> items) {
@@ -351,13 +368,27 @@ final class DataItemDecoder {
 
     private static RationalNumber rational(DataItem item) {
         List<DataItem> items = item instanceof Array ? ((Array) item).getDataItems() : List.of();
-        if (items.size() != 2 || !(items.get(0) instanceof Number) || !(items.get(1) instanceof Number))
+        Number numerator = items.size() == 2 ? integer(items.get(0)) : null;
+        Number denominator = items.size() == 2 ? integer(items.get(1)) : null;
+        if (numerator == null || denominator == null)
             throw new CborRuntimeException("CBOR tag 30 (rational number) must wrap an array of two integers");
         try {
-            return new RationalNumber((Number) items.get(0), (Number) items.get(1));
+            return new RationalNumber(numerator, denominator);
         } catch (CborException e) {
             throw new CborRuntimeException("CBOR tag 30 (rational number): " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * @return a part of a rational: an integer, or a bignum (tag 2 or 3 on a byte string) as the integer of its value,
+     * since cardano-ledger reads both parts with {@code decodeInteger}; null for anything else
+     */
+    private static Number integer(DataItem item) {
+        if (item instanceof Number)
+            return (Number) item;
+        long tag = item instanceof ByteString && item.hasTag() ? item.getTag().getValue() : -1;
+        return tag == TAG_POSITIVE_BIGNUM || tag == TAG_NEGATIVE_BIGNUM
+                ? CborSerializationUtil.bigIntegerToDataItem(CborSerializationUtil.getBigInteger(item)) : null;
     }
 
     private static LanguageTaggedString languageTaggedString(DataItem item) {

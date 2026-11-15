@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConverter;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
@@ -222,5 +224,29 @@ public class AuxiliaryDataTest {
         ObjectNode root = (ObjectNode) rootNode;
 
         return root.get(key);
+    }
+    /**
+     * #749: metadata with only Plutus V3 scripts is the tag-259 map, keys 0 and 4, as with V2 scripts (keys 0 and 3);
+     * the metadata-only form left the V3 scripts out.
+     */
+    @Test
+    void metadataWithPlutusV3ScriptsKeepsTheScripts() throws Exception {
+        CBORMetadata metadata = new CBORMetadata();
+        metadata.put(BigInteger.valueOf(674), "hello");
+        PlutusV3Script v3 = PlutusV3Script.builder().cborHex("4746010000222499").build();
+        PlutusV2Script v2 = PlutusV2Script.builder().cborHex("4746010000222499").build();
+
+        AuxiliaryData withV3 = AuxiliaryData.builder().metadata(metadata).plutusV3Scripts(List.of(v3)).build();
+        AuxiliaryData withV2 = AuxiliaryData.builder().metadata(metadata).plutusV2Scripts(List.of(v2)).build();
+        AuxiliaryData v3Only = AuxiliaryData.builder().plutusV3Scripts(List.of(v3)).build();
+
+        assertThat(HexUtil.encodeHexString(CborSerializationUtil.serialize(withV3.serialize())))
+                .isEqualTo("d90103a200a11902a26568656c6c6f04814746010000222499");
+        assertThat(HexUtil.encodeHexString(CborSerializationUtil.serialize(withV2.serialize())))
+                .isEqualTo("d90103a200a11902a26568656c6c6f03814746010000222499");
+        assertThat(HexUtil.encodeHexString(CborSerializationUtil.serialize(v3Only.serialize())))
+                .isEqualTo("d90103a104814746010000222499");
+        assertThat(AuxiliaryData.deserialize((Map) CborSerializationUtil.deserialize(
+                CborSerializationUtil.serialize(withV3.serialize()))).getPlutusV3Scripts()).hasSize(1);
     }
 }

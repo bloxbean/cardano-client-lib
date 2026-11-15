@@ -123,6 +123,9 @@ class CborCorpusConformanceTest {
                 model -> ((ProposalProcedure) model).serialize()));
         rules.put("protocol_param_update", new Rule(cbor -> ProtocolParamUpdate.deserialize(item(cbor)),
                 model -> ((ProtocolParamUpdate) model).serialize()));
+        // read as a protocol parameter update reads them: the pledge influence (key 9) and the expansion rate (key 10)
+        rules.put("nonnegative_interval", inParamUpdate(9));
+        rules.put("unit_interval", inParamUpdate(10));
         rules.put("redeemer", new Rule(cbor -> Redeemer.deserializePreConway((Array) item(cbor)),
                 model -> ((Redeemer) model).serializePreConway()));
         rules.put("relay", new Rule(CborCorpusConformanceTest::relay, model -> ((Relay) model).serialize()));
@@ -218,7 +221,7 @@ class CborCorpusConformanceTest {
         }
         Map<String, String> listed = listedMisses(MISSES);
 
-        assertThat(samples).as("valid samples in the pinned corpus").isEqualTo(2837);
+        assertThat(samples).as("valid samples in the pinned corpus").isEqualTo(3051);
         assertThat(misses.keySet().stream().filter(id -> !misses.get(id).equals(listed.get(id)))
                 .map(id -> id + " " + misses.get(id) + ": " + details.get(id)).collect(Collectors.toList()))
                 .as("misses that are new, or differ from the list").isEmpty();
@@ -301,6 +304,13 @@ class CborCorpusConformanceTest {
         }
         return Arrays.equals(normalized, CborNormalizer.normalize(Files.readAllBytes(expectedOf(input)))) ? null
                 : new Miss("differs", "re-encoding differs from the reference");
+    }
+
+    /** A rule for the value of a protocol parameter update's key (below 24), read and written in a one-entry update. */
+    private static Rule inParamUpdate(int key) {
+        return new Rule(cbor -> ProtocolParamUpdate.deserialize(item(cat(hex(String.format("a1%02x", key)), cbor))),
+                model -> ((co.nstant.in.cbor.model.Map) ((ProtocolParamUpdate) model).serialize())
+                        .get(new UnsignedInteger(key)));
     }
 
     private static Relay relay(byte[] relay) throws Exception {
