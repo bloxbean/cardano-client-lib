@@ -16,21 +16,20 @@ public class RationalNumberUtil {
      * Convert a RationalNumber to {@link Rational}
      *
      * @param rn
-     * @return the rational, reduced as {@link #toUnitInterval(RationalNumber)} reduces it
+     * @return
      */
     public static Rational toRational(RationalNumber rn) {
-        UnitInterval reduced = toUnitInterval(rn);
-        return new Rational(reduced.getNumerator(), reduced.getDenominator());
+        return new Rational(getBigInteger(rn.getNumerator()), getBigInteger(rn.getDenominator()));
     }
 
     /**
      * Convert a RationalNumber to {@link UnitInterval}
      *
      * @param rn
-     * @return the rational reduced as the ledger reads it, {@link UnitInterval#reduced}
+     * @return
      */
     public static UnitInterval toUnitInterval(RationalNumber rn) {
-        return UnitInterval.reduced(getBigInteger(rn.getNumerator()), getBigInteger(rn.getDenominator()));
+        return new UnitInterval(getBigInteger(rn.getNumerator()), getBigInteger(rn.getDenominator()));
     }
 
     /**

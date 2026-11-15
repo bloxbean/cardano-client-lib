@@ -213,18 +213,18 @@ class ProtocolParamUpdateConwayTest {
         assertThat(drep).isEqualTo(hex(rationals(10)));
     }
 
-    /** @return an array of the given number of distinct rationals in lowest terms, 1/23, 2/23 and so on */
+    /** @return an array of the given number of distinct rationals, 1/21, 2/21 and so on */
     private static String rationals(int count) {
         StringBuilder array = new StringBuilder(count == 5 ? "85" : "8a");
         for (int i = 1; i <= count; i++) {
-            array.append("d81e82").append(String.format("%02x", i)).append("17");
+            array.append("d81e82").append(String.format("%02x", i)).append("15");
         }
         return array.toString();
     }
 
     private static List<UnitInterval> intervals(int count) {
         return IntStream.rangeClosed(1, count)
-                .mapToObj(i -> new UnitInterval(BigInteger.valueOf(i), BigInteger.valueOf(23))).toList();
+                .mapToObj(i -> new UnitInterval(BigInteger.valueOf(i), BigInteger.valueOf(21))).toList();
     }
 
     private static UnitInterval third() {

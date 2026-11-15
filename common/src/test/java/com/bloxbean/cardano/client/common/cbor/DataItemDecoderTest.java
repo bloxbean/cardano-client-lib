@@ -157,7 +157,8 @@ class DataItemDecoderTest {
         RationalNumber negative = (RationalNumber) decode("d81e82c3490100000000000000000a");
         assertThat(negative.getNumerator()).isInstanceOf(NegativeInteger.class);
         assertThat(negative.getNumerator().getValue()).isEqualTo(BigInteger.TWO.pow(64).add(BigInteger.ONE).negate());
-        // a bignum in a native width, and a tag outside the bignum's
+        // a bignum in a native width; and a tag outside the bignum's, which cborg's decodeInteger rejects but this
+        // decoder looks through, as it does for a tag on an integer part (d81e82c10102) and as getBigInteger does
         assertThat(((RationalNumber) decode("d81e82c2410102")).getNumerator().getValue()).isEqualTo(BigInteger.ONE);
         assertThat(((RationalNumber) decode("d81e8201c1c24102")).getDenominator().getValue())
                 .isEqualTo(BigInteger.TWO);

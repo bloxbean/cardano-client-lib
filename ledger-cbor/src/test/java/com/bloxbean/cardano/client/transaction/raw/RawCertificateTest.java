@@ -287,20 +287,22 @@ class RawCertificateTest {
     }
 
     /**
-     * #749: the margin is the value cardano-ledger reads, {@code n % d}: in lowest terms with the sign on the
-     * numerator, whether its parts are integers or bignums, strict or lenient.
+     * #749: a margin with a negative part or a bignum part above 2^64 - 1 is the value cardano-ledger reads,
+     * {@code n % d}; one whose parts are both unsigned 64-bit integers is kept as read, as CCL writes it back. Strict
+     * and lenient alike.
      */
     @Test
-    void marginIsReducedAsTheLedgerReadsIt() {
+    void marginWithANegativeOrBignumPartIsReducedAsTheLedgerReadsIt() {
         String pool = "8a" + "03" + KEY1 + VRF + "00" + "00" + "%s" + REWARD_ACCOUNT + "80" + "80" + "f6";
         Map<String, UnitInterval> margins = Map.of(
                 "d81e822021", ratio(1, 2), // -1 / -2
+                "d81e820122", ratio(-1, 3), // 1 / -3
                 "d81e82c249020000000000000000c249040000000000000000", ratio(1, 2), // 2^65 / 2^66
                 "d81e82c24901000000000000000002", new UnitInterval(BigInteger.TWO.pow(63), BigInteger.ONE),
-                "d81e820204", ratio(1, 2),
-                "d81e820122", ratio(-1, 3), // 1 / -3
-                "d81e820005", ratio(0, 1),
-                "d81e820105", ratio(1, 5));
+                "d81e820204", ratio(2, 4),
+                "d81e820005", ratio(0, 5),
+                "d81e82c2410204", ratio(2, 4), // a bignum within 64 bits is a plain integer to the tree decoder
+                "d81e821bffffffffffffffff1bffffffffffffffff", new UnitInterval(MAX_WORD64, MAX_WORD64));
         margins.forEach((margin, expected) -> {
             String cert = String.format(pool, margin);
             assertThat(of(cert).margin()).as(margin).isEqualTo(expected);
@@ -308,6 +310,8 @@ class RawCertificateTest {
                     .isEqualTo(expected);
         });
     }
+
+    private static final BigInteger MAX_WORD64 = BigInteger.TWO.pow(64).subtract(BigInteger.ONE);
 
     private static UnitInterval ratio(long numerator, long denominator) {
         return new UnitInterval(BigInteger.valueOf(numerator), BigInteger.valueOf(denominator));

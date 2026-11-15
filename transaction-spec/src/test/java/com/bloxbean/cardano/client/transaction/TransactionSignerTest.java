@@ -1,18 +1,25 @@
 package com.bloxbean.cardano.client.transaction;
 
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyGenerator;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
+import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.VkeyWitness;
+import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
+import com.bloxbean.cardano.client.transaction.util.TransactionBytes;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
+
+import java.math.BigInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -120,4 +127,47 @@ class TransactionSignerTest {
         assertThat(signedTransaction.getAuxiliaryData().serialize()).isEqualTo(originalTransaction.getAuxiliaryData().serialize());
     }
 
+    /**
+     * #749: a pool registration whose margin is not in lowest terms (2/4 set on the model, 5/100 as another tool may
+     * write it) is signed and co-signed through the model without its body changing: the returned transaction's body
+     * hashes to what was signed, and every witness verifies against it.
+     */
+    @Test
+    void signingAModelKeepsAMarginThatIsNotInLowestTerms() throws Exception {
+        // as CCL writes a Conway body, sets tagged 258, so that only the margin could change it
+        String pool = "8a" + "03" + "581c" + "11".repeat(28) + "5820" + "22".repeat(32) + "1a000f4240" + "1903e8"
+                + "d81e82051864" + "581de0" + "11".repeat(28) + "d9010280" + "80" + "f6";
+        String body = "a4" + "00" + "d9010281" + "825820" + "33".repeat(32) + "00" + "0180" + "021a00030d40"
+                + "04" + "d9010281" + pool;
+        byte[] received = HexUtil.decodeHexString("84" + body + "a0f5f6");
+        byte[] bodyHash = Blake2bUtil.blake2bHash256(HexUtil.decodeHexString(body));
+
+        SecretKey secretKey = SecretKey.create(HexUtil.decodeHexString(
+                "ede3104b2f4ff32daa3b620a9a272cd962cf504da44cf1cf0280aff43b65f807"));
+        HdKeyPair keyPair = new HdKeyGenerator().getRootKeyPairFromEntropy(MnemonicCode.INSTANCE.toEntropy(
+                "indicate traffic belt syrup chief accident put upset present short drink bus glide warm roof"));
+
+        Transaction coSigned = TransactionSigner.INSTANCE.sign(
+                TransactionSigner.INSTANCE.sign(Transaction.deserialize(received), secretKey), keyPair);
+        assertSignedOver(coSigned, bodyHash, 2);
+
+        Transaction built = Transaction.deserialize(received);
+        ((PoolRegistration) built.getBody().getCerts().get(0))
+                .setMargin(new UnitInterval(BigInteger.TWO, BigInteger.valueOf(4)));
+        byte[] builtBodyHash = Blake2bUtil.blake2bHash256(new TransactionBytes(built.serialize()).getTxBodyBytes());
+        Transaction signed = TransactionSigner.INSTANCE.sign(TransactionSigner.INSTANCE.sign(built, keyPair),
+                secretKey);
+        assertSignedOver(signed, builtBodyHash, 2);
+        assertThat(((PoolRegistration) signed.getBody().getCerts().get(0)).getMargin())
+                .isEqualTo(new UnitInterval(BigInteger.TWO, BigInteger.valueOf(4)));
+    }
+
+    private static void assertSignedOver(Transaction transaction, byte[] bodyHash, int witnesses) throws Exception {
+        assertThat(Blake2bUtil.blake2bHash256(new TransactionBytes(transaction.serialize()).getTxBodyBytes()))
+                .isEqualTo(bodyHash);
+        assertThat(transaction.getWitnessSet().getVkeyWitnesses()).hasSize(witnesses);
+        for (VkeyWitness witness : transaction.getWitnessSet().getVkeyWitnesses())
+            assertThat(CryptoConfiguration.INSTANCE.getSigningProvider().verify(witness.getSignature(), bodyHash,
+                    witness.getVkey())).isTrue();
+    }
 }
