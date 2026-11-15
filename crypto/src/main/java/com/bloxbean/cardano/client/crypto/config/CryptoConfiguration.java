@@ -12,9 +12,10 @@ import java.util.Objects;
 public enum CryptoConfiguration {
     INSTANCE();
 
-    private SigningProvider signingProvider;
-    private Ed25519Verifier ed25519Verifier;
-    private EntropyProvider entropyProvider;
+    // Volatile: set from one thread, read on every use from others, so a change reaches threads already running.
+    private volatile SigningProvider signingProvider;
+    private volatile Ed25519Verifier ed25519Verifier;
+    private volatile EntropyProvider entropyProvider;
 
     CryptoConfiguration() {
         signingProvider = new EdDSASigningProvider();
