@@ -71,22 +71,26 @@ same fix as the 3 inline datum samples below (D6.3), so they add work to G1's li
 | 2 | `auxiliary_data` | The dataset and the production decoder disagree | Source reading, section 1.4 | Q1 |
 | 1 | `certificate` | Pool retirement epoch at or above 2^63 fails on re-encoding (`PoolRetirement.java:52` reads it with `toLong`) | Stack trace | D4 |
 
-For rationals with plain parts, CCL needs no change: the dataset's normalization reduces them (vector
-`0012-tag-30-rational`, `CborNormalizer`). Pin 4fd977b2 added rationals with a bignum or a negative part, and CCL
-needed a change for those (#749):
+The rationals need no reduction in CCL: the dataset's normalization reduces them (vector `0012-tag-30-rational`,
+`CborNormalizer`), as Haskell's `n % d` does, in lowest terms with the sign on the numerator. Pin 4fd977b2 added
+rationals with a bignum or a negative part, and CCL needed a change for those (#749):
 
-- cardano-ledger reads both parts with `decodeInteger` and holds `n % d` (`decodeRationalWithTag`). So the tree
+- cardano-ledger reads both parts with `decodeInteger`, which takes a bignum (`decodeRationalWithTag`). So the tree
   decoder and `checkTags` now accept a tag-2 or tag-3 bignum part.
-- `RawItems.rational`, the one reader behind every model, reads a rational as the ledger does, `n % d`, only when a
-  part is negative or a bignum above 2^64 - 1. These are forms CCL never writes itself.
-- A rational with two unsigned 64-bit parts keeps its parts as read, for example `2/4`, or `5/100` from another tool.
-  CCL writes such parts back as they are. If CCL reduced them, a model that `TransactionSigner.sign(Transaction, …)`
-  serializes, signs and reads back would hold another body than the one signed. A co-signed received transaction
-  would lose its existing witnesses.
-- These lenient models still do not check ranges. They accept `unit_interval/manual-invalid/
-  bignum-numerator-above-word64` (2^64 / 1) as they accept negative parts; Yano's strict reader rejects them.
-- From protocol version 12 the ledger reads both parts as `Word64`s (`decodeIntegralRational`). So bignum and
-  negative parts are Conway forms only. CCL reads them in any era.
+- `RawItems.rational`, the one reader behind every model, keeps both parts as read: `2/4`, `5/100` from another
+  tool, `-1/-2` and `2^65/2^66` alike. Every writer of a rational writes its parts with `bigIntegerToDataItem`, so
+  negative and bignum parts go back as they are (the pool margin and the committee quorum now through
+  `RationalNumberUtil.toRationalNumber`, as the other writers in this module). So a model that `TransactionSigner.sign(Transaction, …)`
+  serializes, signs and reads back holds the body that was signed, and a co-signed received transaction keeps its
+  witnesses.
+- That holds for every form CCL writes. A model keeps no bytes (ADR 0004 D5), so a received form CCL does not write
+  itself, such as a bignum part whose value fits 64 bits, an indefinite array or a wide head, is written in CCL's
+  form. Co-sign such a transaction with the `sign(byte[], …)` overloads, which keep the body.
+- These lenient models do not reduce and check no ranges: they accept `unit_interval/manual-invalid/
+  bignum-numerator-above-word64` (2^64 / 1) as they accept negative parts. cardano-ledger's checks, which are to
+  reduce, then require both parts within `Word64` and the value within the type's range, and from protocol version 12
+  to require both parts to be `Word64`s (`decodeIntegralRational`), belong to the Haskell-strict policy that ADR 0005
+  (#750) brings into CCL. Until then, Yano's strict reader applies them.
 
 ### 1.4 The two disputed samples
 

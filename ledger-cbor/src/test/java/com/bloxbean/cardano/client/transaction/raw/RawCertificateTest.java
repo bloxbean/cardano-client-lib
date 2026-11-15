@@ -287,18 +287,19 @@ class RawCertificateTest {
     }
 
     /**
-     * #749: a margin with a negative part or a bignum part above 2^64 - 1 is the value cardano-ledger reads,
-     * {@code n % d}; one whose parts are both unsigned 64-bit integers is kept as read, as CCL writes it back. Strict
-     * and lenient alike.
+     * #749: a margin keeps both parts as read, a negative part or a bignum part as well as {@code 2/4}, since CCL
+     * writes them back the same; reducing them and checking their range is the Haskell-strict policy's (ADR 0005).
+     * Strict and lenient alike, for these margins.
      */
     @Test
-    void marginWithANegativeOrBignumPartIsReducedAsTheLedgerReadsIt() {
+    void marginKeepsItsPartsAsRead() {
         String pool = "8a" + "03" + KEY1 + VRF + "00" + "00" + "%s" + REWARD_ACCOUNT + "80" + "80" + "f6";
         Map<String, UnitInterval> margins = Map.of(
-                "d81e822021", ratio(1, 2), // -1 / -2
-                "d81e820122", ratio(-1, 3), // 1 / -3
-                "d81e82c249020000000000000000c249040000000000000000", ratio(1, 2), // 2^65 / 2^66
-                "d81e82c24901000000000000000002", new UnitInterval(BigInteger.TWO.pow(63), BigInteger.ONE),
+                "d81e822021", ratio(-1, -2),
+                "d81e820122", ratio(1, -3),
+                "d81e82c249020000000000000000c249040000000000000000",
+                new UnitInterval(BigInteger.TWO.pow(65), BigInteger.TWO.pow(66)),
+                "d81e82c24901000000000000000002", new UnitInterval(BigInteger.TWO.pow(64), BigInteger.TWO),
                 "d81e820204", ratio(2, 4),
                 "d81e820005", ratio(0, 5),
                 "d81e82c2410204", ratio(2, 4), // a bignum within 64 bits is a plain integer to the tree decoder

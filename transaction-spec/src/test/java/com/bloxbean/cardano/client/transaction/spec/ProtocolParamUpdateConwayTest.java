@@ -62,24 +62,22 @@ class ProtocolParamUpdateConwayTest {
 
     /**
      * #749: cardano-cbor-dataset 4fd977b2's conway manual-valid samples of {@code nonnegative_interval} (key 9, the
-     * pledge influence) and {@code unit_interval} (key 10, the expansion rate) whose parts are bignums or negative:
-     * cardano-ledger reads them with {@code n % d} and writes the reduced rational, the sample's expected bytes.
+     * pledge influence) and {@code unit_interval} (key 10, the expansion rate) whose parts are bignums or negative are
+     * read and written back with their parts as they are. cardano-ledger holds them reduced, which the dataset's
+     * normalization of the re-encoding gives (CborCorpusConformanceTest).
      */
     @Test
-    void rationalsAreReadReducedAsTheLedgerReadsThem() throws Exception {
-        String bignumRatio = "d81e82c249020000000000000000c249040000000000000000";
+    void rationalsWithBignumOrNegativePartsAreWrittenBackAsRead() throws Exception {
         String[][] samples = {
-                {"0a", bignumRatio, "d81e820102"}, // unit_interval/bignum-ratio-reduces-in-range
-                {"0a", "d81e822021", "d81e820102"}, // unit_interval/negative-ratio-reduces-in-range
-                {"09", bignumRatio, "d81e820102"}, // nonnegative_interval/bignum-ratio-reduces-in-range
-                // nonnegative_interval/bignum-numerator-reduces-in-range
-                {"09", "d81e82c24901000000000000000002", "d81e821b800000000000000001"}};
+                {"0a", "d81e82c249020000000000000000c249040000000000000000"}, // unit_interval/bignum-ratio-…
+                {"0a", "d81e822021"}, // unit_interval/negative-ratio-reduces-in-range
+                {"09", "d81e82c249020000000000000000c249040000000000000000"}, // nonnegative_interval/bignum-ratio-…
+                {"09", "d81e82c24901000000000000000002"}}; // nonnegative_interval/bignum-numerator-reduces-in-range
         for (String[] sample : samples) {
-            ProtocolParamUpdate decoded = ProtocolParamUpdate.deserialize(
-                    CborSerializationUtil.deserialize(hex("a1" + sample[0] + sample[1])));
+            byte[] update = hex("a1" + sample[0] + sample[1]);
+            ProtocolParamUpdate decoded = ProtocolParamUpdate.deserialize(CborSerializationUtil.deserialize(update));
 
-            assertThat(CborSerializationUtil.serialize(decoded.serialize(), false)).as(sample[1])
-                    .isEqualTo(hex("a1" + sample[0] + sample[2]));
+            assertThat(CborSerializationUtil.serialize(decoded.serialize(), false)).as(sample[1]).isEqualTo(update);
         }
     }
 

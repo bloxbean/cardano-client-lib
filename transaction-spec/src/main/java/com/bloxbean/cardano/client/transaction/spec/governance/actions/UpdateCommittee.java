@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.spec.Comparators;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
+import com.bloxbean.cardano.client.transaction.util.RationalNumberUtil;
 import com.bloxbean.cardano.client.transaction.raw.GovActionKind;
 import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
 import com.bloxbean.cardano.client.transaction.util.RawModels;
@@ -72,7 +73,7 @@ public class UpdateCommittee implements GovAction {
         }
         array.add(newMembersTermsMap);
 
-        array.add(new RationalNumber(new UnsignedInteger(quorumThreshold.getNumerator()), new UnsignedInteger(quorumThreshold.getDenominator())));
+        array.add(RationalNumberUtil.toRationalNumber(quorumThreshold));
         return array;
     }
 

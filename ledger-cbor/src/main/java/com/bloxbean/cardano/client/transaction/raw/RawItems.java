@@ -331,12 +331,11 @@ public final class RawItems {
     }
 
     /**
-     * A rational, tag 30 on {@code [int, int]}. cardano-ledger holds the {@code n % d} of its parts
-     * ({@code decodeRationalWithTag}; {@code decodeIntegralRational} from protocol version 12). Parts that are both
-     * unsigned 64-bit integers are kept as read, since CCL writes them back as they are and a model that is signed or
-     * co-signed must not change its body. Only a part beyond them, negative or a bignum above 2^64 - 1, which CCL never
-     * writes itself, makes it read as the ledger does, {@link #reduced}. Such parts are Conway forms: from protocol
-     * version 12 the ledger reads both parts as {@code Word64}s, which these lenient readers do not check.
+     * A rational, tag 30 on {@code [int, int]}, with both parts as read: {@code 2/4}, {@code -1/-2} and a bignum part
+     * stay as they are, and CCL writes them back the same, so a model that is signed or co-signed keeps its body.
+     * cardano-ledger holds the {@code n % d} of the parts and checks it ({@code decodeRationalWithTag}; from protocol
+     * version 12 {@code decodeIntegralRational}, whose parts are {@code Word64}s). Those checks are the Haskell-strict
+     * policy's (ADR 0005), not this reader's.
      *
      * @return the rational
      */
@@ -349,25 +348,6 @@ public final class RawItems {
         }
         if (!tagged || content.majorType() != 4 || content.size() != 2)
             throw error("A rational is tag 30 on an array of 2 items", item);
-        BigInteger numerator = integer(content.get(0), lenient);
-        BigInteger denominator = integer(content.get(1), lenient);
-        return isWord64(numerator) && isWord64(denominator) ? new UnitInterval(numerator, denominator)
-                : reduced(numerator, denominator);
-    }
-
-    private static boolean isWord64(BigInteger value) {
-        return value != null && value.signum() >= 0 && value.bitLength() <= Long.SIZE;
-    }
-
-    /**
-     * @return {@code numerator % denominator} as Haskell's {@code Data.Ratio} gives it: in lowest terms, with the sign
-     * on the numerator; a null part or a zero denominator, which a lenient read may give, is kept as given
-     */
-    static UnitInterval reduced(BigInteger numerator, BigInteger denominator) {
-        if (numerator == null || denominator == null || denominator.signum() == 0)
-            return new UnitInterval(numerator, denominator);
-        BigInteger gcd = numerator.gcd(denominator);
-        BigInteger divisor = denominator.signum() < 0 ? gcd.negate() : gcd;
-        return new UnitInterval(numerator.divide(divisor), denominator.divide(divisor));
+        return new UnitInterval(integer(content.get(0), lenient), integer(content.get(1), lenient));
     }
 }
