@@ -13,6 +13,7 @@ i2p-crypto-eddsa = "com.bloxbean.cardano:net-i2p-crypto-eddsa:0.3.1"
 
 jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.21.0"
 jackson-datatype-jsr310 = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.0"
+jackson-datatype-jdk8 = "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.21.0"
 jackson-dataformat-yaml = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.0"
 
 retrofit2 = "com.squareup.retrofit2:retrofit:3.0.0"

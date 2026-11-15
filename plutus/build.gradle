@@ -1,6 +1,7 @@
 dependencies {
     api project(':common')
     api project(':common-spec')
+    api project(':ledger-cbor')
     testImplementation(project(':test-support')) {
         exclude group: 'net.jqwik'
     }

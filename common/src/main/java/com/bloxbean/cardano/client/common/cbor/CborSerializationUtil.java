@@ -293,6 +293,46 @@ public class CborSerializationUtil {
     }
 
     /**
+     * Deserialize a span to DataItem, as {@link #deserialize(byte[])} does, without copying its bytes.
+     *
+     * @param item the item
+     * @return DataItem
+     * @throws CborRuntimeException if the item is not one {@link #deserialize(byte[])} accepts
+     */
+    public static DataItem deserialize(@NonNull CborSpan item) {
+        return DataItemDecoder.decode(item);
+    }
+
+    /**
+     * Encodes a decoded item for a reader of spans. Encoding facts are already lost in a tree, and a model decoded from
+     * it does not use them.
+     *
+     * @param item a decoded item
+     * @return the item as a span, keeping map order
+     * @throws CborRuntimeException if the item cannot be encoded
+     */
+    public static CborSpan span(@NonNull DataItem item) {
+        try {
+            return CborSpan.of(serialize(item, false));
+        } catch (CborException e) {
+            throw new CborRuntimeException("Cbor serialization error", e);
+        }
+    }
+
+    /**
+     * Rejects what {@link #deserialize(byte[])} rejects and a span reads, for a caller that reads a span in place of a
+     * decoded tree and keeps what the tree accepts: tag 30 needs two integers with a denominator other than 0, and tag
+     * 38 two text strings, wherever they occur in the item. Everything else decoding rejects, the walker of a span does
+     * too.
+     *
+     * @param item the item
+     * @throws CborRuntimeException if decoding the item would reject it
+     */
+    public static void checkTags(@NonNull CborSpan item) {
+        DataItemDecoder.checkTags(item.buffer(), item.offset(), item.offset() + item.length());
+    }
+
+    /**
      * Deserialize every CBOR data item in the bytes, as {@link #deserialize(byte[])} does.
      *
      * @param bytes CBOR bytes

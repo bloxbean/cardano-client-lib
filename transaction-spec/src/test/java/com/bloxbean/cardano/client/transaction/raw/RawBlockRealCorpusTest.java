@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -73,7 +74,8 @@ class RawBlockRealCorpusTest {
             assertSameBlock(raw, RawBlock.of(embedded(block.cbor())));
             assertSameBlock(raw, RawBlock.of(embedded(bare), era));
         }
-        assertThat(eras).containsExactlyInAnyOrder(Era.values());
+        // no real network has a final Dijkstra block: DijkstraVectorsTest reads the Dijkstra vectors (ADR 0003 I15)
+        assertThat(eras).containsExactlyInAnyOrderElementsOf(EnumSet.range(Era.Shelley, Era.Conway));
         assertThat(invalidTxs).isPositive();
     }
 

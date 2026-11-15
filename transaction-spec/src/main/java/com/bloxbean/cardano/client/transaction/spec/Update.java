@@ -1,17 +1,18 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate;
+import com.bloxbean.cardano.client.transaction.raw.RawUpdate;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.*;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 @Getter
 @AllArgsConstructor
@@ -44,22 +45,24 @@ public class Update {
     }
 
     public static Update deserialize(DataItem din) throws CborDeserializationException {
-        List<DataItem> updateItems = definiteItems((Array) din, "update");
-        if (updateItems.size() != 2)
-            throw new CborDeserializationException("Invalid number of dataitems for update. Expected 2, found: " + updateItems.size());
+        return from(RawUpdate.lenient(CborSerializationUtil.span(din), RawModels.READ_IN));
+    }
 
-        java.util.Map deProtoParamUpdatesMap = new LinkedHashMap<>();
-        Map protoParamUpdatesMap = (Map) updateItems.get(0);
-        for (DataItem genhashDI: protoParamUpdatesMap.getKeys()) {
-            String genesisHash = HexUtil.encodeHexString(((ByteString)genhashDI).getBytes());
-            ProtocolParamUpdate protocolParamUpdate = ProtocolParamUpdate.deserialize(protoParamUpdatesMap.get(genhashDI));
-
-            deProtoParamUpdatesMap.put(genesisHash, protocolParamUpdate);
-        }
-
-        int epoch = toUnsignedInt(updateItems.get(1));
-
-        return new Update(deProtoParamUpdatesMap, epoch);
+    /**
+     * @param raw an update as received
+     * @return the model: a genesis hash that equals an earlier one keeps that one's place and takes the later update
+     * @throws CborDeserializationException if a parameter update is not what its model accepts
+     * @throws CborRuntimeException         if the epoch does not fit an int
+     */
+    public static Update from(RawUpdate raw) throws CborDeserializationException {
+        java.util.Map<String, ProtocolParamUpdate> updates = new LinkedHashMap<>();
+        for (java.util.Map.Entry<byte[], RawProtocolParamUpdate> proposal : raw.proposals())
+            updates.put(HexUtil.encodeHexString(proposal.getKey()), ProtocolParamUpdate.from(proposal.getValue()));
+        long epoch = raw.epoch();
+        if (epoch < 0 || epoch > Integer.MAX_VALUE)
+            throw new CborRuntimeException("Expected an epoch that fits an int, found : "
+                    + Long.toUnsignedString(epoch));
+        return new Update(updates, (int) epoch);
     }
 
 }

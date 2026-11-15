@@ -1,14 +1,32 @@
 package com.bloxbean.cardano.client.tools.chainparse;
 
+import co.nstant.in.cbor.model.Array;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.Script;
+import com.bloxbean.cardano.client.transaction.raw.RawAnchor;
 import com.bloxbean.cardano.client.transaction.raw.RawBlock;
+import com.bloxbean.cardano.client.transaction.raw.RawCostModels;
+import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
+import com.bloxbean.cardano.client.transaction.raw.RawNonce;
+import com.bloxbean.cardano.client.transaction.raw.RawProposal;
+import com.bloxbean.cardano.client.transaction.raw.RawProtocolParamUpdate;
+import com.bloxbean.cardano.client.transaction.raw.RawProtocolVersion;
+import com.bloxbean.cardano.client.transaction.raw.RawVotingThresholds;
 import com.bloxbean.cardano.client.transaction.raw.RawDatum;
+import com.bloxbean.cardano.client.transaction.raw.RawHeader;
+import com.bloxbean.cardano.client.transaction.raw.FormatPolicy;
+import com.bloxbean.cardano.client.transaction.raw.RawInput;
 import com.bloxbean.cardano.client.transaction.raw.RawOutput;
+import com.bloxbean.cardano.client.transaction.raw.RawTxBody;
+import com.bloxbean.cardano.client.transaction.raw.RawValue;
+import com.bloxbean.cardano.client.transaction.raw.RawWitnessSet;
+import com.bloxbean.cardano.client.transaction.raw.RecordSpec;
+import com.bloxbean.cardano.client.transaction.raw.FieldSpec;
 import com.bloxbean.cardano.client.transaction.raw.RawRedeemer;
 import com.bloxbean.cardano.client.transaction.raw.RawScript;
 import com.bloxbean.cardano.client.transaction.raw.RawTx;
@@ -19,6 +37,9 @@ import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScriptEvaluator;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.yaci.core.model.HeaderBody;
+import com.bloxbean.cardano.yaci.core.model.serializers.BlockHeaderSerializer;
+import com.bloxbean.cardano.yaci.core.util.CborSerializationUtil;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -102,6 +123,7 @@ final class Checker {
         } catch (Throwable t) {
             issue("body_hash_error", null, trace(t), null, bytes);
         }
+        rawHeader(rb, headerBodyHash, bytes);
 
         // independent tx count alignment
         List<CborSpan> bodies = blk.get(1).items();
@@ -134,6 +156,35 @@ final class Checker {
             }
         }
         state.countBlock();
+    }
+
+    /**
+     * {@code RawHeader} against the values read from the raw bytes above, and against Yaci's header reader, which is
+     * what chain-sync delivers. Yaci hashes a re-encoding of the header, so a block hash that differs is counted, not
+     * reported: ADR 0003 D8 expects it on a header that is not minimally encoded.
+     */
+    private void rawHeader(RawBlock rb, byte[] ownBodyHash, byte[] bytes) {
+        try {
+            RawHeader header = rb.rawHeader();
+            if (header.blockNumber() != blockNo || header.slot() != slot)
+                issue("raw_header_position", null, "raw bytes " + blockNo + "/" + slot + " RawHeader "
+                        + header.blockNumber() + "/" + header.slot(), null, bytes);
+            if (!hex(header.hash()).equals(blockHash))
+                issue("raw_header_hash", null, "raw bytes " + blockHash + " RawHeader " + hex(header.hash()), null,
+                        bytes);
+            if (!Arrays.equals(header.bodyHash(), ownBodyHash))
+                issue("raw_header_body_hash", null, "raw bytes " + hex(ownBodyHash) + " RawHeader "
+                        + hex(header.bodyHash()), null, bytes);
+            HeaderBody yaci = BlockHeaderSerializer.INSTANCE.getBlockHeaderFromHeaderArray(
+                    (Array) CborSerializationUtil.deserializeOne(rb.header().bytes())).getHeaderBody();
+            if (yaci.getBlockNumber() != header.blockNumber() || yaci.getSlot() != header.slot())
+                issue("raw_header_yaci", null, "Yaci " + yaci.getBlockNumber() + "/" + yaci.getSlot() + " RawHeader "
+                        + header.blockNumber() + "/" + header.slot(), null, bytes);
+            if (!hex(header.hash()).equals(yaci.getBlockHash()))
+                state.inc(era, "header_hash_differs_from_yaci", 1);
+        } catch (Throwable t) {
+            issue("raw_header_error", null, trace(t), null, bytes);
+        }
     }
 
     private void tx(RawBlock rb, int i, CborSpan ownBody, boolean hasAux) {
@@ -223,6 +274,153 @@ final class Checker {
             scriptDataHash(c, tx, rb.era(), witnessLangs);
         if (t != null)
             model(c, t, tx, redeemers);
+        typedBody(c, tx, rb.era());
+        typedWitnessesAndAux(c, tx, rb.era());
+        walk(c, rb, i);
+    }
+
+    /** The transaction's walk, over all its tables: on a chain, every field of every record is one its era has (D6). */
+    private void walk(Ctx c, RawBlock rb, int i) {
+        try {
+            RawTx.walk(rb.txBytes(i), rb.era(), new FormatPolicy() {
+                @Override
+                public void entry(RecordSpec record, FieldSpec field, CborSpan key, CborSpan value, int occurrence,
+                                  Era era) {
+                    if (field == null || !field.validIn(era))
+                        c.issue("table_entry", record + " key " + (key != null ? hex(key.bytes()) : "position"));
+                }
+
+                @Override
+                public void missing(RecordSpec record, FieldSpec field, CborSpan container, Era era) {
+                    c.issue("table_missing", record + " has no " + field.type());
+                }
+            });
+            state.inc(era, "walked_txs", 1);
+        } catch (Throwable e) {
+            c.issue("walk", trace(e));
+        }
+    }
+
+    /** Every typed field of the witness set and the aux data: nothing valid on chain is rejected (D5). */
+    private void typedWitnessesAndAux(Ctx c, RawTx tx, Era txEra) {
+        try {
+            RawWitnessSet witnesses = tx.witnessSet(txEra);
+            witnesses.vkeyWitnesses();
+            witnesses.bootstrapWitnesses();
+            witnesses.datums();
+            witnesses.scripts();
+            witnesses.redeemers().ifPresent(redeemers -> redeemers.forEach(RawRedeemer::units));
+            tx.auxData(txEra).ifPresent(aux -> {
+                aux.metadata();
+                aux.scripts();
+            });
+            state.inc(era, "typed_witnesses", 1);
+        } catch (Throwable e) {
+            c.issue("typed_witnesses", trace(e));
+        }
+    }
+
+    /** Every typed field of the body: nothing valid on chain is rejected (D5). */
+    private void typedBody(Ctx c, RawTx tx, Era bodyEra) {
+        try {
+            RawTxBody body = tx.body(bodyEra);
+            body.inputs().forEach(RawInput::index);
+            body.outputs().forEach(this::amount);
+            body.fee();
+            body.ttl();
+            body.certificates();
+            body.withdrawals();
+            body.auxDataHash();
+            body.validityStart();
+            body.mint();
+            body.scriptDataHash();
+            body.collateral();
+            body.requiredSigners();
+            body.networkId();
+            body.collateralReturn().ifPresent(this::amount);
+            body.totalCollateral();
+            body.referenceInputs();
+            body.update().ifPresent(update -> {
+                update.epoch();
+                update.proposals().forEach(proposal -> parameters(proposal.getValue()));
+            });
+            body.votingProcedures().ifPresent(procedures -> procedures.voters().forEach(voter -> voter.votes()
+                    .forEach(vote -> vote.getValue().anchor().ifPresent(RawAnchor::url))));
+            body.proposalProcedures().ifPresent(proposals -> proposals.forEach(this::proposal));
+            body.currentTreasury();
+            body.donation();
+            state.inc(era, "typed_bodies", 1);
+        } catch (Throwable e) {
+            c.issue("typed_body", trace(e));
+        }
+    }
+
+    private void proposal(RawProposal proposal) {
+        proposal.deposit();
+        proposal.anchor().url();
+        RawGovAction action = proposal.govAction();
+        switch (action.kind()) {
+            case PARAMETER_CHANGE -> {
+                action.previousActionId();
+                parameters(action.protocolParamUpdate());
+                action.policyHash();
+            }
+            case HARD_FORK_INITIATION -> action.protocolVersion().minor();
+            case TREASURY_WITHDRAWALS -> action.withdrawals();
+            case NO_CONFIDENCE -> action.previousActionId();
+            case UPDATE_COMMITTEE -> {
+                action.membersToRemove();
+                action.membersToAdd();
+                action.quorum();
+            }
+            case NEW_CONSTITUTION -> action.constitution().anchor().url();
+            default -> {
+            }
+        }
+    }
+
+    // Every field of a parameter update, read in the era of its transaction.
+    private void parameters(RawProtocolParamUpdate update) {
+        update.minFeeA();
+        update.minFeeB();
+        update.maxBlockBodySize();
+        update.maxTxSize();
+        update.maxBlockHeaderSize();
+        update.keyDeposit();
+        update.poolDeposit();
+        update.maxEpoch();
+        update.nOpt();
+        update.poolPledgeInfluence();
+        update.expansionRate();
+        update.treasuryGrowthRate();
+        update.decentralization();
+        update.extraEntropy().ifPresent(RawNonce::hash);
+        update.protocolVersion().ifPresent(RawProtocolVersion::minor);
+        update.minUtxoValue();
+        update.minPoolCost();
+        update.coinsPerUtxoWord();
+        update.coinsPerUtxoByte();
+        update.costModels().ifPresent(models -> models.models().forEach(RawCostModels.Model::costs));
+        update.executionCosts();
+        update.maxTxExUnits();
+        update.maxBlockExUnits();
+        update.maxValueSize();
+        update.collateralPercentage();
+        update.maxCollateralInputs();
+        update.poolVotingThresholds().ifPresent(t -> t.get(RawVotingThresholds.Pool.SECURITY_GROUP));
+        update.drepVotingThresholds().ifPresent(t -> t.get(RawVotingThresholds.DRep.TREASURY_WITHDRAWAL));
+        update.minCommitteeSize();
+        update.committeeTermLimit();
+        update.govActionLifetime();
+        update.govActionDeposit();
+        update.drepDeposit();
+        update.drepInactivity();
+        update.minFeeRefScriptCostPerByte();
+    }
+
+    private void amount(RawOutput output) {
+        output.addressBytes();
+        output.amount().ifPresent(RawValue::multiAssets);
     }
 
     private void script(Ctx c, RawScript s, String where, boolean mustHold, Set<String> vkeys, Long ib, Long ih) {
@@ -231,7 +429,7 @@ final class Checker {
         byte[] raw = s.hash();
         Script m;
         try {
-            m = s.toScript();
+            m = RawModels.toScript(s);
         } catch (Throwable e) {
             c.issue("script_decode_" + where, "type " + s.type() + " hash " + hex(raw) + ": " + trace(e));
             return;
@@ -272,7 +470,7 @@ final class Checker {
         byte[] raw = d.hash();
         PlutusData pd;
         try {
-            pd = d.toPlutusData();
+            pd = RawModels.toPlutusData(d);
         } catch (Throwable e) {
             c.issue("datum_decode_" + where, "hash " + hex(raw) + ": " + trace(e));
             return;

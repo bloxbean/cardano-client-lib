@@ -88,7 +88,7 @@ class ChainParseCheckTest {
 
     // A Conway block (era 7) numbered n at slot n: a Praos header body of 10 items, empty body and signature.
     private static byte[] block(int n, String bodyHash) {
-        return HexUtil.decodeHexString("820785828a" + String.format("19%04x19%04x", n, n) + "0000000000"
-                + "5820" + bodyHash + "0000408080a080");
+        return HexUtil.decodeHexString("820785828a" + String.format("19%04x19%04x", n, n) + "f6" + "40" + "40"
+                + "824040" + "00" + "5820" + bodyHash + "8440000040" + "820000" + "408080a080");
     }
 }

@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +65,13 @@ public final class CborSpan {
     private final byte[] buffer;
     private final int offset;
     private final int length;
+    // Listed once: a walk and the views of a record read the same containers, and a listing skips every child. Not
+    // volatile, and safe to share between threads: each memo is reached only through final fields (a span's, an
+    // unmodifiable list's, a SimpleImmutableEntry's), so a thread that sees one sees it whole (JLS 17.5), and a thread
+    // that sees null lists the same items again.
+    private List<CborSpan> children;
+    private List<Map.Entry<CborSpan, CborSpan>> entries;
+    private CborSpan untagged;
 
     private CborSpan(byte[] buffer, int offset, int length) {
         this.buffer = buffer;
@@ -93,6 +101,37 @@ public final class CborSpan {
     public static CborSpan at(byte[] buffer, int offset) {
         Objects.requireNonNull(buffer, "buffer");
         return new CborSpan(buffer, offset, skip(buffer, offset, buffer.length) - offset);
+    }
+
+    /**
+     * Walks to an item of nested arrays and no further: only the heads of the arrays on the path, the items before each
+     * index and the item itself are read, so what follows may be malformed or missing. Tags on the arrays are looked
+     * through. For {@code 82 07 85 ...}, {@code arrayItem(bytes, 0)} is the {@code 07} and
+     * {@code arrayItem(bytes, 1, 0)} the first item of the second array.
+     *
+     * @param buffer CBOR bytes, with an array at the start
+     * @param path   the index in each array on the way down
+     * @return the span of that item, sharing the buffer
+     * @throws CborRuntimeException if what is read is malformed or truncated, a step on the path is not an array, or an
+     *                              array has no such index
+     */
+    public static CborSpan arrayItem(byte[] buffer, int... path) {
+        Objects.requireNonNull(buffer, "buffer");
+        CborHead head = new CborHead();
+        int pos = 0;
+        for (int index : path) {
+            head.read(buffer, pos, buffer.length);
+            while (head.major == MAJOR_TAG)
+                head.read(buffer, head.end, buffer.length);
+            if (head.major != MAJOR_ARRAY)
+                throw CborHead.error("expected a CBOR array", head.start);
+            if (index < 0 || (!head.indefinite && Long.compareUnsigned(index, head.argument) >= 0))
+                throw CborHead.error("no item " + index + " in the CBOR array", head.start);
+            pos = head.end;
+            for (int i = 0; i < index; i++)
+                pos = skip(buffer, pos, buffer.length);
+        }
+        return at(buffer, pos);
     }
 
     /**
@@ -127,6 +166,11 @@ public final class CborSpan {
         Objects.requireNonNull(buffer, "buffer");
         Objects.checkFromToIndex(offset, limit, buffer.length);
 
+        CborHead head = new CborHead();
+        int definiteEnd = skipDefinite(buffer, offset, limit, head);
+        if (definiteEnd >= 0)
+            return definiteEnd;
+
         // Frame d: remaining[d] items still to read (INDEFINITE until BREAK), kind[d] its FRAME_* kind.
         // Each push consumes at least one input byte, so the stack never exceeds the input length.
         int[] remaining = new int[16];
@@ -135,7 +179,6 @@ public final class CborSpan {
         remaining[0] = 1;
         kind[0] = FRAME_ROOT;
 
-        CborHead head = new CborHead();
         int pos = offset;
         boolean afterTag = false;
         while (true) {
@@ -213,6 +256,40 @@ public final class CborSpan {
         }
     }
 
+    // Without an indefinite length no frames are needed, only the count of items still to read, and most items have
+    // none. Returns the end of the item, or -1 to leave it to the walker with frames, which also reports a truncation
+    // or a misplaced BREAK. A head it rejects, it rejects as the walker does, having read the same heads.
+    private static int skipDefinite(byte[] buffer, int offset, int limit, CborHead head) {
+        long pending = 1;
+        int pos = offset;
+        while (pending > 0) {
+            if (pos >= limit || (buffer[pos] & 0xff) == BREAK)
+                return -1;
+            head.read(buffer, pos, limit);
+            pos = head.end;
+            switch (head.major) {
+                case MAJOR_TAG:
+                    continue;
+                case MAJOR_BYTES:
+                case MAJOR_TEXT:
+                    if (head.indefinite)
+                        return -1;
+                    pos = CborHead.checkedStringEnd(head, pos, limit);
+                    break;
+                case MAJOR_ARRAY:
+                case MAJOR_MAP:
+                    if (head.indefinite)
+                        return -1;
+                    pending += CborHead.checkedCount(head, head.major == MAJOR_ARRAY ? 1 : 2, pos, limit);
+                    break;
+                default:
+                    break;
+            }
+            pending--;
+        }
+        return pos;
+    }
+
     /**
      * @return the buffer this span points into (not a copy)
      */
@@ -256,7 +333,8 @@ public final class CborSpan {
      * @return the CBOR major type (0-7) of the item, looking through any tags
      */
     public int majorType() {
-        return itemHead().major;
+        // a span is well-formed, so an untagged item's first byte says its major type
+        return isTagged() ? itemHead().major : (buffer[offset] & 0xff) >>> 5;
     }
 
     /**
@@ -264,8 +342,14 @@ public final class CborSpan {
      * returned as negative values (unsigned 64-bit).
      */
     public long tag() {
-        CborHead head = head(offset);
-        return head.major == MAJOR_TAG ? head.argument : -1;
+        return isTagged() ? head(offset).argument : -1;
+    }
+
+    /**
+     * @return whether the item has a tag, which {@link #tag()} cannot tell for the tag number 2^64 - 1
+     */
+    public boolean isTagged() {
+        return (buffer[offset] & 0xff) >>> 5 == MAJOR_TAG;
     }
 
     /**
@@ -276,7 +360,7 @@ public final class CborSpan {
         CborHead head = head(offset);
         if (head.major != MAJOR_TAG)
             throw CborHead.error("CBOR item is not tagged", offset);
-        return new CborSpan(buffer, head.end, offset + length - head.end);
+        return untagged(head);
     }
 
     /**
@@ -287,15 +371,24 @@ public final class CborSpan {
      * @return the payload, or this span
      */
     public CborSpan untagIf(long tag) {
+        if (!isTagged())
+            return this;
         CborHead head = head(offset);
-        return head.major == MAJOR_TAG && head.argument == tag ? new CborSpan(buffer, head.end, offset + length - head.end) : this;
+        return head.major == MAJOR_TAG && head.argument == tag ? untagged(head) : this;
+    }
+
+    private CborSpan untagged(CborHead head) {
+        if (untagged == null)
+            untagged = new CborSpan(buffer, head.end, offset + length - head.end);
+        return untagged;
     }
 
     /**
      * @return true if the item (looking through tags) is an indefinite-length string, array or map
      */
     public boolean isIndefinite() {
-        return itemHead().indefinite;
+        // a well-formed untagged item has additional information 31 only if it is an indefinite string or container
+        return isTagged() ? itemHead().indefinite : (buffer[offset] & 0x1f) == 31;
     }
 
     /**
@@ -336,7 +429,7 @@ public final class CborSpan {
     }
 
     /**
-     * @return the array items in encoded order
+     * @return the array items in encoded order, as the same read-only list on each call
      * @throws CborRuntimeException if the item is not an untagged array
      */
     public List<CborSpan> items() {
@@ -344,14 +437,17 @@ public final class CborSpan {
     }
 
     /**
-     * @return the map entries in encoded order; duplicate keys are kept
+     * @return the map entries in encoded order, duplicate keys kept, as the same read-only list on each call
      * @throws CborRuntimeException if the item is not an untagged map
      */
     public List<Map.Entry<CborSpan, CborSpan>> entries() {
         List<CborSpan> children = children(MAJOR_MAP);
-        List<Map.Entry<CborSpan, CborSpan>> entries = new ArrayList<>(children.size() / 2);
+        if (entries != null)
+            return entries;
+        List<Map.Entry<CborSpan, CborSpan>> listed = new ArrayList<>(children.size() / 2);
         for (int i = 0; i < children.size(); i += 2)
-            entries.add(new AbstractMap.SimpleImmutableEntry<>(children.get(i), children.get(i + 1)));
+            listed.add(new AbstractMap.SimpleImmutableEntry<>(children.get(i), children.get(i + 1)));
+        entries = Collections.unmodifiableList(listed);
         return entries;
     }
 
@@ -366,16 +462,22 @@ public final class CborSpan {
      */
     public Optional<CborSpan> field(long key) {
         List<CborSpan> children = children(MAJOR_MAP);
-        Set<Long> seen = new HashSet<>();
+        Set<Long> seen = null;
+        long seenBelow64 = 0;
         CborSpan value = null;
         for (int i = 0; i < children.size(); i += 2) {
             CborSpan keySpan = children.get(i);
             CborHead head = head(keySpan.offset);
             if (head.major != MAJOR_UNSIGNED)
                 continue;
-            if (!seen.add(head.argument))
+            boolean below64 = Long.compareUnsigned(head.argument, Long.SIZE) < 0;
+            if (!below64 && seen == null)
+                seen = new HashSet<>();
+            if (below64 ? (seenBelow64 & (1L << head.argument)) != 0 : !seen.add(head.argument))
                 throw CborHead.error("duplicate key " + Long.toUnsignedString(head.argument) + " in CBOR record",
                         keySpan.offset);
+            if (below64)
+                seenBelow64 |= 1L << head.argument;
             if (head.argument == key)
                 value = children.get(i + 1);
         }
@@ -511,9 +613,12 @@ public final class CborSpan {
         CborHead head = untaggedHead();
         if (head.major != major)
             throw CborHead.error(major == MAJOR_ARRAY ? "expected a CBOR array" : "expected a CBOR map", offset);
+        if (this.children != null)
+            return this.children;
         int end = offset + length;
         int pos = head.end;
-        List<CborSpan> children = new ArrayList<>();
+        List<CborSpan> children = new ArrayList<>(head.indefinite ? 10
+                : (head.major == MAJOR_ARRAY ? 1 : 2) * (int) head.argument);
         // The span was walked when it was created, so the children are well-formed; an indefinite container ends
         // at its BREAK, a definite one at the end of the span.
         while (pos < end && (!head.indefinite || (buffer[pos] & 0xff) != BREAK)) {
@@ -521,7 +626,8 @@ public final class CborSpan {
             children.add(new CborSpan(buffer, pos, next - pos));
             pos = next;
         }
-        return children;
+        this.children = Collections.unmodifiableList(children);
+        return this.children;
     }
 
     private byte[] stringPayload(int major) {

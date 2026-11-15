@@ -79,6 +79,8 @@ public abstract class PlutusScript implements Script {
                 return PlutusV2Script.deserialize(scriptBytes);
             } else if (type == 3) {
                 return PlutusV3Script.deserialize(scriptBytes);
+            } else if (type == 4) {
+                return PlutusV4Script.deserialize(scriptBytes);
             } else {
                 throw new CborRuntimeException("Invalid type : " + type);
             }

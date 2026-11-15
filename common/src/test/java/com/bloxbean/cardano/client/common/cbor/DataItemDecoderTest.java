@@ -70,6 +70,16 @@ class DataItemDecoderTest {
                 .isInstanceOf(CborRuntimeException.class);
     }
 
+    /** An empty indefinite map encodes with its BREAK, not as {@code bf} alone, which is not well-formed CBOR. */
+    @Test
+    void emptyIndefiniteMapEncodesWithItsBreak() throws Exception {
+        for (boolean canonical : new boolean[]{true, false}) {
+            assertThat(CborSerializationUtil.serialize(decode("bfff"), canonical)).isEqualTo(decodeHexString("bfff"));
+            assertThat(CborSerializationUtil.serialize(decode("82bfff00"), canonical))
+                    .isEqualTo(decodeHexString("82bfff00"));
+        }
+    }
+
     @Test
     void indefiniteMapIsChunkedWithoutBreak() {
         Map map = (Map) decode("bf0102ff");

@@ -115,7 +115,7 @@ class CostMdlsTest {
         assertThatThrownBy(() -> CostMdls.deserialize(CborSerializationUtil.deserialize(cbor)))
                 .isInstanceOf(CborDeserializationException.class)
                 .hasMessageContaining("cost 0")
-                .hasMessageContaining("ARRAY");
+                .hasMessageContaining("major type 4");
     }
 
     @Test

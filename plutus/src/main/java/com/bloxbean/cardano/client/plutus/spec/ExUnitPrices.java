@@ -3,15 +3,15 @@ package com.bloxbean.cardano.client.plutus.spec;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.RationalNumber;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.UnitInterval;
+import com.bloxbean.cardano.client.transaction.raw.RawExUnitPrices;
 import lombok.*;
 
-import java.util.List;
-
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.bigIntegerToDataItem;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 
 @Getter
@@ -43,18 +43,18 @@ public class ExUnitPrices {
     }
 
     public static ExUnitPrices deserialize(DataItem di) throws CborDeserializationException {
-        List<DataItem> dataItemList = definiteItems((Array) di, "ex_unit_prices");
-
-        if (dataItemList.size() < 2) {
-            throw new CborDeserializationException("Invalid no of items. Expected : 2, found : " + dataItemList.size());
+        try {
+            return from(RawExUnitPrices.lenient(CborSerializationUtil.span(di)));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("ExUnitPrices deserialization failed", e);
         }
+    }
 
-        RationalNumber memPriceRN = (RationalNumber) dataItemList.get(0);
-        RationalNumber stepPriceRN = (RationalNumber) dataItemList.get(1);
-
-        UnitInterval memPrice = new UnitInterval(memPriceRN.getNumerator().getValue(), memPriceRN.getDenominator().getValue());
-        UnitInterval stepPrice = new UnitInterval(stepPriceRN.getNumerator().getValue(), stepPriceRN.getDenominator().getValue());
-
-        return new ExUnitPrices(memPrice, stepPrice);
+    /**
+     * @param raw execution unit prices as received
+     * @return the model
+     */
+    public static ExUnitPrices from(RawExUnitPrices raw) {
+        return new ExUnitPrices(raw.memory(), raw.steps());
     }
 }

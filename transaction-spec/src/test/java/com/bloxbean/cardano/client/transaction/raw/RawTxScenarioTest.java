@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.raw;
 
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -200,7 +201,7 @@ class RawTxScenarioTest {
             assertThat(hex(script.hash())).as(payload).isEqualTo(hex(blake2bHash224(decodeHexString(preimage))));
             // the model re-encodes an indefinite script as definite, so only the view hashes it as on chain
             boolean canonical = !ref[1].equals(indefiniteNative);
-            assertThat(Arrays.equals(script.toScript().getScriptHash(), script.hash())).isEqualTo(canonical);
+            assertThat(Arrays.equals(RawModels.toScript(script).getScriptHash(), script.hash())).isEqualTo(canonical);
         }
     }
 
@@ -212,7 +213,7 @@ class RawTxScenarioTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "a3" + "00" + ADDRESS + "01" + "00" + "02" + "8202" + "00",                 // unknown datum option
-            "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "44" + "8204" + "8100",      // unknown script type
+            "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "44" + "8205" + "8100",      // unknown script type
             "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "4c" + "821b0000000100000001" + "8100", // type 2^32 + 1
             "a1" + "00" + ADDRESS,                                                       // no value
             "81" + ADDRESS,                                                              // a legacy output of one item
@@ -227,6 +228,16 @@ class RawTxScenarioTest {
     void malformedOutputsAreRejected(String output) {
         RawTx raw = tx("a3" + "0080" + "0181" + output + "0200", "a0", "f6");
         assertThatThrownBy(raw::outputs).isInstanceOf(CborRuntimeException.class);
+    }
+
+    /** ADR 0003 D4a: a script reference of type 4, Plutus V4, now reads in every era; 5 is still unknown. */
+    @Test
+    void aPlutusV4ScriptReferenceReads() {
+        String output = "a3" + "00" + ADDRESS + "01" + "00" + "03" + "d818" + "44" + "8204" + "4100";
+        RawScript script = RawOutput.of(CborSpan.of(decodeHexString(output))).scriptRef().orElseThrow();
+        assertThat(script.type()).isEqualTo(4);
+        assertThatThrownBy(() -> RawOutput.of(CborSpan.of(decodeHexString(output.replace("8204", "8205")))))
+                .isInstanceOf(CborRuntimeException.class).hasMessageContaining("Unknown script type 5");
     }
 
     /**
@@ -282,7 +293,7 @@ class RawTxScenarioTest {
     void unknownNativeScriptTypeIsRejectedWhenDecoded() {
         RawScript script = tx(BODY, "a1" + "0181" + "820600", "f6").scripts().get(0);
         assertThat(hex(script.hash())).isEqualTo(hex(blake2bHash224(decodeHexString("00820600"))));
-        assertThatThrownBy(script::toScript).isInstanceOf(CborDeserializationException.class);
+        assertThatThrownBy(() -> RawModels.toScript(script)).isInstanceOf(CborDeserializationException.class);
     }
 
     @Test
@@ -405,7 +416,7 @@ class RawTxScenarioTest {
         assertThat(datum.span().bytes()).isEqualTo(decodeHexString("a201000101"));
         assertThat(datum.span().entries()).hasSize(2);
         assertThat(hex(datum.hash())).isEqualTo(hash256("a201000101"));
-        MapPlutusData model = (MapPlutusData) datum.toPlutusData();
+        MapPlutusData model = (MapPlutusData) RawModels.toPlutusData(datum);
         assertThat(model.getMap()).hasSize(1);
         assertThat(model.getDatumHashAsBytes()).isNotEqualTo(datum.hash());
     }
@@ -414,10 +425,10 @@ class RawTxScenarioTest {
     void bigIntegersAndConstructorsInData() throws Exception {
         RawTx raw = tx(BODY, "a1" + "04" + "84" + "c25f41014100ff" + "d87980" + "d9050080" + "d866820080", "f6");
         List<RawDatum> datums = raw.witnessDatums();
-        assertThat(((BigIntPlutusData) datums.get(0).toPlutusData()).getValue()).isEqualTo(BigInteger.valueOf(256));
-        assertThat(((ConstrPlutusData) datums.get(1).toPlutusData()).getAlternative()).isZero();
-        assertThat(((ConstrPlutusData) datums.get(2).toPlutusData()).getAlternative()).isEqualTo(7);
-        assertThat(((ConstrPlutusData) datums.get(3).toPlutusData()).getAlternative()).isZero();
+        assertThat(((BigIntPlutusData) RawModels.toPlutusData(datums.get(0))).getValue()).isEqualTo(BigInteger.valueOf(256));
+        assertThat(((ConstrPlutusData) RawModels.toPlutusData(datums.get(1))).getAlternative()).isZero();
+        assertThat(((ConstrPlutusData) RawModels.toPlutusData(datums.get(2))).getAlternative()).isEqualTo(7);
+        assertThat(((ConstrPlutusData) RawModels.toPlutusData(datums.get(3))).getAlternative()).isZero();
         assertThat(hex(datums.get(0).hash())).isEqualTo(hash256("c25f41014100ff"));
         assertThat(datums.get(0).span().asBigInteger()).isEqualTo(BigInteger.valueOf(256));
     }

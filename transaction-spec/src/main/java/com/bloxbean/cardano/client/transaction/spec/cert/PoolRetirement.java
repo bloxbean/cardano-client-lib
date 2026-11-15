@@ -1,20 +1,18 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toBytes;
 
 @Getter
 @NoArgsConstructor
@@ -39,20 +37,11 @@ public class PoolRetirement implements Certificate {
     }
 
     public static PoolRetirement deserialize(@NonNull Array poolRetirementArray) throws CborDeserializationException {
-        List<DataItem> dataItemList = poolRetirementArray.getDataItems();
-        if (dataItemList == null || dataItemList.size() != 3) {
-            throw new CborDeserializationException("PoolRetirement deserialization failed. Invalid number of DataItem(s) : "
-                    + (dataItemList != null ? String.valueOf(dataItemList.size()) : null));
-        }
+        return from(RawCertificate.lenient(CertKind.POOL_RETIREMENT, CborSerializationUtil.span(poolRetirementArray)));
+    }
 
-        UnsignedInteger type = (UnsignedInteger) dataItemList.get(0);
-        if (type == null || toUnsignedInt(type) != 4)
-            throw new CborDeserializationException("PoolRetirement deserialization failed. Invalid type : "
-                    + type != null ? String.valueOf(type.getValue().intValue()) : null);
-
-        byte[] poolKeyHash = toBytes(dataItemList.get(1));
-        long epoch = toUnsignedLong(dataItemList.get(2));
-
-        return new PoolRetirement(poolKeyHash, epoch);
+    static PoolRetirement from(RawCertificate cert) throws CborDeserializationException {
+        RawModels.exact(cert);
+        return new PoolRetirement(cert.poolKeyHash(), cert.epoch());
     }
 }

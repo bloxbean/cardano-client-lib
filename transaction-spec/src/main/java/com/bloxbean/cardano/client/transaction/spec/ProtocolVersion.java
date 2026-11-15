@@ -1,15 +1,13 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.transaction.raw.RawProtocolVersion;
 import lombok.*;
 
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedInt;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
+import java.math.BigInteger;
 
 @Getter
 @AllArgsConstructor
@@ -31,14 +29,20 @@ public class ProtocolVersion {
     }
 
     public static ProtocolVersion deserialize(Array array) {
-        List<DataItem> protocolVerDIList = withoutBreak(array.getDataItems());
-        if (protocolVerDIList.size() != 2)
-            throw new IllegalArgumentException("Invalid protocol version array. Expected 2 items. Found : "
-                    + protocolVerDIList.size());
+        return from(RawProtocolVersion.lenient(CborSerializationUtil.span(array)));
+    }
 
-        int major = toUnsignedInt(protocolVerDIList.get(0));
-        long minor = getBigInteger(protocolVerDIList.get(1)).longValueExact();
-
-        return new ProtocolVersion(major, minor);
+    /**
+     * @param raw a protocol version as received
+     * @return the model
+     * @throws CborRuntimeException if the minor version is no number
+     * @throws ArithmeticException  if the minor version does not fit a long
+     */
+    public static ProtocolVersion from(RawProtocolVersion raw) {
+        int major = raw.major();
+        BigInteger minor = raw.minor();
+        if (minor == null)
+            throw new CborRuntimeException("Expected a minor protocol version");
+        return new ProtocolVersion(major, minor.longValueExact());
     }
 }

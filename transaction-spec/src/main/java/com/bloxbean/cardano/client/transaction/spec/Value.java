@@ -1,9 +1,11 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
-import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.transaction.raw.RawMultiAsset;
+import com.bloxbean.cardano.client.transaction.raw.RawValue;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,9 +17,6 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
 
 @Data
 @AllArgsConstructor
@@ -38,42 +37,14 @@ public class Value {
      * @return {@link Value}
      */
     public static Value deserialize(DataItem valueItem) {
-        Value value = null;
-        if (MajorType.UNSIGNED_INTEGER.equals(valueItem.getMajorType()) || MajorType.NEGATIVE_INTEGER.equals(valueItem.getMajorType())) {
-            value = new Value();
-            value.setCoin(((Number) valueItem).getValue());
-        } else if (MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
-            BigInteger coin = getBigInteger(valueItem);
-            if (coin != null) {
-                value = new Value();
-                value.setCoin(coin);
-            }
-        } else if (MajorType.ARRAY.equals(valueItem.getMajorType())) {
-            Array coinAssetArray = (Array) valueItem;
-            value = Value.deserializeValueArray(coinAssetArray);
-        }
-
-        return value;
+        return RawValue.lenient(CborSerializationUtil.span(valueItem)).map(Value::from).orElse(null);
     }
 
-    private static Value deserializeValueArray(Array valueArray) {
-        //There can be two elements
-        //First one coin
+    static Value from(RawValue raw) {
         Value value = new Value();
-        List<DataItem> valueDataItems = definiteItems(valueArray, "value");
-        if (valueDataItems != null && valueDataItems.size() == 2) {
-            DataItem valueDI = valueDataItems.get(0);
-            BigInteger coin = CborSerializationUtil.getBigInteger(valueDI);
-            value.setCoin(coin);
-
-            Map multiAssetsMap = (Map) valueDataItems.get(1);
-            if (multiAssetsMap != null) {
-                for (DataItem key : multiAssetsMap.getKeys()) {
-                    MultiAsset multiAsset = MultiAsset.deserialize(multiAssetsMap, key);
-                    value.getMultiAssets().add(multiAsset);
-                }
-            }
-        }
+        value.setCoin(raw.coin());
+        for (RawMultiAsset multiAsset : raw.multiAssets())
+            value.getMultiAssets().add(MultiAsset.from(multiAsset));
         return value;
     }
 

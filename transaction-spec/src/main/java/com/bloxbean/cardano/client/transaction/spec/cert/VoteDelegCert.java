@@ -1,14 +1,16 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.raw.CertKind;
+import com.bloxbean.cardano.client.transaction.raw.RawCertificate;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.*;
 
-import java.util.List;
 import java.util.Objects;
 
 //vote_deleg_cert = (9, stake_credential, drep)
@@ -35,12 +37,11 @@ public class VoteDelegCert implements Certificate {
         return certArray;
     }
 
-    @SneakyThrows
     public static VoteDelegCert deserialize(Array certArray) {
-        List<DataItem> dataItemList = certArray.getDataItems();
+        return from(RawCertificate.lenient(CertKind.VOTE_DELEG_CERT, CborSerializationUtil.span(certArray)));
+    }
 
-        StakeCredential stakeCredential = StakeCredential.deserialize((Array) dataItemList.get(1));
-        DRep drep = DRep.deserialize(dataItemList.get(2));
-        return new VoteDelegCert(stakeCredential, drep);
+    static VoteDelegCert from(RawCertificate cert) {
+        return new VoteDelegCert(RawModels.stakeCredential(cert.credential()), RawModels.drep(cert.drep()));
     }
 }

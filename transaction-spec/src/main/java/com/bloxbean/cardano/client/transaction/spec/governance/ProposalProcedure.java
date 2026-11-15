@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
@@ -7,18 +8,18 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
+import com.bloxbean.cardano.client.transaction.raw.RawProposal;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
-import java.util.List;
 import java.util.Objects;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.definiteItems;
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
 
 /**
  * proposal_procedure =
@@ -40,6 +41,19 @@ public class ProposalProcedure {
     private Anchor anchor;
 
     public DataItem serialize() {
+        return serialize(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    /**
+     * Writes the proposal in an era, which its governance action is written in: a parameter update's Dijkstra keys
+     * only in Dijkstra.
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param era the era to write it in
+     * @return the proposal
+     */
+    public DataItem serialize(Era era) {
         Objects.requireNonNull(deposit);
         Objects.requireNonNull(rewardAccount);
         Objects.requireNonNull(govAction);
@@ -55,7 +69,7 @@ public class ProposalProcedure {
             throw new CborRuntimeException("Unable to get address bytes from rewardAddress", e);
         }
 
-        array.add(govAction.serialize());
+        array.add(govAction.serialize(era));
         array.add(anchor.serialize());
 
         return array;
@@ -63,21 +77,18 @@ public class ProposalProcedure {
 
 
     public static ProposalProcedure deserialize(DataItem di) {
-        List<DataItem> diList = definiteItems((Array) di, "proposal_procedure");
+        return from(RawProposal.lenient(CborSerializationUtil.span(di), RawModels.READ_IN));
+    }
 
-        BigInteger deposit = getBigInteger(diList.get(0));
-
-        String rewardAddress;
-        try {
-            rewardAddress = AddressUtil.bytesToAddress(((ByteString) diList.get(1)).getBytes());
-        } catch (Exception e) {
-            throw new CborRuntimeException("Bytes cannot be converted to bech32 reward address", e);
-        }
-
-        GovAction govAction = GovAction.deserialize((Array) diList.get(2));
-        Anchor anchor = Anchor.deserialize((Array) diList.get(3));
-
-        return new ProposalProcedure(deposit, rewardAddress, govAction, anchor);
+    /**
+     * @param raw a proposal procedure as received
+     * @return the model
+     */
+    public static ProposalProcedure from(RawProposal raw) {
+        BigInteger deposit = raw.deposit();
+        String rewardAddress = RawModels.rewardAddress(raw.rewardAccount());
+        return new ProposalProcedure(deposit, rewardAddress, GovAction.from(raw.govAction()),
+                RawModels.anchor(raw.anchor()));
     }
 
 }
