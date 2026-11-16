@@ -1,18 +1,19 @@
 # ADR 0005: The Haskell-Strict Decoding Policy and the Full Conformance Gate in CCL
 
-**Status**: Proposed (r4)
-**Date**: 2026-11-09
+**Status**: Proposed (r5)
+**Date**: 2026-11-09; r5 2026-11-16
 **Risk**: High. The policy decides which transactions and block headers Yano accepts. A mistake made while moving it
 changes what a node admits.
 **Related**: ADR 0002 (D2, D9, D10); ADR 0003 (D1, D2, D6, D9, I1, I7, I9, I13, M7b, sections 7.1 and 9); Yano ADR-060
-(node-diversity reports); PR #748
+(node-diversity reports); PR #748; PR #753 (#749); Yano #244
 **Modules**: CCL `common`, `ledger-cbor`, `transaction-spec`, a new conformance module; Yano `ledger-rules`,
 `ledger-conformance`, `runtime`, `script-evaluators`
 
 This ADR amends ADR 0003. ADR 0003 D6 made the reader report what it reads and left "what to reject" to the caller:
 CCL shipped only `FormatPolicy.ACCEPT_ALL`, and the policy matching Haskell's decoders stayed in Yano. This ADR moves
 that policy into `ledger-cbor` as an opt-in, and makes CCL run the full cardano-cbor-dataset gate, valid and invalid
-samples, before a release. Yano keeps publishing the node-diversity report, from the same code.
+samples, on the release commit before anything is published. Yano keeps publishing the node-diversity report, from the
+same code.
 
 ## 1. Context
 
@@ -23,19 +24,27 @@ takes it. The result Yano publishes for the node-diversity page should be the sa
 
 ### 1.2 What each project checks today
 
-Measured at CCL `d14956d1` and Yano `0b4eb61cd` (branch `feat/ledger-cbor-reader`), dataset `4fd977b2`.
+**r1 measurement, kept as history.** Measured at CCL `d14956d1` and Yano `0b4eb61cd` (branch
+`feat/ledger-cbor-reader`), dataset `4fd977b2`. The migration baseline, measured since, follows below.
 
 | Check | Where | Samples | Decides acceptance with | In CI |
 |---|---|---|---|---|
 | `CborCorpusConformanceTest` | CCL `transaction-spec` | Valid Conway samples of the rules CCL has a model for, and Dijkstra's | CCL's models (lenient). Invalid samples are out of scope by its Javadoc, "as rejecting them is the job of a strict reader" (ADR 0002 D10) | Yes: the only class the CBOR job selects, guarded on `tests="4"` (`build.yml:108-115`) |
 | `LedgerReaderConformanceTest` | CCL `transaction-spec` | Valid Conway and Dijkstra samples | A walk with a structural policy, and every certificate accessor; Dijkstra with `StrictLedgerPolicy` | No: it needs `cbor.dataset`, and the job selects only the class above |
 | `StrictLedgerPolicy` | CCL `ledger-cbor` test fixtures | Reader unit tests, Dijkstra vectors and the Dijkstra corpus walk | Shapes, hash sizes and integer widths, not other lengths and ranges. Not published | Through the unit tests |
-| `CborDecodingDiversityReportTest` | Yano `ledger-conformance` | All 43,434 Conway samples, valid and invalid | CCL's reader + Yano's `HaskellPolicy` (`RawTransaction.parse` for transactions), then CCL's writers for re-encoding. Result: 43,365 of 43,434 | Yano's report workflow |
+| `CborDecodingDiversityReportTest` | Yano `ledger-conformance` | All 43,434 Conway samples, valid and invalid | CCL's reader + Yano's `HaskellPolicy` (`RawTransaction.parse` for transactions), then CCL's writers for re-encoding. Result: 43,365 of 43,434 at r1; 43,369 at the r5 baseline (below) | Yano's report workflow |
 
 So CCL proves only that valid samples are accepted. Whether invalid samples are rejected, 31,842 of the 43,434 Conway
 samples, is first measured in Yano, after a CCL release.
 
-The 69 samples Yano misses at `4fd977b2` (Yano's `decoding-baseline.txt`):
+**Nor does the corpus job hold back a release** (CCL master `d90602ea`). A release is a version bump merged to master,
+then `tag-release.yml` (after a release owner's approval) pushes the `v*` tag, and `release.yml` builds, signs and
+uploads on the tag. `release.yml`'s only build is `./gradlew clean build` without `-PcborDataset`, so every corpus test
+skips. `build.yml`'s corpus job does run on the push of the version bump, but nothing waits for it: master's ruleset
+requires a code owner's review and no status check, and neither release workflow reads its result. A release can
+publish while that job is pending or has failed.
+
+The 69 samples Yano missed at r1 (Yano's `decoding-baseline.txt`):
 
 - 64 indefinite-length Allegra auxiliary data arrays (14 `auxiliary_data`, 50 `auxiliary_data_array`) the dataset calls
   valid. Yano rejects them as deployed nodes do: `decodeAllegra` is a `RecD` record below decoder version 12 (ADR 0003
@@ -46,6 +55,26 @@ The 69 samples Yano misses at `4fd977b2` (Yano's `decoding-baseline.txt`):
 - 1 Byron address re-encoding in the harness.
 
 The strict side accepts no invalid sample.
+
+**Migration baseline (r5).** Since r1, #748 merged (`6aa36c63`) and #753 (`f80c7547`) fixed #749's rationals: CCL reads
+bignum parts, keeps parts as read, and both normalizers reduce a rational as Haskell's `n % d` does, with the sign on
+the numerator (CCL `92327070`, Yano `93e60c3d5`). Both PRs are in CCL 0.8.0-pre8. Yano #244 also has P1 (section 1.4).
+Re-measured on 2026-11-16:
+
+- Pins: Yano `de892d95` (Yano #244, on CCL 0.8.0-pre8); Yaci #244 at `32726dc5` built from source, as Yano #244's
+  head needs its ledger-cbor API, which no Yaci release has yet; dataset `4fd977b2` (clean checkout).
+- Command: `./gradlew :ledger-conformance:nodeDiversityReports --tests '*CborDecodingDiversityReportTest'
+  -PnodeDiversityCorpora=<dir>`, with an init script that includes Yaci's build and keeps every CCL module at
+  0.8.0-pre8, and `CBOR_DECODER_OUTCOMES` set for the per-decoder outcomes.
+- Result: **43,369 of 43,434**. The 65 misses are the 64 Allegra auxiliary data arrays and the Byron address above;
+  the 4 rationals pass. All 31,842 invalid samples are rejected.
+- Model stage: of the 11,528 samples the strict side accepts, CCL's model decodes every one outside the seven
+  Yaci-backed header rules (D5). No decoder crashes on any sample. So no sample has a model gap here (J10).
+
+This is the baseline M2's exit is measured against, and the outcomes file is generated from such a run. It is not
+copied from Yano's `decoding-baseline.txt`: at `de892d95` that file still lists r1's 69 misses, because ADR 0003 I7
+let a monotonic list keep misses that now pass. Section 1.3 is the r1 inventory, with line numbers at `0b4eb61cd`;
+of its classes only `HaskellPolicy` and `RawScript` changed since (P1), and M1's record re-takes it at its entry head.
 
 ### 1.3 How Yano decides today
 
@@ -105,7 +134,8 @@ that decoder type 6, `RequireGuard`, in every era (`NativeScriptCodec.type`, `:1
 Conway decoder accepts 0 to 5 (`TimelockRaw`, `Allegra/Scripts.hs:235-245` at `f649f975`). So Yano on those branches
 admits a Conway native script `[6, credential]` that Haskell rejects. Yano `main`, on CCL 0.8.0-pre7, rejects it. This
 was found by reading the code and has not been reproduced. It is a prerequisite fix in Yano's ledger-cbor branch,
-before that branch merges (P1, section 7).
+before that branch merges (P1, section 7). P1 is done: Yano `8811854a6` (Yano #244) makes `HaskellPolicy` refuse a
+guard at any depth in Conway, with tests in `WitnessDecodingTest`.
 
 The dataset cannot see it. Its only type-6 sample at `4fd977b2`,
 `native_script/manual-invalid/auto-unused-discriminant` (`81 06`, that is `[6]`), is rejected for its arity, which is
@@ -161,8 +191,9 @@ Out of scope:
 
 | Reference | Version |
 |---|---|
-| CCL | `feat/ledger-cbor` `d14956d1` (PR #748) |
-| Yano | `feat/ledger-cbor-reader` `0b4eb61cd` (local; pushed with ADR 0003's Yano PR) |
+| CCL | `v0.8.0-pre8` (`561e1a2d`), which contains #748 (`6aa36c63`) and #753 (`f80c7547`). r1 to r4 measured at `feat/ledger-cbor` `d14956d1` |
+| Yano | Yano #244, `feat/ledger-cbor-reader` `de892d95` (the r5 baseline). r1 to r4 measured at `0b4eb61cd` |
+| Yaci | Yaci #244, `feat/ledger-cbor-reader` `32726dc5`, built from source for the r5 baseline |
 | cardano-cbor-dataset | `4fd977b201f7426a2983161a702bb127c87973f7`, CCL CI's `CBOR_DATASET_REVISION` and Yano's `corpora.env` |
 | cardano-ledger | `f649f9751074d2ab3de033fc3912f29c9862c1f5`, the decoders `HaskellPolicy`'s Javadoc cites; ADR 0003 section 4 |
 | cardano-ledger, headers and languages | `6176e413`, the dataset's: headers of either length (`HaskellPolicy.header`), the cost-model language bound. The header question stays open (Q4) |
@@ -292,7 +323,10 @@ be produced by the code CCL gated (Q1). It holds what Yano's `ledger-conformance
 - the rule table: each dataset rule name to its strict read (D4), CCL's model decoding and its writer, including the
   `block` rule (each transaction read strictly);
 - the minimal valid parents that rules checked by their parent are placed in (Yano's `CborPlacedRules`);
-- the dataset's normalization, one copy (CCL's test and Yano's `CborNormalizer` hold two that differ only in Javadoc);
+- the dataset's normalization, one copy, extracted from CCL's test `CborNormalizer` as of `92327070` (#753). That is
+  the first version that reduces a rational as Haskell's `n % d` does, with the sign on the numerator (`-1/-2` is
+  `1/2`). Yano's copy at the r1 pin `0b4eb61cd` lacks that fix, so it is not interchangeable with current CCL's; Yano's
+  copy at `93e60c3d5` (Yano #244) has the same code as CCL's, Javadoc aside;
 - a runner giving each sample a typed outcome per stage (D10);
 - the outcomes file for its pinned dataset revision (D6), with a check that the dataset directory it is given is
   exactly that revision (D8).
@@ -314,12 +348,28 @@ table these seven have no model stage. Yano attaches its Yaci decoders to them a
     the strict gate does not replace. It joins CI here for the first time.
 - The outcomes are exact, per sample (J3, J4). This strengthens ADR 0003 I7, which only let misses shrink and strict
   rejections grow.
+- **The same job gates every release (J12).** The job moves to a reusable workflow, `cbor-conformance.yml`
+  (`on: workflow_call`): it fetches the dataset at `CBOR_DATASET_REVISION`, runs the three classes and their guards. Two
+  callers:
+  - `build.yml`, on pushes and pull requests, as today;
+  - `release.yml`, as a job its `publish` job `needs`. It checks out the tag's commit, the same `GITHUB_SHA` that
+    `publish` builds, so the gate and the artifacts come from one commit in one run. `publish` signs and uploads
+    nothing unless the gate job succeeded: no `if: always()`, no `continue-on-error`, and a re-run of `publish` alone
+    reuses that run's gate result. The gate job has `contents: read` and no environment, so it never sees the release
+    secrets of `release-staging`.
+
+  Alternatives: a check in `tag-release.yml` that `build.yml` passed on the commit. It is not enough on its own: a `v*`
+  tag can also be pushed by an org admin or the release App outside that workflow, and `release.yml` is what uploads,
+  so the gate belongs in the run that uploads. A required status check on master stops a failing merge, but not a tag
+  on a commit whose run is still pending. Either may be added later as an earlier warning; neither replaces the job in
+  `release.yml`.
 
 ### D7. Yano's part
 
 - **The strict read is the first decoding verdict; model gaps are listed.** `JavaLedgerValidationEngine` calls
   `HaskellPolicy.transaction` first; a rejection is `DECODING_FAILURE`. CCL's model is built after it, and can still
-  fail on a gap in the model (today the 3 bignum rationals of #749). That still rejects the transaction, as
+  fail on a gap in the model (at r1, the 3 bignum rationals of #749, which #753 fixed; none at the r5 baseline,
+  section 1.2). That still rejects the transaction, as
   `DECODING_FAILURE`, so no admission outcome changes. Admission is the strict read and the model together, as today;
   what changes is the order, and that every case where they differ is listed (J10) and shown in the report's model
   stage (D10). Closing the gaps is #749's, not a prerequisite here. ADR-060 section 6 is corrected to say this.
@@ -362,6 +412,10 @@ Q3 records the alternative.
 
 M1 and M2 ship in one CCL pre-release, then Yano follows (M4). Which pre-release is Q2.
 
+From M2 on, every CCL release, that pre-release first, publishes only after the three corpus gates passed on its tag's
+commit in the same `release.yml` run (D6, J12). A release with a failing gate is fixed and re-tagged under a new
+version, never published around the gate. Changes to `.github/workflows/` need a release owner's review (CODEOWNERS).
+
 ### D10. Typed outcomes
 
 Today the report counts any exception as a rejection, including `NullPointerException`
@@ -391,7 +445,7 @@ Each sample gets one outcome per stage:
 
 | ID | Invariant | Constrains | Checked by |
 |---|---|---|---|
-| J1 | Moving changes no outcome. Over every Conway sample at the pin, Yano's decision after M4 equals its decision before, per sample: accepted or rejected, and the re-encoding. The listed corrections: a Conway native script of type 6 is rejected (section 1.4), if P1 has not already made it so; and any `block` sample whose header the strict block read now rejects (D4). Yano's `ledger-rules`, `ledger-conformance`, `tx-services`, `runtime` and `script-evaluators` suites pass, less tests that moved, and admission is checked through the engine itself (`JavaLedgerValidationEngine`) on every transaction sample | D1-D4, D7 | A per-sample comparison of Yano before and after; the suites |
+| J1 | Moving changes no outcome. Over every Conway sample at the pin, Yano's decision after M4 equals its decision before, per sample: accepted or rejected, and the re-encoding. The listed corrections: a Conway native script of type 6 is rejected (section 1.4), already so in the r5 baseline through P1; and any `block` sample whose header the strict block read now rejects (D4). Yano's `ledger-rules`, `ledger-conformance`, `tx-services`, `runtime` and `script-evaluators` suites pass, less tests that moved, and admission is checked through the engine itself (`JavaLedgerValidationEngine`) on every transaction sample | D1-D4, D7 | A per-sample comparison of Yano before and after; the suites |
 | J2 | CCL's default paths do not change: `CborCorpusConformanceTest`'s list, the golden bytes, and ADR 0003's G3 and G5 give the same results as before | D1 | The existing gates, run before and after |
 | J3 | At the same dataset revision and CCL version, CCL's gate and Yano's report produce the same outcomes file: every sample's three stage outcomes and strict reason code | D5, D7, D8, D10 | Yano's report test compares its outcomes file with the harness's, whole |
 | J4 | The outcomes file is exact: any change to any sample's line, a new miss, a miss that now passes, another outcome or reason code, fails the gate until the file is updated after review. One rejection lost and another gained, with equal totals, fails | D6, D10 | A gate test |
@@ -400,17 +454,18 @@ Each sample gets one outcome per stage:
 | J7 | Strict reads and the validators are stack-safe at maximum nesting | D2, D4 | ADR 0003 I9's depth fixtures run through `HaskellPolicy.CONWAY`, including `RecordWalkDepthTest`'s `DEEP_NATIVE_SCRIPT`, and the preprod deep script, on the default stack, `-Xint` and a virtual thread |
 | J8 | Yano's four node-diversity reports (CBOR, ledger rules, UPLC, turbo) are unchanged at the same pins, comparing outcomes and counts, not messages, and apart from the version label and J1's corrections | D7 | Before and after, as the Amaru removal was checked (Yano #241) |
 | J9 | Every `FieldType` has a rule in `HaskellPolicy` or is listed as having none, so a new type cannot arrive without a decision | D2 | A test over `FieldType.values()` |
-| J10 | What the strict checks accept, CCL's model decodes, except samples whose model stage is "failed" in the outcomes file (today the 3 bignum rationals of #749): for every strict-accepted sample of a rule with a CCL model, and for the native-script checker against `NativeScriptCodec` over standalone, witness, auxiliary data and reference scripts and mutated scripts | D3, D7 | CCL's gate; a differential test in `transaction-spec` |
+| J10 | What the strict checks accept, CCL's model decodes, except samples whose model stage is "failed" in the outcomes file (none at the r5 baseline of section 1.2; at r1, the 3 bignum rationals of #749, fixed by #753): for every strict-accepted sample of a rule with a CCL model, and for the native-script checker against `NativeScriptCodec` over standalone, witness, auxiliary data and reference scripts and mutated scripts | D3, D7 | CCL's gate; a differential test in `transaction-spec` |
 | J11 | No error outcome, in any stage, on any sample | D10 | CCL's gate and Yano's report |
+| J12 | No CCL artifact is signed or uploaded unless the three corpus gates (D6) passed on the exact commit the release tag names, in the same `release.yml` run | D6, D9 | Review of `release.yml` in M2 (`publish` needs the gate job; no `always()` or `continue-on-error` on the path); M3's release run |
 
 ## 7. Milestones
 
 | ID | Project | What | Entry | Exit |
 |---|---|---|---|---|
-| P1 | Yano | Prerequisite: Yano's ledger-cbor branch rejects a Conway native script of type 6, with a test | None | The test, before that branch merges |
+| P1 | Yano | Prerequisite: Yano's ledger-cbor branch rejects a Conway native script of type 6, with a test | None | The test, before that branch merges. Done in `8811854a6` (Yano #244) |
 | M1 | CCL | D1 to D4, D10: the policy, validators, native-script checker, strict reads, the exception and reason codes, the `address` dependency, `CborHead`'s accessors, with the tests that move | ADR accepted; #748 merged | J1 (Yano's current harness run against the CCL snapshot), J2, J5, J6, J7, J9, J10; M1's record of section 1.3's sites |
-| M2 | CCL | D5, D6, D8: the harness, the outcomes file and the full gate in CI | M1 | J4, J11; the gate's numbers equal Yano's report at the pin (43,365 of 43,434 at `4fd977b2`, or as J1's corrections change them) |
-| M3 | CCL | Release (D9) | M2; ADR 0003's G3 and G5 | Released |
+| M2 | CCL | D5, D6, D8: the harness, the outcomes file, the full gate in CI, and the gate in `release.yml` (`cbor-conformance.yml`) | M1 | J4, J11; J12's workflow structure; the gate's per-sample outcomes equal Yano's report at the r5 baseline (section 1.2: 43,369 of 43,434 at `4fd977b2`, no model gap), changed only by J1's corrections; the harness's normalizer is CCL's from `92327070` on (D5) |
+| M3 | CCL | Release (D9) | M2; ADR 0003's G3 and G5 | Released by a `release.yml` run whose corpus gate job succeeded on the tag's commit before `publish` started (J12); the run's URL in the release record |
 | M4 | Yano | D7 | M3 | J1, J3, J5, J8, J11; the moved classes and the keyed-walk test deleted; ADR-060 corrected |
 
 ## 8. Verification
@@ -435,6 +490,7 @@ Each sample gets one outcome per stage:
 | Yano code | About 1,500 lines of main code leave Yano, and the byte-level tests with them |
 | Yano's report files | Same format and content (J8) |
 | Release order | CCL, then Yano, as ADR 0003 |
+| CCL release workflow | `release.yml` fetches the dataset and runs the corpus gate before `publish`; a release cannot publish while the dataset host is unreachable or the gate fails (J12) |
 
 ## 10. Alternatives considered
 
@@ -457,6 +513,8 @@ Each sample gets one outcome per stage:
 | CCL users take strict as validity | Javadoc and release note (section 3) |
 | The native-script checker and CCL's model disagree | J10, over every place a native script occurs |
 | A policy bug reaches CCL and Yano together | Accepted, as ADR 0003 accepted it for the reader; the dataset and the exact outcomes file stay the independent check |
+| A release publishes without the gate (version bump merged while CI is pending or red; a tag pushed outside `tag-release.yml`) | The gate is a job `publish` needs in `release.yml` itself (D6, J12) |
+| A release is blocked because GitHub or the dataset repository is unreachable | Accepted: re-run the release workflow. The pin is a commit, so the fetch is reproducible; no path publishes around the gate |
 | CCL releases more often, for policy and dataset changes | Accepted by the maintainer on 2026-11-09: a reader or policy change needs a CCL pre-release |
 
 ## 12. Open questions
@@ -467,10 +525,9 @@ harness stays in CCL's tests and Yano compares with a list CCL publishes. (b) an
 section 1.1's goal rules out, so D5 takes (a). The cost is one more artifact in CCL's published set. The maintainer
 confirms it on acceptance.
 
-**Q2. Which pre-release.** Options: (a) 0.8.0-pre8, which then waits for M1 and M2, and holds Yaci's and Yano's
-ledger-cbor work (ADR 0003) behind them; (b) pre8 ships ADR 0003 as planned, and this ships in the next one.
-Lean: (b). The ledger-cbor reader is reviewed and its downstream work is waiting; this is a separate change with its
-own review. P1 does not wait for either.
+**Q2. Which pre-release. Settled by events in r5: (b).** Options were (a) 0.8.0-pre8, waiting for M1 and M2; (b) pre8
+ships ADR 0003 as planned, and this ships in a later one. 0.8.0-pre8 was tagged on 2026-11-15 (`v0.8.0-pre8`,
+`561e1a2d`) with #748 and #753 and without this ADR, so M3 is 0.8.0-pre9 or later. P1 did not wait for either.
 
 **Q3. Dataset revisions.** Options: (a) D8: Yano runs only the revision its CCL version's outcomes file was made
 for, so every dataset bump is a CCL pre-release first; (b) Yano may run a newer revision, with sample identity defined
@@ -543,3 +600,15 @@ behaviour; the question moves to CCL with the policy.
   - The harness finds the checkout root and uses the `git` executable, no Git library (Fable F23). D8.
   - Model-stage exceptions without a checked type are errors and defects to fix (Fable F24). D10.
   - The five `StrictCbor` callers named, not counted by package (Codex F13, after its approval of `d943dc37`).
+- **r5** (2026-11-16, responds to Reviewer1's review of `ef5fde1f`):
+  - Release gate (Reviewer1 P1; also the first item of the initial automated review of `b3395268`): section 1.2
+    records that `release.yml` builds without the dataset and that nothing waits for `build.yml`'s corpus job. D6
+    moves the job to a reusable workflow that `release.yml`'s `publish` job needs, on the tag's commit; D9 makes it
+    apply to every release from M2 on; new J12; M2 adds the workflow and M3's exit requires the gate on the release
+    commit; compatibility and risk rows.
+  - Migration baseline (Reviewer1 P2): r1's measurement kept as history; a fresh baseline measured at Yano `de892d95`
+    on CCL 0.8.0-pre8 (with #748 and #753): 43,369 of 43,434, no model gap among strict-accepted samples. Pins updated
+    (section 4); D7 and J10 list no model gap; M2's exit uses the new baseline; D5 takes the normalizer from CCL
+    `92327070` on, not from Yano's r1 copy.
+  - Facts that changed since r4: P1 is done (Yano `8811854a6`), so J1's type-6 correction is already in the baseline;
+    0.8.0-pre8 shipped without this ADR, which settles Q2 as (b).
