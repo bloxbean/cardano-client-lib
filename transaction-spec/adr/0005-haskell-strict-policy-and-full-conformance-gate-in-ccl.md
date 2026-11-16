@@ -1,8 +1,9 @@
 # ADR 0005: The Haskell-Strict Decoding Policy and the Full Conformance Gate in CCL
 
-**Status**: Accepted (r5). Reviewer1 had no open findings on r5; the maintainer confirmed Q1 (a) and Q3 (a) on
-2026-11-16. Q4 stays open. M1 and M2 are being implemented in this PR; M4 in a Yano PR stacked on Yano #244
-**Date**: 2026-11-09; r5 2026-11-16
+**Status**: Accepted (r5; r6 records the implementation). Reviewer1 had no open findings on r5; the maintainer confirmed
+Q1 (a) and Q3 (a) on 2026-11-16. Q4 stays open. M1 and M2 are implemented in this PR (section 7.1); M4 in Yano #253, a
+draft stacked on Yano #244; M3 is the release
+**Date**: 2026-11-09; r5 2026-11-16; r6 2026-11-17
 **Risk**: High. The policy decides which transactions and block headers Yano accepts. A mistake made while moving it
 changes what a node admits.
 **Related**: ADR 0002 (D2, D9, D10); ADR 0003 (D1, D2, D6, D9, I1, I7, I9, I13, M7b, sections 7.1 and 9); Yano ADR-060
@@ -414,8 +415,11 @@ Q3 records the alternative.
 M1 and M2 ship in one CCL pre-release, then Yano follows (M4). Which pre-release is Q2.
 
 From M2 on, every CCL release, that pre-release first, publishes only after the three corpus gates passed on its tag's
-commit in the same `release.yml` run (D6, J12). A release with a failing gate is fixed and re-tagged under a new
-version, never published around the gate. Changes to `.github/workflows/` need a release owner's review (CODEOWNERS).
+commit in the same `release.yml` run (D6, J12). This holds for tags on commits that include M2: a maintenance tag on a
+branch cut before it, such as `release/0.7.x`, runs that branch's `release.yml`, which has no gate (and no
+`ledger-cbor`). Snapshots are published by their own workflows and are not gated. A release with a failing gate is fixed
+and re-tagged under a new version, never published around the gate. Changes to `.github/workflows/` need a release
+owner's review (CODEOWNERS).
 
 ### D10. Typed outcomes
 
@@ -441,8 +445,9 @@ Each sample gets one outcome per stage:
   `EMPTY_COLLECTION`, `MULTI_ASSET_TOO_BIG`, `MAP_HEAD_WIDTH`, `ADDRESS`, `TEXT_BOUNDS`, `RATIONAL`, `PLUTUS_DATA`,
   `METADATA`, `SCRIPT`, `NESTING_TOO_DEEP`. Messages are free text and are never compared. A strict read rejects
   with a `LedgerDecodingException` only: it classifies the reader's and `CborSpan.of`'s own `CborRuntimeException`s
-  as `STRUCTURE` and `NOT_WELL_FORMED` itself (r6); the runner still counts any `CborRuntimeException` from a strict
-  read as a rejection, should a caller's rule throw one.
+  as `STRUCTURE` and `NOT_WELL_FORMED` itself (r6). So the runner counts a plain `CborRuntimeException` from a strict
+  read as an error, a broken contract, and a deliberate restriction of a dataset rule in the harness (a narrower form
+  than the type the strict read takes) as `R:RULE`, apart from the policy's reasons (r6).
 - **The outcomes file** has a header with the dataset revision, and one line for **every** sample: rule, path, and the
   three stage outcomes, with the strict reason code. J3 and J4 compare whole files, not only the misses. The misses
   are a view of it.
@@ -462,7 +467,7 @@ Each sample gets one outcome per stage:
 | J9 | Every `FieldType` has a rule in `HaskellPolicy` or is listed as having none, so a new type cannot arrive without a decision | D2 | A test over `FieldType.values()` |
 | J10 | What the strict checks accept, CCL's model decodes, except samples whose model stage is "failed" in the outcomes file (none at the r5 baseline of section 1.2; at r1, the 3 bignum rationals of #749, fixed by #753): for every strict-accepted sample of a rule with a CCL model, and for the native-script checker against `NativeScriptCodec` over standalone, witness, auxiliary data and reference scripts and mutated scripts | D3, D7 | CCL's gate; a differential test in `transaction-spec` |
 | J11 | No error outcome, in any stage, on any sample | D10 | CCL's gate and Yano's report |
-| J12 | No CCL artifact is signed or uploaded unless the three corpus gates (D6) passed on the exact commit the release tag names, in the same `release.yml` run | D6, D9 | Review of `release.yml` in M2 (`publish` needs the gate job; no `always()` or `continue-on-error` on the path); M3's release run |
+| J12 | No CCL release artifact is signed or uploaded unless the three corpus gates (D6) passed on the exact commit the release tag names, in the same `release.yml` run; for every tag whose commit includes M2 (a tag on an older branch runs that branch's `release.yml`; snapshots are not releases and are not gated) | D6, D9 | Review of `release.yml` in M2 (`publish` needs the gate job; no `always()` or `continue-on-error` on the path); M3's release run |
 
 ## 7. Milestones
 
@@ -525,7 +530,30 @@ gap, no error. The seven header rules have no model stage, and `CborRule.headerF
 decoders their header (Yano's Yaci column). CI runs `cbor-conformance.yml` from `build.yml` and from `release.yml`,
 where `publish` needs it; its guards are `tests="4"` (`ConwayOutcomesGateTest`), `tests="4"`
 (`CborCorpusConformanceTest`) and `tests="6"` (`LedgerReaderConformanceTest`). `CertificateOutcomesTest` stays as
-ADR 0003 G7 left it, outside CI.
+ADR 0003 G7 left it, outside CI. Reviews of M2 changed the outcomes file twice, each time after review: a script
+reference's embedded-script defects are `SCRIPT` (4 lines), and the harness's own restrictions `R:RULE` (399 lines),
+with no sample changing between accepted and rejected.
+
+**M4** (Yano #253: `e276a3886`, `2a0616d40`, `b6bc5afc9`, built on CCL #750 and Yaci #244 until their releases).
+Admission runs `HaskellPolicy.transaction` first, then CCL's model, then `RawTransaction.of`, the mapping only; the
+`CborRuntimeException` family is a `TxDecodingException` at the engine, `RawScript.fromScriptRef` (five callers),
+`ShelleyHeaderView` and `PlutusScriptDecoder`. Yano's copies of the policy, its validators and its harness are deleted.
+Yano keeps an era-neutral reading of a script (`RawScript.readScript`, `fromScriptRef`, on `CborSpan` and `CborHead`),
+as sync hashes reference scripts of any era, a Dijkstra guard included, which `p.script` refuses in Conway; and
+`ConwayTxInfoTranslator` keeps private untagged reads of an accepted parameter update. D2's `RawScript` row and D4's
+callers bullet are met that way, not through `RawItems`. Measured:
+
+- J1: before the deletion, Yano's strict reads and CCL's agreed on 217,170 inputs (every Conway sample and four
+  mutations of each).
+- J3: the cbor-decoding report equals CCL's pinned outcomes file. J5: admission's decoding (strict read, model,
+  mapping) over every strict-accepted sample that lives in a transaction and every transaction of an accepted block,
+  134,368 transactions, no model gap and no rejection after the strict read (`CborMappingDiversityReportTest`, with
+  `CborRule.transactionFor`).
+- J8: the four node-diversity reports at the same pins, before (`de892d95`, CCL 0.8.0-pre8) and after: cbor-decoding
+  43,369 of 43,434 sample by sample, ledger-rules 368, uplc-conformance 1,064 and uplc-turbo 3,997 entries, no
+  difference.
+- J11: no error stage. Yano's `ledger-rules`, `ledger-conformance`, `tx-services` and `script-evaluators` suites
+  pass; `runtime`'s three failures are the same on unmodified `de892d95` with CCL 0.8.0-pre8 and Yaci #244.
 
 ## 8. Verification
 
@@ -697,3 +725,9 @@ behaviour; the question moves to CCL with the policy.
     revision against its blob and refuses any file the revision lacks, ignored ones included, so index flags and
     size-and-time-preserving edits cannot hide a change from it, as they can from `git status`; git's output goes to
     a file, so the check's deadline holds.
+  - Fable's review of `b05e7cfc` and `2a0616d40` (G1-G8): the outcomes file was stale at `b05e7cfc` (G1, fixed in
+    `ef8030f7`); `CborRule.transactionFor` and Yano's mapping test over the dataset for J5 (G2); `R:RULE` for the
+    harness's restrictions and an error for a plain `CborRuntimeException` (G3, D10); the dataset check runs git with
+    `--no-replace-objects` and without `GIT_*` variables (G4); both release jobs check out `github.sha`, and J12 and
+    D9 say which tags and artifacts they cover (G5); the M4 record (G7); Yano's `RawTransaction` keeps its own copy
+    (G8).
