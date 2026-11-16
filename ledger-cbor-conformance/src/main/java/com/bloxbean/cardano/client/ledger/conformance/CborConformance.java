@@ -106,7 +106,7 @@ public final class CborConformance {
         } catch (RuleRestriction e) {
             return new SampleOutcome(path, valid, Strict.RESTRICTED, null, Model.NOT_APPLICABLE,
                     Encoding.NOT_APPLICABLE, describe(e));
-        } catch (Exception | StackOverflowError e) {
+        } catch (Exception | Error e) {
             return new SampleOutcome(path, valid, Strict.ERROR, null, Model.NOT_APPLICABLE, Encoding.NOT_APPLICABLE,
                     describe(e));
         }
@@ -118,9 +118,9 @@ public final class CborConformance {
                 model = rule.model().decode(input);
                 modelOutcome = Model.DECODED;
             } catch (CborRuntimeException | CborDeserializationException e) {
-                modelOutcome = Model.FAILED;
+                modelOutcome = crashInside(e) ? Model.ERROR : Model.FAILED;
                 detail = describe(e);
-            } catch (Exception | StackOverflowError e) {
+            } catch (Exception | Error e) {
                 modelOutcome = Model.ERROR;
                 detail = describe(e);
             }
@@ -134,7 +134,7 @@ public final class CborConformance {
             boolean same = rule.exact() ? Arrays.equals(encoded, expected)
                     : Arrays.equals(CborNormalizer.normalize(encoded), CborNormalizer.normalize(expected));
             encoding = same ? Encoding.MATCHES : Encoding.DIFFERS;
-        } catch (Exception | StackOverflowError e) {
+        } catch (Exception | Error e) {
             encoding = Encoding.ERROR;
             detail = describe(e);
         }
@@ -144,6 +144,20 @@ public final class CborConformance {
     private static SampleOutcome rejected(String path, boolean valid, Reason reason, Exception e) {
         return new SampleOutcome(path, valid, Strict.REJECTED, reason, Model.NOT_APPLICABLE, Encoding.NOT_APPLICABLE,
                 describe(e));
+    }
+
+    /**
+     * Whether a model's decoding exception wraps a crash: CCL's model decoders wrap whatever they catch, so a
+     * {@code NullPointerException} or {@code ClassCastException} inside would otherwise read as a gap in the model.
+     */
+    private static boolean crashInside(Throwable e) {
+        for (Throwable cause = e.getCause(); cause != null && cause != cause.getCause(); cause = cause.getCause()) {
+            boolean cbor = cause instanceof CborRuntimeException || cause instanceof CborDeserializationException;
+            if (cause instanceof Error || (cause instanceof RuntimeException && !cbor)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String describe(Throwable e) {
@@ -158,14 +172,19 @@ public final class CborConformance {
      */
     public static List<String> normalizationDifferences(Path dataset) {
         List<String> differences = new ArrayList<>();
+        int checked = 0;
         try (Stream<Path> files = Files.list(dataset.resolve("normalization"))) {
             for (Path input : files.filter(p -> p.toString().endsWith(INPUT)).sorted().collect(Collectors.toList())) {
+                checked++;
                 if (!Arrays.equals(CborNormalizer.normalize(read(input)), read(expectedOf(input)))) {
                     differences.add(input.getFileName().toString());
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+        if (checked == 0) {
+            throw new IllegalStateException("no normalization vectors in " + dataset.resolve("normalization"));
         }
         return differences;
     }

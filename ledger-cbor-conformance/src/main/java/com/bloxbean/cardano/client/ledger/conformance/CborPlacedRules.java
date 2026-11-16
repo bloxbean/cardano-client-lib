@@ -28,7 +28,6 @@ import com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedure;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -46,8 +45,6 @@ import static com.bloxbean.cardano.client.ledger.conformance.CborRule.*;
  */
 final class CborPlacedRules {
 
-    /** Where each header body part is placed: its prefix and suffix in a header body. */
-    private static final Map<String, String[]> HEADER_BODY_PARTS = new ConcurrentHashMap<>();
 
     /** A path step: the first key of a map. */
     private static final Object KEY = new Object();
@@ -77,6 +74,7 @@ final class CborPlacedRules {
     /** {@code vrf_result, block_body_size, block_body_hash} */
     private static final String HEADER_VRF_TO_BODY_HASH = VRF_CERT + "00" + HASH32;
     private static final String HEADER_PROTOCOL_VERSION = "820a00";
+    private static final Map<String, String[]> HEADER_BODY_PARTS = headerBodyParts();
 
     private CborPlacedRules() {
     }
@@ -225,21 +223,28 @@ final class CborPlacedRules {
     }
 
     private static List<CborRule> headerParts() {
+        return List.of(
+                inHeaderBody("block_number", reads(FieldType.UINT)),
+                inHeaderBody("kes_period", reads(FieldType.KES_PERIOD)),
+                inHeaderBody("kes_vkey", reads(FieldType.KES_VKEY)),
+                inHeaderBody("operational_cert", reads(FieldType.OPERATIONAL_CERT)),
+                inHeaderBody("vrf_vkey", reads(FieldType.VRF_VKEY)));
+    }
+
+    /** Where each header body part is placed: its prefix and suffix in a header body. Fixed; built once. */
+    private static Map<String, String[]> headerBodyParts() {
         String beforeVrfVkey = HEADER_BODY_START + "00" + HEADER_SLOT_TO_ISSUER;
         String beforeCertificate = beforeVrfVkey + HASH32 + HEADER_VRF_TO_BODY_HASH;
         String certificateEnd = "0000" + HASH64;
         String certificate = "84" + HASH32 + certificateEnd;
-        return List.of(
-                inHeaderBody("block_number", reads(FieldType.UINT), HEADER_BODY_START, HEADER_SLOT_TO_ISSUER + HASH32
-                        + HEADER_VRF_TO_BODY_HASH + certificate + HEADER_PROTOCOL_VERSION),
-                inHeaderBody("kes_period", reads(FieldType.KES_PERIOD), beforeCertificate + "84" + HASH32 + "00",
-                        HASH64 + HEADER_PROTOCOL_VERSION),
-                inHeaderBody("kes_vkey", reads(FieldType.KES_VKEY), beforeCertificate + "84",
-                        certificateEnd + HEADER_PROTOCOL_VERSION),
-                inHeaderBody("operational_cert", reads(FieldType.OPERATIONAL_CERT), beforeCertificate,
-                        HEADER_PROTOCOL_VERSION),
-                inHeaderBody("vrf_vkey", reads(FieldType.VRF_VKEY), beforeVrfVkey, HEADER_VRF_TO_BODY_HASH + certificate
-                        + HEADER_PROTOCOL_VERSION));
+        return Map.of(
+                "block_number", new String[]{HEADER_BODY_START, HEADER_SLOT_TO_ISSUER + HASH32
+                        + HEADER_VRF_TO_BODY_HASH + certificate + HEADER_PROTOCOL_VERSION},
+                "kes_period", new String[]{beforeCertificate + "84" + HASH32 + "00", HASH64 + HEADER_PROTOCOL_VERSION},
+                "kes_vkey", new String[]{beforeCertificate + "84", certificateEnd + HEADER_PROTOCOL_VERSION},
+                "operational_cert", new String[]{beforeCertificate, HEADER_PROTOCOL_VERSION},
+                "vrf_vkey", new String[]{beforeVrfVkey, HEADER_VRF_TO_BODY_HASH + certificate
+                        + HEADER_PROTOCOL_VERSION});
     }
 
     private static List<CborRule> auxiliaryDataParts() {
@@ -339,10 +344,13 @@ final class CborPlacedRules {
      * model of a header, so the part has no model stage; {@code prefix} and {@code suffix} are kept for a caller's
      * own header decoders, such as Yano's ({@link #headerBodyOf}).
      */
-    private static CborRule inHeaderBody(String name, Decoder strict, String prefix, String suffix) {
-        HEADER_BODY_PARTS.put(name, new String[]{prefix, suffix});
+    private static CborRule inHeaderBody(String name, Decoder strict) {
+        if (!HEADER_BODY_PARTS.containsKey(name)) {
+            throw new IllegalStateException("no header body placement for " + name);
+        }
         return kept(name, strict, null);
     }
+
 
     /**
      * @param rule   one of the header body's part rules ({@code block_number}, {@code kes_period}, {@code kes_vkey},
@@ -351,12 +359,10 @@ final class CborPlacedRules {
      * @return the header body the sample is placed in, or null for another rule
      */
     static byte[] headerBodyOf(String rule, byte[] sample) {
-        if (HEADER_BODY_PARTS.isEmpty()) {
-            headerParts();
-        }
         String[] parts = HEADER_BODY_PARTS.get(rule);
         return parts == null ? null : cat(parts[0], sample, parts[1]);
     }
+
 
     private static CborRule inAuxiliaryData(String name, Decoder strict, String prefix, String suffix) {
         Wrapper wrapper = placedInTransaction(name, cbor -> tx(hex(MIN_BODY), hex("a0"), cat(prefix, cbor, suffix)));

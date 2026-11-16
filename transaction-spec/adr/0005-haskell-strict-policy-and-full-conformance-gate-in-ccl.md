@@ -501,7 +501,9 @@ or a value, `script`), `LedgerDecodingException` and its `Reason`, `PlutusDataVa
   set-item equality re-read a rational that is not a pair of integers, doubling the work per nested tag 30 (a
   161-byte transaction took 5 s); the Byron address check built the address's Base58 text, quadratic in its length
   (`address` gains `ByronAddress.validate(byte[])`); a rational's reduction ran an unbounded gcd (now continued-fraction
-  convergents, stopping beyond `Word64`).
+  convergents, stopping beyond `Word64`). The set-item fix counts a tag-30 level once in the equality key's depth
+  budget, where the re-read counted it twice: an already invalid item nested 32 to 63 deep through non-pair rationals
+  now gets the walk's reason instead of `NESTING_TOO_DEEP`; no verdict changes.
 
 Section 1.3's sites (J5), each now moved into the strict read or unreachable once it accepts:
 
@@ -509,7 +511,7 @@ Section 1.3's sites (J5), each now moved into the strict read or unreachable onc
 |---|---|
 | `RawTransaction:438`, empty input | `NOT_WELL_FORMED` in the strict read |
 | `RawTransaction:155`, translation of the views' `CborRuntimeException` | Yano translates at the boundary (D7); after acceptance the views read only fields the walk checked |
-| `RawScript.accepted`, the native-script model | `NativeScriptChecker` in the walk, with the same verdict as Yano's model-based check on 40,000 generated and mutated scripts, alone and in each place |
+| `RawScript.accepted`, the native-script model | `NativeScriptChecker` in the walk, with the same verdict as Yano's model-based check on 40,000 generated and mutated scripts alone, and one in eight of them placed in each of the four places |
 | `RawOutput.accepted`, a reference script | The walk's `SCRIPT_REF` rule (stricter: a definite byte string in tag 24) |
 | `RawCredential:25`, `RawVoter:27`, a hash that is not 28 bytes | The walk's `HASH28` rule |
 | `RawVoter:23`, an unknown voter tag | `UNKNOWN_FIELD` in the voter union |
@@ -731,3 +733,9 @@ behaviour; the question moves to CCL with the policy.
     `--no-replace-objects` and without `GIT_*` variables (G4); both release jobs check out `github.sha`, and J12 and
     D9 say which tags and artifacts they cover (G5); the M4 record (G7); Yano's `RawTransaction` keeps its own copy
     (G8).
+  - The multi-agent review of `b05e7cfc` and `2a0616d40` (X1-X15; X2, X4, X5, X9, X11 and X13 were already fixed):
+    the gate runs on JDK 17, the release's (X1); a normalization check needs vectors (X3); the header placements are
+    one immutable map (X6); any `Error` is that sample's error (X7); a crash a model decoder wraps is an error, not a
+    gap (X12); section 7.1's depth note and differential count (X14, X15). Yano: a bignum part of a rational in a
+    parameter update reaches the script context as the policy accepts it (X8); a decoding failure keeps the strict
+    reason (X10).

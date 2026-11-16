@@ -71,6 +71,10 @@ class CborConformanceTest {
             throw new StackOverflowError();
         }, null, false);
         assertThat(overflow.strict()).isEqualTo(Strict.ERROR);
+        // any Error is that sample's error, as the old harness recorded a crash
+        assertThat(evaluate(cbor -> {
+            throw new AssertionError("crash");
+        }, null, false).strict()).isEqualTo(Strict.ERROR);
     }
 
     @Test
@@ -92,6 +96,12 @@ class CborConformanceTest {
         }, true);
         assertThat(crashed.model()).isEqualTo(Model.ERROR);
         assertThat(crashed.hasError()).isTrue();
+        // a crash that a model decoder wraps is still a crash, not a gap in the model
+        SampleOutcome wrapped = evaluate(cbor -> null, cbor -> {
+            throw new com.bloxbean.cardano.client.exception.CborDeserializationException("wrapped",
+                    new NullPointerException());
+        }, true);
+        assertThat(wrapped.model()).isEqualTo(Model.ERROR);
 
         SampleOutcome notRun = evaluate(cbor -> {
             throw new LedgerDecodingException(Reason.TAG, "tag");
@@ -123,6 +133,13 @@ class CborConformanceTest {
                 "a/invalid/2 A - -"))).containsExactly("- a/invalid/1 R:TAG - -", "+ a/invalid/1 R:STRUCTURE - -");
         assertThat(CborConformance.differences(pinned, List.of("# header", "a/invalid/2 A - -",
                 "a/invalid/1 R:TAG - -"))).containsExactly("the same lines, in another order or repeated");
+    }
+
+    @Test
+    void aNormalizationCheckWithoutVectorsFails(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir.resolve("normalization"));
+        assertThatThrownBy(() -> CborConformance.normalizationDifferences(dir))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test

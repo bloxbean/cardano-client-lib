@@ -35,10 +35,11 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           submodules: 'true'
-      - name: Set up JDK 21
+      # the JDK release.yml builds and publishes with; the depth tests' JDK 21 virtual threads have their own job
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '17'
           distribution: 'temurin'
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
