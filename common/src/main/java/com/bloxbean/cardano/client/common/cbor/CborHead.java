@@ -6,13 +6,15 @@ import java.io.ByteArrayOutputStream;
 
 /**
  * The head of one CBOR data item: major type, additional information, argument and where it ends. One place for the
- * RFC 8949 section 5.3 head rules, shared by the {@link CborSpan} walker and the {@link DataItemDecoder}, and for
- * writing a head ({@link #write}). BREAK ({@code ff}) is handled by callers.
+ * RFC 8949 section 5.3 head rules, shared by the {@link CborSpan} walker and the {@link DataItemDecoder}, for writing a
+ * head ({@link #write}), and for readers that judge an item by its heads ({@link #at}), such as validators whose rules
+ * depend on chunk sizes or on the head's width. BREAK ({@code ff}) is handled by callers.
  */
 public final class CborHead {
     static final int INDEFINITE = -1;
 
     private static final int MAJOR_BYTES = 2;
+    private static final int MAJOR_TEXT = 3;
     private static final int MAJOR_MAP = 5;
     private static final int MAJOR_SIMPLE = 7;
 
@@ -24,6 +26,69 @@ public final class CborHead {
     int end;
 
     CborHead() {
+    }
+
+    /**
+     * Reads the head at {@code pos}, with the RFC 8949 section 5.3 rules: a reserved additional information (28 to 30),
+     * a two-byte simple value below 32, indefinite length on a major type other than 2 to 5, and a lone BREAK
+     * ({@code ff}) are not well formed. A caller that walks an indefinite container tests for its BREAK first.
+     *
+     * @param buffer the bytes
+     * @param pos    where the head starts
+     * @param limit  where the input ends (exclusive)
+     * @return the head
+     * @throws com.bloxbean.cardano.client.exception.CborRuntimeException if the head is truncated or not well formed
+     */
+    public static CborHead at(byte[] buffer, int pos, int limit) {
+        CborHead head = new CborHead();
+        head.read(buffer, pos, limit);
+        return head;
+    }
+
+    /** @return the offset of the head's initial byte */
+    public int start() {
+        return start;
+    }
+
+    /** @return the offset just after the head (and its argument); a string's content starts here */
+    public int end() {
+        return end;
+    }
+
+    /** @return the major type, 0 to 7; 6 is a tag, whose item follows this head */
+    public int major() {
+        return major;
+    }
+
+    /** @return the additional information, the low five bits of the initial byte (24 to 27 say the argument's width) */
+    public int info() {
+        return info;
+    }
+
+    /**
+     * @return the argument as an unsigned 64-bit value: an integer's value (major 1: the encoded {@code n} of
+     *         {@code -1 - n}), a definite length or count, a tag number, or a simple value's or float's bits; -1 for an
+     *         indefinite length
+     */
+    public long argument() {
+        return argument;
+    }
+
+    /** @return true for an indefinite-length string, array or map */
+    public boolean isIndefinite() {
+        return indefinite;
+    }
+
+    /**
+     * @param limit where the input ends (exclusive)
+     * @return the end of the content of the definite-length string whose head this is
+     * @throws com.bloxbean.cardano.client.exception.CborRuntimeException if this is not a definite-length string, or
+     *         its content runs past {@code limit}
+     */
+    public int stringEnd(int limit) {
+        if ((major != MAJOR_BYTES && major != MAJOR_TEXT) || indefinite)
+            throw error("not a definite-length string", start);
+        return checkedStringEnd(this, end, limit);
     }
 
     /**
