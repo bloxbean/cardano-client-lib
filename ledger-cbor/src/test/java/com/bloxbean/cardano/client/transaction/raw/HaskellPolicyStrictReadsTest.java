@@ -115,6 +115,10 @@ class HaskellPolicyStrictReadsTest {
         rejectsValue(Reason.METADATA, FieldType.METADATA, "a101f5");
         rejectsValue(Reason.REPEATED_KEY, FieldType.METADATA, "a201000100");
         rejectsValue(Reason.SCRIPT, FieldType.NATIVE_SCRIPT, "8207" + HASH28);
+        // Fable F6a: a well-formed script reference whose embedded script is not one item is the script's defect
+        rejectsValue(Reason.SCRIPT, FieldType.SCRIPT_REF, "d818" + "43" + "820141");
+        rejectsValue(Reason.SCRIPT, FieldType.SCRIPT_REF, "d818" + "45" + "820141ff" + "00");
+        assertThatCode(() -> P.walk(FieldType.SCRIPT_REF, hex("d818" + "44" + "820141ff"))).doesNotThrowAnyException();
     }
 
     @Test

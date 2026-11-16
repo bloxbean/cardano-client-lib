@@ -35,7 +35,8 @@ class HaskellPolicyTest {
         try {
             read.accept(tx);
             return false;
-        } catch (RuntimeException e) {
+        } catch (LedgerDecodingException e) {
+            // a crash is not a rejection (ADR 0005 section 3, D10): anything else thrown fails the test
             return true;
         }
     }

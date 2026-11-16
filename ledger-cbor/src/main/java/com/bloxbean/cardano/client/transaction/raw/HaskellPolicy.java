@@ -471,7 +471,8 @@ public final class HaskellPolicy implements FormatPolicy {
             }
             case DATA -> PlutusDataValidator.validate(embedded(value, "an inline datum"));
             // the script of the era: in Conway, a native script holds no guard (type 6), at any depth
-            case SCRIPT_REF -> script(StrictCbor.span(embedded(value, "a script reference")), era);
+            case SCRIPT_REF -> script(StrictCbor.embeddedSpan(embedded(value, "a script reference"), Reason.SCRIPT),
+                    era);
             case PLUTUS_DATA -> PlutusDataValidator.validate(value);
             case NATIVE_SCRIPT -> NativeScriptChecker.check(value, era, decoderVersion < VERSION_12);
             case PLUTUS_SCRIPT, BYTES -> length(value);

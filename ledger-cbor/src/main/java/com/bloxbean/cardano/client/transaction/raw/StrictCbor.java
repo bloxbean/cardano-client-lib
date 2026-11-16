@@ -45,6 +45,19 @@ final class StrictCbor {
         }
     }
 
+    /**
+     * @param bytes  exactly one well-formed CBOR item, embedded in a field that is itself well formed (tag 24)
+     * @param reason the field's reason: embedded bytes that are not one item are the field's defect
+     * @return its span
+     */
+    static CborSpan embeddedSpan(byte[] bytes, Reason reason) {
+        try {
+            return CborSpan.of(bytes);
+        } catch (CborRuntimeException e) {
+            throw new LedgerDecodingException(reason, "embedded CBOR: " + e.getMessage(), e);
+        }
+    }
+
     /** @return the major type of the item's first head: 6 for a tagged item */
     static int major(CborSpan item) {
         return (item.buffer()[item.offset()] & 0xff) >>> 5;

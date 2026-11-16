@@ -256,7 +256,7 @@ final class CborCanonical {
     }
 
     private byte[] bytes(BigInteger length) {
-        if (length.compareTo(BigInteger.valueOf(data.length - pos)) > 0) {
+        if (length.compareTo(BigInteger.valueOf((long) data.length - pos)) > 0) {
             throw new LedgerDecodingException(Reason.NOT_WELL_FORMED, "string runs past the input at " + pos);
         }
         byte[] out = Arrays.copyOfRange(data, pos, pos + length.intValue());

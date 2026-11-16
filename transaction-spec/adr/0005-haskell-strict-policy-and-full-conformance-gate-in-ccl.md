@@ -451,7 +451,7 @@ Each sample gets one outcome per stage:
 
 | ID | Invariant | Constrains | Checked by |
 |---|---|---|---|
-| J1 | Moving changes no outcome. Over every Conway sample at the pin, Yano's decision after M4 equals its decision before, per sample: accepted or rejected, and the re-encoding. The listed corrections: a Conway native script of type 6 is rejected (section 1.4), already so in the r5 baseline through P1; and any `block` sample whose header the strict block read now rejects (D4). Yano's `ledger-rules`, `ledger-conformance`, `tx-services`, `runtime` and `script-evaluators` suites pass, less tests that moved, and admission is checked through the engine itself (`JavaLedgerValidationEngine`) on every transaction sample | D1-D4, D7 | A per-sample comparison of Yano before and after; the suites |
+| J1 | Moving changes no outcome. Over every Conway sample at the pin, Yano's decision after M4 equals its decision before, per sample: accepted or rejected, and the re-encoding. The listed corrections: a Conway native script of type 6 is rejected (section 1.4), already so in the r5 baseline through P1, and also in a script read alone (`p.script`, r6); any `block` sample whose header the strict block read now rejects (D4); and a block in an `[era, block]` envelope or a tag, which `p.block`, reading bare blocks only, now rejects (r6). None changes a sample at `4fd977b2`. Yano's `ledger-rules`, `ledger-conformance`, `tx-services`, `runtime` and `script-evaluators` suites pass, less tests that moved, and admission is checked through the engine itself (`JavaLedgerValidationEngine`) on every transaction sample | D1-D4, D7 | A per-sample comparison of Yano before and after; the suites |
 | J2 | CCL's default paths do not change: `CborCorpusConformanceTest`'s list, the golden bytes, and ADR 0003's G3 and G5 give the same results as before | D1 | The existing gates, run before and after |
 | J3 | At the same dataset revision and CCL version, CCL's gate and Yano's report produce the same outcomes file: every sample's three stage outcomes and strict reason code | D5, D7, D8, D10 | Yano's report test compares its outcomes file with the harness's, whole |
 | J4 | The outcomes file is exact: any change to any sample's line, a new miss, a miss that now passes, another outcome or reason code, fails the gate until the file is updated after review. One rejection lost and another gained, with equal totals, fails | D6, D10 | A gate test |
@@ -604,7 +604,12 @@ behaviour; the question moves to CCL with the policy.
   and walk tests, not by a policy, until ADR 0003 M7b.
 - `RawTransaction`'s mapping is Conway-only, as `HaskellPolicy.forEra` is.
 - `RawCertificate`'s two checks throw `IllegalArgumentException`, which the engine reports as `ENGINE_FAILURE`. M1
-  decides whether they are reachable after the policy (J5).
+  decides whether they are reachable after the policy (J5): they are not (section 7.1).
+- `p.block` checks the header and each transaction, but leaves the block's containers to `RawBlock`, which is lenient
+  where Haskell's block decoder may not be: Fable's review of M1 found an auxiliary data map entry of `null`
+  (`85 <header> 81 a3008001800200 81 a0 a1 00 f6 80`) accepted by Yano and CCL alike. Haskell's decoder of the map's
+  values is expected to refuse it; not checked against the source. Parity holds (J1), so it is a follow-up, as the
+  header gap was before D4.
 
 ## 14. Revision history
 
@@ -673,3 +678,15 @@ behaviour; the question moves to CCL with the policy.
     0.8.0-pre8 shipped without this ADR, which settles Q2 as (b).
 - **Accepted** (2026-11-16): Reviewer1 had no open findings on r5. The maintainer confirmed Q1 (a) and Q3 (a). Text
   otherwise unchanged.
+- **r6** (2026-11-16, implementation of M1 and M2 in this PR, and their reviews: Codex C1-C2, a multi-agent review
+  W1-W18, Fable F1-F8, all of `13201790`):
+  - Section 7.1, the implementation record: what landed, decisions taken while implementing, section 1.3's sites
+    (J5), J1 and J7 measured (Codex C2, W1, W2, W8, W9; Fable F4, F5).
+  - Three denial-of-service paths inherited from Yano, fixed with the same verdicts: nested rationals in set-item
+    equality (Codex C1), the Byron address's Base58 encoding (W17, Fable F1), an unbounded gcd (W18, Fable F2).
+  - J1's corrections also list a bare-only block and the guard in a script read alone (Fable F3).
+  - D2's `CborCursor` row: `HeadCursor` on `CborHead.at` (W5). D10: the normative reason codes, and a strict read
+    rejecting with `LedgerDecodingException` only (W6); `TRAILING_BYTES` removed (W15, Fable F6b); a script
+    reference's embedded script that is not one item is `SCRIPT` (Fable F6a).
+  - Section 1.3: the fifth `fromScriptRef` caller. Section 13: the `RawCertificate` question closed; the block
+    containers' leniency recorded (Fable F8).

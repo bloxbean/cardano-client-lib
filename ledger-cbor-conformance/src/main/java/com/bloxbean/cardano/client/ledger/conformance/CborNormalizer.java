@@ -99,7 +99,7 @@ public final class CborNormalizer {
                     head(6, tag);
                     byte[] stripped = value.toByteArray();
                     int skip = stripped[0] == 0 ? 1 : 0;
-                    head(2, BigInteger.valueOf(stripped.length - skip));
+                    head(2, BigInteger.valueOf((long) stripped.length - skip));
                     out.write(stripped, skip, stripped.length - skip);
                 }
                 return;
@@ -180,7 +180,7 @@ public final class CborNormalizer {
         head(6, BigInteger.valueOf(tag));
         byte[] bytes = magnitude.toByteArray();
         int skip = bytes[0] == 0 ? 1 : 0;
-        head(2, BigInteger.valueOf(bytes.length - skip));
+        head(2, BigInteger.valueOf((long) bytes.length - skip));
         out.write(bytes, skip, bytes.length - skip);
     }
 
