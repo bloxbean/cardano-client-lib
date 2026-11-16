@@ -195,8 +195,15 @@ final class CborCanonical {
                 return out.toByteArray();
             }
         }
-        pos = start;
-        return item();
+        // Not a pair of unsigned integers: the array as it is, from its items already in canonical form. Reading it a
+        // second time would double the work at each tag 30 nested in it (exponential in the nesting).
+        if (!sets.isEmpty() && sets.contains(start)) {
+            items.sort(Arrays::compareUnsigned);
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        head(out, 4, BigInteger.valueOf(items.size()));
+        items.forEach(out::writeBytes);
+        return out.toByteArray();
     }
 
     private BigInteger argumentOf() {

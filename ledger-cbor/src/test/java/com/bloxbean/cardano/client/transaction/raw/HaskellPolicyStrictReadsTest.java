@@ -7,12 +7,14 @@ import com.bloxbean.cardano.client.transaction.raw.LedgerDecodingException.Reaso
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.EnumSet;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
  * {@link HaskellPolicy}'s strict reads (ADR 0005 D4): every rejection is a {@link LedgerDecodingException} with a
@@ -157,6 +159,24 @@ class HaskellPolicyStrictReadsTest {
         rejects(Reason.UNEXPECTED_TYPE, () -> P.block(hex("8207" + "85" + HEADER + "80" + "80" + "a0" + "80")));
         rejects(Reason.UNEXPECTED_TYPE, () -> P.block(hex("d818" + "59" + String.format("%04x",
                 hex("85" + HEADER + "80" + "80" + "a0" + "80").length) + "85" + HEADER + "80" + "80" + "a0" + "80")));
+    }
+
+    /**
+     * Codex C1: two items of a set are compared as decoded (CborCanonical), and a rational that is not a pair of
+     * integers was read a second time, so each nested tag 30 doubled the work: 26 of them in a 161-byte transaction
+     * took seconds to reject. Inherited from Yano; the outcome is unchanged, the time linear.
+     */
+    @Test
+    void nestedRationalsInASetItemAreComparedInLinearTime() {
+        String nested = "d81e81".repeat(26) + "00";
+        String tx = "84" + "a3" + "0082" + "82" + HASH32 + nested + "82" + "5820" + "11".repeat(32) + "00"
+                + "0180" + "0200" + "a0f5f6";
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+                assertThatThrownBy(() -> P.transaction(hex(tx))).isInstanceOf(LedgerDecodingException.class));
+        String deeper = "84" + "a3" + "0082" + "82" + HASH32 + "d81e81".repeat(60) + "00" + "82" + "5820"
+                + "11".repeat(32) + "00" + "0180" + "0200" + "a0f5f6";
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+                assertThatThrownBy(() -> P.transaction(hex(deeper))).isInstanceOf(LedgerDecodingException.class));
     }
 
     @Test

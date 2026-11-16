@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.transaction.spec.script.RequireGuard;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptAll;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * ADR 0005 D3, J10 and J1 for native scripts: {@link NativeScriptChecker} against CCL's model decoder.
@@ -75,6 +77,56 @@ class NativeScriptCheckerDifferentialTest {
             assertThat(modelDecodes(span)).as("the model decodes %s", HexUtil.encodeHexString(script)).isTrue();
         }
         assertThat(accepted).isPositive();
+    }
+
+    /**
+     * J10's places: a native script in a witness set, in auxiliary data (both forms) and in an output's script
+     * reference is read by the same checker, so the strict transaction read accepts exactly what the checker accepts,
+     * and what it accepts, CCL's transaction model decodes.
+     */
+    @Test
+    void everyPlaceReadsTheScriptAsTheCheckerDoes() throws Exception {
+        Random random = new Random(0x7a11_0c3e_9d05L);
+        List<byte[]> scripts = withMutations(generate(random), random);
+        int accepted = 0;
+        for (int i = 0; i < scripts.size(); i += 8) {
+            CborSpan span = span(scripts.get(i));
+            if (span == null) {
+                continue;
+            }
+            String script = HexUtil.encodeHexString(scripts.get(i));
+            boolean checker = checks(span, Era.Conway, true);
+            accepted += checker ? 1 : 0;
+            for (String tx : places(script)) {
+                boolean strict;
+                try {
+                    HaskellPolicy.CONWAY.transaction(HexUtil.decodeHexString(tx));
+                    strict = true;
+                } catch (LedgerDecodingException e) {
+                    strict = false;
+                }
+                assertThat(strict).as("the strict read of %s", tx).isEqualTo(checker);
+                if (strict) {
+                    assertThatCode(() -> Transaction.deserialize(HexUtil.decodeHexString(tx))).as(tx)
+                            .doesNotThrowAnyException();
+                }
+            }
+        }
+        assertThat(accepted).isPositive();
+    }
+
+    private static List<String> places(String script) {
+        String body = "a3" + "0081" + "825820" + "00".repeat(32) + "00" + "0180" + "0200";
+        String inner = "8200" + script;
+        ByteArrayOutputStream head = new ByteArrayOutputStream();
+        CborHead.write(head, 2, inner.length() / 2);
+        String ref = "d818" + HexUtil.encodeHexString(head.toByteArray()) + inner;
+        String output = "a3" + "00" + "581d60" + "00".repeat(28) + "0100" + "03" + ref;
+        return List.of(
+                "84" + body + "a1" + "0181" + script + "f5f6",
+                "84" + body + "a0" + "f5" + "82" + "a0" + "81" + script,
+                "84" + body + "a0" + "f5" + "d90103" + "a1" + "0181" + script,
+                "84" + "a3" + "0081" + "825820" + "00".repeat(32) + "00" + "0181" + output + "0200" + "a0" + "f5f6");
     }
 
     @Test
