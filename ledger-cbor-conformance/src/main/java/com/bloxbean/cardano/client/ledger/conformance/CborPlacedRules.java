@@ -12,8 +12,6 @@ import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.transaction.raw.FieldType;
-import com.bloxbean.cardano.client.transaction.raw.LedgerDecodingException;
-import com.bloxbean.cardano.client.transaction.raw.LedgerDecodingException.Reason;
 import com.bloxbean.cardano.client.transaction.raw.WitnessSetField;
 import com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
@@ -259,7 +257,7 @@ final class CborPlacedRules {
 
     /** The sample inside a transaction body: {@code prefix} and {@code suffix} make the rest of the body. */
     private static CborRule placedInBody(String name, Decoder strict, String prefix, String suffix, Object... path) {
-        Wrapper wrapper = cbor -> tx(cat(prefix, cbor, suffix), hex("a0"), null);
+        Wrapper wrapper = placedInTransaction(name, cbor -> tx(cat(prefix, cbor, suffix), hex("a0"), null));
         return model(name, orIn(strict, inTransaction(wrapper)), cbor -> Transaction.deserialize(wrapper.wrap(cbor)),
                 c -> at(((Transaction) c).getBody().serialize(), path));
     }
@@ -269,7 +267,8 @@ final class CborPlacedRules {
      * part is a map, read in the body.
      */
     private static CborRule inBodyInLedgerOrder(String name, String prefix, LedgerOrderWriter writer) {
-        Wrapper wrapper = cbor -> tx(cat("a4" + MIN_BODY_ENTRIES + prefix, cbor), hex("a0"), null);
+        Wrapper wrapper = placedInTransaction(name, cbor -> tx(cat("a4" + MIN_BODY_ENTRIES + prefix, cbor), hex("a0"),
+                null));
         return model(name, inTransaction(wrapper), cbor -> Transaction.deserialize(wrapper.wrap(cbor)),
                 c -> writer.write(((Transaction) c).getBody()));
     }
@@ -280,7 +279,7 @@ final class CborPlacedRules {
     }
 
     private static CborRule inWitnessSet(String name, Decoder strict, String prefix, String suffix, Object... path) {
-        Wrapper wrapper = cbor -> tx(hex(MIN_BODY), cat(prefix, cbor, suffix), null);
+        Wrapper wrapper = placedInTransaction(name, cbor -> tx(hex(MIN_BODY), cat(prefix, cbor, suffix), null));
         return model(name, strict, cbor -> Transaction.deserialize(wrapper.wrap(cbor)),
                 c -> at(((Transaction) c).getWitnessSet().serialize(), path));
     }
@@ -360,7 +359,7 @@ final class CborPlacedRules {
     }
 
     private static CborRule inAuxiliaryData(String name, Decoder strict, String prefix, String suffix) {
-        Wrapper wrapper = cbor -> tx(hex(MIN_BODY), hex("a0"), cat(prefix, cbor, suffix));
+        Wrapper wrapper = placedInTransaction(name, cbor -> tx(hex(MIN_BODY), hex("a0"), cat(prefix, cbor, suffix)));
         return kept(name, orIn(strict, inTransaction(wrapper)), cbor -> Transaction.deserialize(wrapper.wrap(cbor)));
     }
 
@@ -382,8 +381,8 @@ final class CborPlacedRules {
      * A deliberate restriction of a dataset rule in the harness: a rejection (ADR 0005 D10), as Haskell's decoder of
      * the narrower type would reject the item.
      */
-    private static LedgerDecodingException notOfThisRule() {
-        return new LedgerDecodingException(Reason.STRUCTURE, "not of this rule's form");
+    private static RuleRestriction notOfThisRule() {
+        return new RuleRestriction("not of this rule's form");
     }
 
     /** A cost model keeps a key it does not know, as Haskell's does, but {@code Language} has only the known ones. */

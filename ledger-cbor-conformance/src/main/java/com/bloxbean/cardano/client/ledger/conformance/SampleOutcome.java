@@ -8,8 +8,10 @@ import java.util.Objects;
  * One dataset sample's outcome, stage by stage (ADR 0005 D10).
  *
  * <ul>
- *   <li>{@link #strict}: accepted, rejected with a {@link #reason}, or an error. A {@code CborRuntimeException} from a
- *       strict read is a rejection; anything else thrown is an error.</li>
+ *   <li>{@link #strict}: accepted, rejected with a {@link #reason} (a {@code LedgerDecodingException}, the only
+ *       exception a strict read rejects with), refused by the harness as not of the rule's narrower form
+ *       ({@link RuleRestriction}, {@code R:RULE}), or an error: anything else thrown, a plain
+ *       {@code CborRuntimeException} included, as a strict read that throws one has broken its contract.</li>
  *   <li>{@link #model}: run only on strict-accepted samples of a rule with a CCL model: decoded, failed (a
  *       {@code CborRuntimeException} or {@code CborDeserializationException}), an error (anything else), or not
  *       applicable.</li>
@@ -33,7 +35,14 @@ public record SampleOutcome(String path, boolean valid, Strict strict, Reason re
 
     /** The strict read's outcome. */
     public enum Strict {
-        ACCEPTED("A"), REJECTED("R"), ERROR("E");
+        /** Accepted. */
+        ACCEPTED("A"),
+        /** Rejected by the strict read, with its reason. */
+        REJECTED("R"),
+        /** Refused by the harness: not of the dataset rule's narrower form ({@link RuleRestriction}). */
+        RESTRICTED("R:RULE"),
+        /** Anything else thrown: a defect, never a rejection. */
+        ERROR("E");
 
         final String code;
 
@@ -83,7 +92,7 @@ public record SampleOutcome(String path, boolean valid, Strict strict, Reason re
     /** @return whether the sample meets the dataset's expectation */
     public boolean passes() {
         if (!valid) {
-            return strict == Strict.REJECTED;
+            return strict == Strict.REJECTED || strict == Strict.RESTRICTED;
         }
         return strict == Strict.ACCEPTED && (model == Model.DECODED || model == Model.NOT_APPLICABLE)
                 && (encoding == Encoding.MATCHES || encoding == Encoding.NOT_APPLICABLE);
@@ -114,6 +123,9 @@ public record SampleOutcome(String path, boolean valid, Strict strict, Reason re
         }
         if (strict == Strict.REJECTED) {
             return "decode: rejected (" + reason.name() + ")" + (detail != null ? ": " + detail : "");
+        }
+        if (strict == Strict.RESTRICTED) {
+            return "decode: not of this rule's form" + (detail != null ? ": " + detail : "");
         }
         if (strict == Strict.ERROR) {
             return "decode: crash: " + detail;

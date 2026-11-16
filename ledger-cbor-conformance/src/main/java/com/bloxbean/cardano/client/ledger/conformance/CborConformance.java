@@ -58,6 +58,9 @@ public final class CborConformance {
     }
 
     /**
+     * Runs the samples of a directory with the given rules. It does not check what the directory is: the gate and
+     * Yano's report run {@link #run(Path)}, which does ({@link DatasetCheckout}).
+     *
      * @param conway the dataset's {@code conway} directory
      * @param rules  the rules, by name
      * @return each sample's outcome, sorted by path
@@ -100,8 +103,9 @@ public final class CborConformance {
             rule.strict().decode(input);
         } catch (LedgerDecodingException e) {
             return rejected(path, valid, e.reason(), e);
-        } catch (CborRuntimeException e) {
-            return rejected(path, valid, Reason.STRUCTURE, e);
+        } catch (RuleRestriction e) {
+            return new SampleOutcome(path, valid, Strict.RESTRICTED, null, Model.NOT_APPLICABLE,
+                    Encoding.NOT_APPLICABLE, describe(e));
         } catch (Exception | StackOverflowError e) {
             return new SampleOutcome(path, valid, Strict.ERROR, null, Model.NOT_APPLICABLE, Encoding.NOT_APPLICABLE,
                     describe(e));
@@ -180,7 +184,7 @@ public final class CborConformance {
                 + ", conway");
         lines.add("# " + passed + " of " + outcomes.size() + " samples pass; " + rejected + " of " + invalid
                 + " invalid samples rejected");
-        lines.add("# <path> <strict: A | R:REASON | E> <model: D | F | E | -> <re-encoding: M | X | E | ->");
+        lines.add("# <path> <strict: A | R:REASON | R:RULE | E> <model: D | F | E | -> <re-encoding: M | X | E | ->");
         outcomes.stream().map(SampleOutcome::line).sorted().forEach(lines::add);
         return lines;
     }

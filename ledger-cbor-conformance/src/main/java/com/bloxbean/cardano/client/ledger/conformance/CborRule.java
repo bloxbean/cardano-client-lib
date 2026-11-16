@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -117,7 +118,8 @@ public record CborRule(String name, boolean exact, Decoder strict, Decoder model
     static Map<String, CborRule> base() {
         return Stream.of(
                 hashed("auxiliary_data", reads(FieldType.OPTIONAL_AUXILIARY_DATA),
-                        cbor -> Transaction.deserialize(tx(hex(MIN_BODY), hex("a0"), cbor))),
+                        cbor -> Transaction.deserialize(placedInTransaction("auxiliary_data",
+                                aux -> tx(hex(MIN_BODY), hex("a0"), aux)).wrap(cbor))),
                 kept("block", P::block, CborRule::blockModel),
                 model("certificate", reads(CertKind.RECORD), cbor -> Certificate.deserialize((Array) item(cbor)),
                         c -> ((Certificate) c).serialize()),
@@ -141,7 +143,7 @@ public record CborRule(String name, boolean exact, Decoder strict, Decoder model
                 model("protocol_param_update", reads(FieldType.PROTOCOL_PARAM_UPDATE),
                         cbor -> ProtocolParamUpdate.deserialize(item(cbor)),
                         c -> ((ProtocolParamUpdate) c).serialize()),
-                model("redeemer", inTransaction(CborRule::redeemerTx),
+                model("redeemer", inTransaction(placedInTransaction("redeemer", CborRule::redeemerTx)),
                         cbor -> Redeemer.deserializePreConway((Array) item(cbor)),
                         c -> ((Redeemer) c).serializePreConway()),
                 inTransaction("redeemers", cbor -> tx(hex(MIN_BODY), cat("a105", cbor), null)),
@@ -181,6 +183,7 @@ public record CborRule(String name, boolean exact, Decoder strict, Decoder model
 
     /** A hashed rule read inside (or as) a transaction: the strict read and CCL's model of that transaction. */
     private static CborRule inTransaction(String name, Wrapper wrapper) {
+        placedInTransaction(name, wrapper);
         return hashed(name, inTransaction(wrapper), cbor -> Transaction.deserialize(wrapper.wrap(cbor)));
     }
 
@@ -203,6 +206,34 @@ public record CborRule(String name, boolean exact, Decoder strict, Decoder model
             P.walk(record, cbor);
             return null;
         };
+    }
+
+    /** The minimal transaction each rule that lives in a transaction is placed in, by rule. */
+    private static final Map<String, Wrapper> TRANSACTIONS = new ConcurrentHashMap<>();
+
+    /** Records where a rule's sample is placed in a transaction, for {@link #transactionFor}. */
+    static Wrapper placedInTransaction(String name, Wrapper wrapper) {
+        TRANSACTIONS.put(name, wrapper);
+        return wrapper;
+    }
+
+    /**
+     * For a caller's own reading of a transaction (Yano's mapping into its rules' records, ADR 0005 J5): the minimal
+     * transaction a sample of a rule that lives in a transaction is placed in.
+     *
+     * @param rule   a dataset rule
+     * @param sample the sample
+     * @return the transaction, {@code sample} itself for {@code transaction}, or null for a rule read outside one
+     */
+    public static byte[] transactionFor(String rule, byte[] sample) {
+        if (rule.equals("transaction")) {
+            return sample;
+        }
+        if (TRANSACTIONS.isEmpty()) {
+            conway();
+        }
+        Wrapper wrapper = TRANSACTIONS.get(rule);
+        return wrapper == null ? null : wrapper.wrap(sample);
     }
 
     /** Wraps a sample into its parent. */

@@ -40,10 +40,22 @@ class CborConformanceTest {
         assertThat(reason.passes()).isTrue();
         assertThat(reason.line()).isEqualTo("rule/invalid/0.input.cbor R:UNKNOWN_FIELD - -");
 
-        SampleOutcome reader = evaluate(cbor -> {
+        // a strict read rejects with a LedgerDecodingException only: a plain CborRuntimeException is a broken contract
+        SampleOutcome plain = evaluate(cbor -> {
             throw new com.bloxbean.cardano.client.exception.CborRuntimeException("arity");
         }, null, false);
-        assertThat(reader.reason()).isEqualTo(Reason.STRUCTURE);
+        assertThat(plain.strict()).isEqualTo(Strict.ERROR);
+        assertThat(plain.hasError()).isTrue();
+        // the harness's own restriction is recorded apart from the policy's rejections
+        SampleOutcome restricted = evaluate(cbor -> {
+            throw new RuleRestriction("not of this rule's form");
+        }, null, false);
+        assertThat(restricted.strict()).isEqualTo(Strict.RESTRICTED);
+        assertThat(restricted.passes()).isTrue();
+        assertThat(restricted.line()).isEqualTo("rule/invalid/0.input.cbor R:RULE - -");
+        assertThat(evaluate(cbor -> {
+            throw new RuleRestriction("not of this rule's form");
+        }, null, true).passes()).isFalse();
 
         for (RuntimeException crash : List.of(new NullPointerException(), new IllegalArgumentException(),
                 new ClassCastException(), new IllegalStateException())) {

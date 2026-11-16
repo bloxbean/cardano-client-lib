@@ -100,6 +100,8 @@ public final class DatasetCheckout {
     private static String git(Path directory, String input, String... args) {
         List<String> command = new ArrayList<>();
         command.add("git");
+        // replacement objects (git replace) could show another tree under the pinned commit's id
+        command.add("--no-replace-objects");
         command.add("-C");
         command.add(directory.toString());
         command.addAll(List.of(args));
@@ -110,6 +112,8 @@ public final class DatasetCheckout {
             out = Files.createTempFile("dataset-checkout", ".out");
             ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true)
                     .redirectOutput(out.toFile());
+            // GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE and the like would point git at another repository
+            builder.environment().keySet().removeIf(name -> name.startsWith("GIT_"));
             if (input != null) {
                 in = Files.createTempFile("dataset-checkout", ".in");
                 Files.writeString(in, input, StandardCharsets.UTF_8);

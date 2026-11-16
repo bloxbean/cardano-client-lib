@@ -31,6 +31,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # the run's commit itself (for a release, the tag's), not a ref that could move between jobs
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: 'true'
       - name: Set up JDK 21
@@ -69,3 +71,4 @@ jobs:
           path: ledger-cbor-conformance/build/cbor-conformance/
           if-no-files-found: ignore
           retention-days: 30
+          overwrite: true
