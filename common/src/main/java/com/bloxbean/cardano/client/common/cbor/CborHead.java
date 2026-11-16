@@ -68,7 +68,8 @@ public final class CborHead {
     /**
      * @return the argument as an unsigned 64-bit value: an integer's value (major 1: the encoded {@code n} of
      *         {@code -1 - n}), a definite length or count, a tag number, or a simple value's or float's bits; -1 for an
-     *         indefinite length
+     *         indefinite length, which is also how {@code 2^64 - 1} reads as a signed {@code long}: test
+     *         {@link #isIndefinite()} for an indefinite length
      */
     public long argument() {
         return argument;

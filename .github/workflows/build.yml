@@ -78,8 +78,8 @@ jobs:
           distribution: 'temurin'
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-      - name: Run CBOR span and transaction bytes tests, including the virtual-thread depth tests
-        run: ./gradlew :common:test :transaction-spec:test -PskipSigning=true --stacktrace
+      - name: Run CBOR span, ledger reader and transaction bytes tests, including the virtual-thread depth tests
+        run: ./gradlew :common:test :ledger-cbor:test :transaction-spec:test -PskipSigning=true --stacktrace
 
   # ADR 0005 D6: the three corpus gates, in the workflow release.yml also runs before publishing.
   cbor-conformance:

@@ -301,6 +301,7 @@ public final class HaskellPolicy implements FormatPolicy {
      */
     @Override
     public void enter(RecordSpec record, CborSpan container, Era era) {
+        conway(era);
         if (record == PROPOSAL) {
             recD(container, record.name());
         }
@@ -422,6 +423,7 @@ public final class HaskellPolicy implements FormatPolicy {
 
     @Override
     public void check(FieldType type, CborSpan value, Era era) {
+        conway(era);
         switch (type) {
             case UINT, COIN, SEQUENCE_NUMBER, KES_PERIOD -> StrictCbor.word64(value);
             case UINT16 -> atMost(value, MAX_WORD16);
@@ -579,6 +581,16 @@ public final class HaskellPolicy implements FormatPolicy {
             throw new LedgerDecodingException(Reason.INTEGER_RANGE, "overflow when decoding mint field: " + found);
         }
         return found;
+    }
+
+    /**
+     * The rules are Conway's, at its decoder version: a walk that names another era is a caller's mistake, not bytes
+     * that do not decode.
+     */
+    private static void conway(Era era) {
+        if (era != Era.Conway) {
+            throw new IllegalArgumentException("HaskellPolicy has Conway's decoding rules only, not " + era + "'s");
+        }
     }
 
     /** cborg's {@code decodeBool}: the simple value {@code true} or {@code false}. */

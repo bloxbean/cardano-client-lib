@@ -78,4 +78,24 @@ class PlutusDataValidatorTest {
         valid("d87981".repeat(depth) + "00");
         invalid("81".repeat(depth) + "f5");
     }
+
+    /** Workflow review W13: the public entry points, at depth and with their own rules. */
+    @Test
+    void thePublicEntryPointsReadAnyDepth() {
+        String deep = "81".repeat(200_000) + "00";
+        assertThatCode(() -> PlutusDataValidator.validate(HexUtil.decodeHexString(deep))).doesNotThrowAnyException();
+        assertThatCode(() -> PlutusDataValidator.validateFirst(HexUtil.decodeHexString(deep + "ff")))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> PlutusDataValidator.validate(HexUtil.decodeHexString(deep + "ff")))
+                .isInstanceOf(LedgerDecodingException.class);
+        assertThatCode(() -> MetadataValidator.validate(HexUtil.decodeHexString("a100" + deep)))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> MetadataValidator.validate(HexUtil.decodeHexString("a100" + "81".repeat(200_000)
+                + "f5"))).isInstanceOf(LedgerDecodingException.class)
+                .extracting(e -> ((LedgerDecodingException) e).reason()).isEqualTo(LedgerDecodingException.Reason.METADATA);
+        assertThatThrownBy(() -> MetadataValidator.validate(HexUtil.decodeHexString("a100")))
+                .isInstanceOf(LedgerDecodingException.class)
+                .extracting(e -> ((LedgerDecodingException) e).reason())
+                .isEqualTo(LedgerDecodingException.Reason.NOT_WELL_FORMED);
+    }
 }

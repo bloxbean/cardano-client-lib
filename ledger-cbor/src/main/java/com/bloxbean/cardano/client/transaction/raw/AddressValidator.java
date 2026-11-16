@@ -93,7 +93,7 @@ final class AddressValidator {
      */
     private static void byron(byte[] address) {
         try {
-            new ByronAddress(address);
+            ByronAddress.validate(address);
         } catch (AddressFormatException e) {
             throw new LedgerDecodingException(Reason.ADDRESS, e.getMessage(), e);
         }

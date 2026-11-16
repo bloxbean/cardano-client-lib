@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.transaction.raw.LedgerDecodingException.Reaso
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.util.EnumSet;
 import java.util.Set;
@@ -179,6 +180,121 @@ class HaskellPolicyStrictReadsTest {
                 assertThatThrownBy(() -> P.transaction(hex(deeper))).isInstanceOf(LedgerDecodingException.class));
     }
 
+    /** Workflow review W10: the equality key of a set item refuses an item nested deeper than any Conway value. */
+    @Test
+    void aSetItemTooDeepToCompare() {
+        String deep = "81".repeat(70) + "00";
+        rejectsTx(Reason.NESTING_TOO_DEEP, "84" + "a3" + "0082" + "82" + HASH32 + deep + "82" + "5820"
+                + "11".repeat(32) + "00" + "0180" + "0200" + "a0f5f6");
+    }
+
+    /** Workflow review W17: a Byron address with large attributes is checked in linear time, not Base58-encoded. */
+    @Test
+    void aLargeByronAddressIsCheckedInLinearTime() {
+        byte[] address = byronAddressWithAttribute(65_536);
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+            P.walk(FieldType.ADDRESS, hex("5a" + String.format("%08x", address.length)
+                    + HexUtil.encodeHexString(address)));
+        });
+        byte[] corrupted = address.clone();
+        corrupted[corrupted.length - 1] ^= 1;
+        rejects(Reason.ADDRESS, () -> P.walk(FieldType.ADDRESS, hex("5a" + String.format("%08x", corrupted.length)
+                + HexUtil.encodeHexString(corrupted))));
+    }
+
+    /** {@code [24(bytes [root, {3: bytes}, 0]), crc32]}: a Byron address whose attribute 3 has {@code size} bytes. */
+    private static byte[] byronAddressWithAttribute(int size) {
+        java.io.ByteArrayOutputStream payload = new java.io.ByteArrayOutputStream();
+        payload.writeBytes(hex("83" + "581c" + "00".repeat(28) + "a103"));
+        com.bloxbean.cardano.client.common.cbor.CborHead.write(payload, 2, size);
+        payload.writeBytes(new byte[size]);
+        payload.writeBytes(hex("00"));
+        byte[] body = payload.toByteArray();
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        crc.update(body);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        out.writeBytes(hex("82d818"));
+        com.bloxbean.cardano.client.common.cbor.CborHead.write(out, 2, body.length);
+        out.writeBytes(body);
+        out.writeBytes(hex("1a" + String.format("%08x", crc.getValue())));
+        return out.toByteArray();
+    }
+
+    /** Workflow review W18: a rational of huge bignums is judged in linear time, with a short message. */
+    @Test
+    void aRationalOfHugeBignumsIsJudgedInLinearTime() {
+        BigInteger a = BigInteger.ZERO;
+        BigInteger b = BigInteger.ONE;
+        while (b.bitLength() < 1 << 20) {
+            BigInteger next = a.add(b);
+            a = b;
+            b = next;
+        }
+        String value = "d81e82" + bignum(a) + bignum(b);
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+            assertThatThrownBy(() -> P.walk(FieldType.UNIT_INTERVAL, hex(value)))
+                    .isInstanceOf(LedgerDecodingException.class)
+                    .satisfies(e -> assertThat(e.getMessage()).hasSizeLessThan(300));
+        });
+        // 2^65 / 2^66 reduces into range, as the dataset's bignum samples do
+        assertThatCode(() -> P.walk(FieldType.UNIT_INTERVAL, hex("d81e82c249020000000000000000c249040000000000000000")))
+                .doesNotThrowAnyException();
+    }
+
+    private static String bignum(BigInteger value) {
+        byte[] bytes = value.toByteArray();
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        out.write(0xc2);
+        com.bloxbean.cardano.client.common.cbor.CborHead.write(out, 2, bytes.length);
+        out.writeBytes(bytes);
+        return HexUtil.encodeHexString(out.toByteArray());
+    }
+
+    /** The bounded reduction gives the gcd reduction's verdict and value, over random and edge parts. */
+    @Test
+    void theBoundedReductionIsTheGcdReduction() {
+        java.util.Random random = new java.util.Random(0x5eed_0005L);
+        BigInteger word64 = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+        for (int i = 0; i < 20_000; i++) {
+            BigInteger n = randomInteger(random);
+            BigInteger d = randomInteger(random);
+            if (d.signum() == 0) {
+                continue;
+            }
+            BigInteger g = n.gcd(d);
+            BigInteger num = n.divide(g);
+            BigInteger den = d.divide(g);
+            if (den.signum() < 0) {
+                num = num.negate();
+                den = den.negate();
+            }
+            boolean inRange = num.signum() >= 0 && num.compareTo(word64) <= 0 && den.compareTo(word64) <= 0;
+            BigInteger[] reduced = BoundedFields.reducedWithinWord64(n, d);
+            if (inRange) {
+                assertThat(reduced).as(n + "/" + d).containsExactly(num, den);
+            } else {
+                assertThat(reduced).as(n + "/" + d).isNull();
+            }
+        }
+    }
+
+    private static BigInteger randomInteger(java.util.Random random) {
+        int bits = new int[]{3, 8, 63, 64, 65, 130}[random.nextInt(6)];
+        BigInteger value = new BigInteger(bits, random).multiply(BigInteger.valueOf(1 + random.nextInt(4)));
+        if (random.nextInt(8) == 0) {
+            value = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.valueOf(random.nextInt(3)));
+        }
+        return random.nextInt(5) == 0 ? value.negate() : value;
+    }
+
+    @Test
+    void theRulesAreConwaysOnly() {
+        assertThatThrownBy(() -> P.check(FieldType.UINT, CborSpan.of(hex("00")), Era.Babbage))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RawTx.walk(hex("84" + BODY + "a0f5f6"), Era.Babbage, P))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     void everyFieldTypeHasARuleOrIsListedAsHavingNone() {
         Set<FieldType> listed = EnumSet.noneOf(FieldType.class);
@@ -195,6 +311,13 @@ class HaskellPolicyStrictReadsTest {
             }
         }
         assertThat(listed).isEqualTo(HaskellPolicy.NO_RULE);
+        // a listed type has no rule: no input is refused by check alone
+        for (FieldType type : HaskellPolicy.NO_RULE) {
+            for (String value : new String[]{"00", "20", "40", "60", "80", "a0", "c100", "f5", "f6", "9fff"}) {
+                assertThatCode(() -> P.check(type, CborSpan.of(hex(value)), Era.Conway)).as(type + " " + value)
+                        .doesNotThrowAnyException();
+            }
+        }
     }
 
     @Test

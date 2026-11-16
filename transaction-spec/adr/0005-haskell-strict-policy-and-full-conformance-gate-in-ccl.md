@@ -125,7 +125,7 @@ The rule-side types (`GovActionId`, `ProposalState`, `Outpoint`) appear only in 
 | `PlutusData.validateFirst` (trailing bytes allowed) | `ledger-rules` `PlutusScriptDecoder:534-537` |
 | `AddressBytes` helpers | `UtxoChecks`, `WitnessNeeds`, `ConwayTxInfoTranslator` (they stay) |
 | `RawScript` record | `ScriptIntegrity`, `MinFee`, `UtxowSubject`, the script evaluators, `runtime` (it stays) |
-| `RawScript.fromScriptRef` | `MinFee:108`, `UtxowSubject:135`, `DefaultUtxoStore:1917`, `TransactionOutputProjector:98` |
+| `RawScript.fromScriptRef` | `MinFee:108`, `UtxowSubject:135`, `DefaultUtxoStore:1917`, `TransactionOutputProjector:98`, `script-evaluators` `ConwayTxInfoTranslator:499` (found in r6) |
 | `TxDecodingException` caught | `JavaLedgerValidationEngine:127`, `ScalusLedgerValidationEngine`, `TransactionOutputProjector:55`, `UtxowSubject:135`, `ShelleyHeaderView:205`, `PlutusScriptDecoder:537`; `AmaruTransactionValidator:359` until Yano #241 removes it |
 
 ### 1.4 A gap found while writing this ADR
@@ -236,7 +236,7 @@ history.
 |---|---|
 | `HaskellPolicy`, `StrictCbor`, `CborCanonical`, `BoundedFields` | Move whole. `StrictCbor` and `CborCanonical` stay package-private (D4) |
 | `PlutusData`, `Metadata` | Move, renamed `PlutusDataValidator` and `MetadataValidator`, so they do not share a simple name with `plutus.spec.PlutusData` and `metadata.Metadata` in modules that see both. `validateFirst` stays public, with its trailing-bytes meaning |
-| `CborCursor` | Does not move. Its three users are rewritten on `CborSpan` and `CborHead` in `common`, which gain the head and chunk accessors ADR 0002 D9 planned ("`CborCursor` goes away"), so CCL keeps one flat walker |
+| `CborCursor` | Does not move. Its head parsing is replaced by `CborHead.at` in `common`, now public with the head's parts (r6), so the RFC 8949 head rules have one home. Its frame stack stays, as the package-private `HeadCursor` in `ledger-cbor` on top of `CborHead.at`: `CborSpan` cannot serve the validators, as enumerating a span's children walks each child again, which is quadratic in the depth |
 | `AddressBytes` | `validate` moves (D3). The rule helpers (`isVKeyLocked`, `network`, `bootstrapAttrsSize` and the rest) stay in Yano |
 | `RawScript` | The decoding checks (`readScript`, the language and definite-length checks) move, with the native-script check (D3). The record the rules use stays, and still builds the model for `nativeScriptHolds` |
 | `RawTransaction`, `RawCredential`, `RawVoter`, `RawCertificate`, `RawOutput` | Each site in section 1.3's table either moves into the strict reads (D4), or is shown unreachable once the strict read accepts, in M1's record. The mapping into rule records stays |
@@ -435,9 +435,14 @@ Each sample gets one outcome per stage:
 - Any error fails the gate (J11). That includes a `ClassCastException` or `IllegalArgumentException` from a model
   decoder that declares no checked exception, or from the harness's own casts and placement in the model stage. Such
   a failure is a model or harness defect to fix in M2, never a reason to widen what counts as "failed".
-- Reason codes are a fixed set (for example `UNKNOWN_FIELD`, `REPEATED_KEY`, `MISSING_FIELD`, `INDEFINITE_RECORD`,
-  `HASH_SIZE`, `INTEGER_RANGE`, `NOT_WELL_FORMED`, `STRUCTURE`), named in M1. Messages are free text and are never
-  compared.
+- Reason codes are a fixed set, named in M1; `LedgerDecodingException.Reason` is the normative list (r6):
+  `NOT_WELL_FORMED`, `STRUCTURE`, `UNEXPECTED_TYPE`, `TAG`, `UNKNOWN_FIELD`, `FIELD_NOT_IN_ERA`, `REPEATED_KEY`,
+  `DUPLICATE_ITEM`, `MISSING_FIELD`, `INDEFINITE_RECORD`, `INDEFINITE_STRING`, `BYTES_SIZE`, `INTEGER_RANGE`, `ZERO`,
+  `EMPTY_COLLECTION`, `MULTI_ASSET_TOO_BIG`, `MAP_HEAD_WIDTH`, `ADDRESS`, `TEXT_BOUNDS`, `RATIONAL`, `PLUTUS_DATA`,
+  `METADATA`, `SCRIPT`, `NESTING_TOO_DEEP`. Messages are free text and are never compared. A strict read rejects
+  with a `LedgerDecodingException` only: it classifies the reader's and `CborSpan.of`'s own `CborRuntimeException`s
+  as `STRUCTURE` and `NOT_WELL_FORMED` itself (r6); the runner still counts any `CborRuntimeException` from a strict
+  read as a rejection, should a caller's rule throw one.
 - **The outcomes file** has a header with the dataset revision, and one line for **every** sample: rule, path, and the
   three stage outcomes, with the strict reason code. J3 and J4 compare whole files, not only the misses. The misses
   are a view of it.
@@ -468,6 +473,59 @@ Each sample gets one outcome per stage:
 | M2 | CCL | D5, D6, D8: the harness, the outcomes file, the full gate in CI, and the gate in `release.yml` (`cbor-conformance.yml`) | M1 | J4, J11; J12's workflow structure; the gate's per-sample outcomes equal Yano's report at the r5 baseline (section 1.2: 43,369 of 43,434 at `4fd977b2`, no model gap), changed only by J1's corrections; the harness's normalizer is CCL's from `92327070` on (D5) |
 | M3 | CCL | Release (D9) | M2; ADR 0003's G3 and G5 | Released by a `release.yml` run whose corpus gate job succeeded on the tag's commit before `publish` started (J12); the run's URL in the release record |
 | M4 | Yano | D7 | M3 | J1, J3, J5, J8, J11; the moved classes and the keyed-walk test deleted; ADR-060 corrected |
+
+### 7.1 Implementation record (r6)
+
+**M1** (CCL PR #750: `48c02cf4`, `13201790`, then review fixes). `CborHead.at` and its accessors in `common`;
+in `ledger-cbor`: `HaskellPolicy` (public, with the strict reads `transaction`, `block`, `header`, `walk` of a record
+or a value, `script`), `LedgerDecodingException` and its `Reason`, `PlutusDataValidator` and `MetadataValidator`
+(public), and package-private `StrictCbor`, `CborCanonical`, `BoundedFields`, `AddressValidator`, `NativeScriptChecker`,
+`HeadCursor`; `ledger-cbor` depends on `address`. Decisions taken while implementing:
+
+- `p.block` reads a bare block only: an `[era, block]` envelope or a tag is `UNEXPECTED_TYPE`. `p.script` refuses a
+  Conway guard, which the old harness's `script` rule did not (it read without the guard). Both are J1 corrections, as
+  the header check is; no dataset sample changes (below).
+- `p.transaction` walks before it builds CCL's view, so a rejection carries the policy's reason; accept and reject are
+  unchanged.
+- `HaskellPolicy` refuses a walk that names another era than Conway (`IllegalArgumentException`): its rules are
+  Conway's, and Dijkstra's arrive with ADR 0003 M7b.
+- Every `FieldType` has a rule or is listed in `HaskellPolicy.NO_RULE` (38 types: records walked by their tables,
+  types of later eras, values Conway's walk reads unchecked); an unlisted type is an `IllegalStateException`, which
+  the gate counts as an error (J9).
+- Three denial-of-service paths inherited from Yano were found in review and fixed, each with the same verdicts:
+  set-item equality re-read a rational that is not a pair of integers, doubling the work per nested tag 30 (a
+  161-byte transaction took 5 s); the Byron address check built the address's Base58 text, quadratic in its length
+  (`address` gains `ByronAddress.validate(byte[])`); a rational's reduction ran an unbounded gcd (now continued-fraction
+  convergents, stopping beyond `Word64`).
+
+Section 1.3's sites (J5), each now moved into the strict read or unreachable once it accepts:
+
+| Site | Now |
+|---|---|
+| `RawTransaction:438`, empty input | `NOT_WELL_FORMED` in the strict read |
+| `RawTransaction:155`, translation of the views' `CborRuntimeException` | Yano translates at the boundary (D7); after acceptance the views read only fields the walk checked |
+| `RawScript.accepted`, the native-script model | `NativeScriptChecker` in the walk, with the same verdict as Yano's model-based check on 40,000 generated and mutated scripts, alone and in each place |
+| `RawOutput.accepted`, a reference script | The walk's `SCRIPT_REF` rule (stricter: a definite byte string in tag 24) |
+| `RawCredential:25`, `RawVoter:27`, a hash that is not 28 bytes | The walk's `HASH28` rule |
+| `RawVoter:23`, an unknown voter tag | `UNKNOWN_FIELD` in the voter union |
+| `RawCertificate:69,102`, `IllegalArgumentException` | Unreachable by construction: a DRep of kind 0 or 1 has a credential and 2 or 3 none; a delegatee is built only with a pool or a DRep. Section 13's question is closed |
+
+J1, measured: the M2 gate's per-sample outcomes against Yano `de892d95`'s (section 1.2): all 43,434 strict outcomes
+and every model outcome of a strict-accepted sample are the same. Yano's strict reads against CCL's harness on every
+Conway sample and four seeded byte-level mutations of each, 217,170 inputs: no difference (Yano `e276a3886`, on CCL
+#750 and Yaci #244). J7: the depth fixtures run through the strict reads in `ledger-cbor` (platform and virtual
+threads; the JDK 21 CI job now runs `ledger-cbor`) and in `transaction-spec`'s `RawViewDepthFixtures` (platform,
+`-Xint`, virtual thread), where the preprod trigger transaction (a 5,383-level native script) and its block are
+accepted.
+
+**M2** (CCL PR #750: `4e9e29a7`). The module `ledger-cbor-conformance` (`CborRule`, the placed rules, `CborNormalizer`,
+moved from `transaction-spec`'s tests, `CborConformance`, `SampleOutcome`, `DatasetCheckout`) and the outcomes file
+`outcomes-4fd977b2.txt`, one line per sample: 43,369 of 43,434 pass, all 31,842 invalid samples rejected, no model
+gap, no error. The seven header rules have no model stage, and `CborRule.headerFor` gives a caller's own header
+decoders their header (Yano's Yaci column). CI runs `cbor-conformance.yml` from `build.yml` and from `release.yml`,
+where `publish` needs it; its guards are `tests="4"` (`ConwayOutcomesGateTest`), `tests="4"`
+(`CborCorpusConformanceTest`) and `tests="6"` (`LedgerReaderConformanceTest`). `CertificateOutcomesTest` stays as
+ADR 0003 G7 left it, outside CI.
 
 ## 8. Verification
 

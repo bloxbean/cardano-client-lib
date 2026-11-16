@@ -90,7 +90,7 @@ final class CborCanonical {
 
     private void requireEnd(CborSpan item) {
         if (pos != item.offset() + item.length()) {
-            throw new LedgerDecodingException(Reason.TRAILING_BYTES,
+            throw new LedgerDecodingException(Reason.NOT_WELL_FORMED,
                     "CBOR item at " + item.offset() + " has trailing bytes");
         }
     }

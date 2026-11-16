@@ -77,21 +77,64 @@ final class BoundedFields {
         if (d.signum() == 0) {
             throw new LedgerDecodingException(Reason.RATIONAL, what + ": denominator cannot be zero");
         }
-        // n % d: reduced, denominator positive
-        BigInteger gcd = n.gcd(d);
-        BigInteger numerator = n.divide(gcd);
-        BigInteger denominator = d.divide(gcd);
-        if (denominator.signum() < 0) {
-            numerator = numerator.negate();
-            denominator = denominator.negate();
-        }
-        boolean outOfRange = numerator.signum() < 0 || denominator.compareTo(WORD64_MAX) > 0
-                || (unit ? numerator.compareTo(denominator) > 0 : numerator.compareTo(WORD64_MAX) > 0);
+        // n % d: reduced, denominator positive, then in range
+        BigInteger[] reduced = reducedWithinWord64(n, d);
+        boolean outOfRange = reduced == null || (unit && reduced[0].compareTo(reduced[1]) > 0);
         if (outOfRange) {
-            throw new LedgerDecodingException(Reason.RATIONAL, what + " " + n + "/" + d + (unit ? " is not in [0, 1]"
-                    : " is not a non-negative Word64 ratio"));
+            throw new LedgerDecodingException(Reason.RATIONAL, what + " " + shown(n) + "/" + shown(d)
+                    + (unit ? " is not in [0, 1]" : " is not a non-negative Word64 ratio"));
         }
+        BigInteger numerator = reduced[0];
+        BigInteger denominator = reduced[1];
         return new BigInteger[]{numerator, denominator};
+    }
+
+    /**
+     * {@code n % d} when both its parts are non-negative and fit {@code Word64}, as Haskell's
+     * {@code boundRational} keeps it; null otherwise. The same verdict as reducing by the gcd and comparing, without
+     * a gcd of unbounded numbers, whose cost is quadratic in their length: the reduced fraction is the last convergent
+     * of the continued fraction of {@code |n| / |d|}, and convergents' numerators and denominators never decrease, so
+     * the reduction stops, out of range, at the first convergent beyond {@code 2^64 - 1}. That is at most about 93
+     * steps (convergents grow at least as Fibonacci numbers), each one division.
+     *
+     * @param d not zero
+     * @return {numerator, denominator}, reduced, or null when the ratio is negative or a part exceeds {@code Word64}
+     */
+    static BigInteger[] reducedWithinWord64(BigInteger n, BigInteger d) {
+        if (n.signum() == 0) {
+            return new BigInteger[]{BigInteger.ZERO, BigInteger.ONE};
+        }
+        if (n.signum() != d.signum()) {
+            return null;
+        }
+        BigInteger a = n.abs();
+        BigInteger b = d.abs();
+        BigInteger h1 = BigInteger.ONE;
+        BigInteger h2 = BigInteger.ZERO;
+        BigInteger k1 = BigInteger.ZERO;
+        BigInteger k2 = BigInteger.ONE;
+        while (true) {
+            BigInteger[] qr = a.divideAndRemainder(b);
+            BigInteger h = qr[0].multiply(h1).add(h2);
+            BigInteger k = qr[0].multiply(k1).add(k2);
+            if (h.compareTo(WORD64_MAX) > 0 || k.compareTo(WORD64_MAX) > 0) {
+                return null;
+            }
+            if (qr[1].signum() == 0) {
+                return new BigInteger[]{h, k};
+            }
+            h2 = h1;
+            h1 = h;
+            k2 = k1;
+            k1 = k;
+            a = b;
+            b = qr[1];
+        }
+    }
+
+    /** A number for a message: in full up to 128 bits, else by its size, as a bignum may be megabytes long. */
+    private static String shown(BigInteger value) {
+        return value.bitLength() <= 128 ? value.toString() : "(a " + value.bitLength() + "-bit integer)";
     }
 
     /**

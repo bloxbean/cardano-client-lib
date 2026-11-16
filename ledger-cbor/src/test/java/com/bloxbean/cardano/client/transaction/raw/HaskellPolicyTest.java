@@ -12,8 +12,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link HaskellPolicy}: the walk and the strict transaction read agree, and each says why it rejects (ADR 0003 I13,
- * moved from Yano by ADR 0005); and the rules the decoder version decides.
+ * {@link HaskellPolicy}'s rules, moved from Yano by ADR 0005: each case checks the strict transaction read's verdict
+ * and the walk's message (the strict read is the walk, so this is not a proof that two readers agree; ADR 0003 I13's
+ * proof is met and retired, see ADR 0005 D1); and the rules the decoder version decides.
  */
 class HaskellPolicyTest {
 

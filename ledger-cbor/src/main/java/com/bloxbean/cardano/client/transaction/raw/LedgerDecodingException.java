@@ -66,9 +66,7 @@ public class LedgerDecodingException extends CborRuntimeException {
         /** A script that is not a script of the era: its language, its form, or a native script's structure. */
         SCRIPT,
         /** A value nested deeper than the equality check reads (no Conway value the ledger compares is near it). */
-        NESTING_TOO_DEEP,
-        /** Bytes after an item that must be read whole. */
-        TRAILING_BYTES
+        NESTING_TOO_DEEP
     }
 
     private final Reason reason;
