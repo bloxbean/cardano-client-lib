@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.transaction.spec.conformance;
+package com.bloxbean.cardano.client.ledger.conformance;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
@@ -8,9 +8,11 @@ import java.math.BigInteger;
  * of a re-encoding before it is compared with a sample's {@code .expected.cbor}: indefinite arrays, maps and chunked
  * strings become definite, every head is minimal, a bignum (tags 2 and 3) whose value fits a native head becomes that
  * head and otherwise loses leading zero bytes, and a rational (tag 30) is reduced. Map order, duplicate keys, other
- * tags and float widths are kept.
+ * tags and float widths are kept. A reduced rational has its sign on the numerator, as Haskell's {@code n % d} has.
+ *
+ * <p>One copy, for CCL's gate and Yano's report alike (ADR 0005 D5).</p>
  */
-final class CborNormalizer {
+public final class CborNormalizer {
 
     private static final BigInteger TWO_64 = BigInteger.ONE.shiftLeft(64);
 
@@ -22,8 +24,12 @@ final class CborNormalizer {
         this.in = in;
     }
 
-    /** @return the normalized form of the single CBOR item {@code cbor} */
-    static byte[] normalize(byte[] cbor) {
+    /**
+     * @param cbor one CBOR item, nothing after it
+     * @return its normalized form
+     * @throws IllegalArgumentException if the bytes are not one item
+     */
+    public static byte[] normalize(byte[] cbor) {
         CborNormalizer normalizer = new CborNormalizer(cbor);
         normalizer.item();
         if (normalizer.pos != cbor.length) {
