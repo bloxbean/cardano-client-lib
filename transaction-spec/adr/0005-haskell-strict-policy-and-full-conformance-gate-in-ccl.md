@@ -396,11 +396,11 @@ table these seven have no model stage. Yano attaches its Yaci decoders to them a
 - Yano's report runs at the dataset revision its CCL version's outcomes file was made for. A dataset bump goes
   through CCL first: CCL moves `CBOR_DATASET_REVISION`, its gate passes with the outcomes file updated after review,
   and a CCL pre-release carries it. Then Yano moves `corpora.env`.
-- The harness checks that the directory it is given is exactly that revision: a git checkout whose `HEAD` is the pin
-  and whose working tree is clean, with no modified, deleted or untracked file (`git status --porcelain
-  --untracked-files=all` empty). Both CI (`build.yml:104-107`) and Yano's `fetch-corpora.sh` already fetch the dataset
-  with git. Git compares contents, so an edited input, expected output or normalization file, or a substituted
-  sample, fails the run. A directory that is not such a checkout fails too.
+- The harness checks that the directory it is given is exactly that revision: a git checkout whose `HEAD` is the pin,
+  with no file the revision lacks (untracked or ignored) and every file of the revision hashed equal to its blob (r6;
+  `git status` alone trusts index flags and file times). Both CI (`cbor-conformance.yml`) and Yano's `fetch-corpora.sh`
+  already fetch the dataset with git. Git compares contents, so an edited input, expected output or normalization file,
+  or a substituted sample, fails the run. A directory that is not such a checkout fails too.
 - The harness is given the dataset's `dataset` subdirectory, as both callers pass it today, and finds the checkout's
   root with `git rev-parse --show-toplevel`. It runs the `git` executable for these checks, which both CI and Yano's
   build already need to fetch the dataset; it adds no Git library to the published artifact.
@@ -687,6 +687,13 @@ behaviour; the question moves to CCL with the policy.
   - J1's corrections also list a bare-only block and the guard in a script read alone (Fable F3).
   - D2's `CborCursor` row: `HeadCursor` on `CborHead.at` (W5). D10: the normative reason codes, and a strict read
     rejecting with `LedgerDecodingException` only (W6); `TRAILING_BYTES` removed (W15, Fable F6b); a script
-    reference's embedded script that is not one item is `SCRIPT` (Fable F6a).
+    reference's embedded script that is not one item is `SCRIPT` (Fable F6a): four `babbage_transaction_output`
+    samples change from `R:NOT_WELL_FORMED` to `R:SCRIPT` in the outcomes file, reviewed and pinned (J4); no sample
+    changes from accepted to rejected or back.
   - Section 1.3: the fifth `fromScriptRef` caller. Section 13: the `RawCertificate` question closed; the block
     containers' leniency recorded (Fable F8).
+  - Codex's review of `b05e7cfc` (D1-D3): the rational reduction bounds each step's quotient before dividing (a
+    numerator twice the denominator's length took a second for 3 MB); the dataset check (D8) hashes every file of the
+    revision against its blob and refuses any file the revision lacks, ignored ones included, so index flags and
+    size-and-time-preserving edits cannot hide a change from it, as they can from `git status`; git's output goes to
+    a file, so the check's deadline holds.

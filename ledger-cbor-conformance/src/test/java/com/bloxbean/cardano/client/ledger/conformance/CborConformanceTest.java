@@ -137,17 +137,34 @@ class CborConformanceTest {
         assertThatThrownBy(() -> DatasetCheckout.verify(root, head))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("not the dataset directory");
 
-        Files.writeString(dataset.resolve("conway").resolve("a.input.cbor"), "y");
+        Path a = dataset.resolve("conway").resolve("a.input.cbor");
+        Files.writeString(a, "y");
         assertThatThrownBy(() -> DatasetCheckout.verify(dataset, head))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("has changes");
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("has changed");
         git(root, "checkout", "-q", "--", ".");
+        // Codex D2: an index flag, or an edit that keeps the size and time, hides a change from git status
+        git(root, "update-index", "--assume-unchanged", "dataset/conway/a.input.cbor");
+        java.nio.file.attribute.FileTime time = Files.getLastModifiedTime(a);
+        Files.writeString(a, "q");
+        Files.setLastModifiedTime(a, time);
+        assertThat(git(root, "status", "--porcelain")).isEmpty();
+        assertThatThrownBy(() -> DatasetCheckout.verify(dataset, head))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("has changed");
+        git(root, "update-index", "--no-assume-unchanged", "dataset/conway/a.input.cbor");
+        git(root, "checkout", "-q", "--", ".");
+        assertThatCode(() -> DatasetCheckout.verify(dataset, head)).doesNotThrowAnyException();
+        // an untracked file, and an ignored one
         Files.writeString(dataset.resolve("conway").resolve("b.input.cbor"), "z");
         assertThatThrownBy(() -> DatasetCheckout.verify(dataset, head))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("has changes");
-        Files.delete(dataset.resolve("conway").resolve("b.input.cbor"));
-        Files.delete(dataset.resolve("conway").resolve("a.input.cbor"));
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("does not");
+        Files.writeString(root.resolve(".git").resolve("info").resolve("exclude"), "*.input.cbor\n");
+        assertThat(git(root, "status", "--porcelain")).isEmpty();
         assertThatThrownBy(() -> DatasetCheckout.verify(dataset, head))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("has changes");
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("does not");
+        Files.delete(dataset.resolve("conway").resolve("b.input.cbor"));
+        Files.delete(a);
+        assertThatThrownBy(() -> DatasetCheckout.verify(dataset, head))
+                .isInstanceOf(IllegalStateException.class);
 
         Path plain = dir.resolve("plain").resolve("dataset");
         Files.createDirectories(plain);

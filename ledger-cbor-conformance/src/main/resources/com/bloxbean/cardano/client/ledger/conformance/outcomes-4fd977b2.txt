@@ -8454,10 +8454,10 @@ babbage_transaction_output/manual-invalid/auto-map-3-occur-value-tag24-control-a
 babbage_transaction_output/manual-invalid/auto-map-3-occur-value-tag24-control-a-value-that-is-not-byte-f6.input.cbor R:UNEXPECTED_TYPE - -
 babbage_transaction_output/manual-invalid/auto-not-map.input.cbor R:STRUCTURE - -
 babbage_transaction_output/manual-invalid/auto-unused-key.input.cbor R:UNKNOWN_FIELD - -
-babbage_transaction_output/manual-invalid/last-map-3-occur-value-tag24-control-bytes-whose-contents-d.input.cbor R:NOT_WELL_FORMED - -
-babbage_transaction_output/manual-invalid/script-ref-break-after-the-value.input.cbor R:NOT_WELL_FORMED - -
-babbage_transaction_output/manual-invalid/script-ref-second-script-after-the-value.input.cbor R:NOT_WELL_FORMED - -
-babbage_transaction_output/manual-invalid/script-ref-trailing-value.input.cbor R:NOT_WELL_FORMED - -
+babbage_transaction_output/manual-invalid/last-map-3-occur-value-tag24-control-bytes-whose-contents-d.input.cbor R:SCRIPT - -
+babbage_transaction_output/manual-invalid/script-ref-break-after-the-value.input.cbor R:SCRIPT - -
+babbage_transaction_output/manual-invalid/script-ref-second-script-after-the-value.input.cbor R:SCRIPT - -
+babbage_transaction_output/manual-invalid/script-ref-trailing-value.input.cbor R:SCRIPT - -
 babbage_transaction_output/manual-invalid/widest-map-head.input.cbor R:MAP_HEAD_WIDTH - -
 babbage_transaction_output/manual-valid/auto-root-entries-2.input.cbor A D M
 babbage_transaction_output/manual-valid/wide-heads-1.input.cbor A D M

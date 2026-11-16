@@ -95,7 +95,8 @@ final class BoundedFields {
      * a gcd of unbounded numbers, whose cost is quadratic in their length: the reduced fraction is the last convergent
      * of the continued fraction of {@code |n| / |d|}, and convergents' numerators and denominators never decrease, so
      * the reduction stops, out of range, at the first convergent beyond {@code 2^64 - 1}. That is at most about 93
-     * steps (convergents grow at least as Fibonacci numbers), each one division.
+     * steps (convergents grow at least as Fibonacci numbers), each one division whose quotient is bounded first, so
+     * that no step divides numbers whose quotient is itself huge (Codex review D1).
      *
      * @param d not zero
      * @return {numerator, denominator}, reduced, or null when the ratio is negative or a part exceeds {@code Word64}
@@ -114,6 +115,18 @@ final class BoundedFields {
         BigInteger k1 = BigInteger.ZERO;
         BigInteger k2 = BigInteger.ONE;
         while (true) {
+            // the largest quotient that keeps the next convergent within Word64; a larger one rejects before any
+            // division of numbers whose quotient is itself unbounded
+            BigInteger maxQuotient = WORD64_MAX;
+            if (h1.signum() > 0) {
+                maxQuotient = maxQuotient.min(WORD64_MAX.subtract(h2).divide(h1));
+            }
+            if (k1.signum() > 0) {
+                maxQuotient = maxQuotient.min(WORD64_MAX.subtract(k2).divide(k1));
+            }
+            if (a.compareTo(b.multiply(maxQuotient.add(BigInteger.ONE))) >= 0) {
+                return null;
+            }
             BigInteger[] qr = a.divideAndRemainder(b);
             BigInteger h = qr[0].multiply(h1).add(h2);
             BigInteger k = qr[0].multiply(k1).add(k2);

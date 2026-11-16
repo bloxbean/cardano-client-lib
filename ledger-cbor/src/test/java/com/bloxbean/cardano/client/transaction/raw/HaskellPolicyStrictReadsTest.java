@@ -240,6 +240,11 @@ class HaskellPolicyStrictReadsTest {
                     .isInstanceOf(LedgerDecodingException.class)
                     .satisfies(e -> assertThat(e.getMessage()).hasSizeLessThan(300));
         });
+        // Codex D1: a numerator of twice the denominator's length (a huge quotient) is refused without dividing
+        java.util.Random random = new java.util.Random(7);
+        String lopsided = "d81e82" + bignum(new BigInteger(1 << 23, random)) + bignum(new BigInteger(1 << 22, random));
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+                rejects(Reason.RATIONAL, () -> P.walk(FieldType.NONNEGATIVE_INTERVAL, hex(lopsided))));
         // 2^65 / 2^66 reduces into range, as the dataset's bignum samples do
         assertThatCode(() -> P.walk(FieldType.UNIT_INTERVAL, hex("d81e82c249020000000000000000c249040000000000000000")))
                 .doesNotThrowAnyException();
