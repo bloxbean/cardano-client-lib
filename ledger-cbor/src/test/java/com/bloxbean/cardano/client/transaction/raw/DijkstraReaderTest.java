@@ -251,6 +251,31 @@ class DijkstraReaderTest {
         assertThat(TxBodyField.SUB_RECORD.field(2, Era.Dijkstra)).isNull();
     }
 
+    // ---- the era of a transaction read without one ----
+
+    @Test
+    void anEraLessTransactionIsReadInTheEarliestEraWithAPlaceForAll() {
+        String body = BODY.replaceFirst("^a3", "a4");
+        // Conway's forms, and bytes both eras read alike, stay in Conway
+        assertThat(RawTx.eraOf(bytes("84" + BODY + "a0" + "f5" + "f6"), Era.Conway)).isEqualTo(Era.Conway);
+        assertThat(RawTx.eraOf(bytes("83" + BODY + "a0" + "f6"), Era.Conway)).isEqualTo(Era.Conway);
+        assertThat(RawTx.eraOf(bytes("84" + body + "0e" + "d90102" + "82" + H28 + H28_B + "a0" + "f5" + "f6"),
+                Era.Conway)).isEqualTo(Era.Conway);
+        // a field, a form or a nested key only Dijkstra has moves it to Dijkstra
+        assertThat(RawTx.eraOf(bytes("83" + body + "1819" + "a1" + ra("e1") + "01" + "a0" + "f6"), Era.Conway))
+                .isEqualTo(Era.Dijkstra);
+        assertThat(RawTx.eraOf(bytes("83" + body + "0e" + "82" + "8200" + H28 + "8201" + H28_B + "a0" + "f6"),
+                Era.Conway)).isEqualTo(Era.Dijkstra);
+        assertThat(RawTx.eraOf(bytes("83" + BODY + "a1" + "08" + "81" + "4102" + "f6"), Era.Conway))
+                .isEqualTo(Era.Dijkstra);
+        assertThat(RawTx.eraOf(bytes(VALID), Era.Conway)).isEqualTo(Era.Dijkstra);
+        // a key no era has, or a transaction that is not well formed, stays in the era it starts from
+        assertThat(RawTx.eraOf(bytes("83" + body + "1863" + "00" + "a0" + "f6"), Era.Conway)).isEqualTo(Era.Conway);
+        assertThat(RawTx.eraOf(bytes("8100"), Era.Conway)).isEqualTo(Era.Conway);
+        // and never goes back before it
+        assertThat(RawTx.eraOf(bytes("83" + BODY + "a0" + "f6"), Era.Dijkstra)).isEqualTo(Era.Dijkstra);
+    }
+
     // ---- the body's new fields ----
 
     @Test
@@ -258,6 +283,7 @@ class DijkstraReaderTest {
         RawTxBody keyHashes = dijkstra(BODY.replaceFirst("^a3", "a4") + "0e" + "d90102" + "82" + H28 + H28_B);
         List<RawCredential> guards = keyHashes.guards().orElseThrow();
         assertThat(guards).extracting(RawCredential::isScript).containsExactly(false, false);
+        assertThat(guards).allMatch(RawCredential::isKeyHashOnly);
         assertThat(hex(guards.get(1).hash())).isEqualTo("12".repeat(28));
         // key 14 is guards in Dijkstra, and required signers to Conway
         assertThat(keyHashes.requiredSigners()).isEmpty();
@@ -267,6 +293,7 @@ class DijkstraReaderTest {
         RawTxBody credentials = dijkstra(BODY.replaceFirst("^a3", "a4") + "0e" + "82" + "8200" + H28 + "8201" + H28_B);
         assertThat(credentials.guards().orElseThrow()).extracting(RawCredential::isScript).containsExactly(false,
                 true);
+        assertThat(credentials.guards().orElseThrow()).noneMatch(RawCredential::isKeyHashOnly);
         RawTx.walk(bytes("83" + BODY.replaceFirst("^a3", "a4") + "0e" + "82" + "8200" + H28 + "8201" + H28_B
                 + "a0f6"), Era.Dijkstra, STRICT);
         assertThat(dijkstra(BODY).guards()).isEmpty();

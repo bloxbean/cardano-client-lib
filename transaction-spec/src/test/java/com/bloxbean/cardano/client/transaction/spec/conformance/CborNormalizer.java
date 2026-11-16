@@ -112,7 +112,10 @@ final class CborNormalizer {
         item();
     }
 
-    /** A {@code [numerator, denominator]} pair of integers, reduced; anything else is kept as it is. */
+    /**
+     * A {@code [numerator, denominator]} pair of integers, reduced as Haskell's {@code n % d} is: in lowest terms, with
+     * the sign on the numerator ({@code -1/-2} is {@code 1/2}); anything else is kept as it is.
+     */
     private static byte[] reducedRational(byte[] pair) {
         CborNormalizer reader = new CborNormalizer(pair);
         if (reader.next() != 0x82) {
@@ -124,10 +127,11 @@ final class CborNormalizer {
             return pair;
         }
         BigInteger gcd = numerator.gcd(denominator);
+        BigInteger divisor = denominator.signum() < 0 ? gcd.negate() : gcd;
         CborNormalizer writer = new CborNormalizer(new byte[0]);
         writer.head(4, BigInteger.TWO);
-        writer.integer(numerator.divide(gcd));
-        writer.integer(denominator.divide(gcd));
+        writer.integer(numerator.divide(divisor));
+        writer.integer(denominator.divide(divisor));
         return writer.out.toByteArray();
     }
 

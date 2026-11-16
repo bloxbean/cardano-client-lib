@@ -60,6 +60,27 @@ class ProtocolParamUpdateConwayTest {
                 drep.getTreasuryWithdrawal())).isEqualTo(intervals(10));
     }
 
+    /**
+     * #749: cardano-cbor-dataset 4fd977b2's conway manual-valid samples of {@code nonnegative_interval} (key 9, the
+     * pledge influence) and {@code unit_interval} (key 10, the expansion rate) whose parts are bignums or negative are
+     * read and written back with their parts as they are. cardano-ledger holds them reduced, which the dataset's
+     * normalization of the re-encoding gives (CborCorpusConformanceTest).
+     */
+    @Test
+    void rationalsWithBignumOrNegativePartsAreWrittenBackAsRead() throws Exception {
+        String[][] samples = {
+                {"0a", "d81e82c249020000000000000000c249040000000000000000"}, // unit_interval/bignum-ratio-…
+                {"0a", "d81e822021"}, // unit_interval/negative-ratio-reduces-in-range
+                {"09", "d81e82c249020000000000000000c249040000000000000000"}, // nonnegative_interval/bignum-ratio-…
+                {"09", "d81e82c24901000000000000000002"}}; // nonnegative_interval/bignum-numerator-reduces-in-range
+        for (String[] sample : samples) {
+            byte[] update = hex("a1" + sample[0] + sample[1]);
+            ProtocolParamUpdate decoded = ProtocolParamUpdate.deserialize(CborSerializationUtil.deserialize(update));
+
+            assertThat(CborSerializationUtil.serialize(decoded.serialize(), false)).as(sample[1]).isEqualTo(update);
+        }
+    }
+
     @Test
     void widenedFieldsKeepTheirWholeValue() throws Exception {
         byte[] update = hex("a3" + "021a80000000" + "031a80000001" + "071affffffff");

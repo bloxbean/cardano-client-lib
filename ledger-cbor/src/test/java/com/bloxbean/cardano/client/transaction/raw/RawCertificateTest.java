@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 
 import static com.bloxbean.cardano.client.util.HexUtil.decodeHexString;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -283,6 +284,38 @@ class RawCertificateTest {
         assertThatThrownBy(() -> of(String.format(pool, "820102")).margin()).isInstanceOf(CborRuntimeException.class);
         assertThatThrownBy(() -> of(String.format(pool, "d81e8101")).margin())
                 .isInstanceOf(CborRuntimeException.class);
+    }
+
+    /**
+     * #749: a margin keeps both parts as read, a negative part or a bignum part as well as {@code 2/4}, since CCL
+     * writes them back the same; reducing them and checking their range is the Haskell-strict policy's (ADR 0005).
+     * Strict and lenient alike, for these margins.
+     */
+    @Test
+    void marginKeepsItsPartsAsRead() {
+        String pool = "8a" + "03" + KEY1 + VRF + "00" + "00" + "%s" + REWARD_ACCOUNT + "80" + "80" + "f6";
+        Map<String, UnitInterval> margins = Map.of(
+                "d81e822021", ratio(-1, -2),
+                "d81e820122", ratio(1, -3),
+                "d81e82c249020000000000000000c249040000000000000000",
+                new UnitInterval(BigInteger.TWO.pow(65), BigInteger.TWO.pow(66)),
+                "d81e82c24901000000000000000002", new UnitInterval(BigInteger.TWO.pow(64), BigInteger.TWO),
+                "d81e820204", ratio(2, 4),
+                "d81e820005", ratio(0, 5),
+                "d81e82c2410204", ratio(2, 4), // a bignum within 64 bits is a plain integer to the tree decoder
+                "d81e821bffffffffffffffff1bffffffffffffffff", new UnitInterval(MAX_WORD64, MAX_WORD64));
+        margins.forEach((margin, expected) -> {
+            String cert = String.format(pool, margin);
+            assertThat(of(cert).margin()).as(margin).isEqualTo(expected);
+            assertThat(RawCertificate.lenient(CertKind.POOL_REGISTRATION, span(cert)).margin()).as(margin)
+                    .isEqualTo(expected);
+        });
+    }
+
+    private static final BigInteger MAX_WORD64 = BigInteger.TWO.pow(64).subtract(BigInteger.ONE);
+
+    private static UnitInterval ratio(long numerator, long denominator) {
+        return new UnitInterval(BigInteger.valueOf(numerator), BigInteger.valueOf(denominator));
     }
 
     /** ADR 0003 D7: what {@link RawCertificate#lenient} keeps and {@link RawCertificate#of} does not. */

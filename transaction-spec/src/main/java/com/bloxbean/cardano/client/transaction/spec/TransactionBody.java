@@ -104,7 +104,8 @@ public class TransactionBody {
     //Dijkstra
     /**
      * The guards (key 14), written in Dijkstra as credentials in a set with tag 258, in list order. Key 14 holds the
-     * guards or {@link #requiredSigners}, not both.
+     * guards or {@link #requiredSigners}, not both. A Dijkstra key 14 of bare key hashes, the form a Conway body writes,
+     * is read into {@link #requiredSigners}, so the body writes back in that form.
      * <p>
      * Experimental: Dijkstra is not final; this may change in any release.
      */
@@ -480,8 +481,12 @@ public class TransactionBody {
         raw.currentTreasury().ifPresent(body::setCurrentTreasuryValue);
         raw.donation().ifPresent(body::setDonation);
 
+        // Key 14 in the key-hash form, as a Conway body writes it, stays required signers, so the body writes back as
+        // it was read (Dijkstra TxBody.hs, decodeGuards); in the credential form it is the guards.
         Optional<List<RawCredential>> guards = raw.guards();
-        if (guards.isPresent())
+        if (guards.isPresent() && guards.get().stream().allMatch(RawCredential::isKeyHashOnly))
+            body.setRequiredSigners(RawModels.mapAll(guards.get(), RawCredential::hash));
+        else if (guards.isPresent())
             body.setGuards(RawModels.mapAll(guards.get(), RawModels::credential));
         body.setSubTransactions(orNull(raw.subTransactions(), sub -> SubTransaction.from(sub, raw.era())));
         body.setRequiredTopLevelGuards(orNull(raw.requiredTopLevelGuards(), guard -> new RequiredGuard(

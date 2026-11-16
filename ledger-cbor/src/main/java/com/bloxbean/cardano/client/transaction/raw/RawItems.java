@@ -330,7 +330,15 @@ public final class RawItems {
         return lenient ? lenientInteger(item) : integer(item);
     }
 
-    /** @return a rational, tag 30 on {@code [int, int]} */
+    /**
+     * A rational, tag 30 on {@code [int, int]}, with both parts as read: {@code 2/4}, {@code -1/-2} and a bignum part
+     * stay as they are, and CCL writes them back the same, so a model that is signed or co-signed keeps its body.
+     * cardano-ledger holds the {@code n % d} of the parts and checks it ({@code decodeRationalWithTag}; from protocol
+     * version 12 {@code decodeIntegralRational}, whose parts are {@code Word64}s). Those checks are the Haskell-strict
+     * policy's (ADR 0005), not this reader's.
+     *
+     * @return the rational
+     */
     static UnitInterval rational(CborSpan item, boolean lenient) {
         boolean tagged = false;
         CborSpan content = item;

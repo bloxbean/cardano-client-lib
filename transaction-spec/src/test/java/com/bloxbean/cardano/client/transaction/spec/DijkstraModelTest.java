@@ -9,7 +9,9 @@ import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
@@ -38,6 +40,7 @@ import com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.ParameterChangeAction;
+import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.script.RequireGuard;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -50,6 +53,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.math.BigInteger;
@@ -483,18 +487,42 @@ class DijkstraModelTest {
     @Test
     void conwayReadingIsUnchanged() throws Exception {
         Transaction transaction = everyNewField();
-        // Conway reads key 14 as key hashes and a pool registration as nine fields
+        // Conway reads the Dijkstra fields as fields it has no place for, and drops them
         transaction.getBody().setGuards(null);
         transaction.getBody().setCerts(new ArrayList<>());
-        Transaction conway = Transaction.deserialize(transaction.serialize());
+        Transaction conway = Transaction.deserialize(transaction.serialize(), Era.Conway);
 
-        assertThat(conway.getEra()).isNull();
         assertThat(conway.getBody().getSubTransactions()).isNull();
         assertThat(conway.getBody().getDirectDeposits()).isNull();
         assertThat(conway.getWitnessSet().getPlutusV4Scripts()).isNull();
         assertThat(conway.getAuxiliaryData().getPlutusV4Scripts()).isNull();
         assertThat(((ParameterChangeAction) conway.getBody().getProposalProcedures().get(0).getGovAction())
                 .getProtocolParamUpdate()).isEqualTo(ProtocolParamUpdate.builder().build());
+
+        // read without an era, a Conway transaction stays Conway, with no era set
+        TransactionBody body = minimalBody();
+        body.setRequiredSigners(List.of(HexUtil.decodeHexString(KEY_A)));
+        byte[] bytes = Transaction.builder().body(body).build().serialize();
+        Transaction read = Transaction.deserialize(bytes);
+        assertThat(read.getEra()).isNull();
+        assertThat(read.serialize()).isEqualTo(bytes);
+        assertThatThrownBy(() -> Transaction.deserialize(null)).isInstanceOf(CborDeserializationException.class);
+    }
+
+    // ---- read without an era, a transaction with Dijkstra fields is read in Dijkstra (#752) ----
+
+    @Test
+    void readingWithoutAnEraKeepsTheDijkstraFields() throws Exception {
+        Transaction transaction = everyNewField();
+        byte[] bytes = transaction.serialize();
+
+        Transaction read = Transaction.deserialize(bytes);
+        assertThat(read.getEra()).isEqualTo(Era.Dijkstra);
+        assertThat(read.getBody().getGuards()).isEqualTo(transaction.getBody().getGuards());
+        assertThat(read.getBody().getDirectDeposits()).isEqualTo(transaction.getBody().getDirectDeposits());
+        assertThat(read.getBody().getSubTransactions()).hasSize(1);
+        assertThat(read.serialize()).isEqualTo(bytes);
+        assertThat(TransactionUtil.getTxHash(read)).isEqualTo(HexUtil.encodeHexString(RawTx.of(bytes).txId()));
     }
 
     @Test
@@ -619,7 +647,9 @@ class DijkstraModelTest {
         assertThat(procedure.getAnchor().getAnchorUrl()).isEqualTo("https://ab");
         assertThat(read.getWitnessSet().getRedeemers().get(0).getExUnits())
                 .isEqualTo(new ExUnits(BigInteger.ONE, BigInteger.TWO));
-        // without an era, and in Conway, as before: the ledger reads these records with RecD up to version 11
+        // without an era, and in Conway, as before: the ledger reads these records with RecD up to version 11, and the
+        // length form is not in the tables, so the bytes stay in Conway (D5a)
+        assertThat(RawTx.eraOf(tx, Era.Conway)).isEqualTo(Era.Conway);
         assertThatThrownBy(() -> Transaction.deserialize(tx)).hasStackTraceContaining("definite-length");
         assertThatThrownBy(() -> Transaction.deserialize(tx, Era.Conway)).hasStackTraceContaining("definite-length");
     }
@@ -631,6 +661,69 @@ class DijkstraModelTest {
 
         Transaction read = Transaction.deserialize(HexUtil.decodeHexString("83" + body + "a0" + "f6"), Era.Dijkstra);
         assertThat(read.getBody().getSubTransactions().get(0).getBody().getVotingProcedures().getVoting()).hasSize(1);
+    }
+
+    // ---- signing and copying a model keep its era's fields (#752) ----
+
+    @Test
+    void signingAndCopyingKeepTheDijkstraFields() throws Exception {
+        Transaction transaction = everyNewField();
+        SecretKey key = SecretKey.create(HexUtil.decodeHexString(
+                "ede3104b2f4ff32daa3b620a9a272cd962cf504da44cf1cf0280aff43b65f807"));
+
+        Transaction signed = TransactionSigner.INSTANCE.sign(transaction, key);
+        assertThat(signed.getEra()).isEqualTo(Era.Dijkstra);
+        assertThat(signed.getWitnessSet().getVkeyWitnesses()).hasSize(1);
+        assertThat(signed.getBody().getDirectDeposits()).isEqualTo(transaction.getBody().getDirectDeposits());
+        assertThat(signed.getBody().getSubTransactions()).hasSize(1);
+        assertThat(TransactionUtil.getTxHash(signed)).isEqualTo(TransactionUtil.getTxHash(transaction));
+        // the same witness as signing the bytes, which adds it to the witness set as encoded
+        assertThat(signed.getWitnessSet().getVkeyWitnesses()).isEqualTo(Transaction.deserialize(
+                TransactionSigner.INSTANCE.sign(transaction.serialize(), key), Era.Dijkstra).getWitnessSet()
+                .getVkeyWitnesses());
+
+        Transaction copy = TransactionUtil.createCopy(transaction);
+        assertThat(copy.getEra()).isEqualTo(Era.Dijkstra);
+        assertThat(copy.serialize()).isEqualTo(transaction.serialize());
+    }
+
+    @Test
+    void signingAndCopyingReadInTheTransactionsEraWhereTheBytesDoNotShowIt() throws Exception {
+        // a language-3 cost model is Plutus V4 in Dijkstra, and unknown to a read without an era, which the bytes of
+        // this transaction leave in Conway
+        CostMdls costModels = new CostMdls();
+        costModels.add(new CostModel(Language.PLUTUS_V4, new long[]{1, 2}));
+        TransactionBody body = minimalBody();
+        body.setProposalProcedures(List.of(proposal(ProtocolParamUpdate.builder().costModels(costModels).build())));
+        Transaction transaction = Transaction.builder().era(Era.Dijkstra).body(body).build();
+        assertThat(RawTx.eraOf(transaction.serialize(), Era.Conway)).isEqualTo(Era.Conway);
+        SecretKey key = SecretKey.create(HexUtil.decodeHexString(
+                "ede3104b2f4ff32daa3b620a9a272cd962cf504da44cf1cf0280aff43b65f807"));
+
+        for (Transaction read : List.of(TransactionSigner.INSTANCE.sign(transaction, key),
+                TransactionUtil.createCopy(transaction))) {
+            assertThat(read.getEra()).isEqualTo(Era.Dijkstra);
+            assertThat(((ParameterChangeAction) read.getBody().getProposalProcedures().get(0).getGovAction())
+                    .getProtocolParamUpdate().getCostModels().get(Language.PLUTUS_V4).getCosts()).containsExactly(1, 2);
+        }
+    }
+
+    // ---- key 14 of key hashes, as a Conway body writes it, keeps its form in Dijkstra (#752) ----
+
+    @Test
+    void keyHashesInKey14StayRequiredSignersInDijkstra() throws Exception {
+        TransactionBody body = minimalBody();
+        body.setRequiredSigners(List.of(HexUtil.decodeHexString(KEY_A), HexUtil.decodeHexString(KEY_B)));
+        byte[] conway = Transaction.builder().body(body).build().serialize();
+
+        Transaction read = Transaction.deserialize(conway, Era.Dijkstra);
+        assertThat(read.getBody().getGuards()).isNull();
+        assertThat(read.getBody().getRequiredSigners()).extracting(HexUtil::encodeHexString)
+                .containsExactly(KEY_A, KEY_B);
+        // the body writes back as it was read, so the id stays the on-chain one
+        assertThat(TransactionUtil.getTxHash(read)).isEqualTo(HexUtil.encodeHexString(RawTx.of(conway).txId()));
+        assertThat(RawTx.of(read.serialize()).body(Era.Dijkstra).guards().orElseThrow())
+                .allMatch(RawCredential::isKeyHashOnly);
     }
 
     // ---- fixtures ----

@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 
@@ -17,14 +18,25 @@ public class TransactionUtil {
      */
     public static Transaction createCopy(Transaction transaction) {
         try {
-            Transaction cloneTxn = Transaction.deserialize(transaction.serialize());
-            cloneTxn.setEra(transaction.getEra());
-            return cloneTxn;
+            return reread(transaction.serialize(), transaction.getEra());
         } catch (CborDeserializationException e) {
             throw new CborRuntimeException(e);
         } catch (CborSerializationException e) {
             throw new CborRuntimeException(e);
         }
+    }
+
+    /**
+     * Reads back the bytes of a transaction this library wrote, in the era it was written in: a transaction with an era
+     * is read in it, so its Dijkstra fields stay; one with none is read as {@link Transaction#serialize()} wrote it.
+     *
+     * @param bytes the transaction
+     * @param era   the transaction's era, or null
+     * @return the transaction, with the same era
+     * @throws CborDeserializationException if the bytes cannot be read
+     */
+    public static Transaction reread(byte[] bytes, Era era) throws CborDeserializationException {
+        return era != null ? Transaction.deserialize(bytes, era) : Transaction.deserialize(bytes);
     }
 
     /**

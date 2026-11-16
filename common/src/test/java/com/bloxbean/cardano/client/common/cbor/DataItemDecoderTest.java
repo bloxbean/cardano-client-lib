@@ -134,6 +134,43 @@ class DataItemDecoderTest {
         assertThat(rational.getDenominator().getValue()).isEqualTo(BigInteger.valueOf(1000));
     }
 
+    /**
+     * cardano-ledger reads both parts with decodeInteger, which takes a bignum (#749): cardano-cbor-dataset's
+     * conway/unit_interval and nonnegative_interval manual-valid samples bignum-ratio-reduces-in-range (2^65 / 2^66)
+     * and bignum-numerator-reduces-in-range (2^64 / 2). cbor-java rejected both.
+     */
+    @Test
+    void tag30PartsMayBeBignums() throws Exception {
+        RationalNumber ratio = (RationalNumber) decode("d81e82c249020000000000000000c249040000000000000000");
+        assertThat(ratio.getNumerator().getValue()).isEqualTo(BigInteger.TWO.pow(65));
+        assertThat(ratio.getDenominator().getValue()).isEqualTo(BigInteger.TWO.pow(66));
+        assertThat(ratio.getNumerator()).isInstanceOf(UnsignedInteger.class);
+
+        RationalNumber numerator = (RationalNumber) decode("d81e82c24901000000000000000002");
+        assertThat(numerator.getNumerator().getValue()).isEqualTo(BigInteger.TWO.pow(64));
+        assertThat(numerator.getDenominator().getValue()).isEqualTo(BigInteger.TWO);
+        // and written back as bignums, as the parts do not fit a head
+        assertThat(CborSerializationUtil.serialize(numerator))
+                .isEqualTo(decodeHexString("d81e82c24901000000000000000002"));
+
+        // tag 3: -1 - 2^64
+        RationalNumber negative = (RationalNumber) decode("d81e82c3490100000000000000000a");
+        assertThat(negative.getNumerator()).isInstanceOf(NegativeInteger.class);
+        assertThat(negative.getNumerator().getValue()).isEqualTo(BigInteger.TWO.pow(64).add(BigInteger.ONE).negate());
+        // a bignum in a native width; and a tag outside the bignum's, which cborg's decodeInteger rejects but this
+        // decoder looks through, as it does for a tag on an integer part (d81e82c10102) and as getBigInteger does
+        assertThat(((RationalNumber) decode("d81e82c2410102")).getNumerator().getValue()).isEqualTo(BigInteger.ONE);
+        assertThat(((RationalNumber) decode("d81e8201c1c24102")).getDenominator().getValue())
+                .isEqualTo(BigInteger.TWO);
+    }
+
+    /** A byte string not tagged 2 or 3 innermost is no integer; a bignum denominator may not be 0 either. */
+    @ParameterizedTest
+    @ValueSource(strings = {"d81e82410101", "d81e82c1410101", "d81e82c2c1410101", "d81e8201c240", "d81e8201c3d81e40"})
+    void tag30RejectsWhatIsNoIntegerOrBignum(String hex) {
+        assertThatThrownBy(() -> decode(hex)).isInstanceOf(CborRuntimeException.class);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"d81e01", "d81e8101", "d81e83010203", "d81e820100", "d81e82016161", "d8268201616d", "d8268261610a",
             "d81e9f01ff", "d81e9f010203ff"})

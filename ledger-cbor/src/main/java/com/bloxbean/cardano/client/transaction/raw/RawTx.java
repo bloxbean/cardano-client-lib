@@ -180,6 +180,48 @@ public final class RawTx {
         form.walk(tx, era, policy);
     }
 
+    /**
+     * The era to read a transaction of unknown era in: the earliest era from {@code from} on whose tables have a place
+     * for every key and form of the transaction, or {@code from} if none has. A field or form that only a later era has
+     * moves the reading on to that era; one that an era has dropped does not, so an earlier era's transaction stays in
+     * {@code from}. Each era is walked once, in order, until one fits; a later era needs only its rows in the tables.
+     * <p>
+     * Bytes that fit {@code from} are read in it even where a later era reads them too: where both eras have a
+     * place for a value they read it alike, except where a key changed its meaning, which a later era's form shows.
+     *
+     * @param txCbor a transaction, exactly one CBOR item
+     * @param from   the era to start from
+     * @return the era
+     */
+    public static Era eraOf(byte[] txCbor, Era from) {
+        Era newest = EraSpec.newest();
+        for (Era era : Era.values()) {
+            if (era.compareTo(from) >= 0 && era.compareTo(newest) <= 0 && fits(txCbor, era))
+                return era;
+        }
+        return from;
+    }
+
+    private static boolean fits(byte[] txCbor, Era era) {
+        try {
+            walk(txCbor, era, FITS_ERA);
+            return true;
+        } catch (CborRuntimeException e) {
+            return false;
+        }
+    }
+
+    // Rejects a key or form the era has no row for: one of no era, or of a later one. A row the era has dropped is
+    // still one it reads.
+    private static final FormatPolicy FITS_ERA = new FormatPolicy() {
+        @Override
+        public void entry(RecordSpec record, FieldSpec field, CborSpan key, CborSpan value, int occurrence,
+                          Era era) {
+            if (field == null || field.startsAfter(era))
+                throw error("No place in " + era + " for an entry of a " + record.name(), value);
+        }
+    };
+
     // The tables of the transaction's own array, by form: without a flag (to Mary, and again from Dijkstra), with the
     // flag third (from Alonzo) and with it last (from Dijkstra). A holder of its own, so that nothing reading a table
     // initializes RawTx.

@@ -365,6 +365,8 @@ public abstract class AbstractTx<T> {
         // If there are multiple Txs with script based mint or withdrawal, the sorting may not work as expected.
         // This is because the sorting is done at Tx level. So, if there are multiple Txs with script based mint or withdrawal, the sorting may not work as expected.
         // This is a known limitation and we will consider improving it in future if there is a demand for it as it needs architectural changes.
+        // The same applies to votes: VotingIntent adds voters in preApply and computes Voting redeemer indices in apply, so all
+        // voting intents should be in one Tx. A voter added by a later Tx (script or key) can shift an index computed earlier.
         combinedBuilder = combinedBuilder.andThen((context, txn) -> {
             if (txn.getBody().getMint() != null)
                 txn.getBody().setMint(MintUtil.getSortedMultiAssets(txn.getBody().getMint()));
