@@ -3,10 +3,12 @@ plugins {
 }
 
 // ADR 0003: the one reader of the Shelley-family ledger format. It holds no model and no ledger rule, and the build
-// enforces that: no model is on its classpath.
+// enforces that: no model is on its classpath. ADR 0005 D3: the Haskell-strict policy decodes a Byron address with
+// the address module's ByronAddress; address holds no model either.
 dependencies {
     api project(':common')
     api project(':common-spec')
+    api project(':address')
 
     testImplementation(project(':test-support')) {
         exclude group: 'net.jqwik'
