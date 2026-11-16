@@ -1,6 +1,7 @@
 # ADR 0005: The Haskell-Strict Decoding Policy and the Full Conformance Gate in CCL
 
-**Status**: Proposed (r5)
+**Status**: Accepted (r5). Reviewer1 had no open findings on r5; the maintainer confirmed Q1 (a) and Q3 (a) on
+2026-11-16. Q4 stays open. M1 and M2 are being implemented in this PR; M4 in a Yano PR stacked on Yano #244
 **Date**: 2026-11-09; r5 2026-11-16
 **Risk**: High. The policy decides which transactions and block headers Yano accepts. A mistake made while moving it
 changes what a node admits.
@@ -519,21 +520,21 @@ Each sample gets one outcome per stage:
 
 ## 12. Open questions
 
-**Q1. Where the harness lives. Proposed as decided in r3: (a).** Options were (a) a published CCL module (D5), which
-Yano depends on in its tests; (b) Yano keeps its harness and CCL gets its own, compared through their lists; (c) the
-harness stays in CCL's tests and Yano compares with a list CCL publishes. (b) and (c) keep two rule tables, which
-section 1.1's goal rules out, so D5 takes (a). The cost is one more artifact in CCL's published set. The maintainer
-confirms it on acceptance.
+**Q1. Where the harness lives. Decided: (a)** (proposed in r3, confirmed by the maintainer on 2026-11-16). Options were
+(a) a published CCL module (D5), which Yano depends on in its tests; (b) Yano keeps its harness and CCL gets its own,
+compared through their lists; (c) the harness stays in CCL's tests and Yano compares with a list CCL publishes. (b) and
+(c) keep two rule tables, which section 1.1's goal rules out, so D5 takes (a). The cost is one more artifact in CCL's
+published set. The maintainer confirms it on acceptance.
 
 **Q2. Which pre-release. Settled by events in r5: (b).** Options were (a) 0.8.0-pre8, waiting for M1 and M2; (b) pre8
 ships ADR 0003 as planned, and this ships in a later one. 0.8.0-pre8 was tagged on 2026-11-15 (`v0.8.0-pre8`,
 `561e1a2d`) with #748 and #753 and without this ADR, so M3 is 0.8.0-pre9 or later. P1 did not wait for either.
 
-**Q3. Dataset revisions.** Options: (a) D8: Yano runs only the revision its CCL version's outcomes file was made
-for, so every dataset bump is a CCL pre-release first; (b) Yano may run a newer revision, with sample identity defined
-by input, expectation and outcome, and rules for changed, removed and repaired samples. Lean: (a). It is simple and is
-the rule this ADR exists for. Its cost is a CCL pre-release per dataset bump; (b) avoids that at the price of a second
-set of comparison rules.
+**Q3. Dataset revisions.** Options: (a) D8: Yano runs only the revision its CCL version's outcomes file was made for, so
+every dataset bump is a CCL pre-release first; (b) Yano may run a newer revision, with sample identity defined by input,
+expectation and outcome, and rules for changed, removed and repaired samples. Decided: (a), confirmed by the maintainer
+on 2026-11-16. It is simple and is the rule this ADR exists for. Its cost is a CCL pre-release per dataset bump; (b)
+avoids that at the price of a second set of comparison rules.
 
 **Q4. Indefinite-length headers** (from ADR 0003 section 7.1, still open). `HaskellPolicy.header` accepts either
 length, as cardano-ledger `6176e413` reads them, while deployed nodes read headers definite-only. The move keeps that
@@ -612,3 +613,5 @@ behaviour; the question moves to CCL with the policy.
     `92327070` on, not from Yano's r1 copy.
   - Facts that changed since r4: P1 is done (Yano `8811854a6`), so J1's type-6 correction is already in the baseline;
     0.8.0-pre8 shipped without this ADR, which settles Q2 as (b).
+- **Accepted** (2026-11-16): Reviewer1 had no open findings on r5. The maintainer confirmed Q1 (a) and Q3 (a). Text
+  otherwise unchanged.
