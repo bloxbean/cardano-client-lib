@@ -1,9 +1,10 @@
 package com.bloxbean.cardano.client.ledger.conformance;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -93,7 +94,8 @@ public final class DatasetCheckout {
     }
 
     /**
-     * Runs git with its output in a file, so the deadline holds even when git keeps its output open while it stalls.
+     * Runs git, draining its output and feeding its input on their own threads, so the deadline holds even when git
+     * keeps its output open while it stalls. No temporary file is written.
      *
      * @param input what to write to git's standard input, or null for none
      */
@@ -105,32 +107,36 @@ public final class DatasetCheckout {
         command.add("-C");
         command.add(directory.toString());
         command.addAll(List.of(args));
-        Path out = null;
-        Path in = null;
         Process process = null;
         try {
-            out = Files.createTempFile("dataset-checkout", ".out");
-            ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true)
-                    .redirectOutput(out.toFile());
+            ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
             // GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE and the like would point git at another repository
             builder.environment().keySet().removeIf(name -> name.startsWith("GIT_"));
-            if (input != null) {
-                in = Files.createTempFile("dataset-checkout", ".in");
-                Files.writeString(in, input, StandardCharsets.UTF_8);
-                builder.redirectInput(in.toFile());
-            } else {
-                builder.redirectInput(ProcessBuilder.Redirect.from(nullDevice()));
-            }
             process = builder.start();
+            Process running = process;
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            Thread reader = daemon(() -> running.getInputStream().transferTo(output));
+            Thread writer = daemon(() -> {
+                try (OutputStream in = running.getOutputStream()) {
+                    if (input != null) {
+                        in.write(input.getBytes(StandardCharsets.UTF_8));
+                    }
+                }
+            });
             if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("git " + String.join(" ", args) + " did not finish");
             }
-            String output = Files.readString(out, StandardCharsets.UTF_8);
+            reader.join(TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS));
+            writer.join(TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS));
+            String text;
+            synchronized (output) {
+                text = output.toString(StandardCharsets.UTF_8);
+            }
             if (process.exitValue() != 0) {
                 throw new IllegalStateException(directory + " is not a git checkout of the dataset: git "
-                        + String.join(" ", args) + ": " + output.trim());
+                        + String.join(" ", args) + ": " + text.trim());
             }
-            return output;
+            return text;
         } catch (IOException e) {
             throw new UncheckedIOException("cannot run git, which the dataset check needs", e);
         } catch (InterruptedException e) {
@@ -140,22 +146,25 @@ public final class DatasetCheckout {
             if (process != null && process.isAlive()) {
                 process.destroyForcibly();
             }
-            delete(out);
-            delete(in);
         }
     }
 
-    private static java.io.File nullDevice() {
-        return new java.io.File(System.getProperty("os.name").startsWith("Windows") ? "NUL" : "/dev/null");
+    @FunctionalInterface
+    private interface Stream {
+        void run() throws IOException;
     }
 
-    private static void delete(Path file) {
-        if (file != null) {
+    /** Runs a stream copy on a daemon thread; a broken pipe after the process ends is not an error of the check. */
+    private static Thread daemon(Stream stream) {
+        Thread thread = new Thread(() -> {
             try {
-                Files.deleteIfExists(file);
+                stream.run();
             } catch (IOException e) {
-                // a temporary file left behind
+                // the process ended or was destroyed; its exit status and output decide the check
             }
-        }
+        }, "dataset-checkout-git");
+        thread.setDaemon(true);
+        thread.start();
+        return thread;
     }
 }
