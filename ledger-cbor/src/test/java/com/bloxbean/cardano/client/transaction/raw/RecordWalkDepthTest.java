@@ -27,6 +27,7 @@ class RecordWalkDepthTest {
     private static final String CRED = "8200" + "581c" + "00".repeat(28);
 
     private static void runFixtures() {
+        strictReads();
         // the unbounded types, at their places in a witness set
         walk("a3008001800200", "a10181" + DEEP_NATIVE_SCRIPT);
         walk("a3008001800200", "a10481" + DEEP_LIST);
@@ -284,6 +285,38 @@ class RecordWalkDepthTest {
         byte[] damaged = HexUtil.decodeHexString(DEEP_TAGS + "82" + "07" + DEEP_TAGS + "85" + header + "fc");
         assertThat(HexUtil.encodeHexString(BlockEnvelope.headerOf(damaged).bytes())).isEqualTo(header);
         assertRejected(() -> BlockEnvelope.of(damaged));
+    }
+
+    /**
+     * ADR 0005 J7: the strict reads at the same depths, through {@link HaskellPolicy#CONWAY}, whose validators read
+     * native scripts, Plutus data and metadata (one leaf to the walk) without recursion.
+     */
+    private static void strictReads() {
+        HaskellPolicy p = HaskellPolicy.CONWAY;
+        String body = "a3008001800200";
+        String script = "8200" + DEEP_NATIVE_SCRIPT;
+        String scriptRef = "d818" + "5a" + String.format("%08x", script.length() / 2) + script;
+        String output = "a3" + "00" + "581d60" + "00".repeat(28) + "0100" + "03" + scriptRef;
+        for (String accepted : new String[]{
+                "84" + body + "a1" + "0181" + DEEP_NATIVE_SCRIPT + "f5f6",
+                "84" + body + "a1" + "0481" + DEEP_LIST + "f5f6",
+                "84" + body + "a1" + "05818400" + "00" + DEEP_LIST + "820000" + "f5f6",
+                "84" + body + "a0" + "f5" + "a1" + "00" + DEEP_LIST,
+                "84" + body + "a0" + "f5" + "a1" + "00" + DEEP_MAP,
+                "84" + body + "a0" + "f5" + "82" + "a0" + "81" + DEEP_NATIVE_SCRIPT,
+                "84" + "a3" + "0080" + "0181" + output + "0200" + "a0" + "f5f6"}) {
+            p.transaction(HexUtil.decodeHexString(accepted));
+        }
+        assertThat(p.script(HexUtil.decodeHexString(script)).type()).isZero();
+        for (String rejected : new String[]{
+                "84" + "a3" + "0080" + "0180" + "02" + DEEP_LIST + "a0" + "f5f6",
+                "84" + "a4008001800200" + "05" + DEEP_MAP + "a0" + "f5f6",
+                "84" + DEEP_TAGS + body + "a0" + "f5f6",
+                "84" + body + "a1" + "0181" + DEEP_NATIVE_SCRIPT.replace("8200581c", "8206581c") + "f5f6",
+                "84" + body + "a1" + "0481" + DEEP_LIST.replace("8100", "8160") + "f5f6"}) {
+            assertThatThrownBy(() -> p.transaction(HexUtil.decodeHexString(rejected)))
+                    .isInstanceOf(LedgerDecodingException.class);
+        }
     }
 
     private static void assertRejected(org.assertj.core.api.ThrowableAssert.ThrowingCallable read) {

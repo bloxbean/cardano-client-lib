@@ -1,0 +1,29 @@
+// ADR 0005 D5: the CBOR conformance harness, one copy for CCL's release gate and Yano's node-diversity report. It runs
+// cardano-cbor-dataset's Conway samples through the Haskell-strict reads (ledger-cbor's HaskellPolicy), CCL's models
+// and their writers, and gives each sample a typed outcome per stage. A library, not a test: it has no test framework
+// on its classpath and reads the dataset from a path it is given.
+dependencies {
+    api project(':ledger-cbor')
+    api project(':transaction-spec')
+}
+
+test {
+    // The gate: the dataset is fetched by CI and never copied here. See ConwayOutcomesGateTest.
+    if (project.hasProperty('cborDataset')) {
+        def cborDataset = file(project.property('cborDataset'))
+        systemProperty 'cbor.dataset', cborDataset.absolutePath
+        inputs.dir(cborDataset).withPropertyName('cborDataset').withPathSensitivity(PathSensitivity.RELATIVE)
+    }
+    maxHeapSize = '2g'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Ledger CBOR Conformance'
+                description = 'Cardano Client Lib - the cardano-cbor-dataset conformance harness of the ledger CBOR reader'
+            }
+        }
+    }
+}

@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.common.cbor;
 
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -9,7 +11,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link CborHead#write}: the shortest head for each argument, read back by {@link CborSpan}.
+ * {@link CborHead#write}: the shortest head for each argument, read back by {@link CborSpan}; {@link CborHead#at}: a
+ * head's parts and the section 5.3 rules.
  */
 class CborHeadTest {
 
@@ -34,6 +37,54 @@ class CborHeadTest {
         assertThat(CborSpan.of(concat(write(6, 24), write(0, 1))).tag()).isEqualTo(24);
         assertThatThrownBy(() -> write(8, 0)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> write(-1, 0)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void readsAHeadsParts() {
+        CborHead head = CborHead.at(HexUtil.decodeHexString("00" + "1a00010000"), 1, 6);
+        assertThat(head.start()).isEqualTo(1);
+        assertThat(head.end()).isEqualTo(6);
+        assertThat(head.major()).isZero();
+        assertThat(head.info()).isEqualTo(26);
+        assertThat(head.argument()).isEqualTo(65536);
+        assertThat(head.isIndefinite()).isFalse();
+
+        CborHead big = CborHead.at(HexUtil.decodeHexString("3bffffffffffffffff"), 0, 9);
+        assertThat(big.major()).isEqualTo(1);
+        assertThat(Long.toUnsignedString(big.argument())).isEqualTo("18446744073709551615");
+
+        CborHead chunked = CborHead.at(HexUtil.decodeHexString("5f4101ff"), 0, 4);
+        assertThat(chunked.isIndefinite()).isTrue();
+        assertThat(chunked.argument()).isEqualTo(-1);
+        assertThat(chunked.end()).isEqualTo(1);
+
+        CborHead tag = CborHead.at(HexUtil.decodeHexString("d81e"), 0, 2);
+        assertThat(tag.major()).isEqualTo(6);
+        assertThat(tag.argument()).isEqualTo(30);
+    }
+
+    @Test
+    void aStringsContentEndsWhereItsLengthSays() {
+        byte[] text = HexUtil.decodeHexString("63616263ff");
+        CborHead head = CborHead.at(text, 0, text.length);
+        assertThat(head.stringEnd(text.length)).isEqualTo(4);
+        assertThatThrownBy(() -> head.stringEnd(3)).isInstanceOf(CborRuntimeException.class)
+                .hasMessageContaining("truncated");
+        assertThatThrownBy(() -> CborHead.at(HexUtil.decodeHexString("5f"), 0, 1).stringEnd(1))
+                .isInstanceOf(CborRuntimeException.class);
+        assertThatThrownBy(() -> CborHead.at(HexUtil.decodeHexString("8100"), 0, 2).stringEnd(2))
+                .isInstanceOf(CborRuntimeException.class);
+    }
+
+    @Test
+    void aHeadThatIsNotWellFormedIsRefused() {
+        for (String bad : new String[]{"", "18", "1c", "1f", "df", "ff", "f800", "f81f", "5a0000"}) {
+            byte[] bytes = HexUtil.decodeHexString(bad);
+            assertThatThrownBy(() -> CborHead.at(bytes, 0, bytes.length)).as(bad)
+                    .isInstanceOf(CborRuntimeException.class);
+        }
+        // a string's head alone is well formed; whether its content fits is stringEnd's to say
+        assertThat(CborHead.at(HexUtil.decodeHexString("5a0000ffff"), 0, 5).argument()).isEqualTo(0xffff);
     }
 
     @Test

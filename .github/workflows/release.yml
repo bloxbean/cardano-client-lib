@@ -27,7 +27,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ADR 0005 J12: the cardano-cbor-dataset gates on this tag's commit, before anything is signed or uploaded. It runs
+  # the same workflow as build.yml, with no environment and no secrets. publish needs it: a failing or skipped gate
+  # stops the release, and a re-run of publish alone reuses this run's gate result for the same commit.
+  cbor-conformance:
+    name: CBOR conformance
+    permissions:
+      contents: read
+    uses: ./.github/workflows/cbor-conformance.yml
+
   publish:
+    needs: cbor-conformance
     runs-on: ubuntu-24.04
     # The signing subkey, Central Portal token and bucket credentials are secrets of this environment, which only
     # accepts v* tags (plus master and release/** for the other release workflows). Only the release App and org
@@ -65,6 +75,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # the commit the cbor-conformance job ran its gates on (ADR 0005 J12)
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Set up JDK 17
         uses: actions/setup-java@v4

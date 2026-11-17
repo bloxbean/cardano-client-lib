@@ -1,0 +1,75 @@
+name: CBOR conformance
+
+# ADR 0005 D6: the cardano-cbor-dataset gate, one job for pull requests, pushes and releases. build.yml calls it on
+# every push and pull request; release.yml calls it on the release tag's commit, and its publish job needs it, so no
+# artifact is signed or uploaded unless all three gates passed on that commit in the same run (J12).
+#
+# The three gates, each with a guard that it ran and skipped nothing:
+#   ConwayOutcomesGateTest       every Conway sample, valid and invalid, through the Haskell-strict reads, CCL's models
+#                                and their writers; outcomes exactly the pinned file (ledger-cbor-conformance)
+#   CborCorpusConformanceTest    the lenient model path CCL users call, on the valid samples
+#   LedgerReaderConformanceTest  the certificate accessors and the Dijkstra corpus walk
+#
+# CBOR_DATASET_REVISION is the revision the outcomes file was made for (CborConformance.DATASET_REVISION); the gate
+# fails on any other, or on a checkout that is not clean (D8). A dataset bump goes through a CCL pre-release (Q3).
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  cbor-conformance:
+    name: CBOR conformance corpus
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CBOR_DATASET_REVISION: 4fd977b201f7426a2983161a702bb127c87973f7
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # the run's commit itself (for a release, the tag's), not a ref that could move between jobs
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          submodules: 'true'
+      # the JDK release.yml builds and publishes with; the depth tests' JDK 21 virtual threads have their own job
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Fetch the pinned dataset (not vendored, as it has no licence)
+        run: |
+          git init -q "$RUNNER_TEMP/cbor-dataset"
+          git -C "$RUNNER_TEMP/cbor-dataset" fetch -q --depth 1 \
+            https://github.com/r2rationality/cardano-cbor-dataset.git "$CBOR_DATASET_REVISION"
+          git -C "$RUNNER_TEMP/cbor-dataset" checkout -q FETCH_HEAD
+      - name: Run the three gates
+        run: >-
+          ./gradlew
+          :ledger-cbor-conformance:test --tests '*ConwayOutcomesGateTest'
+          :transaction-spec:test --tests '*CborCorpusConformanceTest' --tests '*LedgerReaderConformanceTest'
+          -PcborDataset="$RUNNER_TEMP/cbor-dataset/dataset" -PskipSigning=true --stacktrace
+      - name: Fail if a gate was skipped
+        run: |
+          set -euo pipefail
+          grep -q 'tests="4" skipped="0" failures="0" errors="0"' \
+            ledger-cbor-conformance/build/test-results/test/TEST-*ConwayOutcomesGateTest.xml
+          grep -q 'tests="4" skipped="0" failures="0" errors="0"' \
+            transaction-spec/build/test-results/test/TEST-*CborCorpusConformanceTest.xml
+          grep -q 'tests="6" skipped="0" failures="0" errors="0"' \
+            transaction-spec/build/test-results/test/TEST-*LedgerReaderConformanceTest.xml
+      - name: Keep the run's outcomes
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cbor-conformance-outcomes
+          path: ledger-cbor-conformance/build/cbor-conformance/
+          if-no-files-found: ignore
+          retention-days: 30
+          overwrite: true

@@ -58,6 +58,20 @@ public class ByronAddress {
         this.byronType = decoded.type;
     }
 
+    /**
+     * Checks that the bytes are a Byron address, exactly as {@link #ByronAddress(byte[])} does, without building its
+     * Base58 text (whose encoding is quadratic in the address's length, and a Byron address's attributes may be
+     * large). For a validator of received bytes, such as the Haskell-strict decoding policy.
+     *
+     * @param bytes Byron address bytes
+     * @throws AddressFormatException if the bytes are not a valid Byron address
+     */
+    public static void validate(byte[] bytes) {
+        if (bytes == null)
+            throw new AddressFormatException("Invalid Byron address: null");
+        ByronAddressDecoder.decode(bytes);
+    }
+
     private static byte[] decodeBase58(String address) {
         if (address == null)
             throw new AddressFormatException("Invalid Byron address: null");
