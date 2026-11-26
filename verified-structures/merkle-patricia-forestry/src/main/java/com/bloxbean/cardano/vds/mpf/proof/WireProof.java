@@ -19,6 +19,9 @@ import java.util.Objects;
  * {@code do_branch}, {@code do_fork}, {@code merkle_16} and {@code sparse_merkle_16}). A proof accepted here is
  * accepted by Aiken. A few malformed shapes Aiken would also accept (for example a neighbor nibble equal to the
  * path nibble) are rejected, so CCL never accepts a proof Aiken rejects.</p>
+ *
+ * <p>Exclusion proofs also get stricter shape checks on the terminal step and on Fork neighbor prefix lengths.
+ * An honest proof fails them only with negligible probability.</p>
  */
 public final class WireProof {
 
@@ -114,16 +117,19 @@ public final class WireProof {
             if (fork.nibble() == ctx.path[nextCursor]) {
                 throw new IllegalArgumentException("Fork neighbor nibble equals path nibble");
             }
+            checkForkPrefixLength(ctx, nextCursor, fork);
             byte[] neighborPrefix = Bytes.concat(new byte[]{(byte) fork.nibble()}, fork.prefix());
             byte[] prefix = fork.skip() == 0
                     ? neighborPrefix
                     : Bytes.concat(nibbles(ctx.path, cursor, cursor + fork.skip()), neighborPrefix);
+            checkTerminalForkShape(ctx, cursor, prefix);
             return ctx.combine(prefix, fork.root());
         }
         if (last && step instanceof LeafStep) {
             LeafStep leaf = (LeafStep) step;
             int[] keyPath = toNibbles(leaf.keyHash());
             checkLeafNeighbor(ctx, keyPath, nextCursor);
+            checkTerminalLeafShape(cursor, leaf.keyHash());
             return leafCommit(ctx, keyPath, cursor, leaf.valueHash());
         }
 
@@ -145,6 +151,7 @@ public final class WireProof {
         }
         if (step instanceof ForkStep) {
             ForkStep fork = (ForkStep) step;
+            checkForkPrefixLength(ctx, nextCursor, fork);
             return doFork(ctx, cursor, nextCursor, root, fork.nibble(), ctx.combine(fork.prefix(), fork.root()));
         }
         if (step instanceof LeafStep) {
@@ -198,6 +205,47 @@ public final class WireProof {
         if (keyPath[nextCursor] == ctx.path[nextCursor]) {
             throw new IllegalArgumentException("Leaf neighbor nibble equals path nibble");
         }
+    }
+
+    /**
+     * CCL-only check: a Fork neighbor's prefix ends before the last nibble of the path, as it does for any branch
+     * that exists in a trie.
+     */
+    private static void checkForkPrefixLength(Ctx ctx, int nextCursor, ForkStep fork) {
+        if (nextCursor + 1 + fork.prefix().length >= ctx.path.length) {
+            throw new IllegalArgumentException("Fork neighbor prefix too long");
+        }
+    }
+
+    /**
+     * CCL-only check on the node a terminal Fork step rebuilds in an exclusion proof. At an odd cursor its prefix
+     * must not start with nibble 0 at the length of a leaf suffix encoding.
+     */
+    private static void checkTerminalForkShape(Ctx ctx, int cursor, byte[] prefix) {
+        if ((cursor & 1) == 1 && prefix.length == oddSuffixEncodingLength(ctx, cursor) && prefix[0] == 0) {
+            throw new IllegalArgumentException("Non-canonical terminal Fork step");
+        }
+    }
+
+    /**
+     * CCL-only check on a terminal Leaf step of an exclusion proof. At an odd cursor at least one raw key byte
+     * past the cursor must be above 15.
+     */
+    private static void checkTerminalLeafShape(int cursor, byte[] keyHash) {
+        if ((cursor & 1) == 0) {
+            return;
+        }
+        for (int i = (cursor + 1) / 2; i < keyHash.length; i++) {
+            if ((keyHash[i] & 0xFF) > 15) {
+                return;
+            }
+        }
+        throw new IllegalArgumentException("Non-canonical terminal Leaf step");
+    }
+
+    /** Length of the {@code suffix} encoding at an odd cursor: {@code 00}, one nibble, then the packed bytes. */
+    private static int oddSuffixEncodingLength(Ctx ctx, int cursor) {
+        return 2 + (ctx.path.length - 1 - cursor) / 2;
     }
 
     /** {@code combine(suffix(path, cursor), valueHash)}, routed through the commitment scheme. */
