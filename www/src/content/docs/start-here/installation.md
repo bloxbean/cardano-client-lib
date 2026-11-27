@@ -6,7 +6,7 @@ description: Maven and Gradle dependencies
 ## Versions
 
 - **Latest stable:** 0.7.3
-- **Latest preview:** 0.8.0-pre7
+- **Latest preview:** 0.8.0-pre8
 
 Previews contain the newest features, such as TxFlow, TxStream, TxPlan and verified data structures, and their APIs may change before the stable release. See [what's new](/project/whats-new/) and the [release notes](https://github.com/bloxbean/cardano-client-lib/releases).
 
