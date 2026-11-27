@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.address.CredentialType;
+import com.bloxbean.cardano.client.transaction.spec.Comparators;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.transaction.spec.Withdrawal;
@@ -77,19 +78,14 @@ public final class LedgerOrdering {
      *
      * <p>The ledger keys withdrawals by {@code RewardAccount = (network, credential)} and
      * cardano-ledger's {@code Credential} derives {@code Ord} with {@code ScriptHashObj}
-     * declared before {@code KeyHashObj}. CCL's {@code WithdrawalUtil} comparator sorts by
-     * credential hash alone, ignoring the kind — so a transaction mixing a withdraw-zero
-     * script withdrawal with a real reward withdrawal can get a wrong {@code Reward}
-     * redeemer index from it.</p>
+     * declared before {@code KeyHashObj}.</p>
      *
      * <p><b>Verified empirically against a Conway ledger</b> (Yaci DevKit devnet,
      * {@code Cip113EndToEndIT.step11_withdrawalOrderingWithMixedCredentials}): a transfer carrying
      * two script withdrawals and one key withdrawal whose hash sorts <i>before</i> both script
      * hashes validated on chain. Hash-only ordering would have placed that key withdrawal at index
      * 0 and shifted both script redeemers by one, so the transaction could only succeed if the
-     * ledger really does sort script credentials first. It did. That also confirms
-     * {@code WithdrawalUtil}'s comparator is wrong for mixed-credential withdrawals — worth
-     * proposing upstream. This class deliberately does not depend on it.</p>
+     * ledger really does sort script credentials first. It did.</p>
      */
     public static List<Withdrawal> sortedWithdrawals(Transaction txn) {
         List<Withdrawal> copy = txn.getBody().getWithdrawals() == null
@@ -99,14 +95,7 @@ public final class LedgerOrdering {
     }
 
     public static Comparator<Withdrawal> withdrawalComparator() {
-        return (a, b) -> {
-            Credential ca = credentialOf(a.getRewardAddress());
-            Credential cb = credentialOf(b.getRewardAddress());
-            boolean scriptA = ca.getType() == CredentialType.Script;
-            boolean scriptB = cb.getType() == CredentialType.Script;
-            if (scriptA != scriptB) return scriptA ? -1 : 1;      // scripts first
-            return PolicyOrdering.compare(ca.getBytes(), cb.getBytes());
-        };
+        return Comparators.WITHDRAWAL;
     }
 
     public static int indexOfWithdrawal(Transaction txn, Credential credential) {

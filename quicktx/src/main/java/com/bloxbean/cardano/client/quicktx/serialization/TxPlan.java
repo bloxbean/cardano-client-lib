@@ -528,7 +528,6 @@ public class TxPlan {
      * @throws RuntimeException if deserialization fails
      */
     public static TxPlan from(String yaml) {
-        rejectExtensionDocument(yaml);
         TransactionDocument doc = readDocument(yaml);
         return from(doc);
     }
@@ -616,7 +615,6 @@ public class TxPlan {
      * @throws RuntimeException if deserialization fails
      */
     public static List<AbstractTx<?>> getTxs(String yaml) {
-        rejectExtensionDocument(yaml);
         TransactionDocument doc = readDocument(yaml);
         return getTxs(doc);
     }
@@ -627,7 +625,8 @@ public class TxPlan {
     }
 
     private static TransactionDocument readDocument(String yaml) {
-        TransactionDocument doc = YamlSerializer.deserializeStrict(yaml, TransactionDocument.class);
+        TransactionDocument doc = YamlSerializer.deserializeStrict(yaml, TransactionDocument.class,
+                TxPlan::rejectExtensionDocument);
         // An empty or null YAML document binds to null; report it like TxPlanCodec does.
         if (doc == null) throw new IllegalArgumentException("TxPlan YAML root must be a mapping");
         return doc;
@@ -637,13 +636,7 @@ public class TxPlan {
      * Core deserialization only knows core intent types. Without this check an extension-aware
      * document fails deep inside Jackson with an unknown type id that does not say what to use.
      */
-    private static void rejectExtensionDocument(String yaml) {
-        JsonNode root;
-        try {
-            root = YamlSerializer.getYamlMapper().readTree(yaml);
-        } catch (Exception e) {
-            return; // Malformed YAML: deserialization reports it.
-        }
+    private static void rejectExtensionDocument(JsonNode root) {
         if (root == null || !root.isObject()) return;
 
         String reason = null;

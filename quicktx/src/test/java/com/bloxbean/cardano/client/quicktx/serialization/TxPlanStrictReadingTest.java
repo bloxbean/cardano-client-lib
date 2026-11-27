@@ -2,8 +2,13 @@ package com.bloxbean.cardano.client.quicktx.serialization;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.extension.ExtensionIntent;
+import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
+import com.bloxbean.cardano.client.quicktx.extension.TxBuildExtension;
+import com.bloxbean.cardano.client.quicktx.intent.CollectFromIntent;
 import com.bloxbean.cardano.client.quicktx.intent.PaymentIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,6 +21,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -492,6 +498,124 @@ class TxPlanStrictReadingTest {
 
         assertThatThrownBy(() -> LENIENT.fromYaml(yaml)).hasStackTraceContaining("fee_payr");
         assertThatThrownBy(() -> TxPlan.from(yaml)).hasStackTraceContaining("fee_payr");
+    }
+
+    @Test
+    void variableValuesCannotInjectYamlStructureInTxPlanFrom() {
+        String blockInjection = """
+                variables:
+                  addr: "addr_test1abc\\n          datum_hex: d87980"
+                transaction:
+                  - tx:
+                      from: %s
+                      intents:
+                        - type: payment
+                          address: ${addr}
+                """.formatted(SENDER);
+        String flowInjection = "variables:\n  addr: \"addr_test1abc, datum_hex: d87980\"\n"
+                + tx("intents", "{type: payment, address: '${addr}'}");
+
+        for (String yaml : List.of(blockInjection, flowInjection)) {
+            for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml)) {
+                PaymentIntent payment = (PaymentIntent) reader.apply(yaml).getTxs().get(0).getIntentions().get(0);
+                assertThat(payment.getDatumHex()).as("datum_hex must not be injected").isNull();
+                assertThat(payment.getAddress()).contains("datum_hex: d87980");
+            }
+        }
+    }
+
+    @Test
+    void metadataPlaceholderInterpolatesCleanlyInBothStrictReaders() {
+        String yaml = """
+                variables:
+                  policy_id: "0123456789abcdef0123456789abcdef0123456789abcdef01234567"
+                transaction:
+                  - tx:
+                      from: %s
+                      intents:
+                        - type: metadata
+                          metadata: |
+                            721:
+                              ${policy_id}:
+                                MyNFT:
+                                  name: Test
+                """.formatted(SENDER);
+
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml)) {
+            assertThat(reader.apply(yaml).getTxs().get(0).getIntentions()).hasSize(1);
+        }
+    }
+
+    @Test
+    void extensionIntentAndNestedDtosKeepTheirOwnIgnoreUnknownSetting() {
+        QuickTxExtension ext = new QuickTxExtension() {
+            @Override public String id() { return "ext"; }
+            @Override public String schemaVersion() { return "1"; }
+            @Override public Set<String> operations() { return Set.of("op"); }
+            @Override public Map<String, Class<? extends ExtensionIntent>> intentTypes() {
+                return Map.of("op", TolerantExtensionIntent.class);
+            }
+            @Override public TxBuildExtension newBuildExtension() { return new TxBuildExtension() { }; }
+        };
+        TxPlanCodec codec = TxPlanCodec.builder().withExtension("ex", ext).build();
+        String yaml = """
+                extensions:
+                  ex:
+                    extension: ext
+                    schema_version: '1'
+                transaction:
+                  - tx:
+                      from: %s
+                      intents:
+                        - type: ex:op
+                          extra_top: ignored
+                          nested:
+                            label: ok
+                            extra_nested: ignored
+                """.formatted(SENDER);
+
+        TolerantExtensionIntent intent = (TolerantExtensionIntent) codec.fromYaml(yaml)
+                .getTxs().get(0).getIntentions().get(0);
+        assertThat(intent.getNested().getLabel()).isEqualTo("ok");
+    }
+
+    @Test
+    void utxoRefOutputIndexAcceptsWholeNumberFloatsAndRejectsLeadingZeros() {
+        String wholeFloat = tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                + ", output_index: 1.0}, {tx_hash: " + TX_HASH + ", output_index: 0.0}]}");
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml)) {
+            CollectFromIntent collect = (CollectFromIntent) reader.apply(wholeFloat).getTxs().get(0).getIntentions().get(0);
+            assertThat(collect.getUtxoRefs()).extracting("outputIndex").containsExactly(1, 0);
+        }
+
+        for (String invalid : List.of("'007'", "'01'", "'00'", "1.5", "-1.0", "4294967296.0")) {
+            assertRejected(tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                    + ", output_index: " + invalid + "}]}"), "output_index");
+        }
+        assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+            assertRejected(tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                    + ", output_index: 1E+100000000}]}"), "output_index");
+            assertRejected(tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
+                    + ", output_index: 1E-100000000}]}"), "output_index");
+        });
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static final class TolerantExtensionIntent implements ExtensionIntent {
+        private TolerantNestedDto nested;
+
+        @Override public String getExtensionId() { return "ext"; }
+        @Override public String getOperation() { return "op"; }
+        public TolerantNestedDto getNested() { return nested; }
+        public void setNested(TolerantNestedDto nested) { this.nested = nested; }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static final class TolerantNestedDto {
+        private String label;
+
+        public String getLabel() { return label; }
+        public void setLabel(String label) { this.label = label; }
     }
 
     private static void assertRejected(String yaml, String mentioned) {

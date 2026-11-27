@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -23,7 +24,8 @@ import java.util.regex.Pattern;
  * lenient reader keeps the historical behaviour and ignores keys it does not use.
  */
 final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
-    private static final Pattern DIGITS = Pattern.compile("\\d+");
+    private static final Pattern DIGITS = Pattern.compile("0|[1-9]\\d*");
+    private static final int MAX_DECIMAL_SCALE = 100_000;
 
     UtxoRefDeserializer() {
         super(UtxoRef.class);
@@ -75,6 +77,18 @@ final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
     private static boolean isOutputIndex(JsonNode value) {
         if (value == null) return false;
         if (value.isIntegralNumber()) return value.canConvertToInt() && value.intValue() >= 0;
+        if (value.isBigDecimal()) {
+            BigDecimal decimal = value.decimalValue();
+            if (decimal.signum() < 0) return false;
+            if (decimal.scale() > 0 && decimal.stripTrailingZeros().scale() > 0) return false;
+            if (decimal.signum() == 0) return Math.abs(decimal.scale()) <= MAX_DECIMAL_SCALE;
+            if ((long) decimal.precision() - decimal.scale() > 10) return false;
+            try {
+                return decimal.intValueExact() >= 0;
+            } catch (ArithmeticException outOfRange) {
+                return false;
+            }
+        }
         if (!value.isTextual()) return false;
         String text = value.asText();
         if (isPlaceholder(text)) return true;

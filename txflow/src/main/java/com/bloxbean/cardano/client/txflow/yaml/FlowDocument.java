@@ -753,7 +753,7 @@ public class FlowDocument {
         try {
             // The canonical writer quotes strings YAML would read as numbers ("0xabc"); this mapper does not.
             String yaml = YamlSerializer.serialize(doc);
-            TxPlan plan = TxPlan.from(yaml);
+            TxPlan plan = TxPlan.fromSnapshot(yaml);
 
             // Add flow variables
             for (var entry : flowVariables.entrySet()) {

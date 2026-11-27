@@ -14,10 +14,10 @@ public interface ProgrammableTokenProtocol {
     /**
      * Validates metadata that affects protocol dispatch.
      *
-     * <p>{@code contract_version} is currently descriptive provenance only. It is deliberately
-     * not validated here because CIP-113 does not yet define how a public deployment exposes a
-     * trustworthy contract-suite version. Exact deployments are selected and checked using their
-     * deployment metadata instead.</p>
+     * <p>This default checks the protocol id only; {@code contract_version} is not interpreted
+     * here, because what a version means is protocol-specific. A protocol may enforce it — the
+     * CIP-113 adapter refuses a plan written for another contract suite. Exact deployments are
+     * selected and checked using their deployment metadata.</p>
      *
      * @param metadata persisted extension metadata to validate
      */

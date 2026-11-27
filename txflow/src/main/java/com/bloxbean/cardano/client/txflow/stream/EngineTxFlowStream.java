@@ -342,7 +342,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             String portableFlow;
             try {
                 portableFlow = codec.write(definition,
-                        FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                        FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
             } catch (RuntimeException encodeFailure) {
                 throw new IllegalStateException(
                         "Template '" + templateId + "' has no portable encoding: "
@@ -1588,7 +1588,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         String payload;
         try {
             payload = codec.write(definition,
-                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
         } catch (RuntimeException encodingFailure) {
             throw new TxStreamException("TXSTREAM_NON_PORTABLE_ITEM",
                     "Item '" + item.getItemId() + "' has no portable encoding: "
@@ -3475,7 +3475,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         String portableFlow;
         try {
             portableFlow = codec.write(execution.definition,
-                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
         } catch (RuntimeException encodeFailure) {
             throw new TxStreamException("TXSTREAM_PLANNED_ENCODE_FAILED",
                     "Planned flow for execution '" + execution.executionId

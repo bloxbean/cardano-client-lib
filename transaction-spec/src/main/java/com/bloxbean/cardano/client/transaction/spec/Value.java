@@ -1,10 +1,11 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
-import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
-import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
+import com.bloxbean.cardano.client.transaction.raw.RawMultiAsset;
+import com.bloxbean.cardano.client.transaction.raw.RawValue;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,6 +14,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,44 +37,14 @@ public class Value {
      * @return {@link Value}
      */
     public static Value deserialize(DataItem valueItem) {
-        Value value = null;
-        if (MajorType.UNSIGNED_INTEGER.equals(valueItem.getMajorType()) || MajorType.NEGATIVE_INTEGER.equals(valueItem.getMajorType())) {
-            value = new Value();
-            value.setCoin(((Number) valueItem).getValue());
-        } else if (MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
-            if (valueItem.getTag().getValue() == 2) {
-                value = new Value();
-                value.setCoin(new BigInteger(((ByteString) valueItem).getBytes()));
-            } else if (valueItem.getTag().getValue() == 3) {
-                value = new Value();
-                value.setCoin(new BigInteger(((ByteString) valueItem).getBytes()).multiply(BigInteger.valueOf(-1)));
-            }
-        } else if (MajorType.ARRAY.equals(valueItem.getMajorType())) {
-            Array coinAssetArray = (Array) valueItem;
-            value = Value.deserializeValueArray(coinAssetArray);
-        }
-
-        return value;
+        return RawValue.lenient(CborSerializationUtil.span(valueItem)).map(Value::from).orElse(null);
     }
 
-    private static Value deserializeValueArray(Array valueArray) {
-        //There can be two elements
-        //First one coin
+    static Value from(RawValue raw) {
         Value value = new Value();
-        List<DataItem> valueDataItems = valueArray.getDataItems();
-        if (valueDataItems != null && valueDataItems.size() == 2) {
-            DataItem valueDI = valueDataItems.get(0);
-            BigInteger coin = CborSerializationUtil.getBigInteger(valueDI);
-            value.setCoin(coin);
-
-            Map multiAssetsMap = (Map) valueDataItems.get(1);
-            if (multiAssetsMap != null) {
-                for (DataItem key : multiAssetsMap.getKeys()) {
-                    MultiAsset multiAsset = MultiAsset.deserialize(multiAssetsMap, key);
-                    value.getMultiAssets().add(multiAsset);
-                }
-            }
-        }
+        value.setCoin(raw.coin());
+        for (RawMultiAsset multiAsset : raw.multiAssets())
+            value.getMultiAssets().add(MultiAsset.from(multiAsset));
         return value;
     }
 
@@ -82,6 +54,20 @@ public class Value {
      * @return DataItem
      */
     public DataItem serialize() {
+        return serialize(MultiAsset::serialize);
+    }
+
+    /**
+     * Serialize with the assets in the order the Haskell ledger writes, see
+     * {@link MultiAsset#serializeInLedgerOrder(List)}
+     *
+     * @return DataItem
+     */
+    public DataItem serializeInLedgerOrder() {
+        return serialize(MultiAsset::serializeInLedgerOrder);
+    }
+
+    private DataItem serialize(Function<List<MultiAsset>, Map> multiAssetsWriter) {
         if (this.getMultiAssets() != null && this.getMultiAssets().size() > 0) {
             Array coinAssetArray = new Array();
 
@@ -95,8 +81,7 @@ public class Value {
                 coinAssetArray.add(new UnsignedInteger(BigInteger.ZERO));
             }
 
-            Map valueMap = this.serializeMultiAssets();
-            coinAssetArray.add(valueMap);
+            coinAssetArray.add(multiAssetsWriter.apply(multiAssets));
             return coinAssetArray;
         } else {
             DataItem valueDI;
@@ -128,19 +113,6 @@ public class Value {
             multiAssetsMap.put(multiAsset.getPolicyId(), assets);
         }
         return multiAssetsMap;
-    }
-
-    private Map serializeMultiAssets() {
-        Map map = new SortedMap();
-        if (multiAssets != null) {
-            List<MultiAsset> cloneMultiAssets = new ArrayList<>(multiAssets);
-            //sorted based on policy id for canonical cbor
-            Collections.sort(cloneMultiAssets, (m1, m2) -> m1.getPolicyId().compareTo(m2.getPolicyId()));
-            for (MultiAsset multiAsset : cloneMultiAssets) {
-                multiAsset.serialize(map);
-            }
-        }
-        return map;
     }
 
     /**

@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow.yaml;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.intent.PaymentIntent;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
@@ -180,7 +181,7 @@ class FlowYamlSerializationTest {
 
         TxFlow flow = TxFlow.fromYaml(yaml);
 
-        var payment = (com.bloxbean.cardano.client.quicktx.intent.PaymentIntent)
+        PaymentIntent payment = (PaymentIntent)
                 flow.getStep("step1").get().getTxPlan().getTxs().get(0).getIntentions().get(0);
         assertThat(payment.getAddress()).isEqualTo("0xabc");
     }

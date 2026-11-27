@@ -19,7 +19,8 @@ class ReachabilityMetadataTest {
                 .recursivePackages("com.bloxbean.cardano.client.transaction.spec")
                 .types("com.bloxbean.cardano.client.transaction.Nonce")
                 .exclude("com.bloxbean.cardano.client.transaction.spec.script.NativeScriptCodec",
-                        "com.bloxbean.cardano.client.transaction.spec.script.NativeScriptEvaluator");
+                        "com.bloxbean.cardano.client.transaction.spec.script.NativeScriptEvaluator",
+                        "com.bloxbean.cardano.client.transaction.spec.TransactionOutput$DecodedDatum");
         assertThat(guard.problems()).as("reachability metadata %s is out of date", guard.metadataPath()).isEmpty();
     }
 }

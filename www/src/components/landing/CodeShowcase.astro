@@ -1,0 +1,172 @@
+---
+/**
+ * Tabbed code samples, driven entirely by radio inputs and `:checked` — no JS,
+ * no hydration, and it works before (and without) any script running.
+ *
+ * Snippets are the real QuickTx API, kept short enough to read at a glance.
+ */
+import { highlightJava } from './highlight.mjs';
+
+const samples = [
+  {
+    id: 'send',
+    label: 'Send ADA',
+    code: `Tx tx = new Tx()
+        .payToAddress(receiver, Amount.ada(10))
+        .from(sender.baseAddress());
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait();
+
+System.out.println(result.getTxHash());`,
+  },
+  {
+    id: 'mint',
+    label: 'Mint a token',
+    code: `Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("mint", 1);
+Asset asset = new Asset("MyToken", BigInteger.valueOf(1000));
+
+Tx tx = new Tx()
+        .mintAssets(policy.getPolicyScript(), asset, receiver)
+        .from(sender.baseAddress());
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .withSigner(SignerProviders.signerFrom(policy))
+        .completeAndWait();`,
+  },
+  {
+    id: 'script',
+    label: 'Call a script',
+    code: `// Needs the latest preview. On stable, use ScriptTx.
+Tx tx = new Tx()
+        .collectFrom(scriptUtxo, redeemer)
+        .attachSpendingValidator(plutusScript)
+        .payToAddress(receiver, Amount.ada(5))
+        .from(sender.baseAddress());
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait();`,
+  },
+  {
+    id: 'stake',
+    label: 'Delegate stake',
+    code: `Tx tx = new Tx()
+        .registerStakeAddress(sender.baseAddress())
+        .delegateTo(sender.baseAddress(), poolId)
+        .from(sender.baseAddress());
+
+TxResult result = new QuickTxBuilder(backendService)
+        .compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .withSigner(SignerProviders.stakeKeySignerFrom(sender))
+        .completeAndWait();`,
+  },
+];
+---
+
+<div class="showcase" role="group" aria-label="Example transactions">
+  {samples.map((s, i) => (
+    <input type="radio" name="showcase" id={`tab-${s.id}`} checked={i === 0} />
+  ))}
+
+  <div class="tabs">
+    {samples.map((s) => (
+      <label class="tab" for={`tab-${s.id}`}>{s.label}</label>
+    ))}
+  </div>
+
+  <div class="panels">
+    {samples.map((s) => (
+      <pre class={`panel panel-${s.id}`}><code set:html={highlightJava(s.code)} /></pre>
+    ))}
+  </div>
+</div>
+
+<style>
+  .showcase {
+    position: relative;
+    border: 1px solid var(--ccl-code-border);
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--ccl-code-bg);
+    box-shadow: var(--ccl-shadow);
+  }
+
+  /* The radios drive everything; they never need to be seen. */
+  .showcase > input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.65rem;
+    border-bottom: 1px solid var(--ccl-code-border);
+  }
+
+  .tab {
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #b6b4b3;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+  }
+
+  .tab:hover {
+    color: #ffffff;
+    background: rgba(250, 191, 139, 0.12);
+  }
+
+  .panel {
+    display: none;
+    margin: 0;
+    padding: 1.5rem 1.6rem;
+    overflow-x: auto;
+    font-family: var(--ccl-mono);
+    font-size: 0.86rem;
+    line-height: 1.75;
+    color: #efe1d4;
+    tab-size: 4;
+    min-height: 19rem;
+  }
+
+  /*
+   * One rule per tab: the checked radio lights its own label and shows its own
+   * panel. `~` reaches the .tabs/.panels siblings that follow all the inputs.
+   */
+  #tab-send:checked   ~ .tabs .tab:nth-child(1),
+  #tab-mint:checked   ~ .tabs .tab:nth-child(2),
+  #tab-script:checked ~ .tabs .tab:nth-child(3),
+  #tab-stake:checked  ~ .tabs .tab:nth-child(4) {
+    color: #ffffff;
+    background: linear-gradient(100deg, rgba(250, 191, 139, 0.35), rgba(238, 177, 34, 0.22));
+  }
+
+  #tab-send:checked   ~ .panels .panel-send,
+  #tab-mint:checked   ~ .panels .panel-mint,
+  #tab-script:checked ~ .panels .panel-script,
+  #tab-stake:checked  ~ .panels .panel-stake {
+    display: block;
+  }
+
+  /* Focus lands on the radio; show it on the label the radio controls. */
+  #tab-send:focus-visible   ~ .tabs .tab:nth-child(1),
+  #tab-mint:focus-visible   ~ .tabs .tab:nth-child(2),
+  #tab-script:focus-visible ~ .tabs .tab:nth-child(3),
+  #tab-stake:focus-visible  ~ .tabs .tab:nth-child(4) {
+    outline: 2px solid var(--ccl-accent-soft);
+    outline-offset: 2px;
+  }
+</style>

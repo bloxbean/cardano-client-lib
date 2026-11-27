@@ -1,0 +1,74 @@
+{
+  "preamble": {
+    "title": "ccl/vote_redeemer",
+    "description": "Parameterised DRep validator for VotingOrderingIT: accepts only redeemer == expected, so each applied param gives a distinct script hash that rejects another voter's redeemer",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.24+bacbeb3"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "vote_redeemer.vote_redeemer.publish",
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Int"
+        }
+      },
+      "parameters": [
+        {
+          "title": "expected",
+          "schema": {
+            "$ref": "#/definitions/Int"
+          }
+        }
+      ],
+      "compiledCode": "5886010100229800aba2aba1aab9eaab9dab9a9bad002488888966002646465300130063754003300800398040012444b30013370e9003001c4c8cc88cdc39bad00400a375a60180026018601a00260146ea80122b30013370e9004001c4c8cdc39bad002008300b300a37540091640208040600e6010002600e00260086ea801e29344d95900201",
+      "hash": "32865a8f5c90ec3ff40bc6e0c381be80775ab38d9e92cf13f4e945f9"
+    },
+    {
+      "title": "vote_redeemer.vote_redeemer.vote",
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Int"
+        }
+      },
+      "parameters": [
+        {
+          "title": "expected",
+          "schema": {
+            "$ref": "#/definitions/Int"
+          }
+        }
+      ],
+      "compiledCode": "5886010100229800aba2aba1aab9eaab9dab9a9bad002488888966002646465300130063754003300800398040012444b30013370e9003001c4c8cc88cdc39bad00400a375a60180026018601a00260146ea80122b30013370e9004001c4c8cdc39bad002008300b300a37540091640208040600e6010002600e00260086ea801e29344d95900201",
+      "hash": "32865a8f5c90ec3ff40bc6e0c381be80775ab38d9e92cf13f4e945f9"
+    },
+    {
+      "title": "vote_redeemer.vote_redeemer.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "parameters": [
+        {
+          "title": "expected",
+          "schema": {
+            "$ref": "#/definitions/Int"
+          }
+        }
+      ],
+      "compiledCode": "5886010100229800aba2aba1aab9eaab9dab9a9bad002488888966002646465300130063754003300800398040012444b30013370e9003001c4c8cc88cdc39bad00400a375a60180026018601a00260146ea80122b30013370e9004001c4c8cdc39bad002008300b300a37540091640208040600e6010002600e00260086ea801e29344d95900201",
+      "hash": "32865a8f5c90ec3ff40bc6e0c381be80775ab38d9e92cf13f4e945f9"
+    }
+  ],
+  "definitions": {
+    "Int": {
+      "dataType": "integer"
+    }
+  }
+}

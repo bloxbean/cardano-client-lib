@@ -90,6 +90,7 @@ public final class StrictReading {
     private static final ObjectMapper INTROSPECTION = new ObjectMapper();
     private static final YAMLFactory YAML = new YAMLFactory();
     private static final Map<String, Class<?>> CORE_INTENTS = coreIntents();
+    private static final Set<Class<?>> CORE_INTENT_CLASSES = Set.copyOf(CORE_INTENTS.values());
     private static final Map<Class<?>, List<Set<String>>> ALIAS_GROUPS = new ConcurrentHashMap<>();
     private static final SimpleModule WHOLE_NUMBERS = new SimpleModule("TxPlanWholeNumbers")
             .addDeserializer(BigInteger.class, new WholeNumber<>(BigInteger.class, Function.identity()))
@@ -254,41 +255,6 @@ public final class StrictReading {
         });
     }
 
-    /**
-     * Rejects a mapping key that holds a placeholder ({@code '${field}': 5}) anywhere outside {@code variables}.
-     * {@link TxPlan#from(String)} substitutes text, so it would rename the key; {@link TxPlanCodec} and the schema
-     * substitute values only and reject the key as unknown. Called on the document as written.
-     *
-     * @param document a TxPlan document tree, before substitution
-     * @throws IllegalArgumentException naming the key and its location
-     */
-    static void checkKeys(JsonNode document) {
-        if (document == null || !document.isObject()) return;
-        document.fields().forEachRemaining(entry -> {
-            if (!"variables".equals(entry.getKey())) {
-                checkKey(entry.getKey(), "/");
-                checkKeys(entry.getValue(), "/" + entry.getKey());
-            }
-        });
-    }
-
-    private static void checkKeys(JsonNode node, String path) {
-        if (node.isArray()) {
-            for (int i = 0; i < node.size(); i++) checkKeys(node.get(i), path + "/" + i);
-            return;
-        }
-        node.fields().forEachRemaining(entry -> {
-            checkKey(entry.getKey(), path);
-            checkKeys(entry.getValue(), path + "/" + entry.getKey());
-        });
-    }
-
-    private static void checkKey(String key, String path) {
-        if (key.contains("${"))
-            throw new IllegalArgumentException("Key '" + key + "' at " + path
-                    + " is a placeholder; placeholders are values, so write the key out");
-    }
-
     private static boolean containsPlaceholder(JsonNode value) {
         if (value.isTextual()) return value.asText().contains("${");
         for (JsonNode child : value) if (containsPlaceholder(child)) return true;
@@ -331,19 +297,31 @@ public final class StrictReading {
     }
 
     /**
-     * Overrides {@code ignoreUnknown} for every class except extension intents. The pair merges ignoral values by
-     * OR-ing {@code ignoreUnknown}, so the override is returned without merging; extension intents return null and
-     * keep the secondary introspector's value.
+     * Overrides {@code ignoreUnknown} for core intents and their nested core model classes, while letting
+     * {@link ExtensionIntent} classes and nested DTOs inside extensions keep their own {@code ignoreUnknown} setting.
+     * The pair merges ignoral values by OR-ing {@code ignoreUnknown}, so core types return a non-merging override while
+     * non-core types return {@code null} and keep the secondary introspector's value.
      */
     private static final class CoreIntentFieldsAreKnown extends NopAnnotationIntrospector {
         private final AnnotationIntrospector annotations = new JacksonAnnotationIntrospector();
 
         @Override
         public JsonIgnoreProperties.Value findPropertyIgnoralByName(MapperConfig<?> config, Annotated annotated) {
-            if (annotated instanceof AnnotatedClass type && ExtensionIntent.class.isAssignableFrom(type.getRawType()))
+            if (!(annotated instanceof AnnotatedClass type) || !isCoreModelType(type.getRawType()))
                 return null;
             JsonIgnoreProperties.Value value = annotations.findPropertyIgnoralByName(config, annotated);
             return (value == null ? JsonIgnoreProperties.Value.empty() : value.withoutIgnoreUnknown()).withoutMerge();
+        }
+
+        private static boolean isCoreModelType(Class<?> raw) {
+            if (ExtensionIntent.class.isAssignableFrom(raw)) return false;
+            if (CORE_INTENT_CLASSES.contains(raw)) return true;
+            if (raw == TransactionDocument.class || raw.getEnclosingClass() == TransactionDocument.class) return true;
+            String pkg = raw.getPackageName();
+            return pkg.equals("com.bloxbean.cardano.client.quicktx.intent")
+                    || pkg.startsWith("com.bloxbean.cardano.client.transaction.spec")
+                    || pkg.startsWith("com.bloxbean.cardano.client.api.model")
+                    || pkg.startsWith("com.bloxbean.cardano.client.spec");
         }
     }
 

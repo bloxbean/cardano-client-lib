@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.programmabletoken.cip113;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.address.CredentialType;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.util.HexUtil;
 
@@ -30,12 +31,47 @@ public final class SmartWalletAddress {
                 deployment.programmableLogicBaseCredential(), owner, deployment.getNetwork());
     }
 
+    /** A null key would silently mean PAYMENT in one place and fail in another: refuse it. */
+    private static SmartWalletKey key(Cip113Deployment deployment) {
+        if (deployment.getSmartWalletKey() == null)
+            throw new Cip113Exception("Cip113Deployment.smartWalletKey must be PAYMENT or STAKE, not null");
+        return deployment.getSmartWalletKey();
+    }
+
     /** Smart wallet keyed by the owner's payment credential — the CIP's default. */
     public static Address ofPaymentCredential(Cip113Deployment deployment, Address ownerAddress) {
         Credential owner = AddressProvider.getPaymentCredential(ownerAddress)
                 .orElseThrow(() -> new Cip113Exception(
                         "No payment credential in address " + ownerAddress.getAddress()));
         return of(deployment, owner);
+    }
+
+    /** The owner's smart wallet under the deployment's {@code smartWalletKey}. */
+    public static Address ofOwner(Cip113Deployment deployment, Address ownerAddress) {
+        return key(deployment) == SmartWalletKey.STAKE
+                ? ofStakeCredential(deployment, ownerAddress)
+                : ofPaymentCredential(deployment, ownerAddress);
+    }
+
+    /**
+     * The key hash that authorises spending {@code ownerAddress}'s smart wallet: the credential the
+     * wallet is keyed by. The base script reads it from {@code extra_signatories}, so it must be a
+     * key — a wallet keyed by a script credential is authorised by a withdrawal, which this adapter
+     * does not build.
+     */
+    public static byte[] ownerSigner(Cip113Deployment deployment, Address ownerAddress) {
+        SmartWalletKey key = key(deployment);
+        Optional<Credential> owner = key == SmartWalletKey.STAKE
+                ? AddressProvider.getDelegationCredential(ownerAddress)
+                : AddressProvider.getPaymentCredential(ownerAddress);
+        Credential credential = owner.orElseThrow(() -> new Cip113Exception("No "
+                + key.name().toLowerCase() + " credential in address "
+                + ownerAddress.getAddress() + " to key a smart wallet with"));
+        if (credential.getType() != CredentialType.Key)
+            throw new Cip113Exception("The smart wallet of " + ownerAddress.getAddress()
+                    + " is keyed by a script credential; authorising it needs a withdrawal, which"
+                    + " this adapter does not build");
+        return credential.getBytes();
     }
 
     /** Smart wallet keyed by the owner's stake credential. */

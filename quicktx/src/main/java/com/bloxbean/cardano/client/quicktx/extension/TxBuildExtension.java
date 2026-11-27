@@ -1,6 +1,10 @@
 package com.bloxbean.cardano.client.quicktx.extension;
 
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+
+import java.util.Collection;
+import java.util.List;
 
 /** One build's mutable extension participant. Instances must never be shared across builds. */
 public interface TxBuildExtension {
@@ -11,6 +15,17 @@ public interface TxBuildExtension {
      */
     default boolean removeDuplicateScriptWitnesses() {
         return false;
+    }
+
+    /**
+     * Scripts this build's reference inputs supply, read after {@link #prepare}. The builder
+     * registers them like the caller's own {@code withReferenceScripts}, so the reference-script
+     * fee is charged and, with {@link #removeDuplicateScriptWitnesses()}, their witness copies
+     * are dropped — including when the caller's own reference scripts switch off resolving them
+     * from the chain.
+     */
+    default Collection<PlutusScript> referenceScripts() {
+        return List.of();
     }
 
     default void prepare(ExtensionBuildContext context) { }

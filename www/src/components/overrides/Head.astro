@@ -1,0 +1,19 @@
+---
+/**
+ * Starlight <Head> override.
+ *
+ * Adds the two webfonts the docs and the landing page share, so a reader moving
+ * between them does not see a typeface swap. Everything else is Starlight's own
+ * head output, passed through unchanged.
+ */
+const { head } = Astro.locals.starlightRoute;
+---
+
+{head.map(({ tag: Tag, attrs, content }) => <Tag {...attrs} set:html={content} />)}
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
+  rel="stylesheet"
+/>

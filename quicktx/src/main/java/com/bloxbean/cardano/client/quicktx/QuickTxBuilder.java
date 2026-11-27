@@ -820,6 +820,10 @@ public class QuickTxBuilder {
             if (referenceScripts != null && !referenceScripts.isEmpty()) {
                 referenceScripts.forEach(script -> txBuilderContext.addRefScripts(script));
             }
+            // An extension's reference scripts count too; the resolver below would miss them
+            // whenever the caller declared reference scripts of its own.
+            buildExtensions.forEach(extension -> extension.referenceScripts()
+                    .forEach(script -> txBuilderContext.addRefScripts(script)));
 
             if (preBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(preBalanceTrasformer);

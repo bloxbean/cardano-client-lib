@@ -61,13 +61,13 @@ and preferably an application-managed `DataSource` or connection pool.
 
 ## Portable definition
 
-Portable documents use `txflow.cardano-client.dev/v1alpha1`. Each step embeds the QuickTx
+Portable documents use `txflow.cardano-client.dev/v1`. Each step embeds the QuickTx
 single-transaction projection (`tx` plus optional `context`). During compilation, TxFlow wraps
 that projection in a QuickTx `TransactionDocument` and creates a fresh, one-transaction executable
 `TxPlan`; it is not a second independent transaction definition.
 
 ```yaml
-api_version: txflow.cardano-client.dev/v1alpha1
+api_version: txflow.cardano-client.dev/v1
 kind: TxFlow
 metadata:
   name: send-payment
@@ -107,7 +107,7 @@ spec:
 earlier step, name the output and consume it with `flow_output`; ordering alone does not select a
 UTxO.
 
-The published `txplan-v1alpha1.schema.json` describes the embedded projection backed
+The published `txplan-v1.schema.json` describes the embedded projection backed
 by `TransactionDocument.TxContent` and `TransactionDocument.TxContext`. It should not be described
 as a full schema for every programmatic `TxIntent`: some intent implementations do not yet have
 portable JSON/YAML entries. Treat the portable schema and codec as the source of truth for what can
@@ -363,13 +363,13 @@ merging), partitioned fan-out lanes, a durable stream store (`RdbmsTxStreamState
 restart re-attach, and active/standby ownership for HA. The multi-item planners give flow-level
 dedup only — read the durability guide before pairing them with a redelivering source. Guides:
 
-- [TxStream Getting Started](../docs/content/preview/txflow/txstream-getting-started.mdx)
-- [TxStream: Durability & Exactly-Once](../docs/content/preview/txflow/txstream-durability.mdx)
-- [TxStream: Lanes, Batching & Throughput](../docs/content/preview/txflow/txstream-throughput.mdx)
+- [TxStream Getting Started](https://cardano-client.dev/txstream/getting-started/)
+- [TxStream: Durability & Exactly-Once](https://cardano-client.dev/txstream/durability/)
+- [TxStream: Lanes, Batching & Throughput](https://cardano-client.dev/txstream/throughput/)
 
 ## Documentation map
 
-- [Current public guide](../docs/content/preview/txflow/overview.mdx)
+- [Current public guide](https://cardano-client.dev/txflow/overview/)
 - [Portable authoring migration](docs/PORTABLE_TXFLOW_MIGRATION.md)
 - [Durable runtime contract](docs/DURABLE_RUNTIME.md)
 - [Detailed design and compatibility reference](docs/DESIGN_AND_USAGE.md)

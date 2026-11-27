@@ -1,0 +1,247 @@
+---
+title: "TxPlan Overview"
+description: "YAML-based transaction definitions with variable substitution"
+---
+
+> **Preview feature**: available in the [latest preview](/start-here/installation/#versions). APIs may change before the stable release.
+
+TxPlan provides a configuration-driven approach to defining Cardano transactions. Instead of writing Java code for every
+transaction, you can define transactions in YAML with variable substitution, context properties, and signer registry
+references — then execute them through the standard `QuickTxBuilder` pipeline.
+
+## Benefits
+
+- **Configuration-driven** — define transactions in YAML files, separate from application code
+- **Variable resolution** — use `${variable}` placeholders for dynamic values
+- **Context properties** — centralize fee payer, collateral, validity, and signer configuration
+- **Version control friendly** — human-readable transaction definitions
+- **No extra dependency** — TxPlan is part of the `quicktx` module
+
+## Dependency
+
+TxPlan is included in the `quicktx` module. If you already use `cardano-client-lib` or `cardano-client-quicktx`,
+no additional dependency is needed.
+
+```gradle
+dependencies {
+    implementation 'com.bloxbean.cardano:cardano-client-lib:<version>'
+}
+```
+
+## Creating a TxPlan
+
+### From a Tx Object
+
+```java
+Tx tx = new Tx()
+        .from("addr_test1...")
+        .payToAddress("addr_test1_receiver", Amount.ada(5));
+
+TxPlan plan = TxPlan.from(tx)
+        .feePayer("addr_test1_fee_payer")
+        .validTo(2000L);
+
+// Serialize to YAML
+String yaml = plan.toYaml();
+```
+
+### From YAML
+
+```java
+TxPlan plan = TxPlan.from(yamlString);
+
+// Access transactions
+List<AbstractTx<?>> transactions = plan.getTxs();
+```
+
+## YAML Format
+
+### Basic Structure
+
+```yaml
+version: 1.0
+variables:
+  sender: addr_test1_sender_address
+  receiver: addr_test1_receiver_address
+  amount: 5000000
+context:
+  fee_payer: ${sender}
+  valid_to_slot: 5000
+transaction:
+  - tx:
+      from: ${sender}
+      intents:
+        - type: payment
+          address: ${receiver}
+          amounts:
+            - unit: lovelace
+              quantity: ${amount}
+```
+
+### Variables
+
+The `variables` section defines key-value pairs that can be referenced in any value in the YAML using `${variable_name}`
+syntax (not in keys). Variables are resolved structurally on the parsed YAML tree before deserialization, so variable
+values cannot alter the document's YAML structure.
+
+Decimal variable values retain their precision and scale in both strict and lenient readers, including codec snapshots.
+For example, `1.23456789012345678900` remains an exact `BigDecimal` rather than being rounded to a `double`.
+
+```yaml
+variables:
+  treasury: addr_test1_treasury
+  alice: addr_test1_alice
+  payment_amount: 10000000
+  pool_id: pool1abc123
+```
+
+### Context Properties
+
+The `context` section configures transaction-level settings that apply to the `QuickTxBuilder.TxContext`.
+
+| Property | Description |
+|----------|-------------|
+| `fee_payer` | Address that pays transaction fees |
+| `fee_payer_ref` | Registry reference for fee payer (e.g., `account://ops`) |
+| `collateral_payer` | Address that provides collateral for script transactions |
+| `collateral_payer_ref` | Registry reference for collateral payer |
+| `signers` | Array of `{ref, scope}` entries for additional signers |
+| `required_signers` | List of required signer credential hashes (hex) |
+| `valid_from_slot` | Transaction validity start slot |
+| `valid_to_slot` | Transaction validity end slot |
+| `additional_signers_count` | Extra signers to count in fee estimation when they sign later, such as a multisig. Integer from 0 to 1000. Available from 0.8.0-pre7 |
+| `deposit_payer` | Address that pays deposit (e.g., for stake registration) |
+| `deposit_mode` | Deposit handling mode (`AUTO`, `CHANGE_OUTPUT`, `ANY_OUTPUT`, `NEW_UTXO_SELECTION`) |
+
+### Transaction Entries
+
+Each entry in the `transaction` list contains a `tx` block with:
+
+- `from` / `from_ref` — sender address or registry reference
+- `change_address` — optional explicit change address
+- `change_datum` / `change_datum_hash` — datum for change output (script transactions)
+- `inputs` — inputs to consume or reference: `script_collect_from`, `collect_from`, `reference_input`
+- `intents` — what the transaction does (see below)
+- `scripts` — script attachments: `validator`, `native_script`
+
+Intent types:
+
+| Area | Types |
+|------|-------|
+| Core | `payment`, `donation`, `minting`, `script_minting`, `metadata` |
+| Staking | `stake_registration`, `stake_deregistration`, `stake_delegation`, `stake_withdrawal` |
+| Pools | `pool_registration`, `pool_update`, `pool_retirement` |
+| Governance | `drep_registration`, `drep_deregistration`, `drep_update`, `governance_proposal`, `voting`, `voting_delegation` |
+
+Unknown keys under the document root, `tx`, `context`, and core intents fail (see [Strict Reading](#strict-reading)).
+
+### Plans with extensions
+
+`TxPlan.from` and `toYaml` handle core intents only. For extension intents, such as [programmable tokens](/learn/cip113-programmable-tokens/),
+use `TxPlanCodec`:
+
+```java
+TxPlanCodec codec = TxPlanCodec.builder().withExtension(extension).build();
+String yaml = codec.toYaml(plan);
+TxPlan restored = codec.fromYaml(yaml, runtimeVariables);
+
+new QuickTxBuilder(backend).withExtension(extension).compose(restored);
+```
+
+### Strict Reading
+
+`TxPlan.from(yaml)` and `TxPlanCodec` read documents strictly. A mistake fails with an error that names it, instead of being dropped or silently changed:
+
+- an unknown or misspelled intent field, e.g. `donation_amout` or `to:` instead of `address:`
+- one property given twice under different names, e.g. both `utxo_refs` and `refs`
+- a fractional number for an integer field, e.g. `quantity: 2.5` (a whole number written as `2000000.0` is fine in a TxPlan file; TxFlow templates take integers only)
+- an intent written as a list (`[payment, {...}]`) instead of a mapping with `type`
+- a second YAML document after `---` (an empty one at the end is fine)
+- a number for an enum (`role: 0` instead of `role: spend`), or for a boolean
+- an empty string for a number, boolean or enum
+- an explicit `null` or an empty value (`address:` with nothing after it), or a `null` element in a list
+- a UTxO reference with extra or missing keys; a reference is `{tx_hash, output_index}` or `{flow_output: {step, output}}`, and `output_index` is a non-negative integer or a `${...}` placeholder
+- a YAML alias (`*name`), including in `variables`
+- a placeholder used as a key (`'${field}': 5`); placeholders are values
+- an unquoted number not written in plain decimal, such as `010` (YAML reads it as octal 8), `0x10`, `1_000` or `1e3`. Quote such values to keep the text: an unquoted `datum_hex: 0102` would otherwise be read as the number 66. The same applies to values in `variables`, where a decimal such as `1.50` keeps its written form.
+
+These rules apply to the whole document, including extension intents (which keep only their own handling of unknown fields). Unknown keys at the document root, in `context` and in `tx` are always rejected.
+
+To read an older document leniently, build the codec with `TxPlanCodec.builder().strictReading(false)`. It reads the way `TxPlanCodec` did before strict reading, which differs slightly from the old `TxPlan.from`: it resolves `${var}` structurally and rejects a placeholder that has no variable. TxFlow binds embedded transactions with the same strict mapping rules; the two YAML-text checks (aliases and number forms) apply to TxPlan files, not yet to TxFlow YAML.
+
+Write booleans as `true`/`false`: YAML 1.1 readers such as this library also accept `yes`/`no`, but YAML 1.2 tools read those as strings. For the same reason, quote a text value that is one of these words: an unquoted `yes` in a text field is read as `"true"`.
+
+### Validating Your YAML
+
+The TxPlan format is described by a JSON Schema (Draft 2020-12), `txplan-v1.schema.json`. It lists every intent type and its fields, so an editor can complete and check a document as you write it. The schema ships in the `cardano-client-quicktx` jar under `schema/` and in the repository at `quicktx/src/main/resources/schema/`. Its `$id` (`https://cardano-client.dev/schemas/txplan/v1`) is an identifier only; nothing is served at that address, so point tools at a copy of the file.
+
+For VS Code with the YAML extension, add a modeline to the document, pinning the URL to the release you use:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bloxbean/cardano-client-lib/<release-tag>/quicktx/src/main/resources/schema/txplan-v1.schema.json
+```
+
+In CI, any JSON Schema validator works, for example `check-jsonschema --schemafile txplan-v1.schema.json plan.yaml`.
+
+The schema accepts `${var}` and `${{ inputs.x }}` placeholders wherever a value is expected, because they are resolved before the document is read. It checks names, types and placement; the runtime still validates values (addresses, hashes, bounds) and the rules of each intent.
+
+## QuickTxBuilder Integration
+
+### Direct Composition
+
+```java
+QuickTxBuilder builder = new QuickTxBuilder(backendService);
+
+TxPlan plan = TxPlan.from(yamlString);
+
+TxResult result = builder.compose(plan)
+        .withSigner(SignerProviders.signerFrom(account))
+        .completeAndWait();
+```
+
+### With Variables
+
+> **Important:** Variables are resolved during `TxPlan.from()` — calling `addVariable()` after parsing only updates
+> the variable map for `toYaml()` serialization. It does **not** re-resolve already-parsed transaction fields.
+
+To use dynamic variables, set them in the YAML string before calling `from()`:
+
+```java
+String yaml = baseYaml
+    .replace("${amount}", "10000000")
+    .replace("${receiver}", dynamicReceiverAddress);
+
+TxPlan plan = TxPlan.from(yaml);
+```
+
+Alternatively, define variables in the YAML `variables` section with their final values before parsing.
+
+## Complete Example
+
+```java
+String yamlPlan = """
+    version: 1.0
+    variables:
+      sender: addr_test1_sender
+      receiver: addr_test1_receiver
+    context:
+      fee_payer: ${sender}
+      valid_to_slot: 5000
+    transaction:
+      - tx:
+          from: ${sender}
+          intents:
+            - type: payment
+              address: ${receiver}
+              amounts:
+                - unit: lovelace
+                  quantity: '5000000'
+    """;
+
+QuickTxBuilder builder = new QuickTxBuilder(backendService);
+TxPlan plan = TxPlan.from(yamlPlan);
+
+TxResult result = builder.compose(plan)
+        .withSigner(SignerProviders.signerFrom(account))
+        .completeAndWait();
+```

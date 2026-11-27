@@ -1,7 +1,7 @@
 # Portable TxFlow migration
 
 Portable TxFlow separates a reusable definition from each execution request. New documents use
-`api_version: txflow.cardano-client.dev/v1alpha1`, `kind: TxFlow`, metadata, and `spec`.
+`api_version: txflow.cardano-client.dev/v1`, `kind: TxFlow`, metadata, and `spec`.
 
 Key changes from the preview `version: "1.0"` format:
 
@@ -27,7 +27,7 @@ Key changes from the preview `version: "1.0"` format:
 Durable/server deployments should also follow [the store, fencing, recovery, and executor
 contract](DURABLE_RUNTIME.md).
 
-Compatibility notes for the v1alpha1 refinement:
+Compatibility notes for the v1 refinement:
 
 - Compiled definition fingerprints include an explicit `txflow-compiled:v1` domain marker. Any
   fingerprint produced by an earlier preview build changes once; do not rewrite an existing
@@ -37,7 +37,7 @@ Compatibility notes for the v1alpha1 refinement:
   malformed values that older preview builds ignored or coerced. Empty `execution:` and
   `confirmation:` stanzas are also rejected; omit an unused stanza or provide an object with the
   intended settings.
-- `metadata.description` is an additive v1alpha1 field. Older external validators using the prior
+- `metadata.description` is an additive v1 field. Older external validators using the prior
   schema with `additionalProperties: false` may need the updated bundled schema before accepting a
   document that emits it.
 - `ConfirmationConfig.devnet()` and `quick()` contain legacy backend-wait behavior. Express their

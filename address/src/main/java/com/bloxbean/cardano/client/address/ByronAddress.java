@@ -5,6 +5,8 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.Base58;
 import com.bloxbean.cardano.client.crypto.exception.AddressFormatException;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -21,6 +23,7 @@ public class ByronAddress {
     private final byte[] root;
     private final byte[] derivationPath;
     private final Long protocolMagic;
+    private final Map<Integer, byte[]> unknownAttributes;
     private final ByronAddressType byronType;
 
     /**
@@ -51,6 +54,7 @@ public class ByronAddress {
         this.root = decoded.root;
         this.derivationPath = decoded.derivationPath;
         this.protocolMagic = decoded.protocolMagic;
+        this.unknownAttributes = decoded.unknownAttributes;
         this.byronType = decoded.type;
     }
 
@@ -126,5 +130,18 @@ public class ByronAddress {
      */
     public Optional<byte[]> getDerivationPath() {
         return Optional.ofNullable(derivationPath).map(byte[]::clone);
+    }
+
+    /**
+     * Get the attributes the ledger does not interpret: every attribute other than the derivation path (1) and the
+     * protocol magic (2), as the ledger's {@code unknownAttributes} keeps them. The ledger counts their sizes in a
+     * bootstrap address's attribute size.
+     *
+     * @return the attribute values by key, in increasing key order; empty if there are none
+     */
+    public Map<Integer, byte[]> getUnknownAttributes() {
+        Map<Integer, byte[]> copy = new LinkedHashMap<>();
+        unknownAttributes.forEach((key, value) -> copy.put(key, value.clone()));
+        return copy;
     }
 }

@@ -10,7 +10,8 @@ public final class RealCborFixturesAccess {
     public record Tx(String name, String network, String era, String txHash, byte[] cbor) {
     }
 
-    public record Block(String name, String network, String era, String blockHash, List<String> txHashes, byte[] cbor) {
+    public record Block(String name, String network, String era, long blockHeight, String blockHash,
+                        List<String> txHashes, byte[] cbor) {
     }
 
     public static final String TRIGGER_NATIVE_SCRIPT_HASH = RealCborFixtures.TRIGGER_NATIVE_SCRIPT_HASH;
@@ -58,7 +59,7 @@ public final class RealCborFixturesAccess {
     public static List<Block> blocks() {
         List<Block> blocks = new ArrayList<>();
         RealCborFixtures.blocks().forEach(block -> blocks.add(new Block(block.toString(), block.network(), block.era(),
-                block.blockHash(), block.txHashes(), block.cbor())));
+                block.blockHeight(), block.blockHash(), block.txHashes(), block.cbor())));
         return blocks;
     }
 

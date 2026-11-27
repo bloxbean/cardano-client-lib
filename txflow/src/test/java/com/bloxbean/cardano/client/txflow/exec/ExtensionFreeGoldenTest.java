@@ -25,11 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * ADR 0008 invariant I2: flows that use no QuickTx extension compile, write and snapshot
  * byte-identically to the pre-extension implementation. The expected digests were captured from
- * {@code dfd8540d} before any ADR 0008 change and must never be regenerated from the code under test.
+ * {@code dfd8540d} before any ADR 0008 change (and updated for the portable {@code v1alpha1 -> v1}
+ * {@code api_version} promotion) and must never be regenerated from the code under test.
  */
 class ExtensionFreeGoldenTest {
     private static final String PORTABLE = """
-            api_version: txflow.cardano-client.dev/v1alpha1
+            api_version: txflow.cardano-client.dev/v1
             kind: TxFlow
             metadata: {name: typed-payment, version: "1.0.0"}
             spec:
@@ -104,26 +105,26 @@ class ExtensionFreeGoldenTest {
         TxFlow parsed = TxFlowCodec.standard().parse(PORTABLE, FlowParseOptions.serverDefaults()).requireFlow();
         String fingerprint = new TxFlowCompiler().compile(FlowCompilationRequest.of(parsed, BINDINGS))
                 .requireCompiledFlow().getFingerprint();
-        assertGolden("portable.fingerprint", "62291cbd8022801802a29eb18d6b680311fd831b5ddcad7aa8d4f9f0ab190622", fingerprint);
+        assertGolden("portable.fingerprint", "270a822adef574ab2b6c748e13e21d489189f9b7ad1f58bd60e522ad9a55aa22", fingerprint);
     }
 
     @Test
     void portableWriteIsUnchanged() {
         TxFlow parsed = TxFlowCodec.standard().parse(PORTABLE, FlowParseOptions.serverDefaults()).requireFlow();
-        assertGolden("portable.yaml", "c0779f970c7ac8512fa1ff2721b3ef38f59375856f8f7f8c3be76905f9286c7d", sha256(TxFlowCodec.standard().write(parsed,
-                FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1))));
-        assertGolden("portable.json", "f7fa6892956f8206dad54531c5d68cfef6a4cd443a63b9fb0fb04f75dbdb8e78", sha256(TxFlowCodec.standard().write(parsed,
-                FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1))));
+        assertGolden("portable.yaml", "2f300c655c049993b31fb8c2ed0d77956337bbaf3fabba050e262eb21c325eb3", sha256(TxFlowCodec.standard().write(parsed,
+                FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1))));
+        assertGolden("portable.json", "1a53ad8d26345f7ff0581aa41578f82e8f7b5aefd9e8defbf9610e5b2d7f76a8", sha256(TxFlowCodec.standard().write(parsed,
+                FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1))));
     }
 
     @Test
     void javaCompiledFingerprintAndWriteAreUnchanged() {
         TxFlow flow = javaFlow();
-        assertGolden("java.fingerprint", "b5acaba78616a1c63f8470dcae0e59fc0ea91adc12b487c9a0286227a871a231", new TxFlowCompiler()
+        assertGolden("java.fingerprint", "4527afe538142db9daa4a6d15b09b71e2dac53dbef9f52f449498c2bfa34f1fc", new TxFlowCompiler()
                 .compile(FlowCompilationRequest.of(flow, FlowBindings.empty()))
                 .requireCompiledFlow().getFingerprint());
-        assertGolden("java.yaml", "0cebae1fff1afd0b2cef6589cc3ca99959e438b55e02899162a482d3f042d39f", sha256(TxFlowCodec.standard().write(flow,
-                FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1))));
+        assertGolden("java.yaml", "76d3362af20d4c222cd5c38f23bd93ddfb3a22d987add0fc871f1ce95388fcd5", sha256(TxFlowCodec.standard().write(flow,
+                FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1))));
         assertGolden("java.legacy-yaml", "dd94e0e7a75f63ccde03af30e6203c00a2fa358914a21ea44fdeb51811bde64d", sha256(flow.toYaml()));
     }
 
@@ -142,8 +143,8 @@ class ExtensionFreeGoldenTest {
                                 .fromRef("account://sender")).withSigner("account://sender"))
                         .build())
                 .build();
-        assertGolden("number-like.yaml", "68a5134885b000d990abe2a8e7f262c961f6ef9d0806ae9fe73234f7d7f72597", sha256(TxFlowCodec.standard().write(flow,
-                FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1))));
+        assertGolden("number-like.yaml", "f74f45f5fcfaf2e91e788761edff44b4176b14aefac864f87c736be764060040", sha256(TxFlowCodec.standard().write(flow,
+                FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1))));
     }
 
     @Test

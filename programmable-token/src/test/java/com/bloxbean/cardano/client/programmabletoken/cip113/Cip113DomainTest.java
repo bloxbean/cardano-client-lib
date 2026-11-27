@@ -155,54 +155,57 @@ class Cip113DomainTest {
     }
 
     // ---------------------------------------------------------------------------------
-    // Fixtures captured from Preview on 2026-08-26, deployment
-    // a432339cbd7318222c8c51ed4fb52ee4c68f676037622aa7361dd45d897324a4.
+    // Fixtures captured from Preview on 2026-10-22 (Koios), CIP-113 core v0.0.1 deployment
+    // Cip113Deployments.PREVIEW (params minted by 8e9668a6…3d00f9).
     // These are real on-chain bytes, so they pin the codecs against the deployed contracts
     // rather than against my reading of plutus.json.
     // ---------------------------------------------------------------------------------
 
-    /** Inline datum of the coordination UTxO a432339c…#0. */
+    /** Inline datum of the coordination UTxO 8e9668a6…#0. */
     private static final String COORDINATION_DATUM_HEX =
-            "d8799f581c9aeda27e8b7e8c0077af9d6d8077b61d4e4a8b25368280ad26dc00c8"
-            + "d87a9f581c698c48a630206282690774aebcfa9410895c09f85bc103b19f9888dcff"
-            + "d87a9f581c971606541dfdc9e411ba722880d783165f044cc541c17225f35d1e59ff"
-            + "d87a9f581c8d2d24f8203f6049c3f36576c1628856b8012b3c10db36f7182233f4ff"
-            + "d87a9f581cd4be7708df51b14718d19888db5ad8e417eda138cf83f030bf7ab857ff"
-            + "d87a9f581c4861aca31fe0581ff2a16d180f26ac2b4feeb71ca5fd2a86b7927bb5ff"
-            + "190800ff";
+            "d8799f"
+            + "d87a9f581c3b212b37b1a1fb334539c42e7473376a7fc15b60c26ae0fd4d06279eff"
+            + "d87a9f581c621131d2df1acfdad5928a34572834cde904502441d6d41c642a10f6ff"
+            + "d87a9f581c5fe7c82a32a69e5839e9da77e1e9992c1e55f7d372c3d58d8f744ef7ff"
+            + "d87a9f581c4c601638f4ee5ad3ba71d4d1b8a0b24b9117b7b3a679c66a96dfb7c6ff"
+            + "d87a9f581c03322dd0912f1c36b67cce2aa5cebe8ff1dde6c7dbf365206b07e2fdff"
+            + "d87a80"
+            + "ff";
 
-    /** Inline datum of a live registry node — fb4a2d00…#2, a token that declares global state. */
+    /** Inline datum of a live registry node — a090c8d1…#1, a token that declares global state. */
     private static final String REGISTRY_NODE_DATUM_HEX =
-            "d8799f581c722c5ea0cccbcc91e825fc4eddce5f3417999b3c0128b5c4d056bf38"
-            + "581ca014170337df4e7caee63b5b481539a974e362013e8009356bcacbc7"
-            + "d87a9f581c3d0c7f82a57150c2b2d2436c60c4660147188fba770a341fe57f6dd5ff"
-            + "d87a9f581c78e194485cc8bae98876aea4a1cf54a91347e53b6988f7c6743c5c2eff"
-            + "d87a9f581c90208f687a99bad0b5fb4091573fcd3b1af7215e9e59998506a6339bff"
+            "d8799f581c8fef17bf2b5458d341f4c8dc28d7ae80cf41938b2abe90d78d97cf04"
+            + "581cecfe3319f2162b7206f186bf47ce27592dd2e96f87c8f8c83c71e6a2"
+            + "d87a9f581c174db21c54bfa8a7cd02bdc41f287cbb370df9e106cc1028fb1bb103ff"
+            + "d87a9f581cc255bcb38d8d5b22aa57308cf1cbaa9d3ee7ea2f373fb01fee18619eff"
+            + "d87a9f581c321c2f48fea5bd016ef5f26a4d78d9b13c251193037e08b1a6bfc28aff"
             + "d8799f40ff"
-            + "581c4e69ae690e8fa2d38bccbf536bbeb89c344f1f50faaa2b44a92f2cf1ff";
+            + "581c489f8058d95cbd35d20ebcf199856c5780a858c25bb70209d21587ceff";
 
     @Test
     void decodesTheLiveCoordinationDatum() throws Exception {
         var params = ProgrammableLogicGlobalParams.fromPlutusData(
                 PlutusData.deserialize(HexUtil.decodeHexString(COORDINATION_DATUM_HEX)));
 
-        assertThat(params.getRegistryNodeCs())
-                .isEqualTo("9aeda27e8b7e8c0077af9d6d8077b61d4e4a8b25368280ad26dc00c8");
-        assertThat(hex(params.getProgLogicCred()))
-                .isEqualTo("698c48a630206282690774aebcfa9410895c09f85bc103b19f9888dc");
+        assertThat(hex(params.getProgrammableLogicGlobalCred()))
+                .isEqualTo("3b212b37b1a1fb334539c42e7473376a7fc15b60c26ae0fd4d06279e");
+        assertThat(hex(params.getIssuanceLogicCred()))
+                .isEqualTo("621131d2df1acfdad5928a34572834cde904502441d6d41c642a10f6");
         assertThat(hex(params.getTransferCred()))
-                .isEqualTo("971606541dfdc9e411ba722880d783165f044cc541c17225f35d1e59");
+                .isEqualTo("5fe7c82a32a69e5839e9da77e1e9992c1e55f7d372c3d58d8f744ef7");
         assertThat(hex(params.getThirdPartyCred()))
-                .isEqualTo("8d2d24f8203f6049c3f36576c1628856b8012b3c10db36f7182233f4");
-        assertThat(hex(params.getUnfrackingCred()))
-                .isEqualTo("d4be7708df51b14718d19888db5ad8e417eda138cf83f030bf7ab857");
+                .isEqualTo("4c601638f4ee5ad3ba71d4d1b8a0b24b9117b7b3a679c66a96dfb7c6");
         assertThat(hex(params.getUpgradeCred()))
-                .isEqualTo("4861aca31fe0581ff2a16d180f26ac2b4feeb71ca5fd2a86b7927bb5");
-        assertThat(params.getMaxInlineDatumBytes()).isEqualTo(2048);
+                .isEqualTo("03322dd0912f1c36b67cce2aa5cebe8ff1dde6c7dbf365206b07e2fd");
+        assertThat(params.getPendingUpgradeCred()).isNull();
 
-        // All five delegates are script credentials on this deployment.
-        assertThat(params.getProgLogicCred().getType()).isEqualTo(CredentialType.Script);
+        // All five credentials are script credentials on this deployment.
+        assertThat(params.getProgrammableLogicGlobalCred().getType()).isEqualTo(CredentialType.Script);
         assertThat(params.getUpgradeCred().getType()).isEqualTo(CredentialType.Script);
+
+        // Re-encoding must reproduce the on-chain bytes exactly, Option included.
+        assertThat(HexUtil.encodeHexString(params.toPlutusData().serializeToBytes()))
+                .isEqualTo(COORDINATION_DATUM_HEX);
     }
 
     @Test
@@ -216,7 +219,9 @@ class Cip113DomainTest {
         assertThat(live).isEqualTo(Cip113Deployments.PREVIEW);
 
         assertThat(Cip113Deployments.PREVIEW.registryAddress().toBech32())
-                .isEqualTo("addr_test1wqr9pu02kzxggerr4ncrwrwu2zlqtkhzfsefepst2aazz5srqp5fw");
+                .isEqualTo("addr_test1wrjmxw00tvtdd3rqwkdv58tquhsytfhsrkj2zx6wurlvpxskwqv43");
+        assertThat(Cip113Deployments.PREVIEW.protocolParamsAddress().toBech32())
+                .isEqualTo("addr_test1wqwjqf33p3c0q7kztcuatyg92u3lt79gftqdug57kpf9wgqcmhu3w");
     }
 
     @Test
@@ -224,14 +229,14 @@ class Cip113DomainTest {
         RegistryNode node = RegistryNode.fromPlutusData(
                 PlutusData.deserialize(HexUtil.decodeHexString(REGISTRY_NODE_DATUM_HEX)));
 
-        assertThat(node.getKey()).isEqualTo("722c5ea0cccbcc91e825fc4eddce5f3417999b3c0128b5c4d056bf38");
-        assertThat(node.getNext()).isEqualTo("a014170337df4e7caee63b5b481539a974e362013e8009356bcacbc7");
+        assertThat(node.getKey()).isEqualTo("8fef17bf2b5458d341f4c8dc28d7ae80cf41938b2abe90d78d97cf04");
+        assertThat(node.getNext()).isEqualTo("ecfe3319f2162b7206f186bf47ce27592dd2e96f87c8f8c83c71e6a2");
         assertThat(hex(node.getMintingLogicScript()))
-                .isEqualTo("3d0c7f82a57150c2b2d2436c60c4660147188fba770a341fe57f6dd5");
+                .isEqualTo("174db21c54bfa8a7cd02bdc41f287cbb370df9e106cc1028fb1bb103");
         assertThat(hex(node.getTransferLogicScript()))
-                .isEqualTo("78e194485cc8bae98876aea4a1cf54a91347e53b6988f7c6743c5c2e");
+                .isEqualTo("c255bcb38d8d5b22aa57308cf1cbaa9d3ee7ea2f373fb01fee18619e");
         assertThat(hex(node.getThirdPartyTransferLogicScript()))
-                .isEqualTo("90208f687a99bad0b5fb4091573fcd3b1af7215e9e59998506a6339b");
+                .isEqualTo("321c2f48fea5bd016ef5f26a4d78d9b13c251193037e08b1a6bfc28a");
 
         // Unfracking forbidden: the empty-vkey sentinel, constructor 0 with a zero-length hash.
         assertThat(node.getUnfrackingLogicScript().getType()).isEqualTo(CredentialType.Key);
@@ -239,7 +244,7 @@ class Cip113DomainTest {
 
         assertThat(node.hasGlobalState()).isTrue();
         assertThat(node.getGlobalStateCs())
-                .isEqualTo("4e69ae690e8fa2d38bccbf536bbeb89c344f1f50faaa2b44a92f2cf1");
+                .isEqualTo("489f8058d95cbd35d20ebcf199856c5780a858c25bb70209d21587ce");
 
         // Re-encoding must reproduce the on-chain bytes exactly.
         assertThat(HexUtil.encodeHexString(node.toPlutusData().serializeToBytes()))
@@ -268,16 +273,17 @@ class Cip113DomainTest {
 
     @Test
     void assembledIssuanceScriptReproducesTheOnChainPolicyId() throws Exception {
-        // Grounded end to end: the real issuance template from the Preview deployment, the real
-        // always-true issuance credential, and the policy id that deployment actually reports for
-        // it. If the assembly, the CBOR wrapping or the hashing were wrong, this would not match.
+        // Grounded end to end: the real issuance template from the Preview deployment, the
+        // minting_logic_script of a token registered there (registry node a090c8d1…#1), and that
+        // node's key — the policy id the registry accepted for it. If the assembly, the CBOR
+        // wrapping or the hashing were wrong, this would not match.
         var template = previewIssuanceTemplate();
         Credential issuance =
-                Credential.fromScript("4ab26c95029067185f709d140300cccb15b0b20bbd62a7e9aa2e2e10");
+                Credential.fromScript("174db21c54bfa8a7cd02bdc41f287cbb370df9e106cc1028fb1bb103");
 
         String policyId = PolicyIdDerivation.derive(template, issuance);
         assertThat(policyId)
-                .isEqualTo("3658dd8748c040ddbf15e54311816a76aeeb7d1fd218e39c1ddb4f21");
+                .isEqualTo("8fef17bf2b5458d341f4c8dc28d7ae80cf41938b2abe90d78d97cf04");
 
         // The load-bearing invariant behind minting: the script CCL attaches and the policy it
         // mints under agree by construction — no UPLC applier, no on-chain lookup.

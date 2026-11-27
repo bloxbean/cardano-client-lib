@@ -4,25 +4,37 @@ import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.common.cbor.CborSpan;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.spec.Script;
+import com.bloxbean.cardano.client.transaction.raw.RawOutput;
 import com.bloxbean.cardano.client.util.HexUtil;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
+import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder(toBuilder=true)
 public class TransactionOutput {
+    private static final int INDEFINITE_ARRAY = 0x9f;
+    private static final int DEFINITE_PAIR = 0x82;
+
     private String address;
     private Value value;
     private byte[] datumHash;
@@ -33,6 +45,12 @@ public class TransactionOutput {
     private PlutusData inlineDatum;
     private byte[] scriptRef;
 
+    //The inline datum's original tag-24 bytes, not part of the value of this output
+    @Getter(AccessLevel.NONE)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private final DecodedDatum decodedDatum = new DecodedDatum();
+
     //TODO -- Remove later if not required
     //serialize to Alonzo era (legacy) format
     //boolean alonzoEraFormat;
@@ -40,6 +58,17 @@ public class TransactionOutput {
     public TransactionOutput(String address, Value value) {
         this.address = address;
         this.value = value;
+    }
+
+    /**
+     * @return a shallow copy that writes the same bytes, as {@code toBuilder().build()} would not for a decoded datum
+     */
+    public TransactionOutput copy() {
+        TransactionOutput copy = toBuilder().build();
+        copy.decodedDatum.datum = decodedDatum.datum;
+        copy.decodedDatum.bytes = decodedDatum.bytes;
+        copy.decodedDatum.mapsThatLostPairs = decodedDatum.mapsThatLostPairs;
+        return copy;
     }
 
     //custom setters
@@ -60,6 +89,19 @@ public class TransactionOutput {
     }
 
     public DataItem serialize() throws CborSerializationException, AddressExcepion {
+        return serialize(Value::serialize);
+    }
+
+    /**
+     * Serialize with the value's assets in the order the Haskell ledger writes, see
+     * {@link Value#serializeInLedgerOrder()}
+     */
+    public DataItem serializeInLedgerOrder() throws CborSerializationException, AddressExcepion {
+        return serialize(Value::serializeInLedgerOrder);
+    }
+
+    private DataItem serialize(Function<Value, DataItem> valueWriter)
+            throws CborSerializationException, AddressExcepion {
 // TODO -- Remove later if not required.
 //        if (alonzoEraFormat) {
 //            if (datum == null && scriptRef == null)
@@ -70,13 +112,13 @@ public class TransactionOutput {
 //        }
         //For now, serialize to legacy format if inlineDatum and scriptRef are not set
         if (inlineDatum == null && scriptRef == null)
-            return serializeAlonzo();
+            return serializeAlonzo(valueWriter);
         else {
-            return serializePostAlonzo();
+            return serializePostAlonzo(valueWriter);
         }
     }
 
-    private Map serializePostAlonzo() throws AddressExcepion, CborSerializationException {
+    private Map serializePostAlonzo(Function<Value, DataItem> valueWriter) throws AddressExcepion, CborSerializationException {
         Map map = new Map();
 
         byte[] addressByte = AddressUtil.addressToBytes(address);
@@ -84,7 +126,7 @@ public class TransactionOutput {
 
         if(value == null)
             throw new CborSerializationException("Value cannot be null");
-        map.put(new UnsignedInteger(1), value.serialize());
+        map.put(new UnsignedInteger(1), valueWriter.apply(value));
 
         if (datumHash != null && inlineDatum != null)
             throw new CborSerializationException("Only one can be set. datumHash or datum");
@@ -95,21 +137,15 @@ public class TransactionOutput {
             datumArray.add(new ByteString(datumHash));
             map.put(new UnsignedInteger(2), datumArray);
         } else if(inlineDatum != null) {
-            DataItem inlineDatumDI = inlineDatum.serialize();
-            ByteString inlineDatumBS = null;
-            try {
-                inlineDatumBS = new ByteString(CborSerializationUtil.serialize(inlineDatumDI));
-                inlineDatumBS.setTag(new Tag(24));
-            } catch (CborException e) {
-                throw new CborSerializationException("Cbor serialization error", e);
-            }
+            ByteString inlineDatumBS = new ByteString(inlineDatumBytes());
+            inlineDatumBS.setTag(new Tag(24));
             datumArray.add(new UnsignedInteger(1));
             datumArray.add(inlineDatumBS);
             map.put(new UnsignedInteger(2), datumArray);
         }
 
         if (scriptRef != null) {
-            ByteString scriptRefBS = new ByteString(scriptRef);
+            ByteString scriptRefBS = new ByteString(scriptRefBytes());
             scriptRefBS.setTag(new Tag(24)); //tag 6.24
             map.put(new UnsignedInteger(3), scriptRefBS);
         }
@@ -117,14 +153,51 @@ public class TransactionOutput {
         return map;
     }
 
-    private Array serializeAlonzo() throws CborSerializationException, AddressExcepion {
+    /**
+     * The datum's original bytes while it is the object decoded from them and still represents them, as Haskell keeps
+     * them, or else its encoding (ADR 0002 D6.3).
+     */
+    private byte[] inlineDatumBytes() throws CborSerializationException {
+        try {
+            if (decodedDatum.datum == inlineDatum && decodedDatum.bytes != null
+                    && PlutusData.representsBytes(inlineDatum, decodedDatum.bytes, decodedDatum.mapsThatLostPairs))
+                return decodedDatum.bytes;
+            return CborSerializationUtil.serialize(inlineDatum.serialize());
+        } catch (CborException | CborDeserializationException e) {
+            throw new CborSerializationException("Cbor serialization error", e);
+        }
+    }
+
+    /**
+     * A script reference whose outer array is indefinite is written with a definite one and its inner bytes kept, as
+     * Haskell re-encodes it (ADR 0002 D6.2). The field keeps what it holds, and anything else is written as it is.
+     */
+    private byte[] scriptRefBytes() {
+        if (scriptRef.length == 0 || (scriptRef[0] & 0xff) != INDEFINITE_ARRAY)
+            return scriptRef;
+        List<CborSpan> items;
+        try {
+            items = CborSpan.of(scriptRef).items();
+        } catch (CborRuntimeException e) {
+            return scriptRef;
+        }
+        if (items.size() != 2)
+            return scriptRef;
+        ByteArrayOutputStream definite = new ByteArrayOutputStream(scriptRef.length);
+        definite.write(DEFINITE_PAIR);
+        definite.writeBytes(items.get(0).bytes());
+        definite.writeBytes(items.get(1).bytes());
+        return definite.toByteArray();
+    }
+
+    private Array serializeAlonzo(Function<Value, DataItem> valueWriter) throws CborSerializationException, AddressExcepion {
         Array array = new Array();
         byte[] addressByte = AddressUtil.addressToBytes(address);
         array.add(new ByteString(addressByte));
 
         if(value == null)
             throw new CborSerializationException("Value cannot be null");
-        array.add(value.serialize());
+        array.add(valueWriter.apply(value));
 
         if(datumHash != null)
             array.add(new ByteString(datumHash));
@@ -133,91 +206,35 @@ public class TransactionOutput {
     }
 
     public static TransactionOutput deserialize(DataItem dataItem) throws CborDeserializationException {
-        if (MajorType.ARRAY == dataItem.getMajorType()) { //Alonzo (Legacy)
-            return deserializeAlonzo((Array) dataItem);
-        } else if (MajorType.MAP == dataItem.getMajorType()) { //Post Alonzo
-            return deserializePostAlonzo((Map) dataItem);
-        } else
-            throw new CborDeserializationException("Invalid type for TransactionOutput : " + dataItem.getMajorType());
+        try {
+            return from(RawOutput.lenient(CborSerializationUtil.span(dataItem)));
+        } catch (CborRuntimeException e) {
+            throw new CborDeserializationException("TransactionOutput deserialization failed", e);
+        }
     }
 
-    private static TransactionOutput deserializePostAlonzo(Map ouptutItem) throws CborDeserializationException {
+    static TransactionOutput from(RawOutput raw) throws CborDeserializationException {
         TransactionOutput output = new TransactionOutput();
-
-        //address
-        ByteString addrByteStr = (ByteString) ouptutItem.get(new UnsignedInteger(0));
-        if(addrByteStr != null) {
+        Optional<byte[]> address = raw.addressBytes();
+        if (address.isPresent()) {
             try {
-                output.setAddress(AddressUtil.bytesToAddress(addrByteStr.getBytes()));
+                output.setAddress(AddressUtil.bytesToAddress(address.get()));
             } catch (Exception e) {
                 throw new CborDeserializationException("Bytes cannot be converted to bech32 address", e);
             }
         }
-
-        //value
-        DataItem valueItem = ouptutItem.get(new UnsignedInteger(1));
-        Value value = Value.deserialize(valueItem);
-        output.setValue(value);
-
-        //datum_options
-        byte[] datumHash = null;
-        PlutusData inlineDatum = null;
-        Array datumOptionsItem = (Array) ouptutItem.get(new UnsignedInteger(2));
-        if (datumOptionsItem != null) {
-            List<DataItem> datumOptionsList = datumOptionsItem.getDataItems();
-            if (datumOptionsList.size() != 2)
-                throw new CborDeserializationException("Invalid size for datum_options : " + datumOptionsList.size());
-
-            if (new UnsignedInteger(0).equals(datumOptionsList.get(0))) { //datum hash
-                datumHash = ((ByteString) datumOptionsList.get(1)).getBytes();
-            } else if (new UnsignedInteger(1).equals(datumOptionsList.get(0))) { //datum
-                ByteString inlineDatumBS = (ByteString) datumOptionsList.get(1);
-                inlineDatum = PlutusData.deserialize(inlineDatumBS.getBytes());
-            }
+        output.setValue(raw.amount().map(Value::from).orElse(null));
+        output.setDatumHash(raw.datumHash().orElse(null));
+        Optional<byte[]> inlineDatum = raw.inlineDatumBytes();
+        if (inlineDatum.isPresent()) {
+            output.inlineDatum = PlutusData.deserialize(inlineDatum.get());
+            output.decodedDatum.datum = output.inlineDatum;
+            output.decodedDatum.bytes = inlineDatum.get();
+            output.decodedDatum.mapsThatLostPairs = PlutusData.mapsThatLostPairs(output.inlineDatum);
         }
-        output.setDatumHash(datumHash);
-        output.setInlineDatum(inlineDatum);
-
-        //script_ref
-        ByteString scriptRefBs = (ByteString) ouptutItem.get(new UnsignedInteger(3));
-        if (scriptRefBs != null) {
-            output.setScriptRef(scriptRefBs.getBytes());
-        }
-
+        raw.scriptRefBytes().ifPresent(scriptRef -> output.setScriptRef(scriptRef));
         return output;
     }
-
-    private static TransactionOutput deserializeAlonzo(Array ouptutItem) throws CborDeserializationException {
-        List<DataItem> items = ouptutItem.getDataItems();
-        TransactionOutput output = new TransactionOutput();
-
-        if(items == null || (items.size() != 2 && items.size() != 3)) {
-            throw new CborDeserializationException("TransactionOutput deserialization failed. Invalid no of DataItems");
-        }
-
-        ByteString addrByteStr = (ByteString)items.get(0);
-        if(addrByteStr != null) {
-            try {
-                output.setAddress(AddressUtil.bytesToAddress(addrByteStr.getBytes()));
-            } catch (Exception e) {
-                throw new CborDeserializationException("Bytes cannot be converted to bech32 address", e);
-            }
-        }
-
-        DataItem valueItem = items.get(1);
-        Value value = Value.deserialize(valueItem);
-
-        if (items.size() == 3) {
-            ByteString datumBytes = (ByteString) items.get(2);
-            if(datumBytes != null) {
-                output.setDatumHash(datumBytes.getBytes());
-            }
-        }
-
-        output.setValue(value);
-        return output;
-    }
-
 
     @Override
     public String toString() {
@@ -248,5 +265,11 @@ public class TransactionOutput {
 
             return this;
         }
+    }
+
+    private static final class DecodedDatum {
+        private PlutusData datum;
+        private byte[] bytes;
+        private List<?> mapsThatLostPairs;
     }
 }

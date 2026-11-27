@@ -2,8 +2,8 @@
 
 > **Compatibility reference:** Most of this document describes the preview `FlowExecutor`,
 > `FlowHandle`, and `FlowStateStore` API. New integrations should begin with
-> [`txflow/README.md`](../README.md) and the current public guide under
-> `docs/content/preview/txflow`. Use this document when maintaining or migrating an existing
+> [`txflow/README.md`](../README.md) and the current
+> [TxFlow guide](https://cardano-client.dev/txflow/overview/). Use this document when maintaining or migrating an existing
 > preview integration.
 
 TxFlow orchestrates multi-step Cardano transaction flows with automatic UTXO dependency management, confirmation tracking, rollback recovery, and retry policies.
@@ -884,5 +884,5 @@ registry.addLifecycleListener(new FlowLifecycleListener() {
 - **[FLOWLISTENER_PATTERNS.md](FLOWLISTENER_PATTERNS.md)** — Listener implementation patterns, logging, metrics, alerting
 - **[SPRING_BOOT_INTEGRATION.md](SPRING_BOOT_INTEGRATION.md)** — Spring Boot auto-configuration, bean wiring, profiles
 - **[VIRTUAL_THREADS.md](VIRTUAL_THREADS.md)** — Java 21 virtual threads integration, executor configuration
-- **[PORTABLE_TXFLOW_MIGRATION.md](PORTABLE_TXFLOW_MIGRATION.md)** — portable v1alpha1 authoring and migration
+- **[PORTABLE_TXFLOW_MIGRATION.md](PORTABLE_TXFLOW_MIGRATION.md)** — portable v1 authoring and migration
 - **[DURABLE_RUNTIME.md](DURABLE_RUNTIME.md)** — durable store, fencing, executor, and recovery contract

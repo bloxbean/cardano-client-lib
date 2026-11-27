@@ -9,17 +9,23 @@ import co.nstant.in.cbor.model.Special;
 import co.nstant.in.cbor.model.Tag;
 import co.nstant.in.cbor.model.UnicodeString;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.EncodedKeyMap;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TreeMap;
+
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toUnsignedLong;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.withoutBreak;
 
 /**
  * Converts between {@link DataItem} trees and {@link PlutusData} models, and compares and hashes models, without
@@ -58,10 +64,10 @@ final class PlutusDataCodec {
      * Decodes an array as a list, ignoring any tag on it.
      */
     static ListPlutusData decodeList(Array array) throws CborDeserializationException {
-        PlutusData shallow = decodeShallowList(array.getDataItems(), null, SHALLOW_DEPTH);
+        PlutusData shallow = decodeShallowList(array, null, SHALLOW_DEPTH);
         if (shallow != null)
             return (ListPlutusData) shallow;
-        return (ListPlutusData) run(new ListFrame(null, array.getDataItems(), null));
+        return (ListPlutusData) run(new ListFrame(null, array, null));
     }
 
     /**
@@ -81,46 +87,46 @@ final class PlutusDataCodec {
             if (depth == 0)
                 return null;
             Tag tag = item.getTag();
-            List<DataItem> items = ((Array) item).getDataItems();
+            Array array = (Array) item;
             if (tag == null)
-                return decodeShallowList(items, null, depth - 1);
-            long alternative = constrAlternative(tag, items);
-            return decodeShallowList(constrFields(tag, items), alternative, depth - 1);
+                return decodeShallowList(array, null, depth - 1);
+            long alternative = constrAlternative(tag, array.getDataItems());
+            return decodeShallowList(constrFields(tag, array), alternative, depth - 1);
         }
         if (item instanceof Map) {
             if (depth == 0)
                 return null;
             MapPlutusData map = new MapPlutusData();
+            markRepeatedKey(map, (Map) item);
             EntryIterator entries = new EntryIterator((Map) item);
             while (entries.hasNext()) {
                 PlutusData key = decodeShallow(entries.next(), depth - 1);
                 PlutusData value = key == null ? null : decodeShallow(entries.next(), depth - 1);
                 if (value == null)
                     return null;
-                map.put(key, value);
+                ((PlutusDataMap) map.getMap()).putDecoded(key, value);
             }
             return map;
         }
         return leaf(item);
     }
 
-    // A list, or a constructor's fields when alternative is set; a BREAK ends an indefinite list and marks it chunked.
-    private static PlutusData decodeShallowList(List<DataItem> items, Long alternative, int depth)
+    // A list, or a constructor's fields when alternative is set; an indefinite list is chunked. A BREAK item (which
+    // cbor-java's decoder ends an indefinite array with) ends the list.
+    private static PlutusData decodeShallowList(Array array, Long alternative, int depth)
             throws CborDeserializationException {
+        List<DataItem> items = array.getDataItems();
         List<PlutusData> list = new ArrayList<>(items.size());
-        boolean chunked = false;
         for (int i = 0, size = items.size(); i < size; i++) {
             DataItem child = items.get(i);
-            if (child == Special.BREAK) {
-                chunked = true;
+            if (child == Special.BREAK)
                 break;
-            }
             PlutusData data = decodeShallow(child, depth);
             if (data == null)
                 return null;
             list.add(data);
         }
-        ListPlutusData fields = new ListPlutusData(list, chunked);
+        ListPlutusData fields = new ListPlutusData(list, array.isChunked());
         return alternative == null ? fields : new ConstrPlutusData(alternative, fields);
     }
 
@@ -147,7 +153,7 @@ final class PlutusDataCodec {
     private static DecodeFrame open(DataItem item, DecodeFrame parent) throws CborDeserializationException {
         if (item instanceof Array) {
             if (item.getTag() == null)
-                return new ListFrame(parent, ((Array) item).getDataItems(), null);
+                return new ListFrame(parent, (Array) item, null);
             return openConstr(item, parent);
         }
         if (item instanceof Map)
@@ -157,21 +163,21 @@ final class PlutusDataCodec {
 
     private static DecodeFrame openConstr(DataItem item, DecodeFrame parent) throws CborDeserializationException {
         Tag tag = item.getTag();
-        List<DataItem> items = ((Array) item).getDataItems();
-        long alternative = constrAlternative(tag, items);
-        return new ListFrame(parent, constrFields(tag, items), alternative);
+        Array array = (Array) item;
+        long alternative = constrAlternative(tag, array.getDataItems());
+        return new ListFrame(parent, constrFields(tag, array), alternative);
     }
 
     // A constructor is 121-127 or 1280-1400 [fields], or 102 [alternative, [fields]], whose outer array may be
     // indefinite (plutus-core decodeConstrExtended reads it with decodeListLenOrIndef).
     private static long constrAlternative(Tag tag, List<DataItem> items) throws CborDeserializationException {
         if (tag.getValue() == GENERAL_FORM_TAG) {
-            int size = items.size() > 0 && items.get(items.size() - 1) == Special.BREAK ? items.size() - 1 : items.size();
+            int size = withoutBreak(items).size();
             if (size != 2)
                 throw new CborDeserializationException("Cbor deserialization failed. Expected 2 DataItem, found : " + size);
             if (!(items.get(0) instanceof UnsignedInteger) || !(items.get(1) instanceof Array))
                 throw new CborDeserializationException("Cbor deserialization failed. Constructor 102 is [alternative, [fields]]");
-            return ((UnsignedInteger) items.get(0)).getValue().longValue();
+            return toUnsignedLong(items.get(0));
         }
         Long alternative = compactTagToAlternative(tag.getValue());
         if (alternative == null)
@@ -179,8 +185,8 @@ final class PlutusDataCodec {
         return alternative;
     }
 
-    private static List<DataItem> constrFields(Tag tag, List<DataItem> items) {
-        return tag.getValue() == GENERAL_FORM_TAG ? ((Array) items.get(1)).getDataItems() : items;
+    private static Array constrFields(Tag tag, Array array) {
+        return tag.getValue() == GENERAL_FORM_TAG ? (Array) array.getDataItems().get(1) : array;
     }
 
     private static PlutusData leaf(DataItem item) throws CborDeserializationException {
@@ -215,30 +221,26 @@ final class PlutusDataCodec {
         abstract PlutusData result();
     }
 
-    // A list, or a constructor's fields when alternative is set. A BREAK ends an indefinite list and marks it chunked.
+    // A list, or a constructor's fields when alternative is set; an indefinite list is chunked. A BREAK item (which
+    // cbor-java's decoder ends an indefinite array with) ends the list.
     private static final class ListFrame extends DecodeFrame {
         private final List<DataItem> items;
+        private final boolean chunked;
         private final Long alternative;
         private final List<PlutusData> list;
         private int index;
-        private boolean chunked;
 
-        ListFrame(DecodeFrame parent, List<DataItem> items, Long alternative) {
+        ListFrame(DecodeFrame parent, Array array, Long alternative) {
             super(parent);
-            this.items = items;
+            this.items = array.getDataItems();
+            this.chunked = array.isChunked();
             this.alternative = alternative;
             this.list = new ArrayList<>(items.size());
         }
 
         @Override
         boolean hasNext() {
-            if (chunked || index == items.size())
-                return false;
-            if (items.get(index) == Special.BREAK) {
-                chunked = true;
-                return false;
-            }
-            return true;
+            return index < items.size() && items.get(index) != Special.BREAK;
         }
 
         @Override
@@ -271,6 +273,7 @@ final class PlutusDataCodec {
         MapFrame(DecodeFrame parent, Map source) {
             super(parent);
             this.entries = new EntryIterator(source);
+            markRepeatedKey(map, source);
         }
 
         @Override
@@ -289,7 +292,7 @@ final class PlutusDataCodec {
                 key = child;
                 keyDone = true;
             } else {
-                map.put(key, child);
+                ((PlutusDataMap) map.getMap()).putDecoded(key, child);
                 keyDone = false;
             }
         }
@@ -298,6 +301,11 @@ final class PlutusDataCodec {
         PlutusData result() {
             return map;
         }
+    }
+
+    private static void markRepeatedKey(MapPlutusData map, Map source) {
+        if (source instanceof EncodedKeyMap && ((EncodedKeyMap) source).hasRepeatedKey())
+            ((PlutusDataMap) map.getMap()).markLostPairs();
     }
 
     // Keys and values of a cbor-java map in order: its key list and values share the insertion order, so they are
@@ -415,7 +423,7 @@ final class PlutusDataCodec {
             return fields;
         }
         Array general = new Array();
-        general.add(new UnsignedInteger(constr.getAlternative()));
+        general.add(unsignedLongItem(constr.getAlternative()));
         general.add(fields);
         general.setTag(GENERAL_FORM_TAG);
         return general;
@@ -553,6 +561,63 @@ final class PlutusDataCodec {
         DataItem result() {
             return map;
         }
+    }
+
+    // ---- whether data still represents the bytes it was decoded from
+
+    /**
+     * The maps in this datum that lost a pair when decoded, in walk order: the CBOR repeated a key, or CBOR keys that
+     * differ are one Plutus key, such as a0 and bfff. Their model can't show what they lost, so only these same objects
+     * can stand for the bytes they came from, at the same places (ADR 0002 D6.3). Almost every datum has none. Nothing
+     * recurses.
+     */
+    static List<LossyMap> mapsThatLostPairs(PlutusData root) {
+        List<LossyMap> found = new ArrayList<>(0);
+        ArrayDeque<PlutusData> pending = new ArrayDeque<>();
+        pending.push(root);
+        long place = 0;
+        while (!pending.isEmpty()) {
+            PlutusData data = pending.pop();
+            place++;
+            if (data instanceof ListPlutusData) {
+                List<PlutusData> items = ((ListPlutusData) data).getPlutusDataList();
+                if (items != null)
+                    items.forEach(pending::push);
+            } else if (data instanceof ConstrPlutusData) {
+                if (((ConstrPlutusData) data).getData() != null)
+                    pending.push(((ConstrPlutusData) data).getData());
+            } else if (data instanceof MapPlutusData) {
+                java.util.Map<PlutusData, PlutusData> map = ((MapPlutusData) data).getMap();
+                if (map == null)
+                    continue;
+                map.forEach((key, value) -> {
+                    pending.push(key);
+                    pending.push(value);
+                });
+                if (map instanceof PlutusDataMap && ((PlutusDataMap) map).hasLostPairs())
+                    found.add(new LossyMap(place, data));
+            }
+        }
+        return found;
+    }
+
+    record LossyMap(long place, PlutusData map) {
+    }
+
+    static boolean sameMaps(List<LossyMap> current, List<?> decoded) {
+        if (current.size() != decoded.size())
+            return false;
+        for (int i = 0; i < current.size(); i++) {
+            LossyMap other = (LossyMap) decoded.get(i);
+            if (current.get(i).place() != other.place() || current.get(i).map() != other.map())
+                return false;
+        }
+        return true;
+    }
+
+    /** The model's values and pairs in order, which an in-place change at any depth alters. */
+    static byte[] orderedKey(PlutusData root) {
+        return modelKey(root, true);
     }
 
     // ---- equals and hashCode
@@ -734,13 +799,17 @@ final class PlutusDataCodec {
      * value; any other implementation of {@link PlutusData} by its own serialization.
      */
     static byte[] equalityKey(PlutusData root) {
+        return modelKey(root, false);
+    }
+
+    private static byte[] modelKey(PlutusData root, boolean inOrder) {
         Bytes out = new Bytes();
-        KeyFrame top = writeKeyNode(root, out, null);
+        KeyFrame top = writeKeyNode(root, out, null, inOrder);
         while (top != null) {
             if (top.hasNext()) {
                 PlutusData child = top.next();
                 Bytes childOut = top.childBuffer();
-                KeyFrame opened = writeKeyNode(child, childOut, top);
+                KeyFrame opened = writeKeyNode(child, childOut, top, inOrder);
                 if (opened != null)
                     top = opened;
                 else
@@ -765,7 +834,7 @@ final class PlutusDataCodec {
     private static final int KEY_OTHER = 6;
 
     // Writes a leaf completely, or a container's head and returns a frame for its children.
-    private static KeyFrame writeKeyNode(PlutusData data, Bytes out, KeyFrame parent) {
+    private static KeyFrame writeKeyNode(PlutusData data, Bytes out, KeyFrame parent, boolean inOrder) {
         if (data == null) {
             out.write(KEY_NULL);
             return null;
@@ -797,7 +866,7 @@ final class PlutusDataCodec {
                 return null;
             }
             out.writeInt(map.size());
-            if (map.size() > 1)
+            if (map.size() > 1 && !inOrder)
                 return new SortedEntriesFrame(parent, out, map);
             return map.isEmpty() ? null : new KeyListFrame(parent, out, new MapItems(map));
         }
@@ -966,6 +1035,8 @@ final class PlutusDataCodec {
 
     // Alternatives 0-6 are tags 121-127, 7-127 are tags 1280-1400, anything else uses tag 102.
     static Long alternativeToCompactTag(long alternative) {
+        if (alternative < 0) // an unsigned value at or above 2^63, see CborSerializationUtil.toUnsignedLong
+            return null;
         if (alternative <= 6)
             return 121 + alternative;
         else if (alternative <= 127)

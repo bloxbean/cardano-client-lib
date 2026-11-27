@@ -1,13 +1,13 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.transaction.raw.RawProtocolVersion;
 import lombok.*;
 
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
+import java.math.BigInteger;
 
 @Getter
 @AllArgsConstructor
@@ -17,7 +17,8 @@ import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIn
 @Builder
 public class ProtocolVersion {
     private int major;
-    private int minor;
+    // cardano-ledger: a Natural until protocol version 12, then a Word32
+    private long minor;
 
     public Array serialize() {
         Array array = new Array();
@@ -28,14 +29,20 @@ public class ProtocolVersion {
     }
 
     public static ProtocolVersion deserialize(Array array) {
-        List<DataItem> protocolVerDIList = array.getDataItems();
-        if (protocolVerDIList.size() != 2)
-            throw new IllegalArgumentException("Invalid protocol version array. Expected 2 items. Found : "
-                    + protocolVerDIList.size());
+        return from(RawProtocolVersion.lenient(CborSerializationUtil.span(array)));
+    }
 
-        int major = toInt(protocolVerDIList.get(0));
-        int minor = toInt(protocolVerDIList.get(1));
-
-        return new ProtocolVersion(major, minor);
+    /**
+     * @param raw a protocol version as received
+     * @return the model
+     * @throws CborRuntimeException if the minor version is no number
+     * @throws ArithmeticException  if the minor version does not fit a long
+     */
+    public static ProtocolVersion from(RawProtocolVersion raw) {
+        int major = raw.major();
+        BigInteger minor = raw.minor();
+        if (minor == null)
+            throw new CborRuntimeException("Expected a minor protocol version");
+        return new ProtocolVersion(major, minor.longValueExact());
     }
 }

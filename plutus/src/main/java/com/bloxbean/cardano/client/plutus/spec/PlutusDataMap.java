@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
+
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Iterator;
@@ -19,6 +20,21 @@ import java.util.Set;
 final class PlutusDataMap extends AbstractMap<PlutusData, PlutusData> {
     // a key as stored: the PlutusData itself (null, an integer or a byte string), or a Key with its hash
     private final LinkedHashMap<Object, PlutusData> entries = new LinkedHashMap<>();
+    // whether decoding lost a pair of this map, see PlutusDataCodec.mapsThatLostPairs
+    private boolean lostPairs;
+
+    boolean hasLostPairs() {
+        return lostPairs;
+    }
+
+    void markLostPairs() {
+        lostPairs = true;
+    }
+
+    void putDecoded(PlutusData key, PlutusData value) {
+        if (put(key, value) != null)
+            lostPairs = true;
+    }
 
     @Override
     public PlutusData put(PlutusData key, PlutusData value) {

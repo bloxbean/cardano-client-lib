@@ -37,7 +37,7 @@ public class MinAdaCalculator {
         //according to https://hydra.iohk.io/build/15339994/download/1/babbage-changes.pdf
         //See on the page 9 getValue txout
         //getValue txout ≥ inject ( (serSize txout + 160) ∗ coinsPerUTxOByte pp )
-        TransactionOutput cloneOutput = output.toBuilder().build();
+        TransactionOutput cloneOutput = output.copy();
         if (cloneOutput.getValue().getCoin() == null || cloneOutput.getValue().getCoin().equals(BigInteger.ZERO)
                 || cloneOutput.getValue().getCoin().compareTo(BigInteger.valueOf(100000)) == -1) {
             //Workaround

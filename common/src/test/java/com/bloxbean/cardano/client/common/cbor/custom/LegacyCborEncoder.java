@@ -7,21 +7,28 @@ import co.nstant.in.cbor.model.*;
 import com.google.common.primitives.UnsignedBytes;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collection;
+import java.util.List;
 import java.util.TreeMap;
 
 /**
  * The recursive encoder that {@link CustomCborEncoder} was before it became iterative (with the CustomMapEncoder it
- * used), kept as a test oracle: the iterative encoder must produce the same bytes.
+ * used), kept as a test oracle: the iterative encoder must produce the same bytes. Like it, it closes an indefinite
+ * array that does not end with a BREAK item (as CborSerializationUtil.deserialize gives one) with a BREAK, and an empty
+ * indefinite map too, which the recursive encoder left without its BREAK, so unterminated, and it writes a tag number
+ * of 2^63 or more in 8 bytes.
  */
 @SuppressWarnings("deprecation")
 public class LegacyCborEncoder extends CborEncoder {
+    private final OutputStream outputStream;
     private final LegacyMapEncoder mapEncoder;
     private final CustomByteStringEncoder byteStringEncoder;
 
     public LegacyCborEncoder(OutputStream outputStream) {
         super(outputStream);
+        this.outputStream = outputStream;
         this.mapEncoder = new LegacyMapEncoder(this, outputStream);
         this.byteStringEncoder = new CustomByteStringEncoder(this, outputStream);
     }
@@ -40,7 +47,9 @@ public class LegacyCborEncoder extends CborEncoder {
         if (dataItem == null) {
             dataItem = SimpleValue.NULL;
         }
-        if (dataItem.getMajorType().equals(MajorType.MAP)) {
+        if (dataItem instanceof Tag && ((Tag) dataItem).getValue() < 0) {
+            encodeLargeTag((Tag) dataItem);
+        } else if (dataItem.getMajorType().equals(MajorType.MAP)) {
             if (dataItem.hasTag()) {
                 encode(dataItem.getTag());
             }
@@ -50,9 +59,40 @@ public class LegacyCborEncoder extends CborEncoder {
                 encode(dataItem.getTag());
             }
             byteStringEncoder.encode((ByteString) dataItem);
+        } else if (dataItem instanceof Array && ((Array) dataItem).isChunked() && !endsWithBreak((Array) dataItem)) {
+            if (dataItem.hasTag()) {
+                encode(dataItem.getTag());
+            }
+            try {
+                outputStream.write(MajorType.ARRAY.getValue() << 5 | 31);
+            } catch (IOException e) {
+                throw new CborException(e);
+            }
+            for (DataItem item : ((Array) dataItem).getDataItems()) {
+                encode(item);
+            }
+            encode(Special.BREAK);
         } else {
             super.encode(dataItem);
         }
+    }
+
+    // A tag number of 2^63 or more: cbor-java's signed comparisons write it as other, invalid bytes.
+    private void encodeLargeTag(Tag tag) throws CborException {
+        if (tag.hasTag())
+            encode(tag.getTag());
+        try {
+            outputStream.write(MajorType.TAG.getValue() << 5 | 27);
+            for (int shift = 56; shift >= 0; shift -= 8)
+                outputStream.write((int) (tag.getValue() >> shift));
+        } catch (IOException e) {
+            throw new CborException(e);
+        }
+    }
+
+    private static boolean endsWithBreak(Array array) {
+        List<DataItem> items = array.getDataItems();
+        return !items.isEmpty() && items.get(items.size() - 1) == Special.BREAK;
     }
 
     private static class LegacyMapEncoder extends MapEncoder {
@@ -69,6 +109,8 @@ public class LegacyCborEncoder extends CborEncoder {
                 encodeTypeAndLength(MajorType.MAP, keys.size());
             }
             if (keys.isEmpty()) {
+                if (map.isChunked())
+                    encoder.encode(SimpleValue.BREAK);
                 return;
             }
             if (map.isChunked()) {

@@ -17,6 +17,9 @@ Per block (Shelley to Conway):
 - `RawBlock`: era detection against the block envelope, the header shape (TPraos or Praos), the block body hash
   against the header, and that transaction bodies, witness sets, auxiliary data keys and invalid transaction
   indexes line up.
+- `RawHeader`: the block number, slot, block hash and block body hash against the raw bytes; the block number and
+  slot against Yaci's header reader, which is what chain-sync delivers. The blocks whose hash differs from Yaci's,
+  which hashes a re-encoding of the header, are counted (`header_hash_differs_from_yaci`).
 
 Per transaction:
 
@@ -32,6 +35,9 @@ Per transaction:
   key 11.
 - `Transaction.deserialize`: succeeds, and the model agrees with the raw view on inputs, outputs, fee, TTL,
   validity start, auxiliary data hash, script data hash, `isValid`, witness counts and redeemers.
+- The typed views: `RawTx.body(era)`, `RawTx.witnessSet(era)` and `RawTx.auxData(era)` read every field they type.
+- `RawTx.walk`: the walk over all the ledger tables reports no field unknown or outside its era, and no required field
+  missing (`table_entry`, `table_missing`).
 
 ### What it does not check
 

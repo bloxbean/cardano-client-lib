@@ -31,17 +31,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Every transaction embedded in a portable TxFlow that the TxFlow compiler accepts validates against the QuickTx
- * {@code $defs/transaction} that {@code txflow-v1alpha1.schema.json} references (ADR "Generated TxPlan Intent Schema",
+ * {@code $defs/transaction} that {@code txflow-v1.schema.json} references (ADR "Generated TxPlan Intent Schema",
  * I6 and I10). The documents are the hand-written flows of the TxFlow tests and fixtures.
  */
 class EmbeddedTransactionSchemaTest {
 
-    private static final String QUICKTX_SCHEMA_ID = "https://cardano-client.dev/schemas/txplan/v1alpha1";
+    private static final String QUICKTX_SCHEMA_ID = "https://cardano-client.dev/schemas/txplan/v1";
     private static final Pattern TEXT_BLOCK = Pattern.compile("\"\"\"[ \\t]*\\R(.*?)\"\"\"", Pattern.DOTALL);
 
     @Test
     void embeddedTransactionsOfCompilableFlowsValidate() throws IOException {
-        String quickTxSchema = resource("/schema/txplan-v1alpha1.schema.json");
+        String quickTxSchema = resource("/schema/txplan-v1.schema.json");
         Schema transaction = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12,
                         builder -> builder.schemas(Map.of(QUICKTX_SCHEMA_ID, quickTxSchema)))
                 .getSchema(SchemaLocation.of(QUICKTX_SCHEMA_ID + "#/$defs/transaction"));

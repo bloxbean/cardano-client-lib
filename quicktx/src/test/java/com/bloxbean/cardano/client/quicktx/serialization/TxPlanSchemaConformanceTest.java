@@ -58,7 +58,7 @@ class TxPlanSchemaConformanceTest {
         List<String> failures = new ArrayList<>();
         for (Map.Entry<String, String> document : corpus.entrySet()) {
             if (!TxPlanSchemaSupport.acceptedByRuntime(document.getValue())) continue;
-            if (document.getKey().contains(".mdx#")) docs++;
+            if (document.getKey().contains(".md#")) docs++;
             else if (document.getKey().contains(".java#")) textBlocks++;
             List<String> errors = TxPlanSchemaSupport.validate(document.getValue());
             if (!errors.isEmpty()) failures.add(document.getKey() + " " + errors + "\n" + document.getValue());

@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigInteger;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ConstrDataJsonSerializerTest {
@@ -69,6 +71,14 @@ class ConstrDataJsonSerializerTest {
                 ListPlutusData.of(BigIntPlutusData.of(2000), BytesPlutusData.of("World")));
 
         assertThat(constrPlutusData).isEqualTo(expectedConstrPlutusData);
+    }
+
+    @Test
+    void alternativeAtOrAbove2To63IsWrittenUnsigned() throws JsonProcessingException {
+        String json = mapper.writeValueAsString(ConstrPlutusData.of(Long.MIN_VALUE));
+
+        assertThat(mapper.readTree(json).get("constructor").bigIntegerValue())
+                .isEqualTo(new BigInteger("9223372036854775808"));
     }
 
 }

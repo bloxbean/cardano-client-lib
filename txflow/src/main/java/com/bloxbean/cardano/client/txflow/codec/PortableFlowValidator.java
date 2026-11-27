@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Validates that an in-memory flow has a lossless portable v1alpha1 projection.
+ * Validates that an in-memory flow has a lossless portable v1 projection.
  *
  * <p>The portable writer and compiler deliberately share this validator. That
  * prevents an execution plan from being fingerprinted with a representation
@@ -23,7 +23,7 @@ public final class PortableFlowValidator {
     }
 
     /**
-     * Reports every known construct that portable v1alpha1 cannot encode without
+     * Reports every known construct that portable v1 cannot encode without
      * changing behavior.
      *
      * @param flow flow definition to inspect
@@ -34,7 +34,7 @@ public final class PortableFlowValidator {
     }
 
     /**
-     * Reports every construct that portable v1alpha1 cannot encode, judging QuickTx extension
+     * Reports every construct that portable v1 cannot encode, judging QuickTx extension
      * steps against the extensions registered with the calling compiler or codec.
      *
      * @param flow flow definition to inspect
@@ -107,7 +107,7 @@ public final class PortableFlowValidator {
         if (confirmation != null && !hasDefaultCompatibilityFields(confirmation)) {
             diagnostics.add(error("TXFLOW_NON_PORTABLE_CONFIRMATION_COMPATIBILITY",
                     "Legacy confirmation rollback/backend-wait settings are not represented by "
-                            + "portable v1alpha1; keep their ordinary defaults and configure "
+                            + "portable v1; keep their ordinary defaults and configure "
                             + "portable rollback separately",
                     "$.spec.execution.confirmation"));
         }
@@ -116,7 +116,7 @@ public final class PortableFlowValidator {
                 || !flow.getExecutionSettings().getRetryPolicy().isRetryOnNetworkError())) {
             diagnostics.add(error("TXFLOW_NON_PORTABLE_RETRY_FILTERS",
                     "retryOnTimeout=false and retryOnNetworkError=false are not represented by "
-                            + "portable v1alpha1",
+                            + "portable v1",
                     "$.spec.execution.retry"));
         }
         if (flow.getExecutionSettings().getRollbackStrategy() != null) {

@@ -32,6 +32,12 @@ public final class Cip113ProgrammableTokenService implements ProgrammableTokenSe
             deploymentMetadata.put("network", deployment.getNetwork().getNetworkId());
         if (deployment.getBootstrapTxHash() != null)
             deploymentMetadata.put("bootstrap_tx", deployment.getBootstrapTxHash());
+        if (deployment.getParamsPolicy() != null)
+            deploymentMetadata.put("params_policy", deployment.getParamsPolicy());
+        // Both keys are written, so a plan replayed under the other key is refused either way.
+        // Plans written before this field bind to the configured deployment, like every field.
+        if (deployment.getSmartWalletKey() != null)
+            deploymentMetadata.put("smart_wallet_key", deployment.getSmartWalletKey().name());
         this.extension = ProgrammableTokenExtension.builder()
                 .protocol(protocol)
                 .deployment(deploymentMetadata)

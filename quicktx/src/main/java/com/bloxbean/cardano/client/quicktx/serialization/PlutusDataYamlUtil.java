@@ -41,16 +41,6 @@ public class PlutusDataYamlUtil {
 
     private static final ObjectMapper MAPPER = YamlSerializer.getYamlMapper();
     private static final String NAME_ANNOTATION = "@name";
-
-    /**
-     * Strip all {@code @name} properties recursively from a JsonNode tree.
-     *
-     * <p>The {@code @name} property is write-only documentation - it is permanently discarded after parsing
-     * and has zero impact on PlutusData construction or CBOR serialization.
-     *
-     * @param node the JsonNode to process
-     * @return a new JsonNode with all @name properties removed
-     */
     private static final Set<String> FORMS = Set.of("int", "bytes", "list", "map", "constructor");
 
     /**
@@ -137,6 +127,15 @@ public class PlutusDataYamlUtil {
         return value;
     }
 
+    /**
+     * Strip all {@code @name} properties recursively from a JsonNode tree.
+     *
+     * <p>The {@code @name} property is write-only documentation - it is permanently discarded after parsing
+     * and has zero impact on PlutusData construction or CBOR serialization.
+     *
+     * @param node the JsonNode to process
+     * @return a new JsonNode with all @name properties removed
+     */
     public static JsonNode stripFieldNames(JsonNode node) {
         if (node == null) {
             return null;

@@ -34,7 +34,7 @@ class TxFlowCodecTest {
     private final TxFlowCodec codec = TxFlowCodec.standard();
 
     private static final String PORTABLE = """
-            api_version: txflow.cardano-client.dev/v1alpha1
+            api_version: txflow.cardano-client.dev/v1
             kind: TxFlow
             metadata:
               name: pay
@@ -80,7 +80,7 @@ class TxFlowCodecTest {
     @Test
     void portableFundingRelationshipRoundTripsCanonically() {
         String source = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: chained}
                 spec:
@@ -96,7 +96,7 @@ class TxFlowCodecTest {
         assertEquals(List.of("first"), parsed.getSteps().get(1).getFundingFrom());
 
         String json = codec.write(parsed,
-                FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
         assertTrue(json.contains("funding_from"));
         assertEquals(List.of("first"), codec.parse(json, FlowParseOptions.serverDefaults())
                 .requireFlow().getSteps().get(1).getFundingFrom());
@@ -114,14 +114,14 @@ class TxFlowCodecTest {
                 flow.getExecutionSettings().getChainingMode());
         assertEquals(3, flow.getExecutionSettings().getConfirmationConfig().getMinConfirmations());
 
-        String yaml = codec.write(flow, FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1));
-        String json = codec.write(flow, FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+        String yaml = codec.write(flow, FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1));
+        String json = codec.write(flow, FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
 
         assertFalse(codec.parse(yaml, FlowParseOptions.serverDefaults()).hasErrors());
         assertFalse(codec.parse(json, FlowParseOptions.serverDefaults()).hasErrors());
         assertEquals(json, codec.write(codec.parse(json, FlowParseOptions.serverDefaults())
                         .requireFlow(),
-                FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1)));
+                FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1)));
     }
 
     @Test
@@ -280,7 +280,7 @@ class TxFlowCodecTest {
             TxFlow flow = codec.parse(withConfirmationPreset(preset),
                     FlowParseOptions.serverDefaults()).requireFlow();
             FlowWriteOptions jsonOptions = FlowWriteOptions.of(
-                    FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1);
+                    FlowFormat.JSON, FlowSchemaVersion.V1);
             String first = codec.write(flow, jsonOptions);
             JsonNode written = new ObjectMapper().readTree(first);
             JsonNode emittedPreset = written.at("/spec/execution/confirmation/preset");
@@ -339,14 +339,14 @@ class TxFlowCodecTest {
                     .rollbackPolicy(policy).build());
 
             String first = codec.write(flow,
-                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
             JsonNode root = new ObjectMapper().readTree(first);
             String encodedAction = root.at("/spec/execution/rollback/action").asText();
             assertTrue(schemaActions.contains(encodedAction), encodedAction);
 
             String second = codec.write(codec.parse(first, FlowParseOptions.serverDefaults())
                             .requireFlow(),
-                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
             assertEquals(first, second, encodedAction);
         }
     }
@@ -406,7 +406,7 @@ class TxFlowCodecTest {
         assertTrue(multiple.getDiagnostics().get(0).message().contains("Multiple documents"));
 
         String duplicateJson = """
-                {"api_version":"txflow.cardano-client.dev/v1alpha1",
+                {"api_version":"txflow.cardano-client.dev/v1",
                  "kind":"TxFlow", "kind":"TxFlow",
                  "metadata":{"name":"duplicate"},
                  "spec":{"steps":[{"id":"one","transaction":{"tx":{"intents":[]}}}]}}
@@ -468,7 +468,7 @@ class TxFlowCodecTest {
     @Test
     void yamlNestingDepthLimitIsEnforced() {
         StringBuilder deeplyNested = new StringBuilder("""
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: deeply-nested}
                 spec:
@@ -617,7 +617,7 @@ class TxFlowCodecTest {
         assertTrue(multiple.hasErrors());
 
         String duplicateJson = """
-                {"api_version":"txflow.cardano-client.dev/v1alpha1",
+                {"api_version":"txflow.cardano-client.dev/v1",
                  "kind":"TxFlow", "kind":"TxFlow",
                  "metadata":{"name":"duplicate"},
                  "spec":{"steps":[{"id":"one","transaction":{"tx":{"intents":[]}}}]}}
@@ -668,7 +668,7 @@ class TxFlowCodecTest {
         assertEquals(0.15, flow.getExecutionSettings().getRetryPolicy().getJitterFactor());
 
         String encoded = codec.write(flow,
-                FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1));
+                FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1));
         TxFlow reparsed = codec.parse(encoded, FlowParseOptions.serverDefaults()).requireFlow();
         assertEquals(flow.getExecutionSettings().getRollbackPolicy(),
                 reparsed.getExecutionSettings().getRollbackPolicy());
@@ -751,7 +751,7 @@ class TxFlowCodecTest {
 
     private Set<String> rollbackActionsFromSchema() throws Exception {
         try (InputStream stream = getClass().getResourceAsStream(
-                "/schema/txflow-v1alpha1.schema.json")) {
+                "/schema/txflow-v1.schema.json")) {
             JsonNode values = new ObjectMapper().readTree(stream)
                     .at("/$defs/rollback/properties/action/enum");
             Set<String> actions = new HashSet<>();
@@ -765,7 +765,7 @@ class TxFlowCodecTest {
 
     private Set<String> confirmationPresetsFromSchema() throws Exception {
         try (InputStream stream = getClass().getResourceAsStream(
-                "/schema/txflow-v1alpha1.schema.json")) {
+                "/schema/txflow-v1.schema.json")) {
             JsonNode values = new ObjectMapper().readTree(stream)
                     .at("/$defs/confirmation/properties/preset/enum");
             Set<String> presets = new HashSet<>();
@@ -793,6 +793,6 @@ class TxFlowCodecTest {
     }
 
     private FlowWriteOptions portableYaml() {
-        return FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1);
+        return FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1);
     }
 }

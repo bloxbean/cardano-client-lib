@@ -37,11 +37,13 @@ class TxFlowConformanceFixturesTest {
     @Test
     void publishedSchemasAndDiagnosticCatalogHaveStableIdentifiers() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
-        JsonNode schema = mapper.readTree(resource("/schema/txflow-v1alpha1.schema.json"));
-        assertEquals("https://cardano-client.dev/schemas/txflow/v1alpha1",
+        JsonNode schema = mapper.readTree(resource("/schema/txflow-v1.schema.json"));
+        assertEquals("https://cardano-client.dev/schemas/txflow/v1",
                 schema.path("$id").asText());
-        assertEquals("https://cardano-client.dev/schemas/txplan/v1alpha1#/$defs/transaction",
+        assertEquals("https://cardano-client.dev/schemas/txplan/v1#/$defs/transaction",
                 schema.at("/$defs/step/properties/transaction/$ref").asText());
+        assertEquals("array",
+                schema.at("/$defs/step/properties/funding_from/type").asText());
         JsonNode catalog = mapper.readTree(resource("/txflow-diagnostic-codes.json"));
         assertTrue(catalog.path("codes").has("TXFLOW_IDEMPOTENCY_CONFLICT"));
     }

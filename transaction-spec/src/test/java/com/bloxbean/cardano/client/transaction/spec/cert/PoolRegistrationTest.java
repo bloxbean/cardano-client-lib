@@ -74,6 +74,23 @@ class PoolRegistrationTest {
     }
 
     /**
+     * cardano-ledger's DnsName may be empty (textToDns 64): a relay {@code [_ 2, ""]} of cardano-cbor-dataset's
+     * Conway corpus decoded, but did not serialize.
+     */
+    @Test
+    void emptyDnsNamesSerialize() throws Exception {
+        String keyHash = "581c" + "00".repeat(28);
+        String cbor = "8a03" + keyHash + "5820" + "00".repeat(32) + "0000d81e820001" + "581de0" + "00".repeat(28)
+                + "80" + "82" + "9f0260ff" + "8301f660" + "f6";
+        PoolRegistration poolRegistration = PoolRegistration.deserialize(cbor);
+        assertThat(poolRegistration.getRelays()).containsExactly(new MultiHostName(""), new SingleHostName(null, ""));
+        assertThat(HexUtil.encodeHexString(CborSerializationUtil.serialize(poolRegistration.getRelays().get(0).serialize())))
+                .isEqualTo("820260");
+        assertThat(HexUtil.encodeHexString(CborSerializationUtil.serialize(poolRegistration.getRelays().get(1).serialize())))
+                .isEqualTo("8301f660");
+    }
+
+    /**
      * Owners are a set (cardano-ledger decodeSet: definite or indefinite, tag 258 allowed from Conway) and relays a
      * sequence (decodeStrictSeq: definite or indefinite). The BREAK of an indefinite one was read as an owner or a relay.
      */

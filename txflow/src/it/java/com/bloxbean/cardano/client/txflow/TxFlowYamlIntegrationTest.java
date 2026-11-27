@@ -124,7 +124,7 @@ public class TxFlowYamlIntegrationTest {
     @Order(0)
     void portableYaml_bindCompileAndExecute_success() {
         String yaml = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: portable-integration}
                 spec:

@@ -18,6 +18,8 @@ import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.math.BigInteger;
@@ -36,12 +38,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 public class TxPlanStrictReadingIT extends TestDataBaseIT {
 
-    private static final String SCHEMA_ID = "https://cardano-client.dev/schemas/txplan/v1alpha1";
+    private static final Logger log = LoggerFactory.getLogger(TxPlanStrictReadingIT.class);
+    private static final String SCHEMA_ID = "https://cardano-client.dev/schemas/txplan/v1";
     private static Schema schema;
 
     @BeforeAll
     static void loadSchema() throws Exception {
-        try (InputStream in = TxPlanStrictReadingIT.class.getResourceAsStream("/schema/txplan-v1alpha1.schema.json")) {
+        try (InputStream in = TxPlanStrictReadingIT.class.getResourceAsStream("/schema/txplan-v1.schema.json")) {
             String text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12,
                     builder -> builder.schemas(Map.of(SCHEMA_ID, text))).getSchema(SchemaLocation.of(SCHEMA_ID));
@@ -155,7 +158,7 @@ public class TxPlanStrictReadingIT extends TestDataBaseIT {
     private Result<String> submit(TxPlan plan) {
         Result<String> result = quickTxBuilder.compose(plan)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .completeAndWait(System.out::println);
+                .completeAndWait(log::info);
         assertThat(result.isSuccessful()).as(result.getResponse()).isTrue();
         checkIfUtxoAvailable(result.getValue(), sender1Addr);
         return result;

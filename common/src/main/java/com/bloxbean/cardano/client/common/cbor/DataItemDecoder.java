@@ -31,11 +31,13 @@ import java.util.List;
  * Decodes CBOR bytes into the same {@link DataItem} trees as cbor-java 0.9's {@code CborDecoder} with its default
  * settings, without recursion: containers are frames on an explicit stack, so any nesting depth decodes on any thread.
  * <p>
-  * Trees match cbor-java's: an indefinite array is {@code chunked} and ends with {@link Special#BREAK}; an indefinite
-  * map is {@code chunked}; chunked byte and text strings are joined and not marked chunked; the innermost tag is
-  * attached to the item and outer tags are chained on it; tag 30 becomes a {@link RationalNumber} and tag 38 a
- * {@link LanguageTaggedString}; untagged {@code false/true/null/undefined} are cbor-java's singletons; a repeated map
- * key keeps its first position and the last value. Maps are {@link EncodedKeyMap}s.
+ * Trees match cbor-java's, except that an indefinite array does not end with {@link Special#BREAK}: it is
+ * {@code chunked} and holds just its items. An indefinite map is {@code chunked}; chunked byte and text strings are
+ * joined and not marked chunked; the innermost tag is attached to the item and outer tags are chained on it; tag 30
+ * becomes a {@link RationalNumber} and tag 38 a {@link LanguageTaggedString} (over a definite or an indefinite
+ * array), and a bignum part of a rational becomes the integer of its value, which cbor-java rejected; untagged
+ * {@code false/true/null/undefined} are cbor-java's singletons; a repeated map key keeps its first position and the
+ * last value. Maps are {@link EncodedKeyMap}s.
  * <p>
  * Input must be well-formed (RFC 8949 section 5.3), checked with the same head rules as {@link CborSpan}: unlike
  * cbor-java, a misplaced BREAK, a tag on BREAK and an invalid string chunk are rejected. Declared sizes are checked
@@ -50,6 +52,8 @@ final class DataItemDecoder {
     private static final int MAJOR_MAP = 5;
     private static final int MAJOR_TAG = 6;
     private static final int BREAK = 0xff;
+    private static final long TAG_POSITIVE_BIGNUM = 2;
+    private static final long TAG_NEGATIVE_BIGNUM = 3;
     private static final long TAG_RATIONAL = 30;
     private static final long TAG_LANGUAGE_STRING = 38;
     private static final BigInteger MINUS_ONE = BigInteger.ONE.negate();
@@ -80,6 +84,13 @@ final class DataItemDecoder {
     }
 
     /**
+     * @return the one data item of a span, which has been walked
+     */
+    static DataItem decode(CborSpan item) {
+        return new DataItemDecoder(item.buffer(), item.offset(), item.offset() + item.length()).decodeItem();
+    }
+
+    /**
      * @return every data item in the buffer, in order
      */
     static List<DataItem> decodeAll(byte[] buffer) {
@@ -88,6 +99,73 @@ final class DataItemDecoder {
         while (decoder.pos < decoder.limit)
             items.add(decoder.decodeItem());
         return items;
+    }
+
+    /**
+     * What decoding rejects in a well-formed item, beyond the rules {@link CborSpan} has: {@link #rational(DataItem)}
+     * and {@link #languageTaggedString(DataItem)}. One pass over the heads, without a tree. Whichever of the two is
+     * applied last to an item, the other sees its items, so each is checked on the item's own items.
+     */
+    static void checkTags(byte[] buffer, int start, int end) {
+        CborHead head = new CborHead();
+        boolean rational = false;
+        boolean languageString = false;
+        int pos = start;
+        while (pos < end) {
+            if ((buffer[pos] & 0xff) == BREAK) {
+                pos++;
+                continue;
+            }
+            head.read(buffer, pos, end);
+            int itemStart = pos;
+            pos = head.end;
+            if (head.major == MAJOR_TAG) {
+                rational |= head.argument == TAG_RATIONAL;
+                languageString |= head.argument == TAG_LANGUAGE_STRING;
+                continue;
+            }
+            if (rational || languageString) {
+                List<CborSpan> items = head.major == MAJOR_ARRAY ? CborSpan.at(buffer, itemStart).items() : List.of();
+                if (rational && !isRational(items))
+                    throw new CborRuntimeException("CBOR tag 30 (rational number) must wrap an array of two integers"
+                            + " with a denominator other than 0, at offset " + itemStart);
+                if (languageString && !isLanguageString(items))
+                    throw new CborRuntimeException("CBOR tag 38 (language-tagged string) must wrap an array of two text"
+                            + " strings, at offset " + itemStart);
+                rational = false;
+                languageString = false;
+            }
+            if ((head.major == MAJOR_BYTES || head.major == MAJOR_TEXT) && !head.indefinite)
+                pos += (int) head.argument;
+        }
+    }
+
+    private static boolean isRational(List<CborSpan> items) {
+        if (items.size() != 2)
+            return false;
+        BigInteger numerator = integer(items.get(0));
+        BigInteger denominator = integer(items.get(1));
+        return numerator != null && denominator != null && denominator.signum() != 0;
+    }
+
+    /** @return the value {@link #integer(DataItem)} reads from the item, or null where it reads none */
+    private static BigInteger integer(CborSpan item) {
+        long innermostTag = -1;
+        CborSpan content = item;
+        while (content.isTagged()) {
+            innermostTag = content.tag();
+            content = content.untag();
+        }
+        if (content.majorType() <= MAJOR_NEGATIVE)
+            return content.asBigInteger();
+        if (content.majorType() == MAJOR_BYTES && (innermostTag == TAG_POSITIVE_BIGNUM
+                || innermostTag == TAG_NEGATIVE_BIGNUM))
+            return CborSpan.bignum(innermostTag == TAG_POSITIVE_BIGNUM, content.byteString());
+        return null;
+    }
+
+    private static boolean isLanguageString(List<CborSpan> items) {
+        return items.size() == 2 && items.get(0).majorType() == MAJOR_TEXT && items.get(1).majorType() == MAJOR_TEXT;
     }
 
     // One open container or indefinite string, with the tags read before its head.
@@ -129,8 +207,6 @@ final class DataItemDecoder {
                     if (top.key != null)
                         throw CborHead.error("BREAK after a map key without its value", pos);
                     pos++;
-                    if (top.array != null)
-                        top.array.add(Special.BREAK);
                     item = close(top);
                     top = top.parent;
                 } else {
@@ -292,13 +368,27 @@ final class DataItemDecoder {
 
     private static RationalNumber rational(DataItem item) {
         List<DataItem> items = item instanceof Array ? ((Array) item).getDataItems() : List.of();
-        if (items.size() != 2 || !(items.get(0) instanceof Number) || !(items.get(1) instanceof Number))
+        Number numerator = items.size() == 2 ? integer(items.get(0)) : null;
+        Number denominator = items.size() == 2 ? integer(items.get(1)) : null;
+        if (numerator == null || denominator == null)
             throw new CborRuntimeException("CBOR tag 30 (rational number) must wrap an array of two integers");
         try {
-            return new RationalNumber((Number) items.get(0), (Number) items.get(1));
+            return new RationalNumber(numerator, denominator);
         } catch (CborException e) {
             throw new CborRuntimeException("CBOR tag 30 (rational number): " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * @return a part of a rational: an integer, or a bignum (tag 2 or 3 on a byte string) as the integer of its value,
+     * since cardano-ledger reads both parts with {@code decodeInteger}; null for anything else
+     */
+    private static Number integer(DataItem item) {
+        if (item instanceof Number)
+            return (Number) item;
+        long tag = item instanceof ByteString && item.hasTag() ? item.getTag().getValue() : -1;
+        return tag == TAG_POSITIVE_BIGNUM || tag == TAG_NEGATIVE_BIGNUM
+                ? CborSerializationUtil.bigIntegerToDataItem(CborSerializationUtil.getBigInteger(item)) : null;
     }
 
     private static LanguageTaggedString languageTaggedString(DataItem item) {

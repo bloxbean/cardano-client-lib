@@ -70,6 +70,8 @@ class Cip113OwnerOperationsTest {
     // Stand-in scripts: only their hashes matter, nothing is evaluated.
     private static final PlutusScript BASE = script("01");
     private static final PlutusScript TRANSFER = script("02");
+    private static final PlutusScript DISPATCHER = script("05");
+    private static final PlutusScript ISSUANCE_LOGIC = script("06");
     private static final PlutusScript LOGIC_A = script("03");
     private static final PlutusScript LOGIC_B = script("04");
 
@@ -85,6 +87,8 @@ class Cip113OwnerOperationsTest {
     private static final Cip113Deployment DEPLOYMENT = Cip113Deployment.builder()
             .network(Networks.testnet())
             .programmableLogicBaseHash(hash(BASE))
+            .programmableLogicGlobalHash(hash(DISPATCHER))
+            .issuanceLogicHash(hash(ISSUANCE_LOGIC))
             .transferScriptHash(hash(TRANSFER))
             .thirdPartyScriptHash("55".repeat(28))
             .unfrackingScriptHash("66".repeat(28))
@@ -313,7 +317,7 @@ class Cip113OwnerOperationsTest {
         // Built before any stubbing: Mockito rejects stubbing inside another stub's thenReturn.
         RegistryLookup registry = registry();
         DeploymentScripts scripts = new DeploymentScripts((ScriptSupplier) null, DEPLOYMENT)
-                .registerAll(List.of(BASE, TRANSFER, LOGIC_A, LOGIC_B));
+                .registerAll(List.of(BASE, TRANSFER, DISPATCHER, ISSUANCE_LOGIC, LOGIC_A, LOGIC_B));
         Utxo coordination = Utxo.builder().txHash("cc".repeat(32)).outputIndex(0)
                 .address("addr_test1coordination")
                 .amount(List.of(Amount.lovelace(BigInteger.valueOf(5_000_000L)))).build();

@@ -1,0 +1,137 @@
+/*
+ * Cardano Client Lib brand overrides for Starlight.
+ *
+ * Graphite neutrals with one warm accent. The same gradient colors the logo, the
+ * header rule and the landing page.
+ */
+
+:root {
+  --ccl-brand: linear-gradient(100deg, #fdba74, #fb923c, #f59e0b);
+
+  /* Asides: the accent is orange, so caution moves to yellow and tip to teal. */
+  --sl-hue-orange: 50;
+  --sl-hue-purple: 172;
+
+  --sl-font-system: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, sans-serif;
+  --sl-font-system-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code',
+    'Source Code Pro', Menlo, Consolas, monospace;
+}
+
+/*
+ * Both palettes must be declared, and each must mirror the selector Starlight
+ * itself uses.
+ *
+ * Starlight declares its colours inside `@layer starlight.base`, and unlayered
+ * CSS beats layered CSS regardless of specificity. A bare `:root` block here
+ * would therefore override Starlight's *light* theme too, producing a light nav
+ * above a dark page. Scope the dark values, and give light a complete set.
+ */
+
+/* Dark — Starlight's default when no explicit light choice is stored. */
+:root,
+::backdrop {
+  --sl-color-accent-low: #3a2112;
+  --sl-color-accent: #fb923c;
+  --sl-color-accent-high: #fed7aa;
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f0f0f0;
+  --sl-color-gray-2: #cfcecd;
+  --sl-color-gray-3: #9f9e9d;
+  --sl-color-gray-4: #676664;
+  --sl-color-gray-5: #3a3938;
+  --sl-color-gray-6: #1f1e1d;
+  --sl-color-black: #111111;
+}
+
+/* Light — inverted scale, mirroring Starlight's own light ramp. */
+:root[data-theme='light'],
+[data-theme='light'] ::backdrop {
+  --sl-color-accent-low: #ffedd5;
+  --sl-color-accent: #c2410c;
+  --sl-color-accent-high: #7c2d12;
+
+  /* Teal is lighter than the purple it replaces, so its dark shade goes darker. */
+  --sl-color-purple-high: hsl(var(--sl-hue-purple), 90%, 20%);
+
+  --sl-color-white: #1f1e1e;
+  --sl-color-gray-1: #32302f;
+  --sl-color-gray-2: #474645;
+  --sl-color-gray-3: #6f6e6d;
+  --sl-color-gray-4: #a8a6a5;
+  --sl-color-gray-5: #d8d8d7;
+  --sl-color-gray-6: #f0f0f0;
+  --sl-color-gray-7: #f9f9f9;
+  --sl-color-black: #ffffff;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────
+   One brand gradient replacing the hairline under the site header.
+
+   The selector must stay this specific: `.header` is not unique in a Starlight
+   page. The site header, Starlight's inner header flex container, and every
+   Expressive Code code-block caption all carry that class, so a bare
+   `.header::after` would paint a gradient on all of them. */
+
+.page > header.header {
+  position: relative;
+  border-bottom-color: transparent;
+}
+
+.page > header.header::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--ccl-brand);
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────────────
+   Group labels carry most of the navigation weight on a site this size. */
+
+.sidebar-content > ul > li > details > summary > .group-label > span,
+.sidebar-content > ul > li > .large {
+  font-size: var(--sl-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-2);
+}
+
+/* ── Tables ────────────────────────────────────────────────────────────────
+   Several reference pages are table-heavy and wide. Let them scroll inside
+   their own container rather than stretching the page. */
+
+.sl-markdown-content table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.sl-markdown-content th {
+  white-space: nowrap;
+}
+
+.sl-markdown-content td code,
+.sl-markdown-content th code {
+  white-space: nowrap;
+}
+
+.sl-markdown-content td code {
+  font-size: 0.8125rem;
+}
+
+/* ── Hero (used by Starlight's built-in splash template, if adopted) ───────*/
+
+.hero > img,
+.hero > .hero-html {
+  filter: drop-shadow(0 12px 40px rgb(234 88 12 / 35%));
+}
+
+/* The site title follows the text color, as on the landing page, rather than the accent. */
+.site-title {
+  color: var(--sl-color-white);
+}

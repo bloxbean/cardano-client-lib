@@ -43,8 +43,11 @@ public class DeploymentScripts implements ScriptSupplier {
     // Concurrent: one resolver is shared by every build an application-scoped service runs.
     private final Map<String, PlutusScript> cache = new ConcurrentHashMap<>();
 
-    /** Script hash -> the UTxO publishing it as a reference script, when the chain has one. */
-    private final Map<String, Utxo> published = new ConcurrentHashMap<>();
+    /**
+     * Script hash -> the UTxO publishing it as a reference script, when the chain has one.
+     * Replaced wholesale by each successful resolution ({@link #replacePublished}).
+     */
+    private volatile Map<String, Utxo> published = new ConcurrentHashMap<>();
 
     public DeploymentScripts(ScriptService scriptService, Cip113Deployment deployment) {
         this(supplierFor(scriptService), () -> deployment);
@@ -126,6 +129,16 @@ public class DeploymentScripts implements ScriptSupplier {
         return this;
     }
 
+    /**
+     * Replace every recorded reference script with {@code live}, atomically, so an outref spent
+     * since an earlier resolution stops being referenced.
+     */
+    public void replacePublished(Map<String, Utxo> live) {
+        Map<String, Utxo> next = new ConcurrentHashMap<>();
+        live.forEach((hash, utxo) -> next.put(hash.toLowerCase(), utxo));
+        published = next;
+    }
+
     /** The UTxO publishing {@code scriptHash} as a reference script, if one is known. */
     public Optional<Utxo> publishedAt(String scriptHash) {
         return scriptHash == null ? Optional.empty()
@@ -176,14 +189,22 @@ public class DeploymentScripts implements ScriptSupplier {
         return byHash(deployment.get().getUnfrackingScriptHash(), "unfracking");
     }
 
-    /** Spend script guarding registry nodes — needed to insert or update one. */
-    public PlutusScript registrySpend() {
-        return byHash(deployment.get().getRegistrySpendScriptHash(), "registry_spend");
+    /**
+     * The registry script: mints registry-node NFTs and guards the nodes — mint and spend share
+     * one hash. Needed to insert or update a node.
+     */
+    public PlutusScript registry() {
+        return byHash(deployment.get().getRegistryNodeCs(), "registry");
     }
 
-    /** Minting policy for registry-node NFTs. */
-    public PlutusScript registryMint() {
-        return byHash(deployment.get().getRegistryNodeCs(), "registry_mint");
+    /** The dispatcher every base-script spend withdraws. */
+    public PlutusScript programmableLogicGlobal() {
+        return byHash(deployment.get().getProgrammableLogicGlobalHash(), "programmable_logic_global");
+    }
+
+    /** The replaceable issuance rules, withdrawn on every mint and burn. */
+    public PlutusScript issuanceLogic() {
+        return byHash(deployment.get().getIssuanceLogicHash(), "issuance_logic");
     }
 
     /**

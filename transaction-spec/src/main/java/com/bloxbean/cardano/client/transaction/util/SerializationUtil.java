@@ -1,11 +1,8 @@
 package com.bloxbean.cardano.client.transaction.util;
 
 import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.Special;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
-
-import java.util.List;
 
 public final class SerializationUtil {
 
@@ -21,10 +18,40 @@ public final class SerializationUtil {
     }
 
     /**
-     * The items of an array, without the BREAK that ends an indefinite-length one.
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param era an era, or null
+     * @return whether it is Dijkstra or later; false for null
      */
-    public static List<DataItem> withoutBreak(List<DataItem> items) {
-        int size = items.size();
-        return size > 0 && items.get(size - 1) == Special.BREAK ? items.subList(0, size - 1) : items;
+    public static boolean isDijkstra(Era era) {
+        return era != null && era.value >= Era.Dijkstra.value;
+    }
+
+    /**
+     * Refuses to write a field that an era before Dijkstra has no place for, rather than drop it (ADR 0004 D1).
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param era   the era being written
+     * @param field the field, as the error names it
+     * @throws CborSerializationException if the era is not Dijkstra or later
+     */
+    public static void requireDijkstra(Era era, String field) throws CborSerializationException {
+        if (!isDijkstra(era))
+            throw new CborSerializationException(field + " can only be written in Dijkstra, not in " + era);
+    }
+
+    /**
+     * Refuses to write a value that Dijkstra removed (ADR 0004 D1).
+     * <p>
+     * Experimental: Dijkstra is not final; this may change in any release.
+     *
+     * @param era   the era being written
+     * @param value the value, as the error names it
+     * @throws CborSerializationException if the era is Dijkstra or later
+     */
+    public static void requireBeforeDijkstra(Era era, String value) throws CborSerializationException {
+        if (isDijkstra(era))
+            throw new CborSerializationException(value + " cannot be written in " + era);
     }
 }

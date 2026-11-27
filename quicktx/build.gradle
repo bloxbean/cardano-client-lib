@@ -33,10 +33,10 @@ dependencies {
 // TxPlanSchemaTest fails until this is run after an intent is added or changed.
 tasks.register('generateTxPlanSchema', JavaExec) {
     group = 'build'
-    description = 'Regenerates the generated intent definitions in txplan-v1alpha1.schema.json'
+    description = 'Regenerates the generated intent definitions in txplan-v1.schema.json'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.bloxbean.cardano.client.quicktx.serialization.TxPlanSchemaGenerator'
-    args = [file('src/main/resources/schema/txplan-v1alpha1.schema.json').absolutePath]
+    args = [file('src/main/resources/schema/txplan-v1.schema.json').absolutePath]
 }
 
 publishing {

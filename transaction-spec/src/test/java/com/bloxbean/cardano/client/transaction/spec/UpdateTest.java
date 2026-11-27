@@ -23,10 +23,10 @@ class UpdateTest {
 
         assertThat(serByteHex).isEqualTo(cborHex);
 
-        Integer maxBlockSize = deUpdate.getProtocolParamUpdates().values().iterator().next().getMaxBlockSize();
+        Long maxBlockSize = deUpdate.getProtocolParamUpdates().values().iterator().next().getMaxBlockSize();
         ExUnits maxTxExUnit = deUpdate.getProtocolParamUpdates().values().iterator().next().getMaxTxExUnits();
 
-        assertThat(maxBlockSize).isEqualTo(81920);
+        assertThat(maxBlockSize).isEqualTo(81920L);
         assertThat(maxTxExUnit).isEqualTo(new ExUnits(BigInteger.valueOf(14000000), BigInteger.valueOf(10000000000L)));
     }
 }

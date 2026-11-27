@@ -1,19 +1,25 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
+import com.bloxbean.cardano.client.transaction.spec.Comparators;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
+import com.bloxbean.cardano.client.transaction.util.RationalNumberUtil;
+import com.bloxbean.cardano.client.transaction.raw.GovActionKind;
+import com.bloxbean.cardano.client.transaction.raw.RawGovAction;
+import com.bloxbean.cardano.client.transaction.util.RawModels;
+import com.bloxbean.cardano.client.transaction.raw.RawCredential;
 import lombok.*;
 
 import java.util.Map;
 import java.util.*;
 
-import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
-import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.unsignedLongItem;
 import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
-import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.withoutBreak;
 
 /**
  * {@literal
@@ -34,7 +40,7 @@ public class UpdateCommittee implements GovAction {
     private Set<Credential> membersForRemoval = new LinkedHashSet<>();
 
     @Builder.Default
-    private Map<Credential, Integer> newMembersAndTerms = new LinkedHashMap<>();
+    private Map<Credential, Long> newMembersAndTerms = new LinkedHashMap<>();
     private UnitInterval quorumThreshold; //TODO?? Check the correct name.
 
     @Override
@@ -52,18 +58,22 @@ public class UpdateCommittee implements GovAction {
             array.add(SimpleValue.NULL);
 
         Array membersForRemovalArray = createArray(era);
-        for (Credential member: membersForRemoval) {
+        List<Credential> removed = new ArrayList<>(membersForRemoval);
+        removed.sort(Comparators.CREDENTIAL);
+        for (Credential member: removed) {
             membersForRemovalArray.add(CredentialSerializer.serialize(member));
         }
         array.add(membersForRemovalArray);
 
-        co.nstant.in.cbor.model.Map newMembersTermsMap = new co.nstant.in.cbor.model.Map();
-        for (Map.Entry<Credential, Integer> newMemberTerm: newMembersAndTerms.entrySet()) {
-            newMembersTermsMap.put(CredentialSerializer.serialize(newMemberTerm.getKey()), new UnsignedInteger(newMemberTerm.getValue()));
+        SortedMap newMembersTermsMap = new SortedMap();
+        List<Map.Entry<Credential, Long>> newMembers = new ArrayList<>(newMembersAndTerms.entrySet());
+        newMembers.sort(Map.Entry.comparingByKey(Comparators.CREDENTIAL));
+        for (Map.Entry<Credential, Long> newMemberTerm: newMembers) {
+            newMembersTermsMap.put(CredentialSerializer.serialize(newMemberTerm.getKey()), unsignedLongItem(newMemberTerm.getValue()));
         }
         array.add(newMembersTermsMap);
 
-        array.add(new RationalNumber(new UnsignedInteger(quorumThreshold.getNumerator()), new UnsignedInteger(quorumThreshold.getDenominator())));
+        array.add(RationalNumberUtil.toRationalNumber(quorumThreshold));
         return array;
     }
 
@@ -76,30 +86,23 @@ public class UpdateCommittee implements GovAction {
      * @return
      */
     public static UpdateCommittee deserialize(Array govActionArray) {
-        List<DataItem> govActionDIList = govActionArray.getDataItems();
+        return from(RawGovAction.lenient(GovActionKind.UPDATE_COMMITTEE, CborSerializationUtil.span(govActionArray),
+                RawModels.READ_IN));
+    }
 
-        DataItem actionIdDI = govActionDIList.get(1);
-        GovActionId govActionId = GovAction.getGovActionId(actionIdDI);
-
-        //committee_cold_credentials
-        List<DataItem> committeeColdCredArray = withoutBreak(((Array) govActionDIList.get(2)).getDataItems());
-        Set<Credential> committeeColdCredSet = new LinkedHashSet<>();
-        committeeColdCredArray.stream()
-                .map(coldCredDI -> CredentialSerializer.deserialize((Array) coldCredDI))
-                .forEach(coldCred -> committeeColdCredSet.add(coldCred));
-
-        //committee_cold_credential => epoch
-        java.util.Map<Credential, Integer> committeeColdCredEpochMap = new java.util.LinkedHashMap<>();
-        co.nstant.in.cbor.model.Map committeeColdCredEpochMapDI = (co.nstant.in.cbor.model.Map) govActionDIList.get(3);
-        for (DataItem key : committeeColdCredEpochMapDI.getKeys()) {
-            Credential cred = CredentialSerializer.deserialize((Array) key);
-            int epoch = toInt(committeeColdCredEpochMapDI.get(key));
-            committeeColdCredEpochMap.put(cred, epoch);
-        }
-
-        //unit_interval
-        UnitInterval unitInterval = toUnitInterval((RationalNumber) govActionDIList.get(4));
-        return new UpdateCommittee(govActionId, committeeColdCredSet, committeeColdCredEpochMap, unitInterval);
+    /**
+     * @param raw a committee update as received
+     * @return the model: a credential that equals an earlier one keeps that one's place, and in the new members takes
+     * the later term
+     */
+    static UpdateCommittee from(RawGovAction raw) {
+        Set<Credential> removed = new LinkedHashSet<>();
+        for (RawCredential member : raw.membersToRemove())
+            removed.add(RawModels.credential(member));
+        Map<Credential, Long> added = new LinkedHashMap<>();
+        for (Map.Entry<RawCredential, Long> member : raw.membersToAdd())
+            added.put(RawModels.credential(member.getKey()), member.getValue());
+        return new UpdateCommittee(GovAction.previous(raw.previousActionId()), removed, added, raw.quorum());
     }
 
 

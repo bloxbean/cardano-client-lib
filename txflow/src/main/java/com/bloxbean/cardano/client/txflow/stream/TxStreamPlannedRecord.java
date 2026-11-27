@@ -14,7 +14,7 @@ import java.util.Objects;
  * execution whose engine snapshot is absent: the deterministic execution id,
  * the flow-level idempotency claim, the lane label and canonical spending
  * identity, the <b>portable-encoded flow</b> (a {@code TxFlowCodec} JSON
- * {@code V1ALPHA1} string — never a live Java object), the non-sensitive
+ * {@code V1} string — never a live Java object), the non-sensitive
  * bindings, and the secure-binding <em>references</em> plus their
  * fingerprints.</p>
  *
@@ -42,7 +42,7 @@ import java.util.Objects;
  * @param laneName user-facing lane label
  * @param canonicalSpendingIdentity canonical spending identity the execution
  *        serializes on and declares as its spending resource
- * @param portableFlow portable {@code TxFlowCodec} JSON ({@code V1ALPHA1})
+ * @param portableFlow portable {@code TxFlowCodec} JSON ({@code V1})
  *        encoding of the planned flow — never a Java object
  * @param bindings non-sensitive portable scalar bindings
  * @param secureBindingReferences secure-binding references keyed by parameter

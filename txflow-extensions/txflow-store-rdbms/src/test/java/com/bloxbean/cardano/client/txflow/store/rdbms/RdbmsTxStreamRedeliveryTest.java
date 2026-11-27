@@ -81,7 +81,7 @@ class RdbmsTxStreamRedeliveryTest {
             Instant now = Instant.now();
             TxFlow flow = TxFlow.builder("flow").addStep(FlowStep.builder("step").withTxPlan(plan()).build()).build();
             String portable = TxFlowCodec.standard().write(flow,
-                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
             items.registerItem(new TxStreamItemRecord("one", "one", "lane", "fp", now));
             items.bind("one", new TxStreamBinding("execution", "flow", "step", "lane"));
             items.persistPlanned(new TxStreamPlannedRecord("payouts", "execution", "one", "lane",

@@ -11,7 +11,7 @@ extensions:
     extension: programmable-token
     schema_version: '1'
     protocol: cip-113
-    contract_version: 0.5.0-alpha.2
+    contract_version: 0.0.1
     deployment:
       network: ${network_id}
       bootstrap_tx: ${bootstrap_tx}

@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.programmabletoken.intent;
 
-import com.bloxbean.cardano.client.programmabletoken.ProgrammableTokenPolicyRef;
 import com.bloxbean.cardano.client.quicktx.intent.PlutusDataValue;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.fasterxml.jackson.annotation.JsonGetter;
@@ -17,7 +16,10 @@ import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
-/** Declarative holder-driven programmable-token UTxO restructuring request. */
+/**
+ * Reserved holder-driven programmable-token UTxO restructuring request.
+ * Decoding is retained so persisted plans fail validation with an explicit unsupported error.
+ */
 @Data
 @Builder(toBuilder = true)
 @NoArgsConstructor
@@ -26,6 +28,7 @@ import java.util.Map;
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ProgrammableUnfrackIntent implements ProgrammableTokenIntent {
     public static final String OPERATION = "unfrack";
+    public static final String UNSUPPORTED_MESSAGE = "Unfracking is temporarily unsupported in this release";
 
     private String policyId;
     @JsonIgnore
@@ -55,9 +58,7 @@ public class ProgrammableUnfrackIntent implements ProgrammableTokenIntent {
 
     @Override
     public void validate() {
-        ProgrammableTokenPolicyRef.policyId(policyId);
-        if (authorization == null)
-            throw new IllegalStateException("authorization is required");
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 
     @Override

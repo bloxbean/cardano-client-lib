@@ -43,6 +43,8 @@ public class RefcountGcStrategy implements GcStrategy {
 
     @Override
     public GcReport run(RocksDbNodeStore store, RocksDbRootsIndex index, RetentionPolicy policy, GcOptions options) throws Exception {
+        // Refcount GC finds the versions to drop in the roots index; only mark-sweep runs without one.
+        Objects.requireNonNull(index, "RefcountGcStrategy needs the roots index");
         long start = System.currentTimeMillis();
         RocksDB db = store.db();
         ColumnFamilyHandle cfNodes = store.nodesHandle();

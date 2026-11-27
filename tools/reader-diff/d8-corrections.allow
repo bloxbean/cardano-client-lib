@@ -1,0 +1,3 @@
+# ADR 0003 D8's corrections so far: a JSON path, and the value the new side must match, computed from the input's bytes.
+header.headerBody.blockHash expected=block-header-hash
+headerBody.blockHash expected=header-hash

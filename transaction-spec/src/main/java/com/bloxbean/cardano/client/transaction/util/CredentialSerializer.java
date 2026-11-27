@@ -1,35 +1,17 @@
 package com.bloxbean.cardano.client.transaction.util;
 
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.address.CredentialType;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
-
-import java.math.BigInteger;
-import java.util.List;
+import com.bloxbean.cardano.client.transaction.raw.RawCredential;
 
 public class CredentialSerializer {
     public static Credential deserialize(Array stakeCredArray)  {
-        List<DataItem> dataItemList = stakeCredArray.getDataItems();
-        if (dataItemList == null || dataItemList.size() != 2)
-            throw new CborRuntimeException("Credential deserialization failed. Invalid number of DataItem(s) : "
-                    + (dataItemList != null ? String.valueOf(dataItemList.size()) : null));
-
-        UnsignedInteger typeDI = (UnsignedInteger) dataItemList.get(0);
-        ByteString hashDI = (ByteString) dataItemList.get(1);
-
-        BigInteger typeBI = typeDI.getValue();
-        if (typeBI.intValue() == 0) {
-            return Credential.fromKey(hashDI.getBytes());
-        } else if (typeBI.intValue() == 1) {
-            return Credential.fromScript(hashDI.getBytes());
-        } else {
-            throw new CborRuntimeException("Credential deserialization failed. Invalid CredType : "
-                    + typeBI.intValue());
-        }
+        return RawModels.credential(RawCredential.of(CborSerializationUtil.span(stakeCredArray)));
     }
 
     public static Array serialize(Credential credential)  {

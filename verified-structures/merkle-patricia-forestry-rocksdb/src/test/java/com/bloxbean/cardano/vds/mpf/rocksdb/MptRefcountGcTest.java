@@ -42,6 +42,21 @@ class MptRefcountGcTest {
     }
 
     @Test
+    void refcountGc_rejectsMissingRootsIndex_beforeDeletingAnything() throws Exception {
+        MpfTrie trie = new MpfTrie(st.nodeStore());
+        RocksDbMptSession.of(st).write(() -> {
+            trie.put(b("k1"), b("v1"));
+            st.putRootWithRefcount(trie.getRootHash());
+        });
+        byte[] root = trie.getRootHash();
+
+        NullPointerException e = assertThrows(NullPointerException.class, () -> new RefcountGcStrategy().run(
+                st.nodeStore(), null, ignored -> java.util.List.of(), new GcOptions()));
+        assertEquals("RefcountGcStrategy needs the roots index", e.getMessage());
+        assertArrayEquals(b("v1"), new MpfTrie(st.nodeStore(), root).get(b("k1")));
+    }
+
+    @Test
     void refcountGc_keepsLatest_deletesDropped() throws Exception {
         MpfTrie trie = new MpfTrie(st.nodeStore());
         RocksDbMptSession session = RocksDbMptSession.of(st);

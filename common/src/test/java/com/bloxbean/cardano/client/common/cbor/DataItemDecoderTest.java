@@ -25,16 +25,59 @@ class DataItemDecoderTest {
         return CborSerializationUtil.deserialize(decodeHexString(hex));
     }
 
+    /**
+     * Unlike cbor-java, an indefinite array holds just its items (cbor-java adds the closing BREAK as a last item, which
+     * decoders then counted as a field), and it re-encodes with its BREAK.
+     */
     @Test
-    void indefiniteArrayIsChunkedAndEndsWithBreak() {
+    void indefiniteArrayIsChunkedWithoutBreak() throws Exception {
         Array array = (Array) decode("9f0102ff");
         assertThat(array.isChunked()).isTrue();
-        assertThat(array.getDataItems()).hasSize(3);
-        assertThat(array.getDataItems().get(2)).isSameAs(Special.BREAK);
+        assertThat(array.getDataItems()).containsExactly(new UnsignedInteger(1), new UnsignedInteger(2));
+        assertThat(CborSerializationUtil.serialize(array)).isEqualTo(decodeHexString("9f0102ff"));
+
+        Array empty = (Array) decode("9fff");
+        assertThat(empty.isChunked()).isTrue();
+        assertThat(empty.getDataItems()).isEmpty();
+        assertThat(CborSerializationUtil.serialize(empty)).isEqualTo(decodeHexString("9fff"));
 
         Array definite = (Array) decode("980201" + "02");
         assertThat(definite.isChunked()).isFalse();
         assertThat(definite.getDataItems()).hasSize(2);
+    }
+
+    /**
+     * An indefinite array built the cbor-java way, ending with a BREAK item, is closed with that one BREAK.
+     */
+    @Test
+    void indefiniteArrayEndingWithBreakItemIsClosedOnce() throws Exception {
+        Array array = new Array();
+        array.setChunked(true);
+        array.add(new UnsignedInteger(1));
+        array.add(Special.BREAK);
+        assertThat(CborSerializationUtil.serialize(array)).isEqualTo(decodeHexString("9f01ff"));
+
+        Array empty = new Array();
+        empty.setChunked(true);
+        empty.add(Special.BREAK);
+        assertThat(CborSerializationUtil.serialize(empty)).isEqualTo(decodeHexString("9fff"));
+    }
+
+    @Test
+    void definiteItemsRejectsAnIndefiniteArray() {
+        assertThat(CborSerializationUtil.definiteItems((Array) decode("820102"), "pair")).hasSize(2);
+        assertThatThrownBy(() -> CborSerializationUtil.definiteItems((Array) decode("9f0102ff"), "pair"))
+                .isInstanceOf(CborRuntimeException.class);
+    }
+
+    /** An empty indefinite map encodes with its BREAK, not as {@code bf} alone, which is not well-formed CBOR. */
+    @Test
+    void emptyIndefiniteMapEncodesWithItsBreak() throws Exception {
+        for (boolean canonical : new boolean[]{true, false}) {
+            assertThat(CborSerializationUtil.serialize(decode("bfff"), canonical)).isEqualTo(decodeHexString("bfff"));
+            assertThat(CborSerializationUtil.serialize(decode("82bfff00"), canonical))
+                    .isEqualTo(decodeHexString("82bfff00"));
+        }
     }
 
     @Test
@@ -80,8 +123,57 @@ class DataItemDecoderTest {
         assertThat(decode("c1d81e820102").getTag().getTag().getValue()).isEqualTo(1);
     }
 
+    /**
+     * cardano-ledger's decodeRationalWithTag reads the array with decodeListLenOrIndef; cbor-java rejected the
+     * indefinite form, its BREAK making three items.
+     */
+    @Test
+    void tag30OverAnIndefiniteArrayIsARationalNumber() {
+        RationalNumber rational = (RationalNumber) decode("d81e9f011903e8ff");
+        assertThat(rational.getNumerator().getValue()).isEqualTo(BigInteger.ONE);
+        assertThat(rational.getDenominator().getValue()).isEqualTo(BigInteger.valueOf(1000));
+    }
+
+    /**
+     * cardano-ledger reads both parts with decodeInteger, which takes a bignum (#749): cardano-cbor-dataset's
+     * conway/unit_interval and nonnegative_interval manual-valid samples bignum-ratio-reduces-in-range (2^65 / 2^66)
+     * and bignum-numerator-reduces-in-range (2^64 / 2). cbor-java rejected both.
+     */
+    @Test
+    void tag30PartsMayBeBignums() throws Exception {
+        RationalNumber ratio = (RationalNumber) decode("d81e82c249020000000000000000c249040000000000000000");
+        assertThat(ratio.getNumerator().getValue()).isEqualTo(BigInteger.TWO.pow(65));
+        assertThat(ratio.getDenominator().getValue()).isEqualTo(BigInteger.TWO.pow(66));
+        assertThat(ratio.getNumerator()).isInstanceOf(UnsignedInteger.class);
+
+        RationalNumber numerator = (RationalNumber) decode("d81e82c24901000000000000000002");
+        assertThat(numerator.getNumerator().getValue()).isEqualTo(BigInteger.TWO.pow(64));
+        assertThat(numerator.getDenominator().getValue()).isEqualTo(BigInteger.TWO);
+        // and written back as bignums, as the parts do not fit a head
+        assertThat(CborSerializationUtil.serialize(numerator))
+                .isEqualTo(decodeHexString("d81e82c24901000000000000000002"));
+
+        // tag 3: -1 - 2^64
+        RationalNumber negative = (RationalNumber) decode("d81e82c3490100000000000000000a");
+        assertThat(negative.getNumerator()).isInstanceOf(NegativeInteger.class);
+        assertThat(negative.getNumerator().getValue()).isEqualTo(BigInteger.TWO.pow(64).add(BigInteger.ONE).negate());
+        // a bignum in a native width; and a tag outside the bignum's, which cborg's decodeInteger rejects but this
+        // decoder looks through, as it does for a tag on an integer part (d81e82c10102) and as getBigInteger does
+        assertThat(((RationalNumber) decode("d81e82c2410102")).getNumerator().getValue()).isEqualTo(BigInteger.ONE);
+        assertThat(((RationalNumber) decode("d81e8201c1c24102")).getDenominator().getValue())
+                .isEqualTo(BigInteger.TWO);
+    }
+
+    /** A byte string not tagged 2 or 3 innermost is no integer; a bignum denominator may not be 0 either. */
     @ParameterizedTest
-    @ValueSource(strings = {"d81e01", "d81e8101", "d81e83010203", "d81e820100", "d81e82016161", "d8268201616d", "d8268261610a"})
+    @ValueSource(strings = {"d81e82410101", "d81e82c1410101", "d81e82c2c1410101", "d81e8201c240", "d81e8201c3d81e40"})
+    void tag30RejectsWhatIsNoIntegerOrBignum(String hex) {
+        assertThatThrownBy(() -> decode(hex)).isInstanceOf(CborRuntimeException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"d81e01", "d81e8101", "d81e83010203", "d81e820100", "d81e82016161", "d8268201616d", "d8268261610a",
+            "d81e9f01ff", "d81e9f010203ff"})
     void malformedRationalsAndLanguageStringsAreRejectedLikeCborJava(String hex) {
         assertThatThrownBy(() -> decode(hex)).isInstanceOf(CborRuntimeException.class);
     }

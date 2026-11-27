@@ -38,7 +38,7 @@ class TxFlowCompilerTest {
     @BeforeEach
     void setUp() {
         String yaml = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: typed-payment}
                 spec:
@@ -99,7 +99,7 @@ class TxFlowCompilerTest {
     @Test
     void portableContextAdditionalSignersCountReachesCompiledTxPlan() {
         String yaml = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: multisig-later}
                 spec:
@@ -152,7 +152,7 @@ class TxFlowCompilerTest {
         String encoded = TxFlowCodec.standard().write(definition,
                 com.bloxbean.cardano.client.txflow.codec.FlowWriteOptions.of(
                         com.bloxbean.cardano.client.txflow.codec.FlowFormat.YAML,
-                        com.bloxbean.cardano.client.txflow.codec.FlowSchemaVersion.V1ALPHA1));
+                        com.bloxbean.cardano.client.txflow.codec.FlowSchemaVersion.V1));
         TxFlow broken = TxFlowCodec.standard().parse(encoded.replace(
                         "output: staging", "output: missing"), FlowParseOptions.serverDefaults())
                 .requireFlow();
@@ -170,7 +170,7 @@ class TxFlowCompilerTest {
         String yaml = TxFlowCodec.standard().write(definition,
                 com.bloxbean.cardano.client.txflow.codec.FlowWriteOptions.of(
                         com.bloxbean.cardano.client.txflow.codec.FlowFormat.YAML,
-                        com.bloxbean.cardano.client.txflow.codec.FlowSchemaVersion.V1ALPHA1));
+                        com.bloxbean.cardano.client.txflow.codec.FlowSchemaVersion.V1));
         TxFlow decoded = TxFlowCodec.standard().parse(
                 yaml, FlowParseOptions.serverDefaults()).requireFlow();
         assertEquals(compiler.compile(FlowCompilationRequest.of(definition, bindings))
@@ -244,7 +244,7 @@ class TxFlowCompilerTest {
     @Test
     void compilerRejectsFromWalletBeforeConversionOrFingerprinting() {
         String source = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: wallet-source}
                 spec:
@@ -268,7 +268,7 @@ class TxFlowCompilerTest {
     @Test
     void compilerRejectsUnknownIntentFieldsBeforeFingerprinting() {
         String source = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: intent-typo}
                 spec:
@@ -298,7 +298,7 @@ class TxFlowCompilerTest {
     @Test
     void compilerRejectsUnknownEnvelopeAndNestedValueFields() {
         String envelope = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: envelope-typo}
                 spec:
@@ -309,7 +309,7 @@ class TxFlowCompilerTest {
                         tx: {intents: []}
                 """;
         String amount = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: amount-typo}
                 spec:
@@ -337,7 +337,7 @@ class TxFlowCompilerTest {
     void compilerRejectsCustomUtxoDeserializerBlindSpots() {
         String hash = "a".repeat(64);
         String concreteTypo = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: concrete-ref-typo}
                 spec:
@@ -351,7 +351,7 @@ class TxFlowCompilerTest {
                                 - {tx_hash: HASH, output_indx: 0}
                 """.replace("HASH", hash);
         String mixedShape = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: mixed-ref}
                 spec:
@@ -385,7 +385,7 @@ class TxFlowCompilerTest {
     @Test
     void compilerRejectsLossyQuickTxProjectionCombinations() {
         String conflictingSource = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: conflicting-source}
                 spec:
@@ -398,7 +398,7 @@ class TxFlowCompilerTest {
                           intents: []
                 """;
         String orphanChangeDatum = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: orphan-change-datum}
                 spec:
@@ -410,7 +410,7 @@ class TxFlowCompilerTest {
                           intents: []
                 """;
         String duplicateRefAliases = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: duplicate-ref-aliases}
                 spec:
@@ -437,7 +437,7 @@ class TxFlowCompilerTest {
     @Test
     void compilerKeepsSubtypeMappingFailuresAtTheOwningIntentPath() {
         String source = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: unknown-intent-type}
                 spec:
@@ -624,7 +624,7 @@ class TxFlowCompilerTest {
     @Test
     void integerAndLongBindingsForAdditionalSignersCountAreEquivalent() {
         String yaml = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: bound-signers}
                 spec:
@@ -654,7 +654,7 @@ class TxFlowCompilerTest {
     @Test
     void numericStepAndOutputNamesSurviveTheStrictReread() {
         String yaml = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: numeric-ids}
                 spec:
@@ -754,7 +754,7 @@ class TxFlowCompilerTest {
     void strictMaterializationAcceptsRegularInputAndScriptIntentFamilies() {
         String hash = "a".repeat(64);
         String source = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: intent-families}
                 spec:
@@ -785,7 +785,7 @@ class TxFlowCompilerTest {
     @Test
     void compilerRunsExistingQuickTxIntentValidation() {
         String source = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: invalid-intent}
                 spec:

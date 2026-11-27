@@ -13,6 +13,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.NonNull;
 
 import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.List;
 
 public interface PlutusData {
     int BIG_UINT_TAG = 2;
@@ -50,6 +52,32 @@ public interface PlutusData {
      */
     static PlutusData deserialize(DataItem dataItem) throws CborDeserializationException {
         return PlutusDataCodec.decode(dataItem);
+    }
+
+    /**
+     * What {@link #representsBytes} needs to remember about a datum when it is decoded.
+     *
+     * @param decoded the datum, just decoded
+     * @return the maps in it that lost a pair when decoded, to pass back unread; almost always none
+     */
+    static List<?> mapsThatLostPairs(PlutusData decoded) {
+        return PlutusDataCodec.mapsThatLostPairs(decoded);
+    }
+
+    /**
+     * Whether a datum decoded from {@code bytes} still represents them, at any depth, after whatever its mutable lists
+     * and maps went through. Its values and pairs must match a fresh decode of the bytes, and the maps that lost a pair
+     * when decoded must be the same objects in the same places, as nothing else can show what they lost. It costs a
+     * decode.
+     *
+     * @param data              the datum
+     * @param bytes             the bytes it was decoded from
+     * @param mapsThatLostPairs what {@link #mapsThatLostPairs} returned when it was decoded
+     * @return false if the datum has changed
+     */
+    static boolean representsBytes(PlutusData data, byte[] bytes, List<?> mapsThatLostPairs)
+            throws CborDeserializationException {
+        return PlutusDataCodec.sameMaps(PlutusDataCodec.mapsThatLostPairs(data), mapsThatLostPairs) && Arrays.equals(PlutusDataCodec.orderedKey(data), PlutusDataCodec.orderedKey(deserialize(bytes)));
     }
 
     static PlutusData deserialize(@NonNull byte[] serializedBytes) throws CborDeserializationException {

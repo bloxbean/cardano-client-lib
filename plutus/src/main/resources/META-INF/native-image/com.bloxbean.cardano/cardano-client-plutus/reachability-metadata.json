@@ -676,6 +676,10 @@
           "parameterTypes": []
         },
         {
+          "name": "getUnknownCostModels",
+          "parameterTypes": []
+        },
+        {
           "name": "isEmpty",
           "parameterTypes": []
         }
@@ -898,6 +902,28 @@
         "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
       },
       "type": "com.bloxbean.cardano.client.plutus.spec.PlutusV3Script",
+      "allDeclaredConstructors": true,
+      "allDeclaredFields": true,
+      "methods": [
+        {
+          "name": "getLanguage",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptType",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScriptTypeBytes",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "condition": {
+        "typeReached": "com.fasterxml.jackson.databind.ObjectMapper"
+      },
+      "type": "com.bloxbean.cardano.client.plutus.spec.PlutusV4Script",
       "allDeclaredConstructors": true,
       "allDeclaredFields": true,
       "methods": [

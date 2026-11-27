@@ -1,12 +1,14 @@
 package com.bloxbean.cardano.client.quicktx.serialization;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.util.StringQuotingChecker;
@@ -14,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Utility class for YAML serialization/deserialization of transaction documents.
@@ -59,6 +62,8 @@ public class YamlSerializer {
 
         private static boolean readsBackDifferently(String value) {
             if (value.isEmpty()) return false;
+            char first = value.charAt(0);
+            if ((first < '0' || first > '9') && first != '+' && first != '-' && first != '.') return false;
             // The default check has already quoted anything with special characters, so the value embeds safely.
             try (JsonParser parser = PLAIN.createParser("v: " + value)) {
                 parser.nextToken();
@@ -131,19 +136,45 @@ public class YamlSerializer {
     }
 
     /**
-     * Like {@link #deserialize(String, Class)}, but core intents are read strictly (see {@link StrictReading}).
+     * Like {@link #deserialize(String, Class)}, but core intents are read strictly (see {@link StrictReading})
+     * and variables are resolved structurally on the parsed tree so variable values cannot alter YAML structure.
      */
     static <T> T deserializeStrict(String yaml, Class<T> type) {
+        return deserializeStrict(yaml, type, null);
+    }
+
+    /**
+     * Strict deserialization with an optional pre-check on the parsed raw tree (avoiding a redundant parse).
+     */
+    static <T> T deserializeStrict(String yaml, Class<T> type, Consumer<JsonNode> preCheck) {
+        JsonNode raw;
         try {
-            JsonNode raw = STRICT_YAML_MAPPER.readTree(yaml);
-            // Check the declared variables before textual substitution rewrites them.
-            if (raw != null) {
-                StrictReading.checkVariables(raw.get("variables"));
-                StrictReading.checkKeys(raw);
+            raw = STRICT_YAML_MAPPER.readTree(yaml);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to deserialize YAML to " + type.getSimpleName() + ": " + rootMessage(e), e);
+        }
+        if (preCheck != null) preCheck.accept(raw);
+        try {
+            StrictReading.checkYamlText(yaml);
+            JsonNode tree = raw;
+            if (raw instanceof ObjectNode obj) {
+                JsonNode varsNode = obj.get("variables");
+                StrictReading.checkVariables(varsNode);
+                if (varsNode != null && varsNode.isObject()) {
+                    Map<String, Object> variables = STRICT_YAML_MAPPER.convertValue(varsNode,
+                            new TypeReference<Map<String, Object>>() { });
+                    ObjectNode resolved = STRICT_YAML_MAPPER.createObjectNode();
+                    obj.fields().forEachRemaining(entry -> {
+                        if ("variables".equals(entry.getKey())) {
+                            resolved.set(entry.getKey(), entry.getValue());
+                        } else {
+                            resolved.set(entry.getKey(),
+                                    VariableResolver.resolveTree(entry.getValue(), variables, entry.getKey()));
+                        }
+                    });
+                    tree = resolved;
+                }
             }
-            String resolved = resolveVariables(STRICT_YAML_MAPPER, yaml);
-            StrictReading.checkYamlText(resolved);
-            JsonNode tree = STRICT_YAML_MAPPER.readTree(resolved);
             StrictReading.checkDocument(tree);
             return STRICT_YAML_MAPPER.treeToValue(tree, type);
         } catch (Exception e) {

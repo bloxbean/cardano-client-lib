@@ -836,7 +836,7 @@ class TxFlowStreamTemplateTest {
     }
 
     private TxFlow template(ChainingMode chainingMode) {
-        String yaml = "api_version: txflow.cardano-client.dev/v1alpha1\n"
+        String yaml = "api_version: txflow.cardano-client.dev/v1\n"
                 + "kind: TxFlow\n"
                 + "metadata: {name: payout-template}\n"
                 + "spec:\n"
@@ -854,7 +854,7 @@ class TxFlowStreamTemplateTest {
 
     /** A parameterized, portable payout template with TWO steps (can be PARTIALLY_COMPLETED). */
     private TxFlow multiStepTemplate() {
-        String yaml = "api_version: txflow.cardano-client.dev/v1alpha1\n"
+        String yaml = "api_version: txflow.cardano-client.dev/v1\n"
                 + "kind: TxFlow\n"
                 + "metadata: {name: payout-template-multi}\n"
                 + "spec:\n"

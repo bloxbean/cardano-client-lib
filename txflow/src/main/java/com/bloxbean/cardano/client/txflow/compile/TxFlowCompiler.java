@@ -166,7 +166,7 @@ public final class TxFlowCompiler {
             if (hasErrors(diagnostics)) return new FlowCompilationResult(null, diagnostics);
             TxFlow plan = compiled.build();
             String canonical = codec.write(plan,
-                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
             return new FlowCompilationResult(new CompiledTxFlow(
                     plan, SignedPayloadVerifier.sha256(FINGERPRINT_FORMAT + canonical), spendingResources,
                     explicitConsumers(definition)), diagnostics);

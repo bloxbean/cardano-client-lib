@@ -1,0 +1,16 @@
+---
+/* Scarf pixel: cookie-free traffic analytics (https://docs.scarf.sh/web-traffic/). */
+interface Props {
+  id: string;
+}
+const { id } = Astro.props;
+---
+
+<img
+  referrerpolicy="no-referrer-when-downgrade"
+  src={`https://static.scarf.sh/a.png?x-pxid=${id}`}
+  alt=""
+  width="1"
+  height="1"
+  style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none"
+/>

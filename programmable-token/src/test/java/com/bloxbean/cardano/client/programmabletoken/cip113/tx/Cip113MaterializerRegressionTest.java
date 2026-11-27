@@ -100,7 +100,6 @@ class Cip113MaterializerRegressionTest {
 
     private static Cip113Deployment deployment() {
         return Cip113Deployment.builder().network(Networks.testnet())
-                .registrySpendScriptHash("77".repeat(28))
                 .registryNodeCs("aa".repeat(28)).build();
     }
 }

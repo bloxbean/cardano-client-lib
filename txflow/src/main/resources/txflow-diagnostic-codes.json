@@ -1,5 +1,5 @@
 {
-  "version": "v1alpha1",
+  "version": "v1",
   "codes": {
     "TXFLOW_PARSE_ERROR": "The document is not valid YAML/JSON or violates the envelope model.",
     "TXFLOW_UNSUPPORTED_API_VERSION": "The portable api_version is not supported.",
@@ -20,7 +20,7 @@
     "TXFLOW_CANCELLED": "Execution was cancelled cooperatively.",
     "TXFLOW_COMPACTION_NOT_TERMINAL": "Only a terminal execution journal can be compacted.",
     "TXFLOW_COMPILATION_FAILED": "Compilation failed before execution side effects.",
-    "TXFLOW_CONFIRMATION_PRESET_UNSUPPORTED": "The requested confirmation preset is not defined by portable v1alpha1.",
+    "TXFLOW_CONFIRMATION_PRESET_UNSUPPORTED": "The requested confirmation preset is not defined by portable v1.",
     "TXFLOW_CONCURRENT_SPENDING_FORBIDDEN": "Policy forbids opting out of spending-resource serialization.",
     "TXFLOW_DIALECT_MISMATCH": "The configured relational-store dialect does not match the connected database.",
     "TXFLOW_DIALECT_ENCODING_UNSUPPORTED": "The connected database text encoding cannot preserve the portable store contract.",
@@ -58,9 +58,9 @@
     "TXFLOW_NON_PORTABLE_CONFIRMATION_COMPATIBILITY": "Legacy confirmation compatibility settings have no lossless portable representation.",
     "TXFLOW_NON_PORTABLE_DEPENDENCY": "A legacy output-selection dependency has no declarative portable representation.",
     "TXFLOW_NON_PORTABLE_FLOW_VARIABLES": "Legacy flow variables must be migrated to portable parameters and execution bindings.",
-    "TXFLOW_NON_PORTABLE_RETRY_FILTERS": "Legacy retry filter flags have no portable v1alpha1 representation.",
+    "TXFLOW_NON_PORTABLE_RETRY_FILTERS": "Legacy retry filter flags have no portable v1 representation.",
     "TXFLOW_NON_PORTABLE_ROLLBACK_STRATEGY": "A legacy rollback strategy has no lossless portable representation; use RollbackPolicy.",
-    "TXFLOW_NON_PORTABLE_STEP_RETRY": "A step-level retry override has no portable v1alpha1 representation.",
+    "TXFLOW_NON_PORTABLE_STEP_RETRY": "A step-level retry override has no portable v1 representation.",
     "TXFLOW_NON_PORTABLE_EXTENSION": "Retired by ADR 0008 and no longer emitted; extension steps report TXFLOW_EXTENSION_UNREGISTERED when their extension is not registered.",
     "TXFLOW_NON_PORTABLE_TXPLAN_CARDINALITY": "A portable step must contain exactly one QuickTx transaction.",
     "TXFLOW_NON_PORTABLE_TXPLAN_VARIABLES": "QuickTx plan variables must be migrated to portable parameters and execution bindings.",

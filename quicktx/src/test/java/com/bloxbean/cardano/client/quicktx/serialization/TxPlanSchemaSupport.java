@@ -29,7 +29,7 @@ import java.util.stream.Stream;
  */
 final class TxPlanSchemaSupport {
 
-    static final String SCHEMA_ID = "https://cardano-client.dev/schemas/txplan/v1alpha1";
+    static final String SCHEMA_ID = "https://cardano-client.dev/schemas/txplan/v1";
     static final ObjectMapper YAML = YamlSerializer.getYamlMapper();
 
     private static final Schema SCHEMA = loadSchema();
@@ -106,13 +106,13 @@ final class TxPlanSchemaSupport {
     static Map<String, String> corpus() {
         Map<String, String> corpus = new LinkedHashMap<>();
         collect(Path.of("src/test/java"), ".java", TEXT_BLOCK, true, corpus);
-        collect(DOCS, ".mdx", YAML_FENCE, false, corpus);
+        collect(DOCS, ".md", YAML_FENCE, false, corpus);
         IntentSamples.documents().forEach((type, yaml) -> corpus.put("sample:" + type, yaml));
         IntentSamples.variants().forEach((name, yaml) -> corpus.put("variant:" + name, yaml));
         return corpus;
     }
 
-    static final Path DOCS = Path.of("../docs/content/preview/txplan");
+    static final Path DOCS = Path.of("../www/src/content/docs/txplan");
 
     private static void collect(Path dir, String suffix, Pattern block, boolean javaTextBlock, Map<String, String> corpus) {
         if (!Files.isDirectory(dir)) throw new IllegalStateException("Corpus directory is missing: " + dir.toAbsolutePath());

@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.*;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
+import com.bloxbean.cardano.client.transaction.raw.RawMultiAsset;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.*;
 
@@ -25,20 +26,14 @@ public class MultiAsset {
     private List<Asset> assets = new ArrayList<>();
 
     public static MultiAsset deserialize(Map multiAssetsMap, DataItem key) {
+        return from(RawMultiAsset.lenient(CborSerializationUtil.span(key), CborSerializationUtil.span(multiAssetsMap.get(key))));
+    }
+
+    static MultiAsset from(RawMultiAsset raw) {
         MultiAsset multiAsset = new MultiAsset();
-        ByteString keyBS = (ByteString) key;
-        multiAsset.setPolicyId(HexUtil.encodeHexString(keyBS.getBytes()));
-
-        Map assetsMap = (Map) multiAssetsMap.get(key);
-        for (DataItem assetKey : assetsMap.getKeys()) {
-            ByteString assetNameBS = (ByteString) assetKey;
-
-            DataItem valueDI = assetsMap.get(assetKey);
-            BigInteger value = CborSerializationUtil.getBigInteger(valueDI);
-
-            String name = HexUtil.encodeHexString(assetNameBS.getBytes(), true);
-            multiAsset.getAssets().add(new Asset(name, value));
-        }
+        multiAsset.setPolicyId(HexUtil.encodeHexString(raw.policyId()));
+        for (RawMultiAsset.Asset asset : raw.assets())
+            multiAsset.getAssets().add(new Asset(HexUtil.encodeHexString(asset.name(), true), asset.quantity()));
         return multiAsset;
     }
 
@@ -102,11 +97,44 @@ public class MultiAsset {
         return multiAssets.stream().collect(Collectors.toMap(MultiAsset::getPolicyId, Function.identity()));
     }
 
+    /**
+     * @param multiAssets the multi assets, in any order
+     * @return their map, sorted by policy id, and each policy's assets by name in CIP-21's order, the one to sign
+     */
+    public static Map serialize(List<MultiAsset> multiAssets) {
+        return toMap(multiAssets, Comparators.ASSET);
+    }
+
+    /**
+     * The order the Haskell ledger writes. The ledger accepts either order, and hardware wallets accept only
+     * {@link #serialize(List)}'s, so a transaction body uses that one.
+     *
+     * @param multiAssets the multi assets, in any order
+     * @return their map, sorted by policy id, and each policy's assets by name in Haskell's order
+     */
+    public static Map serializeInLedgerOrder(List<MultiAsset> multiAssets) {
+        return toMap(multiAssets, Comparators.ASSET_LEDGER);
+    }
+
+    private static Map toMap(List<MultiAsset> multiAssets, Comparator<Asset> nameOrder) {
+        List<MultiAsset> sorted = new ArrayList<>(multiAssets);
+        sorted.sort(Comparators.POLICY);
+
+        Map multiAssetMap = new SortedMap();
+        for (MultiAsset multiAsset : sorted) {
+            multiAsset.serialize(multiAssetMap, nameOrder);
+        }
+        return multiAssetMap;
+    }
+
     public void serialize(Map multiAssetMap) {
+        serialize(multiAssetMap, Comparators.ASSET);
+    }
+
+    private void serialize(Map multiAssetMap, Comparator<Asset> nameOrder) {
         Map assetsMap = new SortedMap();
         List<Asset> cloneAssets = new ArrayList<>(assets);
-        //sorted based on asset name bytes for canonical cbor
-        Collections.sort(cloneAssets, Comparators.assetComparator);
+        cloneAssets.sort(nameOrder);
         for (Asset asset : cloneAssets) {
             ByteString assetNameBytes = new ByteString(asset.getNameAsBytes());
 

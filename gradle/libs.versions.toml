@@ -6,13 +6,14 @@ nexus-java = "io.github.gero-labs:nexus-java-client:1.4.0"
 slf4j-api = "org.slf4j:slf4j-api:2.0.17"
 slf4j-reload4j = "org.slf4j:slf4j-reload4j:2.0.17"
 
-bouncycastle-bcprov = "org.bouncycastle:bcprov-jdk18on:1.83"
+bouncycastle-bcprov = "org.bouncycastle:bcprov-jdk18on:1.86"
 guava = "com.google.guava:guava:33.5.0-jre"
 co-nstant-in-cbor = "co.nstant.in:cbor:0.9"
 i2p-crypto-eddsa = "com.bloxbean.cardano:net-i2p-crypto-eddsa:0.3.1"
 
 jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.21.0"
 jackson-datatype-jsr310 = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.0"
+jackson-datatype-jdk8 = "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.21.0"
 jackson-dataformat-yaml = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.0"
 
 retrofit2 = "com.squareup.retrofit2:retrofit:3.0.0"
