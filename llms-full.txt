@@ -1,6 +1,6 @@
 # Cardano Client Lib — complete documentation
 
-Latest preview 0.8.0-pre7 (Java 17+) · Latest stable 0.7.3 (Java 11+) · Conway era · generated 2026-11-16
+Latest preview 0.8.0-pre7 (Java 17+) · Latest stable 0.7.3 (Java 11+) · Conway era · generated 2026-11-27
 Source: https://cardano-client.dev
 
 ---
@@ -14523,10 +14523,8 @@ A key's proof depends on the trie you take it from, and one proof serves several
 | `mpf.delete(trie, key, value, proof)` | The trie before the delete, or after it |
 | `mpf.update(trie, key, proof, old, new)` | The trie before the update |
 
-:::danger[Validators that use `miss` or `insert`]
-`aiken-lang/merkle-patricia-forestry` 2.1.0 doesn't check the shape of proof steps, or that a terminal `Leaf` or `Fork` neighbor differs from the queried key. With a crafted proof, `mpf.miss` accepts a key that is present, and `mpf.insert` accepts re-inserting a present key with a new value. We reproduced both with `aiken check`.
-
-CCL never produces such proofs and `verifyProofWire` rejects them, but on-chain code doesn't. If your validator relies on `miss` or `insert` to enforce absence or uniqueness, also check every step of the redeemer proof: `Fork` nibble and prefix bytes in 0..15, 32-byte `root`, `key` and `value`, and a neighbor nibble that differs from the key's nibble at that position.
+:::caution[Verifying untrusted proofs]
+Always validate untrusted proofs at the point of verification. On-chain validators must independently enforce proof validity, including structural checks and application-specific invariants. Off-chain proof validation does not replace on-chain validation.
 :::
 
 The same proof can be encoded several ways, and `verifyProofWire` accepts all of them. Don't use proof bytes or their hash as an identifier; use the key and the root.
