@@ -29,6 +29,15 @@ TxPlan defines Cardano transactions in YAML, with variables and context properti
 
 Merkle Patricia Forestry (MPF) and Jellyfish Merkle Tree (JMT), with RocksDB and SQL storage. MPF proofs can be verified on chain by Aiken's library.
 
+## New in 0.8.0-pre8
+
+- **CBOR that matches the ledger:** decoding and re-encoding now follow cardano-ledger. Indefinite-length arrays and unknown cost models decode, maps keyed by ledger types (such as treasury withdrawals, committee members and voting procedures) are written in Haskell's order, decoded inline datums keep their original bytes, script references are written as Haskell writes them, rationals with bignum parts are read, and decoders no longer silently wrap numbers that don't fit a field.
+- **Ledger CBOR reader:** the new `cardano-client-ledger-cbor` module holds one era-aware reader for blocks, headers and transactions. `RawTx` and `RawBlock` move into it, in the same package.
+- **Conway parameter updates:** `ProtocolParamUpdate` now carries keys 25 to 33, such as voting thresholds, governance deposits and DRep activity. `maxBlockSize`, `maxTxSize` and `maxEpoch` are now `Long`.
+- **Voting redeemers:** QuickTx computes a script voter's redeemer index in the ledger's voter order, so script voters that aren't first in that order now get the right index.
+- **Auxiliary data:** Plutus V3 scripts are no longer dropped when metadata is present.
+- **Ed25519 verification:** a BouncyCastle-based verifier with the same outcomes as cardano-node (libsodium) is now the default. The i2p verifier is still available through `CryptoConfiguration.INSTANCE.setEd25519Verifier(...)`.
+
 ## New in 0.8.0-pre7
 
 - **[CIP-113 programmable tokens](/learn/cip113-programmable-tokens/):** tokens with on-chain transfer rules, through the new `cardano-client-programmable-token` module.
