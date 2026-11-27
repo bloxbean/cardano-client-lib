@@ -43,19 +43,19 @@ class TxFlowStreamRetentionTest {
                 TxStreamReceipt receipt = stream.submit(planItem("pay-" + i));
                 gateway.lastHandle().completeConfirmed(STEP_ID, "tx-" + i);
                 assertEquals(TxStreamItemStatus.CONFIRMED,
-                        receipt.completion().toCompletableFuture().join().getStatus());
+                        receipt.completion().toCompletableFuture().join().status());
             }
 
-            assertTrue(stream.getItemStatus("pay-1").isEmpty(),
+            assertTrue(stream.itemStatus("pay-1").isEmpty(),
                     "the oldest settled item must be evicted FIFO");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.getItemStatus("pay-2").orElseThrow().getStatus());
+                    stream.itemStatus("pay-2").orElseThrow().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.getItemStatus("pay-3").orElseThrow().getStatus());
+                    stream.itemStatus("pay-3").orElseThrow().status());
             assertTrue(store.calls.contains("evict:pay-1"),
                     "eviction must remove the item from the state store too: " + store.calls);
 
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(3, stats.acceptedItemCount(),
                     "counters are cumulative and unaffected by eviction");
             assertEquals(3, stats.confirmedItemCount());
@@ -73,22 +73,22 @@ class TxFlowStreamRetentionTest {
             TxStreamReceipt first = stream.submit(planItem("pay-1"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
 
             stream.submit(planItem("pay-2"));           // in flight, unsettled
             stream.submit(planItem("pay-3"));           // buffered, unsettled
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.getItemStatus("pay-1").orElseThrow().getStatus(),
+                    stream.itemStatus("pay-1").orElseThrow().status(),
                     "one settled item is within the cap");
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-2");   // second settle evicts pay-1
-            assertTrue(stream.getItemStatus("pay-1").isEmpty());
+            assertTrue(stream.itemStatus("pay-1").isEmpty());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.getItemStatus("pay-2").orElseThrow().getStatus());
-            TxStreamItemResult third = stream.getItemStatus("pay-3").orElseThrow();
-            assertTrue(third.getStatus() == TxStreamItemStatus.PLANNED
-                            || third.getStatus() == TxStreamItemStatus.SUBMITTED,
-                    "an unsettled item must never be evicted; was " + third.getStatus());
+                    stream.itemStatus("pay-2").orElseThrow().status());
+            TxStreamItemResult third = stream.itemStatus("pay-3").orElseThrow();
+            assertTrue(third.status() == TxStreamItemStatus.PLANNED
+                            || third.status() == TxStreamItemStatus.SUBMITTED,
+                    "an unsettled item must never be evicted; was " + third.status());
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-3");
             stream.drain();
@@ -110,7 +110,7 @@ class TxFlowStreamRetentionTest {
             TxStreamReceipt second = stream.submit(planItem("pay-2"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-2");
             second.completion().toCompletableFuture().join();
-            assertTrue(stream.getItemStatus("pay-1").isEmpty(), "pay-1 must be evicted");
+            assertTrue(stream.itemStatus("pay-1").isEmpty(), "pay-1 must be evicted");
 
             // Redelivery of the evicted item re-registers and re-dispatches;
             // the engine's idempotency claim (same deterministic execution id)
@@ -121,7 +121,7 @@ class TxFlowStreamRetentionTest {
                     "the claim-derived execution id is stable across eviction");
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    redelivered.completion().toCompletableFuture().join().getStatus());
+                    redelivered.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -141,19 +141,19 @@ class TxFlowStreamRetentionTest {
                     .withTxPlan(plan()).withIdempotencyKey("order-1").build();
             TxStreamException thrown = assertThrows(TxStreamException.class,
                     () -> stream.submit(reusing));
-            assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", thrown.getCode());
+            assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", thrown.code());
             assertTrue(thrown.getMessage().contains("pay-1"),
                     "the conflict must name the owning item: " + thrown.getMessage());
 
             EmitResult emit = stream.trySubmit(reusing);
-            assertEquals(EmitResult.Status.REJECTED, emit.getStatus());
-            assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", emit.getRejection().getCode());
+            assertEquals(EmitResult.Status.REJECTED, emit.status());
+            assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", emit.rejection().code());
 
             assertEquals(1, gateway.started.size(),
                     "the reusing item must never dispatch — one claim, one receipt");
-            assertTrue(stream.getItemStatus("pay-2").isEmpty(),
+            assertTrue(stream.itemStatus("pay-2").isEmpty(),
                     "no receipt is retained for the rejected item");
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(1, stats.acceptedItemCount(),
                     "a reuse-rejected submission never became stream work: no accepted bump");
             assertEquals(0, stats.failedItemCount(),
@@ -164,7 +164,7 @@ class TxFlowStreamRetentionTest {
                     .withTxPlan(plan()).withIdempotencyKey("order-1").build()));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    owner.completion().toCompletableFuture().join().getStatus());
+                    owner.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -212,21 +212,21 @@ class TxFlowStreamRetentionTest {
                 assertEquals(live.executionId().orElseThrow(),
                         store.bindings.get("pay-1").executionId(),
                         "the live successor's binding must survive");
-                assertTrue(stream.getItemStatus("pay-1").isPresent(),
+                assertTrue(stream.itemStatus("pay-1").isPresent(),
                         "the live successor must stay visible");
 
                 // The live claim-key mapping must survive: reuse still rejects.
                 TxStreamException reuse = assertThrows(TxStreamException.class,
                         () -> stream.submit(TxWorkItem.builder("pay-9")
                                 .withTxPlan(plan()).withIdempotencyKey("order-1").build()));
-                assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", reuse.getCode());
+                assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", reuse.code());
                 assertTrue(reuse.getMessage().contains("pay-1"),
                         "the surviving mapping must still name the live owner");
                 assertEquals(1, gateway.started.size(), "the reusing item never dispatches");
 
                 gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
                 assertEquals(TxStreamItemStatus.CONFIRMED,
-                        live.completion().toCompletableFuture().join().getStatus());
+                        live.completion().toCompletableFuture().join().status());
             } finally {
                 // Fail fast instead of hanging: if an assertion above fired
                 // while pay-1 was still in flight, a graceful close would
@@ -253,7 +253,7 @@ class TxFlowStreamRetentionTest {
                     .withTxPlan(plan()).withIdempotencyKey("order-1").build());
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    retried.completion().toCompletableFuture().join().getStatus());
+                    retried.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -273,13 +273,13 @@ class TxFlowStreamRetentionTest {
             StubEngineGateway.StubHandle handle = gateway.lastHandle();
             handle.submittedEvent(STEP_ID, "tx-live");     // sequence 1
             assertEquals(TxStreamItemStatus.SUBMITTED,
-                    stream.getItemStatus("pay-1").orElseThrow().getStatus());
+                    stream.itemStatus("pay-1").orElseThrow().status());
             assertEquals(1, receipt.eventCursor(),
                     "the live SUBMITTED read-through must advance the cursor");
 
             handle.completeConfirmed(STEP_ID, "tx-live");  // appends sequence 2
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             assertEquals(2, receipt.eventCursor(),
                     "the terminal projection pass must consume the handle's tail");
         }
@@ -295,7 +295,7 @@ class TxFlowStreamRetentionTest {
                     FlowExecutionState.COMPLETED);
 
             TxStreamItemResult repaired = stream.reconcile("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.getStatus(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.status(),
                     "the snapshot fast-forwards the projection authoritatively");
             assertEquals(0, receipt.eventCursor(),
                     "a snapshot-only fast-forward consumes no events and must not move the cursor");

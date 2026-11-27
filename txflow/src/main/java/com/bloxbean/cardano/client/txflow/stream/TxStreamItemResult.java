@@ -38,63 +38,63 @@ public final class TxStreamItemResult {
      *
      * @return stream id
      */
-    public String getStreamId() { return streamId; }
+    public String streamId() { return streamId; }
 
     /**
      * Returns the caller-visible item identity.
      *
      * @return item id
      */
-    public String getItemId() { return itemId; }
+    public String itemId() { return itemId; }
 
     /**
      * Returns the item status at this snapshot.
      *
      * @return item status
      */
-    public TxStreamItemStatus getStatus() { return status; }
+    public TxStreamItemStatus status() { return status; }
 
     /**
      * Returns the deterministic engine execution identity bound to this item.
      *
      * @return execution id, or {@code null} before binding
      */
-    public String getExecutionId() { return executionId; }
+    public String executionId() { return executionId; }
 
     /**
      * Returns the generated flow step identity carrying the item's transaction.
      *
      * @return step id, or {@code null} before binding
      */
-    public String getStepId() { return stepId; }
+    public String stepId() { return stepId; }
 
     /**
      * Returns the user-facing label of the lane the item runs on.
      *
      * @return lane name, or {@code null} before binding
      */
-    public String getLaneName() { return laneName; }
+    public String laneName() { return laneName; }
 
     /**
      * Returns the submitted transaction hash.
      *
      * @return transaction hash, or {@code null} when no transaction was submitted
      */
-    public String getTransactionHash() { return transactionHash; }
+    public String transactionHash() { return transactionHash; }
 
     /**
      * Returns the failure associated with this snapshot.
      *
      * @return failure cause, or {@code null}
      */
-    public Throwable getError() { return error; }
+    public Throwable error() { return error; }
 
     /**
      * Returns the time this snapshot was projected.
      *
      * @return snapshot timestamp
      */
-    public Instant getUpdatedAt() { return updatedAt; }
+    public Instant updatedAt() { return updatedAt; }
 
     /**
      * Reports whether this snapshot is final and immutable.

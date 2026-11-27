@@ -46,8 +46,8 @@ class TxFlowStreamExtensionTest {
             TxStreamItemResult outcome = stream.submit(extensionItem("item-1"))
                     .completion().toCompletableFuture().join();
 
-            assertThat(outcome.getStatus()).as(String.valueOf(outcome)).isEqualTo(TxStreamItemStatus.CONFIRMED);
-            assertThat(chain.submitted).containsExactly(outcome.getTransactionHash());
+            assertThat(outcome.status()).as(String.valueOf(outcome)).isEqualTo(TxStreamItemStatus.CONFIRMED);
+            assertThat(chain.submitted).containsExactly(outcome.transactionHash());
         }
     }
 
@@ -60,7 +60,7 @@ class TxFlowStreamExtensionTest {
             stream.start();
             assertThatThrownBy(() -> stream.submit(extensionItem("item-1")))
                     .isInstanceOfSatisfying(TxStreamException.class, error ->
-                            assertThat(error.getCode()).isEqualTo("TXSTREAM_NON_PORTABLE_ITEM"))
+                            assertThat(error.code()).isEqualTo("TXSTREAM_NON_PORTABLE_ITEM"))
                     .hasMessageContaining("TXFLOW_EXTENSION_UNREGISTERED");
             assertThat(store.calls).isEmpty();
             assertThat(gateway.started).isEmpty();

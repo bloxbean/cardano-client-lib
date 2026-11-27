@@ -1,5 +1,9 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.BindingOutcome;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamBinding;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -35,24 +39,24 @@ class TxFlowStreamRecoveryTest {
             String executionId = receipt.executionId().orElseThrow();
             completeRecoveryRequired(gateway, "tx-uncertain");
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
 
             // Nothing to repair while the engine has no authoritative answer.
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    stream.getItemStatus("pay-1").orElseThrow().getStatus());
+                    stream.itemStatus("pay-1").orElseThrow().status());
 
             gateway.putSnapshot(executionId, FlowExecutionState.COMPLETED);
-            TxStreamItemResult repaired = stream.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.getStatus());
-            assertEquals("tx-uncertain", repaired.getTransactionHash(),
+            TxStreamItemResult repaired = stream.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.status());
+            assertEquals("tx-uncertain", repaired.transactionHash(),
                     "hash must survive the repair");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    listener.updates.get(listener.updates.size() - 1).getStatus(),
+                    listener.updates.get(listener.updates.size() - 1).status(),
                     "the repair must be emitted to the listener");
             // The settled promise keeps its point-in-time outcome.
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
-            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
+            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().status());
         }
     }
 
@@ -66,8 +70,8 @@ class TxFlowStreamRecoveryTest {
 
             gateway.putSnapshot(receipt.executionId().orElseThrow(), FlowExecutionState.FAILED);
             TxStreamItemResult repaired = stream.reconcile("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.FAILED, repaired.getStatus());
-            assertEquals("tx-uncertain", repaired.getTransactionHash());
+            assertEquals(TxStreamItemStatus.FAILED, repaired.status());
+            assertEquals("tx-uncertain", repaired.transactionHash());
         }
     }
 
@@ -81,7 +85,7 @@ class TxFlowStreamRecoveryTest {
 
             gateway.putSnapshot(receipt.executionId().orElseThrow(), FlowExecutionState.RUNNING);
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    stream.reconcile("pay-1").orElseThrow().getStatus());
+                    stream.reconcile("pay-1").orElseThrow().status());
             assertTrue(stream.reconcile("missing").isEmpty());
         }
     }
@@ -94,11 +98,11 @@ class TxFlowStreamRecoveryTest {
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
 
             gateway.putSnapshot(receipt.executionId().orElseThrow(), FlowExecutionState.FAILED);
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.reconcile("pay-1").orElseThrow().getStatus(),
+                    stream.reconcile("pay-1").orElseThrow().status(),
                     "a final projection can never be overwritten");
         }
     }
@@ -142,7 +146,7 @@ class TxFlowStreamRecoveryTest {
         assertFalse(store.projectItem(stale, 2), "stale sequence must be rejected");
         assertFalse(store.projectItem(stale, 3), "same sequence must be rejected");
         assertEquals(TxStreamItemStatus.SUBMITTED,
-                store.getItem("s", "item-1").orElseThrow().getStatus());
+                store.getItem("s", "item-1").orElseThrow().status());
         assertTrue(store.getItem("other-stream", "item-1").isEmpty());
     }
 

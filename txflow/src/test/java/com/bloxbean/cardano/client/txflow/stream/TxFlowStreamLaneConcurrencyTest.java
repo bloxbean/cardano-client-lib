@@ -70,9 +70,9 @@ class TxFlowStreamLaneConcurrencyTest {
 
             assertEquals(2, gateway.started.size(),
                     "one execution per lane identity may be in flight");
-            assertEquals(2, stream.getStats().inFlightCount(),
+            assertEquals(2, stream.stats().inFlightCount(),
                     "both lanes must be in flight simultaneously");
-            assertEquals(1, stream.getStats().pendingBufferSize(),
+            assertEquals(1, stream.stats().pendingBufferSize(),
                     "the same-lane follower must queue");
             assertEquals(List.of("addr:" + SENDER_A),
                     List.copyOf(gateway.started.get(0).getSpendingResources()));
@@ -88,13 +88,13 @@ class TxFlowStreamLaneConcurrencyTest {
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-b1");
             gateway.handles.get(2).completeConfirmed(STEP_ID, "tx-a2");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a1.completion().toCompletableFuture().join().getStatus());
+                    a1.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a2.completion().toCompletableFuture().join().getStatus());
+                    a2.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b1.completion().toCompletableFuture().join().getStatus());
-            assertEquals("lane-a", a1.current().getLaneName());
-            assertEquals("lane-b", b1.current().getLaneName());
+                    b1.completion().toCompletableFuture().join().status());
+            assertEquals("lane-a", a1.current().laneName());
+            assertEquals("lane-b", b1.current().laneName());
         }
     }
 
@@ -133,9 +133,9 @@ class TxFlowStreamLaneConcurrencyTest {
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-1");
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-2");
             assertEquals(TxStreamItemStatus.CONFIRMED, first.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
             assertEquals(TxStreamItemStatus.CONFIRMED, second.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
         } finally {
             pool.shutdownNow();
         }
@@ -153,18 +153,18 @@ class TxFlowStreamLaneConcurrencyTest {
 
             assertEquals(1, gateway.started.size(),
                     "alias lane names are one lane: never two in flight for one identity");
-            assertEquals(1, stream.getStats().inFlightCount());
-            assertEquals(1, stream.getStats().pendingBufferSize());
+            assertEquals(1, stream.stats().inFlightCount());
+            assertEquals(1, stream.stats().pendingBufferSize());
 
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-1");
             assertEquals(2, gateway.started.size(), "the alias FIFO drains serially");
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-2");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    second.completion().toCompletableFuture().join().getStatus());
-            assertEquals("alias-a", first.current().getLaneName());
-            assertEquals("alias-b", second.current().getLaneName());
+                    second.completion().toCompletableFuture().join().status());
+            assertEquals("alias-a", first.current().laneName());
+            assertEquals("alias-b", second.current().laneName());
         }
     }
 
@@ -184,18 +184,18 @@ class TxFlowStreamLaneConcurrencyTest {
             TxStreamReceipt ok = stream.submit(laneItem("f-1", "first"));
             TxStreamException error = assertThrows(TxStreamException.class,
                     () -> stream.submit(laneItem("s-1", "second")));
-            assertEquals("TXSTREAM_LANE_SCOPE_OVERLAP", error.getCode());
+            assertEquals("TXSTREAM_LANE_SCOPE_OVERLAP", error.code());
             assertTrue(error.getMessage().contains("identity-one"));
             assertTrue(error.getMessage().contains("identity-two"));
             assertEquals(1, gateway.started.size(), "the overlapping lane's item never dispatches");
             assertEquals(1, store.calls.stream()
                     .filter(call -> call.startsWith("register:")).count());
-            assertTrue(stream.getItemStatus("s-1").isEmpty());
+            assertTrue(stream.itemStatus("s-1").isEmpty());
             assertTrue(stream.isHealthy());
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    ok.completion().toCompletableFuture().join().getStatus());
+                    ok.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -212,24 +212,24 @@ class TxFlowStreamLaneConcurrencyTest {
             stream.start();
             TxStreamException nullResolved = assertThrows(TxStreamException.class,
                     () -> stream.submit(laneItem("g-1", "ghost")));
-            assertEquals("TXSTREAM_LANE_UNRESOLVED", nullResolved.getCode());
+            assertEquals("TXSTREAM_LANE_UNRESOLVED", nullResolved.code());
 
             TxStreamException thrown = assertThrows(TxStreamException.class,
                     () -> stream.submit(laneItem("b-1", "broken")));
-            assertEquals("TXSTREAM_LANE_UNRESOLVED", thrown.getCode());
+            assertEquals("TXSTREAM_LANE_UNRESOLVED", thrown.code());
 
             assertTrue(gateway.started.isEmpty(), "unresolved items never reach the engine");
             assertTrue(store.calls.isEmpty(), "unresolved items are never registered");
             assertTrue(stream.isHealthy());
-            assertTrue(stream.getItemStatus("g-1").isEmpty(),
+            assertTrue(stream.itemStatus("g-1").isEmpty(),
                     "an unresolved item is failed-and-released, retained nowhere");
-            assertTrue(stream.getItemStatus("b-1").isEmpty(),
+            assertTrue(stream.itemStatus("b-1").isEmpty(),
                     "a resolver-outage item is failed-and-released, retained nowhere");
 
             TxStreamReceipt good = stream.submit(laneItem("ok-1", "good"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    good.completion().toCompletableFuture().join().getStatus());
+                    good.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -249,8 +249,8 @@ class TxFlowStreamLaneConcurrencyTest {
             stream.start();
             TxStreamException failed = assertThrows(TxStreamException.class,
                     () -> stream.submit(laneItem("g-1", "flaky")));
-            assertEquals("TXSTREAM_LANE_UNRESOLVED", failed.getCode());
-            assertTrue(stream.getItemStatus("g-1").isEmpty(),
+            assertEquals("TXSTREAM_LANE_UNRESOLVED", failed.code());
+            assertTrue(stream.itemStatus("g-1").isEmpty(),
                     "the outage-era failure is released, not retained");
 
             outage.set(false);
@@ -258,7 +258,7 @@ class TxFlowStreamLaneConcurrencyTest {
             assertEquals(1, gateway.started.size(), "the recovered item dispatches normally");
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    redelivered.completion().toCompletableFuture().join().getStatus());
+                    redelivered.completion().toCompletableFuture().join().status());
             assertEquals(2, resolutions.get(),
                     "the failure is never cached; the successful resolution is cached once");
         }
@@ -272,8 +272,8 @@ class TxFlowStreamLaneConcurrencyTest {
             stream.start();
             TxStreamException outcome = assertThrows(TxStreamException.class,
                     () -> stream.submit(TxWorkItem.fromTxPlan("no-lane", plainPlan())));
-            assertEquals("TXSTREAM_LANE_REQUIRED", outcome.getCode());
-            assertTrue(stream.getItemStatus("no-lane").isEmpty());
+            assertEquals("TXSTREAM_LANE_REQUIRED", outcome.code());
+            assertTrue(stream.itemStatus("no-lane").isEmpty());
             assertTrue(gateway.started.isEmpty());
         }
     }
@@ -324,16 +324,16 @@ class TxFlowStreamLaneConcurrencyTest {
             TxStreamException error = assertThrows(TxStreamException.class,
                     () -> stream.submit(TxWorkItem.builder("bad-1")
                             .withTxPlan(plainPlan()).withLane("treasury").build()));
-            assertEquals("TXSTREAM_LANE_MISMATCH", error.getCode());
+            assertEquals("TXSTREAM_LANE_MISMATCH", error.code());
             assertTrue(error.getMessage().contains("treasury"));
-            assertTrue(stream.getItemStatus("bad-1").isEmpty());
+            assertTrue(stream.itemStatus("bad-1").isEmpty());
             assertEquals(1, gateway.started.size(), "a foreign lane name never dispatches");
             assertEquals(1, store.calls.stream()
                     .filter(call -> call.startsWith("register:")).count());
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    matching.completion().toCompletableFuture().join().getStatus());
+                    matching.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -356,7 +356,7 @@ class TxFlowStreamLaneConcurrencyTest {
                     .withTxPlan(plainPlan()).withLane("payouts-lane").build()));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -408,9 +408,9 @@ class TxFlowStreamLaneConcurrencyTest {
             assertEquals(2, gateway.started.size(), "the shared FIFO drains serially");
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-2");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    x1.completion().toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    x1.completion().toCompletableFuture().get(10, TimeUnit.SECONDS).status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    x2.completion().toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    x2.completion().toCompletableFuture().get(10, TimeUnit.SECONDS).status());
             assertEquals(1, resolutions.get("alias-a").get(),
                     "each alias name resolves exactly once despite the race");
             assertEquals(1, resolutions.get("alias-b").get());
@@ -442,13 +442,13 @@ class TxFlowStreamLaneConcurrencyTest {
             TxStreamReceipt winner = o1 instanceof TxStreamReceipt
                     ? (TxStreamReceipt) o1 : assertInstanceOf(TxStreamReceipt.class, o2);
             assertEquals("TXSTREAM_LANE_SCOPE_OVERLAP",
-                    loser.getCode());
-            assertTrue(stream.getItemStatus(loser == o1 ? "o-1" : "o-2").isEmpty());
+                    loser.code());
+            assertTrue(stream.itemStatus(loser == o1 ? "o-1" : "o-2").isEmpty());
             assertEquals(3, gateway.started.size(),
                     "exactly one of the overlapping lanes may dispatch");
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-3");
             assertEquals(TxStreamItemStatus.CONFIRMED, winner.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
         } finally {
             pool.shutdownNow();
         }
@@ -480,19 +480,19 @@ class TxFlowStreamLaneConcurrencyTest {
             TxStreamReceipt second = stream.submit(laneItem("b-1", "lane-b"));
 
             TxStreamItemResult rejected = second.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, rejected.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, rejected.status());
             assertEquals("TXSTREAM_UNHEALTHY", assertInstanceOf(TxStreamException.class,
-                    rejected.getError()).getCode());
+                    rejected.error()).code());
             assertFalse(stream.isHealthy());
-            assertEquals(1, stream.getStats().inFlightCount(),
+            assertEquals(1, stream.stats().inFlightCount(),
                     "the rejected item's slot must be released; only a-1 stays in flight");
-            assertEquals(0, stream.getStats().pendingBufferSize());
+            assertEquals(0, stream.stats().pendingBufferSize());
 
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-a1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus(),
+                    first.completion().toCompletableFuture().join().status(),
                     "the already dispatched item still completes");
-            assertEquals(0, stream.getStats().inFlightCount());
+            assertEquals(0, stream.stats().inFlightCount());
             stream.drain();
         }
     }
@@ -558,7 +558,7 @@ class TxFlowStreamLaneConcurrencyTest {
             }
             for (TxStreamReceipt receipt : receipts) {
                 assertEquals(TxStreamItemStatus.CONFIRMED, receipt.completion()
-                                .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus(),
+                                .toCompletableFuture().get(10, TimeUnit.SECONDS).status(),
                         "every item must settle");
             }
             assertEquals(1, maxPerIdentity.get(),
@@ -588,23 +588,23 @@ class TxFlowStreamLaneConcurrencyTest {
             TxStreamReceipt c = stream.submit(laneItem("c-1", "lane-c"));
 
             assertEquals(2, gateway.started.size(), "the global cap must hold at 2");
-            assertEquals(2, stream.getStats().inFlightCount());
-            assertEquals(1, stream.getStats().pendingBufferSize());
+            assertEquals(2, stream.stats().inFlightCount());
+            assertEquals(1, stream.stats().pendingBufferSize());
 
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-a");
             assertEquals(3, gateway.started.size(),
                     "a freed slot must dispatch the waiting lane");
-            assertEquals(2, stream.getStats().inFlightCount(), "never more than 2 in flight");
+            assertEquals(2, stream.stats().inFlightCount(), "never more than 2 in flight");
 
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-b");
             gateway.handles.get(2).completeConfirmed(STEP_ID, "tx-c");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a.completion().toCompletableFuture().join().getStatus());
+                    a.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.completion().toCompletableFuture().join().getStatus());
+                    b.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    c.completion().toCompletableFuture().join().getStatus());
-            assertEquals(0, stream.getStats().inFlightCount());
+                    c.completion().toCompletableFuture().join().status());
+            assertEquals(0, stream.stats().inFlightCount());
         }
     }
 
@@ -657,12 +657,12 @@ class TxFlowStreamLaneConcurrencyTest {
             TxStreamDuplicateItemException conflict = assertThrows(
                     TxStreamDuplicateItemException.class,
                     () -> stream.submit(laneItem("pay-1", "lane-b")));
-            assertEquals("pay-1", conflict.getItemId());
+            assertEquals("pay-1", conflict.itemId());
             // Same lane redelivery still attaches.
             assertSame(original, stream.submit(laneItem("pay-1", "lane-a")));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    original.completion().toCompletableFuture().join().getStatus());
+                    original.completion().toCompletableFuture().join().status());
         }
     }
 

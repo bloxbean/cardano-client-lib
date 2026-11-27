@@ -54,14 +54,14 @@ Everything lives in `txflow/src/main/java/com/bloxbean/cardano/client/txflow/`:
 | Path | Role |
 |---|---|
 | `FlowRuntime.java` | Optional managed composition root: owns one ordinary engine, its executors, and streams opened for beginner/script use; contains no transaction behavior |
-| `stream/TxFlowStream.java` | Public interface + `Builder`. Lifecycle: `start()`, `reattach()`, `bootstrap()`, `submit()`, `trySubmit()`, `cancelItem()`, `getItemStatus()`, `reconcile()`, `drain()` |
+| `stream/TxFlowStream.java` | Public interface + `Builder`. Lifecycle: `start()`, `reattach()`, `bootstrap()`, `submit()`, `trySubmit()`, `cancelItem()`, `itemStatus()`, `reconcile()`, `drain()` |
 | `stream/EngineTxFlowStream.java` | **The implementation.** One large file, by design: item acceptance, lanes, windows, dispatch, projection, reattach all share tightly-coupled state guarded by the same locks |
 | `stream/TxStreamPlanner.java`, `BuiltInPlanners.java` | Planner SPI + `perItem()` / `perWindow()` / planner-local `perWindow(PIPELINED)` / `batching()` |
 | `stream/TxStreamCodes.java`, `TxStreamEventListener.java` | Public core error catalog and isolated lifecycle/item observer contract |
 | `stream/LanePolicy.java`, `ResolvedLane.java`, `PartitionedLanes.java`, `LaneIdentityResolver.java` | Lane identity and resolution |
 | `stream/WindowPolicy.java` | Window close rules: `count(n)`, `time(d)`, `countOrTime(n, d)` |
 | `stream/StableIdFactory.java` | Deterministic flow/step id derivation (ADR 0004 Decision 3) |
-| `stream/TxStreamStateStore.java`, `InMemoryTxStreamStore.java`, `InMemoryDurableTxStreamStore.java` | Stream-side persistence SPI |
+| `stream/store/TxStreamStateStore.java`, `InMemoryTxStreamStore.java`, `InMemoryDurableTxStreamStore.java` | Stream-side persistence SPI (`com.bloxbean.cardano.client.txflow.stream.store`) |
 | `exec/FlowEngine.java` | Durable engine: `start(request)`, `recover(request)` |
 | `exec/FlowExecutor.java` | Chaining-mode execution (SEQUENTIAL / PIPELINED / BATCH), rollback handling, uncertain-disposition settlement, legacy `resumeSync`/`resume` |
 | `exec/StepRunner.java` | Single-step build/sign/submit/confirm |
@@ -109,7 +109,7 @@ ACCEPTED → PLANNED → SUBMITTED → CONFIRMED        (happy path)
 `SUBMITTED` is only projected after the engine emits `TRANSACTION_SUBMITTED` — the
 stream never asserts submission ahead of the backend. `RECOVERY_REQUIRED` is the
 honest "I don't know" state: the transaction may still be on chain. It is settled in
-the store but *repairable*: `getItemStatus()` / `reconcile()` re-read the engine
+the store but *repairable*: `itemStatus()` / `reconcile()` re-read the engine
 snapshot and advance the projection when the engine has an authoritative answer.
 
 ---
@@ -158,7 +158,7 @@ sequenceDiagram
     E-->>S: onExecutionComplete(execution, result, failure)
     S->>S: memberTerminalStatus()/templateFlowStatus() per member
     S->>St: project(state, terminalStatus)
-    S-->>C: getItemStatus()/awaitItem → CONFIRMED / FAILED / CANCELLED / RECOVERY_REQUIRED
+    S-->>C: itemStatus()/awaitItem → CONFIRMED / FAILED / CANCELLED / RECOVERY_REQUIRED
 ```
 
 ### 4.1 Acceptance — `accept(TxWorkItem, boolean blocking)`
@@ -220,7 +220,7 @@ Lane modes (`LanePolicy`):
 |---|---|---|
 | `single(lane)` | One fixed lane | Simple apps, one funding wallet |
 | `explicit()` | `TxWorkItem.lane` hint, required | Caller controls partitioning |
-| `byFundingSource()` (default) | Derived from the item's `from` / `from_ref` | Natural per-wallet serialization; deprecated `byFundingAddress()` is an alias |
+| `byFundingSource()` (default) | Derived from the item's `from` / `from_ref` | Natural per-wallet serialization |
 | `partitioned(config)` | Hash-partitioned over N lanes | Throughput scaling over one identity |
 
 ### 4.4 Engine execution
@@ -489,7 +489,7 @@ to RECOVERY_REQUIRED, notify uncertain.
   documented task and maintenance pools.
 - A `maintenanceExecutor` (scheduled) drives window timers and periodic reconciliation
   (`reconciliationInterval`/`reconciliationBatchSize`). Without it the stream owns no
-  threads/timers — read-through `getItemStatus()`/`reconcile()` still work (build-time
+  threads/timers — read-through `itemStatus()`/`reconcile()` still work (build-time
   warning in `TxFlowStream.Builder.build()`).
 - Source integration: `FlowWorkSource`/`TxWorkSource` push into the stream; the stream
   applies backpressure by pausing/resuming the source (`source.resume()` when capacity

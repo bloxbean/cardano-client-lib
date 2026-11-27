@@ -45,14 +45,14 @@ class TxStreamReceiptAwaitTest {
                 new IllegalStateException("wrapper", underlying));
         TxStreamFailedException failedException = assertThrows(TxStreamFailedException.class,
                 () -> settledReceipt(failed).awaitConfirmed());
-        assertEquals("TXSTREAM_DISPATCH_FAILED", failedException.getCode());
+        assertEquals("TXSTREAM_DISPATCH_FAILED", failedException.code());
         assertSame(failed, failedException.result());
 
         TxStreamItemResult cancelled = result(TxStreamItemStatus.CANCELLED, null, null);
         TxStreamCancelledException cancelledException =
                 assertThrows(TxStreamCancelledException.class,
                         () -> settledReceipt(cancelled).awaitConfirmed());
-        assertEquals("TXSTREAM_ITEM_CANCELLED", cancelledException.getCode());
+        assertEquals("TXSTREAM_ITEM_CANCELLED", cancelledException.code());
         assertSame(cancelled, cancelledException.result());
 
         TxStreamItemResult uncertain = result(
@@ -60,11 +60,11 @@ class TxStreamReceiptAwaitTest {
         TxStreamUncertainException uncertainException =
                 assertThrows(TxStreamUncertainException.class,
                         () -> settledReceipt(uncertain).awaitConfirmed());
-        assertEquals("TXSTREAM_RECOVERY_REQUIRED", uncertainException.getCode());
+        assertEquals("TXSTREAM_RECOVERY_REQUIRED", uncertainException.code());
         assertTrue(uncertainException.getMessage().startsWith("DO NOT RESUBMIT:"));
         assertEquals("item-1", uncertainException.itemId());
         assertSame(uncertain, uncertainException.result());
-        assertEquals("tx-uncertain", uncertainException.result().getTransactionHash());
+        assertEquals("tx-uncertain", uncertainException.result().transactionHash());
         assertTrue(uncertain.isUncertain());
         assertFalse(confirmed.isUncertain());
     }
@@ -77,8 +77,8 @@ class TxStreamReceiptAwaitTest {
         TxStreamFailedException exception = assertThrows(TxStreamFailedException.class,
                 () -> settledReceipt(failed).awaitConfirmed());
 
-        assertEquals("TXSTREAM_ITEM_FAILED", exception.getCode());
-        assertSame(failed.getError(), exception.getCause());
+        assertEquals("TXSTREAM_ITEM_FAILED", exception.code());
+        assertSame(failed.error(), exception.getCause());
     }
 
     @Test
@@ -94,15 +94,15 @@ class TxStreamReceiptAwaitTest {
                     new AtomicLong());
 
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    receipt.awaitSettled().getStatus(), "the promise remains point-in-time");
+                    receipt.awaitSettled().status(), "the promise remains point-in-time");
             if (repairedStatus == TxStreamItemStatus.CONFIRMED) {
-                assertEquals(repairedStatus, receipt.awaitConfirmed().getStatus());
+                assertEquals(repairedStatus, receipt.awaitConfirmed().status());
             } else if (repairedStatus == TxStreamItemStatus.FAILED) {
                 assertEquals(repairedStatus, assertThrows(TxStreamFailedException.class,
-                        receipt::awaitConfirmed).result().getStatus());
+                        receipt::awaitConfirmed).result().status());
             } else {
                 assertEquals(repairedStatus, assertThrows(TxStreamCancelledException.class,
-                        receipt::awaitConfirmed).result().getStatus());
+                        receipt::awaitConfirmed).result().status());
             }
         }
     }
@@ -151,7 +151,7 @@ class TxStreamReceiptAwaitTest {
         waiter.join(1_000);
 
         assertFalse(waiter.isAlive());
-        assertEquals("TXSTREAM_INTERRUPTED", failure.get().getCode());
+        assertEquals("TXSTREAM_INTERRUPTED", failure.get().code());
         assertTrue(interruptedFlag.get());
         assertFalse(projection.promise().isDone());
     }

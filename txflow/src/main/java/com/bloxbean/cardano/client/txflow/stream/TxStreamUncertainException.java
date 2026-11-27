@@ -20,7 +20,7 @@ public final class TxStreamUncertainException extends TxStreamException {
      */
     public TxStreamUncertainException(TxStreamItemResult result) {
         super("TXSTREAM_RECOVERY_REQUIRED", TxStreamOutcomes.uncertainMessage(result),
-                Objects.requireNonNull(result, "result").getError());
+                Objects.requireNonNull(result, "result").error());
         this.result = result;
     }
 
@@ -31,6 +31,6 @@ public final class TxStreamUncertainException extends TxStreamException {
 
     /** @return caller-visible item id to pass to explicit reconciliation */
     public String itemId() {
-        return result.getItemId();
+        return result.itemId();
     }
 }

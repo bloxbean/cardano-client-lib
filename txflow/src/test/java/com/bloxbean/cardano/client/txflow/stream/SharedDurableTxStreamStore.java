@@ -1,5 +1,12 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.BindingOutcome;
+import com.bloxbean.cardano.client.txflow.stream.store.StreamOwnershipLease;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamBinding;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStoredProjection;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -256,8 +263,8 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
         List<String> result = new ArrayList<>();
         for (ProjectionEntry entry : projections.values()) {
             TxStreamItemResult projection = entry.result();
-            if (projection.getStreamId().equals(streamId) && !isFinal(projection.getStatus())) {
-                result.add(projection.getItemId());
+            if (projection.streamId().equals(streamId) && !isFinal(projection.status())) {
+                result.add(projection.itemId());
             }
         }
         return result;
@@ -273,7 +280,7 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
     public boolean projectItem(TxStreamItemResult result, long sourceSequence) {
         Objects.requireNonNull(result, "result");
         boolean[] applied = new boolean[1];
-        projections.compute(result.getItemId(), (ignored, existing) -> {
+        projections.compute(result.itemId(), (ignored, existing) -> {
             if (existing != null && sourceSequence <= existing.sequence()) {
                 return existing;
             }
@@ -286,7 +293,7 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
     @Override
     public Optional<TxStreamItemResult> getItem(String streamId, String itemId) {
         ProjectionEntry entry = projections.get(itemId);
-        if (entry == null || !entry.result().getStreamId().equals(streamId)) {
+        if (entry == null || !entry.result().streamId().equals(streamId)) {
             return Optional.empty();
         }
         return Optional.of(entry.result());
@@ -295,14 +302,14 @@ final class SharedDurableTxStreamStore implements TxStreamStateStore {
     @Override
     public Optional<TxStreamStoredProjection> getStoredProjection(String streamId, String itemId) {
         ProjectionEntry entry = projections.get(itemId);
-        if (entry == null || !entry.result().getStreamId().equals(streamId)) return Optional.empty();
+        if (entry == null || !entry.result().streamId().equals(streamId)) return Optional.empty();
         return Optional.of(new TxStreamStoredProjection(entry.result(), entry.sequence()));
     }
 
     @Override
     public Optional<Long> lastProjectionSequence(String streamId, String itemId) {
         ProjectionEntry entry = projections.get(itemId);
-        if (entry == null || !entry.result().getStreamId().equals(streamId)) {
+        if (entry == null || !entry.result().streamId().equals(streamId)) {
             return Optional.empty();
         }
         return Optional.of(entry.sequence());

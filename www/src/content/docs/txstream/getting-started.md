@@ -113,7 +113,7 @@ before the runtime.
 
 Every item has two identities:
 
-- **`itemId`** — the caller-visible handle for receipts, `getItemStatus(...)`, and cancellation.
+- **`itemId`** — the caller-visible handle for receipts, `itemStatus(...)`, and cancellation.
 - **`idempotencyKey`** — the business identity that defines the engine claim (defaults to the
   `itemId` when unset). Use the upstream identity you already have: an order id, a message id, an
   outbox row id.
@@ -162,16 +162,16 @@ a full buffer:
 
 ```java
 EmitResult result = stream.trySubmit(item);
-switch (result.getStatus()) {
+switch (result.status()) {
     case OK:
     case DUPLICATE_ATTACHED:
-        TxStreamReceipt receipt = result.getReceipt();
+        TxStreamReceipt receipt = result.receipt();
         break;
     case FULL:       // bounded buffer full — retry later
         break;
-    case CONFLICT:   // same item id, different content: result.getConflict()
+    case CONFLICT:   // same item id, different content: result.conflict()
         break;
-    case REJECTED:   // typed cause in result.getRejection()
+    case REJECTED:   // typed cause in result.rejection()
         break;
     case PAUSED:     // ownership standby — park the item and retry; not terminal
         break;
@@ -196,7 +196,7 @@ try {
             .awaitConfirmed(Duration.ofMinutes(5));
 } catch (TxStreamUncertainException uncertain) {
     // DO NOT RESUBMIT: the transaction may still land. Look its hash up on chain.
-    String txHash = uncertain.result().getTransactionHash(); // may be null
+    String txHash = uncertain.result().transactionHash(); // may be null
     throw uncertain;
 } catch (TxStreamTimeoutException timeout) {
     // A caller wait expired; inspect timeout.result(). Timeout is not failure.
@@ -214,13 +214,13 @@ try {
 
 `receipt.completion()` remains the non-cancelling asynchronous stage and `awaitSettled()` is the
 blocking API for callers that intentionally branch over every settled state. Both can expose
-`RECOVERY_REQUIRED`. `getItemStatus(itemId)` returns the live projection at any time:
+`RECOVERY_REQUIRED`. `itemStatus(itemId)` returns the live projection at any time:
 
 ```java
 // Live projection; read-through repair needs an engine with a store:
-Optional<TxStreamItemResult> current = stream.getItemStatus(receipt.itemId());
+Optional<TxStreamItemResult> current = stream.itemStatus(receipt.itemId());
 
-TxStreamStats stats = stream.getStats();
+TxStreamStats stats = stream.stats();
 long confirmed = stats.confirmedItemCount();
 int inFlight = stats.inFlightCount();
 ```
@@ -233,7 +233,7 @@ int inFlight = stats.inFlightCount();
 | `CONFIRMED` | The item's transaction confirmed on chain | yes |
 | `FAILED` | Conclusive failure; when a transaction was submitted first, its hash is retained | yes |
 | `CANCELLED` | Cancelled before producing a confirmed transaction | yes |
-| `RECOVERY_REQUIRED` | Disposition uncertain — typically submitted but unconfirmed inside a terminal flow. **The transaction may still confirm: reconcile, do not retry blindly.** Settles the receipt as a point-in-time answer. `getItemStatus`/`reconcile` can repair it only on an engine with a store, once the stored execution is terminal | settles the receipt |
+| `RECOVERY_REQUIRED` | Disposition uncertain — typically submitted but unconfirmed inside a terminal flow. **The transaction may still confirm: reconcile, do not retry blindly.** Settles the receipt as a point-in-time answer. `itemStatus`/`reconcile` can repair it only on an engine with a store, once the stored execution is terminal | settles the receipt |
 
 Two projection guarantees are worth internalizing: a transaction hash, once known, is never
 dropped from a later snapshot, and a submitted-but-unconfirmed transaction is never reported

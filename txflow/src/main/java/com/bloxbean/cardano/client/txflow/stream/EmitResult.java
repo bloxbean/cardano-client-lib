@@ -31,13 +31,13 @@ public final class EmitResult {
         DUPLICATE_ATTACHED,
         /**
          * The item id was redelivered with different content; the typed
-         * conflict is available via {@link #getConflict()}.
+         * conflict is available via {@link #conflict()}.
          */
         CONFLICT,
         /**
          * The stream rejected the item before any work was created — for
          * example an authoritative registration write failed. The typed cause
-         * is available via {@link #getRejection()}; unlike
+         * is available via {@link #rejection()}; unlike
          * {@link TxFlowStream#submit(TxWorkItem)}, {@code trySubmit} reports
          * this disposition instead of throwing.
          */
@@ -63,7 +63,7 @@ public final class EmitResult {
      *
      * @return emit status
      */
-    public Status getStatus() {
+    public Status status() {
         return status;
     }
 
@@ -73,7 +73,7 @@ public final class EmitResult {
      *
      * @return receipt, or {@code null} when no receipt is associated
      */
-    public TxStreamReceipt getReceipt() {
+    public TxStreamReceipt receipt() {
         return receipt;
     }
 
@@ -82,7 +82,7 @@ public final class EmitResult {
      *
      * @return duplicate-item conflict, or {@code null}
      */
-    public TxStreamDuplicateItemException getConflict() {
+    public TxStreamDuplicateItemException conflict() {
         return conflict;
     }
 
@@ -91,7 +91,7 @@ public final class EmitResult {
      *
      * @return stream exception describing the rejection, or {@code null}
      */
-    public TxStreamException getRejection() {
+    public TxStreamException rejection() {
         return rejection;
     }
 

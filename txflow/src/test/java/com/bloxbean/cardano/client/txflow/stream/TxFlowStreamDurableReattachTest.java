@@ -1,5 +1,9 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.BindingOutcome;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -101,9 +105,9 @@ class TxFlowStreamDurableReattachTest {
             assertEquals(0, report.redispatched());
             assertEquals(1, engine.started.size(), "a present snapshot is never re-dispatched");
 
-            TxStreamItemResult repaired = b.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.getStatus());
-            assertEquals("tx-1", repaired.getTransactionHash());
+            TxStreamItemResult repaired = b.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.status());
+            assertEquals("tx-1", repaired.transactionHash());
             assertEquals(BindingOutcome.MATCHED, store.outcome("pay-1").orElseThrow(),
                     "re-attach confirms the DISPATCHING binding once the snapshot proves the start");
         }
@@ -141,9 +145,9 @@ class TxFlowStreamDurableReattachTest {
                     "the deterministic execution id makes re-dispatch idempotent");
 
             engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
-            TxStreamItemResult confirmed = b.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.getStatus());
-            assertEquals("tx-1", confirmed.getTransactionHash());
+            TxStreamItemResult confirmed = b.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.status());
+            assertEquals("tx-1", confirmed.transactionHash());
         }
     }
 
@@ -166,10 +170,10 @@ class TxFlowStreamDurableReattachTest {
 
         try (TxFlowStream b = durableBuilder(engine, store).build()) {
             b.reattach();
-            TxStreamItemResult repaired = b.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.getStatus(),
+            TxStreamItemResult repaired = b.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.status(),
                     "PLANNED fast-forwards straight to CONFIRMED without visiting SUBMITTED");
-            assertEquals("tx-final", repaired.getTransactionHash());
+            assertEquals("tx-final", repaired.transactionHash());
         }
     }
 
@@ -200,12 +204,12 @@ class TxFlowStreamDurableReattachTest {
 
         try (TxFlowStream b = sharedDurableBuilder(engine, store).build()) {
             b.reattach();
-            TxStreamItemResult memberA = b.getItemStatus("pay-a").orElseThrow();
-            TxStreamItemResult memberB = b.getItemStatus("pay-b").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, memberA.getStatus(),
+            TxStreamItemResult memberA = b.itemStatus("pay-a").orElseThrow();
+            TxStreamItemResult memberB = b.itemStatus("pay-b").orElseThrow();
+            assertEquals(TxStreamItemStatus.CONFIRMED, memberA.status(),
                     "a confirmed member re-projects CONFIRMED, never FAILED from the mixed flow");
-            assertEquals("tx-a", memberA.getTransactionHash());
-            assertEquals(TxStreamItemStatus.FAILED, memberB.getStatus());
+            assertEquals("tx-a", memberA.transactionHash());
+            assertEquals(TxStreamItemStatus.FAILED, memberB.status());
         }
     }
 
@@ -229,7 +233,7 @@ class TxFlowStreamDurableReattachTest {
             assertEquals(1, report.recoveryRequired());
             assertEquals(0, report.redispatched());
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    b.getItemStatus("pay-1").orElseThrow().getStatus(),
+                    b.itemStatus("pay-1").orElseThrow().status(),
                     "a running foreign execution is honest RECOVERY_REQUIRED, refreshed by read-through");
         }
     }
@@ -250,9 +254,9 @@ class TxFlowStreamDurableReattachTest {
                     .build();
             TxStreamReceipt receipt = stream.submit(item);
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             assertEquals("TXSTREAM_NON_PERSISTABLE_SECRET",
-                    ((TxStreamException) outcome.getError()).getCode());
+                    ((TxStreamException) outcome.error()).code());
             assertTrue(engine.started.isEmpty(),
                     "a non-persistable request must never reach the engine");
             assertEquals(0, store.allPlanned().size(),
@@ -333,7 +337,7 @@ class TxFlowStreamDurableReattachTest {
             // Settle the re-dispatched item so close() can drain.
             engine.lastHandle().completeConfirmed(STEP_ID, "tx-lost");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.getItemStatus("lost").orElseThrow().getStatus());
+                    b.itemStatus("lost").orElseThrow().status());
         }
     }
 
@@ -393,11 +397,11 @@ class TxFlowStreamDurableReattachTest {
         try (TxFlowStream b = durableBuilder(engine, store).build()) {
             b.reattach();
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.getItemStatus("pay-1").orElseThrow().getStatus());
+                    b.itemStatus("pay-1").orElseThrow().status());
             TxStreamItemResult stored = store.getItem("payouts", "pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, stored.getStatus(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, stored.status(),
                     "the DURABLE projection itself must reach CONFIRMED, not just the live cell");
-            assertEquals("tx-1", stored.getTransactionHash());
+            assertEquals("tx-1", stored.transactionHash());
             assertTrue(store.listNonTerminalItemIds("payouts").isEmpty(),
                     "a terminal durable projection leaves the non-terminal set");
         }
@@ -429,9 +433,9 @@ class TxFlowStreamDurableReattachTest {
             assertEquals(1, engine.started.size(), "the absent item is re-dispatched once");
             engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.getItemStatus("pay-1").orElseThrow().getStatus());
+                    b.itemStatus("pay-1").orElseThrow().status());
             TxStreamItemResult stored = store.getItem("payouts", "pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, stored.getStatus(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, stored.status(),
                     "the DURABLE projection reaches CONFIRMED through the normal dispatch path");
             assertTrue(store.listNonTerminalItemIds("payouts").isEmpty());
         }
@@ -465,7 +469,7 @@ class TxFlowStreamDurableReattachTest {
                     .withIdempotencyKey("K").build();
             TxStreamException reuse = assertThrows(TxStreamException.class,
                     () -> b.submit(intruder));
-            assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", reuse.getCode(),
+            assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", reuse.code(),
                     "a key still owned by a re-attached item cannot be reused by fresh work");
         }
     }
@@ -532,8 +536,8 @@ class TxFlowStreamDurableReattachTest {
             assertEquals(0, report.reattachedItems());
             assertEquals(0, report.redispatched());
             TxStreamItemResult reaped = store.getItem("payouts", "ghost").orElseThrow();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, reaped.getStatus());
-            assertEquals("TXSTREAM_ABANDONED", ((TxStreamException) reaped.getError()).getCode());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, reaped.status());
+            assertEquals("TXSTREAM_ABANDONED", ((TxStreamException) reaped.error()).code());
             assertTrue(store.listNonTerminalItemIds("payouts").contains("ghost"),
                     "incomplete accepted work remains visible for recovery");
             assertEquals(1, report.recoveryRequired());
@@ -573,7 +577,7 @@ class TxFlowStreamDurableReattachTest {
             assertEquals(1, report.recoveryRequired());
             assertEquals(0, engine.started.size(), "no double-submit");
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    b.getItemStatus("pay-1").orElseThrow().getStatus());
+                    b.itemStatus("pay-1").orElseThrow().status());
         }
     }
 
@@ -604,7 +608,7 @@ class TxFlowStreamDurableReattachTest {
                     "the rebuilt request carries the secure reference for the engine to resolve");
             engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.getItemStatus("pay-1").orElseThrow().getStatus());
+                    b.itemStatus("pay-1").orElseThrow().status());
         }
     }
 
@@ -688,8 +692,8 @@ class TxFlowStreamDurableReattachTest {
 
         try (TxFlowStream b = durableBuilder(engine, store).build()) {
             b.start(); // re-dispatches pay-1 (now live, still running)
-            String redispatchedExecution = b.getItemStatus("pay-1").orElseThrow()
-                    .getExecutionId();
+            String redispatchedExecution = b.itemStatus("pay-1").orElseThrow()
+                    .executionId();
             int startedAfterRedispatch = engine.started.size();
 
             // A live redelivery of the SAME content attaches — the reconstructed
@@ -709,7 +713,7 @@ class TxFlowStreamDurableReattachTest {
 
             engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertNotEquals(TxStreamItemStatus.FAILED,
-                    b.getItemStatus("pay-1").orElseThrow().getStatus());
+                    b.itemStatus("pay-1").orElseThrow().status());
         }
     }
 
@@ -739,7 +743,7 @@ class TxFlowStreamDurableReattachTest {
             assertEquals(1, engine.started.size(), "start() runs the re-dispatched work");
             engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.getItemStatus("pay-1").orElseThrow().getStatus());
+                    b.itemStatus("pay-1").orElseThrow().status());
         }
     }
 

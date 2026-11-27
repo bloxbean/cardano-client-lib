@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.quicktx.Tx;
@@ -148,7 +149,7 @@ class TxFlowStreamPartitionedTest {
                 ? failed(request) : null;
         try (TxFlowStream stream = partitioned(gateway, twoLaneConfig(true)).build()) {
             TxStreamException failure = assertThrows(TxStreamException.class, stream::start);
-            assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.getCode());
+            assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.code());
             assertEquals(BootstrapReport.Outcome.FAILED, stream.bootstrap().outcome());
             assertTrue(gateway.started.stream()
                             .allMatch(request -> request.getIdempotencyKey().startsWith("bootstrap:")),
@@ -174,7 +175,7 @@ class TxFlowStreamPartitionedTest {
                         .eventListener(listener)
                         .open());
 
-        assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.getCode());
+        assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.code());
         assertEquals(1, closedEvents.get(), "the failed open must abort exactly once");
         assertTrue(gateway.started.stream()
                         .allMatch(request -> request.getIdempotencyKey().startsWith("bootstrap:")),
@@ -193,7 +194,7 @@ class TxFlowStreamPartitionedTest {
             TxStreamReceipt receipt = stream.submit(sourcelessItem(key));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -213,8 +214,8 @@ class TxFlowStreamPartitionedTest {
                     .withTxPlan(callerPlan).withIdempotencyKey(key).build());
 
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
-            assertEquals("part-1-payouts", receipt.current().getLaneName());
+                    receipt.completion().toCompletableFuture().join().status());
+            assertEquals("part-1-payouts", receipt.current().laneName());
             assertEquals(List.of("addr:" + LANE_1),
                     List.copyOf(gateway.started.get(0).getSpendingResources()));
             Tx dispatched = bootstrapTx(gateway.started.get(0));
@@ -236,8 +237,8 @@ class TxFlowStreamPartitionedTest {
             TxStreamException outcome = assertThrows(TxStreamException.class,
                     () -> stream.submit(TxWorkItem.builder("foreign-1")
                             .withTxPlan(foreign).withIdempotencyKey(key).build()));
-            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.getCode());
-            assertTrue(stream.getItemStatus("foreign-1").isEmpty());
+            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.code());
+            assertTrue(stream.itemStatus("foreign-1").isEmpty());
             assertTrue(gateway.started.isEmpty(), "a scope-violating item never reaches the engine");
         }
     }
@@ -274,9 +275,9 @@ class TxFlowStreamPartitionedTest {
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-0");
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED, lane0.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
             assertEquals(TxStreamItemStatus.CONFIRMED, lane1.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
         } finally {
             pool.shutdownNow();
         }
@@ -300,7 +301,7 @@ class TxFlowStreamPartitionedTest {
                 ? recoveryRequired(request) : null;
         try (TxFlowStream stream = partitioned(gateway, twoLaneConfig(true)).build()) {
             TxStreamException failure = assertThrows(TxStreamException.class, stream::start);
-            assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.getCode());
+            assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.code());
             assertEquals(BootstrapReport.Outcome.FAILED, stream.bootstrap().outcome());
             assertEquals(1, gateway.started.size(),
                     "the split is attempted once — a non-terminal outcome is never re-split");
@@ -340,14 +341,14 @@ class TxFlowStreamPartitionedTest {
                     "the gate keeps re-dispatched work from running before start()");
 
             TxStreamException failure = assertThrows(TxStreamException.class, b::start);
-            assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.getCode());
+            assertEquals("TXSTREAM_BOOTSTRAP_FAILED", failure.code());
 
             // close() returns (settled promises, no hang) and NOTHING dispatched.
             b.close();
-            TxStreamItemResult outcome = b.getItemStatus("item-" + key).orElseThrow();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            TxStreamItemResult outcome = b.itemStatus("item-" + key).orElseThrow();
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             assertEquals("TXSTREAM_BOOTSTRAP_FAILED", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+                    outcome.error()).code());
             assertTrue(engine2.started.stream()
                             .allMatch(request -> request.getIdempotencyKey().startsWith("bootstrap:")),
                     "no re-dispatched item ever dispatched onto an unfunded lane");
@@ -384,9 +385,9 @@ class TxFlowStreamPartitionedTest {
                     "the re-dispatched item dispatches once the bootstrap funds the lanes");
 
             engine2.lastHandle().completeConfirmed(STEP_ID, "tx-redispatched");
-            TxStreamItemResult outcome = b.getItemStatus("item-" + key).orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.getStatus());
-            assertEquals("tx-redispatched", outcome.getTransactionHash());
+            TxStreamItemResult outcome = b.itemStatus("item-" + key).orElseThrow();
+            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.status());
+            assertEquals("tx-redispatched", outcome.transactionHash());
             b.close();
         } finally {
             b.abort("test complete");
@@ -430,7 +431,7 @@ class TxFlowStreamPartitionedTest {
             // Let the re-dispatched item complete so graceful close() drains cleanly.
             engine2.lastHandle().completeConfirmed(STEP_ID, "tx-redispatched");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.getItemStatus("item-" + key).orElseThrow().getStatus());
+                    b.itemStatus("item-" + key).orElseThrow().status());
             b.close();
         } finally {
             b.abort("test complete");
@@ -461,7 +462,7 @@ class TxFlowStreamPartitionedTest {
         try (TxFlowStream b = durablePartitioned(engine2, store, PartitionedLanes.fromAddress(FUNDING)
                 .laneAddresses(List.of(LANE_1, LANE_0)).seedPerLane(Amount.ada(10)).build()).build()) {
             TxStreamException failure = assertThrows(TxStreamException.class, b::start);
-            assertEquals("TXSTREAM_BOOTSTRAP_CONFIG_DRIFT", failure.getCode());
+            assertEquals("TXSTREAM_BOOTSTRAP_CONFIG_DRIFT", failure.code());
             assertEquals(BootstrapReport.Outcome.FAILED, b.bootstrap().outcome());
             assertTrue(engine2.started.isEmpty(),
                     "no split is submitted when the bootstrap configuration drifts");

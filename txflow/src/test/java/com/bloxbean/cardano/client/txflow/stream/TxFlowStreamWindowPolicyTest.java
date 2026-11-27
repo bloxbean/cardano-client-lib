@@ -53,8 +53,8 @@ class TxFlowStreamWindowPolicyTest {
             TxStreamReceipt first = stream.submit(planItem("pay-1"));
             TxStreamReceipt second = stream.submit(planItem("pay-2"));
             assertTrue(gateway.started.isEmpty(), "a partial window must not dispatch");
-            assertEquals(2, stream.getStats().pendingBufferSize());
-            assertTrue(stream.getBatchStatus("batch-1").isEmpty(),
+            assertEquals(2, stream.stats().pendingBufferSize());
+            assertTrue(stream.batchStatus("batch-1").isEmpty(),
                     "no batch exists before the window closes");
 
             confirmAllStepsOnStart(gateway);
@@ -63,13 +63,13 @@ class TxFlowStreamWindowPolicyTest {
             assertEquals(1, gateway.started.size(), "the closed window plans one flow");
             assertEquals(3, gateway.started.get(0).getDefinition().getSteps().size());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    second.completion().toCompletableFuture().join().getStatus());
+                    second.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    third.completion().toCompletableFuture().join().getStatus());
+                    third.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamBatchStatus.COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
         }
     }
 
@@ -89,9 +89,9 @@ class TxFlowStreamWindowPolicyTest {
             assertEquals(1, gateway.started.size(), "flush must close the partial window");
             assertEquals(2, gateway.started.get(0).getDefinition().getSteps().size());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    second.completion().toCompletableFuture().join().getStatus());
+                    second.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -110,9 +110,9 @@ class TxFlowStreamWindowPolicyTest {
             assertEquals(1, gateway.started.size(),
                     "drain must flush and plan the open partial window first");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    second.completion().toCompletableFuture().join().getStatus());
+                    second.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -132,9 +132,9 @@ class TxFlowStreamWindowPolicyTest {
             assertTrue(report.quiescence().toCompletableFuture().isDone());
             assertTrue(gateway.started.isEmpty(), "an aborted window must never plan");
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    second.completion().toCompletableFuture().join().getStatus());
+                    second.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -168,7 +168,7 @@ class TxFlowStreamWindowPolicyTest {
             assertEquals(1, gateway.started.size(), "the aged window must plan on the wakeup");
             assertEquals(2, gateway.started.get(0).getDefinition().getSteps().size());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    second.completion().toCompletableFuture().join().getStatus());
+                    second.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -244,7 +244,7 @@ class TxFlowStreamWindowPolicyTest {
             assertTrue(wakeup.isCancelled(),
                     "an emptied window has nothing left to age out");
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             assertTrue(gateway.started.isEmpty());
         }
     }
@@ -285,11 +285,11 @@ class TxFlowStreamWindowPolicyTest {
             store.registerGate.countDown();
             TxStreamItemResult outcome = straggler.get(10, TimeUnit.SECONDS)
                     .completion().toCompletableFuture().get(10, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.CANCELLED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.CANCELLED, outcome.status());
             assertEquals("TXSTREAM_ABORTED", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+                    outcome.error()).code());
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    buffered.completion().toCompletableFuture().join().getStatus());
+                    buffered.completion().toCompletableFuture().join().status());
             assertTrue(gateway.started.isEmpty(), "nothing may reach the engine");
             stream.drain();
         } finally {
@@ -329,14 +329,14 @@ class TxFlowStreamWindowPolicyTest {
             store.registerGate.countDown();
             TxStreamItemResult outcome = straggler.get(10, TimeUnit.SECONDS)
                     .completion().toCompletableFuture().get(10, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.CANCELLED, outcome.getStatus(),
+            assertEquals(TxStreamItemStatus.CANCELLED, outcome.status(),
                     "a straggler behind a stopped stream's flushed window must settle");
             assertEquals("TXSTREAM_CLOSED", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+                    outcome.error()).code());
 
             drained.get(10, TimeUnit.SECONDS);
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
             assertEquals(1, gateway.started.size(),
                     "only the flushed window reached the engine");
         } finally {
@@ -366,7 +366,7 @@ class TxFlowStreamWindowPolicyTest {
             // even though no executor task has run yet (only engine dispatch
             // rides the executor).
             assertEquals(TxStreamBatchStatus.RUNNING,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
             assertTrue(receipt.executionId().isPresent(),
                     "per-item identity is claim-derived and known at accept");
             assertTrue(gateway.started.isEmpty());
@@ -375,7 +375,7 @@ class TxFlowStreamWindowPolicyTest {
             assertEquals(1, gateway.started.size());
             gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -394,7 +394,7 @@ class TxFlowStreamWindowPolicyTest {
             // Identical redelivery of a still-windowed item attaches.
             assertSame(original, stream.submit(planItem("pay-1")));
             assertEquals(EmitResult.Status.DUPLICATE_ATTACHED,
-                    stream.trySubmit(planItem("pay-1")).getStatus());
+                    stream.trySubmit(planItem("pay-1")).status());
 
             // Different content for the same windowed item id conflicts.
             TxWorkItem different = TxWorkItem.builder("pay-1")
@@ -407,7 +407,7 @@ class TxFlowStreamWindowPolicyTest {
             TxStreamException reuse = assertThrows(TxStreamException.class,
                     () -> stream.submit(TxWorkItem.builder("pay-2")
                             .withTxPlan(plan()).withIdempotencyKey("pay-1").build()));
-            assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", reuse.getCode());
+            assertEquals("TXSTREAM_IDEMPOTENCY_KEY_REUSE", reuse.code());
 
             assertTrue(gateway.started.isEmpty(), "nothing dispatches while the window is open");
             confirmAllStepsOnStart(gateway);
@@ -416,7 +416,7 @@ class TxFlowStreamWindowPolicyTest {
             assertEquals(1, gateway.started.get(0).getDefinition().getSteps().size(),
                     "only the original item is in the window");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    original.completion().toCompletableFuture().join().getStatus());
+                    original.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -466,7 +466,7 @@ class TxFlowStreamWindowPolicyTest {
                 () -> WindowPolicy.countOrTime(5, Duration.ZERO));
         assertThrows(IllegalArgumentException.class,
                 () -> WindowPolicy.time(Duration.ofSeconds(-1)));
-        assertEquals(Integer.MAX_VALUE, WindowPolicy.time(Duration.ofSeconds(1)).getMaxItems());
+        assertEquals(Integer.MAX_VALUE, WindowPolicy.time(Duration.ofSeconds(1)).maxItems());
         assertFalse(WindowPolicy.count(3).isTimeBased());
         assertTrue(WindowPolicy.countOrTime(3, Duration.ofSeconds(1)).isTimeBased());
     }

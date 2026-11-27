@@ -49,15 +49,15 @@ class TxFlowStreamTest {
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-hash-1");
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.getStatus());
-            assertEquals("tx-hash-1", outcome.getTransactionHash());
-            assertEquals("payouts-lane", outcome.getLaneName());
-            assertNull(outcome.getError());
+            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.status());
+            assertEquals("tx-hash-1", outcome.transactionHash());
+            assertEquals("payouts-lane", outcome.laneName());
+            assertNull(outcome.error());
             assertEquals(List.of(TxStreamItemStatus.ACCEPTED, TxStreamItemStatus.PLANNED,
                             TxStreamItemStatus.SUBMITTED, TxStreamItemStatus.CONFIRMED),
                     listener.statuses("pay-1"));
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.getItemStatus("pay-1").orElseThrow().getStatus());
+                    stream.itemStatus("pay-1").orElseThrow().status());
         }
     }
 
@@ -116,8 +116,8 @@ class TxFlowStreamTest {
             assertSame(original, redelivered);
 
             EmitResult emit = stream.trySubmit(planItem("pay-1"));
-            assertEquals(EmitResult.Status.DUPLICATE_ATTACHED, emit.getStatus());
-            assertSame(original, emit.getReceipt());
+            assertEquals(EmitResult.Status.DUPLICATE_ATTACHED, emit.status());
+            assertSame(original, emit.receipt());
             assertEquals(1, gateway.started.size());
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx");
         }
@@ -136,12 +136,12 @@ class TxFlowStreamTest {
                     .build();
             TxStreamDuplicateItemException conflict = assertThrows(
                     TxStreamDuplicateItemException.class, () -> stream.submit(different));
-            assertEquals("pay-1", conflict.getItemId());
-            assertEquals("TXSTREAM_DUPLICATE_ITEM", conflict.getCode());
+            assertEquals("pay-1", conflict.itemId());
+            assertEquals("TXSTREAM_DUPLICATE_ITEM", conflict.code());
 
             EmitResult emit = stream.trySubmit(different);
-            assertEquals(EmitResult.Status.CONFLICT, emit.getStatus());
-            assertNotNull(emit.getConflict());
+            assertEquals(EmitResult.Status.CONFLICT, emit.status());
+            assertNotNull(emit.conflict());
             assertEquals(1, gateway.started.size());
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx");
         }
@@ -166,9 +166,9 @@ class TxFlowStreamTest {
 
             gateway.lastHandle().completeConfirmed("caller-step", "tx-step");
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.getStatus());
-            assertEquals("caller-step", outcome.getStepId());
-            assertEquals("tx-step", outcome.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.status());
+            assertEquals("caller-step", outcome.stepId());
+            assertEquals("tx-step", outcome.transactionHash());
         }
     }
 
@@ -185,7 +185,7 @@ class TxFlowStreamTest {
             assertThrows(TxStreamDuplicateItemException.class,
                     () -> stream.submit(differentMetadata));
             assertEquals(EmitResult.Status.CONFLICT,
-                    stream.trySubmit(differentMetadata).getStatus());
+                    stream.trySubmit(differentMetadata).status());
             assertEquals(1, gateway.started.size());
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx");
         }
@@ -202,22 +202,22 @@ class TxFlowStreamTest {
             stream.start();
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
             assertEquals(TxStreamItemStatus.PLANNED,
-                    stream.getItemStatus("pay-1").orElseThrow().getStatus());
+                    stream.itemStatus("pay-1").orElseThrow().status());
 
             StubEngineGateway.StubHandle handle = gateway.lastHandle();
             handle.submittedEvent(STEP_ID, "tx-live");
-            TxStreamItemResult live = stream.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.SUBMITTED, live.getStatus(),
+            TxStreamItemResult live = stream.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.SUBMITTED, live.status(),
                     "read-through must observe the live submission event");
-            assertEquals("tx-live", live.getTransactionHash());
+            assertEquals("tx-live", live.transactionHash());
             assertFalse(receipt.completion().toCompletableFuture().isDone(),
                     "SUBMITTED is not a settling status");
 
             handle.completeConfirmed(STEP_ID, "tx-live");
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.getStatus());
-            assertEquals("tx-live", outcome.getTransactionHash());
-            assertEquals(1, stream.getStats().submittedItemCount(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.status());
+            assertEquals("tx-live", outcome.transactionHash());
+            assertEquals(1, stream.stats().submittedItemCount(),
                     "the read-through and terminal pass must not double-count");
         }
     }
@@ -239,11 +239,11 @@ class TxFlowStreamTest {
 
             TxStreamException error = assertThrows(TxStreamException.class,
                     () -> stream.submit(TxWorkItem.fromTxPlan("extension-item", extensionPlan)));
-            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", error.getCode());
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", error.code());
             assertTrue(error.getMessage().contains("TXFLOW_EXTENSION_BINDING_UNUSED"));
             assertTrue(store.calls.isEmpty(), "nothing may be registered: " + store.calls);
             assertTrue(gateway.started.isEmpty());
-            assertTrue(stream.getItemStatus("extension-item").isEmpty());
+            assertTrue(stream.itemStatus("extension-item").isEmpty());
             stream.drain();
         }
     }
@@ -261,7 +261,7 @@ class TxFlowStreamTest {
 
             TxStreamException error = assertThrows(TxStreamException.class,
                     () -> stream.submit(nonPortable));
-            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", error.getCode());
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", error.code());
             assertTrue(error.getMessage().contains("TXFLOW_NON_PORTABLE_FACTORY"));
 
             assertTrue(store.calls.isEmpty(), "nothing may be registered: " + store.calls);
@@ -304,9 +304,9 @@ class TxFlowStreamTest {
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             assertEquals("TXSTREAM_BINDING_FAILED",
-                    assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+                    assertInstanceOf(TxStreamException.class, outcome.error()).code());
             assertTrue(gateway.started.isEmpty(), "engine must not be invoked without a binding");
             assertTrue(stream.isHealthy(), "a per-item failure must not poison the stream");
 
@@ -314,7 +314,7 @@ class TxFlowStreamTest {
             TxStreamReceipt next = stream.submit(planItem("pay-2"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-2");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    next.completion().toCompletableFuture().join().getStatus());
+                    next.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -341,9 +341,9 @@ class TxFlowStreamTest {
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.getStatus());
-            assertEquals("tx-uncertain", outcome.getTransactionHash());
-            assertNotNull(outcome.getError());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.status());
+            assertEquals("tx-uncertain", outcome.transactionHash());
+            assertNotNull(outcome.error());
         }
     }
 
@@ -363,8 +363,8 @@ class TxFlowStreamTest {
                     null, StubEngineGateway.NOW, StubEngineGateway.NOW));
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-            assertEquals("tx-failed", outcome.getTransactionHash());
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
+            assertEquals("tx-failed", outcome.transactionHash());
         }
     }
 
@@ -385,7 +385,7 @@ class TxFlowStreamTest {
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
 
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -403,13 +403,13 @@ class TxFlowStreamTest {
 
             assertTrue(stream.cancel("pay-2", "no longer needed"));
             TxStreamItemResult outcome = buffered.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CANCELLED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.CANCELLED, outcome.status());
             assertEquals("no longer needed",
-                    assertInstanceOf(TxStreamException.class, outcome.getError()).getMessage());
+                    assertInstanceOf(TxStreamException.class, outcome.error()).getMessage());
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    active.completion().toCompletableFuture().join().getStatus());
+                    active.completion().toCompletableFuture().join().status());
             assertEquals(1, gateway.started.size(), "cancelled item must never dispatch");
         }
     }
@@ -432,7 +432,7 @@ class TxFlowStreamTest {
                             "Execution cancelled", null, false),
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             assertFalse(stream.cancel("pay-1", "again"), "settled items cannot be cancelled");
         }
     }
@@ -452,18 +452,18 @@ class TxFlowStreamTest {
                     () -> stream.submit(TxWorkItem.fromFlowStep("factory-item",
                             FlowStep.builder("factory-step")
                                     .withTxContext(quickTxBuilder -> null).build())));
-            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", rejected.getCode());
-            assertTrue(stream.getItemStatus("factory-item").isEmpty());
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", rejected.code());
+            assertTrue(stream.itemStatus("factory-item").isEmpty());
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             stream.drain();
 
             assertTrue(pending.completion().toCompletableFuture().isDone());
             assertTrue(listener.drained.contains("payouts"));
-            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-3")).getStatus());
+            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-3")).status());
             TxStreamException closedFailure = assertThrows(TxStreamException.class,
                     () -> stream.submit(planItem("pay-4")));
-            assertEquals("TXSTREAM_CLOSED", closedFailure.getCode());
+            assertEquals("TXSTREAM_CLOSED", closedFailure.code());
         }
     }
 
@@ -478,7 +478,7 @@ class TxFlowStreamTest {
                     () -> stream.awaitDrain(Duration.ofMillis(5)));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -489,7 +489,7 @@ class TxFlowStreamTest {
             stream.start();
             stream.submit(planItem("pay-1"));           // in flight, buffer freed
             stream.submit(planItem("pay-2"));           // occupies the single buffer slot
-            assertEquals(EmitResult.Status.FULL, stream.trySubmit(planItem("pay-3")).getStatus());
+            assertEquals(EmitResult.Status.FULL, stream.trySubmit(planItem("pay-3")).status());
 
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-1");
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-2");
@@ -523,7 +523,7 @@ class TxFlowStreamTest {
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
 
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             stream.drain();
             assertTrue(stream.isHealthy());
         }
@@ -548,7 +548,7 @@ class TxFlowStreamTest {
                             StubEngineGateway.NOW)),
                     null, StubEngineGateway.NOW, StubEngineGateway.NOW));
 
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(3, stats.acceptedItemCount());
             assertEquals(2, stats.plannedItemCount());
             assertEquals(2, stats.submittedItemCount());
@@ -558,8 +558,8 @@ class TxFlowStreamTest {
             assertEquals(1, stats.recoveryRequiredItemCount());
             assertEquals(0, stats.pendingBufferSize());
             assertEquals(0, stats.inFlightCount());
-            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.current().getStatus());
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, uncertain.current().getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.current().status());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, uncertain.current().status());
         }
     }
 
@@ -598,8 +598,8 @@ class TxFlowStreamTest {
 
         List<TxStreamItemStatus> statuses(String itemId) {
             return updates.stream()
-                    .filter(result -> result.getItemId().equals(itemId))
-                    .map(TxStreamItemResult::getStatus)
+                    .filter(result -> result.itemId().equals(itemId))
+                    .map(TxStreamItemResult::status)
                     .toList();
         }
     }

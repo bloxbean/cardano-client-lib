@@ -33,10 +33,7 @@ class TxFlowStreamByFundingAddressTest {
     private static final String STEP_ID = StreamIdentities.GENERATED_STEP_ID;
 
     @Test
-    void byFundingSourceIsTheDefaultAndOldNameForwardsToIt() {
-        assertEquals(LanePolicy.byFundingSource().mode(),
-                LanePolicy.byFundingAddress().mode());
-
+    void byFundingSourceIsTheDefault() {
         StubEngineGateway gateway = new StubEngineGateway();
         try (TxFlowStream stream = new TxFlowStream.Builder("payouts", gateway)
                 .executor(Runnable::run)
@@ -46,8 +43,8 @@ class TxFlowStreamByFundingAddressTest {
             TxStreamReceipt receipt = stream.submit(fromItem("default-1", SENDER_A));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-default");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
-            assertEquals(SENDER_A, receipt.current().getLaneName());
+                    receipt.completion().toCompletableFuture().join().status());
+            assertEquals(SENDER_A, receipt.current().laneName());
         }
     }
 
@@ -72,7 +69,7 @@ class TxFlowStreamByFundingAddressTest {
                     () -> stream.submit(
                             TxWorkItem.fromTxPlan("ambiguous", TxPlan.from(ambiguous))));
 
-            assertEquals("TXSTREAM_LANE_AMBIGUOUS", result.getCode());
+            assertEquals("TXSTREAM_LANE_AMBIGUOUS", result.code());
             assertTrue(gateway.started.isEmpty());
         }
     }
@@ -95,9 +92,9 @@ class TxFlowStreamByFundingAddressTest {
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-address");
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-reference");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    address.completion().toCompletableFuture().join().getStatus());
+                    address.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    ref.completion().toCompletableFuture().join().getStatus());
+                    ref.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -112,16 +109,16 @@ class TxFlowStreamByFundingAddressTest {
 
             assertEquals(2, gateway.started.size(),
                     "one execution per funding source may be in flight");
-            assertEquals(2, stream.getStats().inFlightCount());
-            assertEquals(1, stream.getStats().pendingBufferSize(),
+            assertEquals(2, stream.stats().inFlightCount());
+            assertEquals(1, stream.stats().pendingBufferSize(),
                     "the same-sender follower must queue");
             assertEquals(List.of("addr:" + SENDER_A),
                     List.copyOf(gateway.started.get(0).getSpendingResources()));
             assertEquals(List.of("addr:" + SENDER_B),
                     List.copyOf(gateway.started.get(1).getSpendingResources()));
             // The lane label is the funding source string.
-            assertEquals(SENDER_A, a1.current().getLaneName());
-            assertEquals(SENDER_B, b1.current().getLaneName());
+            assertEquals(SENDER_A, a1.current().laneName());
+            assertEquals(SENDER_B, b1.current().laneName());
 
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-a1");
             assertEquals(3, gateway.started.size(),
@@ -132,11 +129,11 @@ class TxFlowStreamByFundingAddressTest {
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-b1");
             gateway.handles.get(2).completeConfirmed(STEP_ID, "tx-a2");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a1.completion().toCompletableFuture().join().getStatus());
+                    a1.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a2.completion().toCompletableFuture().join().getStatus());
+                    a2.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b1.completion().toCompletableFuture().join().getStatus());
+                    b1.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -169,9 +166,9 @@ class TxFlowStreamByFundingAddressTest {
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-1");
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-2");
             assertEquals(TxStreamItemStatus.CONFIRMED, first.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
             assertEquals(TxStreamItemStatus.CONFIRMED, second.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
         } finally {
             pool.shutdownNow();
         }
@@ -186,15 +183,15 @@ class TxFlowStreamByFundingAddressTest {
             TxPlan sourceless = TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1)));
             TxStreamException outcome = assertThrows(TxStreamException.class,
                     () -> stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless)));
-            assertEquals("TXSTREAM_LANE_UNDERIVABLE", outcome.getCode());
+            assertEquals("TXSTREAM_LANE_UNDERIVABLE", outcome.code());
             assertTrue(outcome.getMessage().contains("from / from_ref"));
             assertTrue(outcome.getMessage().contains("requires the transaction to name its sender"),
                     "the default-lane diagnostic must teach how to supply funding");
             assertTrue(gateway.started.isEmpty(), "an underivable item never reaches the engine");
-            assertTrue(stream.getItemStatus("no-src").isEmpty(),
+            assertTrue(stream.itemStatus("no-src").isEmpty(),
                     "a rejected item is retained nowhere");
             assertEquals("TXSTREAM_LANE_UNDERIVABLE", assertThrows(TxStreamException.class,
-                    () -> stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless))).getCode());
+                    () -> stream.submit(TxWorkItem.fromTxPlan("no-src", sourceless))).code());
         }
     }
 
@@ -210,10 +207,10 @@ class TxFlowStreamByFundingAddressTest {
             assertEquals(1, gateway.started.size());
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-ref");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             assertEquals(List.of("ref:account://treasury"),
                     List.copyOf(gateway.started.get(0).getSpendingResources()));
-            assertEquals("account://treasury", receipt.current().getLaneName());
+            assertEquals("account://treasury", receipt.current().laneName());
         }
     }
 
@@ -232,7 +229,7 @@ class TxFlowStreamByFundingAddressTest {
             // Settle first so a later assertion failure never wedges close().
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             assertEquals(expected, receipt.executionId().orElseThrow(),
                     "the execution id is claim-derived; the lane must not perturb it");
             assertEquals(expected, gateway.started.get(0).getExecutionId());
@@ -250,7 +247,7 @@ class TxFlowStreamByFundingAddressTest {
                             .withTxPlan(fromPlan(SENDER_A))
                             .withLane("some-other-lane")
                             .build()));
-            assertEquals("TXSTREAM_LANE_MISMATCH", mismatch.getCode());
+            assertEquals("TXSTREAM_LANE_MISMATCH", mismatch.code());
             assertTrue(gateway.started.isEmpty());
 
             // A lane name equal to the funding source is accepted.
@@ -261,7 +258,7 @@ class TxFlowStreamByFundingAddressTest {
             assertEquals(1, gateway.started.size());
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    ok.completion().toCompletableFuture().join().getStatus());
+                    ok.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -278,7 +275,7 @@ class TxFlowStreamByFundingAddressTest {
             TxStreamReceipt receipt = stream.submit(fromItem("a-1", SENDER_A));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 

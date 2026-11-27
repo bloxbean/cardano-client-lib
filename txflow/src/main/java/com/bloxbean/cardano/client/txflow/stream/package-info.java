@@ -73,7 +73,7 @@
  * {@link com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus#RECOVERY_REQUIRED}
  * and repaired through reconciliation against the engine snapshot: read-through
  * by default ({@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream#reconcile(String)}
- * / {@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream#getItemStatus(String)}),
+ * / {@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream#itemStatus(String)}),
  * and — when
  * {@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream.Builder#reconciliationInterval(java.time.Duration)}
  * is opted in — push-repaired by a periodic stream-owned observer that runs on
@@ -86,7 +86,7 @@
  * {@link com.bloxbean.cardano.client.txflow.stream.EmitResult.Status#REJECTED}.
  *
  * <h2>Error-code handling</h2>
- * Compare {@link com.bloxbean.cardano.client.txflow.stream.TxStreamException#getCode()}
+ * Compare {@link com.bloxbean.cardano.client.txflow.stream.TxStreamException#code()}
  * with the public constants in
  * {@link com.bloxbean.cardano.client.txflow.stream.TxStreamCodes}; do not copy
  * literals. The complete per-code reference is in

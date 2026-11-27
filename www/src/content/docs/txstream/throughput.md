@@ -81,7 +81,7 @@ TxFlowStream stream = TxFlowStream.builder("payouts", engine).open();
 ```
 
 The default policy is `byFundingSource()`; the builder call is only needed when making the choice
-explicit. `byFundingAddress()` remains a deprecated compatibility alias. Dispatch inherits the
+explicit. Dispatch inherits the
 engine execution executor unless overridden; give an explicit stream executor at least as many
 threads as the number of lanes you want concurrently dispatching.
 
@@ -139,11 +139,11 @@ The three built-in planners:
 TxStreamItemResult a = first.completion().toCompletableFuture().join();
 TxStreamItemResult b = second.completion().toCompletableFuture().join();
 // Merged members share one transaction, one execution, one step:
-boolean merged = a.getTransactionHash().equals(b.getTransactionHash())
-        && a.getExecutionId().equals(b.getExecutionId())
-        && a.getStepId().equals(b.getStepId());
+boolean merged = a.transactionHash().equals(b.transactionHash())
+        && a.executionId().equals(b.executionId())
+        && a.stepId().equals(b.stepId());
 
-Optional<TxStreamBatchResult> batch = stream.getBatchStatus("batch-1");
+Optional<TxStreamBatchResult> batch = stream.batchStatus("batch-1");
 batch.ifPresent(result -> System.out.println(result.status()
         + " executions=" + result.executionIds()));
 ```

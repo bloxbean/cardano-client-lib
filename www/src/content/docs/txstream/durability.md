@@ -53,8 +53,9 @@ Durable mode is a *pairing*, validated at `build()`:
 - a **durable `FlowEngine` store** (`engine.capabilities().durableExecution()` — e.g.
   `RdbmsFlowExecutionStore`), plus the engine's `maintenanceExecutor`, which the engine requires
   whenever a store is configured (lease renewal must not be starved by flow work);
-- a **durable `TxStreamStateStore`** (`RdbmsTxStreamStateStore`, or
-  `TxStreamStateStore.inMemoryDurable()` for tests and same-process restarts).
+- a **durable `TxStreamStateStore`** (`com.bloxbean.cardano.client.txflow.stream.store` —
+  `RdbmsTxStreamStateStore`, or `TxStreamStateStore.inMemoryDurable()` for tests and same-process
+  restarts).
 
 The builder **rejects** a durable stream store paired with a non-durable engine. This invariant is
 load-bearing, not pedantic: restart re-attach reasons *"no stored execution means the start never
@@ -279,15 +280,15 @@ values.
 unconfirmed inside a flow that reached a terminal state. It may still confirm. Never treat it as
 a failure and never resubmit the payment blindly. Three escalating tools:
 
-**1. Read-through (needs an engine with a store).** `getItemStatus(itemId)` on a `RECOVERY_REQUIRED` item
+**1. Read-through (needs an engine with a store).** `itemStatus(itemId)` on a `RECOVERY_REQUIRED` item
 consults the engine snapshot and repairs the projection when the engine has an authoritative
 answer; `reconcile(itemId)` forces the same check:
 
 ```java
-Optional<TxStreamItemResult> status = stream.getItemStatus("payment-1");
+Optional<TxStreamItemResult> status = stream.itemStatus("payment-1");
 if (status.isPresent()
-        && status.get().getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED) {
-    // 1. inspect status.get().getTransactionHash() and look it up on chain;
+        && status.get().status() == TxStreamItemStatus.RECOVERY_REQUIRED) {
+    // 1. inspect status.get().transactionHash() and look it up on chain;
     // 2. engine.recover(...) returns a verdict; it doesn't finish the execution;
     // 3. reconcile repairs only if the stored execution has become terminal,
     //    for example because another live owner finished it:

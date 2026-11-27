@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
@@ -113,9 +115,9 @@ class TxFlowStreamTemplateTest {
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-hash-1");
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.getStatus());
-            assertEquals("tx-hash-1", outcome.getTransactionHash());
-            assertEquals("payouts-lane", outcome.getLaneName());
+            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.status());
+            assertEquals("tx-hash-1", outcome.transactionHash());
+            assertEquals("payouts-lane", outcome.laneName());
         }
     }
 
@@ -209,15 +211,15 @@ class TxFlowStreamTemplateTest {
                     .withTemplate("does-not-exist")
                     .withBinding("receiver", RECEIVER)
                     .build()));
-            assertEquals("TXSTREAM_TEMPLATE_UNKNOWN", outcome.getCode());
+            assertEquals("TXSTREAM_TEMPLATE_UNKNOWN", outcome.code());
             assertEquals(0, gateway.started.size(), "an unknown template never reaches the engine");
-            assertTrue(stream.getItemStatus("pay-1").isEmpty());
+            assertTrue(stream.itemStatus("pay-1").isEmpty());
 
             TxStreamReceipt corrected = stream.submit(
                     templateItem("pay-1", RECEIVER, 5L));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    corrected.awaitConfirmed().getStatus());
+                    corrected.awaitConfirmed().status());
         }
     }
 
@@ -264,13 +266,13 @@ class TxFlowStreamTemplateTest {
     void templateItemUnderByFundingAddressWithoutLaneFailsLaneRequired() {
         StubEngineGateway gateway = new StubEngineGateway();
         try (TxFlowStream stream = baseBuilder("payouts", gateway)
-                .lanes(LanePolicy.byFundingAddress())
+                .lanes(LanePolicy.byFundingSource())
                 .template(TEMPLATE_ID, template())
                 .build()) {
             stream.start();
             TxStreamException outcome = assertThrows(TxStreamException.class,
                     () -> stream.submit(templateItem("pay-1", RECEIVER, 5L)));
-            assertEquals("TXSTREAM_LANE_REQUIRED", outcome.getCode());
+            assertEquals("TXSTREAM_LANE_REQUIRED", outcome.code());
             assertEquals(0, gateway.started.size());
         }
     }
@@ -308,9 +310,9 @@ class TxFlowStreamTemplateTest {
                     .withSensitiveBinding("secret", "top-secret")
                     .build());
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             assertEquals("TXSTREAM_NON_PERSISTABLE_SECRET",
-                    ((TxStreamException) outcome.getError()).getCode());
+                    ((TxStreamException) outcome.error()).code());
             assertEquals(0, gateway.started.size(), "the item never reaches the engine");
         }
     }
@@ -382,10 +384,10 @@ class TxFlowStreamTemplateTest {
         try (TxFlowStream b = durableBuilderWithoutTemplate(gateway, store).build()) {
             b.reattach();
             assertEquals(0, gateway.started.size(), "an unresolved template dispatches nothing");
-            TxStreamItemResult outcome = b.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            TxStreamItemResult outcome = b.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             assertEquals("TXSTREAM_TEMPLATE_UNKNOWN",
-                    ((TxStreamException) outcome.getError()).getCode());
+                    ((TxStreamException) outcome.error()).code());
         }
     }
 
@@ -409,9 +411,9 @@ class TxFlowStreamTemplateTest {
             assertEquals(1, report.reattachedItems());
             assertEquals(0, report.redispatched());
             assertEquals(1, gateway.started.size(), "a present snapshot is never re-dispatched");
-            TxStreamItemResult repaired = b.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.getStatus());
-            assertEquals("tx-1", repaired.getTransactionHash());
+            TxStreamItemResult repaired = b.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.status());
+            assertEquals("tx-1", repaired.transactionHash());
         }
     }
 
@@ -435,9 +437,9 @@ class TxFlowStreamTemplateTest {
             completePartial(gateway.lastHandle(), STEP_ID, "tx-1");
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.getStatus(),
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.status(),
                     "a partially-completed template is honest RECOVERY_REQUIRED, never FAILED");
-            assertEquals("tx-1", outcome.getTransactionHash(), "the submitted hash is retained");
+            assertEquals("tx-1", outcome.transactionHash(), "the submitted hash is retained");
         }
     }
 
@@ -450,7 +452,7 @@ class TxFlowStreamTemplateTest {
             String executionId = receipt.executionId().orElseThrow();
             completePartial(gateway.lastHandle(), STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
 
             // A PARTIALLY_COMPLETED snapshot is present: BEFORE the fix,
             // getItemStatus/reconcile fast-forward RECOVERY_REQUIRED → FAILED
@@ -458,19 +460,19 @@ class TxFlowStreamTemplateTest {
             gateway.putSnapshot(executionId, FlowExecutionState.PARTIALLY_COMPLETED,
                     attemptData(STEP_ID, AttemptState.CONFIRMED, "tx-1"));
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    stream.getItemStatus("pay-1").orElseThrow().getStatus(),
+                    stream.itemStatus("pay-1").orElseThrow().status(),
                     "getItemStatus must not fast-forward a partial template to FAILED");
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    stream.reconcile("pay-1").orElseThrow().getStatus(),
+                    stream.reconcile("pay-1").orElseThrow().status(),
                     "reconcile must not fast-forward a partial template to FAILED");
 
             // A later full COMPLETED snapshot repairs it to CONFIRMED via reconcile.
             gateway.putSnapshot(executionId, FlowExecutionState.COMPLETED,
                     attemptData(STEP_ID, AttemptState.CONFIRMED, "tx-1"));
             TxStreamItemResult repaired = stream.reconcile("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.getStatus(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.status(),
                     "a subsequent COMPLETED repairs the recovery-required template");
-            assertEquals("tx-1", repaired.getTransactionHash());
+            assertEquals("tx-1", repaired.transactionHash());
         }
     }
 
@@ -496,15 +498,15 @@ class TxFlowStreamTemplateTest {
             assertEquals(1, report.recoveryRequired());
             // BEFORE the fix reattachPresentMember uses snapshotStatus →
             // permanently FAILED. It must surface RECOVERY_REQUIRED.
-            TxStreamItemResult reattached = b.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, reattached.getStatus());
+            TxStreamItemResult reattached = b.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, reattached.status());
 
             // The engine later reports COMPLETED; reconcile repairs to CONFIRMED
             // (the isFinal short-circuit never blocks a non-final RECOVERY_REQUIRED).
             gateway.putSnapshot(executionId, FlowExecutionState.COMPLETED,
                     attemptData(STEP_ID, AttemptState.CONFIRMED, "tx-1"));
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.reconcile("pay-1").orElseThrow().getStatus());
+                    b.reconcile("pay-1").orElseThrow().status());
         }
     }
 
@@ -527,21 +529,21 @@ class TxFlowStreamTemplateTest {
             assertEquals(1, report.reattachedItems());
             assertEquals(1, report.recoveryRequired());
 
-            TxStreamItemResult reattached = b.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, reattached.getStatus());
-            assertEquals("tx-pending", reattached.getTransactionHash());
+            TxStreamItemResult reattached = b.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, reattached.status());
+            assertEquals("tx-pending", reattached.transactionHash());
 
             // The same unresolved snapshot must not downgrade the repairable item
             // to terminal CANCELLED during read-through reconciliation.
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    b.reconcile("pay-1").orElseThrow().getStatus());
+                    b.reconcile("pay-1").orElseThrow().status());
 
             // Once the attempt itself is conclusively cancelled, CANCELLED is honest.
             gateway.putSnapshot(executionId, FlowExecutionState.CANCELLED,
                     attemptData(STEP_ID, AttemptState.CANCELLED, "tx-pending"));
             TxStreamItemResult resolved = b.reconcile("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.CANCELLED, resolved.getStatus());
-            assertEquals("tx-pending", resolved.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CANCELLED, resolved.status());
+            assertEquals("tx-pending", resolved.transactionHash());
         }
     }
 
@@ -555,13 +557,13 @@ class TxFlowStreamTemplateTest {
             // Live COMPLETED → CONFIRMED (whole-flow templateFlowStatus).
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             // A subsequent COMPLETED snapshot reconciles consistently (no-op:
             // already CONFIRMED, final and immutable).
             gateway.putSnapshot(executionId, FlowExecutionState.COMPLETED,
                     attemptData(STEP_ID, AttemptState.CONFIRMED, "tx-1"));
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.reconcile("pay-1").orElseThrow().getStatus());
+                    stream.reconcile("pay-1").orElseThrow().status());
         }
     }
 
@@ -576,7 +578,7 @@ class TxFlowStreamTemplateTest {
                     receipt.executionId().orElseThrow(), "fp", FlowExecutionState.FAILED,
                     List.of(), null, StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals(TxStreamItemStatus.FAILED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -612,10 +614,10 @@ class TxFlowStreamTemplateTest {
             ReattachReport report = b.reattach();
             assertEquals(0, report.redispatched(), "the drifted flow is never re-dispatched");
             assertEquals(0, gateway.started.size(), "nothing reaches the engine");
-            TxStreamItemResult outcome = b.getItemStatus("pay-1").orElseThrow();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            TxStreamItemResult outcome = b.itemStatus("pay-1").orElseThrow();
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             assertEquals("TXSTREAM_TEMPLATE_DRIFT",
-                    ((TxStreamException) outcome.getError()).getCode());
+                    ((TxStreamException) outcome.error()).code());
         }
     }
 
@@ -691,7 +693,7 @@ class TxFlowStreamTemplateTest {
                     receipt.executionId().orElseThrow(), "fp", FlowExecutionState.CANCELLED,
                     List.of(), null, StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -713,20 +715,20 @@ class TxFlowStreamTemplateTest {
                     null, StubEngineGateway.NOW, StubEngineGateway.NOW));
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.getStatus());
-            assertEquals(hash, outcome.getTransactionHash());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.status());
+            assertEquals(hash, outcome.transactionHash());
             assertFalse(outcome.isTerminal(),
                     "a transaction that may still land must remain repairable");
 
             gateway.putSnapshot(executionId, FlowExecutionState.CANCELLED,
                     attemptData(STEP_ID, AttemptState.SUBMITTED, hash));
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    stream.reconcile("pay-1").orElseThrow().getStatus());
+                    stream.reconcile("pay-1").orElseThrow().status());
 
             gateway.putSnapshot(executionId, FlowExecutionState.CANCELLED,
                     attemptData(STEP_ID, AttemptState.CANCELLED, hash));
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    stream.reconcile("pay-1").orElseThrow().getStatus());
+                    stream.reconcile("pay-1").orElseThrow().status());
         }
     }
 
@@ -749,7 +751,7 @@ class TxFlowStreamTemplateTest {
                     FlowExecutionState.CANCELLED, List.of(), null,
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             report.quiescence().toCompletableFuture().join();
             stream.drain();
         }
@@ -771,7 +773,7 @@ class TxFlowStreamTemplateTest {
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx");
             drained.get(10, TimeUnit.SECONDS);
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 

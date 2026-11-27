@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
+
 import java.util.List;
 
 /**
@@ -16,7 +18,7 @@ import java.util.List;
  * under the same deterministic execution id. Items whose execution is still
  * running are surfaced {@link TxStreamItemStatus#RECOVERY_REQUIRED} rather than
  * masked as failed; this process refreshes them by read-through
- * ({@link TxFlowStream#getItemStatus(String)} / {@link TxFlowStream#reconcile
+ * ({@link TxFlowStream#itemStatus(String)} / {@link TxFlowStream#reconcile
  * (String)}), not by live push watching, which is a later iteration.</p>
  *
  * @param reattachedItems items re-projected from a present engine snapshot

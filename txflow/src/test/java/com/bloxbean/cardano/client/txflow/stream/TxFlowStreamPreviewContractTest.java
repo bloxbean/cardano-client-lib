@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -68,11 +69,11 @@ class TxFlowStreamPreviewContractTest {
             gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "previous-hash");
             for (String id : new String[] {"next", "another"}) {
                 TxStreamItemResult result = stream.submit(id, plan).awaitSettled(Duration.ofSeconds(1));
-                assertEquals(TxStreamItemStatus.FAILED, result.getStatus());
+                assertEquals(TxStreamItemStatus.FAILED, result.status());
                 assertEquals(TxStreamCodes.BACKEND_NOT_READY,
-                        ((TxStreamException) result.getError()).getCode());
+                        ((TxStreamException) result.error()).code());
             }
-            assertEquals(TxStreamItemStatus.CONFIRMED, previous.current().getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED, previous.current().status());
             assertEquals(1, gateway.started.size());
             gateway.outputVisibility = hash -> true;
             stream.submit("after-indexing", plan);
@@ -135,7 +136,7 @@ class TxFlowStreamPreviewContractTest {
             assertTrue(retry.isCancelled());
             retry.fire();
             assertEquals(1, gateway.started.size());
-            assertEquals(TxStreamItemStatus.CANCELLED, waiting.awaitSettled(Duration.ofSeconds(1)).getStatus());
+            assertEquals(TxStreamItemStatus.CANCELLED, waiting.awaitSettled(Duration.ofSeconds(1)).status());
         } finally {
             stream.abort("test cleanup");
         }
@@ -173,7 +174,7 @@ class TxFlowStreamPreviewContractTest {
             assertEquals(2, gateway.started.size());
             gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "second-hash");
             closed.get(2, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.CONFIRMED, waiting.current().getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED, waiting.current().status());
         } finally {
             stream.abort("test cleanup");
             closer.join(2000);
@@ -214,11 +215,11 @@ class TxFlowStreamPreviewContractTest {
                 while (closer.getState() != Thread.State.WAITING) Thread.sleep(1);
             });
             closer.interrupt();
-            assertEquals("TXSTREAM_INTERRUPTED", ((TxStreamException) closeFailure.get(2, TimeUnit.SECONDS)).getCode());
+            assertEquals("TXSTREAM_INTERRUPTED", ((TxStreamException) closeFailure.get(2, TimeUnit.SECONDS)).code());
             assertTrue(interruptedFlag.get());
             assertTrue(retry.isCancelled());
-            assertEquals(TxStreamItemStatus.CANCELLED, waiting.awaitSettled(Duration.ofSeconds(1)).getStatus());
-            assertEquals(0, stream.getStats().pendingBufferSize());
+            assertEquals(TxStreamItemStatus.CANCELLED, waiting.awaitSettled(Duration.ofSeconds(1)).status());
+            assertEquals(0, stream.stats().pendingBufferSize());
             assertEquals(1, closeEvents.get());
             retry.fire();
             assertEquals(1, gateway.started.size());
@@ -241,9 +242,9 @@ class TxFlowStreamPreviewContractTest {
                 stream.submit("first", plan);
                 gateway.lastHandle().completeConfirmed(StreamIdentities.GENERATED_STEP_ID, "first-hash");
                 stream.submit("waiting", plan);
-                assertEquals(1, stream.getStats().pendingBufferSize());
-                assertEquals(0, stream.getStats().inFlightCount());
-                assertEquals(EmitResult.Status.FULL, stream.trySubmit("overflow", plan).getStatus());
+                assertEquals(1, stream.stats().pendingBufferSize());
+                assertEquals(0, stream.stats().inFlightCount());
+                assertEquals(EmitResult.Status.FULL, stream.trySubmit("overflow", plan).status());
                 if (cancel) {
                     assertTrue(stream.cancel("waiting", "cancel before dispatch"));
                 } else {
@@ -251,7 +252,7 @@ class TxFlowStreamPreviewContractTest {
                     scheduler.pending().fire();
                     assertEquals(2, gateway.started.size());
                 }
-                assertEquals(0, stream.getStats().pendingBufferSize());
+                assertEquals(0, stream.stats().pendingBufferSize());
             } finally {
                 stream.abort("test cleanup");
             }
@@ -271,10 +272,10 @@ class TxFlowStreamPreviewContractTest {
                 return true;
             };
             TxStreamItemResult result = stream.submit("waiting", plan).awaitSettled(Duration.ofSeconds(1));
-            assertEquals(TxStreamItemStatus.CANCELLED, result.getStatus());
-            assertEquals("TXSTREAM_ABORTED", ((TxStreamException) result.getError()).getCode());
+            assertEquals(TxStreamItemStatus.CANCELLED, result.status());
+            assertEquals("TXSTREAM_ABORTED", ((TxStreamException) result.error()).code());
             assertEquals(1, gateway.started.size());
-            assertEquals(0, stream.getStats().pendingBufferSize());
+            assertEquals(0, stream.stats().pendingBufferSize());
         } finally {
             stream.abort("test cleanup");
         }
@@ -297,7 +298,7 @@ class TxFlowStreamPreviewContractTest {
                 TxPlan dispatched = gateway.started.get(0).getDefinition()
                         .getSteps().get(0).getTxPlan();
                 assertEquals(acceptedYaml, dispatched.toYaml());
-                assertEquals(EmitResult.Status.CONFLICT, stream.trySubmit(item).getStatus());
+                assertEquals(EmitResult.Status.CONFLICT, stream.trySubmit(item).status());
                 assertEquals(receipt, stream.submit(item(stepPayload, TxPlan.from(acceptedYaml))));
             } finally {
                 stream.abort("test cleanup");
@@ -319,7 +320,7 @@ class TxFlowStreamPreviewContractTest {
                         .transactionHash("known-hash").updatedAt(StubEngineGateway.NOW).build(), 1);
             }
             assertEquals(TxStreamItemStatus.CONFIRMED, stream.awaitResolution("CONFIRMED",
-                    Duration.ofSeconds(1), Duration.ofMillis(1)).getStatus());
+                    Duration.ofSeconds(1), Duration.ofMillis(1)).status());
             assertThrows(TxStreamFailedException.class, () -> stream.awaitResolution("FAILED",
                     Duration.ofSeconds(1), Duration.ofMillis(1)));
             assertThrows(TxStreamCancelledException.class, () -> stream.awaitResolution("CANCELLED",

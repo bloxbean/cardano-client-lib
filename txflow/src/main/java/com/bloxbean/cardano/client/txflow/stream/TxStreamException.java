@@ -38,7 +38,7 @@ public class TxStreamException extends RuntimeException {
      *
      * @return {@code TXSTREAM_*} error code
      */
-    public String getCode() {
+    public String code() {
         return code;
     }
 }

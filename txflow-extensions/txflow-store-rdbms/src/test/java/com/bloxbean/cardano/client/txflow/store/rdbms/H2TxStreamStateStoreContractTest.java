@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.txflow.store.rdbms;
 
-import com.bloxbean.cardano.client.txflow.stream.TxStreamStateStore;
 import com.bloxbean.cardano.client.txflow.stream.contract.TxStreamStateStoreContract;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 
 import java.util.UUID;
 

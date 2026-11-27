@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -105,9 +106,9 @@ class TxFlowStreamCompositionProbeTest {
                         + " enqueue - TXSTREAM_OWNERSHIP_LOST never fires and drain()/close()"
                         + " hang until an eventual reclaim");
         TxStreamItemResult r1 = first.completion().toCompletableFuture().join();
-        assertEquals(TxStreamItemStatus.CANCELLED, r1.getStatus());
+        assertEquals(TxStreamItemStatus.CANCELLED, r1.status());
         assertEquals("TXSTREAM_OWNERSHIP_LOST",
-                ((TxStreamException) r1.getError()).getCode());
+                ((TxStreamException) r1.error()).code());
         b.close();
     }
 
@@ -252,7 +253,7 @@ class TxFlowStreamCompositionProbeTest {
             TxStreamException result = assertThrows(TxStreamException.class,
                     () -> stream.submit(templated));
 
-            assertEquals("TXSTREAM_LANE_REQUIRED", result.getCode(),
+            assertEquals("TXSTREAM_LANE_REQUIRED", result.code(),
                     "naming a real partition lane label must not bypass the template-lane"
                             + " restriction under partitioned()");
             assertEquals(0, engine.started.size(), "nothing reached the engine");
@@ -307,13 +308,13 @@ class TxFlowStreamCompositionProbeTest {
             engine.handles.get(1).completeConfirmed(mergedStepId, "tx-batch");
 
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    templated.completion().toCompletableFuture().join().getStatus());
+                    templated.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    inline1.completion().toCompletableFuture().join().getStatus());
+                    inline1.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    inline2.completion().toCompletableFuture().join().getStatus());
+                    inline2.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamBatchStatus.COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "the window batch completes; the template rides no batch");
         }
     }
@@ -360,7 +361,7 @@ class TxFlowStreamCompositionProbeTest {
                     .build());
             engine.handles.get(2).completeConfirmed(STEP_ID, "tx-t");
 
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(4, stats.acceptedItemCount());
             assertEquals(3, stats.confirmedItemCount());
             assertEquals(0, stats.failedItemCount());
@@ -412,7 +413,7 @@ class TxFlowStreamCompositionProbeTest {
         assertTrue(publisher.cancelled, "the upstream subscription is cancelled on abort");
         assertTrue(source.terminated().toCompletableFuture().isDone(),
                 "the source's terminated() stage resolves on abort");
-        assertTrue(stream.getItemStatus("pay-3").isEmpty(),
+        assertTrue(stream.itemStatus("pay-3").isEmpty(),
                 "the held item never reached the stream (no phantom projection)");
         assertFalse(report.quiescence().toCompletableFuture().isDone(),
                 "quiescence waits for the signalled in-flight execution");
@@ -450,16 +451,16 @@ class TxFlowStreamCompositionProbeTest {
             assertTrue(stream.cancelExecution(queuedExecutionId, "cancel the second"),
                     "a queued execution cancels whole");
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    second.completion().toCompletableFuture().join().getStatus());
+                    second.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamBatchStatus.RUNNING,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "the batch stays RUNNING while its sibling execution is in flight");
 
             engine.handles.get(0).completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamBatchStatus.PARTIALLY_COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "confirmed > 0 with a cancelled member derives PARTIALLY_COMPLETED");
         }
     }

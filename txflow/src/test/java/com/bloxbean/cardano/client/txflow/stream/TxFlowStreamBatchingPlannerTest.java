@@ -90,12 +90,12 @@ class TxFlowStreamBatchingPlannerTest {
             gateway.lastHandle().completeConfirmed(mergedStep, "tx-merged");
             for (TxStreamReceipt r : receipts) {
                 TxStreamItemResult outcome = r.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.CONFIRMED, outcome.getStatus());
-                assertEquals("tx-merged", outcome.getTransactionHash(),
+                assertEquals(TxStreamItemStatus.CONFIRMED, outcome.status());
+                assertEquals("tx-merged", outcome.transactionHash(),
                         "every batched member shares the one transaction's hash");
             }
             assertEquals(TxStreamBatchStatus.COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
         }
     }
 
@@ -114,7 +114,7 @@ class TxFlowStreamBatchingPlannerTest {
             assertEquals(List.of("recv-1"), outputAddresses(req));
             gateway.lastHandle().completeConfirmed(mergedStep, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    r.completion().toCompletableFuture().join().getStatus());
+                    r.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -140,9 +140,9 @@ class TxFlowStreamBatchingPlannerTest {
             assertEquals(List.of("ref:" + FUND_REF), List.copyOf(req.getSpendingResources()));
             gateway.lastHandle().completeConfirmed(mergedStep, "tx-m");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a.completion().toCompletableFuture().join().getStatus());
+                    a.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.completion().toCompletableFuture().join().getStatus());
+                    b.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -176,9 +176,9 @@ class TxFlowStreamBatchingPlannerTest {
 
             gateway.lastHandle().completeConfirmed(mergedStep, "tx-m");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a.completion().toCompletableFuture().join().getStatus());
+                    a.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.completion().toCompletableFuture().join().getStatus());
+                    b.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -203,9 +203,9 @@ class TxFlowStreamBatchingPlannerTest {
 
             gateway.lastHandle().completeConfirmed(mergedStep, "tx-m");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a.completion().toCompletableFuture().join().getStatus());
+                    a.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.completion().toCompletableFuture().join().getStatus());
+                    b.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -323,13 +323,13 @@ class TxFlowStreamBatchingPlannerTest {
 
             for (TxStreamReceipt receipt : List.of(pay, meta)) {
                 TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+                assertEquals(TxStreamItemStatus.FAILED, outcome.status());
                 TxStreamException error =
-                        assertInstanceOf(TxStreamException.class, outcome.getError());
-                assertEquals("TXSTREAM_PLANNER_FAILED", error.getCode(),
+                        assertInstanceOf(TxStreamException.class, outcome.error());
+                assertEquals("TXSTREAM_PLANNER_FAILED", error.code(),
                         "the planner rejection surfaces through the planner isolation");
                 assertEquals("TXSTREAM_BATCH_INELIGIBLE_ITEM",
-                        assertInstanceOf(TxStreamException.class, error.getCause()).getCode());
+                        assertInstanceOf(TxStreamException.class, error.getCause()).code());
             }
             assertTrue(gateway.started.isEmpty(), "nothing dispatches on a rejected window");
             assertTrue(stream.isHealthy(), "a planner rejection never kills the worker");
@@ -367,7 +367,7 @@ class TxFlowStreamBatchingPlannerTest {
                         "tx-" + i);
             }
             assertEquals(TxStreamBatchStatus.COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
         }
     }
 
@@ -459,7 +459,7 @@ class TxFlowStreamBatchingPlannerTest {
                     shared.callLog,
                     "exactly one on-chain submission for the batch across both instances");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a.completion().toCompletableFuture().join().getStatus());
+                    a.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -489,12 +489,12 @@ class TxFlowStreamBatchingPlannerTest {
 
             for (TxStreamReceipt r : List.of(a, b)) {
                 TxStreamItemResult outcome = r.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
-                assertEquals("tx-m", outcome.getTransactionHash(),
+                assertEquals(TxStreamItemStatus.FAILED, outcome.status());
+                assertEquals("tx-m", outcome.transactionHash(),
                         "one failed tx -> every member FAILED with its hash");
             }
             assertEquals(TxStreamBatchStatus.FAILED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "a batched tx has no partial: every member fails together");
         }
     }
@@ -522,12 +522,12 @@ class TxFlowStreamBatchingPlannerTest {
 
             for (TxStreamReceipt r : List.of(a, b)) {
                 TxStreamItemResult outcome = r.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.getStatus(),
+                assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.status(),
                         "submitted-unconfirmed inside a terminal flow -> RECOVERY_REQUIRED");
-                assertEquals("tx-m", outcome.getTransactionHash(), "the hash is never dropped");
+                assertEquals("tx-m", outcome.transactionHash(), "the hash is never dropped");
             }
             assertEquals(TxStreamBatchStatus.RUNNING,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "unresolved members keep the batch RUNNING until repaired");
         }
     }
@@ -564,7 +564,7 @@ class TxFlowStreamBatchingPlannerTest {
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
 
             assertEquals(TxStreamBatchStatus.PARTIALLY_COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "across-flow partial is possible; within a merged tx there is no partial");
         }
     }
@@ -588,10 +588,10 @@ class TxFlowStreamBatchingPlannerTest {
 
             for (TxStreamReceipt r : List.of(a, b)) {
                 TxStreamItemResult outcome = r.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus(),
+                assertEquals(TxStreamItemStatus.FAILED, outcome.status(),
                         "a fail-closed binding failure settles every batched member");
                 assertEquals("TXSTREAM_BINDING_FAILED",
-                        assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+                        assertInstanceOf(TxStreamException.class, outcome.error()).code());
             }
             assertTrue(gateway.started.isEmpty(),
                     "the engine must never start a batch with an unbound member");

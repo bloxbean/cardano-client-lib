@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.BindingOutcome;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -114,7 +115,7 @@ class TxFlowStreamPerWindowPlannerTest {
 
         TxStreamPlanner custom = context -> {
             TxWorkItem item = context.items().get(0);
-            TxStreamPlanningContext.PlanningSeed seed = context.seed(item.getItemId());
+            TxStreamPlanningContext.PlanningSeed seed = context.seed(item.itemId());
             FlowStep step = seed.enforcedStep;
             TxFlow flow = TxFlow.builder(context.ids().flowId(List.of(seed.claimKey)))
                     .withChainingMode(ChainingMode.BATCH)
@@ -122,7 +123,7 @@ class TxFlowStreamPerWindowPlannerTest {
                     .build();
             return TxStreamPlan.of(List.of(new PlannedExecution(flow, seed.lane.laneName(),
                     seed.claimKey,
-                    List.of(new TxStreamPlannedItem(item.getItemId(), step.getId())))));
+                    List.of(new TxStreamPlannedItem(item.itemId(), step.getId())))));
         };
         StubEngineGateway customGateway = new StubEngineGateway();
         try (TxFlowStream stream = singleLaneBuilder(customGateway, custom).build()) {
@@ -188,18 +189,18 @@ class TxFlowStreamPerWindowPlannerTest {
             completeAllStepsConfirmed(gateway, 0);
             completeAllStepsConfirmed(gateway, 1);
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a1.completion().toCompletableFuture().join().getStatus());
+                    a1.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a2.completion().toCompletableFuture().join().getStatus());
+                    a2.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b1.completion().toCompletableFuture().join().getStatus());
-            assertEquals("lane-a", a1.current().getLaneName());
-            assertEquals("lane-b", b1.current().getLaneName());
+                    b1.completion().toCompletableFuture().join().status());
+            assertEquals("lane-a", a1.current().laneName());
+            assertEquals("lane-b", b1.current().laneName());
             assertEquals("tx-" + StreamIdentities.stepId("a-2"),
-                    a2.current().getTransactionHash(),
+                    a2.current().transactionHash(),
                     "each member carries its own step's transaction hash");
 
-            TxStreamBatchResult batch = stream.getBatchStatus("batch-1").orElseThrow();
+            TxStreamBatchResult batch = stream.batchStatus("batch-1").orElseThrow();
             assertEquals(TxStreamBatchStatus.COMPLETED, batch.status());
             assertEquals(List.of("a-1", "b-1", "a-2"), batch.itemIds(),
                     "batch members stay in window acceptance order");
@@ -276,9 +277,9 @@ class TxFlowStreamPerWindowPlannerTest {
                                     StubEngineGateway.NOW)),
                     null, StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    r1.completion().toCompletableFuture().join().getStatus());
+                    r1.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    r2.completion().toCompletableFuture().join().getStatus());
+                    r2.completion().toCompletableFuture().join().status());
         }
 
         // The engine holds the claim durably; a stored-snapshot MATCH returns
@@ -309,11 +310,11 @@ class TxFlowStreamPerWindowPlannerTest {
 
             TxStreamItemResult first = r1.completion().toCompletableFuture().join();
             TxStreamItemResult secondResult = r2.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, first.getStatus());
-            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.getStatus());
-            assertEquals("tx-a", first.getTransactionHash(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, first.status());
+            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.status());
+            assertEquals("tx-a", first.transactionHash(),
                     "the member's own stored hash is recovered through P2 reads");
-            assertEquals("tx-b", secondResult.getTransactionHash());
+            assertEquals("tx-b", secondResult.transactionHash());
         }
     }
 
@@ -355,7 +356,7 @@ class TxFlowStreamPerWindowPlannerTest {
                     "perWindow always claims through the window derivation");
             completeAllStepsConfirmed(gateway, 0);
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             assertFalse(gateway.started.get(0).getExecutionId().contains("batch"),
                     "batch sequence never leaks into engine identity");
         }

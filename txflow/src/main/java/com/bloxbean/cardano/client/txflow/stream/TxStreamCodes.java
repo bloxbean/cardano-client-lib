@@ -4,7 +4,7 @@ package com.bloxbean.cardano.client.txflow.stream;
  * Stable error-code catalog for TxStream behavior emitted by the core
  * {@code txflow} module.
  *
- * <p>Callers may compare {@link TxStreamException#getCode()} with these
+ * <p>Callers may compare {@link TxStreamException#code()} with these
  * constants without duplicating string literals. Extension modules own their
  * own catalogs; this class intentionally contains only core codes.</p>
  */
