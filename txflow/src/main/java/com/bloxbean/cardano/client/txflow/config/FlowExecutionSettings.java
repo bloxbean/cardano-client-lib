@@ -27,7 +27,6 @@ public class FlowExecutionSettings {
     private final RollbackStrategy rollbackStrategy;
     private final RetryPolicy retryPolicy;
     private final RollbackPolicy rollbackPolicy;
-    private final ValidityPolicy validityPolicy;
 
     /**
      * Initializes a settings snapshot for this class or a compatibility subclass.
@@ -37,20 +36,17 @@ public class FlowExecutionSettings {
      * @param rollbackStrategy legacy rollback strategy, or {@code null}
      * @param retryPolicy requested step retry policy, or {@code null}
      * @param rollbackPolicy portable rollback policy, or {@code null}
-     * @param validityPolicy requested validity preferences, or {@code null}
      */
     protected FlowExecutionSettings(ChainingMode chainingMode,
                                     ConfirmationConfig confirmationConfig,
                                     RollbackStrategy rollbackStrategy,
                                     RetryPolicy retryPolicy,
-                                    RollbackPolicy rollbackPolicy,
-                                    ValidityPolicy validityPolicy) {
+                                    RollbackPolicy rollbackPolicy) {
         this.chainingMode = chainingMode;
         this.confirmationConfig = confirmationConfig;
         this.rollbackStrategy = rollbackStrategy;
         this.retryPolicy = retryPolicy;
         this.rollbackPolicy = rollbackPolicy;
-        this.validityPolicy = validityPolicy;
     }
 
     /**
@@ -82,8 +78,7 @@ public class FlowExecutionSettings {
                 .confirmationConfig(confirmationConfig)
                 .rollbackStrategy(rollbackStrategy)
                 .retryPolicy(retryPolicy)
-                .rollbackPolicy(rollbackPolicy)
-                .validityPolicy(validityPolicy);
+                .rollbackPolicy(rollbackPolicy);
     }
 
     /**
@@ -96,8 +91,7 @@ public class FlowExecutionSettings {
                 || confirmationConfig != null
                 || rollbackStrategy != null
                 || retryPolicy != null
-                || rollbackPolicy != null
-                || validityPolicy != null;
+                || rollbackPolicy != null;
     }
 
     /** Explicit builder kept stable as part of the public configuration API. */
@@ -112,8 +106,6 @@ public class FlowExecutionSettings {
         protected RetryPolicy retryPolicy;
         /** Portable rollback policy, or {@code null} when unset. */
         protected RollbackPolicy rollbackPolicy;
-        /** Requested validity preferences, or {@code null} when unset. */
-        protected ValidityPolicy validityPolicy;
 
         /** Creates a builder with every flow-level request unset. */
         public FlowExecutionSettingsBuilder() {
@@ -175,24 +167,13 @@ public class FlowExecutionSettings {
         }
 
         /**
-         * Requests transaction validity-window preferences.
-         *
-         * @param value validity policy, or {@code null} to leave it unset
-         * @return this builder
-         */
-        public FlowExecutionSettingsBuilder validityPolicy(ValidityPolicy value) {
-            this.validityPolicy = value;
-            return this;
-        }
-
-        /**
          * Creates a settings snapshot containing the requested values.
          *
          * @return flow execution settings
          */
         public FlowExecutionSettings build() {
             return new FlowExecutionSettings(chainingMode, confirmationConfig,
-                    rollbackStrategy, retryPolicy, rollbackPolicy, validityPolicy);
+                    rollbackStrategy, retryPolicy, rollbackPolicy);
         }
     }
 }

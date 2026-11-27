@@ -42,7 +42,6 @@ public final class FlowExecutionPolicy {
     private final int maxRollbackRecoveryCycles;
     private final Set<RollbackAction> allowedRollbackActions;
     private final Set<RollbackMonitoringHorizon> allowedRollbackHorizons;
-    private final Duration maxRequestedValidityWindow;
 
     private FlowExecutionPolicy(Builder builder) {
         this.maxSteps = builder.maxSteps;
@@ -60,7 +59,6 @@ public final class FlowExecutionPolicy {
         this.maxRollbackRecoveryCycles = builder.maxRollbackRecoveryCycles;
         this.allowedRollbackActions = Set.copyOf(builder.allowedRollbackActions);
         this.allowedRollbackHorizons = Set.copyOf(builder.allowedRollbackHorizons);
-        this.maxRequestedValidityWindow = builder.maxRequestedValidityWindow;
     }
 
     /**
@@ -166,17 +164,6 @@ public final class FlowExecutionPolicy {
                 }
             }
         }
-        ValidityPolicy validity = requestedSettings.getValidityPolicy();
-        if (validity != null && maxRequestedValidityWindow != null
-                && validity.window().compareTo(maxRequestedValidityWindow) > 0) {
-            diagnostics.add(settingCap("TXFLOW_POLICY_VALIDITY_PREFERENCE_CAPPED",
-                    "Requested validity window exceeds the server limit",
-                    "$.spec.execution.validity.window"));
-            if (!strictSettings) {
-                effective.validityPolicy(new ValidityPolicy(maxRequestedValidityWindow,
-                        validity.resubmitSafetyMargin()));
-            }
-        }
         return new Evaluation(effective.build(), diagnostics);
     }
 
@@ -199,16 +186,24 @@ public final class FlowExecutionPolicy {
         JsonNode context = transaction.path("context");
         JsonNode from = context.get("valid_from_slot");
         JsonNode to = context.get("valid_to_slot");
-        if (requireValidityInterval && (from == null || to == null || !from.isIntegralNumber() || !to.isIntegralNumber())) {
+        boolean hasFrom = from != null && from.isIntegralNumber();
+        boolean hasTo = to != null && to.isIntegralNumber();
+        if (requireValidityInterval && (!hasFrom || !hasTo)) {
             diagnostics.add(FlowDiagnostic.error("TXFLOW_POLICY_VALIDITY_REQUIRED",
                     "Server policy requires valid_from_slot and valid_to_slot", path + ".context"));
         }
-        if (from != null && to != null && from.isIntegralNumber() && to.isIntegralNumber()) {
-            long window = to.longValue() - from.longValue();
-            if (window < 0) {
+        boolean fromOutOfRange = hasFrom && (!from.canConvertToLong() || from.longValue() < 0);
+        boolean toOutOfRange = hasTo && (!to.canConvertToLong() || to.longValue() < 0);
+        if (fromOutOfRange || toOutOfRange) {
+            diagnostics.add(FlowDiagnostic.error("TXFLOW_VALIDITY_INTERVAL_INVALID",
+                    "Validity slots must be non-negative 64-bit integers", path + ".context"));
+        } else if (hasFrom && hasTo) {
+            long fromSlot = from.longValue();
+            long toSlot = to.longValue();
+            if (toSlot < fromSlot) {
                 diagnostics.add(FlowDiagnostic.error("TXFLOW_VALIDITY_INTERVAL_INVALID",
                         "valid_to_slot must not precede valid_from_slot", path + ".context"));
-            } else if (maxValidityWindowSlots > 0 && window > maxValidityWindowSlots) {
+            } else if (maxValidityWindowSlots > 0 && (toSlot - fromSlot) > maxValidityWindowSlots) {
                 diagnostics.add(FlowDiagnostic.error("TXFLOW_POLICY_VALIDITY_WINDOW",
                         "Transaction validity interval exceeds server limit", path + ".context"));
             }
@@ -293,7 +288,6 @@ public final class FlowExecutionPolicy {
         private Set<RollbackAction> allowedRollbackActions = Set.of(RollbackAction.values());
         private Set<RollbackMonitoringHorizon> allowedRollbackHorizons =
                 Set.of(RollbackMonitoringHorizon.values());
-        private Duration maxRequestedValidityWindow;
 
         /** Creates a builder initialized with the broad default policy limits. */
         public Builder() {
@@ -478,20 +472,6 @@ public final class FlowExecutionPolicy {
          */
         public Builder allowedRollbackHorizons(Set<RollbackMonitoringHorizon> value) {
             this.allowedRollbackHorizons = Set.copyOf(value);
-            return this;
-        }
-
-        /**
-         * Sets the ceiling for the portable duration-based validity preference.
-         *
-         * @param value positive validity-window ceiling
-         * @return this builder
-         */
-        public Builder maxRequestedValidityWindow(Duration value) {
-            if (value == null || value.isNegative() || value.isZero()) {
-                throw new IllegalArgumentException("maxRequestedValidityWindow must be positive");
-            }
-            this.maxRequestedValidityWindow = value;
             return this;
         }
 

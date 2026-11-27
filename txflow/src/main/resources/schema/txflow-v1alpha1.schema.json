@@ -36,8 +36,7 @@
             "mode": { "enum": ["SEQUENTIAL", "PIPELINED", "BATCH"] },
             "confirmation": { "$ref": "#/$defs/confirmation" },
             "rollback": { "$ref": "#/$defs/rollback" },
-            "retry": { "$ref": "#/$defs/retry" },
-            "validity": { "$ref": "#/$defs/validity" }
+            "retry": { "$ref": "#/$defs/retry" }
           }
         },
         "extensions": {
@@ -90,15 +89,6 @@
         "initial_delay": { "$ref": "#/$defs/duration" },
         "max_delay": { "$ref": "#/$defs/duration" },
         "jitter": { "type": "number", "minimum": 0, "maximum": 1 }
-      }
-    },
-    "validity": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["window"],
-      "properties": {
-        "window": { "$ref": "#/$defs/duration" },
-        "resubmit_safety_margin": { "type": "integer", "minimum": 0 }
       }
     },
     "extensionBinding": {

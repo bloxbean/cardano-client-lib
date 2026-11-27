@@ -316,9 +316,8 @@ See [ADR 0008](https://github.com/bloxbean/cardano-client-lib/blob/master/txflow
 
 `spec.execution` and `step.transaction.context` have different owners:
 
-- `spec.execution` requests TxFlow behavior such as chaining mode, confirmation, rollback, retry,
-  and validity policy. Server `FlowExecutionPolicy` may cap numeric requests or reject semantic
-  choices.
+- `spec.execution` requests TxFlow behavior such as chaining mode, confirmation, rollback, and
+  retry policy. Server `FlowExecutionPolicy` may cap numeric requests or reject semantic choices.
 - `transaction.context` is QuickTx transaction composition context: fee/collateral payer, signer
   references, required signer hashes, absolute validity slots, and deposit settings.
 
@@ -379,9 +378,6 @@ execution:
     max_recovery_cycles: 3
     reinclusion_window: 90s
     minimum_consistent_absence_observations: 2
-  validity:
-    window: 20m
-    resubmit_safety_margin: 60
 ```
 
 `confirmation.preset` may be `defaults`, `devnet`, `testnet`, or `quick`; explicit portable

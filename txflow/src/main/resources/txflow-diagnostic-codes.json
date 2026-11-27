@@ -77,7 +77,6 @@
     "TXFLOW_POLICY_ROLLBACK_ACTION": "The requested rollback action is not allowed.",
     "TXFLOW_POLICY_ROLLBACK_CYCLES_CAPPED": "Rollback recovery cycles exceed the server ceiling.",
     "TXFLOW_POLICY_ROLLBACK_HORIZON": "The requested monitoring horizon is not allowed.",
-    "TXFLOW_POLICY_VALIDITY_PREFERENCE_CAPPED": "The requested validity preference exceeds policy.",
     "TXFLOW_POLICY_VALIDITY_REQUIRED": "Policy requires a transaction validity interval.",
     "TXFLOW_POLICY_VALIDITY_WINDOW": "The transaction validity interval exceeds policy.",
     "TXFLOW_PREPARED_ATTEMPT_MISSING": "No durably prepared attempt exists for the transition.",

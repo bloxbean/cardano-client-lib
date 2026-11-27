@@ -4,10 +4,10 @@ package com.bloxbean.cardano.client.txflow.store;
  * Durable representation of a resolved execution parameter.
  *
  * <p>Non-sensitive values may be stored directly in {@code nonSensitiveValue}. Sensitive values
- * instead use an opaque {@code secureValueRef} resolved through an application-owned
- * {@link SecureBindingResolver}; TxFlow snapshots must not contain the secret itself. The
- * fingerprint supports identity checks without disclosure, and {@code redactedDisplay} is the
- * only representation intended for diagnostics.</p>
+ * instead use an opaque application-owned {@code secureValueRef} referencing an external secret
+ * store; TxFlow snapshots must not contain the secret itself. The fingerprint supports identity
+ * checks without disclosure, and {@code redactedDisplay} is the only representation intended
+ * for diagnostics.</p>
  *
  * <p>The record describes the two storage forms but does not itself enforce that exactly one of
  * {@code nonSensitiveValue} and {@code secureValueRef} is populated. Producers and store adapters

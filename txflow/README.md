@@ -392,7 +392,7 @@ point:
 | Portable definition values | `txflow.model` | parameter declarations, bindings, transaction templates, output selectors |
 | Compilation | `txflow.compile` | binding, policy/resource preflight, fresh per-run `TxPlan` materialization, fingerprints |
 | Runtime | `txflow.exec` | request admission, spending coordination, execution, events, results, error mapping |
-| Requested/server policy | `txflow.config` | confirmation, retry, rollback, validity, and host-enforced limits |
+| Requested/server policy | `txflow.config` | confirmation, retry, rollback, and host-enforced limits |
 | Logical resources | `txflow.resource` | normalized references, public descriptors, capabilities, contention identities |
 | Durable contract | `txflow.store` | snapshots, attempts, journals, idempotency, leases, fences, store codec |
 | Reconciliation | `txflow.recovery` | attempt selection, signed-payload verification, chain observation, safe resubmission |
