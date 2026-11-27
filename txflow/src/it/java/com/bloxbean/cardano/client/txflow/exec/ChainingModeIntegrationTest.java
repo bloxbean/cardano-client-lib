@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.txflow;
+package com.bloxbean.cardano.client.txflow.exec;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
@@ -7,11 +7,15 @@ import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
+import com.bloxbean.cardano.client.txflow.FlowStep;
+import com.bloxbean.cardano.client.txflow.SelectionStrategy;
+import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.YaciDevKitUtil;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
-import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
-import com.bloxbean.cardano.client.txflow.exec.FlowHandle;
-import com.bloxbean.cardano.client.txflow.exec.FlowListener;
+import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStatus;
@@ -31,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * These tests verify that PIPELINED and BATCH modes work correctly for:
  * - Basic multi-step flows
  * - Variable substitution
- * - Async execution with FlowHandle
+ * - Async execution with FlowEngine
  * - Same-block transaction inclusion
  * <p>
  * Prerequisites:
@@ -257,47 +261,46 @@ public class ChainingModeIntegrationTest {
 
         TxFlow flow = TxFlow.builder("pipelined-async")
                 .withDescription("PIPELINED async execution test")
+                .withExecutionSettings(FlowExecutionSettings.builder()
+                        .chainingMode(ChainingMode.PIPELINED)
+                        .confirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
+                        .build())
                 .addStep(FlowStep.builder("async-step1")
-                        .withTxContext(builder -> builder
-                                .compose(new Tx()
+                        .withTxPlan(TxPlan.from(new Tx()
                                         .payToAddress(account1.baseAddress(), Amount.ada(1.2))
-                                        .from(account0.baseAddress()))
-                                .withSigner(SignerProviders.signerFrom(account0)))
+                                        .fromRef("account://account0"))
+                                .withSigner("account://account0"))
                         .build())
                 .addStep(FlowStep.builder("async-step2")
-                        .dependsOn("async-step1")
-                        .withTxContext(builder -> builder
-                                .compose(new Tx()
+                        .needs("async-step1")
+                        .fundsFrom("async-step1")
+                        .withTxPlan(TxPlan.from(new Tx()
                                         .payToAddress(account2.baseAddress(), Amount.ada(0.8))
-                                        .from(account1.baseAddress()))
-                                .withSigner(SignerProviders.signerFrom(account1)))
+                                        .fromRef("account://account1"))
+                                .withSigner("account://account1"))
                         .build())
                 .build();
 
         System.out.println("Starting async execution...");
 
-        FlowHandle handle = FlowExecutor.create(backendService)
-                .withExecutor(asyncExecutor)
-                .withChainingMode(ChainingMode.PIPELINED)
-                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
-                .execute(flow);
+        FlowEngine engine = FlowEngine.builder(backendService)
+                .executor(asyncExecutor)
+                .signerRegistry(signerRegistry)
+                .build();
 
-        // Check initial state
-        System.out.println("Initial status: " + handle.getStatus());
-        System.out.println("Total steps: " + handle.getTotalStepCount());
-        assertFalse(handle.isDone());
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(flow).build());
 
         // Wait for completion
-        FlowResult result = handle.await(Duration.ofSeconds(120));
+        FlowExecutionResult result = handle.await();
 
         // Verify final state
         assertTrue(handle.isDone());
         assertTrue(result.isSuccessful());
-        assertEquals(FlowStatus.COMPLETED, handle.getStatus());
-        assertEquals(2, handle.getCompletedStepCount());
+        assertEquals(FlowExecutionState.COMPLETED, result.state());
+        assertEquals(2, result.steps().size());
 
-        System.out.println("Final status: " + handle.getStatus());
-        System.out.println("Completed steps: " + handle.getCompletedStepCount() + "/" + handle.getTotalStepCount());
+        System.out.println("Final state: " + result.state());
+        System.out.println("Completed steps: " + result.steps().size());
 
         System.out.println("\n=== Test 4 completed successfully! ===\n");
     }
@@ -448,47 +451,46 @@ public class ChainingModeIntegrationTest {
 
         TxFlow flow = TxFlow.builder("batch-async")
                 .withDescription("BATCH async execution test")
+                .withExecutionSettings(FlowExecutionSettings.builder()
+                        .chainingMode(ChainingMode.BATCH)
+                        .confirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
+                        .build())
                 .addStep(FlowStep.builder("async-step1")
-                        .withTxContext(builder -> builder
-                                .compose(new Tx()
+                        .withTxPlan(TxPlan.from(new Tx()
                                         .payToAddress(account1.baseAddress(), Amount.ada(1.3))
-                                        .from(account0.baseAddress()))
-                                .withSigner(SignerProviders.signerFrom(account0)))
+                                        .fromRef("account://account0"))
+                                .withSigner("account://account0"))
                         .build())
                 .addStep(FlowStep.builder("async-step2")
-                        .dependsOn("async-step1")
-                        .withTxContext(builder -> builder
-                                .compose(new Tx()
+                        .needs("async-step1")
+                        .fundsFrom("async-step1")
+                        .withTxPlan(TxPlan.from(new Tx()
                                         .payToAddress(account2.baseAddress(), Amount.ada(0.9))
-                                        .from(account1.baseAddress()))
-                                .withSigner(SignerProviders.signerFrom(account1)))
+                                        .fromRef("account://account1"))
+                                .withSigner("account://account1"))
                         .build())
                 .build();
 
         System.out.println("Starting async BATCH execution...");
 
-        FlowHandle handle = FlowExecutor.create(backendService)
-                .withExecutor(asyncExecutor)
-                .withChainingMode(ChainingMode.BATCH)
-                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
-                .execute(flow);
+        FlowEngine engine = FlowEngine.builder(backendService)
+                .executor(asyncExecutor)
+                .signerRegistry(signerRegistry)
+                .build();
 
-        // Check initial state
-        System.out.println("Initial status: " + handle.getStatus());
-        System.out.println("Total steps: " + handle.getTotalStepCount());
-        assertFalse(handle.isDone());
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(flow).build());
 
         // Wait for completion
-        FlowResult result = handle.await(Duration.ofSeconds(120));
+        FlowExecutionResult result = handle.await();
 
         // Verify final state
         assertTrue(handle.isDone());
         assertTrue(result.isSuccessful());
-        assertEquals(FlowStatus.COMPLETED, handle.getStatus());
-        assertEquals(2, handle.getCompletedStepCount());
+        assertEquals(FlowExecutionState.COMPLETED, result.state());
+        assertEquals(2, result.steps().size());
 
-        System.out.println("Final status: " + handle.getStatus());
-        System.out.println("Completed steps: " + handle.getCompletedStepCount() + "/" + handle.getTotalStepCount());
+        System.out.println("Final state: " + result.state());
+        System.out.println("Completed steps: " + result.steps().size());
 
         System.out.println("\n=== Test 8 completed successfully! ===\n");
     }

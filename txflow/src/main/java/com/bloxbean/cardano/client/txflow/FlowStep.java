@@ -321,7 +321,7 @@ public class FlowStep {
         /**
          * Set a step-level retry policy for this step.
          * <p>
-         * Step-level retry policies take precedence over the default retry policy set on the FlowExecutor.
+         * Step-level retry policies take precedence over the flow-level default retry policy.
          * This is useful when different steps require different retry behavior.
          *
          * @param retryPolicy the retry policy for this step

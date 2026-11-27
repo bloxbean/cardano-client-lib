@@ -23,24 +23,6 @@ YAML or JSON -> TxFlowCodec -> TxFlow definition
 `FlowEngine` is thread-safe after construction. Its configuration is immutable, and every
 accepted request runs on an application-owned `Executor`.
 
-## `FlowEngine` and the legacy facade
-
-The two execution APIs serve different contracts and should not be mixed in one example:
-
-| Portable runtime | Legacy facade |
-|---|---|
-| `FlowEngine` | `FlowExecutor` |
-| `FlowExecutionRequest` | A `TxFlow` passed directly to `execute` or `executeSync` |
-| `FlowExecutionHandle` | `FlowHandle` |
-| `FlowExecutionResult` and `FlowExecutionState` | `FlowResult` and `FlowStatus` |
-| Ordered `FlowEvent` values | `FlowListener` callbacks and optional `FlowRegistry` |
-| `FlowExecutionStore` for fenced durable execution | `FlowStateStore` for legacy snapshots |
-
-`FlowEngine` compiles portable transaction templates before execution. Passing an uncompiled
-portable template directly to `FlowExecutor` is rejected. Continue to use `FlowExecutor` for an
-existing Java-first or legacy integration, but use `FlowEngine` for new portable/server-side
-execution and durable recovery.
-
 ## 1. Parse a definition
 
 Use bounded server defaults when a document can come from outside the process. The parser rejects

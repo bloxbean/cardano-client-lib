@@ -34,7 +34,6 @@ portable YAML or JSON
 - `txflow.cardano-client.dev/v1alpha1` is the current portable document contract.
 - `TxFlowCodec`, `FlowExecutionRequest`, and `FlowEngine` are the canonical APIs for new code.
   `FlowRuntime` wraps an ordinary `FlowEngine`, with no store, policy, or catalog.
-- `FlowExecutor` and the preview `version: "1.0"` document remain compatibility APIs.
 - With `FlowEngine`, applications provide and own executors, and Java 21 applications may pass a
   virtual-thread executor without changing the API. `FlowRuntime` is the managed front door for
   scripts and small applications: it creates and shuts down its own executors.
@@ -117,13 +116,6 @@ streaming submission API on the same engine — start with
 [TxStream Getting Started](/txstream/getting-started/), then
 [Durability & Exactly-Once](/txstream/durability/) and
 [Lanes & Throughput](/txstream/throughput/).
-
-:::note[Maintaining an older `FlowExecutor` integration?]
-`FlowExecutor` is a compatibility API. It still works, but it combines definition and execution
-concerns and is not the canonical durable-runtime path — this site documents `FlowEngine` and
-`FlowRuntime` only. For `FlowExecutor` reference material, see `txflow/README.md` in the source
-tree or the previous documentation site.
-:::
 
 ## Module documentation
 

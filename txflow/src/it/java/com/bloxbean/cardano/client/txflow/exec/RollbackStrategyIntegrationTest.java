@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.txflow;
+package com.bloxbean.cardano.client.txflow.exec;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
@@ -11,9 +11,13 @@ import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
+import com.bloxbean.cardano.client.txflow.FlowStep;
+import com.bloxbean.cardano.client.txflow.RollbackTestHelper;
+import com.bloxbean.cardano.client.txflow.SelectionStrategy;
+import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
-import com.bloxbean.cardano.client.txflow.exec.*;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStatus;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
@@ -115,8 +119,7 @@ public class RollbackStrategyIntegrationTest {
                 new DefaultProtocolParamsSupplier(backendService.getEpochService()),
                 new DefaultTransactionProcessor(backendService.getTransactionService()),
                 ObservationCapabilities.withAuthoritativeAbsence(
-                        new DefaultChainDataSupplier(backendService)))
-                .withExecutor(asyncExecutor);
+                        new DefaultChainDataSupplier(backendService)));
     }
 
     private FlowResult awaitFlowResult(Future<FlowResult> future, Duration timeout)
@@ -923,7 +926,7 @@ public class RollbackStrategyIntegrationTest {
     }
 
     /**
-     * Test FlowHandle cancellation stops flow execution.
+     * Test cooperative cancellation stops flow execution.
      * <p>
      * Uses SEQUENTIAL mode with high minConfirmations so the flow spends a long
      * time waiting for step 1's confirmation. We cancel during that wait.
@@ -933,7 +936,7 @@ public class RollbackStrategyIntegrationTest {
     @Test
     @Order(10)
     void testCancellation_stopsExecution() throws Exception {
-        System.out.println("=== Test 10: FlowHandle Cancellation ===");
+        System.out.println("=== Test 10: Cooperative Cancellation ===");
 
         AtomicBoolean txSubmitted = new AtomicBoolean(false);
         AtomicBoolean secondStepStarted = new AtomicBoolean(false);
@@ -966,7 +969,7 @@ public class RollbackStrategyIntegrationTest {
 
         // Create a multi-step flow — step 2 should never execute if cancellation works
         TxFlow flow = TxFlow.builder("cancellation-test")
-                .withDescription("Test FlowHandle cancellation")
+                .withDescription("Test cooperative cancellation")
                 .addStep(FlowStep.builder("step1")
                         .withDescription("Account0 -> Account1 (2 ADA)")
                         .withTxContext(builder -> builder
@@ -990,38 +993,33 @@ public class RollbackStrategyIntegrationTest {
                 .withRollbackStrategy(RollbackStrategy.FAIL_IMMEDIATELY)
                 .withListener(listener);
 
-        // Execute async to get FlowHandle
-        FlowHandle handle = executor.execute(flow);
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        Future<FlowResult> future = asyncExecutor.submit(() -> executor.executeSync(flow, cancelled::get));
 
-        // Wait for first tx submission (not completion — that takes ~20s with high confirmations)
-        System.out.println("Waiting for first transaction to be submitted...");
-        int waitCount = 0;
-        while (!txSubmitted.get() && waitCount < 30) {
-            Thread.sleep(500);
-            waitCount++;
-        }
-        assertTrue(txSubmitted.get(), "First transaction should have been submitted");
-
-        // Cancel during step 1's confirmation wait
-        System.out.println("Cancelling flow during confirmation wait...");
-        handle.cancel();
-        assertEquals(FlowStatus.CANCELLED, handle.getStatus(),
-                "Handle status should be CANCELLED immediately after cancel()");
-
-        // Wait for flow to finish — the executor thread is still in waitForConfirmation
-        // for step 1. After that returns, it will check isCancelled() before step 2
-        // and return a CANCELLED result.
-        System.out.println("Waiting for flow to finish...");
         try {
-            handle.await(Duration.ofSeconds(60));
-            fail("Cancelled FlowHandle should complete with CancellationException");
-        } catch (CancellationException expected) {
-            // FlowHandle.cancel() cancels its result future by contract.
-        }
+            // Wait for first tx submission (not completion — that takes ~20s with high confirmations)
+            System.out.println("Waiting for first transaction to be submitted...");
+            int waitCount = 0;
+            while (!txSubmitted.get() && waitCount < 30) {
+                Thread.sleep(500);
+                waitCount++;
+            }
+            assertTrue(txSubmitted.get(), "First transaction should have been submitted");
 
-        assertEquals(FlowStatus.CANCELLED, handle.getStatus());
-        assertFalse(secondStepStarted.get(),
-                "Step 2 should not have started after cancellation");
+            // Cancel during step 1's confirmation wait
+            System.out.println("Cancelling flow during confirmation wait...");
+            cancelled.set(true);
+
+            // Wait for flow to finish
+            System.out.println("Waiting for flow to finish...");
+            FlowResult result = awaitFlowResult(future, Duration.ofSeconds(60));
+            assertEquals(FlowStatus.CANCELLED, result.getStatus(),
+                    "Result status should be CANCELLED");
+            assertFalse(secondStepStarted.get(),
+                    "Step 2 should not have started after cancellation");
+        } finally {
+            future.cancel(true);
+        }
 
         System.out.println("\n=== Test 10 completed! ===\n");
     }

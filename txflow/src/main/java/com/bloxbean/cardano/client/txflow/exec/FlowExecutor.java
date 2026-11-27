@@ -2,27 +2,31 @@ package com.bloxbean.cardano.client.txflow.exec;
 
 import com.bloxbean.cardano.client.api.ChainDataSupplier;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.ScriptSupplier;
+import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.TransactionInfo;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultScriptSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.TxResult;
 import com.bloxbean.cardano.client.quicktx.extension.QuickTxExtension;
-import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
-import com.bloxbean.cardano.client.api.ScriptSupplier;
-import com.bloxbean.cardano.client.api.TransactionEvaluator;
-import com.bloxbean.cardano.client.backend.api.DefaultScriptSupplier;
 import com.bloxbean.cardano.client.quicktx.script.ScriptRegistry;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.signing.SignerRegistry;
-import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.FlowStep;
@@ -31,12 +35,15 @@ import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.codec.FlowDiagnostic;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
+import com.bloxbean.cardano.client.txflow.config.RollbackAction;
+import com.bloxbean.cardano.client.txflow.config.RollbackMonitoringHorizon;
 import com.bloxbean.cardano.client.txflow.config.RollbackPolicy;
+import com.bloxbean.cardano.client.txflow.config.RollbackRebuildScope;
 import com.bloxbean.cardano.client.txflow.config.RollbackStrategy;
-import com.bloxbean.cardano.client.txflow.exec.registry.FlowRegistry;
 import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
-import com.bloxbean.cardano.client.txflow.exec.store.*;
-import com.bloxbean.cardano.client.txflow.result.*;
+import com.bloxbean.cardano.client.txflow.result.FlowResult;
+import com.bloxbean.cardano.client.txflow.result.FlowStatus;
+import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -47,48 +54,30 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.LinkedHashSet;
-import java.util.function.BiFunction;
 
 /**
- * Executor for transaction flows.
- * <p>
- * FlowExecutor orchestrates the execution of a {@link TxFlow} by:
- * <ul>
- *     <li>Resolving UTXO dependencies between steps</li>
- *     <li>Building and submitting transactions for each step</li>
- *     <li>Waiting for transaction confirmations</li>
- *     <li>Notifying listeners of progress</li>
- * </ul>
+ * Package-private step execution engine used internally by {@link FlowEngine}.
  *
- * <h2>Example Usage:</h2>
- * <pre>{@code
- * FlowExecutor executor = FlowExecutor.create(backendService)
- *     .withSignerRegistry(signerRegistry)
- *     .withListener(new LoggingFlowListener())
- *     .withExecutor(applicationExecutor);
- *
- * FlowHandle handle = executor.execute(flow);
- * FlowResult result = handle.await();
- * }</pre>
- * Configure an executor before starting flows. Each execution snapshots the effective
- * settings for that flow, but mutating executor configuration while flows are in flight
- * is not an atomic reconfiguration operation.
+ * <p>Orchestrates synchronous execution of a compiled {@link TxFlow} by resolving
+ * UTXO dependencies between steps, building and submitting transactions in
+ * SEQUENTIAL, PIPELINED, or BATCH mode, tracking confirmations and rollbacks,
+ * and forwarding lifecycle callbacks to {@link FlowListener} and {@link PersistencePort}.</p>
  */
 @Slf4j
-public class FlowExecutor implements AutoCloseable {
+class FlowExecutor {
     private final UtxoSupplier baseUtxoSupplier;
     private final ProtocolParamsSupplier protocolParamsSupplier;
     private final TransactionProcessor transactionProcessor;
@@ -104,7 +93,6 @@ public class FlowExecutor implements AutoCloseable {
     private volatile ScriptSupplier scriptSupplier;
     private volatile BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> txEvaluatorFactory;
     private volatile FlowListener listener = FlowListener.NOOP;
-    private volatile Executor executor;
     private volatile Consumer<Transaction> txInspector;
     private volatile ChainingMode chainingMode = ChainingMode.SEQUENTIAL;
     private volatile RetryPolicy defaultRetryPolicy;
@@ -114,11 +102,7 @@ public class FlowExecutor implements AutoCloseable {
     private volatile boolean defaultRetryPolicyConfigured;
     private volatile boolean confirmationConfigConfigured;
     private volatile boolean rollbackStrategyConfigured;
-    private volatile FlowRegistry flowRegistry;
-    private volatile FlowStateStore flowStateStore;
     private volatile PersistencePort persistencePort = PersistencePort.NOOP;
-    private final Set<String> activeFlowIds = ConcurrentHashMap.newKeySet();
-    private final Set<FlowHandle> activeHandles = ConcurrentHashMap.newKeySet();
 
     /**
      * Create a FlowExecutor with the given supplier interfaces.
@@ -165,99 +149,38 @@ public class FlowExecutor implements AutoCloseable {
         }
     }
 
-    /**
-     * Create a new FlowExecutor for the given backend service.
-     *
-     * @param backendService the backend service
-     * @return a new FlowExecutor
-     */
-    public static FlowExecutor create(BackendService backendService) {
+    static FlowExecutor create(BackendService backendService) {
         return new FlowExecutor(backendService);
     }
 
-    /**
-     * Create a new FlowExecutor with the given supplier interfaces.
-     * <p>
-     * This factory method enables loose coupling with custom implementations,
-     * allowing integration with any data provider without implementing full BackendService.
-     *
-     * @param utxoSupplier the UTXO supplier for querying UTXOs
-     * @param protocolParamsSupplier the protocol params supplier for protocol parameters
-     * @param transactionProcessor the transaction processor for submitting transactions
-     * @param chainDataSupplier the chain data supplier for chain queries
-     * @return a new FlowExecutor
-     */
-    public static FlowExecutor create(UtxoSupplier utxoSupplier,
-                                      ProtocolParamsSupplier protocolParamsSupplier,
-                                      TransactionProcessor transactionProcessor,
-                                      ChainDataSupplier chainDataSupplier) {
+    static FlowExecutor create(UtxoSupplier utxoSupplier,
+                               ProtocolParamsSupplier protocolParamsSupplier,
+                               TransactionProcessor transactionProcessor,
+                               ChainDataSupplier chainDataSupplier) {
         return new FlowExecutor(utxoSupplier, protocolParamsSupplier, transactionProcessor, chainDataSupplier);
     }
 
-    /**
-     * Set the signer registry for resolving signer references (used with TxPlan/YAML workflows).
-     *
-     * @param registry the signer registry
-     * @return this executor
-     */
-    public FlowExecutor withSignerRegistry(SignerRegistry registry) {
+    FlowExecutor withSignerRegistry(SignerRegistry registry) {
         this.signerRegistry = registry;
         return this;
     }
 
-    /**
-     * Configures logical script-reference resolution for {@code TxPlan}-backed steps.
-     *
-     * @param registry application-owned script registry, or {@code null} when plans use no references
-     * @return this executor
-     */
-    public FlowExecutor withScriptRegistry(ScriptRegistry registry) {
+    FlowExecutor withScriptRegistry(ScriptRegistry registry) {
         this.scriptRegistry = registry;
         return this;
     }
 
-    /**
-     * Registers a QuickTx extension for {@code TxPlan} steps that use its intents.
-     *
-     * <p>Plans that use extensions are copied literally through the registered extensions and
-     * built by a {@code QuickTxBuilder} carrying them. A flow that needs an unregistered
-     * extension, or whose bindings or extension intents are invalid, fails before any step is
-     * built. Steps without extension intents are unaffected.</p>
-     *
-     * <p><b>Experimental:</b> follows the experimental QuickTx extension SPI.</p>
-     *
-     * @param extension extension to register; a second instance with the same id is rejected
-     * @return this executor
-     */
-    public FlowExecutor withExtension(QuickTxExtension extension) {
+    FlowExecutor withExtension(QuickTxExtension extension) {
         this.extensions = extensions.with(extension);
         return this;
     }
 
-    /**
-     * Sets the script lookup used to resolve reference scripts while building {@code TxPlan}
-     * steps. Executors created from a {@code BackendService} use the backend's by default.
-     *
-     * @param supplier script supplier, or {@code null} for none
-     * @return this executor
-     */
-    public FlowExecutor withScriptSupplier(ScriptSupplier supplier) {
+    FlowExecutor withScriptSupplier(ScriptSupplier supplier) {
         this.scriptSupplier = supplier;
         return this;
     }
 
-    /**
-     * Supplies the script-cost evaluator for {@code TxPlan} steps, created per step from the
-     * step's flow-aware UTxO supplier and the protocol parameters. Without it, builds use the
-     * backend evaluator, which knows only confirmed UTxOs; a PIPELINED or BATCH step that spends
-     * or references an earlier step's pending output needs a local evaluator, for example
-     * {@code (utxos, params) -> new AikenTransactionEvaluator(utxos, params)}. Steps built by a
-     * {@code withTxContext} factory set their own evaluator.
-     *
-     * @param factory evaluator factory, or {@code null} for the backend evaluator
-     * @return this executor
-     */
-    public FlowExecutor withTxEvaluator(
+    FlowExecutor withTxEvaluator(
             BiFunction<UtxoSupplier, ProtocolParamsSupplier, TransactionEvaluator> factory) {
         this.txEvaluatorFactory = factory;
         return this;
@@ -268,17 +191,7 @@ public class FlowExecutor implements AutoCloseable {
         return this;
     }
 
-    /**
-     * Set a listener for flow execution events.
-     * <p>
-     * The listener is automatically wrapped in a protective adapter that catches
-     * and logs exceptions thrown by listener callbacks, preventing buggy listeners
-     * from crashing the flow execution.
-     *
-     * @param listener the listener
-     * @return this executor
-     */
-    public FlowExecutor withListener(FlowListener listener) {
+    FlowExecutor withListener(FlowListener listener) {
         if (listener == null || listener == FlowListener.NOOP) {
             this.listener = FlowListener.NOOP;
         } else if (listener instanceof CompositeFlowListener) {
@@ -289,293 +202,43 @@ public class FlowExecutor implements AutoCloseable {
         return this;
     }
 
-    /**
-     * Set a custom executor for async flow execution.
-     * <p>
-     * Async execution requires an application-managed executor. FlowExecutor never
-     * creates or owns execution threads.
-     * <p>
-     * On Java 21+, use {@code Executors.newVirtualThreadPerTaskExecutor()} for optimal
-     * scalability with thousands of concurrent flows. Virtual threads are lightweight
-     * and handle blocking I/O efficiently without pinning carrier threads.
-     *
-     * @param executor the executor for running async flow tasks
-     * @return this executor
-     */
-    public FlowExecutor withExecutor(Executor executor) {
-        this.executor = executor;
-        return this;
-    }
-
-    private Executor requireAsyncExecutor() {
-        if (executor == null) {
-            throw new IllegalStateException(
-                    "Async flow execution requires a caller-supplied Executor. "
-                            + "Call withExecutor(...); Java 21 callers may supply a virtual-thread executor.");
-        }
-        return executor;
-    }
-
     FlowExecutor withScheduler(FlowScheduler scheduler) {
-        this.scheduler = java.util.Objects.requireNonNull(scheduler, "scheduler");
+        this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         return this;
     }
 
     FlowExecutor withPersistencePort(PersistencePort persistencePort) {
-        this.persistencePort = java.util.Objects.requireNonNull(persistencePort, "persistencePort");
+        this.persistencePort = Objects.requireNonNull(persistencePort, "persistencePort");
         return this;
     }
 
-    /**
-     * Set a transaction inspector for debugging.
-     *
-     * @param inspector the transaction inspector
-     * @return this executor
-     */
-    public FlowExecutor withTxInspector(Consumer<Transaction> inspector) {
+    FlowExecutor withTxInspector(Consumer<Transaction> inspector) {
         this.txInspector = inspector;
         return this;
     }
 
-    /**
-     * Set the chaining mode for transaction execution.
-     * <ul>
-     *     <li>{@link ChainingMode#SEQUENTIAL} (default) - Wait for each transaction
-     *         to be confirmed before proceeding to the next step. Transactions are
-     *         guaranteed to be in separate blocks.</li>
-     *     <li>{@link ChainingMode#PIPELINED} - Submit all transactions without waiting
-     *         for confirmations between steps. Transactions can potentially land in the
-     *         same block, providing faster execution.</li>
-     * </ul>
-     * Calling this setter marks the chaining mode as explicitly configured, even when
-     * {@code mode} is null. A null value explicitly selects {@link ChainingMode#SEQUENTIAL}
-     * and suppresses any flow-level chaining mode.
-     *
-     * @param mode the chaining mode
-     * @return this executor
-     */
-    public FlowExecutor withChainingMode(ChainingMode mode) {
+    FlowExecutor withChainingMode(ChainingMode mode) {
         this.chainingMode = mode != null ? mode : ChainingMode.SEQUENTIAL;
         this.chainingModeConfigured = true;
         return this;
     }
 
-    /**
-     * Set a default retry policy for all steps.
-     * <p>
-     * This policy will be used for any step that doesn't have its own step-level retry policy.
-     * If not set, no retries will be performed by default.
-     * Calling this setter marks the default retry policy as explicitly configured, even when
-     * {@code retryPolicy} is null. A null value explicitly disables the executor default
-     * retry policy and suppresses any flow-level default retry policy.
-     *
-     * @param retryPolicy the default retry policy
-     * @return this executor
-     */
-    public FlowExecutor withDefaultRetryPolicy(RetryPolicy retryPolicy) {
+    FlowExecutor withDefaultRetryPolicy(RetryPolicy retryPolicy) {
         this.defaultRetryPolicy = retryPolicy;
         this.defaultRetryPolicyConfigured = true;
         return this;
     }
 
-    /**
-     * Set the confirmation tracking configuration.
-     * <p>
-     * When set, enables advanced confirmation tracking with:
-     * <ul>
-     *     <li>Configurable confirmation depth thresholds</li>
-     *     <li>Rollback detection</li>
-     *     <li>Enhanced listener callbacks for confirmation progress</li>
-     * </ul>
-     * <p>
-     * If not set, the executor uses simple confirmation checking (transaction exists = confirmed).
-     * Calling this setter marks confirmation as explicitly configured, even when
-     * {@code config} is null. A null value explicitly selects simple confirmation mode
-     * and suppresses any flow-level confirmation config.
-     *
-     * @param config the confirmation configuration
-     * @return this executor
-     */
-    public FlowExecutor withConfirmationConfig(ConfirmationConfig config) {
+    FlowExecutor withConfirmationConfig(ConfirmationConfig config) {
         this.confirmationConfig = config;
         this.confirmationConfigConfigured = true;
         return this;
     }
 
-    /**
-     * Set the rollback handling strategy.
-     * <p>
-     * Determines how the executor responds when a transaction rollback is detected:
-     * <ul>
-     *     <li>{@link RollbackStrategy#FAIL_IMMEDIATELY} (default) - Fail the flow immediately</li>
-     *     <li>{@link RollbackStrategy#NOTIFY_ONLY} - Notify via listener but continue waiting</li>
-     *     <li>{@link RollbackStrategy#REBUILD_FROM_FAILED} - Automatically rebuild and resubmit the failed step</li>
-     *     <li>{@link RollbackStrategy#REBUILD_ENTIRE_FLOW} - Restart the entire flow from step 1</li>
-     * </ul>
-     * <p>
-     * For REBUILD_FROM_FAILED and REBUILD_ENTIRE_FLOW strategies, the maximum number of
-     * rebuild attempts is controlled by the {@code maxRollbackRetries} setting in {@link ConfirmationConfig}.
-     * <p>
-     * Note: Non-default rollback strategies only take effect when confirmation tracking
-     * is configured either on the executor or in the flow-level execution settings.
-     * Calling this setter marks the rollback strategy as explicitly configured, even when
-     * {@code strategy} is null. A null value explicitly selects
-     * {@link RollbackStrategy#FAIL_IMMEDIATELY} and suppresses any flow-level rollback strategy.
-     *
-     * @param strategy the rollback strategy
-     * @return this executor
-     */
-    public FlowExecutor withRollbackStrategy(RollbackStrategy strategy) {
+    FlowExecutor withRollbackStrategy(RollbackStrategy strategy) {
         this.rollbackStrategy = strategy != null ? strategy : RollbackStrategy.FAIL_IMMEDIATELY;
         this.rollbackStrategyConfigured = true;
         return this;
-    }
-
-    /**
-     * Set a flow registry for automatic flow tracking.
-     * <p>
-     * When set, flows executed via {@link #execute(TxFlow)} will be automatically
-     * registered in the registry. This enables centralized monitoring of all
-     * running flows.
-     * <p>
-     * Note: Synchronous execution via {@link #executeSync(TxFlow)} does not
-     * register flows since no FlowHandle is returned.
-     *
-     * @param registry the flow registry
-     * @return this executor
-     * @see FlowRegistry
-     */
-    public FlowExecutor withRegistry(FlowRegistry registry) {
-        this.flowRegistry = registry;
-        return this;
-    }
-
-    /**
-     * Set a state store for persisting flow execution state.
-     * <p>
-     * When set, the executor will persist flow state on key transitions:
-     * <ul>
-     *     <li>Flow started - initial state saved</li>
-     *     <li>Transaction submitted - SUBMITTED state</li>
-     *     <li>Transaction confirmed - CONFIRMED state</li>
-     *     <li>Transaction rolled back - ROLLED_BACK state</li>
-     *     <li>Flow completed - final state</li>
-     * </ul>
-     *
-     * @param stateStore the state store implementation
-     * @return this executor
-     * @see FlowStateStore
-     */
-    public FlowExecutor withStateStore(FlowStateStore stateStore) {
-        this.flowStateStore = stateStore;
-        return this;
-    }
-
-    // ==================== Execution Hooks ====================
-
-    /**
-     * Internal interface to unify sync and async execution paths.
-     * Eliminates duplication between executeX and executeWithHandleX methods.
-     */
-    private interface ExecutionHooks {
-        void onFlowStarting(TxFlow flow);
-        void onStepStarting(FlowStep step);
-        void onStepCompleted(FlowStep step, FlowStepResult result);
-        void onTransactionSubmitted(TxFlow flow, FlowStep step, String txHash);
-        void onTransactionConfirmed(TxFlow flow, FlowStep step, String txHash, ConfirmationResult confirmResult);
-        void onFlowFailed(TxFlow flow, FlowStatus status);
-        void onFlowCompleted(TxFlow flow);
-        void onFlowRestarting();
-        void onRollbackDetected(TxFlow flow, FlowStep step, String txHash, long prevBlockHeight, String msg);
-        boolean isCancelled();
-    }
-
-    /**
-     * Identifies whether a shared mode strategy is starting a new execution or
-     * continuing one represented by a previous {@link FlowResult}. Resume must
-     * not recreate the legacy state snapshot or emit a second flow-start event.
-     */
-    private enum ExecutionOrigin {
-        FRESH,
-        RESUME
-    }
-
-    private void notifyFlowStarting(TxFlow flow, ExecutionHooks hooks,
-                                    ExecutionOrigin origin) {
-        if (origin == ExecutionOrigin.FRESH) {
-            listener.onFlowStarted(flow);
-            hooks.onFlowStarting(flow);
-        }
-    }
-
-    /**
-     * Create hooks for synchronous (no FlowHandle) execution.
-     * Only calls persistence methods, no handle tracking.
-     */
-    private ExecutionHooks syncHooks(TxFlow flow) {
-        return syncHooks(flow, () -> false);
-    }
-
-    private ExecutionHooks syncHooks(TxFlow flow, BooleanSupplier cancelCheck) {
-        return new ExecutionHooks() {
-            @Override public void onFlowStarting(TxFlow f) { persistFlowStarted(f); }
-            @Override public void onStepStarting(FlowStep step) { /* no handle to update */ }
-            @Override public void onStepCompleted(FlowStep step, FlowStepResult result) { /* no handle to update */ }
-            @Override public void onTransactionSubmitted(TxFlow f, FlowStep step, String txHash) {
-                persistTransactionSubmitted(f, step, txHash);
-            }
-            @Override public void onTransactionConfirmed(TxFlow f, FlowStep step, String txHash, ConfirmationResult confirmResult) {
-                persistencePort.onConfirmed(step, txHash);
-                Long blockHeight = confirmResult != null ? confirmResult.getBlockHeight() : null;
-                Integer confirmDepth = confirmResult != null ? confirmResult.getConfirmationDepth() : null;
-                persistTransactionConfirmed(f, step, txHash, blockHeight, confirmDepth);
-            }
-            @Override public void onFlowFailed(TxFlow f, FlowStatus status) {
-                persistFlowComplete(f, status);
-            }
-            @Override public void onFlowCompleted(TxFlow f) { persistFlowComplete(f, FlowStatus.COMPLETED); }
-            @Override public void onFlowRestarting() { /* no handle to reset */ }
-            @Override public void onRollbackDetected(TxFlow f, FlowStep step, String txHash, long prevBlockHeight, String msg) {
-                persistencePort.onRolledBack(step, txHash, prevBlockHeight);
-                persistTransactionRolledBack(f, step, txHash, prevBlockHeight, msg);
-            }
-            @Override public boolean isCancelled() { return cancelCheck.getAsBoolean(); }
-        };
-    }
-
-    /**
-     * Create hooks for async (FlowHandle-backed) execution.
-     * Calls persistence methods AND updates FlowHandle tracking state.
-     */
-    private ExecutionHooks handleHooks(TxFlow flow, FlowHandle handle) {
-        return new ExecutionHooks() {
-            @Override public void onFlowStarting(TxFlow f) { persistFlowStarted(f); }
-            @Override public void onStepStarting(FlowStep step) { handle.updateCurrentStep(step.getId()); }
-            @Override public void onStepCompleted(FlowStep step, FlowStepResult result) { handle.incrementCompletedSteps(); }
-            @Override public void onTransactionSubmitted(TxFlow f, FlowStep step, String txHash) {
-                persistTransactionSubmitted(f, step, txHash);
-            }
-            @Override public void onTransactionConfirmed(TxFlow f, FlowStep step, String txHash, ConfirmationResult confirmResult) {
-                persistencePort.onConfirmed(step, txHash);
-                Long blockHeight = confirmResult != null ? confirmResult.getBlockHeight() : null;
-                Integer confirmDepth = confirmResult != null ? confirmResult.getConfirmationDepth() : null;
-                persistTransactionConfirmed(f, step, txHash, blockHeight, confirmDepth);
-            }
-            @Override public void onFlowFailed(TxFlow f, FlowStatus status) {
-                handle.updateStatus(status);
-                persistFlowComplete(f, status);
-            }
-            @Override public void onFlowCompleted(TxFlow f) {
-                handle.updateStatus(FlowStatus.COMPLETED);
-                persistFlowComplete(f, FlowStatus.COMPLETED);
-            }
-            @Override public void onFlowRestarting() { handle.resetCompletedSteps(); }
-            @Override public void onRollbackDetected(TxFlow f, FlowStep step, String txHash, long prevBlockHeight, String msg) {
-                persistencePort.onRolledBack(step, txHash, prevBlockHeight);
-                persistTransactionRolledBack(f, step, txHash, prevBlockHeight, msg);
-            }
-            @Override public boolean isCancelled() { return handle.isCancelled(); }
-        };
     }
 
     @Getter
@@ -621,14 +284,8 @@ public class FlowExecutor implements AutoCloseable {
         if (!confirmationConfigConfigured && flowSettings.getRollbackPolicy() != null) {
             ConfirmationConfig base = effectiveConfirmationConfig != null
                     ? effectiveConfirmationConfig : ConfirmationConfig.defaults();
-            effectiveConfirmationConfig = ConfirmationConfig.builder()
-                    .minConfirmations(base.getMinConfirmations())
-                    .checkInterval(base.getCheckInterval())
-                    .timeout(base.getTimeout())
+            effectiveConfirmationConfig = base.toBuilder()
                     .maxRollbackRetries(flowSettings.getRollbackPolicy().maxRecoveryCycles())
-                    .waitForBackendAfterRollback(base.isWaitForBackendAfterRollback())
-                    .postRollbackWaitAttempts(base.getPostRollbackWaitAttempts())
-                    .postRollbackUtxoSyncDelay(base.getPostRollbackUtxoSyncDelay())
                     .requiredAuthoritativeAbsences(flowSettings.getRollbackPolicy()
                             .minimumConsistentAbsenceObservations())
                     .build();
@@ -646,18 +303,16 @@ public class FlowExecutor implements AutoCloseable {
                 effectiveRollbackStrategy,
                 flowSettings.getRollbackPolicy() != null
                         && flowSettings.getRollbackPolicy().monitoringHorizon()
-                        == com.bloxbean.cardano.client.txflow.config.RollbackMonitoringHorizon.UNTIL_FLOW_TERMINAL,
+                        == RollbackMonitoringHorizon.UNTIL_FLOW_TERMINAL,
                 effectivePortableRollbackPolicy);
     }
 
-    private RollbackStrategy portableRollbackStrategy(
-            com.bloxbean.cardano.client.txflow.config.RollbackPolicy policy) {
+    private RollbackStrategy portableRollbackStrategy(RollbackPolicy policy) {
         if (policy == null) return RollbackStrategy.FAIL_IMMEDIATELY;
         return switch (policy.action()) {
             case FAIL, PAUSE_FOR_RECOVERY -> RollbackStrategy.FAIL_IMMEDIATELY;
             case WAIT_FOR_REINCLUSION -> RollbackStrategy.NOTIFY_ONLY;
-            case RECONCILE_AND_REBUILD -> policy.rebuildScope()
-                    == com.bloxbean.cardano.client.txflow.config.RollbackRebuildScope.AFFECTED_STEP
+            case RECONCILE_AND_REBUILD -> policy.rebuildScope() == RollbackRebuildScope.AFFECTED_STEP
                     ? RollbackStrategy.REBUILD_FROM_FAILED
                     : RollbackStrategy.REBUILD_ENTIRE_FLOW;
         };
@@ -670,8 +325,8 @@ public class FlowExecutor implements AutoCloseable {
                 ? new FlowHorizonMonitor(settings.getConfirmationTracker()) : null;
     }
 
-    private void verifyLiveAttempts(TxFlow flow, FlowHorizonMonitor monitor,
-                                    ExecutionHooks hooks, BooleanSupplier cancelCheck,
+    private void verifyLiveAttempts(FlowHorizonMonitor monitor,
+                                    BooleanSupplier cancelCheck,
                                     EffectiveFlowExecutionSettings settings) {
         if (monitor == null) return;
         FlowHorizonMonitor.HorizonResult horizon = monitor.verify(cancelCheck);
@@ -701,14 +356,12 @@ public class FlowExecutor implements AutoCloseable {
                     ConfirmationOutcome reinclusion = waitForConfirmationWithTracking(
                             transactionHash, step, cancelCheck, settings);
                     if (reinclusion.isConfirmed()) {
-                        hooks.onTransactionConfirmed(
-                                flow, step, transactionHash, reinclusion.getResult());
+                        persistencePort.onConfirmed(step, transactionHash);
                         return;
                     }
                     Throwable reinclusionError = confirmationFailure(
                             step, transactionHash, reinclusion);
-                    hooks.onRollbackDetected(flow, step, transactionHash,
-                            previousHeight, reinclusionError.getMessage());
+                    persistencePort.onRolledBack(step, transactionHash, previousHeight);
                     throw new FlowExecutionException(
                             "Transaction rolled back while monitoring the live flow", reinclusionError);
                 }
@@ -718,8 +371,7 @@ public class FlowExecutor implements AutoCloseable {
                         ? RollbackException.forFlowRestart(transactionHash, step, previousHeight)
                         : RollbackException.forStepRebuild(transactionHash, step, previousHeight);
                 listener.onTransactionRolledBack(step, transactionHash, previousHeight);
-                hooks.onRollbackDetected(flow, step, transactionHash, previousHeight,
-                        rollback.getMessage());
+                persistencePort.onRolledBack(step, transactionHash, previousHeight);
                 if (rebuild) {
                     throw rollback;
                 }
@@ -733,22 +385,14 @@ public class FlowExecutor implements AutoCloseable {
         }
     }
 
-    // ==================== Public Execution Methods ====================
+    // ==================== Execution ====================
 
-    /**
-     * Validate executor configuration before execution.
-     * <p>
-     * Ensures that rollback strategies that require confirmation tracking
-     * have a ConfirmationConfig set.
-     *
-     * @throws IllegalStateException if configuration is invalid
-     */
     private void validateConfiguration(EffectiveFlowExecutionSettings settings) {
         if (settings.getRollbackStrategy() != RollbackStrategy.FAIL_IMMEDIATELY
                 && settings.getConfirmationConfig() == null) {
             throw new IllegalStateException(
                     "Rollback strategy " + settings.getRollbackStrategy() + " requires confirmation tracking. " +
-                    "Call withConfirmationConfig() or set context.confirmation before execute().");
+                    "Call withConfirmationConfig() or set context.confirmation before execution.");
         }
     }
 
@@ -773,157 +417,20 @@ public class FlowExecutor implements AutoCloseable {
                                     FlowExecutionContext context,
                                     FlowResult.Builder resultBuilder,
                                     List<String> flowTransactionHashes,
-                                    FlowHorizonMonitor liveMonitor,
-                                    ExecutionHooks hooks) {
+                                    FlowHorizonMonitor liveMonitor) {
         context.recordStepResult(step, result);
         resultBuilder.addStepResult(result);
         flowTransactionHashes.add(result.getTransactionHash());
         if (liveMonitor != null) {
             liveMonitor.track(step, result.getTransactionHash());
         }
-        completeRetainedStep(step, result, hooks);
+        listener.onTransactionConfirmed(step, result.getTransactionHash());
+        listener.onStepCompleted(step, result);
         log.info("Step '{}' retained after chain reconciliation: {}",
                 step.getId(), result.getTransactionHash());
     }
 
-    private void completeRetainedStep(FlowStep step, FlowStepResult result,
-                                      ExecutionHooks hooks) {
-        hooks.onStepCompleted(step, result);
-        listener.onTransactionConfirmed(step, result.getTransactionHash());
-        listener.onStepCompleted(step, result);
-    }
-
-    /**
-     * Resume a previously failed flow synchronously from the point of failure.
-     * <p>
-     * This method inspects the previous result to identify which steps completed
-     * successfully, verifies those transactions are still on-chain, and re-executes
-     * from the first unverified or failed step.
-     * <p>
-     * <b>How it works:</b>
-     * <ul>
-     *     <li>Validates flow ID matches between the flow and previous result</li>
-     *     <li>Verifies each previously-successful step's tx is still confirmed on-chain</li>
-     *     <li>Pre-populates execution context with verified step results</li>
-     *     <li>Executes remaining steps normally using existing dependency resolution</li>
-     * </ul>
-     * <p>
-     * <b>UTXO correctness:</b> Steps without dependencies on skipped steps fetch fresh UTXOs
-     * from the blockchain (where skipped steps' consumed UTXOs are already absent). Steps
-     * with dependencies resolve from context, which contains real on-chain UTXOs.
-     *
-     * @param flow the flow to resume (step IDs must match for skipping)
-     * @param previousResult the result from a previous failed execution
-     * @return the flow result
-     * @throws IllegalArgumentException if previousResult is null, flow IDs mismatch, or previous result was successful
-     * @throws IllegalStateException if the previous result contains a submission-pending step
-     *         ({@link FlowStatus#IN_PROGRESS} with a transaction hash) whose on-chain outcome is
-     *         unknown — reconcile that transaction on chain before resuming
-     * @throws FlowExecutionException if flow validation fails
-     */
-    public FlowResult resumeSync(TxFlow flow, FlowResult previousResult) {
-        EffectiveFlowExecutionSettings settings = effectiveSettings(flow);
-        validateConfiguration(settings);
-
-        TxFlow.ValidationResult validation = flow.validate();
-        if (!validation.isValid()) {
-            throw new FlowExecutionException("Flow validation failed: " + validation.getErrors());
-        }
-        validateExecutableFlow(flow);
-
-        validateResumeArgs(flow, previousResult);
-
-        Map<Integer, FlowStepResult> confirmedSteps = verifyPreviousSteps(flow, previousResult, settings);
-
-        if (!activeFlowIds.add(flow.getId())) {
-            throw new IllegalStateException("Flow '" + flow.getId() + "' is already executing");
-        }
-
-        try {
-            ExecutionHooks hooks = syncHooks(flow);
-            return ChainingStrategy.forMode(settings.getChainingMode()).execute(
-                    () -> doExecuteSequential(flow, hooks, confirmedSteps, settings, ExecutionOrigin.RESUME),
-                    () -> doExecutePipelined(flow, hooks, confirmedSteps, settings, ExecutionOrigin.RESUME),
-                    () -> doExecuteBatch(flow, hooks, confirmedSteps, settings, ExecutionOrigin.RESUME));
-        } finally {
-            activeFlowIds.remove(flow.getId());
-        }
-    }
-
-    /**
-     * Resume a previously failed flow asynchronously from the point of failure.
-     * <p>
-     * Verification of previous steps is performed eagerly (before launching async)
-     * for fail-fast behavior. The actual re-execution runs on the configured executor.
-     *
-     * @param flow the flow to resume
-     * @param previousResult the result from a previous failed execution
-     * @return a handle for monitoring the resumed execution
-     * @throws IllegalArgumentException if previousResult is null, flow IDs mismatch, or previous result was successful
-     * @throws FlowExecutionException if flow validation fails
-     * @throws IllegalStateException if the flow is already executing, or if the previous result
-     *         contains a submission-pending step ({@link FlowStatus#IN_PROGRESS} with a transaction
-     *         hash) whose on-chain outcome is unknown — reconcile that transaction on chain before resuming
-     */
-    public FlowHandle resume(TxFlow flow, FlowResult previousResult) {
-        EffectiveFlowExecutionSettings settings = effectiveSettings(flow);
-        validateConfiguration(settings);
-
-        TxFlow.ValidationResult validation = flow.validate();
-        if (!validation.isValid()) {
-            throw new FlowExecutionException("Flow validation failed: " + validation.getErrors());
-        }
-        validateExecutableFlow(flow);
-
-        validateResumeArgs(flow, previousResult);
-        Executor asyncExecutor = requireAsyncExecutor();
-
-        // Verify previous steps BEFORE launching async (fail-fast)
-        Map<Integer, FlowStepResult> confirmedSteps = verifyPreviousSteps(flow, previousResult, settings);
-
-        if (!activeFlowIds.add(flow.getId())) {
-            throw new IllegalStateException("Flow '" + flow.getId() + "' is already executing");
-        }
-
-        CompletableFuture<FlowResult> future = new CompletableFuture<>();
-        FlowHandle handle = new FlowHandle(flow, future);
-        activeHandles.add(handle);
-
-        if (flowRegistry != null) {
-            flowRegistry.register(flow.getId(), handle);
-        }
-
-        Runnable task = () -> {
-            try {
-                handle.updateStatus(FlowStatus.IN_PROGRESS);
-                ExecutionHooks hooks = handleHooks(flow, handle);
-                FlowResult result = ChainingStrategy.forMode(settings.getChainingMode()).execute(
-                        () -> doExecuteSequential(flow, hooks, confirmedSteps, settings, ExecutionOrigin.RESUME),
-                        () -> doExecutePipelined(flow, hooks, confirmedSteps, settings, ExecutionOrigin.RESUME),
-                        () -> doExecuteBatch(flow, hooks, confirmedSteps, settings, ExecutionOrigin.RESUME));
-                activeFlowIds.remove(flow.getId());
-                activeHandles.remove(handle);
-                future.complete(result);
-            } catch (Exception e) {
-                activeFlowIds.remove(flow.getId());
-                activeHandles.remove(handle);
-                handle.updateStatus(FlowStatus.FAILED);
-                future.completeExceptionally(e);
-            }
-        };
-
-        asyncExecutor.execute(task);
-
-        return handle;
-    }
-
-    /**
-     * Execute a flow synchronously.
-     *
-     * @param flow the flow to execute
-     * @return the flow result
-     */
-    public FlowResult executeSync(TxFlow flow) {
+    FlowResult executeSync(TxFlow flow) {
         return executeSync(flow, () -> false);
     }
 
@@ -931,26 +438,17 @@ public class FlowExecutor implements AutoCloseable {
         EffectiveFlowExecutionSettings settings = effectiveSettings(flow);
         validateConfiguration(settings);
 
-        // Validate the flow
         TxFlow.ValidationResult validation = flow.validate();
         if (!validation.isValid()) {
             throw new FlowExecutionException("Flow validation failed: " + validation.getErrors());
         }
         validateExecutableFlow(flow);
 
-        if (!activeFlowIds.add(flow.getId())) {
-            throw new IllegalStateException("Flow '" + flow.getId() + "' is already executing");
-        }
-
-        try {
-            ExecutionHooks hooks = syncHooks(flow, cancelCheck);
-            return ChainingStrategy.forMode(settings.getChainingMode()).execute(
-                    () -> doExecuteSequential(flow, hooks, Map.of(), settings, ExecutionOrigin.FRESH),
-                    () -> doExecutePipelined(flow, hooks, Map.of(), settings, ExecutionOrigin.FRESH),
-                    () -> doExecuteBatch(flow, hooks, Map.of(), settings, ExecutionOrigin.FRESH));
-        } finally {
-            activeFlowIds.remove(flow.getId());
-        }
+        BooleanSupplier effectiveCancel = cancelCheck != null ? cancelCheck : () -> false;
+        return ChainingStrategy.forMode(settings.getChainingMode()).execute(
+                () -> doExecuteSequential(flow, effectiveCancel, settings),
+                () -> doExecutePipelined(flow, effectiveCancel, settings),
+                () -> doExecuteBatch(flow, effectiveCancel, settings));
     }
 
     /**
@@ -962,17 +460,14 @@ public class FlowExecutor implements AutoCloseable {
      *     <li>REBUILD_ENTIRE_FLOW: Restarts the entire flow from step 1</li>
      * </ul>
      */
-    private FlowResult doExecuteSequential(TxFlow flow, ExecutionHooks hooks,
-                                           Map<Integer, FlowStepResult> initialConfirmedSteps,
-                                           EffectiveFlowExecutionSettings settings,
-                                           ExecutionOrigin origin) {
+    private FlowResult doExecuteSequential(TxFlow flow, BooleanSupplier cancelCheck,
+                                           EffectiveFlowExecutionSettings settings) {
         int maxRollbackRetries = getMaxRollbackRetries(settings);
         int flowRestartAttempts = 0;
         Map<String, Integer> stepRollbackAttempts = new ConcurrentHashMap<>();
-        Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>(initialConfirmedSteps);
+        Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>();
         List<String> flowTxHashes = new ArrayList<>();
-        BooleanSupplier cancelCheck = hooks::isCancelled;
-        String executionId = java.util.UUID.randomUUID().toString();
+        String executionId = UUID.randomUUID().toString();
         log.info("Starting TxFlow execution {} for definition {}", executionId, flow.getId());
 
         while (flowRestartAttempts <= maxRollbackRetries) {
@@ -982,7 +477,7 @@ public class FlowExecutor implements AutoCloseable {
             FlowHorizonMonitor liveMonitor = createLiveAttemptMonitor(settings);
 
             if (flowRestartAttempts == 0) {
-                notifyFlowStarting(flow, hooks, origin);
+                listener.onFlowStarted(flow);
             }
 
             flowTxHashes.clear();
@@ -998,14 +493,13 @@ public class FlowExecutor implements AutoCloseable {
                                 previousConfirmedSteps, steps, cancelCheck, settings);
             } catch (CancellationException cancellation) {
                 resultBuilder.withStepResults(orderedStepResults(previousConfirmedSteps));
-                return cancelledFlowResult(flow, resultBuilder, hooks, cancellation);
+                return cancelledFlowResult(flow, resultBuilder, cancellation);
             }
 
             try {
                 for (int i = 0; i < totalSteps; i++) {
-                    // Check for cancellation
-                    if (hooks.isCancelled()) {
-                        return cancelledFlowResult(flow, resultBuilder, hooks, null);
+                    if (cancelCheck.getAsBoolean()) {
+                        return cancelledFlowResult(flow, resultBuilder, null);
                     }
 
                     FlowStep step = steps.get(i);
@@ -1014,11 +508,10 @@ public class FlowExecutor implements AutoCloseable {
                         attemptTxHashes.add(retained.getTransactionHash());
                         attemptStepResults.add(retained);
                         recordRetainedStep(
-                                step, retained, context, resultBuilder, flowTxHashes, liveMonitor, hooks);
+                                step, retained, context, resultBuilder, flowTxHashes, liveMonitor);
                         continue;
                     }
-                    verifyLiveAttempts(flow, liveMonitor, hooks, cancelCheck, settings);
-                    hooks.onStepStarting(step);
+                    verifyLiveAttempts(liveMonitor, cancelCheck, settings);
                     listener.onStepStarted(step, i, totalSteps);
 
                     FlowStepResult stepResult = executeStepWithRollbackHandling(
@@ -1030,25 +523,22 @@ public class FlowExecutor implements AutoCloseable {
                         attemptTxHashes.add(txHash);
                         attemptStepResults.add(stepResult);
                         flowTxHashes.add(txHash);
-                        hooks.onTransactionSubmitted(flow, step, txHash);
 
-                        // Get confirmation details - tx is already confirmed from completeAndWait()
                         ConfirmationOutcome confirmation = waitForConfirmation(txHash, step, cancelCheck, settings);
                         if (confirmation.isConfirmed()) {
                             resultBuilder.addStepResult(stepResult);
-                            hooks.onStepCompleted(step, stepResult);
                             listener.onStepCompleted(step, stepResult);
-                            hooks.onTransactionConfirmed(flow, step, txHash, confirmation.getResult());
+                            persistencePort.onConfirmed(step, txHash);
                             if (liveMonitor != null) liveMonitor.track(step, txHash);
                         } else {
                             return terminalConfirmationResult(
-                                    flow, step, stepResult, confirmation, resultBuilder, hooks);
+                                    flow, step, stepResult, confirmation, resultBuilder);
                         }
                     } else {
                         resultBuilder.addStepResult(stepResult);
                         if (isCancellationProjection(stepResult)) {
                             return cancelledFlowResult(
-                                    flow, resultBuilder, hooks, stepResult.getError());
+                                    flow, resultBuilder, stepResult.getError());
                         }
                         notifyStepTerminal(step, stepResult);
                         resultBuilder.completedAt(scheduler.now());
@@ -1056,14 +546,12 @@ public class FlowExecutor implements AutoCloseable {
                                 .withError(stepResult.getError())
                                 .build();
                         notifyFlowTerminal(flow, failedResult);
-                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
                 }
 
-                verifyLiveAttempts(flow, liveMonitor, hooks, cancelCheck, settings);
+                verifyLiveAttempts(liveMonitor, cancelCheck, settings);
 
-                // Cleanup tracked transactions to prevent memory leak
                 if (settings.getConfirmationTracker() != null) {
                     for (String hash : flowTxHashes) {
                         settings.getConfirmationTracker().stopTracking(hash);
@@ -1073,14 +561,12 @@ public class FlowExecutor implements AutoCloseable {
                 resultBuilder.completedAt(scheduler.now());
                 FlowResult successResult = resultBuilder.success();
                 listener.onFlowCompleted(flow, successResult);
-                hooks.onFlowCompleted(flow);
                 return successResult;
 
             } catch (CancellationException cancellation) {
-                return cancelledFlowResult(flow, resultBuilder, hooks, cancellation);
+                return cancelledFlowResult(flow, resultBuilder, cancellation);
             } catch (RollbackException e) {
-                hooks.onRollbackDetected(flow, e.getStep(), e.getTxHash(),
-                        e.getPreviousBlockHeight(), e.getMessage());
+                persistencePort.onRolledBack(e.getStep(), e.getTxHash(), e.getPreviousBlockHeight());
 
                 if (e.isRequiresFlowRestart()) {
                     try {
@@ -1089,8 +575,7 @@ public class FlowExecutor implements AutoCloseable {
                                 cancelCheck, settings);
                     } catch (CancellationException cancellation) {
                         resultBuilder.withStepResults(attemptStepResults);
-                        return cancelledFlowResult(
-                                flow, resultBuilder, hooks, cancellation);
+                        return cancelledFlowResult(flow, resultBuilder, cancellation);
                     }
                     flowRestartAttempts++;
                     if (flowRestartAttempts > maxRollbackRetries) {
@@ -1102,7 +587,6 @@ public class FlowExecutor implements AutoCloseable {
                         FlowResult failedResult = resultBuilder.failure(
                                 new FlowExecutionException("Flow restart limit reached after rollback", e));
                         notifyFlowTerminal(flow, failedResult);
-                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
 
@@ -1113,7 +597,6 @@ public class FlowExecutor implements AutoCloseable {
                     waitForBackendReadyAfterRollback(rollbackCleanupHashes(flowTxHashes, e.getTxHash()),
                             cancelCheck, settings);
                     stepRollbackAttempts.clear();
-                    hooks.onFlowRestarting();
                     continue;
                 } else {
                     log.error("Step rebuild failed for step '{}'", e.getStep().getId());
@@ -1122,7 +605,6 @@ public class FlowExecutor implements AutoCloseable {
                     resultBuilder.completedAt(scheduler.now());
                     FlowResult failedResult = resultBuilder.failure(e);
                     notifyFlowTerminal(flow, failedResult);
-                    hooks.onFlowFailed(flow, FlowStatus.FAILED);
                     return failedResult;
                 }
             } catch (Exception e) {
@@ -1130,7 +612,6 @@ public class FlowExecutor implements AutoCloseable {
                 resultBuilder.completedAt(scheduler.now());
                 FlowResult failedResult = resultBuilder.failure(e);
                 notifyFlowTerminal(flow, failedResult);
-                hooks.onFlowFailed(flow, FlowStatus.FAILED);
                 return failedResult;
             }
         }
@@ -1142,7 +623,6 @@ public class FlowExecutor implements AutoCloseable {
         FlowResult failedResult = errorBuilder.failure(
                 new FlowExecutionException("Flow execution failed: exceeded maximum restart attempts"));
         notifyFlowTerminal(flow, failedResult);
-        hooks.onFlowFailed(flow, FlowStatus.FAILED);
         return failedResult;
     }
 
@@ -1174,28 +654,27 @@ public class FlowExecutor implements AutoCloseable {
     private FlowResult terminalConfirmationResult(
             TxFlow flow, FlowStep step, FlowStepResult submittedStep,
             ConfirmationOutcome confirmation,
-            FlowResult.Builder resultBuilder, ExecutionHooks hooks) {
+            FlowResult.Builder resultBuilder) {
         String txHash = submittedStep.getTransactionHash();
         Throwable error = confirmationFailure(step, txHash, confirmation);
         FlowStepResult terminalStep = confirmationStepResult(
                 submittedStep, confirmation, error);
         resultBuilder.addStepResult(terminalStep);
         return finishTerminalConfirmation(
-                flow, step, terminalStep, confirmation, error, resultBuilder, hooks);
+                flow, step, terminalStep, confirmation, error, resultBuilder);
     }
 
     private FlowResult finishTerminalConfirmation(
             TxFlow flow, FlowStep step, FlowStepResult terminalStep,
             ConfirmationOutcome confirmation, Throwable error,
-            FlowResult.Builder resultBuilder, ExecutionHooks hooks) {
+            FlowResult.Builder resultBuilder) {
         if (confirmation.isRolledBack()) {
             long previousBlockHeight = ((RollbackException) error).getPreviousBlockHeight();
-            hooks.onRollbackDetected(flow, step, terminalStep.getTransactionHash(),
-                    previousBlockHeight, error.getMessage());
+            persistencePort.onRolledBack(step, terminalStep.getTransactionHash(), previousBlockHeight);
         }
 
         if (confirmation.getType() == ConfirmationOutcome.Type.CANCELLED) {
-            return cancelledFlowResult(flow, resultBuilder, hooks, error);
+            return cancelledFlowResult(flow, resultBuilder, error);
         }
 
         notifyStepTerminal(step, terminalStep);
@@ -1204,7 +683,6 @@ public class FlowExecutor implements AutoCloseable {
                 .completedAt(scheduler.now())
                 .build();
         notifyFlowTerminal(flow, terminal);
-        hooks.onFlowFailed(flow, FlowStatus.FAILED);
         return terminal;
     }
 
@@ -1285,8 +763,7 @@ public class FlowExecutor implements AutoCloseable {
     }
 
     private FlowResult cancelledFlowResult(
-            TxFlow flow, FlowResult.Builder resultBuilder,
-            ExecutionHooks hooks, Throwable cause) {
+            TxFlow flow, FlowResult.Builder resultBuilder, Throwable cause) {
         Throwable cancellation = cause != null ? cause
                 : new CancellationException("Flow execution cancelled");
         FlowResult result = resultBuilder.withStatus(FlowStatus.CANCELLED)
@@ -1294,7 +771,6 @@ public class FlowExecutor implements AutoCloseable {
                 .completedAt(scheduler.now())
                 .build();
         notifyFlowTerminal(flow, result);
-        hooks.onFlowFailed(flow, FlowStatus.CANCELLED);
         return result;
     }
 
@@ -1416,16 +892,13 @@ public class FlowExecutor implements AutoCloseable {
      * On restart after rollback, steps whose transactions are still confirmed on-chain
      * are skipped to avoid unnecessary rebuilding.
      */
-    private FlowResult doExecutePipelined(TxFlow flow, ExecutionHooks hooks,
-                                          Map<Integer, FlowStepResult> initialConfirmedSteps,
-                                          EffectiveFlowExecutionSettings settings,
-                                          ExecutionOrigin origin) {
+    private FlowResult doExecutePipelined(TxFlow flow, BooleanSupplier cancelCheck,
+                                          EffectiveFlowExecutionSettings settings) {
         int maxRollbackRetries = getMaxRollbackRetries(settings);
         int flowRestartAttempts = 0;
-        Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>(initialConfirmedSteps);
+        Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>();
         List<String> flowTxHashes = new ArrayList<>();
-        BooleanSupplier cancelCheck = hooks::isCancelled;
-        String executionId = java.util.UUID.randomUUID().toString();
+        String executionId = UUID.randomUUID().toString();
         log.info("Starting TxFlow execution {} for definition {}", executionId, flow.getId());
 
         while (flowRestartAttempts <= maxRollbackRetries) {
@@ -1435,7 +908,7 @@ public class FlowExecutor implements AutoCloseable {
             FlowHorizonMonitor liveMonitor = createLiveAttemptMonitor(settings);
 
             if (flowRestartAttempts == 0) {
-                notifyFlowStarting(flow, hooks, origin);
+                listener.onFlowStarted(flow);
             }
 
             flowTxHashes.clear();
@@ -1453,7 +926,7 @@ public class FlowExecutor implements AutoCloseable {
                                 previousConfirmedSteps, steps, cancelCheck, settings);
             } catch (CancellationException cancellation) {
                 resultBuilder.withStepResults(orderedStepResults(previousConfirmedSteps));
-                return cancelledFlowResult(flow, resultBuilder, hooks, cancellation);
+                return cancelledFlowResult(flow, resultBuilder, cancellation);
             }
             Set<Integer> submittedStepIndices = new HashSet<>();
             Set<Integer> confirmedStepIndices = new HashSet<>(skippedStepIndices);
@@ -1463,28 +936,25 @@ public class FlowExecutor implements AutoCloseable {
                 log.info("PIPELINED mode: Submitting {} transactions (skipping {} confirmed)",
                         totalSteps, skippedStepIndices.size());
                 for (int i = 0; i < totalSteps; i++) {
-                    // Check for cancellation
-                    if (hooks.isCancelled()) {
+                    if (cancelCheck.getAsBoolean()) {
                         resultBuilder.withStepResults(observableStepResults(
                                 stepResults, submittedStepIndices, confirmedStepIndices));
-                        return cancelledFlowResult(flow, resultBuilder, hooks, null);
+                        return cancelledFlowResult(flow, resultBuilder, null);
                     }
 
                     FlowStep step = steps.get(i);
-                    hooks.onStepStarting(step);
                     listener.onStepStarted(step, i, totalSteps);
 
                     if (skippedStepIndices.contains(i)) {
-                        // Reuse previous result
                         FlowStepResult prevResult = previousConfirmedSteps.get(i);
                         stepResults.add(prevResult);
                         submittedTxHashes.add(prevResult.getTransactionHash());
                         recordRetainedStep(
-                                step, prevResult, context, resultBuilder, flowTxHashes, liveMonitor, hooks);
+                                step, prevResult, context, resultBuilder, flowTxHashes, liveMonitor);
                         continue;
                     }
 
-                    verifyLiveAttempts(flow, liveMonitor, hooks, cancelCheck, settings);
+                    verifyLiveAttempts(liveMonitor, cancelCheck, settings);
                     FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true,
                             cancelCheck, settings);
                     stepResults.add(stepResult);
@@ -1494,14 +964,13 @@ public class FlowExecutor implements AutoCloseable {
                         submittedTxHashes.add(stepResult.getTransactionHash());
                         flowTxHashes.add(stepResult.getTransactionHash());
                         listener.onTransactionSubmitted(step, stepResult.getTransactionHash());
-                        hooks.onTransactionSubmitted(flow, step, stepResult.getTransactionHash());
                         log.debug("Step '{}' submitted: {}", step.getId(), stepResult.getTransactionHash());
                     } else {
                         resultBuilder.withStepResults(observableStepResults(
                                 stepResults, submittedStepIndices, confirmedStepIndices));
                         if (isCancellationProjection(stepResult)) {
                             return cancelledFlowResult(
-                                    flow, resultBuilder, hooks, stepResult.getError());
+                                    flow, resultBuilder, stepResult.getError());
                         }
                         notifyStepTerminal(step, stepResult);
                         resultBuilder.completedAt(scheduler.now());
@@ -1509,7 +978,6 @@ public class FlowExecutor implements AutoCloseable {
                                 .withError(stepResult.getError())
                                 .build();
                         notifyFlowTerminal(flow, failedResult);
-                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
                 }
@@ -1521,19 +989,17 @@ public class FlowExecutor implements AutoCloseable {
                     FlowStep step = steps.get(i);
 
                     if (skippedStepIndices.contains(i)) {
-                        // Already confirmed and completed when it was retained.
                         continue;
                     }
 
-                    verifyLiveAttempts(flow, liveMonitor, hooks, cancelCheck, settings);
+                    verifyLiveAttempts(liveMonitor, cancelCheck, settings);
                     ConfirmationOutcome confirmation = waitForConfirmation(txHash, step, cancelCheck, settings);
                     if (confirmation.isConfirmed()) {
                         confirmedStepIndices.add(i);
                         ConfirmationResult result = confirmation.getResult();
-                        hooks.onStepCompleted(step, stepResults.get(i));
                         listener.onTransactionConfirmed(step, txHash);
                         listener.onStepCompleted(step, stepResults.get(i));
-                        hooks.onTransactionConfirmed(flow, step, txHash, result);
+                        persistencePort.onConfirmed(step, txHash);
                         if (liveMonitor != null) liveMonitor.track(step, txHash);
                         log.debug("Step '{}' confirmed: {} at block {}", step.getId(), txHash,
                                 result.getBlockHeight());
@@ -1546,13 +1012,12 @@ public class FlowExecutor implements AutoCloseable {
                                 stepResults, submittedStepIndices, confirmedStepIndices));
                         return finishTerminalConfirmation(
                                 flow, step, terminalStep, confirmation, error,
-                                resultBuilder, hooks);
+                                resultBuilder);
                     }
                 }
 
-                verifyLiveAttempts(flow, liveMonitor, hooks, cancelCheck, settings);
+                verifyLiveAttempts(liveMonitor, cancelCheck, settings);
 
-                // Cleanup tracked transactions to prevent memory leak
                 if (settings.getConfirmationTracker() != null) {
                     for (String hash : flowTxHashes) {
                         settings.getConfirmationTracker().stopTracking(hash);
@@ -1564,16 +1029,14 @@ public class FlowExecutor implements AutoCloseable {
                         stepResults, submittedStepIndices, confirmedStepIndices));
                 FlowResult successResult = resultBuilder.success();
                 listener.onFlowCompleted(flow, successResult);
-                hooks.onFlowCompleted(flow);
                 return successResult;
 
             } catch (CancellationException cancellation) {
                 resultBuilder.withStepResults(observableStepResults(
                         stepResults, submittedStepIndices, confirmedStepIndices));
-                return cancelledFlowResult(flow, resultBuilder, hooks, cancellation);
+                return cancelledFlowResult(flow, resultBuilder, cancellation);
             } catch (RollbackException e) {
-                hooks.onRollbackDetected(flow, e.getStep(), e.getTxHash(),
-                        e.getPreviousBlockHeight(), e.getMessage());
+                persistencePort.onRolledBack(e.getStep(), e.getTxHash(), e.getPreviousBlockHeight());
 
                 flowRestartAttempts++;
                 if (flowRestartAttempts > maxRollbackRetries) {
@@ -1586,7 +1049,6 @@ public class FlowExecutor implements AutoCloseable {
                     FlowResult failedResult = resultBuilder.failure(
                             new FlowExecutionException("Flow restart limit reached after rollback in PIPELINED mode", e));
                     notifyFlowTerminal(flow, failedResult);
-                    hooks.onFlowFailed(flow, FlowStatus.FAILED);
                     return failedResult;
                 }
 
@@ -1603,12 +1065,10 @@ public class FlowExecutor implements AutoCloseable {
                 } catch (CancellationException cancellation) {
                     resultBuilder.withStepResults(observableStepResults(
                             stepResults, submittedStepIndices, confirmedStepIndices));
-                    return cancelledFlowResult(
-                            flow, resultBuilder, hooks, cancellation);
+                    return cancelledFlowResult(flow, resultBuilder, cancellation);
                 }
 
                 waitForBackendReadyAfterRollback(flowTxHashes, cancelCheck, settings);
-                hooks.onFlowRestarting();
                 continue;
 
             } catch (Exception e) {
@@ -1618,7 +1078,6 @@ public class FlowExecutor implements AutoCloseable {
                 resultBuilder.completedAt(scheduler.now());
                 FlowResult failedResult = resultBuilder.failure(e);
                 notifyFlowTerminal(flow, failedResult);
-                hooks.onFlowFailed(flow, FlowStatus.FAILED);
                 return failedResult;
             }
         }
@@ -1630,7 +1089,6 @@ public class FlowExecutor implements AutoCloseable {
         FlowResult failedResult = errorBuilder.failure(
                 new FlowExecutionException("PIPELINED flow execution failed: exceeded maximum restart attempts"));
         notifyFlowTerminal(flow, failedResult);
-        hooks.onFlowFailed(flow, FlowStatus.FAILED);
         return failedResult;
     }
 
@@ -1960,8 +1418,7 @@ public class FlowExecutor implements AutoCloseable {
                     case NOTIFY_ONLY:
                         RollbackPolicy portablePolicy = settings.getPortableRollbackPolicy();
                         if (portablePolicy != null
-                                && portablePolicy.action()
-                                == com.bloxbean.cardano.client.txflow.config.RollbackAction.WAIT_FOR_REINCLUSION) {
+                                && portablePolicy.action() == RollbackAction.WAIT_FOR_REINCLUSION) {
                             Instant reinclusionDeadline = scheduler.now().plus(
                                     portablePolicy.reinclusionWindow());
                             log.warn("Transaction {} rolled back; waiting {} for same-hash re-inclusion",
@@ -2141,69 +1598,6 @@ public class FlowExecutor implements AutoCloseable {
     }
 
     /**
-     * Execute a flow asynchronously.
-     * <p>
-     * If a {@link FlowRegistry} is configured via {@link #withRegistry(FlowRegistry)},
-     * the flow will be automatically registered for tracking.
-     *
-     * @param flow the flow to execute
-     * @return a handle for monitoring the execution
-     */
-    public FlowHandle execute(TxFlow flow) {
-        EffectiveFlowExecutionSettings settings = effectiveSettings(flow);
-        validateConfiguration(settings);
-        TxFlow.ValidationResult validation = flow.validate();
-        if (!validation.isValid()) {
-            throw new FlowExecutionException("Flow validation failed: " + validation.getErrors());
-        }
-        validateExecutableFlow(flow);
-        Executor asyncExecutor = requireAsyncExecutor();
-
-        if (!activeFlowIds.add(flow.getId())) {
-            throw new IllegalStateException("Flow '" + flow.getId() + "' is already executing");
-        }
-
-        CompletableFuture<FlowResult> future = new CompletableFuture<>();
-        FlowHandle handle = new FlowHandle(flow, future);
-        activeHandles.add(handle);
-
-        // Auto-register with flow registry if configured
-        if (flowRegistry != null) {
-            flowRegistry.register(flow.getId(), handle);
-        }
-
-        Runnable task = () -> {
-            try {
-                handle.updateStatus(FlowStatus.IN_PROGRESS);
-                FlowResult result = executeWithHandle(flow, handle, settings);
-                // Clean up BEFORE completing the future so callers unblocked by
-                // await() can immediately re-execute the same flow ID.
-                activeFlowIds.remove(flow.getId());
-                activeHandles.remove(handle);
-                future.complete(result);
-            } catch (Exception e) {
-                activeFlowIds.remove(flow.getId());
-                activeHandles.remove(handle);
-                handle.updateStatus(FlowStatus.FAILED);
-                future.completeExceptionally(e);
-            }
-        };
-
-        asyncExecutor.execute(task);
-
-        return handle;
-    }
-
-    private FlowResult executeWithHandle(TxFlow flow, FlowHandle handle,
-                                         EffectiveFlowExecutionSettings settings) {
-        ExecutionHooks hooks = handleHooks(flow, handle);
-        return ChainingStrategy.forMode(settings.getChainingMode()).execute(
-                () -> doExecuteSequential(flow, hooks, Map.of(), settings, ExecutionOrigin.FRESH),
-                () -> doExecutePipelined(flow, hooks, Map.of(), settings, ExecutionOrigin.FRESH),
-                () -> doExecuteBatch(flow, hooks, Map.of(), settings, ExecutionOrigin.FRESH));
-    }
-
-    /**
      * Execute a step with retry logic.
      * <p>
      * This method wraps the actual step execution and handles retries according to the
@@ -2332,11 +1726,6 @@ public class FlowExecutor implements AutoCloseable {
                 if (settings.getConfirmationTracker() != null) {
                     ConfirmationOutcome confirmation = waitForConfirmation(txHash, step, cancelCheck, settings);
                     if (!confirmation.isConfirmed()) {
-                        if (confirmation.isRolledBack()) {
-                            ConfirmationResult rollback = confirmation.getResult();
-                            persistTransactionRolledBack(context.getFlowId(), step, txHash,
-                                    rollback.getBlockHeight(), confirmation.getError().getMessage());
-                        }
                         Throwable error = confirmationFailure(step, txHash, confirmation);
                         // Same rule as the sequential path: an uncertain disposition
                         // (cancelled / timeout / reconciliation-uncertain) settles as
@@ -2662,16 +2051,13 @@ public class FlowExecutor implements AutoCloseable {
      * <p>
      * Supports rollback retry loop: on rollback, the entire flow is rebuilt and resubmitted.
      */
-    private FlowResult doExecuteBatch(TxFlow flow, ExecutionHooks hooks,
-                                      Map<Integer, FlowStepResult> initialConfirmedSteps,
-                                      EffectiveFlowExecutionSettings settings,
-                                      ExecutionOrigin origin) {
+    private FlowResult doExecuteBatch(TxFlow flow, BooleanSupplier cancelCheck,
+                                      EffectiveFlowExecutionSettings settings) {
         int maxRollbackRetries = getMaxRollbackRetries(settings);
         int flowRestartAttempts = 0;
-        Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>(initialConfirmedSteps);
+        Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>();
         List<String> flowTxHashes = new ArrayList<>();
-        BooleanSupplier cancelCheck = hooks::isCancelled;
-        String executionId = java.util.UUID.randomUUID().toString();
+        String executionId = UUID.randomUUID().toString();
         log.info("Starting TxFlow execution {} for definition {}", executionId, flow.getId());
 
         while (flowRestartAttempts <= maxRollbackRetries) {
@@ -2681,7 +2067,7 @@ public class FlowExecutor implements AutoCloseable {
             FlowHorizonMonitor liveMonitor = createLiveAttemptMonitor(settings);
 
             if (flowRestartAttempts == 0) {
-                notifyFlowStarting(flow, hooks, origin);
+                listener.onFlowStarted(flow);
             }
 
             flowTxHashes.clear();
@@ -2697,7 +2083,7 @@ public class FlowExecutor implements AutoCloseable {
                                 previousConfirmedSteps, steps, cancelCheck, settings);
             } catch (CancellationException cancellation) {
                 resultBuilder.withStepResults(orderedStepResults(previousConfirmedSteps));
-                return cancelledFlowResult(flow, resultBuilder, hooks, cancellation);
+                return cancelledFlowResult(flow, resultBuilder, cancellation);
             }
 
             List<Transaction> builtTransactions = new ArrayList<>();
@@ -2711,29 +2097,26 @@ public class FlowExecutor implements AutoCloseable {
                 log.info("BATCH mode: Building {} transactions (skipping {} confirmed)",
                         totalSteps, skippedStepIndices.size());
                 for (int i = 0; i < totalSteps; i++) {
-                    // Check for cancellation
-                    if (hooks.isCancelled()) {
+                    if (cancelCheck.getAsBoolean()) {
                         resultBuilder.withStepResults(observableStepResults(
                                 stepResults, submittedStepIndices, confirmedStepIndices));
-                        return cancelledFlowResult(flow, resultBuilder, hooks, null);
+                        return cancelledFlowResult(flow, resultBuilder, null);
                     }
 
                     FlowStep step = steps.get(i);
-                    hooks.onStepStarting(step);
                     listener.onStepStarted(step, i, totalSteps);
 
                     if (skippedStepIndices.contains(i)) {
-                        // Reuse previous result — skip build for still-confirmed step
                         FlowStepResult prevResult = previousConfirmedSteps.get(i);
                         builtTransactions.add(null); // placeholder to maintain index alignment
                         precomputedTxHashes.add(prevResult.getTransactionHash());
                         stepResults.add(prevResult);
                         recordRetainedStep(
-                                step, prevResult, context, resultBuilder, flowTxHashes, liveMonitor, hooks);
+                                step, prevResult, context, resultBuilder, flowTxHashes, liveMonitor);
                         continue;
                     }
 
-                    verifyLiveAttempts(flow, liveMonitor, hooks, cancelCheck, settings);
+                    verifyLiveAttempts(liveMonitor, cancelCheck, settings);
                     BuildResult buildResult = buildStepOnly(step, context, flow.getVariables());
 
                     if (buildResult.isSuccessful()) {
@@ -2748,9 +2131,6 @@ public class FlowExecutor implements AutoCloseable {
 
                         FlowStepResult stepResult = FlowStepResult.success(step.getId(), txHash, outputUtxos, spentInputs);
                         stepResults.add(stepResult);
-                        // The result is provisional until phase 2 submits the signed bytes.
-                        // Keep it only in the execution context so later batch steps can
-                        // resolve same-batch outputs; do not report a build as successful.
                         context.recordStepResult(step, stepResult);
 
                         log.debug("Step '{}' built: {} with {} outputs", step.getId(), txHash, outputUtxos.size());
@@ -2765,7 +2145,6 @@ public class FlowExecutor implements AutoCloseable {
                                 .withError(failedResult.getError())
                                 .build();
                         notifyFlowTerminal(flow, flowFailed);
-                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
                         return flowFailed;
                     }
                 }
@@ -2775,7 +2154,6 @@ public class FlowExecutor implements AutoCloseable {
                         builtTransactions.size(), skippedStepIndices.size());
                 for (int i = 0; i < builtTransactions.size(); i++) {
                     if (skippedStepIndices.contains(i)) {
-                        // Already confirmed on-chain — skip submission
                         FlowStep step = steps.get(i);
                         log.debug("Step '{}' submit skipped (still confirmed): {}", step.getId(), precomputedTxHashes.get(i));
                         continue;
@@ -2785,20 +2163,17 @@ public class FlowExecutor implements AutoCloseable {
                     FlowStep step = steps.get(i);
                     String expectedHash = precomputedTxHashes.get(i);
 
-                    verifyLiveAttempts(flow, liveMonitor, hooks, cancelCheck, settings);
-                    // A signed batch attempt is still local at this point. Honour
-                    // cancellation before the durable SUBMITTING transition and
-                    // before any backend I/O; build-only results remain hidden.
-                    if (hooks.isCancelled()) {
+                    verifyLiveAttempts(liveMonitor, cancelCheck, settings);
+                    if (cancelCheck.getAsBoolean()) {
                         resultBuilder.withStepResults(observableStepResults(
                                 stepResults, submittedStepIndices, confirmedStepIndices));
-                        return cancelledFlowResult(flow, resultBuilder, hooks, null);
+                        return cancelledFlowResult(flow, resultBuilder, null);
                     }
                     persistencePort.onSubmitting(step, tx);
-                    if (hooks.isCancelled()) {
+                    if (cancelCheck.getAsBoolean()) {
                         resultBuilder.withStepResults(observableStepResults(
                                 stepResults, submittedStepIndices, confirmedStepIndices));
-                        return cancelledFlowResult(flow, resultBuilder, hooks, null);
+                        return cancelledFlowResult(flow, resultBuilder, null);
                     }
                     FlowStepResult submittedStep = stepResults.get(i);
                     String actualHash;
@@ -2817,7 +2192,6 @@ public class FlowExecutor implements AutoCloseable {
                                     .withError(failedResult.getError())
                                     .build();
                             notifyFlowTerminal(flow, flowFailed);
-                            hooks.onFlowFailed(flow, FlowStatus.FAILED);
                             return flowFailed;
                         }
                         actualHash = result.getValue();
@@ -2833,7 +2207,6 @@ public class FlowExecutor implements AutoCloseable {
                                     .withError(submittedStep.getError())
                                     .build();
                             notifyFlowTerminal(flow, flowFailed);
-                            hooks.onFlowFailed(flow, FlowStatus.FAILED);
                             return flowFailed;
                         }
                         actualHash = submittedStep.getTransactionHash();
@@ -2853,7 +2226,6 @@ public class FlowExecutor implements AutoCloseable {
                     }
                     flowTxHashes.add(actualHash);
                     listener.onTransactionSubmitted(step, actualHash);
-                    hooks.onTransactionSubmitted(flow, step, actualHash);
                     log.debug("Step '{}' submitted: {}", step.getId(), actualHash);
                 }
 
@@ -2865,19 +2237,16 @@ public class FlowExecutor implements AutoCloseable {
                     FlowStep step = steps.get(i);
 
                     if (skippedStepIndices.contains(i)) {
-                        // Already confirmed and completed when it was retained.
                         continue;
                     }
 
-                    verifyLiveAttempts(flow, liveMonitor, hooks, cancelCheck, settings);
+                    verifyLiveAttempts(liveMonitor, cancelCheck, settings);
                     ConfirmationOutcome confirmation = waitForConfirmation(txHash, step, cancelCheck, settings);
                     if (confirmation.isConfirmed()) {
                         confirmedStepIndices.add(i);
-                        ConfirmationResult cr = confirmation.getResult();
-                        hooks.onStepCompleted(step, stepResults.get(i));
                         listener.onTransactionConfirmed(step, txHash);
                         listener.onStepCompleted(step, stepResults.get(i));
-                        hooks.onTransactionConfirmed(flow, step, txHash, cr);
+                        persistencePort.onConfirmed(step, txHash);
                         if (liveMonitor != null) liveMonitor.track(step, txHash);
                     } else {
                         Throwable error = confirmationFailure(step, txHash, confirmation);
@@ -2888,13 +2257,12 @@ public class FlowExecutor implements AutoCloseable {
                                 stepResults, submittedStepIndices, confirmedStepIndices));
                         return finishTerminalConfirmation(
                                 flow, step, terminalStep, confirmation, error,
-                                resultBuilder, hooks);
+                                resultBuilder);
                     }
                 }
 
-                verifyLiveAttempts(flow, liveMonitor, hooks, cancelCheck, settings);
+                verifyLiveAttempts(liveMonitor, cancelCheck, settings);
 
-                // Cleanup tracked transactions to prevent memory leak
                 if (settings.getConfirmationTracker() != null) {
                     for (String hash : flowTxHashes) {
                         settings.getConfirmationTracker().stopTracking(hash);
@@ -2906,16 +2274,14 @@ public class FlowExecutor implements AutoCloseable {
                         stepResults, submittedStepIndices, confirmedStepIndices));
                 FlowResult successResult = resultBuilder.success();
                 listener.onFlowCompleted(flow, successResult);
-                hooks.onFlowCompleted(flow);
                 return successResult;
 
             } catch (CancellationException cancellation) {
                 resultBuilder.withStepResults(observableStepResults(
                         stepResults, submittedStepIndices, confirmedStepIndices));
-                return cancelledFlowResult(flow, resultBuilder, hooks, cancellation);
+                return cancelledFlowResult(flow, resultBuilder, cancellation);
             } catch (RollbackException e) {
-                hooks.onRollbackDetected(flow, e.getStep(), e.getTxHash(),
-                        e.getPreviousBlockHeight(), e.getMessage());
+                persistencePort.onRolledBack(e.getStep(), e.getTxHash(), e.getPreviousBlockHeight());
 
                 flowRestartAttempts++;
                 if (flowRestartAttempts > maxRollbackRetries) {
@@ -2928,7 +2294,6 @@ public class FlowExecutor implements AutoCloseable {
                     FlowResult failedResult = resultBuilder.failure(
                             new FlowExecutionException("Flow restart limit reached after rollback in BATCH mode", e));
                     notifyFlowTerminal(flow, failedResult);
-                    hooks.onFlowFailed(flow, FlowStatus.FAILED);
                     return failedResult;
                 }
 
@@ -2937,7 +2302,6 @@ public class FlowExecutor implements AutoCloseable {
                 listener.onFlowRestarting(flow, flowRestartAttempts, maxRollbackRetries,
                         "Rollback detected at step '" + e.getStep().getId() + "' in BATCH mode");
 
-                // Find steps that are still confirmed before clearing tracker
                 try {
                     previousConfirmedSteps = findStillConfirmedSteps(
                             e.getStep().getId(), steps, precomputedTxHashes, stepResults,
@@ -2945,12 +2309,10 @@ public class FlowExecutor implements AutoCloseable {
                 } catch (CancellationException cancellation) {
                     resultBuilder.withStepResults(observableStepResults(
                             stepResults, submittedStepIndices, confirmedStepIndices));
-                    return cancelledFlowResult(
-                            flow, resultBuilder, hooks, cancellation);
+                    return cancelledFlowResult(flow, resultBuilder, cancellation);
                 }
 
                 waitForBackendReadyAfterRollback(flowTxHashes, cancelCheck, settings);
-                hooks.onFlowRestarting();
                 continue;
 
             } catch (Exception e) {
@@ -2960,7 +2322,6 @@ public class FlowExecutor implements AutoCloseable {
                 resultBuilder.completedAt(scheduler.now());
                 FlowResult failedResult = resultBuilder.failure(e);
                 notifyFlowTerminal(flow, failedResult);
-                hooks.onFlowFailed(flow, FlowStatus.FAILED);
                 return failedResult;
             }
         }
@@ -2972,7 +2333,6 @@ public class FlowExecutor implements AutoCloseable {
         FlowResult failedResult = errorBuilder.failure(
                 new FlowExecutionException("BATCH flow execution failed: exceeded maximum restart attempts"));
         notifyFlowTerminal(flow, failedResult);
-        hooks.onFlowFailed(flow, FlowStatus.FAILED);
         return failedResult;
     }
 
@@ -3053,208 +2413,5 @@ public class FlowExecutor implements AutoCloseable {
         public static BuildResult failure(Throwable error) {
             return new BuildResult(false, null, error);
         }
-    }
-
-    // ==================== State Persistence Helpers ====================
-
-    /**
-     * Save initial flow state when execution begins.
-     */
-    private void persistFlowStarted(TxFlow flow) {
-        if (flowStateStore == null) return;
-
-        try {
-            FlowStateSnapshot snapshot = FlowStateSnapshot.builder()
-                    .flowId(flow.getId())
-                    .status(FlowStatus.IN_PROGRESS)
-                    .startedAt(scheduler.now())
-                    .description(flow.getDescription())
-                    .totalSteps(flow.getSteps().size())
-                    .completedSteps(0)
-                    .variables(new HashMap<>(flow.getVariables()))
-                    .build();
-
-            // Add step placeholders
-            for (FlowStep step : flow.getSteps()) {
-                snapshot.addStep(StepStateSnapshot.pending(step.getId()));
-            }
-
-            flowStateStore.saveFlowState(snapshot);
-            log.debug("Persisted flow started: {}", flow.getId());
-        } catch (Exception e) {
-            log.warn("Failed to persist flow started state: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * Persist transaction submitted state.
-     */
-    private void persistTransactionSubmitted(TxFlow flow, FlowStep step, String txHash) {
-        if (flowStateStore == null) return;
-
-        try {
-            TransactionStateDetails details = TransactionStateDetails.submitted(scheduler.now());
-            flowStateStore.updateTransactionState(flow.getId(), step.getId(), txHash, details);
-            log.debug("Persisted transaction submitted: {} -> {}", step.getId(), txHash);
-        } catch (Exception e) {
-            log.warn("Failed to persist transaction submitted state: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * Persist transaction confirmed state.
-     *
-     * @param flow the flow
-     * @param step the step
-     * @param txHash the transaction hash
-     * @param blockHeight block height where the transaction was confirmed (may be null)
-     * @param confirmationDepth confirmation depth when confirmed (may be null)
-     */
-    private void persistTransactionConfirmed(TxFlow flow, FlowStep step, String txHash,
-                                             Long blockHeight, Integer confirmationDepth) {
-        if (flowStateStore == null) return;
-
-        try {
-            TransactionStateDetails details = TransactionStateDetails.builder()
-                    .state(TransactionState.CONFIRMED)
-                    .blockHeight(blockHeight)
-                    .confirmationDepth(confirmationDepth)
-                    .timestamp(scheduler.now())
-                    .build();
-            flowStateStore.updateTransactionState(flow.getId(), step.getId(), txHash, details);
-            log.debug("Persisted transaction confirmed: {} -> {} (block: {}, depth: {})",
-                    step.getId(), txHash, blockHeight, confirmationDepth);
-        } catch (Exception e) {
-            log.warn("Failed to persist transaction confirmed state: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * Persist transaction rolled back state.
-     *
-     * @param flow the flow
-     * @param step the step
-     * @param txHash the transaction hash
-     * @param previousBlockHeight block height before rollback (may be null)
-     * @param errorMessage description of the rollback cause
-     */
-    private void persistTransactionRolledBack(TxFlow flow, FlowStep step, String txHash,
-                                              Long previousBlockHeight, String errorMessage) {
-        persistTransactionRolledBack(flow.getId(), step, txHash, previousBlockHeight, errorMessage);
-    }
-
-    private void persistTransactionRolledBack(String flowId, FlowStep step, String txHash,
-                                              Long previousBlockHeight, String errorMessage) {
-        if (flowStateStore == null) return;
-
-        try {
-            TransactionStateDetails details = TransactionStateDetails.rolledBack(
-                    previousBlockHeight, errorMessage, scheduler.now());
-            flowStateStore.updateTransactionState(flowId, step.getId(), txHash, details);
-            log.debug("Persisted transaction rolled back: {} -> {} (previous block: {})",
-                    step.getId(), txHash, previousBlockHeight);
-        } catch (Exception e) {
-            log.warn("Failed to persist transaction rolled back state: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * Persist flow completion state.
-     */
-    private void persistFlowComplete(TxFlow flow, FlowStatus status) {
-        if (flowStateStore == null) return;
-
-        try {
-            flowStateStore.markFlowComplete(flow.getId(), status);
-            log.debug("Persisted flow complete: {} -> {}", flow.getId(), status);
-        } catch (Exception e) {
-            log.warn("Failed to persist flow complete state: {}", e.getMessage());
-        }
-    }
-
-    // ==================== Resume/Retry Helpers ====================
-
-    /**
-     * Validate arguments for resume methods.
-     */
-    private void validateResumeArgs(TxFlow flow, FlowResult previousResult) {
-        if (previousResult == null) {
-            throw new IllegalArgumentException("previousResult cannot be null");
-        }
-        if (!flow.getId().equals(previousResult.getFlowId())) {
-            throw new IllegalArgumentException("Flow ID mismatch: flow='" + flow.getId()
-                    + "', previousResult='" + previousResult.getFlowId() + "'");
-        }
-        if (previousResult.isSuccessful()) {
-            throw new IllegalArgumentException("Previous execution was successful, nothing to resume");
-        }
-        // Uncertain-disposition contract: a submission-pending step (IN_PROGRESS with a
-        // transaction hash) has an unknown on-chain outcome — confirmation timed out or
-        // reconciliation could not decide. Re-executing it would rebuild and resubmit a
-        // payment that may still confirm, so resume refuses until the operator reconciles
-        // the pending transaction on chain.
-        for (FlowStepResult stepResult : previousResult.getStepResults()) {
-            if (stepResult.getStatus() == FlowStatus.IN_PROGRESS
-                    && stepResult.getTransactionHash() != null) {
-                throw new IllegalStateException("Cannot resume flow '" + flow.getId()
-                        + "': step '" + stepResult.getStepId() + "' has a submission-pending transaction "
-                        + stepResult.getTransactionHash() + " whose outcome is unknown."
-                        + " Re-executing it could duplicate a transaction that may still confirm."
-                        + " Verify the transaction on chain first: if it confirmed, run the remaining"
-                        + " steps as a new flow; resume only once the transaction can no longer land.");
-            }
-        }
-    }
-
-    /**
-     * Verify which steps from a previous execution are still confirmed on-chain.
-     * <p>
-     * Returns a contiguous prefix of verified steps. On the first unverified or
-     * failed step, verification stops — no gaps are allowed to prevent dependency issues.
-     *
-     * @param flow the flow definition
-     * @param previousResult the previous execution result
-     * @return map of step index to verified step result (contiguous prefix only)
-     */
-    private Map<Integer, FlowStepResult> verifyPreviousSteps(
-            TxFlow flow, FlowResult previousResult,
-            EffectiveFlowExecutionSettings settings) {
-        Map<Integer, FlowStepResult> candidates = new java.util.LinkedHashMap<>();
-        List<FlowStep> steps = flow.getSteps();
-
-        for (int i = 0; i < steps.size(); i++) {
-            FlowStep step = steps.get(i);
-            Optional<FlowStepResult> prevStepResult = previousResult.getStepResult(step.getId());
-
-            if (prevStepResult.isPresent() && prevStepResult.get().isSuccessful()) {
-                candidates.put(i, prevStepResult.get());
-            } else {
-                break; // Stop at first non-successful step
-            }
-        }
-
-        Set<Integer> retained = reconcilePreviouslyConfirmed(candidates, () -> false, settings);
-        Map<Integer, FlowStepResult> confirmedSteps = new HashMap<>();
-        for (Map.Entry<Integer, FlowStepResult> candidate : candidates.entrySet()) {
-            if (!retained.contains(candidate.getKey())) break;
-            confirmedSteps.put(candidate.getKey(), candidate.getValue());
-            log.info("Resume: step '{}' tx {} remains confirmed and will be skipped",
-                    steps.get(candidate.getKey()).getId(), candidate.getValue().getTransactionHash());
-        }
-        return confirmedSteps;
-    }
-
-    /**
-     * Close this executor and release associated resources.
-     * <p>
-     * Cancels all running flows and clears active flow tracking.
-     */
-    @Override
-    public void close() {
-        for (FlowHandle handle : activeHandles) {
-            handle.cancel();
-        }
-        activeHandles.clear();
-        activeFlowIds.clear();
     }
 }

@@ -19,7 +19,7 @@ import lombok.Getter;
  * executor, the legacy strategy controls action selection.</p>
  */
 @Getter
-public class FlowExecutionSettings {
+public final class FlowExecutionSettings {
     private static final FlowExecutionSettings EMPTY = builder().build();
 
     private final ChainingMode chainingMode;
@@ -29,22 +29,12 @@ public class FlowExecutionSettings {
     private final RollbackPolicy rollbackPolicy;
     private final ValidityPolicy validityPolicy;
 
-    /**
-     * Initializes a settings snapshot for this class or a compatibility subclass.
-     *
-     * @param chainingMode requested execution mode, or {@code null}
-     * @param confirmationConfig requested confirmation settings, or {@code null}
-     * @param rollbackStrategy legacy rollback strategy, or {@code null}
-     * @param retryPolicy requested step retry policy, or {@code null}
-     * @param rollbackPolicy portable rollback policy, or {@code null}
-     * @param validityPolicy requested validity preferences, or {@code null}
-     */
-    protected FlowExecutionSettings(ChainingMode chainingMode,
-                                    ConfirmationConfig confirmationConfig,
-                                    RollbackStrategy rollbackStrategy,
-                                    RetryPolicy retryPolicy,
-                                    RollbackPolicy rollbackPolicy,
-                                    ValidityPolicy validityPolicy) {
+    private FlowExecutionSettings(ChainingMode chainingMode,
+                                  ConfirmationConfig confirmationConfig,
+                                  RollbackStrategy rollbackStrategy,
+                                  RetryPolicy retryPolicy,
+                                  RollbackPolicy rollbackPolicy,
+                                  ValidityPolicy validityPolicy) {
         this.chainingMode = chainingMode;
         this.confirmationConfig = confirmationConfig;
         this.rollbackStrategy = rollbackStrategy;
@@ -102,18 +92,12 @@ public class FlowExecutionSettings {
 
     /** Explicit builder kept stable as part of the public configuration API. */
     public static class FlowExecutionSettingsBuilder {
-        /** Requested execution mode, or {@code null} when unset. */
-        protected ChainingMode chainingMode;
-        /** Requested confirmation settings, or {@code null} when unset. */
-        protected ConfirmationConfig confirmationConfig;
-        /** Legacy rollback strategy, or {@code null} when unset. */
-        protected RollbackStrategy rollbackStrategy;
-        /** Requested retry policy, or {@code null} when unset. */
-        protected RetryPolicy retryPolicy;
-        /** Portable rollback policy, or {@code null} when unset. */
-        protected RollbackPolicy rollbackPolicy;
-        /** Requested validity preferences, or {@code null} when unset. */
-        protected ValidityPolicy validityPolicy;
+        private ChainingMode chainingMode;
+        private ConfirmationConfig confirmationConfig;
+        private RollbackStrategy rollbackStrategy;
+        private RetryPolicy retryPolicy;
+        private RollbackPolicy rollbackPolicy;
+        private ValidityPolicy validityPolicy;
 
         /** Creates a builder with every flow-level request unset. */
         public FlowExecutionSettingsBuilder() {

@@ -6,20 +6,18 @@ import java.time.Duration;
 import java.util.Objects;
 
 /**
- * Public configuration for transaction confirmation and legacy rollback tracking.
+ * Public configuration for transaction confirmation and rollback tracking.
  *
- * <p>This is the canonical owner of confirmation configuration. Runtime code
- * consumes this type; the deprecated {@code txflow.exec} class is only a
- * source-compatible forwarding subclass. Backend-specific observation authority
- * is intentionally not configurable here: an empty lookup counts toward rollback
- * only when the backend adapter itself declares authoritative absence support.</p>
+ * <p>Backend-specific observation authority is intentionally not configurable here: an empty
+ * lookup counts toward rollback only when the backend adapter itself declares authoritative
+ * absence support.</p>
  *
  * <p>The post-rollback backend wait fields support development environments in
  * which a rollback also restarts the backend or delays its UTXO index. They are
  * compatibility settings rather than part of the portable {@link RollbackPolicy}.</p>
  */
 @Getter
-public class ConfirmationConfig {
+public final class ConfirmationConfig {
     /** Required depth after inclusion; zero accepts the first in-block observation. */
     private final int minConfirmations;
     /** Interval between backend observations. */
@@ -37,27 +35,12 @@ public class ConfirmationConfig {
     /** Consecutive authoritative absences required to establish rollback. */
     private final int requiredAuthoritativeAbsences;
 
-    /**
-     * Initializes a configuration from values validated by a builder.
-     *
-     * <p>The constructor is protected so the deprecated forwarding type can
-     * preserve source compatibility; applications should use {@link #builder()}.</p>
-     *
-     * @param minConfirmations required confirmation depth
-     * @param checkInterval interval between observations
-     * @param timeout maximum confirmation wait
-     * @param maxRollbackRetries legacy rollback retry bound
-     * @param waitForBackendAfterRollback whether to wait for backend readiness
-     * @param postRollbackWaitAttempts backend-readiness attempt limit
-     * @param postRollbackUtxoSyncDelay delay for UTXO-index synchronization
-     * @param requiredAuthoritativeAbsences authoritative-absence threshold
-     */
-    protected ConfirmationConfig(int minConfirmations, Duration checkInterval,
-                                 Duration timeout, int maxRollbackRetries,
-                                 boolean waitForBackendAfterRollback,
-                                 int postRollbackWaitAttempts,
-                                 Duration postRollbackUtxoSyncDelay,
-                                 int requiredAuthoritativeAbsences) {
+    private ConfirmationConfig(int minConfirmations, Duration checkInterval,
+                               Duration timeout, int maxRollbackRetries,
+                               boolean waitForBackendAfterRollback,
+                               int postRollbackWaitAttempts,
+                               Duration postRollbackUtxoSyncDelay,
+                               int requiredAuthoritativeAbsences) {
         this.minConfirmations = minConfirmations;
         this.checkInterval = checkInterval;
         this.timeout = timeout;
@@ -66,6 +49,23 @@ public class ConfirmationConfig {
         this.postRollbackWaitAttempts = postRollbackWaitAttempts;
         this.postRollbackUtxoSyncDelay = postRollbackUtxoSyncDelay;
         this.requiredAuthoritativeAbsences = requiredAuthoritativeAbsences;
+    }
+
+    /**
+     * Copies these configuration values into a mutable builder.
+     *
+     * @return builder initialized from this instance
+     */
+    public Builder toBuilder() {
+        return builder()
+                .minConfirmations(minConfirmations)
+                .checkInterval(checkInterval)
+                .timeout(timeout)
+                .maxRollbackRetries(maxRollbackRetries)
+                .waitForBackendAfterRollback(waitForBackendAfterRollback)
+                .postRollbackWaitAttempts(postRollbackWaitAttempts)
+                .postRollbackUtxoSyncDelay(postRollbackUtxoSyncDelay)
+                .requiredAuthoritativeAbsences(requiredAuthoritativeAbsences);
     }
 
     /**
@@ -275,31 +275,6 @@ public class ConfirmationConfig {
                 throw new IllegalArgumentException(
                         "requiredAuthoritativeAbsences must be between 1 and 100");
             }
-            return create(minConfirmations, checkInterval, timeout, maxRollbackRetries,
-                    waitForBackendAfterRollback, postRollbackWaitAttempts,
-                    postRollbackUtxoSyncDelay, requiredAuthoritativeAbsences);
-        }
-
-        /**
-         * Factory hook used by the deprecated forwarding builder to retain its
-         * concrete return type.
-         *
-         * @param minConfirmations required confirmation depth
-         * @param checkInterval interval between observations
-         * @param timeout maximum confirmation wait
-         * @param maxRollbackRetries legacy rollback retry bound
-         * @param waitForBackendAfterRollback whether to wait for backend readiness
-         * @param postRollbackWaitAttempts backend-readiness attempt limit
-         * @param postRollbackUtxoSyncDelay UTXO-index synchronization delay
-         * @param requiredAuthoritativeAbsences authoritative-absence threshold
-         * @return new confirmation configuration
-         */
-        protected ConfirmationConfig create(int minConfirmations, Duration checkInterval,
-                                            Duration timeout, int maxRollbackRetries,
-                                            boolean waitForBackendAfterRollback,
-                                            int postRollbackWaitAttempts,
-                                            Duration postRollbackUtxoSyncDelay,
-                                            int requiredAuthoritativeAbsences) {
             return new ConfirmationConfig(minConfirmations, checkInterval, timeout,
                     maxRollbackRetries, waitForBackendAfterRollback,
                     postRollbackWaitAttempts, postRollbackUtxoSyncDelay,
