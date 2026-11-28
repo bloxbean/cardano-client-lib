@@ -111,8 +111,6 @@ class TxPlanStrictReadingTest {
                 Arguments.of("UTxO reference that is not an object", tx("inputs", "{type: collect_from, utxo_refs: [" + TX_HASH + "]}"), "object"),
                 Arguments.of("empty string for a boolean", tx("intents", "{type: pool_update, update: ''}"), "update"),
                 Arguments.of("number for a boolean", tx("intents", "{type: pool_update, is_update: 1}"), "is_update"),
-                Arguments.of("output_index beyond int range", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
-                        + ", output_index: 4294967296}]}"), "output_index"),
                 Arguments.of("negative output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
                         + ", output_index: -1}]}"), "output_index"),
                 Arguments.of("non-numeric output_index", tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
@@ -598,6 +596,48 @@ class TxPlanStrictReadingTest {
             assertRejected(tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH
                     + ", output_index: 1E-100000000}]}"), "output_index");
         });
+    }
+
+    @Test
+    void outputIndexBeyondIntRangeIsRejectedInBothStrictAndLenientModes() {
+        List<String> outOfRange = List.of(
+                tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: 2147483648}]}"),
+                tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: 4294967296}]}"),
+                tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: 4294967296.0}]}"),
+                tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: -2147483649}]}"),
+                tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: 1E+10}]}"),
+                "variables:\n  i: 1E+10\n"
+                        + tx("inputs", "{type: collect_from, utxo_refs: [{tx_hash: " + TX_HASH + ", output_index: '${i}'}]}"));
+        for (String yaml : outOfRange) {
+            for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(
+                    TxPlan::from, STRICT::fromYaml, LENIENT::fromYaml)) {
+                assertThatThrownBy(() -> reader.apply(yaml))
+                        .as(yaml)
+                        .hasStackTraceContaining("output_index")
+                        .isNotInstanceOfAny(ArithmeticException.class, NullPointerException.class);
+            }
+        }
+    }
+
+    @Test
+    void variableResolutionDoesNotDoubleResolveSynthesizedPlaceholders() {
+        String yaml = """
+                variables:
+                  v: "{other}"
+                  other: "zzz"
+                transaction:
+                  - tx:
+                      from: %s
+                      intents:
+                        - type: payment
+                          address: "$${v}"
+                """.formatted(SENDER);
+
+        for (Function<String, TxPlan> reader : List.<Function<String, TxPlan>>of(TxPlan::from, STRICT::fromYaml)) {
+            assertThatThrownBy(() -> reader.apply(yaml))
+                    .hasMessageContaining("kept literal")
+                    .hasMessageNotContaining("zzz");
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

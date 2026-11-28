@@ -103,6 +103,29 @@ class TxFlowCodecTest {
     }
 
     @Test
+    void v1alpha1ApiVersionReportsActionableMigrationHint() {
+        String source = """
+                api_version: txflow.cardano-client.dev/v1alpha1
+                kind: TxFlow
+                metadata: {name: legacy-preview}
+                spec:
+                  steps:
+                    - id: first
+                      transaction: {tx: {intents: []}}
+                """;
+
+        FlowParseResult result = codec.parse(source, FlowParseOptions.serverDefaults());
+        assertTrue(result.hasErrors());
+        assertEquals(1, result.getDiagnostics().size());
+        FlowDiagnostic diagnostic = result.getDiagnostics().get(0);
+        assertEquals("TXFLOW_UNSUPPORTED_API_VERSION", diagnostic.code());
+        assertEquals("$.api_version", diagnostic.documentPath());
+        assertEquals(
+                "Unsupported api_version: txflow.cardano-client.dev/v1alpha1; update to txflow.cardano-client.dev/v1",
+                diagnostic.message());
+    }
+
+    @Test
     void parsesAndCanonicallyRoundTripsPortableYamlAndJson() {
         FlowParseResult parsed = codec.parse(PORTABLE, FlowParseOptions.serverDefaults());
         assertFalse(parsed.hasErrors(), parsed.getDiagnostics().toString());

@@ -204,8 +204,10 @@ public final class TxFlowCodec {
         }
         String apiVersion = root.path("api_version").asText();
         if (!options.getSupportedApiVersions().contains(apiVersion)) {
-            diagnostics.add(FlowDiagnostic.error("TXFLOW_UNSUPPORTED_API_VERSION",
-                    "Unsupported api_version: " + apiVersion, "$.api_version"));
+            String message = "txflow.cardano-client.dev/v1alpha1".equals(apiVersion)
+                    ? "Unsupported api_version: txflow.cardano-client.dev/v1alpha1; update to " + PORTABLE_API_VERSION
+                    : "Unsupported api_version: " + apiVersion;
+            diagnostics.add(FlowDiagnostic.error("TXFLOW_UNSUPPORTED_API_VERSION", message, "$.api_version"));
             return new FlowParseResult(null, diagnostics);
         }
         if (!"TxFlow".equals(root.path("kind").asText())) {

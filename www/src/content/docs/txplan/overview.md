@@ -87,6 +87,12 @@ values cannot alter the document's YAML structure.
 Decimal variable values retain their precision and scale in both strict and lenient readers, including codec snapshots.
 For example, `1.23456789012345678900` remains an exact `BigDecimal` rather than being rounded to a `double`.
 
+> **Note on string-encoded `metadata`:** A `metadata` intent's `metadata` field is stored as a string (YAML text, JSON
+> text, or CBOR hex) and parsed by `MetadataDeserializer` after variable resolution. Interpolating `${var}` inside a
+> string-encoded YAML or JSON metadata block therefore performs textual substitution before that inner YAML/JSON is
+> parsed. Avoid interpolating untrusted variable values into string-encoded metadata; attach structured metadata
+> programmatically or pre-encode untrusted values safely instead.
+
 ```yaml
 variables:
   treasury: addr_test1_treasury

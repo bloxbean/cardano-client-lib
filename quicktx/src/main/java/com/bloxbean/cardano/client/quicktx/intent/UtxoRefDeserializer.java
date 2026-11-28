@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -26,6 +27,8 @@ import java.util.regex.Pattern;
 final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
     private static final Pattern DIGITS = Pattern.compile("0|[1-9]\\d*");
     private static final int MAX_DECIMAL_SCALE = 100_000;
+    private static final BigInteger MIN_INT = BigInteger.valueOf(Integer.MIN_VALUE);
+    private static final BigInteger MAX_INT = BigInteger.valueOf(Integer.MAX_VALUE);
 
     UtxoRefDeserializer() {
         super(UtxoRef.class);
@@ -46,10 +49,46 @@ final class UtxoRefDeserializer extends StdDeserializer<UtxoRef> {
         if (txHash != null && !txHash.isNull()) ref.setTxHash(txHash.asText());
         JsonNode outputIndex = node.get("output_index");
         if (outputIndex != null && !outputIndex.isNull()) {
-            if (outputIndex.isNumber()) ref.setOutputIndex(outputIndex.intValue());
+            if (outputIndex.isNumber()) ref.setOutputIndex(readOutputIndexInt(outputIndex, context));
             else ref.setOutputIndexFromYaml(outputIndex.asText());
         }
         return ref;
+    }
+
+    /**
+     * Converts a numeric {@code output_index} to a 32-bit signed {@code int} without silent wraparound
+     * in either strict or lenient mode.
+     */
+    private static int readOutputIndexInt(JsonNode value, DeserializationContext context) throws IOException {
+        if (value.isIntegralNumber()) {
+            if (!value.canConvertToInt()) {
+                context.reportInputMismatch(UtxoRef.class,
+                        "output_index %s is out of 32-bit integer range", value);
+            }
+            return value.intValue();
+        }
+        if (value.isBigDecimal()) {
+            BigDecimal decimal = value.decimalValue();
+            if (decimal.signum() == 0) return 0;
+            long intDigits = (long) decimal.precision() - decimal.scale();
+            if (intDigits <= 0) return 0; // |decimal| < 1 truncates to 0 in lenient mode without expanding huge scales
+            if (intDigits > 10) {
+                context.reportInputMismatch(UtxoRef.class,
+                        "output_index %s is out of 32-bit integer range", value);
+            }
+            BigInteger truncated = decimal.toBigInteger();
+            if (truncated.compareTo(MIN_INT) < 0 || truncated.compareTo(MAX_INT) > 0) {
+                context.reportInputMismatch(UtxoRef.class,
+                        "output_index %s is out of 32-bit integer range", value);
+            }
+            return truncated.intValueExact();
+        }
+        double d = value.doubleValue();
+        if (!Double.isFinite(d) || d < Integer.MIN_VALUE || d > Integer.MAX_VALUE) {
+            context.reportInputMismatch(UtxoRef.class,
+                    "output_index %s is out of 32-bit integer range", value);
+        }
+        return (int) d;
     }
 
     private static void checkShape(JsonNode node, DeserializationContext context) throws IOException {

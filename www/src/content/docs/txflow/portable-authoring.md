@@ -195,11 +195,14 @@ projection cannot materialize a wallet name safely. Compilation therefore reject
 logical `from_ref` instead, resolved through QuickTx's `SignerRegistry` or the `.account(...)` builder
 call. The TxFlow catalog can describe it, but doesn't resolve it.
 
-Compilation also materializes the embedded QuickTx model with a compiler-local strict mapper.
-Fields unknown to the concrete transaction or intent type fail with
-`TXFLOW_TRANSACTION_FIELD_UNKNOWN`, and each materialized intent runs its existing QuickTx model
-validation before fingerprinting. This strictness is scoped to portable TxFlow compilation; it does
-not change standalone legacy QuickTx deserialization behavior.
+Compilation also materializes the embedded QuickTx model with the shared strict reader
+configuration (`StrictReading`). Fields unknown to the concrete transaction or intent type fail
+with `TXFLOW_TRANSACTION_FIELD_UNKNOWN`, and each materialized intent runs its existing QuickTx
+model validation before fingerprinting. Standalone `TxPlan.from(...)` and `TxPlanCodec` now apply
+the same strict reading by default; callers that need the older lenient behavior for standalone
+TxPlan files can opt out with `TxPlanCodec.builder().strictReading(false)` (see
+[TxPlan Strict Reading](/txplan/overview/#strict-reading)). Portable TxFlow compilation is always
+strict.
 
 A standalone `TxPlan` can contain a transaction list. Portable TxFlow `v1` intentionally
 allows only one transaction per step. When writing portable output from Java, a step with a
@@ -208,24 +211,17 @@ of silently losing behavior.
 
 ### Current JSON Schema boundary
 
-`txflow-v1.schema.json` references
-`txplan-v1.schema.json#/$defs/transaction`. The TxPlan schema covers the
-embedded, single-transaction structural projection represented by `TransactionDocument`—the `tx`
-fields and optional transaction `context`.
+`txflow-v1.schema.json` references `txplan-v1.schema.json#/$defs/transaction`. The generated
+`txplan-v1.schema.json` schema covers the embedded single-transaction projection (`tx` and optional
+`context`) as well as all 23 core `TxIntent` subtypes field-by-field (`additionalProperties: false`),
+array placement (`inputs`, `intents`, `scripts`), nested models, and placeholder-tolerant value
+positions. Extension intents (`<namespace>:<operation>`) are permitted as open objects in
+`tx.intents`.
 
-It is **not yet an exhaustive schema for every `TxIntent` implementation**. In particular,
-`inputs`, `intents`, and `scripts` are currently broad object schemas (regular intent/script entries
-require a `type`, but subtype-specific required fields are not fully described). QuickTx's runtime
-`TxIntent` registrations support payment, metadata, minting, staking, pools, governance, input
-collection, script collection/minting, reference inputs, and script attachments beyond what the
-schema constrains field by field.
-
-Therefore, a document passing an external JSON Schema validator is not proof that every intent can
-be deserialized and composed. Treat the published schema as editor/structural validation, then run
-`TxFlowCodec` parsing, compiler preflight, and transaction-focused tests. Expanding the schema into
-type-discriminated definitions for all supported intentions is tracked in
-[issue #636](https://github.com/bloxbean/cardano-client-lib/issues/636), separately from the
-`v1` runtime implementation.
+Schema validation checks structure, field names, types, and placement; value-level and semantic
+rules (Bech32 addresses, hex lengths, bounds, intent cross-field rules, and extension validation)
+remain enforced at runtime. Run `TxFlowCodec` parsing, compiler preflight, and transaction-focused
+tests alongside external JSON Schema validation.
 
 ## Named outputs and `flow_output`
 

@@ -40,6 +40,14 @@ Merkle Patricia Forestry (MPF) and Jellyfish Merkle Tree (JMT), with RocksDB and
 - **Lower-level parsing:** stack-safe CBOR and Plutus data codecs, plus `RawTx` and `RawBlock` views that keep a transaction's original bytes.
 - **GraalVM:** reachability metadata now ships in the module jars.
 
+## Upgrading from 0.8.0-pre8 — Portable Schemas (`v1`)
+
+Portable TxFlow and TxPlan contracts have been promoted from `v1alpha1` to `v1`:
+
+- **TxFlow `api_version`:** update portable flow documents from `txflow.cardano-client.dev/v1alpha1` to `txflow.cardano-client.dev/v1` (`FlowSchemaVersion.V1`). Parsing a `v1alpha1` document fails with `TXFLOW_UNSUPPORTED_API_VERSION` and a hint to update to `v1`.
+- **Published JSON Schemas:** `txplan-v1.schema.json` (`$id`: `https://cardano-client.dev/schemas/txplan/v1`) and `txflow-v1.schema.json` (`$id`: `https://cardano-client.dev/schemas/txflow/v1`) replace the `v1alpha1` schema files and identifiers.
+- **Durable TxFlow / TxStream stores:** canonical execution fingerprints include `api_version`, so fingerprints computed under `v1alpha1` will not match `v1`. Drain and complete (or reset) pre-release durable TxFlow and TxStream stores before upgrading to stable 0.8.0.
+
 ## Gradle dependencies
 
 ```gradle

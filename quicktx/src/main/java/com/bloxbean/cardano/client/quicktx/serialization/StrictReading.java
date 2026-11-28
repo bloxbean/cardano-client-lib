@@ -140,7 +140,7 @@ public final class StrictReading {
      * Rejects YAML constructs that would be read as something other than what is written: aliases, and unquoted numbers
      * whose text is not the plain decimal form of the value they are read as.
      *
-     * @param yaml TxPlan YAML text, after any textual variable substitution
+     * @param yaml raw TxPlan YAML text, before variable resolution
      * @throws IllegalArgumentException naming the offending value and its location
      * @throws IOException when the text is not well-formed YAML
      */
@@ -233,11 +233,12 @@ public final class StrictReading {
     }
 
     /**
-     * Rejects a declared variable whose value is itself a template ({@code v1: "${v2}"}). Substitution is one level, so
-     * such a chain resolves a little further on every read and a written plan never reads back the same.
-     * {@link TxPlan#from(String)} calls it on the document's {@code variables} section as written, before its textual
-     * substitution. {@link TxPlanCodec} does not need it: it replaces a variable literally, never re-reading the value as
-     * a template, and reads snapshots with {@code readLiteral}.
+     * Rejects a declared variable whose value is itself a template ({@code v1: "${v2}"}) or whose name contains
+     * placeholder delimiters or line breaks. Substitution is one level, so template-valued variables would resolve
+     * further on a subsequent read and a written plan would not reach a fixed point under {@link TxPlan#from(String)}.
+     * {@link TxPlan#from(String)} calls this on the raw {@code variables} section before structural tree resolution.
+     * {@link TxPlanCodec} does not need it: it replaces a variable literally, never re-reading the value as a template,
+     * and reads snapshots with {@code readLiteral}.
      *
      * @param variables the document's {@code variables} section, or null
      * @throws IllegalArgumentException naming the variable
@@ -245,7 +246,7 @@ public final class StrictReading {
     static void checkVariables(JsonNode variables) {
         if (variables == null || !variables.isObject()) return;
         variables.fields().forEachRemaining(entry -> {
-            // TxPlan.from substitutes ${name} as text, so a name with $, braces or a line break breaks the match.
+            // A name with $, braces or a line break cannot be referenced unambiguously in ${name}.
             if (!entry.getKey().matches("[^${}\\r\\n]+"))
                 throw new IllegalArgumentException("Variable name '" + entry.getKey()
                         + "' must not contain $, {, } or a line break");

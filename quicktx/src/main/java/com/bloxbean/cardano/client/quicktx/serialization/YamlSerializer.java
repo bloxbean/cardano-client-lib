@@ -140,13 +140,16 @@ public class YamlSerializer {
      * and variables are resolved structurally on the parsed tree so variable values cannot alter YAML structure.
      */
     static <T> T deserializeStrict(String yaml, Class<T> type) {
-        return deserializeStrict(yaml, type, null);
+        return deserializeStrict(yaml, type, null, null);
     }
 
     /**
      * Strict deserialization with an optional pre-check on the parsed raw tree (avoiding a redundant parse).
+     * Binds the resolved tree without {@code variables} and passes any declared variables to {@code variablesConsumer}
+     * so callers can attach them after reconstruction without triggering a second variable-resolution pass.
      */
-    static <T> T deserializeStrict(String yaml, Class<T> type, Consumer<JsonNode> preCheck) {
+    static <T> T deserializeStrict(String yaml, Class<T> type, Consumer<JsonNode> preCheck,
+                                   Consumer<Map<String, Object>> variablesConsumer) {
         JsonNode raw;
         try {
             raw = STRICT_YAML_MAPPER.readTree(yaml);
@@ -157,26 +160,34 @@ public class YamlSerializer {
         try {
             StrictReading.checkYamlText(yaml);
             JsonNode tree = raw;
+            Map<String, Object> variables = null;
             if (raw instanceof ObjectNode obj) {
                 JsonNode varsNode = obj.get("variables");
                 StrictReading.checkVariables(varsNode);
                 if (varsNode != null && varsNode.isObject()) {
-                    Map<String, Object> variables = STRICT_YAML_MAPPER.convertValue(varsNode,
+                    variables = STRICT_YAML_MAPPER.convertValue(varsNode,
                             new TypeReference<Map<String, Object>>() { });
+                    Map<String, Object> resolvedVars = variables;
                     ObjectNode resolved = STRICT_YAML_MAPPER.createObjectNode();
                     obj.fields().forEachRemaining(entry -> {
-                        if ("variables".equals(entry.getKey())) {
-                            resolved.set(entry.getKey(), entry.getValue());
-                        } else {
+                        if (!"variables".equals(entry.getKey())) {
                             resolved.set(entry.getKey(),
-                                    VariableResolver.resolveTree(entry.getValue(), variables, entry.getKey()));
+                                    VariableResolver.resolveTree(entry.getValue(), resolvedVars, entry.getKey()));
                         }
                     });
+                    if (VariableResolver.containsResolvedPlaceholder(resolved)) {
+                        throw new IllegalArgumentException("A resolved value still contains a ${...}"
+                                + " placeholder; it is kept literal and this field cannot hold it");
+                    }
                     tree = resolved;
                 }
             }
             StrictReading.checkDocument(tree);
-            return STRICT_YAML_MAPPER.treeToValue(tree, type);
+            T value = STRICT_YAML_MAPPER.treeToValue(tree, type);
+            if (variablesConsumer != null && variables != null) {
+                variablesConsumer.accept(variables);
+            }
+            return value;
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize YAML to " + type.getSimpleName() + ": " + rootMessage(e), e);
         }

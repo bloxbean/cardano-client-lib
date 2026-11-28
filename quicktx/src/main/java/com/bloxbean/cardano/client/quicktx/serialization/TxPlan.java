@@ -18,6 +18,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Plan for handling multiple Txs in a single YAML document.
@@ -528,17 +530,24 @@ public class TxPlan {
      * @throws RuntimeException if deserialization fails
      */
     public static TxPlan from(String yaml) {
-        TransactionDocument doc = readDocument(yaml);
-        return from(doc);
+        AtomicReference<Map<String, Object>> declaredVariables = new AtomicReference<>();
+        TransactionDocument doc = readDocument(yaml, declaredVariables::set);
+        TxPlan plan = from(doc);
+        if (declaredVariables.get() != null) {
+            plan.setVariables(declaredVariables.get());
+        }
+        return plan;
     }
 
     /**
      * Reads YAML written by {@link #toYaml()} back into an independent copy of a plan.
      *
-     * <p>Unlike {@link #from(String)}, this does not apply the strict-reading rules. Those rules are for documents
-     * people write; a snapshot of an in-memory plan, for example one built in Java with
-     * {@code addVariable("s", "${other}")}, may hold values they reject. Use it only for this library's own output,
-     * such as TxFlow's execution copies.</p>
+     * <p>Unlike {@link #from(String)}, this uses the lenient, pre-strict-reading textual variable reader
+     * ({@link YamlSerializer#deserialize(String, Class)}): it skips strict authoring rules so internal snapshots of
+     * Java-built core plans keep their historical behavior, including resolving variables declared on the plan itself.
+     * Because it runs textual variable substitution, unbound or cyclic template-valued variables still fail during
+     * resolution. For lossless literal copies that never expand placeholders (such as extension plans or plans with
+     * literal {@code ${...}} values), use {@link TxPlanCodec#copy(TxPlan)} or {@link TxPlanCodec#readLiteral(String)}.</p>
      *
      * @param yaml YAML produced by {@link #toYaml()}
      * @return the reconstructed plan
@@ -615,8 +624,7 @@ public class TxPlan {
      * @throws RuntimeException if deserialization fails
      */
     public static List<AbstractTx<?>> getTxs(String yaml) {
-        TransactionDocument doc = readDocument(yaml);
-        return getTxs(doc);
+        return getTxs(readDocument(yaml, null));
     }
 
     private static void requirePresent(TxIntent intention, String array) {
@@ -624,9 +632,9 @@ public class TxPlan {
         if (intention == null) throw new IllegalArgumentException("tx." + array + " contains an empty entry");
     }
 
-    private static TransactionDocument readDocument(String yaml) {
-        TransactionDocument doc = YamlSerializer.deserializeStrict(yaml, TransactionDocument.class,
-                TxPlan::rejectExtensionDocument);
+    private static TransactionDocument readDocument(String yaml, Consumer<Map<String, Object>> variablesConsumer) {
+        TransactionDocument doc = YamlSerializer.deserializeStrict(
+                yaml, TransactionDocument.class, TxPlan::rejectExtensionDocument, variablesConsumer);
         // An empty or null YAML document binds to null; report it like TxPlanCodec does.
         if (doc == null) throw new IllegalArgumentException("TxPlan YAML root must be a mapping");
         return doc;
