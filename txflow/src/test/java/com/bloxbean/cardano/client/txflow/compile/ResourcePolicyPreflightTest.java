@@ -190,6 +190,60 @@ class ResourcePolicyPreflightTest {
         assertTrue(valid.isEmpty(), valid.toString());
     }
 
+    @Test
+    void compileRejectsNonIntegralValiditySlotsThroughCodecAndCompiler() {
+        FlowExecutionPolicy windowPolicy = FlowExecutionPolicy.builder()
+                .maxValidityWindowSlots(100)
+                .build();
+        FlowExecutionPolicy requiredPolicy = FlowExecutionPolicy.builder()
+                .requireValidityInterval(true)
+                .maxValidityWindowSlots(100)
+                .build();
+
+        List<String> invalidContextSnippets = List.of(
+                "valid_from_slot: 100\n          valid_to_slot: '-5'",
+                "valid_from_slot: 100\n          valid_to_slot: '99999'",
+                "valid_from_slot: 100\n          valid_to_slot: 150.9",
+                "valid_from_slot: 1.5\n          valid_to_slot: 50.0",
+                "valid_from_slot: 100\n          valid_to_slot: true",
+                "valid_from_slot: {a: 1}\n          valid_to_slot: [1]"
+        );
+
+        for (String contextSnippet : invalidContextSnippets) {
+            String yaml = """
+                    api_version: txflow.cardano-client.dev/v1alpha1
+                    kind: TxFlow
+                    metadata: {name: non-integral-validity}
+                    spec:
+                      steps:
+                        - id: one
+                          transaction:
+                            tx: {intents: []}
+                            context:
+                              %s
+                    """.formatted(contextSnippet);
+
+            TxFlow parsed = TxFlowCodec.standard()
+                    .parse(yaml, FlowParseOptions.serverDefaults())
+                    .requireFlow();
+
+            for (FlowExecutionPolicy policy : List.of(windowPolicy, requiredPolicy)) {
+                FlowCompilationResult compiled = compiler.compile(
+                        FlowCompilationRequest.builder(parsed).policy(policy).build());
+                assertTrue(compiled.hasErrors(),
+                        "Expected compilation error for context:\n" + contextSnippet);
+                assertTrue(compiled.getDiagnostics().stream()
+                                .anyMatch(d -> d.code().equals("TXFLOW_VALIDITY_INTERVAL_INVALID")),
+                        "Expected TXFLOW_VALIDITY_INTERVAL_INVALID for context:\n" + contextSnippet
+                                + "\nActual diagnostics: " + compiled.getDiagnostics());
+                assertFalse(compiled.getDiagnostics().stream()
+                                .anyMatch(d -> d.code().equals("TXFLOW_POLICY_VALIDITY_REQUIRED")),
+                        "Did not expect TXFLOW_POLICY_VALIDITY_REQUIRED when fields are present:\n"
+                                + contextSnippet + "\nActual diagnostics: " + compiled.getDiagnostics());
+            }
+        }
+    }
+
     private TxFlow definition() {
         String yaml = """
                 api_version: txflow.cardano-client.dev/v1alpha1

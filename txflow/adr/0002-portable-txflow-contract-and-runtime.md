@@ -2,11 +2,11 @@
 
 **Status**: Implemented
 
-**ADR Document Version**: 2.6.6
+**ADR Document Version**: 2.6.7
 
 **Date**: 2026-07-10
 
-**Last Updated**: 2026-07-18
+**Last Updated**: 2026-11-28
 
 **Review State**: Implemented; iteration-1 refinement review remediated and independently reconciled; final Java 17, RDBMS, documentation, and external-Yaci verification complete
 
@@ -39,6 +39,7 @@ The ADR document version is independent from the TxFlow YAML schema version disc
 | 2.6.4 | 2026-07-13 | Bloxbean / CCL maintainers | Implemented after re-review | Fixes the two re-review regressions introduced by fresh/resume consolidation: resume no longer replaces the legacy state snapshot or emits a duplicate flow-start callback, while all fresh paths retain their start behavior. Adds strict external-Yaci coverage for the default non-authoritative backend adapter: ambiguous post-inclusion absence emits a suspected-rollback event, ends in a bounded typed reconciliation-uncertain outcome, and never rebuilds. Clarifies conservative unknown-failure retry compatibility and locks negative portable durations at their owning-policy boundaries. Final Java 17 verification passes QuickTx 350/350, TxFlow 480 passing plus one Java 21-only skip, and 64/64 external-Yaci tests; the strict rollback class now passes 12/12. |
 | 2.6.5 | 2026-07-16 | Bloxbean / CCL maintainers | Implemented follow-up | Restores the no-silent-loss invariant for portable writing after the usage-guide audit found that legacy `StepDependency` values were omitted. Portable output now rejects every legacy dependency-selection strategy, step-level retry overrides, legacy flow variables, and per-`TxPlan` variables with migration guidance. Java 17 verification passes all 542 TxFlow unit tests with one Java 21-only skip and the focused external-Yaci portable `FlowEngine` path. |
 | 2.6.6 | 2026-07-18 | Bloxbean / CCL maintainers | Implemented after refinement review | Records the iteration-1 remediation of portable-codec strictness and canonical fingerprints, execution-state classification and result integrity, durable lease and recovery handling, relational timestamp/schema robustness, and user documentation. Clarifies that shipped restart recovery reconciles one persisted attempt and that whole-flow continuation remains future orchestration work. Final Java 17 verification passes QuickTx 351/351; TxFlow 653 passing plus one Java 21-only skip; relational-store unit 68/68 and H2/PostgreSQL integration 40/40; and external-Yaci integration 64/64, including the strict rollback matrix at 12/12. TxFlow and relational-store Javadocs and the 66-page documentation production build also complete successfully. |
+| 2.6.7 | 2026-11-28 | Bloxbean / CCL maintainers | Pre-0.8.0 API cleanup | Removed unwired `ValidityPolicy` (`spec.execution.validity`, `FlowExecutionPolicy.maxRequestedValidityWindow`, `TXFLOW_POLICY_VALIDITY_PREFERENCE_CAPPED`) and unused `SecureBindingResolver` before 0.8.0 stable in favor of slot-based validity checks (`valid_from_slot` / `valid_to_slot` + `FlowExecutionPolicy` + `FlowRecoveryRequest.resubmitSafetyMargin`). |
 
 ### Versioning Rules For This ADR
 

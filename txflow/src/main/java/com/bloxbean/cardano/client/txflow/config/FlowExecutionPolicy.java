@@ -186,18 +186,25 @@ public final class FlowExecutionPolicy {
         JsonNode context = transaction.path("context");
         JsonNode from = context.get("valid_from_slot");
         JsonNode to = context.get("valid_to_slot");
-        boolean hasFrom = from != null && from.isIntegralNumber();
-        boolean hasTo = to != null && to.isIntegralNumber();
-        if (requireValidityInterval && (!hasFrom || !hasTo)) {
+        boolean fromPresent = from != null && !from.isNull();
+        boolean toPresent = to != null && !to.isNull();
+        if (requireValidityInterval && (!fromPresent || !toPresent)) {
             diagnostics.add(FlowDiagnostic.error("TXFLOW_POLICY_VALIDITY_REQUIRED",
                     "Server policy requires valid_from_slot and valid_to_slot", path + ".context"));
         }
-        boolean fromOutOfRange = hasFrom && (!from.canConvertToLong() || from.longValue() < 0);
-        boolean toOutOfRange = hasTo && (!to.canConvertToLong() || to.longValue() < 0);
-        if (fromOutOfRange || toOutOfRange) {
+        boolean fromInvalid = fromPresent
+                && (!from.isIntegralNumber() || !from.canConvertToLong() || from.longValue() < 0);
+        boolean toInvalid = toPresent
+                && (!to.isIntegralNumber() || !to.canConvertToLong() || to.longValue() < 0);
+        if (fromInvalid) {
             diagnostics.add(FlowDiagnostic.error("TXFLOW_VALIDITY_INTERVAL_INVALID",
-                    "Validity slots must be non-negative 64-bit integers", path + ".context"));
-        } else if (hasFrom && hasTo) {
+                    "valid_from_slot must be a non-negative 64-bit integer", path + ".context"));
+        }
+        if (toInvalid) {
+            diagnostics.add(FlowDiagnostic.error("TXFLOW_VALIDITY_INTERVAL_INVALID",
+                    "valid_to_slot must be a non-negative 64-bit integer", path + ".context"));
+        }
+        if (!fromInvalid && !toInvalid && fromPresent && toPresent) {
             long fromSlot = from.longValue();
             long toSlot = to.longValue();
             if (toSlot < fromSlot) {
