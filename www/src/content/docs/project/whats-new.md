@@ -40,6 +40,13 @@ Merkle Patricia Forestry (MPF) and Jellyfish Merkle Tree (JMT), with RocksDB and
 - **Lower-level parsing:** stack-safe CBOR and Plutus data codecs, plus `RawTx` and `RawBlock` views that keep a transaction's original bytes.
 - **GraalVM:** reachability metadata now ships in the module jars.
 
+## Upgrading from 0.8.0-pre8 — ValidityPolicy & SecureBindingResolver
+
+Two unwired pre-release TxFlow APIs were removed before 0.8.0 stable:
+
+- **`ValidityPolicy` and `spec.execution.validity`:** `ValidityPolicy`, `FlowExecutionSettings.Builder#validityPolicy(...)`, `FlowExecutionPolicy.Builder#maxRequestedValidityWindow(...)`, `TXFLOW_POLICY_VALIDITY_PREFERENCE_CAPPED`, and the portable `spec.execution.validity` block were removed because they were never applied at runtime. Delete `spec.execution.validity` from portable definitions and use explicit slot bounds (`transaction.context.valid_from_slot` / `valid_to_slot`), `FlowExecutionPolicy` (`requireValidityInterval`, `maxValidityWindowSlots`), and `FlowRecoveryRequest#resubmitSafetyMargin(...)`.
+- **`SecureBindingResolver`:** Removed because it had no callers in the runtime (`FlowEngine` recovers attempts from persisted signed payloads via `SignedPayloadResolver`). Durable sensitive-binding redaction via `PersistedBinding#secureValueRef()` and `FlowExecutionRequest.Builder#secureBindingReference(...)` is unchanged.
+
 ## Gradle dependencies
 
 ```gradle

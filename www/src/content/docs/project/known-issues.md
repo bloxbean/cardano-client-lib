@@ -21,7 +21,7 @@ These also affect TxStream, which runs on the same engine.
 | Issue | What happens | What to do |
 |---|---|---|
 | `engine.recover(...)` | It never finishes an execution, and on a finished one it moves the state back to `RUNNING`. A later replay of the same key returns `RECOVERY_REQUIRED` | Use the recovery result and an on-chain lookup as your answer. Don't call it on a finished execution |
-| `spec.execution.validity` | It has no effect, so the transaction gets no validity interval from it | Set `valid_from_slot` and `valid_to_slot` in the transaction's `context` |
+| `spec.execution.validity` | Removed after 0.8.0-pre8 (it was never wired at runtime; rejected under strict unknown-field policy) | Remove `spec.execution.validity`; set `valid_from_slot` and `valid_to_slot` in `transaction.context` and enforce bounds with `FlowExecutionPolicy.requireValidityInterval(...)` / `maxValidityWindowSlots(...)` |
 | Rollback actions with the default wiring | `DefaultChainDataSupplier` doesn't declare authoritative absence, so `RollbackAction` isn't applied, and a vanished transaction ends `RECOVERY_REQUIRED`. `FlowRuntime` can't supply another adapter | With `FlowEngine`, [opt in](/txflow/policies-results-observability/#submission-and-confirmation-are-separate) with `ObservationCapabilities.withAuthoritativeAbsence(...)` |
 | `FlowExecutionState.ROLLED_BACK` | A run never produces it | Detect a rollback through `FlowErrorCategory.ROLLBACK` |
 

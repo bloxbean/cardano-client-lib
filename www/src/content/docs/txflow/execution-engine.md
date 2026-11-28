@@ -287,9 +287,7 @@ FlowExecutionRequest request = FlowExecutionRequest.builder(definition)
 The durable snapshot does not store the raw binding, but it does store the reference, a redacted
 display, and an unsalted SHA-256 fingerprint of the binding's string form. Treat the database and
 backups as sensitive; low-entropy values may be guessable offline. Secret storage, access control,
-rotation, and log redaction remain application concerns. `SecureBindingResolver` is an application
-adapter type, but the current `FlowEngine.Builder` does not accept one; do not assume the engine
-will fetch an initial binding automatically.
+rotation, and log redaction remain application concerns.
 
 ## 5. Preflight, then start
 

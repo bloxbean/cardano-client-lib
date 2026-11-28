@@ -643,7 +643,7 @@ class TxFlowCodecTest {
     }
 
     @Test
-    void portableRollbackRetryAndValiditySettingsRoundTripWithoutLoss() {
+    void portableRollbackAndRetrySettingsRoundTripWithoutLoss() {
         String source = PORTABLE.replace("    retry:\n", """
                     rollback:
                       action: RECONCILE_AND_REBUILD
@@ -652,9 +652,6 @@ class TxFlowCodecTest {
                       max_recovery_cycles: 4
                       reinclusion_window: 90s
                       minimum_consistent_absence_observations: 3
-                    validity:
-                      window: 2h
-                      resubmit_safety_margin: 60
                     retry:
                 """).replace("      max_delay: 20s",
                 "      max_delay: 20s\n      jitter: 0.15");
@@ -664,7 +661,6 @@ class TxFlowCodecTest {
         assertEquals(4, flow.getExecutionSettings().getRollbackPolicy().maxRecoveryCycles());
         assertEquals(3, flow.getExecutionSettings().getRollbackPolicy()
                 .minimumConsistentAbsenceObservations());
-        assertEquals(60, flow.getExecutionSettings().getValidityPolicy().resubmitSafetyMargin());
         assertEquals(0.15, flow.getExecutionSettings().getRetryPolicy().getJitterFactor());
 
         String encoded = codec.write(flow,
@@ -672,8 +668,28 @@ class TxFlowCodecTest {
         TxFlow reparsed = codec.parse(encoded, FlowParseOptions.serverDefaults()).requireFlow();
         assertEquals(flow.getExecutionSettings().getRollbackPolicy(),
                 reparsed.getExecutionSettings().getRollbackPolicy());
-        assertEquals(flow.getExecutionSettings().getValidityPolicy(),
-                reparsed.getExecutionSettings().getValidityPolicy());
+    }
+
+    @Test
+    void executionValidityFieldIsHandledByUnknownFieldPolicy() {
+        String source = PORTABLE.replace("    retry:\n", """
+                    validity:
+                      window: 2h
+                      resubmit_safety_margin: 60
+                    retry:
+                """);
+        FlowParseResult rejected = codec.parse(source, FlowParseOptions.serverDefaults());
+        assertTrue(rejected.hasErrors(), rejected.getDiagnostics().toString());
+        assertTrue(rejected.getDiagnostics().stream().anyMatch(diagnostic ->
+                diagnostic.code().equals("TXFLOW_UNKNOWN_FIELD")
+                        && diagnostic.documentPath().equals("$.spec.execution.validity")));
+
+        FlowParseResult warned = codec.parse(source, FlowParseOptions.builder()
+                .unknownFieldPolicy(UnknownFieldPolicy.WARN).build());
+        assertFalse(warned.hasErrors(), warned.getDiagnostics().toString());
+        assertTrue(warned.getDiagnostics().stream().anyMatch(diagnostic ->
+                diagnostic.code().equals("TXFLOW_UNKNOWN_FIELD")
+                        && diagnostic.documentPath().equals("$.spec.execution.validity")));
     }
 
     @Test
@@ -684,18 +700,12 @@ class TxFlowCodecTest {
                       reinclusion_window: -1s
                     retry:
                 """);
-        String validity = PORTABLE.replace("    retry:\n", """
-                    validity:
-                      window: -1s
-                    retry:
-                """);
         String[] invalidDocuments = {
                 PORTABLE.replace("check_interval: 1s", "check_interval: -1s"),
                 PORTABLE.replace("timeout: 2m", "timeout: -2m"),
                 PORTABLE.replace("initial_delay: 1s", "initial_delay: -1s"),
                 PORTABLE.replace("max_delay: 20s", "max_delay: -20s"),
-                rollback,
-                validity
+                rollback
         };
 
         for (String source : invalidDocuments) {

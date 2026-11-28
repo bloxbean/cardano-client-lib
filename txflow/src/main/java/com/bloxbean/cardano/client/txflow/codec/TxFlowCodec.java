@@ -20,7 +20,6 @@ import com.bloxbean.cardano.client.txflow.config.RollbackAction;
 import com.bloxbean.cardano.client.txflow.config.RollbackMonitoringHorizon;
 import com.bloxbean.cardano.client.txflow.config.RollbackPolicy;
 import com.bloxbean.cardano.client.txflow.config.RollbackRebuildScope;
-import com.bloxbean.cardano.client.txflow.config.ValidityPolicy;
 import com.bloxbean.cardano.client.txflow.internal.DurationCodec;
 import com.bloxbean.cardano.client.txflow.yaml.FlowDocument;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -496,13 +495,6 @@ public final class TxFlowCodec {
                 retryBuilder.jitterFactor(retry.get("jitter").doubleValue());
             builder.retryPolicy(retryBuilder.build());
         }
-        JsonNode validity = node.get("validity");
-        if (validity != null && validity.hasNonNull("window")) {
-            builder.validityPolicy(new ValidityPolicy(
-                    parseDuration(validity.get("window").asText(), "window"),
-                    validity.hasNonNull("resubmit_safety_margin")
-                            ? validity.get("resubmit_safety_margin").longValue() : 0));
-        }
         return builder.build();
     }
 
@@ -533,12 +525,6 @@ public final class TxFlowCodec {
             retry.put("initial_delay", formatDuration(settings.getRetryPolicy().getInitialDelay()));
             retry.put("max_delay", formatDuration(settings.getRetryPolicy().getMaxDelay()));
             retry.put("jitter", settings.getRetryPolicy().getJitterFactor());
-        }
-        if (settings.getValidityPolicy() != null) {
-            ObjectNode validity = node.putObject("validity");
-            validity.put("window", formatDuration(settings.getValidityPolicy().window()));
-            validity.put("resubmit_safety_margin",
-                    settings.getValidityPolicy().resubmitSafetyMargin());
         }
         return node;
     }
@@ -796,15 +782,6 @@ public final class TxFlowCodec {
                 addTypeError(diagnostics, "$.spec.execution.retry.jitter", "finite number");
             }
         }
-
-        JsonNode validity = validateObject(execution, "validity",
-                "$.spec.execution.validity", diagnostics);
-        if (validity != null) {
-            requireField(validity, "window", "$.spec.execution.validity.window", diagnostics);
-            validateDuration(validity, "window", "$.spec.execution.validity.window", diagnostics);
-            validateInteger(validity, "resubmit_safety_margin",
-                    "$.spec.execution.validity.resubmit_safety_margin", diagnostics, true);
-        }
     }
 
     private JsonNode validateObject(JsonNode parent, String field, String path,
@@ -1007,7 +984,7 @@ public final class TxFlowCodec {
                 "type", "required", "default", "minimum", "maximum", "max_length", "sensitive"));
         JsonNode execution = spec.path("execution");
         warnUnknown(execution, "$.spec.execution", diagnostics, policy,
-                "mode", "confirmation", "rollback", "retry", "validity");
+                "mode", "confirmation", "rollback", "retry");
         warnUnknown(execution.path("confirmation"), "$.spec.execution.confirmation", diagnostics, policy,
                 "preset", "min_confirmations", "check_interval", "timeout");
         warnUnknown(execution.path("rollback"), "$.spec.execution.rollback", diagnostics, policy,
@@ -1015,8 +992,6 @@ public final class TxFlowCodec {
                 "reinclusion_window", "minimum_consistent_absence_observations");
         warnUnknown(execution.path("retry"), "$.spec.execution.retry", diagnostics, policy,
                 "max_attempts", "backoff", "initial_delay", "max_delay", "jitter");
-        warnUnknown(execution.path("validity"), "$.spec.execution.validity", diagnostics, policy,
-                "window", "resubmit_safety_margin");
         JsonNode steps = spec.path("steps");
         for (int i = 0; i < steps.size(); i++) {
             JsonNode step = steps.get(i);

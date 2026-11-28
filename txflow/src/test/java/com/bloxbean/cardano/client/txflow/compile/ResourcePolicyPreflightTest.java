@@ -1,18 +1,22 @@
 package com.bloxbean.cardano.client.txflow.compile;
 
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.codec.FlowDiagnostic;
 import com.bloxbean.cardano.client.txflow.codec.FlowParseOptions;
 import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionPolicy;
+import com.bloxbean.cardano.client.txflow.config.RollbackAction;
 import com.bloxbean.cardano.client.txflow.model.FlowBindings;
 import com.bloxbean.cardano.client.txflow.resource.InMemoryFlowResourceCatalog;
 import com.bloxbean.cardano.client.txflow.resource.ResourceCapability;
 import com.bloxbean.cardano.client.txflow.resource.ResourceDescriptor;
 import com.bloxbean.cardano.client.txflow.resource.ResourceRef;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
-import java.util.Set;
 import java.time.Duration;
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -103,7 +107,7 @@ class ResourcePolicyPreflightTest {
     }
 
     @Test
-    void portableRollbackAndValidityRequestsAreCappedOrSemanticallyRejected() {
+    void portableRollbackRequestsAreCappedOrSemanticallyRejected() {
         String yaml = """
                 api_version: txflow.cardano-client.dev/v1alpha1
                 kind: TxFlow
@@ -117,7 +121,6 @@ class ResourcePolicyPreflightTest {
                       max_recovery_cycles: 5
                       reinclusion_window: 1m
                       minimum_consistent_absence_observations: 2
-                    validity: {window: 2h, resubmit_safety_margin: 10}
                   steps:
                     - id: one
                       transaction: {tx: {intents: []}}
@@ -125,21 +128,120 @@ class ResourcePolicyPreflightTest {
         TxFlow requested = TxFlowCodec.standard().parse(
                 yaml, FlowParseOptions.serverDefaults()).requireFlow();
         FlowCompilationResult capped = compiler.compile(FlowCompilationRequest.builder(requested)
-                .policy(FlowExecutionPolicy.builder().maxRollbackRecoveryCycles(2)
-                        .maxRequestedValidityWindow(Duration.ofMinutes(30)).build()).build());
+                .policy(FlowExecutionPolicy.builder().maxRollbackRecoveryCycles(2).build()).build());
         assertFalse(capped.hasErrors(), capped.getDiagnostics().toString());
         assertTrue(capped.requireCompiledFlow().getExecutionPlan().getExecutionSettings()
                 .getRollbackPolicy().maxRecoveryCycles() == 2);
-        assertTrue(capped.requireCompiledFlow().getExecutionPlan().getExecutionSettings()
-                .getValidityPolicy().window().equals(Duration.ofMinutes(30)));
 
         FlowCompilationResult rejected = compiler.compile(FlowCompilationRequest.builder(requested)
                 .policy(FlowExecutionPolicy.builder().allowedRollbackActions(Set.of(
-                        com.bloxbean.cardano.client.txflow.config.RollbackAction.FAIL)).build())
+                        RollbackAction.FAIL)).build())
                 .build());
         assertTrue(rejected.hasErrors());
         assertTrue(rejected.getDiagnostics().stream()
                 .anyMatch(d -> d.code().equals("TXFLOW_POLICY_ROLLBACK_ACTION")));
+    }
+
+    @Test
+    void evaluateTransactionRejectsNegativeAndOverflowingValiditySlots() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        FlowExecutionPolicy policy = FlowExecutionPolicy.builder()
+                .maxValidityWindowSlots(100)
+                .build();
+
+        List<FlowDiagnostic> negativeFrom = policy.evaluateTransaction(
+                mapper.readTree("{\"context\":{\"valid_from_slot\":-5,\"valid_to_slot\":10}}"),
+                "$.spec.steps[0].transaction");
+        assertTrue(negativeFrom.stream().anyMatch(d -> d.code().equals("TXFLOW_VALIDITY_INTERVAL_INVALID")));
+
+        List<FlowDiagnostic> negativeTo = policy.evaluateTransaction(
+                mapper.readTree("{\"context\":{\"valid_from_slot\":0,\"valid_to_slot\":-1}}"),
+                "$.spec.steps[0].transaction");
+        assertTrue(negativeTo.stream().anyMatch(d -> d.code().equals("TXFLOW_VALIDITY_INTERVAL_INVALID")));
+
+        List<FlowDiagnostic> singleNegativeSlot = policy.evaluateTransaction(
+                mapper.readTree("{\"context\":{\"valid_from_slot\":-1}}"),
+                "$.spec.steps[0].transaction");
+        assertTrue(singleNegativeSlot.stream().anyMatch(d -> d.code().equals("TXFLOW_VALIDITY_INTERVAL_INVALID")));
+
+        List<FlowDiagnostic> overflowTo = policy.evaluateTransaction(
+                mapper.readTree("{\"context\":{\"valid_from_slot\":0,\"valid_to_slot\":99999999999999999999999999}}"),
+                "$.spec.steps[0].transaction");
+        assertTrue(overflowTo.stream().anyMatch(d -> d.code().equals("TXFLOW_VALIDITY_INTERVAL_INVALID")));
+
+        List<FlowDiagnostic> overflowFrom = policy.evaluateTransaction(
+                mapper.readTree("{\"context\":{\"valid_from_slot\":-99999999999999999999999999,\"valid_to_slot\":10}}"),
+                "$.spec.steps[0].transaction");
+        assertTrue(overflowFrom.stream().anyMatch(d -> d.code().equals("TXFLOW_VALIDITY_INTERVAL_INVALID")));
+
+        List<FlowDiagnostic> reversed = policy.evaluateTransaction(
+                mapper.readTree("{\"context\":{\"valid_from_slot\":200,\"valid_to_slot\":100}}"),
+                "$.spec.steps[0].transaction");
+        assertTrue(reversed.stream().anyMatch(d -> d.code().equals("TXFLOW_VALIDITY_INTERVAL_INVALID")));
+
+        List<FlowDiagnostic> exceedsMaxLong = policy.evaluateTransaction(
+                mapper.readTree("{\"context\":{\"valid_from_slot\":0,\"valid_to_slot\":" + Long.MAX_VALUE + "}}"),
+                "$.spec.steps[0].transaction");
+        assertTrue(exceedsMaxLong.stream().anyMatch(d -> d.code().equals("TXFLOW_POLICY_VALIDITY_WINDOW")));
+
+        List<FlowDiagnostic> valid = policy.evaluateTransaction(
+                mapper.readTree("{\"context\":{\"valid_from_slot\":100,\"valid_to_slot\":200}}"),
+                "$.spec.steps[0].transaction");
+        assertTrue(valid.isEmpty(), valid.toString());
+    }
+
+    @Test
+    void compileRejectsNonIntegralValiditySlotsThroughCodecAndCompiler() {
+        FlowExecutionPolicy windowPolicy = FlowExecutionPolicy.builder()
+                .maxValidityWindowSlots(100)
+                .build();
+        FlowExecutionPolicy requiredPolicy = FlowExecutionPolicy.builder()
+                .requireValidityInterval(true)
+                .maxValidityWindowSlots(100)
+                .build();
+
+        List<String> invalidContextSnippets = List.of(
+                "valid_from_slot: 100\n          valid_to_slot: '-5'",
+                "valid_from_slot: 100\n          valid_to_slot: '99999'",
+                "valid_from_slot: 100\n          valid_to_slot: 150.9",
+                "valid_from_slot: 1.5\n          valid_to_slot: 50.0",
+                "valid_from_slot: 100\n          valid_to_slot: true",
+                "valid_from_slot: {a: 1}\n          valid_to_slot: [1]"
+        );
+
+        for (String contextSnippet : invalidContextSnippets) {
+            String yaml = """
+                    api_version: txflow.cardano-client.dev/v1alpha1
+                    kind: TxFlow
+                    metadata: {name: non-integral-validity}
+                    spec:
+                      steps:
+                        - id: one
+                          transaction:
+                            tx: {intents: []}
+                            context:
+                              %s
+                    """.formatted(contextSnippet);
+
+            TxFlow parsed = TxFlowCodec.standard()
+                    .parse(yaml, FlowParseOptions.serverDefaults())
+                    .requireFlow();
+
+            for (FlowExecutionPolicy policy : List.of(windowPolicy, requiredPolicy)) {
+                FlowCompilationResult compiled = compiler.compile(
+                        FlowCompilationRequest.builder(parsed).policy(policy).build());
+                assertTrue(compiled.hasErrors(),
+                        "Expected compilation error for context:\n" + contextSnippet);
+                assertTrue(compiled.getDiagnostics().stream()
+                                .anyMatch(d -> d.code().equals("TXFLOW_VALIDITY_INTERVAL_INVALID")),
+                        "Expected TXFLOW_VALIDITY_INTERVAL_INVALID for context:\n" + contextSnippet
+                                + "\nActual diagnostics: " + compiled.getDiagnostics());
+                assertFalse(compiled.getDiagnostics().stream()
+                                .anyMatch(d -> d.code().equals("TXFLOW_POLICY_VALIDITY_REQUIRED")),
+                        "Did not expect TXFLOW_POLICY_VALIDITY_REQUIRED when fields are present:\n"
+                                + contextSnippet + "\nActual diagnostics: " + compiled.getDiagnostics());
+            }
+        }
     }
 
     private TxFlow definition() {

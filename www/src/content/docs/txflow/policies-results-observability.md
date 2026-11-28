@@ -13,7 +13,7 @@ numeric value with a warning, or rejects the definition with a diagnostic.
 
 ## Portable requests and server policy
 
-A definition can request chaining, retry, confirmation, rollback, and validity settings:
+A definition can request chaining, retry, confirmation, and rollback settings:
 
 ```yaml
 spec:
@@ -36,14 +36,11 @@ spec:
       max_recovery_cycles: 3
       reinclusion_window: 2m
       minimum_consistent_absence_observations: 2
-    validity:
-      window: 30m
-      resubmit_safety_margin: 60
 ```
 
-`validity` is carried, fingerprinted and policy-capped, but in this preview the engine doesn't use it
-to set a transaction's validity interval or a recovery margin. Set `transaction.context.valid_from_slot`
-and `valid_to_slot`, and pass `resubmitSafetyMargin` on `FlowRecoveryRequest`.
+For transaction validity bounds, set `transaction.context.valid_from_slot` and `valid_to_slot` on
+each step, enforce bounds with `FlowExecutionPolicy` (`requireValidityInterval` and
+`maxValidityWindowSlots`), and pass `resubmitSafetyMargin` on `FlowRecoveryRequest`.
 
 The engine does not blindly trust these values. Configure a policy at the service boundary:
 
@@ -68,8 +65,8 @@ FlowExecutionPolicy policy = FlowExecutionPolicy.builder()
 ```
 
 With `strictSettings(false)` (the default), cappable execution requests—retry attempts,
-confirmation timeout, rollback recovery cycles, and the duration-based validity preference—are
-capped and reported as warnings. With `strictSettings(true)`, those differences are errors.
+confirmation timeout, and rollback recovery cycles—are capped and reported as warnings. With
+`strictSettings(true)`, those differences are errors.
 Structural limits such as step count, explicit absolute-slot validity limits, disallowed modes,
 networks, resource prefixes, rollback actions, and monitoring horizons are always errors.
 
