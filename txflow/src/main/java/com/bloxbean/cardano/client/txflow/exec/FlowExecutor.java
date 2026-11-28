@@ -391,8 +391,8 @@ class FlowExecutor {
         if (settings.getRollbackStrategy() != RollbackStrategy.FAIL_IMMEDIATELY
                 && settings.getConfirmationConfig() == null) {
             throw new IllegalStateException(
-                    "Rollback strategy " + settings.getRollbackStrategy() + " requires confirmation tracking. " +
-                    "Call withConfirmationConfig() or set context.confirmation before execution.");
+                    "ConfirmationConfig is required for rollback strategy " + settings.getRollbackStrategy()
+                            + ". Configure confirmation in FlowExecutionSettings before execution.");
         }
     }
 
@@ -1158,94 +1158,40 @@ class FlowExecutor {
             Map<Integer, FlowStepResult> candidates, BooleanSupplier cancelCheck,
             EffectiveFlowExecutionSettings settings) {
         if (candidates.isEmpty()) return Set.of();
-        int minimumDepth = settings.getConfirmationConfig() != null
-                ? settings.getConfirmationConfig().getMinConfirmations() : 0;
-        int requiredAbsences = settings.getConfirmationConfig() != null
-                ? settings.getConfirmationConfig().getRequiredAuthoritativeAbsences() : 1;
-        boolean authoritativeAbsence = chainDataSupplier instanceof TransactionObservationCapabilities
-                && ((TransactionObservationCapabilities) chainDataSupplier).supportsAuthoritativeAbsence();
+        ConfirmationTracker tracker = settings.getConfirmationTracker();
+        if (tracker == null) {
+            throw new IllegalStateException("Confirmation tracker is required for rollback reconciliation");
+        }
         Instant deadline = scheduler.now().plus(getConfirmationTimeout(settings));
         Set<Integer> pending = new HashSet<>(candidates.keySet());
         Set<Integer> retained = new HashSet<>();
-        Map<Integer, Integer> consistentAbsences = new HashMap<>();
         Map<Integer, Throwable> lastErrors = new HashMap<>();
-        Map<Integer, Long> recordedInclusionHeights = new HashMap<>();
 
         while (!pending.isEmpty() && scheduler.now().isBefore(deadline)) {
             if (cancelCheck.getAsBoolean() || Thread.currentThread().isInterrupted()) {
                 throw new CancellationException(
                         "Flow cancelled while reconciling previously confirmed transactions");
             }
-            if (settings.getConfirmationTracker() != null) {
-                List<Integer> observedIndices = new ArrayList<>(pending);
-                List<String> hashes = observedIndices.stream()
-                        .map(index -> candidates.get(index).getTransactionHash()).toList();
-                Map<String, ConfirmationResult> observations =
-                        settings.getConfirmationTracker().checkStatuses(hashes);
-                for (int index : observedIndices) {
-                    String txHash = candidates.get(index).getTransactionHash();
-                    ConfirmationResult observation = observations.get(txHash);
-                    if (observation == null) continue;
-                    if (observation.getError() != null) {
-                        lastErrors.put(index, observation.getError());
-                    }
-                    if (observation.isRolledBack()) {
-                        pending.remove(index);
-                    } else if (observation.hasReached(ConfirmationStatus.CONFIRMED)) {
-                        retained.add(index);
-                        pending.remove(index);
-                    }
+            List<Integer> observedIndices = new ArrayList<>(pending);
+            List<String> hashes = observedIndices.stream()
+                    .map(index -> candidates.get(index).getTransactionHash()).toList();
+            Map<String, ConfirmationResult> observations = tracker.checkStatuses(hashes);
+            for (int index : observedIndices) {
+                String txHash = candidates.get(index).getTransactionHash();
+                ConfirmationResult observation = observations.get(txHash);
+                if (observation == null) continue;
+                if (observation.getError() != null) {
+                    lastErrors.put(index, observation.getError());
                 }
-            } else {
-                Long chainTip = null;
-                try {
-                    chainTip = chainDataSupplier.getChainTipHeight();
-                } catch (Exception e) {
-                    for (int index : pending) lastErrors.put(index, e);
-                    log.debug("Could not read chain tip during transaction reconciliation: {}",
-                            e.getMessage());
-                }
-                for (int index : new ArrayList<>(pending)) {
-                    String txHash = candidates.get(index).getTransactionHash();
-                    try {
-                        Optional<TransactionInfo> txInfo = chainDataSupplier.getTransactionInfo(txHash);
-                        if (txInfo.isPresent() && txInfo.get().getBlockHeight() != null) {
-                            long inclusionHeight = txInfo.get().getBlockHeight();
-                            recordedInclusionHeights.put(index, inclusionHeight);
-                            consistentAbsences.remove(index);
-                            if (minimumDepth == 0
-                                    || chainTip != null && chainTip - inclusionHeight >= minimumDepth) {
-                                retained.add(index);
-                                pending.remove(index);
-                            }
-                        } else {
-                            Long inclusionHeight = recordedInclusionHeights.get(index);
-                            if (authoritativeAbsence && chainTip != null
-                                    && inclusionHeight != null && chainTip >= inclusionHeight) {
-                                int count = consistentAbsences.merge(index, 1, Integer::sum);
-                                if (count >= requiredAbsences) pending.remove(index);
-                            } else {
-                                consistentAbsences.remove(index);
-                            }
-                        }
-                    } catch (Exception e) {
-                        lastErrors.put(index, e);
-                        consistentAbsences.remove(index);
-                        log.debug("Transaction {} reconciliation observation failed: {}",
-                                txHash, e.getMessage());
-                    }
+                if (observation.isRolledBack()) {
+                    pending.remove(index);
+                } else if (observation.hasReached(ConfirmationStatus.CONFIRMED)) {
+                    retained.add(index);
+                    pending.remove(index);
                 }
             }
 
             if (pending.isEmpty()) break;
-            if (settings.getConfirmationConfig() == null) {
-                int uncertainIndex = pending.iterator().next();
-                String txHash = candidates.get(uncertainIndex).getTransactionHash();
-                Throwable lastError = lastErrors.get(uncertainIndex);
-                throw lastError != null
-                        ? new ReconciliationUncertainException(txHash, lastError)
-                        : new ReconciliationUncertainException(txHash);
-            }
             try {
                 scheduler.sleep(getCheckInterval(settings), cancelCheck);
             } catch (InterruptedException e) {

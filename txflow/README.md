@@ -370,7 +370,6 @@ dedup only — read the durability guide before pairing them with a redelivering
 - [Current public guide](https://cardano-client.dev/txflow/overview/)
 - [Portable authoring migration](docs/PORTABLE_TXFLOW_MIGRATION.md)
 - [Durable runtime contract](docs/DURABLE_RUNTIME.md)
-- [Detailed design and compatibility reference](docs/DESIGN_AND_USAGE.md)
 - [ADR 0002: portable contract and runtime](adr/0002-portable-txflow-contract-and-runtime.md)
 - [ADR 0003: relational durable store extension](adr/0003-relational-durable-store-extension.md)
 - [ADR 0008: generic QuickTx extension support](adr/0008-generic-quicktx-extensions-in-txflow.md)

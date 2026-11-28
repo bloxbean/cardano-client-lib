@@ -2,23 +2,25 @@ package com.bloxbean.cardano.client.txflow.config;
 
 import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.ToString;
 
 /**
  * Optional execution requests carried by a portable flow definition.
  *
  * <p>Every field is nullable: an unset field makes no flow-level request and
- * leaves the host executor or runtime default in control. For server execution,
+ * leaves the host runtime default in control. For server execution,
  * {@link FlowExecutionPolicy} evaluates these requested values before they
  * become effective settings; numeric limits may be capped and semantic choices
  * may be rejected.</p>
  *
- * <p>{@link RollbackPolicy} is the portable rollback model and
- * {@link RollbackStrategy} is retained for the original executor API. New code
- * should set only the portable policy. If both are supplied to the legacy
- * executor, the legacy strategy controls action selection.</p>
+ * <p>{@link RollbackPolicy} is the portable rollback model. Legacy
+ * {@link RollbackStrategy} is deprecated and rejected by {@code FlowEngine}/{@code FlowRuntime}.</p>
  */
 @Getter
+@EqualsAndHashCode
+@ToString
 public final class FlowExecutionSettings {
     private static final FlowExecutionSettings EMPTY = builder().build();
 
@@ -126,11 +128,14 @@ public final class FlowExecutionSettings {
         }
 
         /**
-         * Sets the rollback strategy used by the legacy executor API.
+         * Sets the legacy rollback strategy.
          *
          * @param value legacy strategy, or {@code null} to leave it unset
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Use {@link #rollbackPolicy(RollbackPolicy)}.
          */
+        @Deprecated(forRemoval = true)
         public FlowExecutionSettingsBuilder rollbackStrategy(RollbackStrategy value) {
             this.rollbackStrategy = value;
             return this;

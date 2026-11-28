@@ -152,9 +152,8 @@ ConfirmationConfig confirmation = ConfirmationConfig.builder()
 
 The production-oriented defaults are depth 10, five-second polling, a 30-minute timeout, and two
 consecutive authoritative absences before rollback. `testnet()`, `devnet()`, and `quick()` are
-convenience presets; verify them against the risk and block cadence of your deployment. On a
-Java-built `TxFlow` run through `FlowEngine`, `ConfirmationConfig.devnet()` and `quick()` are rejected
-because they carry legacy backend-wait fields. Use `preset: devnet` or `preset: quick` in the document.
+convenience presets matching YAML `preset: testnet`, `preset: devnet`, and `preset: quick`; verify
+them against the risk and block cadence of your deployment.
 
 If a portable definition has neither `confirmation` nor `rollback`, the engine uses simple on-chain
 polling with no depth tracking. If it has `rollback` but no `confirmation`, it uses

@@ -45,7 +45,7 @@ import java.util.function.BooleanSupplier;
  * }</pre>
  */
 @Slf4j
-public class ConfirmationTracker {
+class ConfirmationTracker {
 
     private final ChainDataSupplier chainDataSupplier;
     private final ConfirmationConfig config;

@@ -1068,7 +1068,8 @@ class FlowExecutorTest {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> executor.executeSync(flow));
         assertTrue(ex.getMessage().contains("REBUILD_FROM_FAILED"));
-        assertTrue(ex.getMessage().contains("withConfirmationConfig"));
+        assertTrue(ex.getMessage().contains("ConfirmationConfig"));
+        assertTrue(ex.getMessage().contains("FlowExecutionSettings"));
     }
 
     @Test
@@ -1110,7 +1111,7 @@ class FlowExecutorTest {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> executor.executeSync(flow));
         assertTrue(ex.getMessage().contains("REBUILD_ENTIRE_FLOW"));
-        assertTrue(ex.getMessage().contains("context.confirmation"));
+        assertTrue(ex.getMessage().contains("FlowExecutionSettings"));
     }
 
     @Test
@@ -1154,7 +1155,7 @@ class FlowExecutorTest {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> executor.executeSync(flow));
         assertTrue(ex.getMessage().contains("REBUILD_ENTIRE_FLOW"));
-        assertTrue(ex.getMessage().contains("context.confirmation"));
+        assertTrue(ex.getMessage().contains("FlowExecutionSettings"));
     }
 
     @Test

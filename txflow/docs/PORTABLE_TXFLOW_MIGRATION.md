@@ -14,11 +14,11 @@ Key changes from the preview `version: "1.0"` format:
   that belongs to the requested funding address.
 - Replace embedded keys and scripts with server-owned logical resource references.
 - Import `FlowExecutionSettings`, `ConfirmationConfig`, and `RollbackStrategy` from
-  `com.bloxbean.cardano.client.txflow.config`. The former settings and confirmation classes remain
-  as deprecated forwarding subclasses; Java enums cannot be forwarded, so `RollbackStrategy` was
-  hard-moved during the pre-release window.
+  `com.bloxbean.cardano.client.txflow.config`. The former forwarding classes in `txflow` and
+  `txflow.exec` have been removed.
 - Parse with `TxFlowCodec`, compile with `TxFlowCompiler`, then execute a `FlowExecutionRequest`
-  through an immutable `FlowEngine`.
+  through an immutable `FlowEngine` (or managed `FlowRuntime`). The legacy `FlowExecutor`,
+  `FlowHandle`, `exec.store.*`, and `exec.registry.*` APIs have been removed.
 - Retry classification is conservative for untyped failures: known pre-submission `IOException`
   and timeout failures remain retryable according to policy, but an unknown `RuntimeException`
   fails because the legacy adapter cannot prove whether submission occurred. Unknown or accepted
@@ -40,13 +40,10 @@ Compatibility notes for the v1alpha1 refinement:
 - `metadata.description` is an additive v1alpha1 field. Older external validators using the prior
   schema with `additionalProperties: false` may need the updated bundled schema before accepting a
   document that emits it.
-- `ConfirmationConfig.devnet()` and `quick()` contain legacy backend-wait behavior. Express their
-  portable confirmation values with `preset` or explicit min/check/timeout fields; backend restart
-  and index-sync behavior remains host/test infrastructure, not document authority.
-- The legacy `FlowExecutor` facade now reports submitted-but-unconfirmed steps as `IN_PROGRESS`
-  and omits build-only steps from terminal results. `onStepCompleted` fires after confirmation,
-  cancellation results carry a `CancellationException`, and the batch-mode `txInspector` callback
-  is invoked consistently with the other chaining modes.
+- `ConfirmationConfig.devnet()` and `ConfirmationConfig.quick()` now contain only portable
+  confirmation fields (`minConfirmations`, `checkInterval`, `timeout`) and match YAML `preset: devnet`
+  and `preset: quick` directly on `FlowEngine` and `FlowRuntime`. Legacy backend-wait compatibility
+  fields are deprecated for removal and rejected on the portable path.
 
 The codec still reads the preview format and emits `TXFLOW_LEGACY_FORMAT`. Portable encoding fails
 instead of silently discarding Java factories, any legacy `StepDependency` selection, step-level
@@ -55,5 +52,5 @@ retry overrides, legacy flow/`TxPlan` variables, additional transactions, legacy
 filter flags. Migrate dependencies to `needs` plus named `flow_output` references, values to
 parameters plus `FlowBindings`, and rollback behavior to `RollbackPolicy`.
 
-For Java 21 virtual threads, create the executor in the application and pass it to the engine or
-legacy facade. TxFlow never owns or closes it.
+For Java 21 virtual threads, create the executor in the application and pass it to `FlowEngine`.
+TxFlow never owns or closes it.
