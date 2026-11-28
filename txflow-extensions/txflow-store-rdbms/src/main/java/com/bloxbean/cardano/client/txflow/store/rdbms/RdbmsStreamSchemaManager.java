@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.txflow.store.rdbms;
 
 import com.bloxbean.cardano.client.txflow.store.FlowStoreException;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamStoreCodec;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStoreCodec;
 
 import javax.sql.DataSource;
 import java.io.IOException;

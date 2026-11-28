@@ -12,7 +12,7 @@ final class TxStreamOutcomes {
 
     static TxStreamItemResult requireConfirmed(TxStreamItemResult result) {
         Objects.requireNonNull(result, "result");
-        switch (result.getStatus()) {
+        switch (result.status()) {
             case CONFIRMED:
                 return result;
             case FAILED:
@@ -23,18 +23,18 @@ final class TxStreamOutcomes {
                 throw new TxStreamUncertainException(result);
             default:
                 throw new TxStreamException("TXSTREAM_ITEM_FAILED",
-                        "Item '" + result.getItemId() + "' did not reach a settled outcome; latest"
-                                + " status is " + result.getStatus());
+                        "Item '" + result.itemId() + "' did not reach a settled outcome; latest"
+                                + " status is " + result.status());
         }
     }
 
     static String failureCode(TxStreamItemResult result) {
         Objects.requireNonNull(result, "result");
-        Throwable cursor = result.getError();
+        Throwable cursor = result.error();
         Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         while (cursor != null && seen.add(cursor)) {
             if (cursor instanceof TxStreamException) {
-                return ((TxStreamException) cursor).getCode();
+                return ((TxStreamException) cursor).code();
             }
             cursor = cursor.getCause();
         }
@@ -43,21 +43,21 @@ final class TxStreamOutcomes {
 
     static String failureMessage(TxStreamItemResult result) {
         Objects.requireNonNull(result, "result");
-        String detail = result.getError() != null && result.getError().getMessage() != null
-                ? ": " + result.getError().getMessage() : "";
-        return "TxStream item '" + result.getItemId() + "' failed" + detail;
+        String detail = result.error() != null && result.error().getMessage() != null
+                ? ": " + result.error().getMessage() : "";
+        return "TxStream item '" + result.itemId() + "' failed" + detail;
     }
 
     static String cancelledMessage(TxStreamItemResult result) {
         Objects.requireNonNull(result, "result");
-        return "TxStream item '" + result.getItemId() + "' was cancelled";
+        return "TxStream item '" + result.itemId() + "' was cancelled";
     }
 
     static String uncertainMessage(TxStreamItemResult result) {
         Objects.requireNonNull(result, "result");
-        String hash = result.getTransactionHash() != null
-                ? " Known transaction hash: " + result.getTransactionHash() + "." : "";
-        return "DO NOT RESUBMIT: TxStream item '" + result.getItemId()
+        String hash = result.transactionHash() != null
+                ? " Known transaction hash: " + result.transactionHash() + "." : "";
+        return "DO NOT RESUBMIT: TxStream item '" + result.itemId()
                 + "' has an uncertain on-chain outcome and requires reconciliation."
                 + hash;
     }

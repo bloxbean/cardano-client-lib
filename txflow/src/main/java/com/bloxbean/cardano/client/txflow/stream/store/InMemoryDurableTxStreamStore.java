@@ -1,4 +1,11 @@
-package com.bloxbean.cardano.client.txflow.stream;
+package com.bloxbean.cardano.client.txflow.stream.store;
+
+import com.bloxbean.cardano.client.txflow.stream.TxFlowStream;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamBatchResult;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamDuplicateItemException;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamException;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -33,7 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * process termination. Pairing this store with a durable stream still requires a
  * durable engine store, exactly as the relational store does.</p>
  */
-public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
+final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
     private final Map<String, TxStreamItemRecord> records = new ConcurrentHashMap<>();
     private final Map<String, TxStreamBinding> bindings = new ConcurrentHashMap<>();
     private final Map<String, BindingOutcome> outcomes = new ConcurrentHashMap<>();
@@ -228,10 +235,10 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
         boolean[] applied = new boolean[1];
         projections.computeIfPresent(itemId, (ignored, entry) -> {
             TxStreamItemResult result = entry.result();
-            if (entry.sequence() != expectedSequence || !result.getStreamId().equals(streamId)
-                    || result.getStatus() != TxStreamItemStatus.RECOVERY_REQUIRED
-                    || !(result.getError() instanceof TxStreamException error)
-                    || !"TXSTREAM_ABANDONED".equals(error.getCode())) return entry;
+            if (entry.sequence() != expectedSequence || !result.streamId().equals(streamId)
+                    || result.status() != TxStreamItemStatus.RECOVERY_REQUIRED
+                    || !(result.error() instanceof TxStreamException error)
+                    || !"TXSTREAM_ABANDONED".equals(error.code())) return entry;
             TxStreamItemResult acknowledged = result.toBuilder().status(TxStreamItemStatus.FAILED)
                     .error(new TxStreamException("TXSTREAM_ABANDONED", "Operator acknowledgement: " + reason))
                     .updatedAt(Objects.requireNonNull(acknowledgedAt, "acknowledgedAt")).build();
@@ -246,8 +253,8 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
         List<String> result = new ArrayList<>();
         for (ProjectionEntry entry : projections.values()) {
             TxStreamItemResult projection = entry.result();
-            if (projection.getStreamId().equals(streamId) && !isFinal(projection.getStatus())) {
-                result.add(projection.getItemId());
+            if (projection.streamId().equals(streamId) && !isFinal(projection.status())) {
+                result.add(projection.itemId());
             }
         }
         return result;
@@ -263,7 +270,7 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
     public boolean projectItem(TxStreamItemResult result, long sourceSequence) {
         Objects.requireNonNull(result, "result");
         boolean[] applied = new boolean[1];
-        projections.compute(result.getItemId(), (ignored, existing) -> {
+        projections.compute(result.itemId(), (ignored, existing) -> {
             if (existing != null && sourceSequence <= existing.sequence()) {
                 return existing;
             }
@@ -276,7 +283,7 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
     @Override
     public Optional<TxStreamItemResult> getItem(String streamId, String itemId) {
         ProjectionEntry entry = projections.get(itemId);
-        if (entry == null || !entry.result().getStreamId().equals(streamId)) {
+        if (entry == null || !entry.result().streamId().equals(streamId)) {
             return Optional.empty();
         }
         return Optional.of(entry.result());
@@ -285,14 +292,14 @@ public final class InMemoryDurableTxStreamStore implements TxStreamStateStore {
     @Override
     public Optional<TxStreamStoredProjection> getStoredProjection(String streamId, String itemId) {
         ProjectionEntry entry = projections.get(itemId);
-        if (entry == null || !entry.result().getStreamId().equals(streamId)) return Optional.empty();
+        if (entry == null || !entry.result().streamId().equals(streamId)) return Optional.empty();
         return Optional.of(new TxStreamStoredProjection(entry.result(), entry.sequence()));
     }
 
     @Override
     public Optional<Long> lastProjectionSequence(String streamId, String itemId) {
         ProjectionEntry entry = projections.get(itemId);
-        if (entry == null || !entry.result().getStreamId().equals(streamId)) {
+        if (entry == null || !entry.result().streamId().equals(streamId)) {
             return Optional.empty();
         }
         return Optional.of(entry.sequence());

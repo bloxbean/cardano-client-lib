@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
+
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,7 +59,7 @@ final class ItemProjection {
     static ItemProjection reattaching(TxStreamItemResult seed, long storedSequence) {
         ItemProjection projection = new ItemProjection(seed);
         projection.sequence = storedSequence;
-        if (settles(seed.getStatus())) {
+        if (settles(seed.status())) {
             projection.promise.complete(seed);
         }
         return projection;
@@ -94,7 +96,7 @@ final class ItemProjection {
                                  UnaryOperator<TxStreamItemResult.Builder> customize,
                                  Instant at, boolean authoritative) {
         TxStreamItemResult prior = current.get();
-        TxStreamItemStatus from = prior.getStatus();
+        TxStreamItemStatus from = prior.status();
         if (from == target) return null;
         boolean allowed = authoritative ? !isFinal(from) : allowsLive(from, target);
         if (!allowed) return null;
@@ -103,8 +105,8 @@ final class ItemProjection {
             builder = customize.apply(builder);
         }
         TxStreamItemResult next = builder.build();
-        if (next.getTransactionHash() == null && prior.getTransactionHash() != null) {
-            next = next.toBuilder().transactionHash(prior.getTransactionHash()).build();
+        if (next.transactionHash() == null && prior.transactionHash() != null) {
+            next = next.toBuilder().transactionHash(prior.transactionHash()).build();
         }
         long appliedSequence = ++sequence;
         current.set(next);

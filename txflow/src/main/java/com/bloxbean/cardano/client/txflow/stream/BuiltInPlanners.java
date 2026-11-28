@@ -38,13 +38,13 @@ final class BuiltInPlanners {
     static final TxStreamPlanner PER_ITEM = context -> {
         List<PlannedExecution> executions = new ArrayList<>(context.items().size());
         for (TxWorkItem item : context.items()) {
-            TxStreamPlanningContext.PlanningSeed seed = context.seed(item.getItemId());
+            TxStreamPlanningContext.PlanningSeed seed = context.seed(item.itemId());
             FlowStep step = seed.enforcedStep;
             TxFlow flow = TxFlow.builder(context.ids().flowId(List.of(seed.claimKey)))
                     .addStep(step)
                     .build();
             executions.add(new PlannedExecution(flow, seed.lane.laneName(), seed.claimKey,
-                    List.of(new TxStreamPlannedItem(item.getItemId(), step.getId()))));
+                    List.of(new TxStreamPlannedItem(item.itemId(), step.getId()))));
         }
         return TxStreamPlan.of(executions);
     };
@@ -91,7 +91,7 @@ final class BuiltInPlanners {
         // Lane groups keyed and ordered by canonical spending identity.
         Map<String, List<TxWorkItem>> groups = new TreeMap<>();
         for (TxWorkItem item : context.items()) {
-            TxStreamPlanningContext.PlanningSeed seed = context.seed(item.getItemId());
+            TxStreamPlanningContext.PlanningSeed seed = context.seed(item.itemId());
             groups.computeIfAbsent(seed.lane.canonicalSpendingIdentity(),
                     ignored -> new ArrayList<>()).add(item);
         }
@@ -100,7 +100,7 @@ final class BuiltInPlanners {
             // Deterministic member order: sorted by claim key.
             Map<String, TxWorkItem> sorted = new TreeMap<>();
             for (TxWorkItem item : group) {
-                sorted.put(context.seed(item.getItemId()).claimKey, item);
+                sorted.put(context.seed(item.itemId()).claimKey, item);
             }
             for (Map<String, TxWorkItem> byClaimKey : bindingCompatibleRuns(sorted, context)) {
                 executions.add(planWindowFlow(byClaimKey, context, chainingMode));
@@ -122,7 +122,7 @@ final class BuiltInPlanners {
         Map<String, TxWorkItem> run = new TreeMap<>();
         Map<String, ExtensionMetadata> runBindings = new HashMap<>();
         for (Map.Entry<String, TxWorkItem> member : sorted.entrySet()) {
-            TxPlan plan = context.seed(member.getValue().getItemId()).enforcedStep.getTxPlan();
+            TxPlan plan = context.seed(member.getValue().itemId()).enforcedStep.getTxPlan();
             Map<String, ExtensionMetadata> bindings = plan != null ? plan.getExtensions() : Map.of();
             if (!FlowExtensions.mergeable(runBindings, bindings)) {
                 runs.add(run);
@@ -150,7 +150,7 @@ final class BuiltInPlanners {
         List<String> earlierGeneratedStepIds = new ArrayList<>();
         for (Map.Entry<String, TxWorkItem> member : byClaimKey.entrySet()) {
             TxStreamPlanningContext.PlanningSeed seed =
-                    context.seed(member.getValue().getItemId());
+                    context.seed(member.getValue().itemId());
             if (laneName == null) {
                 laneName = seed.lane.laneName();
             }
@@ -163,7 +163,7 @@ final class BuiltInPlanners {
                     ? earlierGeneratedStepIds : List.of();
             flowBuilder.addStep(copyStepWithId(
                     seed.enforcedStep, stepId, pipelineFunding));
-            mappings.add(new TxStreamPlannedItem(member.getValue().getItemId(), stepId));
+            mappings.add(new TxStreamPlannedItem(member.getValue().itemId(), stepId));
             earlierGeneratedStepIds.add(stepId);
         }
         return new PlannedExecution(flowBuilder.build(), laneName, flowClaimKey, mappings);
@@ -198,7 +198,7 @@ final class BuiltInPlanners {
             // items on different lanes never share a transaction.
             Map<String, List<TxWorkItem>> laneGroups = new TreeMap<>();
             for (TxWorkItem item : context.items()) {
-                String identity = context.seed(item.getItemId()).lane.canonicalSpendingIdentity();
+                String identity = context.seed(item.itemId()).lane.canonicalSpendingIdentity();
                 laneGroups.computeIfAbsent(identity, ignored -> new ArrayList<>()).add(item);
             }
             List<PlannedExecution> executions = new ArrayList<>();
@@ -208,7 +208,7 @@ final class BuiltInPlanners {
                 Map<String, TxWorkItem> batchable = new TreeMap<>();
                 List<TxWorkItem> singletons = new ArrayList<>();
                 for (TxWorkItem item : laneGroup) {
-                    TxStreamPlanningContext.PlanningSeed seed = context.seed(item.getItemId());
+                    TxStreamPlanningContext.PlanningSeed seed = context.seed(item.itemId());
                     if (isBatchablePayment(seed)) {
                         batchable.put(seed.claimKey, item);
                     } else if (options.allowNonPaymentSingletons()) {
@@ -220,7 +220,7 @@ final class BuiltInPlanners {
                         // stream's planner isolation as TXSTREAM_PLANNER_FAILED
                         // with this cause.
                         throw new TxStreamException("TXSTREAM_BATCH_INELIGIBLE_ITEM",
-                                "Item '" + item.getItemId() + "' is not a payment-shaped"
+                                "Item '" + item.itemId() + "' is not a payment-shaped"
                                         + " transaction and BatchingOptions rejects non-payment"
                                         + " items; it cannot be batched");
                     }
@@ -228,13 +228,13 @@ final class BuiltInPlanners {
                 // Non-payment / ineligible items keep per-item identity and true
                 // per-item dedup (a perItem-style single-step flow each).
                 for (TxWorkItem item : singletons) {
-                    TxStreamPlanningContext.PlanningSeed seed = context.seed(item.getItemId());
+                    TxStreamPlanningContext.PlanningSeed seed = context.seed(item.itemId());
                     FlowStep step = seed.enforcedStep;
                     TxFlow flow = TxFlow.builder(context.ids().flowId(List.of(seed.claimKey)))
                             .addStep(step)
                             .build();
                     executions.add(new PlannedExecution(flow, seed.lane.laneName(), seed.claimKey,
-                            List.of(new TxStreamPlannedItem(item.getItemId(), step.getId()))));
+                            List.of(new TxStreamPlannedItem(item.itemId(), step.getId()))));
                 }
                 // Batchable payments merge into chunks of at most
                 // maxItemsPerTransaction (overflow -> multiple merged flows).
@@ -349,13 +349,13 @@ final class BuiltInPlanners {
         String flowClaimKey = StreamIdentities.windowClaimKey(sortedKeys);
         String flowId = context.ids().flowId(sortedKeys);
         String mergedStepId = StreamIdentities.mergedStepId(sortedKeys);
-        ResolvedLane lane = context.seed(chunk.get(0).getValue().getItemId()).lane;
+        ResolvedLane lane = context.seed(chunk.get(0).getValue().itemId()).lane;
         LaneFundingScope scope = lane.fundingScope();
 
         Tx merged = new Tx();
         for (Map.Entry<String, TxWorkItem> member : chunk) {
             TxStreamPlanningContext.PlanningSeed seed =
-                    context.seed(member.getValue().getItemId());
+                    context.seed(member.getValue().itemId());
             Tx memberTx = singleTx(seed.enforcedStep.getTxPlan());
             for (TxIntent intent : memberTx.getIntentions()) {
                 PaymentIntent payment = (PaymentIntent) intent;
@@ -389,7 +389,7 @@ final class BuiltInPlanners {
         TxFlow flow = TxFlow.builder(flowId).addStep(mergedStep).build();
         List<TxStreamPlannedItem> mappings = new ArrayList<>(chunk.size());
         for (Map.Entry<String, TxWorkItem> member : chunk) {
-            mappings.add(new TxStreamPlannedItem(member.getValue().getItemId(), mergedStepId));
+            mappings.add(new TxStreamPlannedItem(member.getValue().itemId(), mergedStepId));
         }
         return new PlannedExecution(flow, lane.laneName(), flowClaimKey, mappings);
     }

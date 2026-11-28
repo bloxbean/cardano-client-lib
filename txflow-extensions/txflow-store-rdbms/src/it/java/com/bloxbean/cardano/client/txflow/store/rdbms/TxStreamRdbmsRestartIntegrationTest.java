@@ -2,12 +2,12 @@ package com.bloxbean.cardano.client.txflow.store.rdbms;
 
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
-import com.bloxbean.cardano.client.txflow.stream.BindingOutcome;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamBinding;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamItemRecord;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamPlannedRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.BindingOutcome;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamBinding;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
@@ -102,7 +102,7 @@ class TxStreamRdbmsRestartIntegrationTest {
             long storedSequence = streamStore.lastProjectionSequence(STREAM, ITEM).orElseThrow();
             assertEquals(2L, storedSequence);
             assertEquals(TxStreamItemStatus.PLANNED,
-                    streamStore.getItem(STREAM, ITEM).orElseThrow().getStatus());
+                    streamStore.getItem(STREAM, ITEM).orElseThrow().status());
             boolean applied = streamStore.projectItem(TxStreamItemResult.builder(STREAM, ITEM,
                             TxStreamItemStatus.CONFIRMED)
                     .executionId(EXECUTION).stepId("step").laneName("lane-a")
@@ -120,8 +120,8 @@ class TxStreamRdbmsRestartIntegrationTest {
             // #6: durable retention — the planned record and confirmed projection are retained.
             assertEquals(1, streamStore.listPlanned(STREAM).size());
             TxStreamItemResult confirmed = streamStore.getItem(STREAM, ITEM).orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.getStatus());
-            assertEquals("abcd", confirmed.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.status());
+            assertEquals("abcd", confirmed.transactionHash());
             assertEquals(3L, streamStore.lastProjectionSequence(STREAM, ITEM).orElseThrow());
             streamStore.evictItem(ITEM);
             assertFalse(streamStore.getItem(STREAM, ITEM).isEmpty(),

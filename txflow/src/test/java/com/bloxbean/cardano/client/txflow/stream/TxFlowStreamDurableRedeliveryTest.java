@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -35,23 +36,23 @@ class TxFlowStreamDurableRedeliveryTest {
                     TxStreamReceipt original = writer.submit("running", plan(2));
                     StubEngineGateway.StubHandle handle = gateway.lastHandle();
                     handle.submittedEvent(STEP, "hash-running");
-                    writer.getItemStatus("running");
+                    writer.itemStatus("running");
                     long sequence = store.lastProjectionSequence("durable", "running").orElseThrow();
                     if (snapshotPresent) gateway.putSnapshot(original.executionId().orElseThrow(),
                             FlowExecutionState.RUNNING);
                     clearInvocations(store);
                     TxStreamReceipt attached = attach ? reader.submit("running", plan(2)) : null;
-                    assertEquals(TxStreamItemStatus.SUBMITTED, reader.getItemStatus("running").orElseThrow().getStatus());
+                    assertEquals(TxStreamItemStatus.SUBMITTED, reader.itemStatus("running").orElseThrow().status());
                     reader.reconcile("running");
-                    assertEquals(TxStreamItemStatus.SUBMITTED, store.getItem("durable", "running").orElseThrow().getStatus());
+                    assertEquals(TxStreamItemStatus.SUBMITTED, store.getItem("durable", "running").orElseThrow().status());
                     assertEquals(sequence, store.lastProjectionSequence("durable", "running").orElseThrow());
-                    assertEquals(0, reader.getStats().recoveryRequiredItemCount());
+                    assertEquals(0, reader.stats().recoveryRequiredItemCount());
                     handle.completeConfirmed(STEP, "hash-running");
-                    assertEquals(TxStreamItemStatus.CONFIRMED, store.getItem("durable", "running").orElseThrow().getStatus());
-                    assertEquals(TxStreamItemStatus.CONFIRMED, reader.reconcile("running").orElseThrow().getStatus());
+                    assertEquals(TxStreamItemStatus.CONFIRMED, store.getItem("durable", "running").orElseThrow().status());
+                    assertEquals(TxStreamItemStatus.CONFIRMED, reader.reconcile("running").orElseThrow().status());
                     if (attached != null) assertEquals(TxStreamItemStatus.CONFIRMED,
-                            attached.awaitSettled(Duration.ofSeconds(1)).getStatus());
-                    assertEquals(0, reader.getStats().confirmedItemCount());
+                            attached.awaitSettled(Duration.ofSeconds(1)).status());
+                    assertEquals(0, reader.stats().confirmedItemCount());
                     assertEquals(1, gateway.started.size());
                     verify(store, never()).listPlanned("durable");
                     clearInvocations(store);
@@ -90,7 +91,7 @@ class TxFlowStreamDurableRedeliveryTest {
             verify(store, never()).listPlanned("durable");
             for (int pass = 0; pass < 8; pass++) scheduler.pending().fire();
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    store.getItem("durable", "z-remote").orElseThrow().getStatus());
+                    store.getItem("durable", "z-remote").orElseThrow().status());
             assertEquals(1, gateway.started.size());
         }
     }
@@ -106,14 +107,14 @@ class TxFlowStreamDurableRedeliveryTest {
                 gateway.lastHandle().completeConfirmed(STEP, "hash-" + id);
             }
             assertAttached(stream, "one");
-            assertEquals(2, stream.getStats().acceptedItemCount());
-            assertEquals(2, stream.getStats().confirmedItemCount());
-            assertEquals(EmitResult.Status.CONFLICT, stream.trySubmit("one", plan(3)).getStatus());
+            assertEquals(2, stream.stats().acceptedItemCount());
+            assertEquals(2, stream.stats().confirmedItemCount());
+            assertEquals(EmitResult.Status.CONFLICT, stream.trySubmit("one", plan(3)).status());
         }
         try (TxFlowStream restarted = builder(gateway, store).open()) {
             assertAttached(restarted, "one");
-            assertEquals(0, restarted.getStats().acceptedItemCount());
-            assertEquals(0, restarted.getStats().confirmedItemCount());
+            assertEquals(0, restarted.stats().acceptedItemCount());
+            assertEquals(0, restarted.stats().confirmedItemCount());
         }
         assertEquals(2, gateway.started.size());
     }
@@ -133,21 +134,21 @@ class TxFlowStreamDurableRedeliveryTest {
                         List.of(FlowStepResult.submissionPendingAt(STEP, "hash-one", List.of(), List.of(),
                                 new IllegalStateException("uncertain"), StubEngineGateway.NOW)),
                         null, StubEngineGateway.NOW, StubEngineGateway.NOW));
-                assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, original.current().getStatus());
+                assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, original.current().status());
                 TxStreamReceipt attached = null;
                 if (useRedelivery) {
                     EmitResult redelivery = reader.trySubmit("one", plan(2));
-                    assertEquals(EmitResult.Status.DUPLICATE_ATTACHED, redelivery.getStatus());
-                    attached = redelivery.getReceipt();
-                    assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, attached.awaitSettled().getStatus());
+                    assertEquals(EmitResult.Status.DUPLICATE_ATTACHED, redelivery.status());
+                    attached = redelivery.receipt();
+                    assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, attached.awaitSettled().status());
                 }
                 gateway.putSnapshot(original.executionId().orElseThrow(), FlowExecutionState.COMPLETED);
                 assertEquals(TxStreamItemStatus.CONFIRMED, reader.awaitResolution("one",
-                        Duration.ofSeconds(1), Duration.ofMillis(1)).getStatus());
-                if (attached != null) assertEquals(TxStreamItemStatus.CONFIRMED, attached.current().getStatus());
-                assertEquals(TxStreamItemStatus.CONFIRMED, store.getItem("durable", "one").orElseThrow().getStatus());
-                assertEquals(0, reader.getStats().acceptedItemCount());
-                assertEquals(0, reader.getStats().recoveryRequiredItemCount());
+                        Duration.ofSeconds(1), Duration.ofMillis(1)).status());
+                if (attached != null) assertEquals(TxStreamItemStatus.CONFIRMED, attached.current().status());
+                assertEquals(TxStreamItemStatus.CONFIRMED, store.getItem("durable", "one").orElseThrow().status());
+                assertEquals(0, reader.stats().acceptedItemCount());
+                assertEquals(0, reader.stats().recoveryRequiredItemCount());
                 assertEquals(1, gateway.started.size());
             }
         }
@@ -162,8 +163,8 @@ class TxFlowStreamDurableRedeliveryTest {
         try (TxFlowStream reader = builder(gateway, store).open()) {
             writer.submit("one", plan(2));
             EmitResult result = reader.trySubmit("one", plan(2));
-            assertEquals(EmitResult.Status.REJECTED, result.getStatus());
-            assertEquals(TxStreamCodes.REGISTRATION_INCOMPLETE, result.getRejection().getCode());
+            assertEquals(EmitResult.Status.REJECTED, result.status());
+            assertEquals(TxStreamCodes.REGISTRATION_INCOMPLETE, result.rejection().code());
             assertTrue(gateway.started.isEmpty());
         } finally {
             writer.abort("test cleanup");
@@ -172,8 +173,8 @@ class TxFlowStreamDurableRedeliveryTest {
 
     private void assertAttached(TxFlowStream stream, String itemId) {
         EmitResult result = stream.trySubmit(itemId, plan(2));
-        assertEquals(EmitResult.Status.DUPLICATE_ATTACHED, result.getStatus());
-        assertEquals("hash-" + itemId, result.getReceipt().awaitConfirmed().getTransactionHash());
+        assertEquals(EmitResult.Status.DUPLICATE_ATTACHED, result.status());
+        assertEquals("hash-" + itemId, result.receipt().awaitConfirmed().transactionHash());
     }
 
     private TxFlowStream.Builder builder(StubEngineGateway gateway, TxStreamStateStore store) {

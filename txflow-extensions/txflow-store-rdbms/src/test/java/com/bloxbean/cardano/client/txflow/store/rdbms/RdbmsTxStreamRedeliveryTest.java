@@ -18,12 +18,12 @@ import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
 import com.bloxbean.cardano.client.txflow.stream.EmitResult;
 import com.bloxbean.cardano.client.txflow.stream.TxFlowStream;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamBinding;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamItemRecord;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamPlannedRecord;
 import com.bloxbean.cardano.client.txflow.stream.WindowPolicy;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamBinding;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -60,10 +60,10 @@ class RdbmsTxStreamRedeliveryTest {
                     assertTrue(stream.cancel("two", "cancel before dispatch"));
                 }
                 EmitResult duplicate = stream.trySubmit("one", plan());
-                assertEquals(EmitResult.Status.DUPLICATE_ATTACHED, duplicate.getStatus());
+                assertEquals(EmitResult.Status.DUPLICATE_ATTACHED, duplicate.status());
                 assertEquals(TxStreamItemStatus.CANCELLED,
-                        duplicate.getReceipt().awaitSettled(Duration.ofSeconds(1)).getStatus());
-                assertEquals(pass == 0 ? 2 : 0, stream.getStats().acceptedItemCount());
+                        duplicate.receipt().awaitSettled(Duration.ofSeconds(1)).status());
+                assertEquals(pass == 0 ? 2 : 0, stream.stats().acceptedItemCount());
             }
         }
         verifyNoInteractions(processor);
@@ -94,9 +94,9 @@ class RdbmsTxStreamRedeliveryTest {
                     FlowExecutionState.COMPLETED, 0, 0, 0, now, Map.of()));
 
             assertEquals(TxStreamItemStatus.CONFIRMED, reader.awaitResolution("one",
-                    Duration.ofSeconds(1), Duration.ofMillis(1)).getStatus());
-            assertEquals("known-hash", items.getItem("payouts", "one").orElseThrow().getTransactionHash());
-            assertEquals(TxStreamItemStatus.CONFIRMED, items.getItem("payouts", "one").orElseThrow().getStatus());
+                    Duration.ofSeconds(1), Duration.ofMillis(1)).status());
+            assertEquals("known-hash", items.getItem("payouts", "one").orElseThrow().transactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, items.getItem("payouts", "one").orElseThrow().status());
             assertEquals(101, items.getStoredProjection("payouts", "one").orElseThrow().sourceSequence());
             verifyNoInteractions(processor);
         }

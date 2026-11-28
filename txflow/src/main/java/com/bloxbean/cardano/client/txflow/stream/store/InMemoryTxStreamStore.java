@@ -1,4 +1,9 @@
-package com.bloxbean.cardano.client.txflow.stream;
+package com.bloxbean.cardano.client.txflow.stream.store;
+
+import com.bloxbean.cardano.client.txflow.stream.TxStreamBatchResult;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamDuplicateItemException;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamException;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
 
 import java.util.Map;
 import java.util.Objects;
@@ -53,7 +58,7 @@ final class InMemoryTxStreamStore implements TxStreamStateStore {
     public boolean projectItem(TxStreamItemResult result, long sourceSequence) {
         Objects.requireNonNull(result, "result");
         boolean[] applied = new boolean[1];
-        projections.compute(result.getItemId(), (ignored, existing) -> {
+        projections.compute(result.itemId(), (ignored, existing) -> {
             if (existing != null && sourceSequence <= existing.sequence()) {
                 return existing;
             }
@@ -66,7 +71,7 @@ final class InMemoryTxStreamStore implements TxStreamStateStore {
     @Override
     public Optional<TxStreamItemResult> getItem(String streamId, String itemId) {
         ProjectionEntry entry = projections.get(itemId);
-        if (entry == null || !entry.result().getStreamId().equals(streamId)) {
+        if (entry == null || !entry.result().streamId().equals(streamId)) {
             return Optional.empty();
         }
         return Optional.of(entry.result());
@@ -75,7 +80,7 @@ final class InMemoryTxStreamStore implements TxStreamStateStore {
     @Override
     public Optional<Long> lastProjectionSequence(String streamId, String itemId) {
         ProjectionEntry entry = projections.get(itemId);
-        if (entry == null || !entry.result().getStreamId().equals(streamId)) {
+        if (entry == null || !entry.result().streamId().equals(streamId)) {
             return Optional.empty();
         }
         return Optional.of(entry.sequence());

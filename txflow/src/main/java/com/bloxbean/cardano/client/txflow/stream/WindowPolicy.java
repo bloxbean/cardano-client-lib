@@ -82,7 +82,7 @@ public final class WindowPolicy {
      *
      * @return item bound; {@link Integer#MAX_VALUE} for time-only policies
      */
-    public int getMaxItems() {
+    public int maxItems() {
         return maxItems;
     }
 
@@ -91,7 +91,7 @@ public final class WindowPolicy {
      *
      * @return age bound, or {@code null} for count-only policies
      */
-    public Duration getMaxAge() {
+    public Duration maxAge() {
         return maxAge;
     }
 

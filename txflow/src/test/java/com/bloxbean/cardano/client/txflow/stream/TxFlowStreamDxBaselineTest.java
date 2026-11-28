@@ -64,7 +64,7 @@ class TxFlowStreamDxBaselineTest {
 
             @Override
             public void onItemUpdated(TxStreamItemResult result) {
-                events.add("updated:" + result.getStatus());
+                events.add("updated:" + result.status());
             }
 
             @Override
@@ -88,7 +88,7 @@ class TxFlowStreamDxBaselineTest {
         TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
         gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
         assertEquals(TxStreamItemStatus.CONFIRMED,
-                receipt.completion().toCompletableFuture().join().getStatus());
+                receipt.completion().toCompletableFuture().join().status());
         stream.drain();
         stream.close();
 
@@ -108,7 +108,7 @@ class TxFlowStreamDxBaselineTest {
         TxStreamEventListener listener = new TxStreamEventListener() {
             @Override
             public void onItemAccepted(TxWorkItem item, TxStreamReceipt receipt) {
-                acceptedItems.add(item.getItemId());
+                acceptedItems.add(item.itemId());
             }
         };
 
@@ -122,11 +122,11 @@ class TxFlowStreamDxBaselineTest {
             TxStreamException result = assertThrows(TxStreamException.class,
                     () -> stream.submit(nonPortable));
 
-            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", result.getCode());
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", result.code());
             assertTrue(acceptedItems.isEmpty());
-            assertEquals(0, stream.getStats().acceptedItemCount());
-            assertEquals(0, stream.getStats().failedItemCount());
-            assertTrue(stream.getItemStatus("factory-item").isEmpty());
+            assertEquals(0, stream.stats().acceptedItemCount());
+            assertEquals(0, stream.stats().failedItemCount());
+            assertTrue(stream.itemStatus("factory-item").isEmpty());
             assertTrue(gateway.started.isEmpty());
         }
     }

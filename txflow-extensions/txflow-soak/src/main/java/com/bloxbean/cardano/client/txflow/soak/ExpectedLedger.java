@@ -85,8 +85,8 @@ public final class ExpectedLedger {
 
     /** Record the stream's own verdict for an item. Safe to call from receipt callbacks. */
     public void recordOutcome(String orderId, TxStreamItemResult result) {
-        recordOutcome(orderId, result.getStatus(), result.getTransactionHash(),
-                result.getError() == null ? null : String.valueOf(result.getError()));
+        recordOutcome(orderId, result.status(), result.transactionHash(),
+                result.error() == null ? null : String.valueOf(result.error()));
     }
 
     /**

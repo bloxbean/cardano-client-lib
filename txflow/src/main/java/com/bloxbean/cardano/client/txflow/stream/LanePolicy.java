@@ -124,18 +124,6 @@ public final class LanePolicy {
     }
 
     /**
-     * Compatibility alias for {@link #byFundingSource()}.
-     *
-     * @return funding-source-derived lane policy
-     * @deprecated use {@link #byFundingSource()}; references as well as
-     *             addresses are supported
-     */
-    @Deprecated
-    public static LanePolicy byFundingAddress() {
-        return byFundingSource();
-    }
-
-    /**
      * Configures hash-partitioned lanes over N application-provided lane
      * addresses, with an optional one-time fan-out bootstrap that splits the
      * funding source into the N lane UTXOs (ADR 0004 Decision 2; Open Question 3

@@ -116,28 +116,28 @@ public final class TxWorkItem {
      *
      * @return item id
      */
-    public String getItemId() { return itemId; }
+    public String itemId() { return itemId; }
 
     /**
      * Returns the payload kind.
      *
      * @return payload kind
      */
-    public Kind getKind() { return kind; }
+    public Kind kind() { return kind; }
 
     /**
      * Returns the flow-step payload.
      *
      * @return flow step, or {@code null} for {@link Kind#TX_PLAN} items
      */
-    public FlowStep getFlowStep() { return flowStep; }
+    public FlowStep flowStep() { return flowStep; }
 
     /**
      * Returns the transaction-plan payload.
      *
      * @return transaction plan, or {@code null} for {@link Kind#FLOW_STEP} items
      */
-    public TxPlan getTxPlan() { return txPlan; }
+    public TxPlan txPlan() { return txPlan; }
 
     /**
      * Returns the pre-registered template id this item invokes.
@@ -145,14 +145,14 @@ public final class TxWorkItem {
      * @return template id, or {@code null} unless this is a {@link Kind#TEMPLATE}
      *         item
      */
-    public String getTemplateId() { return templateId; }
+    public String templateId() { return templateId; }
 
     /**
      * Returns the idempotency key defining this item's engine claim.
      *
      * @return idempotency key, or {@code null} to default to the item id
      */
-    public String getIdempotencyKey() { return idempotencyKey; }
+    public String idempotencyKey() { return idempotencyKey; }
 
     /**
      * Returns the lane name this item was submitted on.
@@ -160,14 +160,14 @@ public final class TxWorkItem {
      * @return lane name, or {@code null} when the item relies on the stream's
      *         statically configured lane
      */
-    public String getLane() { return lane; }
+    public String lane() { return lane; }
 
     /**
      * Returns the immutable, key-ordered item metadata.
      *
      * @return metadata map
      */
-    public Map<String, String> getMetadata() { return metadata; }
+    public Map<String, String> metadata() { return metadata; }
 
     /**
      * Returns the non-sensitive portable scalar bindings supplied for this
@@ -176,7 +176,7 @@ public final class TxWorkItem {
      *
      * @return immutable, key-ordered non-sensitive bindings
      */
-    public Map<String, Object> getBindings() { return bindings; }
+    public Map<String, Object> bindings() { return bindings; }
 
     /**
      * Returns the secure-binding references supplied for this item's sensitive
@@ -185,7 +185,7 @@ public final class TxWorkItem {
      *
      * @return immutable, key-ordered secure-binding references
      */
-    public Map<String, String> getSecureBindingReferences() { return secureBindingReferences; }
+    public Map<String, String> secureBindingReferences() { return secureBindingReferences; }
 
     /**
      * Returns the inline sensitive bindings supplied as literal values rather
@@ -198,7 +198,7 @@ public final class TxWorkItem {
      *
      * @return immutable, key-ordered inline sensitive bindings
      */
-    public Map<String, Object> getSensitiveBindings() { return sensitiveBindings; }
+    public Map<String, Object> sensitiveBindings() { return sensitiveBindings; }
 
     private static String requireId(String id) {
         if (id == null || id.trim().isEmpty()) {

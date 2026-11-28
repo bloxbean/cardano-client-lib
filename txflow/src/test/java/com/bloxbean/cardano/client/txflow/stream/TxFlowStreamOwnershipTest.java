@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -59,13 +60,13 @@ class TxFlowStreamOwnershipTest {
         TxStreamReceipt receipt = a.submit(planItem("pay-1"));
         engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
         assertEquals(TxStreamItemStatus.CONFIRMED,
-                receipt.completion().toCompletableFuture().join().getStatus());
+                receipt.completion().toCompletableFuture().join().status());
         assertEquals(1, engine.started.size(), "exactly one start reached the engine");
 
         // The standby refuses new work — nothing of B's ever reaches the engine.
         TxStreamException rejected = assertThrows(TxStreamException.class,
                 () -> b.submit(planItem("pay-2")));
-        assertEquals("TXSTREAM_NOT_ACTIVE", rejected.getCode());
+        assertEquals("TXSTREAM_NOT_ACTIVE", rejected.code());
         assertEquals(1, engine.started.size(), "the standby dispatched nothing");
 
         a.close();
@@ -110,7 +111,7 @@ class TxFlowStreamOwnershipTest {
 
         engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
         assertEquals(TxStreamItemStatus.CONFIRMED,
-                b.getItemStatus("pay-1").orElseThrow().getStatus());
+                b.itemStatus("pay-1").orElseThrow().status());
         b.close();
     }
 
@@ -155,10 +156,10 @@ class TxFlowStreamOwnershipTest {
         // further, even though it had queued work.
         assertEquals(0, engine.started.size(), "no dispatch after the fence");
         TxStreamItemResult staleOutcome = staleReceipt.completion().toCompletableFuture().join();
-        assertEquals(TxStreamItemStatus.CANCELLED, staleOutcome.getStatus());
-        assertTrue(staleOutcome.getError() instanceof TxStreamException);
+        assertEquals(TxStreamItemStatus.CANCELLED, staleOutcome.status());
+        assertTrue(staleOutcome.error() instanceof TxStreamException);
         assertEquals("TXSTREAM_OWNERSHIP_LOST",
-                ((TxStreamException) staleOutcome.getError()).getCode());
+                ((TxStreamException) staleOutcome.error()).code());
 
         // A submit after step-down is refused (A is no longer accepting).
         assertThrows(TxStreamException.class, () -> a.submit(planItem("stale-2")));
@@ -239,7 +240,7 @@ class TxFlowStreamOwnershipTest {
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
             engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             assertEquals(1, engine.started.size());
             assertEquals(OwnershipStatus.State.DISABLED, stream.ownership().ownershipState());
         }
@@ -322,7 +323,7 @@ class TxFlowStreamOwnershipTest {
         // engine still sees exactly ONE start for the deterministic execution id.
         assertEquals(1, engine.started.size(), "a present snapshot is re-projected, not re-started");
         assertEquals(TxStreamItemStatus.CONFIRMED,
-                b.getItemStatus("pay-1").orElseThrow().getStatus());
+                b.itemStatus("pay-1").orElseThrow().status());
         b.close();
     }
 
@@ -351,7 +352,7 @@ class TxFlowStreamOwnershipTest {
         TxStreamReceipt receipt = a.submit(planItem("pay-1"));
         engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
         assertEquals(TxStreamItemStatus.CONFIRMED,
-                receipt.completion().toCompletableFuture().join().getStatus());
+                receipt.completion().toCompletableFuture().join().status());
         a.close();
     }
 
@@ -388,7 +389,7 @@ class TxFlowStreamOwnershipTest {
         TxStreamReceipt receipt = a.submit(planItem("pay-1"));
         engine.lastHandle().completeConfirmed(STEP_ID, "tx-1");
         assertEquals(TxStreamItemStatus.CONFIRMED,
-                receipt.completion().toCompletableFuture().join().getStatus(),
+                receipt.completion().toCompletableFuture().join().status(),
                 "a reclaimed owner dispatches again");
         a.close();
     }
@@ -489,7 +490,7 @@ class TxFlowStreamOwnershipTest {
         // Without the memo reset A would return its cached empty re-attach, never
         // re-scan, and leave pay-interim stuck at PLANNED forever.
         assertEquals(TxStreamItemStatus.CONFIRMED,
-                a.getItemStatus("pay-interim").orElseThrow().getStatus(),
+                a.itemStatus("pay-interim").orElseThrow().status(),
                 "the reclaiming owner re-attached and resumed the interim owner's durable work");
         assertEquals(1, engine.started.size(),
                 "the present-snapshot interim item is re-projected, never re-dispatched");

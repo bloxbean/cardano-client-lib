@@ -83,7 +83,7 @@ class TxFlowStreamPlanValidationTest {
         RecordingStateStore store = new RecordingStateStore();
         TxStreamPlanner shareStep = context -> {
             List<String> ids = context.items().stream()
-                    .map(TxWorkItem::getItemId).sorted().toList();
+                    .map(TxWorkItem::itemId).sorted().toList();
             FlowStep step = copyStep(stepFor(context, ids.get(0)), "shared-step");
             TxFlow flow = TxFlow.builder("shared-flow").addStep(step).build();
             return TxStreamPlan.of(List.of(new PlannedExecution(flow, LANE, "shared-claim",
@@ -110,10 +110,10 @@ class TxFlowStreamPlanValidationTest {
             gateway.lastHandle().completeConfirmed("shared-step", "tx-shared");
             TxStreamItemResult ra = a.completion().toCompletableFuture().join();
             TxStreamItemResult rb = b.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, ra.getStatus());
-            assertEquals(TxStreamItemStatus.CONFIRMED, rb.getStatus());
-            assertEquals("tx-shared", ra.getTransactionHash());
-            assertEquals("tx-shared", rb.getTransactionHash(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, ra.status());
+            assertEquals(TxStreamItemStatus.CONFIRMED, rb.status());
+            assertEquals("tx-shared", ra.transactionHash());
+            assertEquals("tx-shared", rb.transactionHash(),
                     "members sharing a step share the transaction's outcome and hash");
             assertTrue(stream.isHealthy());
         }
@@ -198,7 +198,7 @@ class TxFlowStreamPlanValidationTest {
             throws Exception {
         StubEngineGateway gateway = new StubEngineGateway();
         TxStreamPlanner constantClaim = context -> {
-            String itemId = context.items().get(0).getItemId();
+            String itemId = context.items().get(0).itemId();
             FlowStep step = copyStep(stepFor(context, itemId), "step-1");
             TxFlow flow = TxFlow.builder("flow-constant").addStep(step).build();
             return TxStreamPlan.of(List.of(new PlannedExecution(flow, LANE, "constant-claim",
@@ -219,10 +219,10 @@ class TxFlowStreamPlanValidationTest {
             TxStreamReceipt second = stream.submit(planItem("pay-2"));
             TxStreamItemResult outcome = second.completion().toCompletableFuture()
                     .get(10, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             TxStreamException error =
-                    assertInstanceOf(TxStreamException.class, outcome.getError());
-            assertEquals("TXSTREAM_PLAN_INVALID", error.getCode());
+                    assertInstanceOf(TxStreamException.class, outcome.error());
+            assertEquals("TXSTREAM_PLAN_INVALID", error.code());
             assertTrue(error.getMessage().contains("constant-claim"),
                     "the rejection must name the offending claim key: " + error.getMessage());
             assertTrue(error.getMessage().contains(liveExecutionId),
@@ -237,7 +237,7 @@ class TxFlowStreamPlanValidationTest {
             gateway.lastHandle().completeConfirmed("step-1", "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
                     first.completion().toCompletableFuture()
-                            .get(10, TimeUnit.SECONDS).getStatus());
+                            .get(10, TimeUnit.SECONDS).status());
         }
     }
 
@@ -274,10 +274,10 @@ class TxFlowStreamPlanValidationTest {
 
             for (TxStreamReceipt receipt : List.of(a, b)) {
                 TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+                assertEquals(TxStreamItemStatus.FAILED, outcome.status());
                 TxStreamException error =
-                        assertInstanceOf(TxStreamException.class, outcome.getError());
-                assertEquals("TXSTREAM_PLAN_CROSS_LANE", error.getCode());
+                        assertInstanceOf(TxStreamException.class, outcome.error());
+                assertEquals("TXSTREAM_PLAN_CROSS_LANE", error.code());
                 assertTrue(error.getMessage().contains("share exactly one lane"));
             }
             assertTrue(gateway.started.isEmpty());
@@ -302,17 +302,17 @@ class TxFlowStreamPlanValidationTest {
 
             TxStreamItemResult omittedOutcome =
                     omitted.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, omittedOutcome.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, omittedOutcome.status());
             assertEquals("TXSTREAM_PLAN_OMITTED", assertInstanceOf(TxStreamException.class,
-                    omittedOutcome.getError()).getCode());
+                    omittedOutcome.error()).code());
 
             assertEquals(1, gateway.started.size(), "the mapped item still dispatches");
             gateway.lastHandle().completeConfirmed(
                     gateway.started.get(0).getDefinition().getSteps().get(0).getId(), "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    kept.completion().toCompletableFuture().join().getStatus());
+                    kept.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamBatchStatus.PARTIALLY_COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "one member confirmed, one failed");
             assertTrue(stream.isHealthy());
         }
@@ -337,14 +337,14 @@ class TxFlowStreamPlanValidationTest {
 
             for (TxStreamReceipt receipt : List.of(first, second)) {
                 TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+                assertEquals(TxStreamItemStatus.FAILED, outcome.status());
                 TxStreamException error =
-                        assertInstanceOf(TxStreamException.class, outcome.getError());
-                assertEquals("TXSTREAM_PLANNER_FAILED", error.getCode());
+                        assertInstanceOf(TxStreamException.class, outcome.error());
+                assertEquals("TXSTREAM_PLANNER_FAILED", error.code());
                 assertNotNull(error.getCause());
             }
             assertTrue(stream.isHealthy(), "a planner failure must never kill the worker");
-            TxStreamBatchResult failedBatch = stream.getBatchStatus("batch-1").orElseThrow();
+            TxStreamBatchResult failedBatch = stream.batchStatus("batch-1").orElseThrow();
             assertEquals(TxStreamBatchStatus.FAILED, failedBatch.status());
             assertNotNull(failedBatch.failure());
 
@@ -364,9 +364,9 @@ class TxFlowStreamPlanValidationTest {
                             .toList(),
                     null, StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    third.completion().toCompletableFuture().join().getStatus());
+                    third.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    fourth.completion().toCompletableFuture().join().getStatus());
+                    fourth.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -378,9 +378,9 @@ class TxFlowStreamPlanValidationTest {
             stream.start();
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             assertEquals("TXSTREAM_PLANNER_FAILED", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+                    outcome.error()).code());
             assertTrue(stream.isHealthy());
         }
     }
@@ -409,24 +409,24 @@ class TxFlowStreamPlanValidationTest {
 
             for (TxStreamReceipt receipt : List.of(first, second)) {
                 TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus(),
+                assertEquals(TxStreamItemStatus.FAILED, outcome.status(),
                         "every window item must settle on plan rejection");
                 TxStreamException error =
-                        assertInstanceOf(TxStreamException.class, outcome.getError());
-                assertEquals("TXSTREAM_PLAN_INVALID", error.getCode());
+                        assertInstanceOf(TxStreamException.class, outcome.error());
+                assertEquals("TXSTREAM_PLAN_INVALID", error.code());
                 assertTrue(error.getMessage().contains(expectedDetail),
                         "unexpected detail: " + error.getMessage());
             }
             assertTrue(gateway.started.isEmpty(), "a rejected plan must never dispatch");
             assertTrue(stream.isHealthy());
             assertEquals(TxStreamBatchStatus.FAILED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
 
             // Capacity released: the buffer is exactly window-sized, so a full
             // second window is accepted without FULL.
             delegate.set(TxStreamPlanner.perWindow());
-            assertEquals(EmitResult.Status.OK, stream.trySubmit(planItem("pay-3")).getStatus());
-            assertEquals(EmitResult.Status.OK, stream.trySubmit(planItem("pay-4")).getStatus());
+            assertEquals(EmitResult.Status.OK, stream.trySubmit(planItem("pay-3")).status());
+            assertEquals(EmitResult.Status.OK, stream.trySubmit(planItem("pay-4")).status());
             assertEquals(1, gateway.started.size());
             StubEngineGateway.StubHandle handle = gateway.lastHandle();
             handle.complete(new com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult(
@@ -452,9 +452,9 @@ class TxFlowStreamPlanValidationTest {
 
     private FlowStep stepFor(TxStreamPlanningContext context, String itemId) {
         TxWorkItem item = context.items().stream()
-                .filter(candidate -> candidate.getItemId().equals(itemId))
+                .filter(candidate -> candidate.itemId().equals(itemId))
                 .findFirst().orElseThrow();
-        return FlowStep.builder("seed-" + itemId).withTxPlan(item.getTxPlan()).build();
+        return FlowStep.builder("seed-" + itemId).withTxPlan(item.txPlan()).build();
     }
 
     private FlowStep copyStep(FlowStep step, String newId) {

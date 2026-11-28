@@ -46,7 +46,7 @@ class TxFlowStreamLaneEnforcementTest {
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -70,7 +70,7 @@ class TxFlowStreamLaneEnforcementTest {
 
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -89,7 +89,7 @@ class TxFlowStreamLaneEnforcementTest {
                     "accepted plans are isolated from caller mutation");
             assertEquals(callerPlan.toYaml(), dispatched.getTxPlan().toYaml());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -103,11 +103,11 @@ class TxFlowStreamLaneEnforcementTest {
                     () -> stream.submit(TxWorkItem.fromTxPlan("pay-1",
                             TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1.5))
                                     .from(OTHER)))));
-            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", error.getCode());
+            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", error.code());
             assertTrue(error.getMessage().contains(OTHER));
             assertTrue(store.calls.isEmpty(), "the item must never be registered");
             assertTrue(gateway.started.isEmpty(), "the engine must never be invoked");
-            assertTrue(stream.getItemStatus("pay-1").isEmpty());
+            assertTrue(stream.itemStatus("pay-1").isEmpty());
             stream.drain();
         }
     }
@@ -122,7 +122,7 @@ class TxFlowStreamLaneEnforcementTest {
                     () -> stream.submit(TxWorkItem.fromTxPlan("pay-1",
                             TxPlan.from(new Tx().payToAddress(RECEIVER, Amount.ada(1.5))
                                     .fromRef(SENDER_REF)))));
-            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.getCode());
+            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.code());
             assertTrue(store.calls.isEmpty());
             assertTrue(gateway.started.isEmpty());
         }
@@ -139,7 +139,7 @@ class TxFlowStreamLaneEnforcementTest {
                     .build();
             TxStreamException outcome = assertThrows(TxStreamException.class,
                     () -> stream.submit(TxWorkItem.fromFlowStep("step-item", step)));
-            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.getCode());
+            assertEquals("TXSTREAM_LANE_SCOPE_VIOLATION", outcome.code());
         }
     }
 

@@ -202,8 +202,8 @@ TxStreamItemResult lock2Result = lock2.awaitConfirmed(Duration.ofMinutes(3));
 
 List<Utxo> escrows = ScriptUtxoFinders.findAllByInlineDatum(
         utxoSupplier, scriptAddress, vaultDatum);
-Utxo escrow1 = byTxHash(escrows, lock1Result.getTransactionHash());
-Utxo escrow2 = byTxHash(escrows, lock2Result.getTransactionHash());
+Utxo escrow1 = byTxHash(escrows, lock1Result.transactionHash());
+Utxo escrow2 = byTxHash(escrows, lock2Result.transactionHash());
 ```
 
 `byTxHash` is your own helper that filters by `Utxo.getTxHash()`. Confirmation can come before UTxO

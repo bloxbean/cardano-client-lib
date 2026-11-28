@@ -65,8 +65,8 @@ class TxStreamGettingStartedIntegrationTest {
             TxStreamItemResult result = stream.submit("getting-started-order-0042", plan)
                     .awaitConfirmed(RECEIPT_TIMEOUT);
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, result.getStatus());
-            assertNotNull(result.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, result.status());
+            assertNotNull(result.transactionHash());
         }
     }
 
@@ -81,9 +81,9 @@ class TxStreamGettingStartedIntegrationTest {
             }
             for (TxStreamReceipt receipt : receipts) {
                 assertEquals(TxStreamItemStatus.CONFIRMED,
-                        receipt.awaitConfirmed(RECEIPT_TIMEOUT).getStatus());
+                        receipt.awaitConfirmed(RECEIPT_TIMEOUT).status());
             }
-            assertEquals(4, receipts.stream().map(receipt -> receipt.current().getTransactionHash())
+            assertEquals(4, receipts.stream().map(receipt -> receipt.current().transactionHash())
                     .distinct().count());
         }
     }
@@ -100,12 +100,12 @@ class TxStreamGettingStartedIntegrationTest {
 
             TxStreamException rejected = assertThrows(TxStreamException.class,
                     () -> stream.submit("getting-started-corrected-order", missingFunding));
-            assertEquals("TXSTREAM_LANE_UNDERIVABLE", rejected.getCode());
-            assertTrue(stream.getItemStatus("getting-started-corrected-order").isEmpty());
+            assertEquals("TXSTREAM_LANE_UNDERIVABLE", rejected.code());
+            assertTrue(stream.itemStatus("getting-started-corrected-order").isEmpty());
 
             TxStreamItemResult corrected = submitWithRecovery(
                     stream, "getting-started-corrected-order", paymentPlan());
-            assertEquals(TxStreamItemStatus.CONFIRMED, corrected.getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED, corrected.status());
         }
     }
 

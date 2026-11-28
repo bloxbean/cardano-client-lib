@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.BindingOutcome;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -67,8 +68,8 @@ class TxFlowStreamFailurePathTest {
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.getStatus());
-            assertEquals("tx-stored", outcome.getTransactionHash(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.status());
+            assertEquals("tx-stored", outcome.transactionHash(),
                     "hash must be recovered from the engine store snapshot");
             assertEquals(List.of(BindingOutcome.MATCHED), store.outcomes,
                     "stored-snapshot re-attach must classify MATCHED");
@@ -85,9 +86,9 @@ class TxFlowStreamFailurePathTest {
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             assertEquals("TXSTREAM_DISPATCH_FAILED",
-                    assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+                    assertInstanceOf(TxStreamException.class, outcome.error()).code());
             assertEquals(List.of(BindingOutcome.REJECTED), store.outcomes);
             assertTrue(stream.isHealthy(), "a per-item dispatch failure must not poison the stream");
 
@@ -95,7 +96,7 @@ class TxFlowStreamFailurePathTest {
             TxStreamReceipt next = stream.submit(planItem("pay-2"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-2");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    next.completion().toCompletableFuture().join().getStatus());
+                    next.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -109,15 +110,15 @@ class TxFlowStreamFailurePathTest {
                     new IllegalStateException("execution machinery failed"));
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, outcome.status());
             assertEquals("TXSTREAM_EXECUTION_FAILED",
-                    assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+                    assertInstanceOf(TxStreamException.class, outcome.error()).code());
             assertTrue(stream.isHealthy());
 
             TxStreamReceipt next = stream.submit(planItem("pay-2"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-2");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    next.completion().toCompletableFuture().join().getStatus());
+                    next.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -131,20 +132,20 @@ class TxFlowStreamFailurePathTest {
 
             TxStreamException thrown = assertThrows(TxStreamException.class,
                     () -> stream.submit(planItem("pay-1")));
-            assertEquals("TXSTREAM_REGISTRATION_FAILED", thrown.getCode());
+            assertEquals("TXSTREAM_REGISTRATION_FAILED", thrown.code());
 
             // BUG-4: trySubmit never throws for registration outcomes.
             EmitResult emit = stream.trySubmit(planItem("pay-1"));
-            assertEquals(EmitResult.Status.REJECTED, emit.getStatus());
-            assertNotNull(emit.getRejection());
-            assertEquals("TXSTREAM_REGISTRATION_FAILED", emit.getRejection().getCode());
+            assertEquals(EmitResult.Status.REJECTED, emit.status());
+            assertNotNull(emit.rejection());
+            assertEquals("TXSTREAM_REGISTRATION_FAILED", emit.rejection().code());
             assertTrue(stream.isHealthy());
 
             store.registerFailure = null;
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -159,8 +160,8 @@ class TxFlowStreamFailurePathTest {
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
 
             TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.getStatus());
-            assertEquals("tx-1", outcome.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.status());
+            assertEquals("tx-1", outcome.transactionHash());
             assertTrue(stream.isHealthy());
             assertEquals(List.of(BindingOutcome.CREATED), store.outcomes,
                     "the confirm attempt itself must have been made");
@@ -177,15 +178,15 @@ class TxFlowStreamFailurePathTest {
         try (TxFlowStream stream = builder("payouts", gateway).build()) {
             stream.start();
             assertEquals("TXSTREAM_NON_PORTABLE_ITEM", assertThrows(TxStreamException.class,
-                    () -> stream.submit(nonPortableItem("bad-item", "v1"))).getCode());
+                    () -> stream.submit(nonPortableItem("bad-item", "v1"))).code());
             assertEquals("TXSTREAM_NON_PORTABLE_ITEM", assertThrows(TxStreamException.class,
-                    () -> stream.submit(nonPortableItem("bad-item", "v1"))).getCode());
+                    () -> stream.submit(nonPortableItem("bad-item", "v1"))).code());
 
             EmitResult emit = stream.trySubmit(nonPortableItem("bad-item", "v1"));
-            assertEquals(EmitResult.Status.REJECTED, emit.getStatus());
-            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", emit.getRejection().getCode());
-            assertNull(emit.getReceipt());
-            assertTrue(stream.getItemStatus("bad-item").isEmpty());
+            assertEquals(EmitResult.Status.REJECTED, emit.status());
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", emit.rejection().code());
+            assertNull(emit.receipt());
+            assertTrue(stream.itemStatus("bad-item").isEmpty());
             assertTrue(gateway.started.isEmpty());
         }
     }
@@ -200,8 +201,8 @@ class TxFlowStreamFailurePathTest {
 
             TxStreamException rejection = assertThrows(TxStreamException.class,
                     () -> stream.submit(nonPortableItem("bad-item", "v2")));
-            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", rejection.getCode());
-            assertTrue(stream.getItemStatus("bad-item").isEmpty());
+            assertEquals("TXSTREAM_NON_PORTABLE_ITEM", rejection.code());
+            assertTrue(stream.itemStatus("bad-item").isEmpty());
         }
     }
 
@@ -215,7 +216,7 @@ class TxFlowStreamFailurePathTest {
             @Override
             public void onItemRejected(String itemId, TxStreamException cause) {
                 assertEquals("bad-item", itemId);
-                assertEquals("TXSTREAM_NON_PORTABLE_ITEM", cause.getCode());
+                assertEquals("TXSTREAM_NON_PORTABLE_ITEM", cause.code());
                 rejectedCallbacks.incrementAndGet();
                 throw new IllegalStateException("observer failure must be isolated");
             }
@@ -237,14 +238,14 @@ class TxFlowStreamFailurePathTest {
                     "blocking rejection emits exactly one callback");
 
             EmitResult emitted = stream.trySubmit(nonPortableItem("bad-item", "v1"));
-            assertEquals(EmitResult.Status.REJECTED, emitted.getStatus());
-            assertNull(emitted.getReceipt());
+            assertEquals(EmitResult.Status.REJECTED, emitted.status());
+            assertNull(emitted.receipt());
             assertEquals(2, rejectedCallbacks.get(),
                     "non-blocking rejection emits exactly one callback");
             assertEquals(0, acceptedCallbacks.get());
             assertTrue(store.calls.isEmpty());
-            assertTrue(stream.getItemStatus("bad-item").isEmpty());
-            TxStreamStats rejectedStats = stream.getStats();
+            assertTrue(stream.itemStatus("bad-item").isEmpty());
+            TxStreamStats rejectedStats = stream.stats();
             assertEquals(0, rejectedStats.acceptedItemCount());
             assertEquals(0, rejectedStats.failedItemCount());
             assertEquals(0, rejectedStats.pendingBufferSize());
@@ -253,7 +254,7 @@ class TxFlowStreamFailurePathTest {
             assertEquals(1, acceptedCallbacks.get());
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-corrected");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    corrected.completion().toCompletableFuture().join().getStatus());
+                    corrected.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -290,22 +291,22 @@ class TxFlowStreamFailurePathTest {
             // is RECOVERY_REQUIRED with the execution id attached — never a
             // FAILED that denies a possibly landing transaction.
             TxStreamItemResult outcome = started.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, outcome.status());
             TxStreamException error = assertInstanceOf(TxStreamException.class,
-                    outcome.getError());
-            assertEquals("TXSTREAM_EXECUTION_UNOBSERVABLE", error.getCode());
-            assertEquals(started.executionId().orElseThrow(), outcome.getExecutionId(),
+                    outcome.error());
+            assertEquals("TXSTREAM_EXECUTION_UNOBSERVABLE", error.code());
+            assertEquals(started.executionId().orElseThrow(), outcome.executionId(),
                     "the execution id must be attached for operator reconcile/recover");
 
             assertFalse(stream.isHealthy(),
                     "an unobservable-execution gateway is a broken stream");
-            assertEquals(1, stream.getStats().inFlightCount(),
+            assertEquals(1, stream.stats().inFlightCount(),
                     "the lane must stay busy: the execution still occupies its identity");
 
             TxStreamItemResult drained = pending.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, drained.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, drained.status());
             assertEquals("TXSTREAM_UNHEALTHY", assertInstanceOf(TxStreamException.class,
-                    drained.getError()).getCode());
+                    drained.error()).code());
             stream.drain();   // both items settled: drain returns despite the busy lane
         }
     }
@@ -343,7 +344,7 @@ class TxFlowStreamFailurePathTest {
                     "the running item must not be failed by the cancel-forwarding failure");
             inner.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus(),
+                    receipt.completion().toCompletableFuture().join().status(),
                     "the item settles from engine truth, not from the broken signal");
         }
     }
@@ -367,16 +368,16 @@ class TxFlowStreamFailurePathTest {
 
             TxStreamException thrown = assertThrows(TxStreamException.class,
                     () -> stream.submit(invalid));
-            assertEquals("TXSTREAM_INVALID_ITEM", thrown.getCode());
+            assertEquals("TXSTREAM_INVALID_ITEM", thrown.code());
 
             EmitResult emit = stream.trySubmit(invalid);
-            assertEquals(EmitResult.Status.REJECTED, emit.getStatus());
-            assertEquals("TXSTREAM_INVALID_ITEM", emit.getRejection().getCode());
+            assertEquals(EmitResult.Status.REJECTED, emit.status());
+            assertEquals("TXSTREAM_INVALID_ITEM", emit.rejection().code());
 
             assertTrue(store.calls.isEmpty(), "an invalid item is never registered");
             assertTrue(gateway.started.isEmpty());
             assertTrue(stream.isHealthy());
-            assertTrue(stream.getItemStatus("pay-1").isEmpty(), "nothing is retained");
+            assertTrue(stream.itemStatus("pay-1").isEmpty(), "nothing is retained");
 
             // A null item stays a programming error, not a content outcome.
             assertThrows(NullPointerException.class, () -> stream.submit(null));
@@ -384,7 +385,7 @@ class TxFlowStreamFailurePathTest {
             TxStreamReceipt valid = stream.submit(planItem("pay-1"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    valid.completion().toCompletableFuture().join().getStatus());
+                    valid.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -405,7 +406,7 @@ class TxFlowStreamFailurePathTest {
         TxStreamEventListener saboteur = new TxStreamEventListener() {
             @Override
             public void onItemAccepted(TxWorkItem item, TxStreamReceipt receipt) {
-                if ("pay-2".equals(item.getItemId())) {
+                if ("pay-2".equals(item.itemId())) {
                     executor.reject = true;
                     gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-1");
                 }
@@ -423,12 +424,12 @@ class TxFlowStreamFailurePathTest {
 
             assertFalse(stream.isHealthy());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    first.completion().toCompletableFuture().join().getStatus());
+                    first.completion().toCompletableFuture().join().status());
             TxStreamItemResult stranded = second.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, stranded.getStatus());
+            assertEquals(TxStreamItemStatus.FAILED, stranded.status());
             assertEquals("TXSTREAM_UNHEALTHY",
-                    assertInstanceOf(TxStreamException.class, stranded.getError()).getCode());
-            assertEquals(0, stream.getStats().pendingBufferSize(),
+                    assertInstanceOf(TxStreamException.class, stranded.error()).code());
+            assertEquals(0, stream.stats().pendingBufferSize(),
                     "the item must not be stranded in the buffer");
             stream.drain();
         }

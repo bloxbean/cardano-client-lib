@@ -168,19 +168,19 @@ class TxFlowStreamContractIntegrationTest {
                     .get(180, TimeUnit.SECONDS);
             TxStreamItemResult lock2Result = lock2.completion().toCompletableFuture()
                     .get(180, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.CONFIRMED, lock1Result.getStatus(),
-                    () -> String.valueOf(lock1Result.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, lock2Result.getStatus(),
-                    () -> String.valueOf(lock2Result.getError()));
-            waitForUtxo(lock1Result.getTransactionHash(), scriptAddress);
-            waitForUtxo(lock2Result.getTransactionHash(), scriptAddress);
+            assertEquals(TxStreamItemStatus.CONFIRMED, lock1Result.status(),
+                    () -> String.valueOf(lock1Result.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, lock2Result.status(),
+                    () -> String.valueOf(lock2Result.error()));
+            waitForUtxo(lock1Result.transactionHash(), scriptAddress);
+            waitForUtxo(lock2Result.transactionHash(), scriptAddress);
 
             // --- 2. FIND the escrow UTXOs by inline datum, map each to its order
             // by the lock transaction hash the service recorded ---
             List<Utxo> escrows = ScriptUtxoFinders.findAllByInlineDatum(
                     utxoSupplier, scriptAddress, vaultDatum);
-            Utxo escrow1 = byTxHash(escrows, lock1Result.getTransactionHash());
-            Utxo escrow2 = byTxHash(escrows, lock2Result.getTransactionHash());
+            Utxo escrow1 = byTxHash(escrows, lock1Result.transactionHash());
+            Utxo escrow2 = byTxHash(escrows, lock2Result.transactionHash());
 
             // --- 3. CLAIM both escrows through the stream on the shared
             // contract lane (fulfillment events; event id = idempotency key) ---
@@ -193,16 +193,16 @@ class TxFlowStreamContractIntegrationTest {
                     .get(180, TimeUnit.SECONDS);
             stream.awaitDrain(Duration.ofSeconds(60));
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, claim1Result.getStatus(),
-                    () -> String.valueOf(claim1Result.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, claim2Result.getStatus(),
-                    () -> String.valueOf(claim2Result.getError()));
-            assertNotNull(claim1Result.getTransactionHash());
-            assertNotNull(claim2Result.getTransactionHash());
-            assertNotEquals(claim1Result.getTransactionHash(), claim2Result.getTransactionHash(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, claim1Result.status(),
+                    () -> String.valueOf(claim1Result.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, claim2Result.status(),
+                    () -> String.valueOf(claim2Result.error()));
+            assertNotNull(claim1Result.transactionHash());
+            assertNotNull(claim2Result.transactionHash());
+            assertNotEquals(claim1Result.transactionHash(), claim2Result.transactionHash(),
                     "each order settles in its own claim transaction");
-            assertEquals(escrowLane, claim1Result.getLaneName());
-            assertEquals(escrowLane, claim2Result.getLaneName());
+            assertEquals(escrowLane, claim1Result.laneName());
+            assertEquals(escrowLane, claim2Result.laneName());
 
             // --- 4. Idempotency: a redelivered fulfillment event attaches to
             // the existing claim instead of double-claiming the escrow ---
@@ -212,13 +212,13 @@ class TxFlowStreamContractIntegrationTest {
             // --- 5. The funds arrived at the beneficiary ---
             List<Utxo> received = utxoSupplier.getAll(beneficiary.baseAddress());
             assertTrue(received.stream().anyMatch(
-                            u -> u.getTxHash().equals(claim1Result.getTransactionHash())),
+                            u -> u.getTxHash().equals(claim1Result.transactionHash())),
                     "order-1 payout should be at the beneficiary");
             assertTrue(received.stream().anyMatch(
-                            u -> u.getTxHash().equals(claim2Result.getTransactionHash())),
+                            u -> u.getTxHash().equals(claim2Result.transactionHash())),
                     "order-2 payout should be at the beneficiary");
 
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(4, stats.acceptedItemCount());
             assertEquals(4, stats.confirmedItemCount());
             assertEquals(0, stats.failedItemCount());

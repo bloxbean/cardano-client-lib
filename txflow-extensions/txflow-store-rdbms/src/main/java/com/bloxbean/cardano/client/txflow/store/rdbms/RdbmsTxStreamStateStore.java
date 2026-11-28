@@ -1,19 +1,19 @@
 package com.bloxbean.cardano.client.txflow.store.rdbms;
 
-import com.bloxbean.cardano.client.txflow.stream.BindingOutcome;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamBatchResult;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamBatchStatus;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamBinding;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamDuplicateItemException;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamException;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamItemRecord;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
-import com.bloxbean.cardano.client.txflow.stream.StreamOwnershipLease;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamPlannedRecord;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamStateStore;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamStoredProjection;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamStoreCodec;
+import com.bloxbean.cardano.client.txflow.stream.store.BindingOutcome;
+import com.bloxbean.cardano.client.txflow.stream.store.StreamOwnershipLease;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamBinding;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStoreCodec;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStoredProjection;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -134,7 +134,7 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
             });
         } catch (TxStreamException failure) {
             // A concurrent insert of the same brand-new item surfaces as a unique conflict.
-            if ("TXSTREAM_STORE_UNIQUE_CONFLICT".equals(failure.getCode())) {
+            if ("TXSTREAM_STORE_UNIQUE_CONFLICT".equals(failure.code())) {
                 throw new TxStreamDuplicateItemException(record.itemId(),
                         "Item is already registered: " + record.itemId());
             }
@@ -159,7 +159,7 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
                 return true;
             });
         } catch (TxStreamException conflict) {
-            if (!"TXSTREAM_STORE_UNIQUE_CONFLICT".equals(conflict.getCode())) throw conflict;
+            if (!"TXSTREAM_STORE_UNIQUE_CONFLICT".equals(conflict.code())) throw conflict;
             // The unique constraint chooses one winner across connections. The
             // losing transaction has rolled back; read the winner in a fresh
             // transaction (essential on PostgreSQL after a unique violation).
@@ -235,13 +235,13 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
     public boolean projectItem(TxStreamItemResult result, long sourceSequence) {
         Objects.requireNonNull(result, "result");
         return inTransaction("project stream item", connection -> {
-            Long stored = readProjectionSequence(connection, result.getItemId());
+            Long stored = readProjectionSequence(connection, result.itemId());
             // Strict compare-and-swap: only a strictly greater source sequence wins.
             if (stored != null && sourceSequence <= stored) {
                 return Boolean.FALSE;
             }
             boolean rowExists = stored != null || registrationRowExists(connection,
-                    result.getItemId());
+                    result.itemId());
             if (rowExists) {
                 updateProjection(connection, result, sourceSequence);
             } else {
@@ -814,7 +814,7 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
                         + "error_code = ?, error_message = ?, updated_at = ?, "
                         + "projection_sequence = ?, terminal = ? WHERE item_id = ?")) {
             bindProjection(statement, result, sequence);
-            statement.setString(12, result.getItemId());
+            statement.setString(12, result.itemId());
             statement.executeUpdate();
         }
     }
@@ -827,24 +827,24 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
                         + "updated_at, projection_sequence, terminal, item_id) "
                         + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
             bindProjection(statement, result, sequence);
-            statement.setString(12, result.getItemId());
+            statement.setString(12, result.itemId());
             statement.executeUpdate();
         }
     }
 
     private void bindProjection(PreparedStatement statement, TxStreamItemResult result,
                                 long sequence) throws SQLException {
-        statement.setString(1, result.getStreamId());
-        statement.setString(2, result.getStatus().name());
-        statement.setString(3, result.getExecutionId());
-        statement.setString(4, result.getStepId());
-        statement.setString(5, result.getLaneName());
-        statement.setString(6, result.getTransactionHash());
-        statement.setString(7, errorCode(result.getError()));
-        statement.setString(8, errorMessage(result.getError()));
-        statement.setTimestamp(9, timestamp(result.getUpdatedAt()));
+        statement.setString(1, result.streamId());
+        statement.setString(2, result.status().name());
+        statement.setString(3, result.executionId());
+        statement.setString(4, result.stepId());
+        statement.setString(5, result.laneName());
+        statement.setString(6, result.transactionHash());
+        statement.setString(7, errorCode(result.error()));
+        statement.setString(8, errorMessage(result.error()));
+        statement.setTimestamp(9, timestamp(result.updatedAt()));
         statement.setLong(10, sequence);
-        statement.setBoolean(11, isTerminal(result.getStatus()));
+        statement.setBoolean(11, isTerminal(result.status()));
     }
 
     private TxStreamItemResult decodeProjection(ResultSet row, String itemId) throws SQLException {
@@ -931,7 +931,7 @@ public final class RdbmsTxStreamStateStore implements TxStreamStateStore, AutoCl
 
     private String errorCode(Throwable error) {
         if (error instanceof TxStreamException streamException) {
-            return streamException.getCode();
+            return streamException.code();
         }
         return null;
     }

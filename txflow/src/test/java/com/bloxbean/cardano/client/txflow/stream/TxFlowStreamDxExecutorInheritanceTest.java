@@ -52,7 +52,7 @@ class TxFlowStreamDxExecutorInheritanceTest {
             TxStreamReceipt receipt = stream.submit(planItem("inherited"));
             inheritedGateway.lastHandle().completeConfirmed(STEP_ID, "tx-inherited");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             assertTrue(inherited.count.get() > 0);
         }
 
@@ -65,7 +65,7 @@ class TxFlowStreamDxExecutorInheritanceTest {
             TxStreamReceipt receipt = stream.submit(planItem("explicit"));
             explicitGateway.lastHandle().completeConfirmed(STEP_ID, "tx-explicit");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
             assertTrue(explicit.count.get() > 0);
             assertEquals(0, gatewayExecutor.count.get());
         }
@@ -87,7 +87,7 @@ class TxFlowStreamDxExecutorInheritanceTest {
                 TxStreamReceipt receipt = stream.submit(planItem(override ? "explicit" : "inherited"));
                 assertFalse((override ? explicit : inherited).pending().isCancelled());
                 stream.flush();
-                assertEquals(TxStreamItemStatus.FAILED, receipt.awaitSettled(Duration.ofSeconds(1)).getStatus());
+                assertEquals(TxStreamItemStatus.FAILED, receipt.awaitSettled(Duration.ofSeconds(1)).status());
             }
         }
         assertEquals(1, inherited.tasks.size());
@@ -138,7 +138,7 @@ class TxFlowStreamDxExecutorInheritanceTest {
 
             assertEquals(TxStreamItemStatus.FAILED,
                     receipt.completion().toCompletableFuture()
-                            .get(5, TimeUnit.SECONDS).getStatus(),
+                            .get(5, TimeUnit.SECONDS).status(),
                     "stream dispatch must return before engine completion scheduled on the same pool");
         } finally {
             shared.shutdownNow();

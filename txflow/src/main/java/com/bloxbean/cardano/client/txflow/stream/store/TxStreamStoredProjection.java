@@ -1,4 +1,6 @@
-package com.bloxbean.cardano.client.txflow.stream;
+package com.bloxbean.cardano.client.txflow.stream.store;
+
+import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
 
 import java.util.Objects;
 

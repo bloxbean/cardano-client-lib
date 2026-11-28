@@ -318,7 +318,7 @@ flowchart TB
 | `byFundingSource()` | item's `from` / `from_ref` | none | no |
 | `partitioned(PartitionedLanes)` | `hash(key) % N` | none (addresses supplied) | optional, default on |
 
-Template items cannot derive a lane from a single transaction: under `byFundingSource()` / `partitioned()` they fail `TXSTREAM_LANE_REQUIRED`. Use `single()` or `explicit()`. `byFundingAddress()` remains a deprecated compatibility alias.
+Template items cannot derive a lane from a single transaction: under `byFundingSource()` / `partitioned()` they fail `TXSTREAM_LANE_REQUIRED`. Use `single()` or `explicit()`.
 
 ---
 

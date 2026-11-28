@@ -238,7 +238,7 @@ public final class TxStreamSoak {
              SoakMetrics metrics = new SoakMetrics(dataDir.resolve("samples.csv"),
                      (elapsed, heap, threads) -> {
                          TxFlowStream s = cluster.active();
-                         TxStreamStats st = s == null ? null : s.getStats();
+                         TxStreamStats st = s == null ? null : s.stats();
                          return new SoakMetrics.Sample(elapsed, heap, threads,
                                  st == null ? 0 : st.acceptedItemCount(),
                                  st == null ? 0 : st.confirmedItemCount(),
@@ -319,15 +319,15 @@ public final class TxStreamSoak {
             gate.verified = true;         // receipt contract settles with values; be defensive
             return true;
         }
-        String hash = r.getTransactionHash();
+        String hash = r.transactionHash();
         // CONFIRMED must become visible before the lane builds again. RECOVERY_REQUIRED
         // gets the same treatment: the transaction was submitted and may land any moment —
         // releasing the lane immediately is exactly how the next build ends up spending a
         // UTXO set the pending transaction is about to invalidate. A conclusive FAILED or
         // CANCELLED (post core-fix, FAILED really is conclusive) left nothing on chain.
         boolean mayBeOnChain = hash != null
-                && (r.getStatus() == TxStreamItemStatus.CONFIRMED
-                    || r.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED);
+                && (r.status() == TxStreamItemStatus.CONFIRMED
+                    || r.status() == TxStreamItemStatus.RECOVERY_REQUIRED);
         if (!mayBeOnChain) {
             gate.verified = true;
             return true;
@@ -414,11 +414,11 @@ public final class TxStreamSoak {
             if (emit == null) {
                 ledger.recordRejected(orderId, "no active stream instance");
             } else {
-                switch (emit.getStatus()) {
+                switch (emit.status()) {
                     case OK:
                     case DUPLICATE_ATTACHED:
                         java.util.concurrent.CompletableFuture<TxStreamItemResult> completion =
-                                emit.getReceipt().completion().toCompletableFuture();
+                                emit.receipt().completion().toCompletableFuture();
                         completion.thenAccept(r -> ledger.recordOutcome(orderId, r));
                         if (gateSupplier != null) {
                             LaneGate gate = gates[lane.index()];
@@ -429,11 +429,11 @@ public final class TxStreamSoak {
                     case FULL:
                     case PAUSED:
                         backpressure++;
-                        ledger.recordRejected(orderId, "not accepted: " + emit.getStatus());
+                        ledger.recordRejected(orderId, "not accepted: " + emit.status());
                         Thread.sleep(500);
                         break;
                     default:
-                        ledger.recordRejected(orderId, "not accepted: " + emit.getStatus());
+                        ledger.recordRejected(orderId, "not accepted: " + emit.status());
                         break;
                 }
             }
@@ -447,7 +447,7 @@ public final class TxStreamSoak {
             // ---- progress ------------------------------------------------------
             if (System.currentTimeMillis() >= nextProgress) {
                 TxFlowStream s = cluster.active();
-                TxStreamStats st = s == null ? null : s.getStats();
+                TxStreamStats st = s == null ? null : s.stats();
                 System.out.printf("  t+%-6s submitted=%-7d confirmed=%-7d failed=%-4d inflight=%-3d "
                                 + "backpressure=%-5d gatewaits=%-6d heap=%.0fMB%n",
                         humanize(Duration.between(startedAt, Instant.now())),
@@ -541,7 +541,7 @@ public final class TxStreamSoak {
         List<SoakJournal.Intent> orphaned = new java.util.ArrayList<>();
         for (SoakJournal.Intent intent : journal.readIntents()) {
             try {
-                if (stream.getItemStatus(intent.orderId()).isEmpty()) orphaned.add(intent);
+                if (stream.itemStatus(intent.orderId()).isEmpty()) orphaned.add(intent);
             } catch (Exception ignored) {
                 orphaned.add(intent);
             }
@@ -573,12 +573,12 @@ public final class TxStreamSoak {
             if (funding.size() > 1) item = item.withLane(lane.name());
 
             EmitResult emit = stream.trySubmit(item.build());
-            switch (emit.getStatus()) {
+            switch (emit.status()) {
                 case OK:
                 case DUPLICATE_ATTACHED: {
-                    if (emit.getStatus() == EmitResult.Status.OK) replayed++; else attached++;
+                    if (emit.status() == EmitResult.Status.OK) replayed++; else attached++;
                     java.util.concurrent.CompletableFuture<TxStreamItemResult> completion =
-                            emit.getReceipt().completion().toCompletableFuture();
+                            emit.receipt().completion().toCompletableFuture();
                     completion.thenAccept(r -> ledger.recordOutcome(intent.orderId(), r));
                     // Replayed work is in flight on this lane exactly like fresh work:
                     // the first post-restart submission must gate behind it, not race it.
@@ -616,7 +616,7 @@ public final class TxStreamSoak {
             full.recordSubmitted(intent.orderId(), intent.recipient(), intent.lovelace());
             if (stream == null) continue;
             try {
-                Optional<TxStreamItemResult> status = stream.getItemStatus(intent.orderId());
+                Optional<TxStreamItemResult> status = stream.itemStatus(intent.orderId());
                 status.ifPresent(r -> full.recordOutcome(intent.orderId(), r));
             } catch (Exception ignored) {
                 // leave it non-terminal; the reconciler will report it

@@ -3,10 +3,10 @@ package com.bloxbean.cardano.client.txflow.store.rdbms;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutionState;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamException;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamItemRecord;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamPlannedRecord;
+import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -72,7 +72,7 @@ class RdbmsTxStreamStateStoreTest {
         assertTrue(registrar.registerOrMatch(record));
         assertFalse(registrar.registerOrMatch(record));
         assertEquals(7, registrar.lastProjectionSequence("payouts", "one").orElseThrow());
-        assertEquals(TxStreamItemStatus.ACCEPTED, registrar.getItem("payouts", "one").orElseThrow().getStatus());
+        assertEquals(TxStreamItemStatus.ACCEPTED, registrar.getItem("payouts", "one").orElseThrow().status());
         assertFalse(inject.get(), "the projection-only insert must actually win the race");
     }
 
@@ -107,7 +107,7 @@ class RdbmsTxStreamStateStoreTest {
         assertTrue(store.isClosed());
         TxStreamException failure = assertThrows(TxStreamException.class,
                 () -> store.registerItem(new TxStreamItemRecord("item", "k", "l", "f", NOW)));
-        assertEquals("TXSTREAM_STORE_CLOSED", failure.getCode());
+        assertEquals("TXSTREAM_STORE_CLOSED", failure.code());
     }
 
     @Test

@@ -1,17 +1,17 @@
-package com.bloxbean.cardano.client.txflow.stream.contract;
+package com.bloxbean.cardano.client.txflow.stream.store.contract;
 
-import com.bloxbean.cardano.client.txflow.stream.BindingOutcome;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamBatchResult;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamBatchStatus;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamBinding;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamDuplicateItemException;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamException;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamItemRecord;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemResult;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamPlannedRecord;
-import com.bloxbean.cardano.client.txflow.stream.StreamOwnershipLease;
-import com.bloxbean.cardano.client.txflow.stream.TxStreamStateStore;
+import com.bloxbean.cardano.client.txflow.stream.store.BindingOutcome;
+import com.bloxbean.cardano.client.txflow.stream.store.StreamOwnershipLease;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamBinding;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * depends on — the six "must-replicate" points from the 2b-JDBC plan — plus the
  * register/bind/confirm/project/batch surface. Assertions are limited to
  * behavior every durable adapter can satisfy: a projected error is compared by
- * its stable {@link TxStreamException#getCode() code} and message (a relational
+ * its stable {@link TxStreamException#code() code} and message (a relational
  * store cannot round-trip an arbitrary {@link Throwable} instance).</p>
  */
 public abstract class TxStreamStateStoreContract {
@@ -86,8 +86,8 @@ public abstract class TxStreamStateStoreContract {
         assertFalse(store.acknowledgeAbandoned(STREAM, "a", 9, "investigated while fenced", NOW));
         assertFalse(store.acknowledgeAbandoned("other", "a", 10, "investigated while fenced", NOW));
         assertTrue(store.acknowledgeAbandoned(STREAM, "a", 10, "investigated while fenced", NOW));
-        assertEquals(TxStreamItemStatus.FAILED, store.getItem(STREAM, "a").orElseThrow().getStatus());
-        assertEquals("retained-hash", store.getItem(STREAM, "a").orElseThrow().getTransactionHash());
+        assertEquals(TxStreamItemStatus.FAILED, store.getItem(STREAM, "a").orElseThrow().status());
+        assertEquals("retained-hash", store.getItem(STREAM, "a").orElseThrow().transactionHash());
         assertEquals(11, store.lastProjectionSequence(STREAM, "a").orElseThrow());
         assertFalse(store.acknowledgeAbandoned(STREAM, "a", 11, "again", NOW));
         assertEquals(List.of("b", "c"), store.listRecoveryItemIds(STREAM, null, 2));
@@ -139,7 +139,7 @@ public abstract class TxStreamStateStoreContract {
 
         TxStreamDuplicateItemException duplicate = assertThrows(
                 TxStreamDuplicateItemException.class, () -> store.registerItem(record("item-1")));
-        assertEquals("item-1", duplicate.getItemId());
+        assertEquals("item-1", duplicate.itemId());
     }
 
     @Test
@@ -149,7 +149,7 @@ public abstract class TxStreamStateStoreContract {
         store.projectItem(projection("matched", TxStreamItemStatus.CONFIRMED), 7);
         assertFalse(store.registerOrMatch(new TxStreamItemRecord(original.itemId(),
                 original.idempotencyKey(), original.laneName(), original.fingerprint(), NOW.plusSeconds(9))));
-        assertEquals(TxStreamItemStatus.CONFIRMED, store.getItem(STREAM, "matched").orElseThrow().getStatus());
+        assertEquals(TxStreamItemStatus.CONFIRMED, store.getItem(STREAM, "matched").orElseThrow().status());
         assertEquals(7, store.getStoredProjection(STREAM, "matched").orElseThrow().sourceSequence());
         assertTrue(store.getStoredProjection("other", "matched").isEmpty());
     }
@@ -221,20 +221,20 @@ public abstract class TxStreamStateStoreContract {
         assertTrue(store.projectItem(projection("item-1", TxStreamItemStatus.PLANNED), 5));
         assertEquals(5L, store.lastProjectionSequence(STREAM, "item-1").orElseThrow());
         assertEquals(TxStreamItemStatus.PLANNED,
-                store.getItem(STREAM, "item-1").orElseThrow().getStatus());
+                store.getItem(STREAM, "item-1").orElseThrow().status());
 
         // A stale (<) and an equal (<=) source sequence are both rejected.
         assertFalse(store.projectItem(projection("item-1", TxStreamItemStatus.SUBMITTED), 4));
         assertFalse(store.projectItem(projection("item-1", TxStreamItemStatus.SUBMITTED), 5));
         assertEquals(TxStreamItemStatus.PLANNED,
-                store.getItem(STREAM, "item-1").orElseThrow().getStatus());
+                store.getItem(STREAM, "item-1").orElseThrow().status());
         assertEquals(5L, store.lastProjectionSequence(STREAM, "item-1").orElseThrow());
 
         // A strictly greater source sequence dominates.
         assertTrue(store.projectItem(projection("item-1", TxStreamItemStatus.SUBMITTED), 6));
         assertEquals(6L, store.lastProjectionSequence(STREAM, "item-1").orElseThrow());
         assertEquals(TxStreamItemStatus.SUBMITTED,
-                store.getItem(STREAM, "item-1").orElseThrow().getStatus());
+                store.getItem(STREAM, "item-1").orElseThrow().status());
     }
 
     @Test
@@ -249,17 +249,17 @@ public abstract class TxStreamStateStoreContract {
         assertTrue(store.projectItem(projected, 1));
 
         TxStreamItemResult stored = store.getItem(STREAM, "item-1").orElseThrow();
-        assertEquals(STREAM, stored.getStreamId());
-        assertEquals("item-1", stored.getItemId());
-        assertEquals(TxStreamItemStatus.FAILED, stored.getStatus());
-        assertEquals("exec-1", stored.getExecutionId());
-        assertEquals("step-1", stored.getStepId());
-        assertEquals("lane-a", stored.getLaneName());
-        assertEquals("abcd1234", stored.getTransactionHash());
-        assertEquals(NOW, stored.getUpdatedAt());
-        assertTrue(stored.getError() instanceof TxStreamException);
-        assertEquals("TXSTREAM_TEST_FAILURE", ((TxStreamException) stored.getError()).getCode());
-        assertEquals("boom", stored.getError().getMessage());
+        assertEquals(STREAM, stored.streamId());
+        assertEquals("item-1", stored.itemId());
+        assertEquals(TxStreamItemStatus.FAILED, stored.status());
+        assertEquals("exec-1", stored.executionId());
+        assertEquals("step-1", stored.stepId());
+        assertEquals("lane-a", stored.laneName());
+        assertEquals("abcd1234", stored.transactionHash());
+        assertEquals(NOW, stored.updatedAt());
+        assertTrue(stored.error() instanceof TxStreamException);
+        assertEquals("TXSTREAM_TEST_FAILURE", ((TxStreamException) stored.error()).code());
+        assertEquals("boom", stored.error().getMessage());
     }
 
     @Test
@@ -664,6 +664,6 @@ public abstract class TxStreamStateStoreContract {
      */
     protected void assertCode(String code, Runnable operation) {
         TxStreamException failure = assertThrows(TxStreamException.class, operation::run);
-        assertEquals(code, failure.getCode());
+        assertEquals(code, failure.code());
     }
 }

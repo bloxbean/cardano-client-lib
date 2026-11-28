@@ -76,18 +76,18 @@ class TxFlowStreamSharedFlowTest {
 
             TxStreamItemResult confirmed = a.completion().toCompletableFuture().join();
             TxStreamItemResult failed = b.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.getStatus());
-            assertEquals("tx-a", confirmed.getTransactionHash());
-            assertNull(confirmed.getError());
-            assertEquals(TxStreamItemStatus.FAILED, failed.getStatus());
-            assertEquals("tx-b", failed.getTransactionHash(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.status());
+            assertEquals("tx-a", confirmed.transactionHash());
+            assertNull(confirmed.error());
+            assertEquals(TxStreamItemStatus.FAILED, failed.status());
+            assertEquals("tx-b", failed.transactionHash(),
                     "a failed member keeps its own submitted hash");
-            assertNotNull(failed.getError());
-            assertEquals(STEP_A, confirmed.getStepId());
-            assertEquals(STEP_B, failed.getStepId());
+            assertNotNull(failed.error());
+            assertEquals(STEP_A, confirmed.stepId());
+            assertEquals(STEP_B, failed.stepId());
 
             assertEquals(TxStreamBatchStatus.PARTIALLY_COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
         }
     }
 
@@ -114,15 +114,15 @@ class TxFlowStreamSharedFlowTest {
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
 
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a.completion().toCompletableFuture().join().getStatus(),
+                    a.completion().toCompletableFuture().join().status(),
                     "the sibling's terminal is never dragged down by the flow error");
             TxStreamItemResult uncertain = b.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, uncertain.getStatus(),
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, uncertain.status(),
                     "submitted-unconfirmed inside a terminal flow is RECOVERY_REQUIRED");
-            assertEquals("tx-b", uncertain.getTransactionHash(), "the hash is never dropped");
+            assertEquals("tx-b", uncertain.transactionHash(), "the hash is never dropped");
 
             assertEquals(TxStreamBatchStatus.RUNNING,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "a batch with an unresolved member stays RUNNING until repaired");
         }
     }
@@ -147,19 +147,19 @@ class TxFlowStreamSharedFlowTest {
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
 
             TxStreamItemResult failedWithHash = a.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, failedWithHash.getStatus());
-            assertEquals("tx-a", failedWithHash.getTransactionHash());
+            assertEquals(TxStreamItemStatus.FAILED, failedWithHash.status());
+            assertEquals("tx-a", failedWithHash.transactionHash());
 
             TxStreamItemResult neverRan = b.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, neverRan.getStatus(),
+            assertEquals(TxStreamItemStatus.FAILED, neverRan.status(),
                     "a flow-level failure fails members whose steps never ran");
-            assertNull(neverRan.getTransactionHash(),
+            assertNull(neverRan.transactionHash(),
                     "no transaction existed for this member — no borrowed sibling hash");
             assertEquals("TXFLOW_EXECUTION_FAILED", assertInstanceOf(TxStreamException.class,
-                    neverRan.getError()).getCode());
+                    neverRan.error()).code());
 
             assertEquals(TxStreamBatchStatus.FAILED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
         }
     }
 
@@ -173,17 +173,17 @@ class TxFlowStreamSharedFlowTest {
             StubEngineGateway.StubHandle handle = gateway.lastHandle();
 
             handle.submittedEvent(STEP_A, "tx-a");
-            TxStreamItemResult liveA = stream.getItemStatus("pay-a").orElseThrow();
-            assertEquals(TxStreamItemStatus.SUBMITTED, liveA.getStatus());
-            assertEquals("tx-a", liveA.getTransactionHash());
+            TxStreamItemResult liveA = stream.itemStatus("pay-a").orElseThrow();
+            assertEquals(TxStreamItemStatus.SUBMITTED, liveA.status());
+            assertEquals("tx-a", liveA.transactionHash());
             assertEquals(TxStreamItemStatus.PLANNED,
-                    stream.getItemStatus("pay-b").orElseThrow().getStatus(),
+                    stream.itemStatus("pay-b").orElseThrow().status(),
                     "a sibling's submission event must never project this member");
 
             handle.submittedEvent(STEP_B, "tx-b");
-            TxStreamItemResult liveB = stream.getItemStatus("pay-b").orElseThrow();
-            assertEquals(TxStreamItemStatus.SUBMITTED, liveB.getStatus());
-            assertEquals("tx-b", liveB.getTransactionHash(),
+            TxStreamItemResult liveB = stream.itemStatus("pay-b").orElseThrow();
+            assertEquals(TxStreamItemStatus.SUBMITTED, liveB.status());
+            assertEquals("tx-b", liveB.transactionHash(),
                     "the member projects its own step's hash, not the sibling's");
 
             handle.complete(new FlowExecutionResult(handle.executionId(), "fp",
@@ -194,9 +194,9 @@ class TxFlowStreamSharedFlowTest {
                                     StubEngineGateway.NOW)),
                     null, StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals("tx-a",
-                    a.completion().toCompletableFuture().join().getTransactionHash());
+                    a.completion().toCompletableFuture().join().transactionHash());
             assertEquals("tx-b",
-                    b.completion().toCompletableFuture().join().getTransactionHash());
+                    b.completion().toCompletableFuture().join().transactionHash());
         }
     }
 
@@ -214,9 +214,9 @@ class TxFlowStreamSharedFlowTest {
             String executionId = gateway.started.get(0).getExecutionId();
             completeBothRecoveryRequired(gateway.lastHandle());
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    a.completion().toCompletableFuture().join().getStatus());
+                    a.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    b.completion().toCompletableFuture().join().getStatus());
+                    b.completion().toCompletableFuture().join().status());
 
             // Operator recovery resolved member A's transaction as confirmed
             // and member B's as failed; the flow itself is PARTIALLY_COMPLETED
@@ -227,16 +227,16 @@ class TxFlowStreamSharedFlowTest {
                             STEP_B + ":1", attempt(STEP_B, AttemptState.FAILED, "tx-b"))));
 
             TxStreamItemResult repairedA = stream.reconcile("pay-a").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, repairedA.getStatus(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, repairedA.status(),
                     "the member's own confirmed attempt decides, not the mixed flow state");
-            assertEquals("tx-a", repairedA.getTransactionHash());
+            assertEquals("tx-a", repairedA.transactionHash());
 
             TxStreamItemResult repairedB = stream.reconcile("pay-b").orElseThrow();
-            assertEquals(TxStreamItemStatus.FAILED, repairedB.getStatus());
-            assertEquals("tx-b", repairedB.getTransactionHash());
+            assertEquals(TxStreamItemStatus.FAILED, repairedB.status());
+            assertEquals("tx-b", repairedB.transactionHash());
 
             assertEquals(TxStreamBatchStatus.PARTIALLY_COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "the repaired members complete the batch");
         }
     }
@@ -255,13 +255,13 @@ class TxFlowStreamSharedFlowTest {
             // PARTIALLY_COMPLETED says nothing about WHICH members confirmed.
             gateway.putSnapshot(executionId, FlowExecutionState.PARTIALLY_COMPLETED);
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    stream.reconcile("pay-a").orElseThrow().getStatus(),
+                    stream.reconcile("pay-a").orElseThrow().status(),
                     "no member-level evidence: the projection must not guess FAILED");
 
             // An unambiguous flow state still repairs every member.
             gateway.putSnapshot(executionId, FlowExecutionState.COMPLETED);
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.reconcile("pay-a").orElseThrow().getStatus());
+                    stream.reconcile("pay-a").orElseThrow().status());
         }
     }
 
@@ -295,18 +295,18 @@ class TxFlowStreamSharedFlowTest {
                     "the identical window must MATCH the stored execution");
 
             TxStreamItemResult confirmed = a.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.getStatus(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, confirmed.status(),
                     "the member whose own attempt confirmed must never be mapped FAILED"
                             + " from the mixed flow state");
-            assertEquals("tx-a", confirmed.getTransactionHash());
-            assertNull(confirmed.getError());
+            assertEquals("tx-a", confirmed.transactionHash());
+            assertNull(confirmed.error());
 
             TxStreamItemResult failed = b.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.FAILED, failed.getStatus());
-            assertEquals("tx-b", failed.getTransactionHash());
+            assertEquals(TxStreamItemStatus.FAILED, failed.status());
+            assertEquals("tx-b", failed.transactionHash());
 
             assertEquals(TxStreamBatchStatus.PARTIALLY_COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
         }
     }
 
@@ -328,10 +328,10 @@ class TxFlowStreamSharedFlowTest {
             stream.submit(planItem("pay-b"));
 
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    a.completion().toCompletableFuture().join().getStatus(),
+                    a.completion().toCompletableFuture().join().status(),
                     "no member-level evidence: the projection must not guess FAILED");
             assertEquals(TxStreamBatchStatus.RUNNING,
-                    stream.getBatchStatus("batch-1").orElseThrow().status(),
+                    stream.batchStatus("batch-1").orElseThrow().status(),
                     "unresolved members keep the batch RUNNING until repaired");
 
             // Read-through reconcile repairs the member once evidence exists.
@@ -339,8 +339,8 @@ class TxFlowStreamSharedFlowTest {
                     Map.of("attempts", Map.of(
                             STEP_A + ":1", attempt(STEP_A, AttemptState.CONFIRMED, "tx-a"))));
             TxStreamItemResult repaired = stream.reconcile("pay-a").orElseThrow();
-            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.getStatus());
-            assertEquals("tx-a", repaired.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, repaired.status());
+            assertEquals("tx-a", repaired.transactionHash());
         }
     }
 
@@ -389,16 +389,16 @@ class TxFlowStreamSharedFlowTest {
 
             for (TxStreamReceipt receipt : List.of(a, b)) {
                 TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus(),
+                assertEquals(TxStreamItemStatus.FAILED, outcome.status(),
                         "a fail-closed binding failure settles every member");
                 assertEquals("TXSTREAM_BINDING_FAILED",
-                        assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+                        assertInstanceOf(TxStreamException.class, outcome.error()).code());
             }
             assertTrue(gateway.started.isEmpty(),
                     "the engine must never start a flow with an unbound member");
             assertTrue(stream.isHealthy());
             assertEquals(TxStreamBatchStatus.FAILED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
         }
     }
 
@@ -421,7 +421,7 @@ class TxFlowStreamSharedFlowTest {
                             TxStreamBatchStatus.COMPLETED),
                     listener.statuses("batch-1"),
                     "onBatchUpdated must observe the full lifecycle");
-            TxStreamBatchResult completed = stream.getBatchStatus("batch-1").orElseThrow();
+            TxStreamBatchResult completed = stream.batchStatus("batch-1").orElseThrow();
             assertEquals(TxStreamBatchStatus.COMPLETED, completed.status());
             assertEquals(List.of("pay-a", "pay-b"), completed.itemIds());
             assertEquals(1, completed.executionIds().size());
@@ -434,7 +434,7 @@ class TxFlowStreamSharedFlowTest {
             completeBothConfirmed(gateway.handles.get(1),
                     StreamIdentities.stepId("pay-c"), StreamIdentities.stepId("pay-d"));
             assertEquals(TxStreamBatchStatus.COMPLETED,
-                    stream.getBatchStatus("batch-2").orElseThrow().status());
+                    stream.batchStatus("batch-2").orElseThrow().status());
             for (var request : gateway.started) {
                 assertFalse(request.getExecutionId().contains("batch"));
                 assertFalse(request.getDefinition().getId().contains("batch"));
@@ -495,10 +495,10 @@ class TxFlowStreamSharedFlowTest {
                     }
                     assertEquals(TxStreamItemStatus.CONFIRMED,
                             a.completion().toCompletableFuture()
-                                    .get(10, TimeUnit.SECONDS).getStatus());
+                                    .get(10, TimeUnit.SECONDS).status());
                     assertEquals(TxStreamItemStatus.CONFIRMED,
                             b.completion().toCompletableFuture()
-                                    .get(10, TimeUnit.SECONDS).getStatus());
+                                    .get(10, TimeUnit.SECONDS).status());
 
                     List<TxStreamBatchStatus> statuses = listener.statuses("batch-1");
                     assertEquals(TxStreamBatchStatus.COMPLETED,
@@ -509,7 +509,7 @@ class TxFlowStreamSharedFlowTest {
                                     .count(),
                             "exactly one terminal derivation: " + statuses);
                     assertEquals(TxStreamBatchStatus.COMPLETED,
-                            stream.getBatchStatus("batch-1").orElseThrow().status(),
+                            stream.batchStatus("batch-1").orElseThrow().status(),
                             "COMPLETED never regresses");
                 }
             }
@@ -576,12 +576,12 @@ class TxFlowStreamSharedFlowTest {
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
 
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a.completion().toCompletableFuture().join().getStatus(),
+                    a.completion().toCompletableFuture().join().status(),
                     "a member whose step completed keeps its honest CONFIRMED");
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    b.completion().toCompletableFuture().join().getStatus());
+                    b.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamBatchStatus.PARTIALLY_COMPLETED,
-                    stream.getBatchStatus("batch-1").orElseThrow().status());
+                    stream.batchStatus("batch-1").orElseThrow().status());
         }
     }
 
@@ -606,15 +606,15 @@ class TxFlowStreamSharedFlowTest {
 
             assertTrue(stream.cancelExecution(queuedExecutionId, "late"));
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    c.completion().toCompletableFuture().join().getStatus());
+                    c.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    d.completion().toCompletableFuture().join().getStatus());
+                    d.completion().toCompletableFuture().join().status());
             assertEquals(TxStreamBatchStatus.CANCELLED,
-                    stream.getBatchStatus("batch-2").orElseThrow().status());
+                    stream.batchStatus("batch-2").orElseThrow().status());
 
             completeBothConfirmed(gateway.lastHandle());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    a.completion().toCompletableFuture().join().getStatus());
+                    a.completion().toCompletableFuture().join().status());
             assertEquals(1, gateway.started.size(),
                     "the cancelled flow must never reach the engine");
         }
@@ -650,7 +650,7 @@ class TxFlowStreamSharedFlowTest {
                             "Execution cancelled", null, false),
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals(TxStreamItemStatus.CANCELLED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 

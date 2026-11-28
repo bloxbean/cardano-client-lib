@@ -14,7 +14,7 @@ public final class TxStreamCancelledException extends TxStreamException {
      */
     public TxStreamCancelledException(TxStreamItemResult result) {
         super("TXSTREAM_ITEM_CANCELLED", TxStreamOutcomes.cancelledMessage(result),
-                Objects.requireNonNull(result, "result").getError());
+                Objects.requireNonNull(result, "result").error());
         this.result = result;
     }
 

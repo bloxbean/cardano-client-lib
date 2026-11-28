@@ -59,9 +59,9 @@ class TxFlowStreamConcurrencyTest {
                     .filter(call -> call.startsWith("register:")).count());
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED, firstReceipt.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
             assertEquals(TxStreamItemStatus.CONFIRMED, secondReceipt.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
         } finally {
             pool.shutdownNow();
         }
@@ -117,16 +117,16 @@ class TxFlowStreamConcurrencyTest {
 
             assertFalse(stream.isHealthy());
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    active.completion().toCompletableFuture().join().getStatus());
+                    active.completion().toCompletableFuture().join().status());
             for (TxStreamReceipt receipt : List.of(bufferedFirst, bufferedSecond)) {
                 TxStreamItemResult outcome = receipt.completion().toCompletableFuture().join();
-                assertEquals(TxStreamItemStatus.FAILED, outcome.getStatus());
+                assertEquals(TxStreamItemStatus.FAILED, outcome.status());
                 assertEquals("TXSTREAM_UNHEALTHY",
-                        assertInstanceOf(TxStreamException.class, outcome.getError()).getCode());
+                        assertInstanceOf(TxStreamException.class, outcome.error()).code());
             }
             stream.drain();
             assertEquals(EmitResult.Status.CLOSED,
-                    stream.trySubmit(planItem("pay-4")).getStatus());
+                    stream.trySubmit(planItem("pay-4")).status());
         }
     }
 
@@ -166,9 +166,9 @@ class TxFlowStreamConcurrencyTest {
             TxStreamException alsoThrown = contender.get(10, TimeUnit.SECONDS);
             assertNotNull(thrown, "the registering submit must throw typed");
             assertNotNull(alsoThrown, "the concurrent submit must also reject without a receipt");
-            assertEquals("TXSTREAM_REGISTRATION_FAILED", thrown.getCode());
-            assertEquals("TXSTREAM_REGISTRATION_FAILED", alsoThrown.getCode());
-            assertTrue(stream.getItemStatus("pay-1").isEmpty());
+            assertEquals("TXSTREAM_REGISTRATION_FAILED", thrown.code());
+            assertEquals("TXSTREAM_REGISTRATION_FAILED", alsoThrown.code());
+            assertTrue(stream.itemStatus("pay-1").isEmpty());
 
             // The failed registration left no residue: a fresh submit works.
             store.registerFailure = null;
@@ -177,7 +177,7 @@ class TxFlowStreamConcurrencyTest {
             TxStreamReceipt retried = stream.submit(planItem("pay-1"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED, retried.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus());
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status());
         } finally {
             pool.shutdownNow();
         }
@@ -204,9 +204,9 @@ class TxFlowStreamConcurrencyTest {
             go.countDown();
             for (Future<TxStreamException> future : List.of(first, second)) {
                 assertEquals("TXSTREAM_NON_PORTABLE_ITEM",
-                        future.get(10, TimeUnit.SECONDS).getCode());
+                        future.get(10, TimeUnit.SECONDS).code());
             }
-            assertTrue(stream.getItemStatus("bad-item").isEmpty());
+            assertTrue(stream.itemStatus("bad-item").isEmpty());
             assertTrue(gateway.started.isEmpty());
         } finally {
             pool.shutdownNow();

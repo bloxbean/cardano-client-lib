@@ -14,7 +14,7 @@ public final class TxStreamFailedException extends TxStreamException {
      */
     public TxStreamFailedException(TxStreamItemResult result) {
         super(TxStreamOutcomes.failureCode(result), TxStreamOutcomes.failureMessage(result),
-                Objects.requireNonNull(result, "result").getError());
+                Objects.requireNonNull(result, "result").error());
         this.result = result;
     }
 

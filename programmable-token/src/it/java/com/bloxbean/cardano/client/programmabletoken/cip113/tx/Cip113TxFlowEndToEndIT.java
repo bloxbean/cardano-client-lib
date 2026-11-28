@@ -181,8 +181,8 @@ class Cip113TxFlowEndToEndIT {
 
     private static void submitAndConfirm(TxFlowStream stream, String itemId, TxPlan plan) {
         TxStreamItemResult outcome = stream.submit(itemId, plan).completion().toCompletableFuture().join();
-        assertThat(outcome.getStatus()).as("item %s: %s", itemId, outcome).isEqualTo(TxStreamItemStatus.CONFIRMED);
-        log.info("stream item {} confirmed in {}", itemId, outcome.getTransactionHash());
+        assertThat(outcome.status()).as("item %s: %s", itemId, outcome).isEqualTo(TxStreamItemStatus.CONFIRMED);
+        log.info("stream item {} confirmed in {}", itemId, outcome.transactionHash());
     }
 
     private static String loadResource(String path) throws Exception {

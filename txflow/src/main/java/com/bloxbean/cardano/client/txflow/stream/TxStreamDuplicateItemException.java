@@ -27,7 +27,7 @@ public final class TxStreamDuplicateItemException extends TxStreamException {
      *
      * @return item id whose redelivered content differed
      */
-    public String getItemId() {
+    public String itemId() {
         return itemId;
     }
 }

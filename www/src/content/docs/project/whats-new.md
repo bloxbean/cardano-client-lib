@@ -40,6 +40,14 @@ Merkle Patricia Forestry (MPF) and Jellyfish Merkle Tree (JMT), with RocksDB and
 - **Lower-level parsing:** stack-safe CBOR and Plutus data codecs, plus `RawTx` and `RawBlock` views that keep a transaction's original bytes.
 - **GraalVM:** reachability metadata now ships in the module jars.
 
+## Upgrading from 0.8.0-pre8 — TxStream API Cleanup
+
+- **Store SPI package:** `TxStreamStateStore`, `TxStreamStoreCodec`, `TxStreamItemRecord`, `TxStreamBinding`, `BindingOutcome`, `TxStreamPlannedRecord`, `TxStreamStoredProjection`, and `StreamOwnershipLease` moved from `com.bloxbean.cardano.client.txflow.stream` to `com.bloxbean.cardano.client.txflow.stream.store`. The test-fixture conformance kit `TxStreamStateStoreContract` moved to `com.bloxbean.cardano.client.txflow.stream.store.contract`.
+- **Record-style accessors (`getX()` → `x()`):** `TxWorkItem`, `TxStreamItemResult`, `EmitResult`, `WindowPolicy`, `TxStreamException` (`code()`), `TxStreamDuplicateItemException` (`itemId()`), and `TxFlowStream` (`itemStatus(String)`, `batchStatus(String)`, `stats()`) now use Java 17 record-style accessors consistently across the package.
+- **Factory rename:** `EmitResult.conflict(TxStreamDuplicateItemException)` is now `EmitResult.conflicted(...)`, matching `rejected(...)`.
+- **Removed deprecated alias:** `LanePolicy.byFundingAddress()` was removed; use `LanePolicy.byFundingSource()`.
+- **Encapsulated in-memory durable store:** `InMemoryDurableTxStreamStore` is now package-private; construct it via `TxStreamStateStore.inMemoryDurable()`.
+
 ## Gradle dependencies
 
 ```gradle

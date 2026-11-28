@@ -65,8 +65,8 @@ class TxFlowStreamFlowAdapterTest {
             assertEquals(2, gateway.started.size(), "pay-2 dispatches once the lane frees");
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-2");
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, stream.getItemStatus("pay-1").orElseThrow().getStatus());
-            assertEquals(TxStreamItemStatus.CONFIRMED, stream.getItemStatus("pay-2").orElseThrow().getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED, stream.itemStatus("pay-1").orElseThrow().status());
+            assertEquals(TxStreamItemStatus.CONFIRMED, stream.itemStatus("pay-2").orElseThrow().status());
         }
     }
 
@@ -114,7 +114,7 @@ class TxFlowStreamFlowAdapterTest {
 
             assertEquals(3L, publisher.requested.get(),
                     "a real eager rejection is a content outcome, not capacity backpressure");
-            assertTrue(stream.getItemStatus("wrong-lane").isEmpty(),
+            assertTrue(stream.itemStatus("wrong-lane").isEmpty(),
                     "rejected source work must not create retained item state");
             assertTrue(gateway.started.isEmpty(),
                     "rejected source work must never reach the engine");
@@ -151,7 +151,7 @@ class TxFlowStreamFlowAdapterTest {
 
             for (String id : List.of("pay-1", "pay-2", "pay-3", "pay-4")) {
                 assertEquals(TxStreamItemStatus.CONFIRMED,
-                        stream.getItemStatus(id).orElseThrow().getStatus());
+                        stream.itemStatus(id).orElseThrow().status());
             }
             assertTrue(publisher.requested.get() < 100L,
                     "re-request stays bounded; never Long.MAX_VALUE");
@@ -177,7 +177,7 @@ class TxFlowStreamFlowAdapterTest {
                 cause = cause.getCause();
             }
             TxStreamException typed = assertInstanceOf(TxStreamException.class, cause);
-            assertEquals("TXSTREAM_SOURCE_FAILED", typed.getCode());
+            assertEquals("TXSTREAM_SOURCE_FAILED", typed.code());
         }
     }
 
@@ -199,8 +199,8 @@ class TxFlowStreamFlowAdapterTest {
             // Accepted work still drains and confirms; the caller owns close().
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-1");
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-2");
-            assertEquals(TxStreamItemStatus.CONFIRMED, stream.getItemStatus("pay-1").orElseThrow().getStatus());
-            assertEquals(TxStreamItemStatus.CONFIRMED, stream.getItemStatus("pay-2").orElseThrow().getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED, stream.itemStatus("pay-1").orElseThrow().status());
+            assertEquals(TxStreamItemStatus.CONFIRMED, stream.itemStatus("pay-2").orElseThrow().status());
 
             assertEquals(requestedBeforeComplete, publisher.requested.get(),
                     "no more demand is requested after onComplete");
@@ -289,7 +289,7 @@ class TxFlowStreamFlowAdapterTest {
             // The stream dispatches and CONFIRMS while the slow subscriber is stuck.
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
 
             // The slow subscriber's bounded buffer overflowed → typed onError, dropped.
             assertInstanceOf(TxStreamSubscriberOverflowException.class, slow.error);
@@ -297,7 +297,7 @@ class TxFlowStreamFlowAdapterTest {
             // The fast peer and the stream are entirely unaffected.
             assertEquals(4, fast.items.size());
             assertTrue(stream.isHealthy());
-            assertEquals(TxStreamItemStatus.CONFIRMED, stream.getItemStatus("pay-1").orElseThrow().getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED, stream.itemStatus("pay-1").orElseThrow().status());
         }
     }
 
@@ -354,7 +354,7 @@ class TxFlowStreamFlowAdapterTest {
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
             gateway.handles.get(0).completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus(),
+                    receipt.completion().toCompletableFuture().join().status(),
                     "the stream is unaffected by a throwing subscriber");
 
             assertEquals(1, hostile.items.size(), "the hostile subscriber is cancelled after its first throw");
@@ -433,14 +433,14 @@ class TxFlowStreamFlowAdapterTest {
             // (a) The blocked item's receipt STILL completes — the promise was
             //     completed before the inline (now blocked) listener callback.
             assertEquals(TxStreamItemStatus.CONFIRMED, receiptA.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus(),
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status(),
                     "the blocked item's receipt settles despite the §2.2-violating block");
 
             // (b) A DIFFERENT lane confirms on this thread while lane-a's dispatch
             //     thread is wedged, and the well-behaved peer keeps receiving.
             gateway.handles.get(1).completeConfirmed(STEP_ID, "tx-b1");
             assertEquals(TxStreamItemStatus.CONFIRMED, receiptB.completion()
-                    .toCompletableFuture().get(10, TimeUnit.SECONDS).getStatus(),
+                    .toCompletableFuture().get(10, TimeUnit.SECONDS).status(),
                     "another lane confirms while lane-a's dispatch thread is blocked");
             assertTrue(terminalItemIds(fast).contains("b-1"),
                     "a well-behaved peer subscriber keeps receiving during the block");
@@ -579,7 +579,7 @@ class TxFlowStreamFlowAdapterTest {
         ReceiptHandle rA = unsettledReceipt("pay-a");
         ReceiptHandle rD = unsettledReceipt("pay-d");
         sink.enqueue(EmitResult.ok(rA.receipt));
-        sink.enqueue(EmitResult.conflict(new TxStreamDuplicateItemException("pay-b", "conflict")));
+        sink.enqueue(EmitResult.conflicted(new TxStreamDuplicateItemException("pay-b", "conflict")));
         sink.enqueue(EmitResult.rejected(new TxStreamException("TXSTREAM_REJECTED", "rejected")));
         sink.enqueue(EmitResult.duplicateAttached(rD.receipt));
         source.start(sink);
@@ -648,7 +648,7 @@ class TxFlowStreamFlowAdapterTest {
     private static List<TxStreamItemStatus> statuses(RecordingSubscriber subscriber) {
         List<TxStreamItemStatus> out = new ArrayList<>();
         for (TxStreamItemResult result : subscriber.items) {
-            out.add(result.getStatus());
+            out.add(result.status());
         }
         return out;
     }
@@ -674,7 +674,7 @@ class TxFlowStreamFlowAdapterTest {
         Set<String> ids = new java.util.HashSet<>();
         for (TxStreamItemResult result : subscriber.items) {
             if (result.isTerminal()) {
-                ids.add(result.getItemId());
+                ids.add(result.itemId());
             }
         }
         return ids;
@@ -833,7 +833,7 @@ class TxFlowStreamFlowAdapterTest {
             Set<String> ids = new java.util.HashSet<>();
             for (TxStreamItemResult item : items) {
                 if (item.isTerminal()) {
-                    ids.add(item.getItemId());
+                    ids.add(item.itemId());
                 }
             }
             return ids;
@@ -866,7 +866,7 @@ class TxFlowStreamFlowAdapterTest {
                 concurrencyViolation = true;
             }
             total.incrementAndGet();
-            ids.add(item.getItemId());
+            ids.add(item.itemId());
             inOnNext.decrementAndGet();
         }
 

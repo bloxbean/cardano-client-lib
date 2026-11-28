@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@link TxStreamItemStatus#RECOVERY_REQUIRED}. A settled
  * {@code RECOVERY_REQUIRED} outcome is a point-in-time answer: the live
  * projection returned by {@link #current()} and
- * {@link TxFlowStream#getItemStatus(String)} continues to reflect later
+ * {@link TxFlowStream#itemStatus(String)} continues to reflect later
  * read-through repairs.
  */
 public final class TxStreamReceipt {
@@ -65,7 +65,7 @@ public final class TxStreamReceipt {
      * @return execution id once the item is bound to an execution
      */
     public Optional<String> executionId() {
-        return Optional.ofNullable(projection.current().getExecutionId());
+        return Optional.ofNullable(projection.current().executionId());
     }
 
     /**
@@ -180,7 +180,7 @@ public final class TxStreamReceipt {
      * <p>
      * The cursor is {@code 0} until an engine event has been observed, and
      * advances when the live {@code SUBMITTED} read-through
-     * ({@link TxFlowStream#getItemStatus(String)} /
+     * ({@link TxFlowStream#itemStatus(String)} /
      * {@link TxFlowStream#reconcile(String)}) or the terminal projection pass
      * consumes the execution's events. It is an observability cursor over the
      * engine's event stream for {@link #executionId()} — suitable as the

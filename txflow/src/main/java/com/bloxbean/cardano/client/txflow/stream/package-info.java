@@ -20,7 +20,11 @@
  * }
  * }</pre>
  * Direct engine and stream builders remain the advanced/server path and never
- * take ownership of caller-supplied executors. See the module's
+ * take ownership of caller-supplied executors. TxStream value, result, policy,
+ * and exception types use Java 17 record-style {@code x()} accessors. Durable
+ * store adapter authors should implement
+ * {@link com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore}
+ * in {@code com.bloxbean.cardano.client.txflow.stream.store}. See the module's
  * {@code TXSTREAM_GETTING_STARTED.md} for typed uncertainty recovery and the
  * effective defaults.
  * <p>
@@ -73,7 +77,7 @@
  * {@link com.bloxbean.cardano.client.txflow.stream.TxStreamItemStatus#RECOVERY_REQUIRED}
  * and repaired through reconciliation against the engine snapshot: read-through
  * by default ({@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream#reconcile(String)}
- * / {@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream#getItemStatus(String)}),
+ * / {@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream#itemStatus(String)}),
  * and — when
  * {@link com.bloxbean.cardano.client.txflow.stream.TxFlowStream.Builder#reconciliationInterval(java.time.Duration)}
  * is opted in — push-repaired by a periodic stream-owned observer that runs on
@@ -86,7 +90,7 @@
  * {@link com.bloxbean.cardano.client.txflow.stream.EmitResult.Status#REJECTED}.
  *
  * <h2>Error-code handling</h2>
- * Compare {@link com.bloxbean.cardano.client.txflow.stream.TxStreamException#getCode()}
+ * Compare {@link com.bloxbean.cardano.client.txflow.stream.TxStreamException#code()}
  * with the public constants in
  * {@link com.bloxbean.cardano.client.txflow.stream.TxStreamCodes}; do not copy
  * literals. The complete per-code reference is in

@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.stream;
 
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -59,8 +60,8 @@ class TxFlowStreamReconciliationObserverTest {
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
             String executionId = receipt.executionId().orElseThrow();
             driveRecoveryRequired(gateway, "tx-1");
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().getStatus());
-            assertEquals(1L, stream.getStats().recoveryRequiredItemCount(),
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().status());
+            assertEquals(1L, stream.stats().recoveryRequiredItemCount(),
                     "a live item at RECOVERY_REQUIRED is counted in the recovery gauge");
 
             // The engine now reports an authoritative terminal outcome.
@@ -70,13 +71,13 @@ class TxFlowStreamReconciliationObserverTest {
             scheduler.pending().fire();
 
             // The LIVE projection is repaired to CONFIRMED (push, not read-through).
-            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().getStatus());
-            assertEquals("tx-1", receipt.current().getTransactionHash(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().status());
+            assertEquals("tx-1", receipt.current().transactionHash(),
                     "the hash survives the push repair");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    listener.updates.get(listener.updates.size() - 1).getStatus(),
+                    listener.updates.get(listener.updates.size() - 1).status(),
                     "the repair is emitted to the event listener");
-            assertEquals(0L, stream.getStats().recoveryRequiredItemCount(),
+            assertEquals(0L, stream.stats().recoveryRequiredItemCount(),
                     "the repaired item leaves the recovery gauge (never negative)");
         }
     }
@@ -99,12 +100,12 @@ class TxFlowStreamReconciliationObserverTest {
             // Engine still running: no authoritative answer to repair with.
             gateway.putSnapshot(executionId, FlowExecutionState.RUNNING);
             scheduler.pending().fire();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().getStatus());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().status());
 
             // Operator recovers the execution; the next pass repairs it.
             gateway.putSnapshot(executionId, FlowExecutionState.COMPLETED);
             scheduler.pending().fire();
-            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().status());
         }
     }
 
@@ -143,7 +144,7 @@ class TxFlowStreamReconciliationObserverTest {
             // getItemStatus now performs the same hydration as the observer.
             assertTrue(store.listNonTerminalItemIds("payouts").contains("pay-remote"));
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    store.getItem("payouts", "pay-remote").orElseThrow().getStatus());
+                    store.getItem("payouts", "pay-remote").orElseThrow().status());
 
             // The observer must recover by READ-THROUGH only: capture the engine's
             // start count so we can prove it never re-executes the foreign item.
@@ -153,12 +154,12 @@ class TxFlowStreamReconciliationObserverTest {
             scheduler.pending().fire();
 
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    store.getItem("payouts", "pay-remote").orElseThrow().getStatus());
+                    store.getItem("payouts", "pay-remote").orElseThrow().status());
             assertEquals("tx-remote",
-                    store.getItem("payouts", "pay-remote").orElseThrow().getTransactionHash());
+                    store.getItem("payouts", "pay-remote").orElseThrow().transactionHash());
             assertTrue(listener.updates.stream()
-                            .anyMatch(update -> update.getItemId().equals("pay-remote")
-                                    && update.getStatus() == TxStreamItemStatus.CONFIRMED),
+                            .anyMatch(update -> update.itemId().equals("pay-remote")
+                                    && update.status() == TxStreamItemStatus.CONFIRMED),
                     "the observer emits the durable repair to the listener");
             assertEquals(startsBeforeFire, engine.started.size(),
                     "the observer recovers a foreign-instance item by read-through — it must"
@@ -251,7 +252,7 @@ class TxFlowStreamReconciliationObserverTest {
 
         // A late/stale fire of the cancelled task is a no-op — no repair.
         observerTask.fire();
-        assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().getStatus());
+        assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().status());
     }
 
     @Test
@@ -323,7 +324,7 @@ class TxFlowStreamReconciliationObserverTest {
 
             // Read-through repair still works without the observer.
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.getItemStatus("pay-1").orElseThrow().getStatus());
+                    stream.itemStatus("pay-1").orElseThrow().status());
             assertTrue(scheduler.tasks.isEmpty(), "read-through never schedules a pass");
         }
     }
@@ -344,7 +345,7 @@ class TxFlowStreamReconciliationObserverTest {
             driveRecoveryRequired(gateway, "tx-1");
             // The receipt future already fired at RECOVERY_REQUIRED (settles once).
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
 
             gateway.putSnapshot(executionId, FlowExecutionState.COMPLETED);
             scheduler.pending().fire();
@@ -352,9 +353,9 @@ class TxFlowStreamReconciliationObserverTest {
 
             // The live projection reflects the repair; the settled future keeps
             // its point-in-time outcome (never re-completed).
-            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().getStatus());
+            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().status());
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
         }
     }
 
@@ -388,7 +389,7 @@ class TxFlowStreamReconciliationObserverTest {
             engine.putSnapshot(executionId, FlowExecutionState.RUNNING);
             int startsBeforeFire = engine.started.size();
             scheduler.pending().fire();
-            assertEquals(1L, observer.getStats().recoveryRequiredItemCount(),
+            assertEquals(1L, observer.stats().recoveryRequiredItemCount(),
                     "the seeded durable-absent RR item is counted (root fix: not left uncounted,"
                             + " which would later drive the gauge to -1)");
             assertEquals(startsBeforeFire, engine.started.size(),
@@ -400,8 +401,8 @@ class TxFlowStreamReconciliationObserverTest {
                     attemptData(STEP_ID, AttemptState.CONFIRMED, "tx-remote"));
             scheduler.pending().fire();
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    store.getItem("payouts", "pay-remote").orElseThrow().getStatus());
-            assertEquals(0L, observer.getStats().recoveryRequiredItemCount(),
+                    store.getItem("payouts", "pay-remote").orElseThrow().status());
+            assertEquals(0L, observer.stats().recoveryRequiredItemCount(),
                     "the repaired seeded item leaves the gauge at exactly 0 (never negative)");
         }
     }
@@ -418,7 +419,7 @@ class TxFlowStreamReconciliationObserverTest {
         driveRecoveryRequired(engine, "tx-1");
         a.close();
         assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                store.getItem("payouts", "pay-1").orElseThrow().getStatus());
+                store.getItem("payouts", "pay-1").orElseThrow().status());
 
         // The engine snapshot is PRESENT but still RUNNING: reattachPresentMember
         // SEEDS the live projection from the stored RECOVERY_REQUIRED (bypassing
@@ -428,8 +429,8 @@ class TxFlowStreamReconciliationObserverTest {
             ReattachReport report = b.reattach();
             assertEquals(1, report.recoveryRequired());
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    b.getItemStatus("pay-1").orElseThrow().getStatus());
-            assertEquals(1L, b.getStats().recoveryRequiredItemCount(),
+                    b.itemStatus("pay-1").orElseThrow().status());
+            assertEquals(1L, b.stats().recoveryRequiredItemCount(),
                     "the reattachPresentMember RR seed is counted at the seed site");
 
             // A later COMPLETED snapshot repairs it via read-through; the gauge
@@ -437,8 +438,8 @@ class TxFlowStreamReconciliationObserverTest {
             engine.putSnapshot(executionId, FlowExecutionState.COMPLETED,
                     attemptData(STEP_ID, AttemptState.CONFIRMED, "tx-1"));
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    b.reconcile("pay-1").orElseThrow().getStatus());
-            assertEquals(0L, b.getStats().recoveryRequiredItemCount(),
+                    b.reconcile("pay-1").orElseThrow().status());
+            assertEquals(0L, b.stats().recoveryRequiredItemCount(),
                     "the repaired reattached item leaves the gauge at exactly 0 (never negative)");
         }
     }
@@ -488,7 +489,7 @@ class TxFlowStreamReconciliationObserverTest {
             for (int fire = 0; fire < 4; fire++) scheduler.pending().fire();
 
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    store.getItem("payouts", "pay-remote").orElseThrow().getStatus(),
+                    store.getItem("payouts", "pay-remote").orElseThrow().status(),
                     "a durable-absent RR item is discovered despite a full live RR residency");
         }
     }
@@ -510,7 +511,7 @@ class TxFlowStreamReconciliationObserverTest {
             // Whole-flow template ends PARTIALLY_COMPLETED → RECOVERY_REQUIRED
             // (a later step's tx may still confirm — BUG-T1: never FAILED).
             completePartial(gateway.lastHandle(), TEMPLATE_STEP_ID, "tx-1");
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().getStatus());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().status());
 
             // An observer fire against a PARTIALLY_COMPLETED snapshot must NOT
             // fast-forward the whole-flow template to FAILED (the BUG-T1 sibling
@@ -518,16 +519,16 @@ class TxFlowStreamReconciliationObserverTest {
             gateway.putSnapshot(executionId, FlowExecutionState.PARTIALLY_COMPLETED,
                     attemptData(TEMPLATE_STEP_ID, AttemptState.CONFIRMED, "tx-1"));
             scheduler.pending().fire();
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().getStatus(),
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().status(),
                     "the observer must not push a partial multi-step template to FAILED");
 
             // A later COMPLETED snapshot: the next observer fire repairs it.
             gateway.putSnapshot(executionId, FlowExecutionState.COMPLETED,
                     attemptData(TEMPLATE_STEP_ID, AttemptState.CONFIRMED, "tx-1"));
             scheduler.pending().fire();
-            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().getStatus(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().status(),
                     "a later COMPLETED snapshot repairs the template via the observer");
-            assertEquals("tx-1", receipt.current().getTransactionHash());
+            assertEquals("tx-1", receipt.current().transactionHash());
         }
     }
 
@@ -546,8 +547,8 @@ class TxFlowStreamReconciliationObserverTest {
             // Both members submitted-unconfirmed inside a terminal flow → both
             // RECOVERY_REQUIRED.
             completeBothRecoveryRequired(gateway.lastHandle(), stepA, stepB);
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, a.current().getStatus());
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, b.current().getStatus());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, a.current().status());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, b.current().status());
 
             // Operator recovery: member A's own tx confirmed, member B's failed;
             // the FLOW is PARTIALLY_COMPLETED. The observer must reconcile each
@@ -559,12 +560,12 @@ class TxFlowStreamReconciliationObserverTest {
                             stepB + ":1", attempt(stepB, AttemptState.FAILED, "tx-b"))));
             scheduler.pending().fire();
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, a.current().getStatus(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, a.current().status(),
                     "the observer reconciles the member whose own step confirmed to CONFIRMED,"
                             + " never FAILED from the PARTIALLY_COMPLETED flow state");
-            assertEquals("tx-a", a.current().getTransactionHash());
-            assertEquals(TxStreamItemStatus.FAILED, b.current().getStatus());
-            assertEquals("tx-b", b.current().getTransactionHash());
+            assertEquals("tx-a", a.current().transactionHash());
+            assertEquals(TxStreamItemStatus.FAILED, b.current().status());
+            assertEquals("tx-b", b.current().transactionHash());
         }
     }
 
@@ -603,14 +604,14 @@ class TxFlowStreamReconciliationObserverTest {
             String executionId = gateway.started.get(0).getExecutionId();
             String memberStep = StreamIdentities.stepId("pay-1");
             driveRecoveryRequired(gateway.lastHandle(), memberStep, "tx-1");
-            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().getStatus());
+            assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED, receipt.current().status());
             gateway.putSnapshot(executionId, FlowExecutionState.COMPLETED,
                     attemptData(memberStep, AttemptState.CONFIRMED, "tx-1"));
 
             // The reconciliation pass fires independently and repairs the item,
             // then re-arms its own next pass (no shared-epoch clobber).
             reconcileTask.fire();
-            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().getStatus(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, receipt.current().status(),
                     "the observer reconciled the item on its own timer");
             assertEquals(1, liveTaskCount(scheduler),
                     "the reconciliation pass re-armed exactly one successor task");
@@ -695,7 +696,7 @@ class TxFlowStreamReconciliationObserverTest {
 
     private long countConfirmed(List<TxStreamReceipt> receipts) {
         return receipts.stream()
-                .filter(receipt -> receipt.current().getStatus() == TxStreamItemStatus.CONFIRMED)
+                .filter(receipt -> receipt.current().status() == TxStreamItemStatus.CONFIRMED)
                 .count();
     }
 

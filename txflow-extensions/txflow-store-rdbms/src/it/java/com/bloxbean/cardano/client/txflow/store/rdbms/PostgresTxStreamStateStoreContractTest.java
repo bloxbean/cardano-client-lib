@@ -1,7 +1,8 @@
 package com.bloxbean.cardano.client.txflow.store.rdbms;
 
-import com.bloxbean.cardano.client.txflow.stream.TxStreamStateStore;
-import com.bloxbean.cardano.client.txflow.stream.contract.TxStreamStateStoreContract;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
+import com.bloxbean.cardano.client.txflow.stream.store.contract.TxStreamStateStoreContract;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -46,7 +47,7 @@ class PostgresTxStreamStateStoreContractTest extends TxStreamStateStoreContract 
                 .dialect(PostgresDialect.INSTANCE)
                 .schemaManagement(SchemaManagement.MIGRATE)
                 .build()) {
-            store.registerItem(new com.bloxbean.cardano.client.txflow.stream.TxStreamItemRecord(
+            store.registerItem(new TxStreamItemRecord(
                     "item-ds", "key-ds", "lane", "fp", NOW));
         }
         try (Connection connection = dataSource.getConnection()) {

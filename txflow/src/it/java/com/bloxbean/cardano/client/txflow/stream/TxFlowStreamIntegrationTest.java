@@ -118,14 +118,14 @@ class TxFlowStreamIntegrationTest {
                     .get(180, TimeUnit.SECONDS);
             stream.awaitDrain(Duration.ofSeconds(60));
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.getStatus(),
-                    () -> String.valueOf(firstResult.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.getStatus(),
-                    () -> String.valueOf(secondResult.getError()));
-            assertNotNull(firstResult.getTransactionHash());
-            assertNotNull(secondResult.getTransactionHash());
-            assertNotEquals(firstResult.getTransactionHash(), secondResult.getTransactionHash());
-            assertEquals("payouts", firstResult.getLaneName());
+            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.status(),
+                    () -> String.valueOf(firstResult.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.status(),
+                    () -> String.valueOf(secondResult.error()));
+            assertNotNull(firstResult.transactionHash());
+            assertNotNull(secondResult.transactionHash());
+            assertNotEquals(firstResult.transactionHash(), secondResult.transactionHash());
+            assertEquals("payouts", firstResult.laneName());
 
             // Idempotent redelivery attaches instead of re-running.
             TxStreamReceipt redelivered = stream.submit(TxWorkItem.builder("payment-1")
@@ -134,7 +134,7 @@ class TxFlowStreamIntegrationTest {
                     .build());
             assertSame(first, redelivered);
 
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(2, stats.acceptedItemCount());
             assertEquals(2, stats.confirmedItemCount());
             assertEquals(2, stats.submittedItemCount());
@@ -189,22 +189,22 @@ class TxFlowStreamIntegrationTest {
                     .get(180, TimeUnit.SECONDS);
             stream.awaitDrain(Duration.ofSeconds(60));
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.getStatus(),
-                    () -> String.valueOf(firstResult.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.getStatus(),
-                    () -> String.valueOf(secondResult.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, thirdResult.getStatus(),
-                    () -> String.valueOf(thirdResult.getError()));
-            assertNotNull(firstResult.getTransactionHash());
-            assertNotNull(secondResult.getTransactionHash());
-            assertNotNull(thirdResult.getTransactionHash());
-            assertNotEquals(firstResult.getTransactionHash(), secondResult.getTransactionHash());
-            assertNotEquals(firstResult.getTransactionHash(), thirdResult.getTransactionHash());
-            assertEquals("lane-1", firstResult.getLaneName());
-            assertEquals("lane-2", secondResult.getLaneName());
-            assertEquals("lane-1", thirdResult.getLaneName());
+            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.status(),
+                    () -> String.valueOf(firstResult.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.status(),
+                    () -> String.valueOf(secondResult.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, thirdResult.status(),
+                    () -> String.valueOf(thirdResult.error()));
+            assertNotNull(firstResult.transactionHash());
+            assertNotNull(secondResult.transactionHash());
+            assertNotNull(thirdResult.transactionHash());
+            assertNotEquals(firstResult.transactionHash(), secondResult.transactionHash());
+            assertNotEquals(firstResult.transactionHash(), thirdResult.transactionHash());
+            assertEquals("lane-1", firstResult.laneName());
+            assertEquals("lane-2", secondResult.laneName());
+            assertEquals("lane-1", thirdResult.laneName());
 
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(3, stats.acceptedItemCount());
             assertEquals(3, stats.confirmedItemCount());
             assertEquals(0, stats.failedItemCount());
@@ -242,25 +242,25 @@ class TxFlowStreamIntegrationTest {
                     .get(180, TimeUnit.SECONDS);
             stream.awaitDrain(Duration.ofSeconds(60));
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.getStatus(),
-                    () -> String.valueOf(firstResult.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.getStatus(),
-                    () -> String.valueOf(secondResult.getError()));
-            assertNotNull(firstResult.getTransactionHash());
-            assertNotNull(secondResult.getTransactionHash());
-            assertNotEquals(firstResult.getTransactionHash(),
-                    secondResult.getTransactionHash(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.status(),
+                    () -> String.valueOf(firstResult.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.status(),
+                    () -> String.valueOf(secondResult.error()));
+            assertNotNull(firstResult.transactionHash());
+            assertNotNull(secondResult.transactionHash());
+            assertNotEquals(firstResult.transactionHash(),
+                    secondResult.transactionHash(),
                     "each member rides its own transaction inside the shared flow");
-            assertEquals(firstResult.getExecutionId(), secondResult.getExecutionId(),
+            assertEquals(firstResult.executionId(), secondResult.executionId(),
                     "one lane group in the window means one shared engine execution");
-            assertNotEquals(firstResult.getStepId(), secondResult.getStepId());
-            assertEquals("payouts", firstResult.getLaneName());
+            assertNotEquals(firstResult.stepId(), secondResult.stepId());
+            assertEquals("payouts", firstResult.laneName());
 
-            TxStreamBatchResult batch = stream.getBatchStatus("batch-1").orElseThrow();
+            TxStreamBatchResult batch = stream.batchStatus("batch-1").orElseThrow();
             assertEquals(TxStreamBatchStatus.COMPLETED, batch.status());
             assertEquals(1, batch.executionIds().size());
 
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(2, stats.acceptedItemCount());
             assertEquals(2, stats.confirmedItemCount());
             assertEquals(0, stats.failedItemCount());
@@ -321,21 +321,21 @@ class TxFlowStreamIntegrationTest {
                     .get(180, TimeUnit.SECONDS);
             stream.awaitDrain(Duration.ofSeconds(60));
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.getStatus(),
-                    () -> String.valueOf(firstResult.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.getStatus(),
-                    () -> String.valueOf(secondResult.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, thirdResult.getStatus(),
-                    () -> String.valueOf(thirdResult.getError()));
-            assertEquals(firstResult.getExecutionId(), secondResult.getExecutionId());
-            assertEquals(firstResult.getExecutionId(), thirdResult.getExecutionId());
-            assertNotEquals(firstResult.getTransactionHash(), secondResult.getTransactionHash());
-            assertNotEquals(secondResult.getTransactionHash(), thirdResult.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.status(),
+                    () -> String.valueOf(firstResult.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.status(),
+                    () -> String.valueOf(secondResult.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, thirdResult.status(),
+                    () -> String.valueOf(thirdResult.error()));
+            assertEquals(firstResult.executionId(), secondResult.executionId());
+            assertEquals(firstResult.executionId(), thirdResult.executionId());
+            assertNotEquals(firstResult.transactionHash(), secondResult.transactionHash());
+            assertNotEquals(secondResult.transactionHash(), thirdResult.transactionHash());
 
             // The durable engine journal proves this was pipelined rather than
             // merely a successful two-step sequential flow: both dependent
             // transactions were submitted before either confirmation callback.
-            var eventView = pipelineEngine.executionEvents(firstResult.getExecutionId(), 0, 100)
+            var eventView = pipelineEngine.executionEvents(firstResult.executionId(), 0, 100)
                     .orElseThrow();
             var submitted = eventView.events().stream()
                     .filter(event -> event.type() == FlowEventType.TRANSACTION_SUBMITTED)
@@ -352,7 +352,7 @@ class TxFlowStreamIntegrationTest {
             assertTrue(lastSubmission < firstConfirmation,
                     "PIPELINED must submit every generated step before awaiting confirmation");
 
-            TxStreamBatchResult batch = stream.getBatchStatus("batch-1").orElseThrow();
+            TxStreamBatchResult batch = stream.batchStatus("batch-1").orElseThrow();
             assertEquals(TxStreamBatchStatus.COMPLETED, batch.status());
             assertEquals(1, batch.executionIds().size());
         }
@@ -403,25 +403,25 @@ class TxFlowStreamIntegrationTest {
                     .get(180, TimeUnit.SECONDS);
             stream.awaitDrain(Duration.ofSeconds(60));
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.getStatus(),
-                    () -> String.valueOf(firstResult.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.getStatus(),
-                    () -> String.valueOf(secondResult.getError()));
-            assertNotNull(firstResult.getTransactionHash());
-            assertEquals(firstResult.getTransactionHash(), secondResult.getTransactionHash(),
+            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.status(),
+                    () -> String.valueOf(firstResult.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.status(),
+                    () -> String.valueOf(secondResult.error()));
+            assertNotNull(firstResult.transactionHash());
+            assertEquals(firstResult.transactionHash(), secondResult.transactionHash(),
                     "both payments were merged into ONE on-chain transaction");
-            assertEquals(firstResult.getExecutionId(), secondResult.getExecutionId(),
+            assertEquals(firstResult.executionId(), secondResult.executionId(),
                     "one merged engine execution for the whole batch");
-            assertEquals(firstResult.getStepId(), secondResult.getStepId(),
+            assertEquals(firstResult.stepId(), secondResult.stepId(),
                     "both items ride the one merged step");
-            assertEquals("payouts", firstResult.getLaneName());
+            assertEquals("payouts", firstResult.laneName());
 
-            TxStreamBatchResult batch = stream.getBatchStatus("batch-1").orElseThrow();
+            TxStreamBatchResult batch = stream.batchStatus("batch-1").orElseThrow();
             assertEquals(TxStreamBatchStatus.COMPLETED, batch.status());
             assertEquals(1, batch.executionIds().size(),
                     "one merged execution for the whole batch");
 
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(2, stats.acceptedItemCount());
             assertEquals(2, stats.confirmedItemCount());
             assertTrue(stream.isHealthy());
@@ -462,13 +462,13 @@ class TxFlowStreamIntegrationTest {
                     .get(180, TimeUnit.SECONDS);
             stream.awaitDrain(Duration.ofSeconds(60));
 
-            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.getStatus(),
-                    () -> String.valueOf(firstResult.getError()));
-            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.getStatus(),
-                    () -> String.valueOf(secondResult.getError()));
-            assertNotNull(firstResult.getTransactionHash());
-            assertNotNull(secondResult.getTransactionHash());
-            assertNotEquals(firstResult.getTransactionHash(), secondResult.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, firstResult.status(),
+                    () -> String.valueOf(firstResult.error()));
+            assertEquals(TxStreamItemStatus.CONFIRMED, secondResult.status(),
+                    () -> String.valueOf(secondResult.error()));
+            assertNotNull(firstResult.transactionHash());
+            assertNotNull(secondResult.transactionHash());
+            assertNotEquals(firstResult.transactionHash(), secondResult.transactionHash());
 
             // Idempotent redelivery of the same (template, bindings) attaches.
             TxStreamReceipt redelivered = stream.submit(TxWorkItem.builder("payout-1")
@@ -479,7 +479,7 @@ class TxFlowStreamIntegrationTest {
                     .build());
             assertSame(first, redelivered);
 
-            TxStreamStats stats = stream.getStats();
+            TxStreamStats stats = stream.stats();
             assertEquals(2, stats.acceptedItemCount());
             assertEquals(2, stats.confirmedItemCount());
             assertTrue(stream.isHealthy());

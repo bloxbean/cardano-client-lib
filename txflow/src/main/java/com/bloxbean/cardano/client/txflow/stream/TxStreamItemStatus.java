@@ -31,7 +31,7 @@ public enum TxStreamItemStatus {
     /**
      * The transaction's disposition is uncertain — typically submitted but
      * unconfirmed inside a terminal flow — and must be reconciled. Repair is
-     * read-through: {@link TxFlowStream#getItemStatus(String)} and
+     * read-through: {@link TxFlowStream#itemStatus(String)} and
      * {@link TxFlowStream#reconcile(String)} consult the engine snapshot and
      * advance the projection when the engine has an authoritative answer.
      */

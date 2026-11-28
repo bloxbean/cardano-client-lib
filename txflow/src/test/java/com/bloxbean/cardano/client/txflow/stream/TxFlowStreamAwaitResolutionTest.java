@@ -39,7 +39,7 @@ class TxFlowStreamAwaitResolutionTest {
                     TxStreamUncertainException.class, receipt::awaitConfirmed);
 
             assertEquals(readsBefore, gateway.snapshotReads.get());
-            assertEquals("tx-uncertain", uncertain.result().getTransactionHash());
+            assertEquals("tx-uncertain", uncertain.result().transactionHash());
             assertEquals(1, gateway.started.size());
         }
     }
@@ -64,8 +64,8 @@ class TxFlowStreamAwaitResolutionTest {
             repair.join(1_000);
 
             assertFalse(repair.isAlive());
-            assertEquals(TxStreamItemStatus.CONFIRMED, resolved.getStatus());
-            assertEquals("tx-uncertain", resolved.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, resolved.status());
+            assertEquals("tx-uncertain", resolved.transactionHash());
             assertTrue(gateway.snapshotReads.get() >= 3);
             assertEquals(1, gateway.started.size(),
                     "resolution may inspect but must never resubmit the transaction");
@@ -111,8 +111,8 @@ class TxFlowStreamAwaitResolutionTest {
                             Duration.ofMillis(5)));
 
             assertEquals(TxStreamItemStatus.RECOVERY_REQUIRED,
-                    timeout.result().getStatus());
-            assertEquals("tx-uncertain", timeout.result().getTransactionHash());
+                    timeout.result().status());
+            assertEquals("tx-uncertain", timeout.result().transactionHash());
             assertFalse(gateway.lastHandle().cancelRequested.get());
             assertEquals(1, gateway.started.size());
             assertTrue(gateway.snapshotReads.get() >= 2);
@@ -136,7 +136,7 @@ class TxFlowStreamAwaitResolutionTest {
                             Duration.ofSeconds(-1)));
             assertEquals("TXSTREAM_ITEM_UNKNOWN", assertThrows(TxStreamException.class,
                     () -> stream.awaitResolution("unknown", Duration.ofSeconds(1),
-                            Duration.ofMillis(1))).getCode());
+                            Duration.ofMillis(1))).code());
 
             stream.submit("pay-1", plan());
             IllegalStateException premature = assertThrows(IllegalStateException.class,
@@ -174,7 +174,7 @@ class TxFlowStreamAwaitResolutionTest {
             waiter.join(TimeUnit.SECONDS.toMillis(1));
 
             assertFalse(waiter.isAlive());
-            assertEquals("TXSTREAM_INTERRUPTED", failure.get().getCode());
+            assertEquals("TXSTREAM_INTERRUPTED", failure.get().code());
             assertTrue(interruptedFlag.get());
             assertEquals(1, gateway.started.size());
         } finally {

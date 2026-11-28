@@ -300,7 +300,7 @@ public final class FlowWorkSource implements TxWorkSource {
                 item = held.peekFirst();
             }
             EmitResult result = sink.trySubmit(item);   // outside the lock
-            EmitResult.Status status = result.getStatus();
+            EmitResult.Status status = result.status();
             boolean stop = false;
             synchronized (lock) {
                 if (closed) {
@@ -312,7 +312,7 @@ public final class FlowWorkSource implements TxWorkSource {
                         || status == EmitResult.Status.DUPLICATE_ATTACHED) {
                     held.removeFirst();   // exactly `item` — we are the only drainer
                     accepted++;
-                    toObserve.add(result.getReceipt());
+                    toObserve.add(result.receipt());
                 } else if (status == EmitResult.Status.FULL
                         || status == EmitResult.Status.PAUSED) {
                     // FULL: stream capacity is full — retry on the next settle.

@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.txflow.stream;
+package com.bloxbean.cardano.client.txflow.stream.store;
 
 /**
  * Confirmed disposition of a write-ahead {@link TxStreamBinding} after the

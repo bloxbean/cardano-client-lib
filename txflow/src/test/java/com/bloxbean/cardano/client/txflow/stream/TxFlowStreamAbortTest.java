@@ -53,10 +53,10 @@ class TxFlowStreamAbortTest {
 
             assertEquals(List.of("pay-2"), report.cancelledItemIds());
             TxStreamItemResult cancelled = buffered.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CANCELLED, cancelled.getStatus());
+            assertEquals(TxStreamItemStatus.CANCELLED, cancelled.status());
             TxStreamException cause = assertInstanceOf(TxStreamException.class,
-                    cancelled.getError());
-            assertEquals("TXSTREAM_ABORTED", cause.getCode());
+                    cancelled.error());
+            assertEquals("TXSTREAM_ABORTED", cause.code());
             assertEquals("shutting down", cause.getMessage());
 
             assertEquals(List.of(inFlight.executionId().orElseThrow()),
@@ -65,14 +65,14 @@ class TxFlowStreamAbortTest {
             assertEquals("shutting down", handle.cancelReason);
             assertFalse(report.quiescence().toCompletableFuture().isDone(),
                     "quiescence must wait for the signalled handle");
-            assertEquals(0, stream.getStats().pendingBufferSize(),
+            assertEquals(0, stream.stats().pendingBufferSize(),
                     "dispatch queues are released immediately");
 
             // Dispatch resources are released: nothing new is accepted.
-            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-3")).getStatus());
+            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-3")).status());
             TxStreamException closedFailure = assertThrows(TxStreamException.class,
                     () -> stream.submit(planItem("pay-4")));
-            assertEquals("TXSTREAM_CLOSED", closedFailure.getCode());
+            assertEquals("TXSTREAM_CLOSED", closedFailure.code());
 
             // The engine acknowledges the cancellation; the retained
             // completion machinery still delivers the terminal outcome.
@@ -83,7 +83,7 @@ class TxFlowStreamAbortTest {
                     StubEngineGateway.NOW, StubEngineGateway.NOW));
             assertEquals(TxStreamItemStatus.CANCELLED,
                     inFlight.completion().toCompletableFuture().get(10, TimeUnit.SECONDS)
-                            .getStatus());
+                            .status());
             report.quiescence().toCompletableFuture().get(10, TimeUnit.SECONDS);
             stream.drain();
         }
@@ -105,11 +105,11 @@ class TxFlowStreamAbortTest {
             handle.completeConfirmed(STEP_ID, "tx-raced");
             TxStreamItemResult outcome = inFlight.completion().toCompletableFuture()
                     .get(10, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.getStatus());
-            assertEquals("tx-raced", outcome.getTransactionHash());
+            assertEquals(TxStreamItemStatus.CONFIRMED, outcome.status());
+            assertEquals("tx-raced", outcome.transactionHash());
             report.quiescence().toCompletableFuture().get(10, TimeUnit.SECONDS);
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    stream.getItemStatus("pay-1").orElseThrow().getStatus(),
+                    stream.itemStatus("pay-1").orElseThrow().status(),
                     "projection machinery must survive the abort");
         }
     }
@@ -122,7 +122,7 @@ class TxFlowStreamAbortTest {
             TxStreamReceipt receipt = stream.submit(planItem("pay-1"));
             gateway.lastHandle().completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
 
             AbortReport report = stream.abort(null);
             assertTrue(report.cancelledItemIds().isEmpty());
@@ -235,8 +235,8 @@ class TxFlowStreamAbortTest {
 
             assertFalse(handle.cancelRequested.get(), "a drained close cancels nothing");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
-            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-2")).getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
+            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-2")).status());
         }
     }
 
@@ -256,17 +256,17 @@ class TxFlowStreamAbortTest {
             assertTrue(handle.cancelRequested.get(),
                     "the deadline must escalate to abort and signal the in-flight handle");
             TxStreamItemResult cancelled = buffered.completion().toCompletableFuture().join();
-            assertEquals(TxStreamItemStatus.CANCELLED, cancelled.getStatus());
+            assertEquals(TxStreamItemStatus.CANCELLED, cancelled.status());
             assertEquals("TXSTREAM_ABORTED", assertInstanceOf(TxStreamException.class,
-                    cancelled.getError()).getCode());
-            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-3")).getStatus());
+                    cancelled.error()).code());
+            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-3")).status());
             assertFalse(inFlight.completion().toCompletableFuture().isDone(),
                     "close(Duration) does not promise execution termination at the deadline");
 
             handle.completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
                     inFlight.completion().toCompletableFuture().get(10, TimeUnit.SECONDS)
-                            .getStatus());
+                            .status());
         }
     }
 
@@ -279,7 +279,7 @@ class TxFlowStreamAbortTest {
             StubEngineGateway.StubHandle handle = gateway.lastHandle();
             handle.completeConfirmed(STEP_ID, "tx-1");
             assertEquals(TxStreamItemStatus.CONFIRMED,
-                    receipt.completion().toCompletableFuture().join().getStatus());
+                    receipt.completion().toCompletableFuture().join().status());
 
             // Boundary: with every accepted item already settled, a ZERO
             // grace deadline still takes the graceful branch — nothing to
@@ -288,7 +288,7 @@ class TxFlowStreamAbortTest {
 
             assertFalse(handle.cancelRequested.get(),
                     "a fully drained close(ZERO) must not escalate to abort");
-            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-2")).getStatus());
+            assertEquals(EmitResult.Status.CLOSED, stream.trySubmit(planItem("pay-2")).status());
         }
     }
 
@@ -343,12 +343,12 @@ class TxFlowStreamAbortTest {
 
             assertEquals(TxStreamItemStatus.CANCELLED,
                     claimed.completion().toCompletableFuture().get(10, TimeUnit.SECONDS)
-                            .getStatus());
+                            .status());
             TxStreamItemResult outcome = stragglerReceipt.completion().toCompletableFuture()
                     .get(10, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.CANCELLED, outcome.getStatus());
+            assertEquals(TxStreamItemStatus.CANCELLED, outcome.status());
             assertEquals("TXSTREAM_ABORTED", assertInstanceOf(TxStreamException.class,
-                    outcome.getError()).getCode());
+                    outcome.error()).code());
             report.quiescence().toCompletableFuture().get(10, TimeUnit.SECONDS);
             stream.drain();
         } finally {
@@ -397,7 +397,7 @@ class TxFlowStreamAbortTest {
                         StubEngineGateway.NOW, StubEngineGateway.NOW));
             }
             TxStreamItemResult outcome = settled.get(10, TimeUnit.SECONDS);
-            assertEquals(TxStreamItemStatus.CANCELLED, outcome.getStatus(),
+            assertEquals(TxStreamItemStatus.CANCELLED, outcome.status(),
                     "every branch of the race must end terminal CANCELLED");
             if (!gateway.handles.isEmpty()) {
                 // A started execution is never unobserved: the Dekker pair

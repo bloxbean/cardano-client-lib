@@ -4,6 +4,8 @@ import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
 import com.bloxbean.cardano.client.txflow.store.FlowStoreTextPolicy;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -24,9 +26,9 @@ import java.util.concurrent.ScheduledExecutorService;
  * with a multi-item planner such as {@link TxStreamPlanner#perWindow()} groups
  * a window of accepted items into shared multi-step flows, each item riding
  * its own step of the shared execution. Item status is reported as an honest
- * projection of engine truth through receipts, {@link #getItemStatus(String)},
+ * projection of engine truth through receipts, {@link #itemStatus(String)},
  * and the {@link TxStreamEventListener}; windows surface as batches through
- * {@link #getBatchStatus(String)}. Executions on different lanes run
+ * {@link #batchStatus(String)}. Executions on different lanes run
  * concurrently (scheduled per canonical spending identity, bounded by
  * {@link Builder#maxInFlight(int)}); executions on the same lane serialize
  * FIFO.
@@ -132,7 +134,7 @@ public interface TxFlowStream extends AutoCloseable {
      * same deterministic execution id (idempotent — it runs at most once). An
      * item whose execution is still running is surfaced
      * {@link TxStreamItemStatus#RECOVERY_REQUIRED} and refreshed by
-     * read-through ({@link #getItemStatus(String)} / {@link #reconcile
+     * read-through ({@link #itemStatus(String)} / {@link #reconcile
      * (String)}); live push watching of a foreign-process execution is a later
      * iteration. Items accepted without a recoverable persisted plan remain
      * recovery-required and need explicit intervention; matching redelivery
@@ -374,11 +376,11 @@ public interface TxFlowStream extends AutoCloseable {
      * @param itemId caller-provided work item id
      * @return latest known result, or empty when neither live nor stored
      */
-    Optional<TxStreamItemResult> getItemStatus(String itemId);
+    Optional<TxStreamItemResult> itemStatus(String itemId);
 
     /**
      * Consults engine truth for an item, typically after explicit engine recovery.
-     * The foreign-observation and recovery-repair rules of getItemStatus apply.
+     * The foreign-observation and recovery-repair rules of itemStatus apply.
      * An explicitly attached foreign receipt is refreshed locally from the
      * owner's durable projection or engine truth without writing over its owner.
      *
@@ -421,9 +423,9 @@ public interface TxFlowStream extends AutoCloseable {
         long startedAt = TxStreamScheduler.monotonicNanos();
         TxStreamItemResult latest = null;
         while (true) {
-            latest = reconcile(itemId).or(() -> getItemStatus(itemId)).orElseThrow(() -> new TxStreamException(
+            latest = reconcile(itemId).or(() -> itemStatus(itemId)).orElseThrow(() -> new TxStreamException(
                     "TXSTREAM_ITEM_UNKNOWN", "Unknown TxStream item '" + itemId + "'"));
-            switch (latest.getStatus()) {
+            switch (latest.status()) {
                 case CONFIRMED:
                 case FAILED:
                 case CANCELLED:
@@ -433,7 +435,7 @@ public interface TxFlowStream extends AutoCloseable {
                 default:
                     throw new IllegalStateException(
                             "Item '" + itemId + "' has not reached RECOVERY_REQUIRED; latest"
-                                    + " status is " + latest.getStatus());
+                                    + " status is " + latest.status());
             }
 
             long elapsed = TxStreamScheduler.monotonicNanos() - startedAt;
@@ -462,7 +464,7 @@ public interface TxFlowStream extends AutoCloseable {
      * @param batchId stream-scoped batch id ({@code "batch-N"})
      * @return latest batch snapshot if the batch is known and retained
      */
-    Optional<TxStreamBatchResult> getBatchStatus(String batchId);
+    Optional<TxStreamBatchResult> batchStatus(String batchId);
 
     /**
      * Closes the current window immediately, handing its buffered items to
@@ -476,7 +478,7 @@ public interface TxFlowStream extends AutoCloseable {
      *
      * @return stream stats snapshot
      */
-    TxStreamStats getStats();
+    TxStreamStats stats();
 
     /**
      * Stops accepting new work, flushes buffered items, and waits until every
@@ -877,14 +879,14 @@ public interface TxFlowStream extends AutoCloseable {
          * (confirmed, failed, or cancelled) it becomes evictable; when the cap
          * is exceeded the oldest-settled items are evicted FIFO from the live
          * item map and the stream state store, after which
-         * {@link TxFlowStream#getItemStatus(String)} returns empty for them.
+         * {@link TxFlowStream#itemStatus(String)} returns empty for them.
          * Unsettled items are never evicted, and
-         * {@link TxFlowStream#getStats()} counters are cumulative and
+         * {@link TxFlowStream#stats()} counters are cumulative and
          * unaffected by eviction. Terminal batches share this cap in a
          * separate FIFO: once a batch reaches a terminal status it is
          * retained under the same bound and evicted FIFO independently of the
          * item FIFO, after which
-         * {@link TxFlowStream#getBatchStatus(String)} returns empty for it.
+         * {@link TxFlowStream#batchStatus(String)} returns empty for it.
          * <p>
          * This cap is also the guard window for duplicate detection:
          * idempotency-key reuse and content-conflict checks lapse at
@@ -927,7 +929,7 @@ public interface TxFlowStream extends AutoCloseable {
          * <p>
          * <b>Opt-in and OFF by default</b>: without it, repair is read-through
          * only — {@link TxFlowStream#reconcile(String)} and
-         * {@link TxFlowStream#getItemStatus(String)} remain available and are the
+         * {@link TxFlowStream#itemStatus(String)} remain available and are the
          * default. When set, the pass runs on the caller-owned
          * {@link #maintenanceExecutor(ScheduledExecutorService)} (the same
          * scheduler required for time-based windows); the stream owns no threads,
@@ -1086,13 +1088,13 @@ public interface TxFlowStream extends AutoCloseable {
                                 + "caller-owned scheduler (the stream never owns threads)");
             }
             if (windowPolicy != null && !windowPolicy.isTimeBased()
-                    && windowPolicy.getMaxItems() > maxBufferSize) {
+                    && windowPolicy.maxItems() > maxBufferSize) {
                 // Buffer permits are held until a window is planned, so a
                 // count-only window larger than the buffer can never fill:
                 // blocking submit would wedge forever with no age bound to
                 // close the window.
                 throw new IllegalStateException(
-                        "A count-only WindowPolicy's maxItems (" + windowPolicy.getMaxItems()
+                        "A count-only WindowPolicy's maxItems (" + windowPolicy.maxItems()
                                 + ") cannot exceed maxBufferSize (" + maxBufferSize
                                 + "): the window could never fill and blocking submit would"
                                 + " wedge; raise maxBufferSize or add a time bound"
@@ -1107,13 +1109,13 @@ public interface TxFlowStream extends AutoCloseable {
                     // Mirror the time-window rule: the periodic reconciliation
                     // pass runs on the caller-owned scheduler; the stream owns
                     // no threads or timers. Read-through reconcile(...) /
-                    // getItemStatus(...) remain available without it.
+                    // itemStatus(...) remain available without it.
                     throw new IllegalStateException(
                             "reconciliationInterval(...) requires maintenanceExecutor"
                                     + "(ScheduledExecutorService) so the periodic reconciliation"
                                     + " pass runs on a caller-owned scheduler (the stream never"
                                     + " owns threads); read-through reconcile(...) /"
-                                    + " getItemStatus(...) remain available without it");
+                                    + " itemStatus(...) remain available without it");
                 }
             }
             if (stateStore.isDurable() && !gateway.durableExecution()) {

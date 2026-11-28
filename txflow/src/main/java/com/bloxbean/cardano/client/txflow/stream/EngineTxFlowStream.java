@@ -27,6 +27,13 @@ import com.bloxbean.cardano.client.txflow.store.AttemptState;
 import com.bloxbean.cardano.client.txflow.store.FlowAttemptSnapshot;
 import com.bloxbean.cardano.client.txflow.store.FlowExecutionSnapshot;
 import com.bloxbean.cardano.client.txflow.store.FlowStoreTextPolicy;
+import com.bloxbean.cardano.client.txflow.stream.store.BindingOutcome;
+import com.bloxbean.cardano.client.txflow.stream.store.StreamOwnershipLease;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamBinding;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamItemRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamPlannedRecord;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore;
+import com.bloxbean.cardano.client.txflow.stream.store.TxStreamStoredProjection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1066,7 +1073,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             schedulePump();
             awaitPromises(null);
         } catch (TxStreamException failure) {
-            if ("TXSTREAM_INTERRUPTED".equals(failure.getCode())) {
+            if ("TXSTREAM_INTERRUPTED".equals(failure.code())) {
                 // Cancelling only the timer would strand queued receipts on a
                 // closed stream. Abort settles queued work and signals running
                 // executions without claiming their final transaction outcome.
@@ -1147,7 +1154,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             }
             List<String> cancelledItemIds = new ArrayList<>(buffered.size());
             for (ItemState state : buffered) {
-                cancelledItemIds.add(state.item.getItemId());
+                cancelledItemIds.add(state.item.itemId());
             }
             List<String> signalledExecutionIds = new ArrayList<>(signalled.size());
             List<CompletableFuture<?>> outstanding = new ArrayList<>();
@@ -1321,7 +1328,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 notifyRejected(item, acceptance.rejection);
                 return EmitResult.rejected(acceptance.rejection);
             case CONFLICT:
-                return EmitResult.conflict(acceptance.conflict);
+                return EmitResult.conflicted(acceptance.conflict);
             case FULL:
                 return EmitResult.full();
             case PAUSED:
@@ -1333,7 +1340,7 @@ final class EngineTxFlowStream implements TxFlowStream {
     }
 
     private Acceptance accept(TxWorkItem item, boolean blocking) {
-        ItemState existing = items.get(item.getItemId());
+        ItemState existing = items.get(item.itemId());
         if (existing != null) {
             return attachOrConflict(existing, item);
         }
@@ -1346,7 +1353,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             } catch (InterruptedException interrupt) {
                 Thread.currentThread().interrupt();
                 throw new TxStreamException("TXSTREAM_INTERRUPTED",
-                        "Interrupted while submitting item '" + item.getItemId() + "'", interrupt);
+                        "Interrupted while submitting item '" + item.itemId() + "'", interrupt);
             }
         } else if (!capacity.tryAcquire()) {
             return Acceptance.full();
@@ -1356,7 +1363,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             if (!isAccepting()) {
                 return refuseNotAccepting();
             }
-            existing = items.get(item.getItemId());
+            existing = items.get(item.itemId());
             if (existing != null) {
                 return attachOrConflict(existing, item);
             }
@@ -1372,26 +1379,26 @@ final class EngineTxFlowStream implements TxFlowStream {
                 // Only a null item stays an untyped NPE at the submit entry
                 // points — a programming error, never a content outcome.
                 return Acceptance.rejected(new TxStreamException("TXSTREAM_INVALID_ITEM",
-                        "Item '" + item.getItemId() + "' is invalid: "
+                        "Item '" + item.itemId() + "' is invalid: "
                                 + invalidItem.getMessage(), invalidItem));
             }
             ItemState state;
-            synchronized (acceptanceLock(item.getItemId())) {
+            synchronized (acceptanceLock(item.itemId())) {
                 if (!isAccepting()) {
                     return refuseNotAccepting();
                 }
-                existing = items.get(item.getItemId());
+                existing = items.get(item.itemId());
                 if (existing != null) {
                     return attachOrConflict(existing, item);
                 }
                 String claimOwner = itemIdByClaimKey.putIfAbsent(
-                        prepared.claimKey, item.getItemId());
-                if (claimOwner != null && !claimOwner.equals(item.getItemId())) {
+                        prepared.claimKey, item.itemId());
+                if (claimOwner != null && !claimOwner.equals(item.itemId())) {
                     return Acceptance.rejected(new TxStreamException(
                             "TXSTREAM_IDEMPOTENCY_KEY_REUSE",
                             "Idempotency key '" + prepared.claimKey
                                     + "' is already bound to item '" + claimOwner + "'; item '"
-                                    + item.getItemId() + "' cannot reuse it — redelivery must"
+                                    + item.itemId() + "' cannot reuse it — redelivery must"
                                     + " reuse the original item id"));
                 }
                 state = ItemState.pending(this, item.withAcceptedStep(prepared.enforcedStep), prepared,
@@ -1401,28 +1408,28 @@ final class EngineTxFlowStream implements TxFlowStream {
                 try {
                     // Authoritative registration precedes receipt publication:
                     // a failed write is a rejection, never accepted work.
-                    registered = stateStore.registerOrMatch(new TxStreamItemRecord(item.getItemId(),
+                    registered = stateStore.registerOrMatch(new TxStreamItemRecord(item.itemId(),
                             prepared.claimKey, prepared.lane.laneName(), prepared.fingerprint,
                             clock.instant()));
                 } catch (TxStreamDuplicateItemException duplicate) {
-                    itemIdByClaimKey.remove(prepared.claimKey, item.getItemId());
+                    itemIdByClaimKey.remove(prepared.claimKey, item.itemId());
                     return Acceptance.conflict(duplicate);
                 } catch (RuntimeException registrationFailure) {
-                    itemIdByClaimKey.remove(prepared.claimKey, item.getItemId());
+                    itemIdByClaimKey.remove(prepared.claimKey, item.itemId());
                     return Acceptance.rejected(new TxStreamException(
                             "TXSTREAM_REGISTRATION_FAILED",
                             "Authoritative item registration failed for '"
-                                    + item.getItemId() + "'", registrationFailure));
+                                    + item.itemId() + "'", registrationFailure));
                 }
                 if (!registered) {
-                    itemIdByClaimKey.remove(prepared.claimKey, item.getItemId());
+                    itemIdByClaimKey.remove(prepared.claimKey, item.itemId());
                     try {
                         return attachStored(item, prepared);
                     } catch (TxStreamException unavailable) {
                         return Acceptance.rejected(unavailable);
                     }
                 }
-                ItemState raced = items.putIfAbsent(item.getItemId(), state);
+                ItemState raced = items.putIfAbsent(item.itemId(), state);
                 if (raced != null) {
                     // Re-attach is the only path that can race this same-item
                     // stripe. Prefer its already-published state.
@@ -1457,35 +1464,35 @@ final class EngineTxFlowStream implements TxFlowStream {
     }
 
     private void notifyRejected(TxWorkItem item, TxStreamException rejection) {
-        safeListener(() -> listener.onItemRejected(item.getItemId(), rejection));
+        safeListener(() -> listener.onItemRejected(item.itemId(), rejection));
     }
 
     /** Matching a durable registration never creates a new execution or acceptance. */
     private Acceptance attachStored(TxWorkItem item, PreparedItem prepared) {
-        Optional<TxStreamStoredProjection> stored = stateStore.getStoredProjection(streamId, item.getItemId());
-        if (stored.isPresent() && ItemProjection.isFinal(stored.get().result().getStatus())) {
+        Optional<TxStreamStoredProjection> stored = stateStore.getStoredProjection(streamId, item.itemId());
+        if (stored.isPresent() && ItemProjection.isFinal(stored.get().result().status())) {
             ItemState settled = ItemState.reattached(this, item.withAcceptedStep(prepared.enforcedStep),
                     prepared.claimKey, prepared.fingerprint, prepared.lane,
                     stored.get().result(), stored.get().sourceSequence());
             // Do not repopulate retention/counters with historical terminal work.
             return Acceptance.attached(settled.receipt);
         }
-        MemberRef ref = findPlannedMember(item.getItemId());
+        MemberRef ref = findPlannedMember(item.itemId());
         if (ref == null) {
             throw new TxStreamException("TXSTREAM_REGISTRATION_INCOMPLETE",
-                    "Item '" + item.getItemId() + "' is already registered but has no stored terminal "
+                    "Item '" + item.itemId() + "' is already registered but has no stored terminal "
                             + "outcome or recoverable plan; wait for the accepting owner or investigate "
                             + "the incomplete registration. No replacement execution was started");
         }
         if (!prepared.fingerprint.equals(ref.member.fingerprint())
                 || !prepared.claimKey.equals(ref.member.idempotencyKey())) {
             throw new TxStreamException("TXSTREAM_STORE_CODEC_CORRUPT",
-                    "Stored plan does not match the authoritative item registration: " + item.getItemId());
+                    "Stored plan does not match the authoritative item registration: " + item.itemId());
         }
-        ItemState hydrated = hydrateForRead(item.getItemId(), ref, true);
+        ItemState hydrated = hydrateForRead(item.itemId(), ref, true);
         if (!prepared.fingerprint.equals(hydrated.fingerprint)) {
             throw new TxStreamException("TXSTREAM_STORE_CODEC_CORRUPT",
-                    "Hydrated item differs from its registration: " + item.getItemId());
+                    "Hydrated item differs from its registration: " + item.itemId());
         }
         return Acceptance.attached(hydrated.receipt);
     }
@@ -1527,16 +1534,16 @@ final class EngineTxFlowStream implements TxFlowStream {
             return Acceptance.attached(existing.receipt);
         }
         String message = candidateFingerprint == null
-                ? "Item '" + candidate.getItemId() + "' was already accepted and the"
+                ? "Item '" + candidate.itemId() + "' was already accepted and the"
                         + " redelivered payload could not be fingerprinted for comparison"
-                : "Item '" + candidate.getItemId() + "' was already accepted"
+                : "Item '" + candidate.itemId() + "' was already accepted"
                         + (existing.projection.isSettled()
-                                && existing.projection.current().getStatus()
+                                && existing.projection.current().status()
                                         == TxStreamItemStatus.FAILED
                                 ? " (and settled as FAILED)" : "")
                         + " with different content";
         return Acceptance.conflict(
-                new TxStreamDuplicateItemException(candidate.getItemId(), message));
+                new TxStreamDuplicateItemException(candidate.itemId(), message));
     }
 
     /**
@@ -1547,18 +1554,18 @@ final class EngineTxFlowStream implements TxFlowStream {
      * default planner's (and the fingerprint's) claim-derived derivations.
      */
     private PreparedItem prepare(TxWorkItem item) {
-        String claimKey = item.getIdempotencyKey() != null
-                ? item.getIdempotencyKey() : item.getItemId();
+        String claimKey = item.idempotencyKey() != null
+                ? item.idempotencyKey() : item.itemId();
         FlowStoreTextPolicy.requireIdentifier(claimKey, "idempotency key",
                 FlowStoreTextPolicy.MAX_IDEMPOTENCY_KEY_BYTES);
-        if (item.getKind() == TxWorkItem.Kind.TEMPLATE) {
+        if (item.kind() == TxWorkItem.Kind.TEMPLATE) {
             return prepareTemplate(item, claimKey);
         }
         String flowId = StreamIdentities.flowId(namespace, claimKey);
-        FlowStep step = item.getKind() == TxWorkItem.Kind.TX_PLAN
+        FlowStep step = item.kind() == TxWorkItem.Kind.TX_PLAN
                 ? FlowStep.builder(StreamIdentities.GENERATED_STEP_ID)
-                        .withTxPlan(item.getTxPlan()).build()
-                : item.getFlowStep();
+                        .withTxPlan(item.txPlan()).build()
+                : item.flowStep();
         TxFlow definition = TxFlow.builder(flowId).addStep(step).build();
         // Portability is a property of the payload, independent of the lane, so
         // validate it BEFORE deriving the lane (QUALITY). Otherwise a non-portable
@@ -1568,7 +1575,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         List<FlowDiagnostic> diagnostics = PortableFlowValidator.validate(definition, extensions);
         if (!diagnostics.isEmpty()) {
             throw new TxStreamException("TXSTREAM_NON_PORTABLE_ITEM",
-                    "Item '" + item.getItemId() + "' is not portable: " + diagnostics);
+                    "Item '" + item.itemId() + "' is not portable: " + diagnostics);
         }
         if (step.getTxPlan() != null) {
             try {
@@ -1576,7 +1583,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 definition = TxFlow.builder(flowId).addStep(step).build();
             } catch (RuntimeException snapshotFailure) {
                 throw new TxStreamException("TXSTREAM_NON_PORTABLE_ITEM",
-                        "Item '" + item.getItemId() + "' cannot be snapshotted", snapshotFailure);
+                        "Item '" + item.itemId() + "' cannot be snapshotted", snapshotFailure);
             }
         }
         ResolvedLane lane = resolveLane(item);
@@ -1591,16 +1598,16 @@ final class EngineTxFlowStream implements TxFlowStream {
                     FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
         } catch (RuntimeException encodingFailure) {
             throw new TxStreamException("TXSTREAM_NON_PORTABLE_ITEM",
-                    "Item '" + item.getItemId() + "' has no portable encoding: "
+                    "Item '" + item.itemId() + "' has no portable encoding: "
                             + encodingFailure.getMessage(), encodingFailure);
         }
         // The fingerprint covers the lane as submitted (the planner-visible
         // field), defaulting to the effective lane's label so 1A single-lane
         // fingerprints stay stable.
-        String fingerprintLane = item.getLane() != null ? item.getLane() : lane.laneName();
-        String fingerprint = StreamIdentities.itemFingerprint(item.getItemId(), claimKey,
-                fingerprintLane, item.getMetadata(), payload, item.getBindings(),
-                item.getSecureBindingReferences(), item.getSensitiveBindings());
+        String fingerprintLane = item.lane() != null ? item.lane() : lane.laneName();
+        String fingerprint = StreamIdentities.itemFingerprint(item.itemId(), claimKey,
+                fingerprintLane, item.metadata(), payload, item.bindings(),
+                item.secureBindingReferences(), item.sensitiveBindings());
         return new PreparedItem(claimKey,
                 StreamIdentities.executionId(namespace, claimKey),
                 flowId, step.getId(), step, fingerprint, lane, null, null);
@@ -1619,18 +1626,18 @@ final class EngineTxFlowStream implements TxFlowStream {
      * {@link #resolveLane(TxWorkItem)}).
      */
     private PreparedItem prepareTemplate(TxWorkItem item, String claimKey) {
-        RegisteredTemplate template = templates.get(item.getTemplateId());
+        RegisteredTemplate template = templates.get(item.templateId());
         if (template == null) {
             throw new TxStreamException("TXSTREAM_TEMPLATE_UNKNOWN",
-                    "Item '" + item.getItemId() + "' references template '"
-                            + item.getTemplateId() + "', which is not registered on this stream"
+                    "Item '" + item.itemId() + "' references template '"
+                            + item.templateId() + "', which is not registered on this stream"
                             + " (register it with TxFlowStream.Builder.template(id, definition))");
         }
         ResolvedLane lane = resolveLane(item);
-        String fingerprintLane = item.getLane() != null ? item.getLane() : lane.laneName();
-        String fingerprint = StreamIdentities.templateItemFingerprint(item.getItemId(), claimKey,
-                fingerprintLane, item.getMetadata(), template.templateId(), item.getBindings(),
-                item.getSecureBindingReferences(), item.getSensitiveBindings());
+        String fingerprintLane = item.lane() != null ? item.lane() : lane.laneName();
+        String fingerprint = StreamIdentities.templateItemFingerprint(item.itemId(), claimKey,
+                fingerprintLane, item.metadata(), template.templateId(), item.bindings(),
+                item.secureBindingReferences(), item.sensitiveBindings());
         return new PreparedItem(claimKey,
                 StreamIdentities.executionId(namespace, claimKey),
                 template.definition().getId(), template.terminalStepId(), null, fingerprint,
@@ -1650,7 +1657,7 @@ final class EngineTxFlowStream implements TxFlowStream {
      * startup.</p>
      */
     private ResolvedLane resolveLane(TxWorkItem item) {
-        if (item.getKind() == TxWorkItem.Kind.TEMPLATE
+        if (item.kind() == TxWorkItem.Kind.TEMPLATE
                 && (laneMode == LanePolicy.Mode.BY_FUNDING_SOURCE
                         || laneMode == LanePolicy.Mode.PARTITIONED)) {
             // A template's funding lives inside its (multi-step) definition, so
@@ -1659,7 +1666,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             // (single()/explicit()); deriving a lane from a template's bound
             // definition is a follow-up (ADR 0004, iteration 3).
             throw new TxStreamException("TXSTREAM_LANE_REQUIRED",
-                    "Item '" + item.getItemId() + "' invokes template '" + item.getTemplateId()
+                    "Item '" + item.itemId() + "' invokes template '" + item.templateId()
                             + "', but LanePolicy." + laneMode + " cannot derive a lane for a"
                             + " template item; configure LanePolicy.single(...) or"
                             + " LanePolicy.explicit() with an explicit lane for template items");
@@ -1683,10 +1690,10 @@ final class EngineTxFlowStream implements TxFlowStream {
      * — a lane name is never a silent scheduling-only label.
      */
     private ResolvedLane resolveSingleLane(TxWorkItem item) {
-        String requested = item.getLane();
+        String requested = item.lane();
         if (requested != null && !requested.equals(staticLane.laneName())) {
             throw new TxStreamException("TXSTREAM_LANE_MISMATCH",
-                    "Item '" + item.getItemId() + "' names lane '" + requested
+                    "Item '" + item.itemId() + "' names lane '" + requested
                             + "' but this stream is configured with the single lane '"
                             + staticLane.laneName() + "'");
         }
@@ -1705,10 +1712,10 @@ final class EngineTxFlowStream implements TxFlowStream {
      * independent lanes.
      */
     private ResolvedLane resolveExplicitLane(TxWorkItem item) {
-        String requested = item.getLane();
+        String requested = item.lane();
         if (requested == null) {
             throw new TxStreamException("TXSTREAM_LANE_REQUIRED",
-                    "Item '" + item.getItemId() + "' names no lane; LanePolicy.explicit()"
+                    "Item '" + item.itemId() + "' names no lane; LanePolicy.explicit()"
                             + " requires TxWorkItem.Builder.withLane(String)");
         }
         ResolvedLane cached = laneByName.get(requested);
@@ -1726,13 +1733,13 @@ final class EngineTxFlowStream implements TxFlowStream {
             } catch (RuntimeException resolverFailure) {
                 throw new TxStreamException("TXSTREAM_LANE_UNRESOLVED",
                         "Lane '" + requested + "' failed to resolve for item '"
-                                + item.getItemId() + "': " + resolverFailure.getMessage(),
+                                + item.itemId() + "': " + resolverFailure.getMessage(),
                         resolverFailure);
             }
             if (resolved == null) {
                 throw new TxStreamException("TXSTREAM_LANE_UNRESOLVED",
                         "Lane '" + requested + "' resolved to null for item '"
-                                + item.getItemId() + "'");
+                                + item.itemId() + "'");
             }
             registerLaneScope(resolved, requested);
             laneByName.put(requested, resolved);
@@ -1754,10 +1761,10 @@ final class EngineTxFlowStream implements TxFlowStream {
      */
     private ResolvedLane deriveLaneFromFundingSource(TxWorkItem item) {
         ResolvedLane derived = fundingSourceLane(item);
-        String requested = item.getLane();
+        String requested = item.lane();
         if (requested != null && !requested.equals(derived.laneName())) {
             throw new TxStreamException("TXSTREAM_LANE_MISMATCH",
-                    "Item '" + item.getItemId() + "' names lane '" + requested
+                    "Item '" + item.itemId() + "' names lane '" + requested
                             + "' but LanePolicy.byFundingSource() derives the lane from the"
                             + " transaction's funding source '" + derived.laneName() + "'");
         }
@@ -1785,7 +1792,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 // letting enforceLaneFundingScope surface a confusing
                 // TXSTREAM_LANE_SCOPE_VIOLATION downstream.
                 throw new TxStreamException("TXSTREAM_LANE_AMBIGUOUS",
-                        "Item '" + item.getItemId() + "' names BOTH a from address and a from_ref;"
+                        "Item '" + item.itemId() + "' names BOTH a from address and a from_ref;"
                                 + " LanePolicy.byFundingSource() cannot derive a single lane from an"
                                 + " ambiguous funding source — declare exactly one of from / from_ref");
             }
@@ -1797,7 +1804,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             }
         }
         throw new TxStreamException("TXSTREAM_LANE_UNDERIVABLE",
-                "Item '" + item.getItemId() + "' has no funding source (from / from_ref) to"
+                "Item '" + item.itemId() + "' has no funding source (from / from_ref) to"
                         + " derive a lane from; LanePolicy.byFundingSource() requires the"
                         + " transaction to name its sender");
     }
@@ -1823,10 +1830,10 @@ final class EngineTxFlowStream implements TxFlowStream {
 
     /** The item payload's transaction plan, or {@code null} for a template step. */
     private static TxPlan itemTxPlan(TxWorkItem item) {
-        if (item.getKind() == TxWorkItem.Kind.TX_PLAN) {
-            return item.getTxPlan();
+        if (item.kind() == TxWorkItem.Kind.TX_PLAN) {
+            return item.txPlan();
         }
-        FlowStep step = item.getFlowStep();
+        FlowStep step = item.flowStep();
         return step != null ? step.getTxPlan() : null;
     }
 
@@ -1852,8 +1859,8 @@ final class EngineTxFlowStream implements TxFlowStream {
      * address by {@link #enforceLaneFundingScope}.
      */
     private ResolvedLane partitionLane(TxWorkItem item) {
-        String claimKey = item.getIdempotencyKey() != null
-                ? item.getIdempotencyKey() : item.getItemId();
+        String claimKey = item.idempotencyKey() != null
+                ? item.idempotencyKey() : item.itemId();
         int index = StreamIdentities.partitionIndex(claimKey, partitionLanes.size());
         ResolvedLane lane = partitionLanes.get(index);
         // Cache under the lane name so the planner-side resolvePlannedLane finds it.
@@ -1926,7 +1933,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             String declared = (addressScope ? "from " : "from_ref ") + scope.source();
             String actual = hasFrom ? "from " + from : "from_ref " + fromRef;
             throw new TxStreamException("TXSTREAM_LANE_SCOPE_VIOLATION",
-                    "Item '" + item.getItemId() + "' draws outside its lane's funding scope:"
+                    "Item '" + item.itemId() + "' draws outside its lane's funding scope:"
                             + " lane '" + lane.laneName() + "' declares " + declared
                             + " but the transaction declares " + actual);
         }
@@ -1960,7 +1967,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 windowOpenedAt = clock.instant();
                 scheduleWindowTimerLocked();
             }
-            int maxItems = windowPolicy != null ? windowPolicy.getMaxItems() : 1;
+            int maxItems = windowPolicy != null ? windowPolicy.maxItems() : 1;
             if (windowBuffer.size() >= maxItems) {
                 closedWindow = closeWindowLocked();
             }
@@ -2158,7 +2165,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         if (windowPolicy == null || !windowPolicy.isTimeBased()) {
             return;
         }
-        scheduleWindowWakeupLocked(windowEpoch, windowPolicy.getMaxAge());
+        scheduleWindowWakeupLocked(windowEpoch, windowPolicy.maxAge());
     }
 
     /** Guarded by {@link #stateLock}. */
@@ -2214,9 +2221,9 @@ final class EngineTxFlowStream implements TxFlowStream {
                 return; // stale wakeup: the window already closed
             }
             Duration age = Duration.between(windowOpenedAt, clock.instant());
-            if (age.compareTo(windowPolicy.getMaxAge()) < 0) {
+            if (age.compareTo(windowPolicy.maxAge()) < 0) {
                 // Spurious/early wakeup: tolerate and re-arm for the remainder.
-                scheduleWindowWakeupLocked(epoch, windowPolicy.getMaxAge().minus(age));
+                scheduleWindowWakeupLocked(epoch, windowPolicy.maxAge().minus(age));
                 return;
             }
             closedWindow = closeWindowLocked();
@@ -2262,14 +2269,14 @@ final class EngineTxFlowStream implements TxFlowStream {
             // Degraded but bounded, and NOT retried: the maintenance scheduler
             // rejected the pass, so PUSH-repair is disabled for the remaining
             // lifetime of this stream (the timer is never re-armed). This is not
-            // fatal — read-through repair (getItemStatus/reconcile) still resolves
+            // fatal — read-through repair (itemStatus/reconcile) still resolves
             // every RECOVERY_REQUIRED item on demand; only the background push is
             // lost. Recreate the stream with a healthy maintenanceExecutor to
             // restore push-repair.
             log.warn("TxFlowStream[{}] reconciliation observer could not be scheduled;"
                     + " push-repair is DISABLED for the lifetime of this stream —"
                     + " RECOVERY_REQUIRED items are repaired by read-through"
-                    + " (getItemStatus/reconcile) only",
+                    + " (itemStatus/reconcile) only",
                     streamId, scheduleFailure);
         }
     }
@@ -2364,7 +2371,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             if (budget == 0) {
                 return 0; // cap reached; the rest wait for the next fire
             }
-            TxStreamItemStatus status = state.projection.current().getStatus();
+            TxStreamItemStatus status = state.projection.current().status();
             if (ItemProjection.isFinal(status)
                     || (!state.foreignObservation && status != TxStreamItemStatus.RECOVERY_REQUIRED)) {
                 continue;
@@ -2405,7 +2412,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             if (items.containsKey(itemId)) continue;
             try {
                 Optional<TxStreamItemResult> stored = stateStore.getItem(streamId, itemId);
-                if (stored.isPresent() && stored.get().getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED) {
+                if (stored.isPresent() && stored.get().status() == TxStreamItemStatus.RECOVERY_REQUIRED) {
                     MemberRef ref = findPlannedMember(itemId);
                     if (ref != null) hydrateForRead(itemId, ref);
                 }
@@ -2427,7 +2434,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             reconcileFromSnapshot(state);
         } catch (RuntimeException reconcileFailure) {
             log.warn("TxFlowStream[{}] reconciliation failed for item '{}'",
-                    streamId, state.item.getItemId(), reconcileFailure);
+                    streamId, state.item.itemId(), reconcileFailure);
         }
     }
 
@@ -2441,7 +2448,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             ItemState existing = items.get(itemId);
             if (existing != null) return existing;
             ItemState state = reconstructItemState(ref.record, ref.member, ref.shared);
-            state.foreignObservation = state.projection.current().getStatus()
+            state.foreignObservation = state.projection.current().status()
                     != TxStreamItemStatus.RECOVERY_REQUIRED;
             // Healthy foreign reads remain detached: no claims, gauges or live-map entries.
             // Explicit receipt attachment is retained for subsequent observer/poll updates.
@@ -2555,9 +2562,9 @@ final class EngineTxFlowStream implements TxFlowStream {
         List<TxWorkItem> windowItems = new ArrayList<>(live.size());
         Map<String, TxStreamPlanningContext.PlanningSeed> seeds = new HashMap<>();
         for (ItemState member : live) {
-            liveById.put(member.item.getItemId(), member);
+            liveById.put(member.item.itemId(), member);
             windowItems.add(member.item);
-            seeds.put(member.item.getItemId(), new TxStreamPlanningContext.PlanningSeed(
+            seeds.put(member.item.itemId(), new TxStreamPlanningContext.PlanningSeed(
                     member.claimKey, member.lane, member.enforcedStep));
         }
         TxStreamPlan plan;
@@ -2576,7 +2583,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             failWindowItems(batch, TxStreamItemStatus.FAILED,
                     plannerFailure instanceof TxStreamException
                             && "TXSTREAM_PLANNER_FAILED"
-                                    .equals(((TxStreamException) plannerFailure).getCode())
+                                    .equals(((TxStreamException) plannerFailure).code())
                             ? (TxStreamException) plannerFailure
                             : new TxStreamException("TXSTREAM_PLANNER_FAILED",
                                     "Planner failed for batch '" + batch.batchId + "': "
@@ -2602,14 +2609,14 @@ final class EngineTxFlowStream implements TxFlowStream {
         Set<String> mapped = new HashSet<>();
         for (ExecutionState execution : executions) {
             for (ItemState member : execution.members) {
-                mapped.add(member.item.getItemId());
+                mapped.add(member.item.itemId());
             }
         }
         for (ItemState member : live) {
-            if (!mapped.contains(member.item.getItemId())) {
+            if (!mapped.contains(member.item.itemId())) {
                 releasePermit(member);
                 failItem(member, "TXSTREAM_PLAN_OMITTED",
-                        "The planner omitted item '" + member.item.getItemId()
+                        "The planner omitted item '" + member.item.itemId()
                                 + "' from the plan for batch '" + batch.batchId + "'", null);
             }
         }
@@ -2922,10 +2929,10 @@ final class EngineTxFlowStream implements TxFlowStream {
                 for (ItemState member : execution.members) {
                     releasePermit(member);
                     TxStreamItemResult result = member.projection.current();
-                    if (result.getTransactionHash() != null
-                            && (result.getStatus() == TxStreamItemStatus.CONFIRMED
-                            || result.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED)) {
-                        lane.pendingVisibility.put(member.item.getItemId(), result.getTransactionHash());
+                    if (result.transactionHash() != null
+                            && (result.status() == TxStreamItemStatus.CONFIRMED
+                            || result.status() == TxStreamItemStatus.RECOVERY_REQUIRED)) {
+                        lane.pendingVisibility.put(member.item.itemId(), result.transactionHash());
                     }
                 }
                 lane.inFlight = null;
@@ -3069,7 +3076,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 // before start), so a crash before start can be re-dispatched
                 // from the stored plan; the no-secrets rule is enforced here.
                 for (ItemState member : execution.members) {
-                    stateStore.bind(member.item.getItemId(), new TxStreamBinding(
+                    stateStore.bind(member.item.itemId(), new TxStreamBinding(
                             execution.executionId, execution.flowId(), member.stepId,
                             execution.lane.laneName()));
                 }
@@ -3078,7 +3085,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 // No-secrets rejection or a planned-flow write failure: fail the
                 // items closed with the typed code, before the engine is
                 // invoked.
-                failMembers(execution, failClosed.getCode(), failClosed.getMessage(), failClosed);
+                failMembers(execution, failClosed.code(), failClosed.getMessage(), failClosed);
                 return;
             } catch (RuntimeException bindFailure) {
                 failMembers(execution, "TXSTREAM_BINDING_FAILED",
@@ -3198,7 +3205,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         boolean wake = false;
         synchronized (stateLock) {
             LaneQueue lane = laneQueues.get(state.lane.canonicalSpendingIdentity());
-            if (lane != null && lane.pendingVisibility.remove(state.item.getItemId()) != null
+            if (lane != null && lane.pendingVisibility.remove(state.item.itemId()) != null
                     && lane.pendingVisibility.isEmpty()) {
                 cancelVisibilityTimerLocked(lane);
                 makeReady(lane);
@@ -3291,10 +3298,10 @@ final class EngineTxFlowStream implements TxFlowStream {
                         projectTerminal(member, execution, result, snapshots);
                     } catch (Throwable projectionFailure) {
                         log.warn("TxFlowStream[{}] terminal projection failed for item '{}'",
-                                streamId, member.item.getItemId(), projectionFailure);
+                                streamId, member.item.itemId(), projectionFailure);
                         failItem(member, "TXSTREAM_PROJECTION_FAILED",
                                 "Terminal projection failed for item '"
-                                        + member.item.getItemId() + "'", projectionFailure);
+                                        + member.item.itemId() + "'", projectionFailure);
                     }
                 }
             }
@@ -3416,10 +3423,10 @@ final class EngineTxFlowStream implements TxFlowStream {
     private void confirmMembers(ExecutionState execution, BindingOutcome outcome) {
         for (ItemState member : execution.members) {
             try {
-                stateStore.confirmBinding(member.item.getItemId(), outcome);
+                stateStore.confirmBinding(member.item.itemId(), outcome);
             } catch (RuntimeException confirmFailure) {
                 log.warn("TxFlowStream[{}] binding confirmation ({}) failed for item '{}'",
-                        streamId, outcome, member.item.getItemId(), confirmFailure);
+                        streamId, outcome, member.item.itemId(), confirmFailure);
             }
         }
     }
@@ -3486,7 +3493,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 fingerprints.put(name, StreamIdentities.secureRefFingerprint(reference)));
         List<TxStreamPlannedRecord.Member> members = new ArrayList<>(execution.members.size());
         for (ItemState member : execution.members) {
-            members.add(new TxStreamPlannedRecord.Member(member.item.getItemId(),
+            members.add(new TxStreamPlannedRecord.Member(member.item.itemId(),
                     memberClaimKey(member), member.stepId, member.fingerprint));
         }
         // DEV-T1: persist the template definition's fingerprint alongside the
@@ -3525,8 +3532,8 @@ final class EngineTxFlowStream implements TxFlowStream {
         if (member.claimKey != null) {
             return member.claimKey;
         }
-        return member.item.getIdempotencyKey() != null
-                ? member.item.getIdempotencyKey() : member.item.getItemId();
+        return member.item.idempotencyKey() != null
+                ? member.item.idempotencyKey() : member.item.itemId();
     }
 
     // ------------------------------------------------------------------
@@ -3618,19 +3625,19 @@ final class EngineTxFlowStream implements TxFlowStream {
                 continue;
             }
             Optional<TxStreamStoredProjection> stored = stateStore.getStoredProjection(streamId, itemId);
-            if (stored.isEmpty() || ItemProjection.isFinal(stored.get().result().getStatus())) {
+            if (stored.isEmpty() || ItemProjection.isFinal(stored.get().result().status())) {
                 continue;
             }
             TxStreamItemResult prior = stored.get().result();
-            if (prior.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED
-                    && prior.getError() instanceof TxStreamException error
-                    && "TXSTREAM_ABANDONED".equals(error.getCode())) {
+            if (prior.status() == TxStreamItemStatus.RECOVERY_REQUIRED
+                    && prior.error() instanceof TxStreamException error
+                    && "TXSTREAM_ABANDONED".equals(error.code())) {
                 incomplete++;
                 continue;
             }
             // A stored execution id whose snapshot is present is still resolvable
             // — leave it for an operator reconcile rather than abandoning it.
-            String executionId = prior.getExecutionId();
+            String executionId = prior.executionId();
             if (executionId != null) {
                 try {
                     if (gateway.executionSnapshot(executionId).isPresent()) {
@@ -3733,11 +3740,11 @@ final class EngineTxFlowStream implements TxFlowStream {
         }
         // A RECOVERY_REQUIRED seed whose snapshot is still non-terminal produces
         // no transition; settle its promise explicitly so drain() cannot hang.
-        if (ItemProjection.settles(state.projection.current().getStatus())
+        if (ItemProjection.settles(state.projection.current().status())
                 && !state.projection.isSettled()) {
             state.projection.completePromise(state.projection.current());
         }
-        return state.projection.current().getStatus();
+        return state.projection.current().status();
     }
 
     private TxStreamException reattachedTerminalError(TxStreamItemStatus status,
@@ -3815,7 +3822,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             member.flowId = definition.getId();
             member.sharedExecution = shared;
             member.execution = execution;
-            items.putIfAbsent(member.item.getItemId(), member);
+            items.putIfAbsent(member.item.itemId(), member);
             registerReattachedClaim(member);
         }
         synchronized (stateLock) {
@@ -3831,7 +3838,7 @@ final class EngineTxFlowStream implements TxFlowStream {
     /**
      * Surfaces the items of a re-attached template execution whose template was
      * NOT re-registered on this stream instance (ADR 0004, iteration 3): each
-     * member is reconstructed, published so {@link #getItemStatus(String)} finds
+     * member is reconstructed, published so {@link #itemStatus(String)} finds
      * it, and settled typed {@code TXSTREAM_TEMPLATE_UNKNOWN} — a re-registration
      * omission is a loud, recoverable failure (re-register the template and
      * restart), never a silent loss.
@@ -3847,7 +3854,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                         + " its items");
         for (TxStreamPlannedRecord.Member member : liveMembers) {
             ItemState state = reconstructItemState(record, member, shared);
-            if (items.putIfAbsent(state.item.getItemId(), state) != null) {
+            if (items.putIfAbsent(state.item.itemId(), state) != null) {
                 continue;
             }
             registerReattachedClaim(state);
@@ -3860,7 +3867,7 @@ final class EngineTxFlowStream implements TxFlowStream {
      * template definition DIFFERS from the one persisted when the execution was
      * planned (DEV-T1 — template-definition config drift). Rather than silently
      * running a different flow under the original claim, each member is
-     * reconstructed, published so {@link #getItemStatus(String)} finds it, and
+     * reconstructed, published so {@link #itemStatus(String)} finds it, and
      * settled typed {@code TXSTREAM_TEMPLATE_DRIFT} — the operator must
      * re-register the identical definition to recover (fail-fast, the analogue
      * of the fan-out bootstrap config-drift guard).
@@ -3877,7 +3884,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                         + " (the drifted flow was NOT run)");
         for (TxStreamPlannedRecord.Member member : liveMembers) {
             ItemState state = reconstructItemState(record, member, shared);
-            if (items.putIfAbsent(state.item.getItemId(), state) != null) {
+            if (items.putIfAbsent(state.item.itemId(), state) != null) {
                 continue;
             }
             registerReattachedClaim(state);
@@ -3893,7 +3900,7 @@ final class EngineTxFlowStream implements TxFlowStream {
      */
     private void registerReattachedClaim(ItemState state) {
         if (state.claimKey != null) {
-            itemIdByClaimKey.putIfAbsent(state.claimKey, state.item.getItemId());
+            itemIdByClaimKey.putIfAbsent(state.claimKey, state.item.itemId());
         }
         accountSeededRecoveryRequired(state);
     }
@@ -3918,7 +3925,7 @@ final class EngineTxFlowStream implements TxFlowStream {
      * RECOVERY_REQUIRED residency.</p>
      */
     private void accountSeededRecoveryRequired(ItemState state) {
-        if (state.projection.current().getStatus()
+        if (state.projection.current().status()
                 == TxStreamItemStatus.RECOVERY_REQUIRED) {
             recoveryRequiredCount.incrementAndGet();
         }
@@ -4281,7 +4288,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             state.eventCursor.accumulateAndGet(tail, Math::max);
         } catch (RuntimeException readFailure) {
             log.warn("TxFlowStream[{}] event cursor read failed for item '{}'",
-                    streamId, state.item.getItemId(), readFailure);
+                    streamId, state.item.itemId(), readFailure);
         }
     }
 
@@ -4373,7 +4380,7 @@ final class EngineTxFlowStream implements TxFlowStream {
 
     private void failItem(ItemState state, String code, String message, Throwable cause) {
         TxStreamException error = cause instanceof TxStreamException
-                && code.equals(((TxStreamException) cause).getCode())
+                && code.equals(((TxStreamException) cause).code())
                 ? (TxStreamException) cause
                 : new TxStreamException(code, message, cause);
         project(state, TxStreamItemStatus.FAILED, builder -> builder.error(error), false);
@@ -4393,7 +4400,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         if (applied == null) return null;
         if (state.foreignObservation) {
             if (ItemProjection.settles(target)) state.projection.completePromise(applied.result());
-            if (ItemProjection.isFinal(target) && items.get(state.item.getItemId()) == state) {
+            if (ItemProjection.isFinal(target) && items.get(state.item.itemId()) == state) {
                 noteSettledForRetention(state);
             }
             return applied.result();
@@ -4469,7 +4476,7 @@ final class EngineTxFlowStream implements TxFlowStream {
     }
 
     @Override
-    public Optional<TxStreamBatchResult> getBatchStatus(String batchId) {
+    public Optional<TxStreamBatchResult> batchStatus(String batchId) {
         BatchState batch = batches.get(batchId);
         if (batch != null) {
             return Optional.of(batch.snapshot(streamId));
@@ -4527,7 +4534,7 @@ final class EngineTxFlowStream implements TxFlowStream {
     }
 
     private void evict(ItemState state) {
-        String itemId = state.item.getItemId();
+        String itemId = state.item.itemId();
         if (!items.remove(itemId, state)) {
             // This exact state instance is not the live entry for its item id
             // (it was already released, or the id was re-accepted after an
@@ -4552,7 +4559,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             stateStore.projectItem(applied.result(), applied.sequence());
         } catch (RuntimeException projectionFailure) {
             log.warn("TxFlowStream[{}] projection write failed for item '{}'",
-                    streamId, applied.result().getItemId(), projectionFailure);
+                    streamId, applied.result().itemId(), projectionFailure);
         }
     }
 
@@ -4607,7 +4614,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             // Never silently widened: the caller must escalate explicitly.
             List<String> memberIds = new ArrayList<>(execution.members.size());
             for (ItemState member : execution.members) {
-                memberIds.add(member.item.getItemId());
+                memberIds.add(member.item.itemId());
             }
             return CancelOutcome.rejectedShared(execution.executionId, memberIds);
         }
@@ -4676,14 +4683,14 @@ final class EngineTxFlowStream implements TxFlowStream {
     }
 
     @Override
-    public Optional<TxStreamItemResult> getItemStatus(String itemId) {
+    public Optional<TxStreamItemResult> itemStatus(String itemId) {
         ItemState state = items.get(itemId);
         if (state == null) {
             return reconcileStored(itemId);
         }
         projectLiveSubmitted(state);
         TxStreamItemResult current = state.projection.current();
-        if (state.foreignObservation || current.getStatus() == TxStreamItemStatus.RECOVERY_REQUIRED) {
+        if (state.foreignObservation || current.status() == TxStreamItemStatus.RECOVERY_REQUIRED) {
             return Optional.of(reconcileFromSnapshot(state));
         }
         return Optional.of(current);
@@ -4701,7 +4708,7 @@ final class EngineTxFlowStream implements TxFlowStream {
 
     private Optional<TxStreamItemResult> reconcileStored(String itemId) {
         Optional<TxStreamItemResult> stored = stateStore.getItem(streamId, itemId);
-        if (stored.isPresent() && ItemProjection.isFinal(stored.get().getStatus())) return stored;
+        if (stored.isPresent() && ItemProjection.isFinal(stored.get().status())) return stored;
         if (!stateStore.isDurable()) return stored;
         MemberRef ref = findPlannedMember(itemId);
         return ref == null ? stored : Optional.of(hydrateForRead(itemId, ref).projection.current());
@@ -4717,7 +4724,7 @@ final class EngineTxFlowStream implements TxFlowStream {
      * match events carrying their own step id.
      */
     private void projectLiveSubmitted(ItemState state) {
-        if (state.projection.current().getStatus() != TxStreamItemStatus.PLANNED) {
+        if (state.projection.current().status() != TxStreamItemStatus.PLANNED) {
             return;
         }
         EngineGateway.ExecutionHandle handle = state.handle;
@@ -4729,7 +4736,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             tail = handle.eventsAfter(state.eventCursor.get());
         } catch (RuntimeException readFailure) {
             log.warn("TxFlowStream[{}] live event read failed for item '{}'",
-                    streamId, state.item.getItemId(), readFailure);
+                    streamId, state.item.itemId(), readFailure);
             return;
         }
         long cursor = state.eventCursor.get();
@@ -4767,11 +4774,11 @@ final class EngineTxFlowStream implements TxFlowStream {
      */
     private TxStreamItemResult reconcileFromSnapshot(ItemState state) {
         if (state.foreignObservation) {
-            stateStore.getItem(streamId, state.item.getItemId()).ifPresent(stored ->
-                    project(state, stored.getStatus(), ignored -> stored.toBuilder(), true));
+            stateStore.getItem(streamId, state.item.itemId()).ifPresent(stored ->
+                    project(state, stored.status(), ignored -> stored.toBuilder(), true));
         }
         TxStreamItemResult current = state.projection.current();
-        if (ItemProjection.isFinal(current.getStatus()) || state.executionId == null) {
+        if (ItemProjection.isFinal(current.status()) || state.executionId == null) {
             return current;
         }
         Optional<FlowExecutionSnapshot> snapshot;
@@ -4779,7 +4786,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             snapshot = gateway.executionSnapshot(state.executionId);
         } catch (RuntimeException readFailure) {
             log.warn("TxFlowStream[{}] reconciliation read failed for item '{}'",
-                    streamId, state.item.getItemId(), readFailure);
+                    streamId, state.item.itemId(), readFailure);
             return current;
         }
         if (snapshot.isEmpty()) {
@@ -4793,18 +4800,18 @@ final class EngineTxFlowStream implements TxFlowStream {
                 : state.sharedExecution
                         ? memberSnapshotStatus(snapshot.get(), state)
                         : snapshotStatus(snapshot.get().state());
-        if (target == null || target == current.getStatus()) {
+        if (target == null || target == current.status()) {
             return current;
         }
-        String repairedHash = current.getTransactionHash() != null
-                ? current.getTransactionHash()
+        String repairedHash = current.transactionHash() != null
+                ? current.transactionHash()
                 : hashFromSnapshotData(snapshot.get().data(),
                         state.sharedExecution ? state.stepId : null);
         TxStreamItemResult repaired = project(state, target,
                 builder -> builder
                         .transactionHash(repairedHash)
                         .error(target == TxStreamItemStatus.CONFIRMED ? null
-                                : current.getError()),
+                                : current.error()),
                 true);
         return repaired != null ? repaired : state.projection.current();
     }
@@ -4889,7 +4896,7 @@ final class EngineTxFlowStream implements TxFlowStream {
     }
 
     @Override
-    public TxStreamStats getStats() {
+    public TxStreamStats stats() {
         int pending = 0;
         int inFlight;
         synchronized (stateLock) {
@@ -5027,9 +5034,9 @@ final class EngineTxFlowStream implements TxFlowStream {
             Map<String, Object> sensitive = new LinkedHashMap<>();
             Map<String, String> secureRefs = new LinkedHashMap<>();
             for (ItemState member : members) {
-                nonSensitive.putAll(member.item.getBindings());
-                sensitive.putAll(member.item.getSensitiveBindings());
-                secureRefs.putAll(member.item.getSecureBindingReferences());
+                nonSensitive.putAll(member.item.bindings());
+                sensitive.putAll(member.item.sensitiveBindings());
+                secureRefs.putAll(member.item.secureBindingReferences());
             }
             return new RequestBindings(nonSensitive, sensitive, secureRefs);
         }
@@ -5062,7 +5069,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             this.members = List.copyOf(members);
             List<String> ids = new ArrayList<>(members.size());
             for (ItemState member : members) {
-                ids.add(member.item.getItemId());
+                ids.add(member.item.itemId());
             }
             this.itemIds = List.copyOf(ids);
         }
@@ -5096,7 +5103,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             int confirmed = 0;
             int cancelled = 0;
             for (ItemState member : members) {
-                TxStreamItemStatus memberStatus = member.projection.current().getStatus();
+                TxStreamItemStatus memberStatus = member.projection.current().status();
                 if (!ItemProjection.isFinal(memberStatus)) {
                     return false;
                 }
@@ -5194,14 +5201,14 @@ final class EngineTxFlowStream implements TxFlowStream {
             this.lane = lane;
             this.enforcedStep = enforcedStep;
             this.projection = projection;
-            this.receipt = new TxStreamReceipt(stream.streamId, item.getItemId(),
+            this.receipt = new TxStreamReceipt(stream.streamId, item.itemId(),
                     projection, eventCursor);
         }
 
         static ItemState pending(EngineTxFlowStream stream, TxWorkItem item,
                                  PreparedItem prepared, boolean claimDerivedIdentity) {
             TxStreamItemResult.Builder accepted = TxStreamItemResult
-                    .builder(stream.streamId, item.getItemId(), TxStreamItemStatus.ACCEPTED)
+                    .builder(stream.streamId, item.itemId(), TxStreamItemStatus.ACCEPTED)
                     .laneName(prepared.lane.laneName())
                     .updatedAt(stream.clock.instant());
             if (claimDerivedIdentity) {
