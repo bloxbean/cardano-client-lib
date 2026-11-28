@@ -32,11 +32,14 @@ public final class TxPlanCodec {
     /** Extensions bound by id: any namespace whose metadata names that id resolves to them. */
     private final Map<String, QuickTxExtension> extensionsById;
     private final ObjectMapper mapper;
+    private final boolean strictReading;
 
     private TxPlanCodec(Map<String, QuickTxExtension> extensions,
-                        Map<String, QuickTxExtension> extensionsById) {
+                        Map<String, QuickTxExtension> extensionsById,
+                        boolean strictReading) {
         this.extensions = Map.copyOf(extensions);
         this.extensionsById = Map.copyOf(extensionsById);
+        this.strictReading = strictReading;
         this.mapper = YamlSerializer.getYamlMapper().copy();
         // Quote strings that look like numbers so a written plan reads back with the same value
         // types, e.g. deployment network "0" stays a String. Only this codec's mapper copy changes.
@@ -67,6 +70,7 @@ public final class TxPlanCodec {
             extension.intentTypes().forEach((operation, type) -> mapper.registerSubtypes(
                     new NamedType(type, ExtensionIntent.canonicalType(extension.id(), operation))));
         });
+        if (strictReading) StrictReading.apply(mapper);
     }
 
     public static Builder builder() {
@@ -139,6 +143,7 @@ public final class TxPlanCodec {
 
     private TxPlan read(String yaml, Map<String, Object> runtimeVariables, boolean resolve) {
         try {
+            if (strictReading) StrictReading.checkYamlText(yaml);
             JsonNode unresolved = mapper.readTree(yaml);
             if (!(unresolved instanceof ObjectNode))
                 throw new IllegalArgumentException("TxPlan YAML root must be a mapping");
@@ -167,6 +172,7 @@ public final class TxPlanCodec {
             // The tree is final (resolved, or literal for readLiteral), so the core reconstruction gets a document without
             // variables: it decodes Plutus data exactly as for a literal plan and has nothing to
             // substitute, so a replacement value is never read as a template a second time.
+            if (strictReading) StrictReading.checkDocument(root);
             TransactionDocument document = mapper.treeToValue(root, TransactionDocument.class);
             TxPlan plan = reconstruct(document);
             plan.setVariables(variables);
@@ -175,7 +181,8 @@ public final class TxPlanCodec {
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            throw new IllegalStateException("Unable to deserialize extension-aware TxPlan", e);
+            throw new IllegalStateException("Unable to deserialize extension-aware TxPlan: "
+                    + YamlSerializer.rootMessage(e), e);
         }
     }
 
@@ -332,6 +339,23 @@ public final class TxPlanCodec {
     public static final class Builder {
         private final Map<String, QuickTxExtension> extensions = new LinkedHashMap<>();
         private final Map<String, QuickTxExtension> extensionsById = new LinkedHashMap<>();
+        private boolean strictReading = true;
+
+        /**
+         * Whether documents are read strictly (the default). A strict codec rejects what the lenient one would drop or
+         * coerce, for example an unknown or misspelled intent field, a fractional number for an integer field, a
+         * numeric enum index, an explicit null, a malformed UTxO reference, a YAML alias or a number not written in
+         * plain decimal. {@link StrictReading} lists every rule. {@code false} restores the lenient reading. Unknown
+         * keys outside intents ({@code context}, {@code tx}, the root) are rejected either way; TxFlow compilation is
+         * always strict.
+         *
+         * @param strictReading false to read documents leniently
+         * @return this builder
+         */
+        public Builder strictReading(boolean strictReading) {
+            this.strictReading = strictReading;
+            return this;
+        }
 
         public Builder withExtension(String namespace, QuickTxExtension extension) {
             if (namespace == null || !namespace.matches("[a-z][a-z0-9_-]{0,31}"))
@@ -362,7 +386,7 @@ public final class TxPlanCodec {
         }
 
         public TxPlanCodec build() {
-            return new TxPlanCodec(extensions, extensionsById);
+            return new TxPlanCodec(extensions, extensionsById, strictReading);
         }
     }
 

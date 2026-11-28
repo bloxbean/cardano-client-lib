@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * ADR 0008 M2: portable v1alpha1 templates that use extension intents, compiled through the
+ * ADR 0008 M2: portable v1 templates that use extension intents, compiled through the
  * registered extension with literal decoding (D4a, D6) and the round-trip guard (D7).
  */
 class PortableExtensionTemplateTest {
@@ -32,7 +32,7 @@ class PortableExtensionTemplateTest {
     /** Indentation of an intent field in {@link #DOCUMENT}. */
     private static final String FIELD = " ".repeat(14);
     private static final String DOCUMENT = """
-            api_version: txflow.cardano-client.dev/v1alpha1
+            api_version: txflow.cardano-client.dev/v1
             kind: TxFlow
             metadata: {name: portable-extension}
             spec:
@@ -174,7 +174,7 @@ class PortableExtensionTemplateTest {
     @Test
     void aMappingInPlaceOfATemplateArrayIsADiagnostic() {
         String core = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: not-an-array}
                 spec:

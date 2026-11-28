@@ -8,7 +8,7 @@ import java.util.List;
  * Immutable selection and cardinality rule for a named step output.
  *
  * <p>Selectors operate on the ordered UTXOs produced by a transaction. The
- * portable v1alpha1 contract exposes index selection with exactly-one cardinality,
+ * portable v1 contract exposes index selection with exactly-one cardinality,
  * so an absent index is an execution error rather than an unresolved reference.</p>
  */
 public final class FlowOutputSelector {

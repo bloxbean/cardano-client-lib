@@ -64,8 +64,8 @@ import java.util.regex.Pattern;
  * reused.</p>
  */
 public final class TxFlowCodec {
-    /** API-version identifier emitted and accepted for the portable v1alpha1 contract. */
-    public static final String PORTABLE_API_VERSION = "txflow.cardano-client.dev/v1alpha1";
+    /** API-version identifier emitted and accepted for the portable v1 contract. */
+    public static final String PORTABLE_API_VERSION = "txflow.cardano-client.dev/v1";
     private static final Pattern LEGACY_EXPRESSION = Pattern.compile("\\$\\{(?!\\{)");
     private static final Set<String> CONFIRMATION_PRESETS =
             Set.of("defaults", "devnet", "testnet", "quick");
@@ -187,7 +187,7 @@ public final class TxFlowCodec {
             }
             collectLegacyUnusedFilters(root, diagnostics);
             diagnostics.add(new FlowDiagnostic("TXFLOW_LEGACY_FORMAT", DiagnosticSeverity.WARNING,
-                    "Legacy TxFlow format should be migrated to v1alpha1", "$", null, null, null));
+                    "Legacy TxFlow format should be migrated to v1", "$", null, null, null));
             return new FlowParseResult(legacy, diagnostics);
         } catch (Exception e) {
             diagnostics.add(parseDiagnostic(e));
@@ -204,8 +204,10 @@ public final class TxFlowCodec {
         }
         String apiVersion = root.path("api_version").asText();
         if (!options.getSupportedApiVersions().contains(apiVersion)) {
-            diagnostics.add(FlowDiagnostic.error("TXFLOW_UNSUPPORTED_API_VERSION",
-                    "Unsupported api_version: " + apiVersion, "$.api_version"));
+            String message = "txflow.cardano-client.dev/v1alpha1".equals(apiVersion)
+                    ? "Unsupported api_version: txflow.cardano-client.dev/v1alpha1; update to " + PORTABLE_API_VERSION
+                    : "Unsupported api_version: " + apiVersion;
+            diagnostics.add(FlowDiagnostic.error("TXFLOW_UNSUPPORTED_API_VERSION", message, "$.api_version"));
             return new FlowParseResult(null, diagnostics);
         }
         if (!"TxFlow".equals(root.path("kind").asText())) {
@@ -289,12 +291,12 @@ public final class TxFlowCodec {
                 step.outputs.forEach((name, output) -> {
                     if (output.select == null || output.select.outputIndex == null) {
                         diagnostics.add(FlowDiagnostic.error("TXFLOW_OUTPUT_SELECTOR_REQUIRED",
-                                "v1alpha1 output selectors require output_index",
+                                "v1 output selectors require output_index",
                                 "$.spec.steps[" + step.id + "].outputs." + name));
                     } else {
                         if (!"exactly_one".equals(output.expect)) {
                             diagnostics.add(FlowDiagnostic.error("TXFLOW_OUTPUT_EXPECT_UNSUPPORTED",
-                                    "v1alpha1 requires expect: exactly_one",
+                                    "v1 requires expect: exactly_one",
                                     "$.spec.steps[" + step.id + "].outputs." + name + ".expect"));
                             return;
                         }

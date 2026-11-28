@@ -51,7 +51,7 @@ transaction-focused validation remain required after envelope parsing.
 
 ```java
 String source = """
-        api_version: txflow.cardano-client.dev/v1alpha1
+        api_version: txflow.cardano-client.dev/v1
         kind: TxFlow
         metadata:
           name: customer-payment

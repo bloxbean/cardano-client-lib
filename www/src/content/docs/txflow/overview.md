@@ -31,7 +31,7 @@ portable YAML or JSON
 ## Requirements and status
 
 - Java 17 is the build and runtime baseline.
-- `txflow.cardano-client.dev/v1alpha1` is the current portable document contract.
+- `txflow.cardano-client.dev/v1` is the current portable document contract.
 - `TxFlowCodec`, `FlowExecutionRequest`, and `FlowEngine` are the canonical APIs for new code.
   `FlowRuntime` wraps an ordinary `FlowEngine`, with no store, policy, or catalog.
 - `FlowExecutor` and the preview `version: "1.0"` document remain compatibility APIs.

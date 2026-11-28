@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.txflow.yaml;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.intent.PaymentIntent;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
@@ -162,6 +163,27 @@ class FlowYamlSerializationTest {
         assertThat(flow.getVariables()).containsKey("amount");
         assertThat(flow.getSteps()).hasSize(1);
         assertThat(flow.getStep("step1")).isPresent();
+    }
+
+    @Test
+    void fromYaml_keepsQuotedNumberLikeStrings() {
+        String yaml = "version: \"1.0\"\n" +
+                "flow:\n" +
+                "  id: quoted\n" +
+                "  steps:\n" +
+                "    - step:\n" +
+                "        id: step1\n" +
+                "        tx:\n" +
+                "          from: addr1_sender\n" +
+                "          intents:\n" +
+                "            - type: payment\n" +
+                "              address: \"0xabc\"\n";
+
+        TxFlow flow = TxFlow.fromYaml(yaml);
+
+        PaymentIntent payment = (PaymentIntent)
+                flow.getStep("step1").get().getTxPlan().getTxs().get(0).getIntentions().get(0);
+        assertThat(payment.getAddress()).isEqualTo("0xabc");
     }
 
     @Test

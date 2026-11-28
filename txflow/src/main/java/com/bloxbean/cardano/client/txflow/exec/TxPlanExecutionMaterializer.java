@@ -62,9 +62,9 @@ final class TxPlanExecutionMaterializer {
         // each attempt so retries remain isolated without repeatedly serializing it.
         TxPlan copy;
         if (source.hasExtensions()) {
-            copy = extensions.readLiteral(context.snapshotPlan(source, extensions::write));
+            copy = extensions.readSnapshot(context.snapshotPlan(source, extensions::write));
         } else {
-            copy = TxPlan.from(context.snapshotPlan(source));
+            copy = TxPlan.fromSnapshot(context.snapshotPlan(source));
             for (Map.Entry<String, Object> entry : flowVariables.entrySet()) {
                 if (!copy.getVariables().containsKey(entry.getKey())) {
                     copy.addVariable(entry.getKey(), entry.getValue());

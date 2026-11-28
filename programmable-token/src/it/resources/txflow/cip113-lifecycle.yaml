@@ -2,7 +2,7 @@
 # The intents are the same as the TxPlan resources under txplan/cip113, written with TxFlow
 # parameters instead of TxPlan variables. The deployment binding omits bootstrap_tx, which
 # binds it to the deployment the operator registered the extension with.
-api_version: txflow.cardano-client.dev/v1alpha1
+api_version: txflow.cardano-client.dev/v1
 kind: TxFlow
 metadata:
   name: cip113-lifecycle

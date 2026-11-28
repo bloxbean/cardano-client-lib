@@ -29,6 +29,11 @@ public class MetadataSerializer extends JsonSerializer<Metadata> {
             gen.writeNull();
             return;
         }
+        // An unresolved ${var} read from YAML is written back unchanged, like any other placeholder.
+        if (metadata instanceof PlaceholderMetadata placeholder) {
+            gen.writeString(placeholder.getTemplate());
+            return;
+        }
         
         try {
             Format format = getFormat(provider);

@@ -39,12 +39,14 @@ public final class FlowExtensions {
 
     private final Map<String, QuickTxExtension> extensions;
     private final TxPlanCodec codec;
+    private final TxPlanCodec snapshotCodec;
 
     private FlowExtensions(Map<String, QuickTxExtension> extensions) {
         this.extensions = extensions;
         TxPlanCodec.Builder builder = TxPlanCodec.builder();
         extensions.values().forEach(builder::withExtension);
         this.codec = builder.build();
+        this.snapshotCodec = builder.strictReading(false).build();
     }
 
     /**
@@ -123,13 +125,24 @@ public final class FlowExtensions {
     }
 
     /**
+     * Reads an internal snapshot written by {@link #write(TxPlan)} literally without applying
+     * external strict-reading rules, matching {@link TxPlan#fromSnapshot(String)} for core plans.
+     *
+     * @param yaml extension-aware TxPlan snapshot YAML
+     * @return the reconstructed plan
+     */
+    public TxPlan readSnapshot(String yaml) {
+        return snapshotCodec.readLiteral(yaml);
+    }
+
+    /**
      * Deep-copies an extension plan literally.
      *
      * @param plan plan to copy
      * @return an independent copy that keeps every value and variable as authored
      */
     public TxPlan copy(TxPlan plan) {
-        return codec.copy(plan);
+        return snapshotCodec.copy(plan);
     }
 
     /**

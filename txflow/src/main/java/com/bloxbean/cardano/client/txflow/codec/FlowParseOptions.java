@@ -56,7 +56,7 @@ public final class FlowParseOptions {
         private int maxSteps = 1_000;
         private UnknownFieldPolicy unknownFieldPolicy = UnknownFieldPolicy.REJECT;
         private Set<String> supportedApiVersions = Set.of(
-                FlowSchemaVersion.V1ALPHA1.getIdentifier());
+                FlowSchemaVersion.V1.getIdentifier());
 
         /**
          * Sets the maximum UTF-8 source size.

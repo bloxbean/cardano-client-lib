@@ -18,6 +18,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Plan for handling multiple Txs in a single YAML document.
@@ -517,6 +519,10 @@ public class TxPlan {
 
     /**
      * Deserialize YAML string to a complete TxPlan with context.
+     * <p>The document is read strictly (see {@link StrictReading}): an unknown or misspelled intent field, a fractional
+     * number for an integer field, a numeric enum index, an explicit null, a malformed UTxO reference, a YAML alias or
+     * a number not written in plain decimal fails instead of being dropped or coerced. Use
+     * {@code TxPlanCodec.builder().strictReading(false)} to read such a document leniently.
      * @param yaml the YAML string
      * @return reconstructed TxPlan with all properties restored
      * @throws IllegalArgumentException if the document declares extensions or uses extension intents;
@@ -524,8 +530,31 @@ public class TxPlan {
      * @throws RuntimeException if deserialization fails
      */
     public static TxPlan from(String yaml) {
-        rejectExtensionDocument(yaml);
+        AtomicReference<Map<String, Object>> declaredVariables = new AtomicReference<>();
+        TransactionDocument doc = readDocument(yaml, declaredVariables::set);
+        TxPlan plan = from(doc);
+        if (declaredVariables.get() != null) {
+            plan.setVariables(declaredVariables.get());
+        }
+        return plan;
+    }
+
+    /**
+     * Reads YAML written by {@link #toYaml()} back into an independent copy of a plan.
+     *
+     * <p>Unlike {@link #from(String)}, this uses the lenient, pre-strict-reading textual variable reader
+     * ({@link YamlSerializer#deserialize(String, Class)}): it skips strict authoring rules so internal snapshots of
+     * Java-built core plans keep their historical behavior, including resolving variables declared on the plan itself.
+     * Because it runs textual variable substitution, unbound or cyclic template-valued variables still fail during
+     * resolution. For lossless literal copies that never expand placeholders (such as extension plans or plans with
+     * literal {@code ${...}} values), use {@link TxPlanCodec#copy(TxPlan)} or {@link TxPlanCodec#readLiteral(String)}.</p>
+     *
+     * @param yaml YAML produced by {@link #toYaml()}
+     * @return the reconstructed plan
+     */
+    public static TxPlan fromSnapshot(String yaml) {
         TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
+        if (doc == null) throw new IllegalArgumentException("TxPlan YAML root must be a mapping");
         return from(doc);
     }
 
@@ -595,22 +624,27 @@ public class TxPlan {
      * @throws RuntimeException if deserialization fails
      */
     public static List<AbstractTx<?>> getTxs(String yaml) {
-        rejectExtensionDocument(yaml);
-        TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
-        return getTxs(doc);
+        return getTxs(readDocument(yaml, null));
+    }
+
+    private static void requirePresent(TxIntent intention, String array) {
+        // A null element (e.g. `intents: [null]` or an empty `-`) is malformed input, not a programming error.
+        if (intention == null) throw new IllegalArgumentException("tx." + array + " contains an empty entry");
+    }
+
+    private static TransactionDocument readDocument(String yaml, Consumer<Map<String, Object>> variablesConsumer) {
+        TransactionDocument doc = YamlSerializer.deserializeStrict(
+                yaml, TransactionDocument.class, TxPlan::rejectExtensionDocument, variablesConsumer);
+        // An empty or null YAML document binds to null; report it like TxPlanCodec does.
+        if (doc == null) throw new IllegalArgumentException("TxPlan YAML root must be a mapping");
+        return doc;
     }
 
     /**
      * Core deserialization only knows core intent types. Without this check an extension-aware
      * document fails deep inside Jackson with an unknown type id that does not say what to use.
      */
-    private static void rejectExtensionDocument(String yaml) {
-        JsonNode root;
-        try {
-            root = YamlSerializer.getYamlMapper().readTree(yaml);
-        } catch (Exception e) {
-            return; // Malformed YAML: deserialization reports it.
-        }
+    private static void rejectExtensionDocument(JsonNode root) {
         if (root == null || !root.isObject()) return;
 
         String reason = null;
@@ -646,8 +680,16 @@ public class TxPlan {
     private static List<AbstractTx<?>> getTxs(TransactionDocument doc) {
         List<AbstractTx<?>> transactions = new ArrayList<>();
         Map<String, Object> vars = doc.getVariables();
+        // An explicit `transaction: null` means no transactions, like an absent key.
+        if (doc.getTransaction() == null) return transactions;
 
-        for (TransactionDocument.TxEntry entry : doc.getTransaction()) {
+        for (int index = 0; index < doc.getTransaction().size(); index++) {
+            TransactionDocument.TxEntry entry = doc.getTransaction().get(index);
+            if (entry == null)
+                throw new IllegalArgumentException("transaction[" + index + "] is empty; each entry must be a mapping with tx");
+            if (entry.isScriptTx() && entry.isTx())
+                throw new IllegalArgumentException("transaction[" + index + "] has both tx and scriptTx; scriptTx YAML format"
+                        + " is not supported, use tx only");
             if (entry.isTx()) {
                 // Create Tx from TxContent (no variable resolution, no legacy processing)
                 Tx tx = new Tx();
@@ -681,6 +723,7 @@ public class TxPlan {
                 // Add input intentions first (if present)
                 if (content.getInputs() != null) {
                     for (var inputIntention : content.getInputs()) {
+                        requirePresent(inputIntention, "inputs");
                         // Resolve variables using each intention's own resolveVariables method
                         var resolvedIntention = inputIntention.resolveVariables(vars);
                         tx.addIntention(resolvedIntention);
@@ -690,6 +733,7 @@ public class TxPlan {
                 // Then add regular intentions
                 if (content.getIntents() != null) {
                     for (var intention : content.getIntents()) {
+                        requirePresent(intention, "intents");
                         // Resolve variables using each intention's own resolveVariables method
                         var resolvedIntention = intention.resolveVariables(vars);
                         tx.addIntention(resolvedIntention);
@@ -699,6 +743,7 @@ public class TxPlan {
                 // Script intentions
                 if (content.getScripts() != null) {
                     for (var scriptIntention : content.getScripts()) {
+                        requirePresent(scriptIntention, "scripts");
                         // Resolve variables using each intention's own resolveVariables method
                         var resolvedIntention = scriptIntention.resolveVariables(vars);
                         tx.addIntention(resolvedIntention);
@@ -708,7 +753,7 @@ public class TxPlan {
                 transactions.add(tx);
 
             } else if (entry.isScriptTx()) {
-                throw new UnsupportedOperationException(
+                throw new IllegalArgumentException(
                     "scriptTx YAML format is not supported. Use tx format instead — " +
                     "all script operations are now available in the unified Tx."
                 );

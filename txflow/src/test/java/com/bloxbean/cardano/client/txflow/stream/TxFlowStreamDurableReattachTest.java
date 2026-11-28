@@ -652,7 +652,7 @@ class TxFlowStreamDurableReattachTest {
     void redispatchPortableFlowRoundTripsByteIdenticallyAndKeepsTheCompiledFingerprint() {
         TxFlowCodec codec = TxFlowCodec.standard();
         FlowWriteOptions writeOptions = FlowWriteOptions.of(FlowFormat.JSON,
-                FlowSchemaVersion.V1ALPHA1);
+                FlowSchemaVersion.V1);
         // A representative TxPlan-backed single-step flow, exactly as the stream
         // builds it before persisting the portable encoding.
         TxFlow flow = TxFlow.builder(StreamIdentities.flowId(NAMESPACE, "pay-1"))

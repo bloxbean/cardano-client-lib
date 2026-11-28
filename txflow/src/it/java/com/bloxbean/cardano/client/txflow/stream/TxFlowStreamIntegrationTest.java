@@ -492,7 +492,7 @@ class TxFlowStreamIntegrationTest {
      * {@code account://sender} (registered in the engine's signer registry).
      */
     private TxFlow payoutTemplate() {
-        String yaml = "api_version: txflow.cardano-client.dev/v1alpha1\n"
+        String yaml = "api_version: txflow.cardano-client.dev/v1\n"
                 + "kind: TxFlow\n"
                 + "metadata: {name: payout-template}\n"
                 + "spec:\n"

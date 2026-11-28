@@ -248,7 +248,7 @@ portable flow at build time and accept a stream of invocations — useful for bu
 are the same flow with different bindings. This template shape ran green on the devnet:
 
 ```yaml
-api_version: txflow.cardano-client.dev/v1alpha1
+api_version: txflow.cardano-client.dev/v1
 kind: TxFlow
 metadata: {name: payout-template}
 spec:

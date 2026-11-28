@@ -138,7 +138,7 @@ transaction:
       inputs:
         - type: script_collect_from
           utxo_refs:
-            - tx_hash: <64-character transaction hash>
+            - tx_hash: 12745f09b138d4d0a11a560b4591ebb830cf12336347606d2edbbf1893d395c6
               output_index: 0
           redeemer:
             constructor: 0
@@ -152,7 +152,7 @@ transaction:
       scripts:
         - type: validator
           role: spend
-          cbor_hex: "590a01..."
+          cbor_hex: '49480100002221200101'
           version: v2
 ```
 

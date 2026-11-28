@@ -1289,7 +1289,7 @@ class FlowEngineTest {
 
     private TxFlow definition() {
         String yaml = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: engine-test}
                 spec:
@@ -1303,7 +1303,7 @@ class FlowEngineTest {
 
     private TxFlow sensitiveDefinition() {
         String yaml = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: sensitive}
                 spec:

@@ -107,6 +107,20 @@ public class VariableResolver {
     private static final Pattern EXACT_VARIABLE_PATTERN = Pattern.compile("^\\$\\{([^}]+)\\}$");
 
     /**
+     * Returns true if any text value in {@code node} contains a {@code ${...}} placeholder expression.
+     */
+    static boolean containsResolvedPlaceholder(JsonNode node) {
+        if (node == null) return false;
+        if (node.isTextual()) return VARIABLE_PATTERN.matcher(node.asText()).find();
+        if (node.isContainerNode()) {
+            for (JsonNode child : node) {
+                if (containsResolvedPlaceholder(child)) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Resolve variables in a JsonNode tree recursively.
      *
      * <p>This method traverses the entire JsonNode tree and resolves ${variable} placeholders

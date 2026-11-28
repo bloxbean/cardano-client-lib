@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.txflow.yaml;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
+import com.bloxbean.cardano.client.quicktx.serialization.YamlSerializer;
 import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.config.FlowExecutionSettings;
@@ -750,8 +751,9 @@ public class FlowDocument {
 
         // Serialize and deserialize through TxPlan
         try {
-            String yaml = YAML_MAPPER.writeValueAsString(doc);
-            TxPlan plan = TxPlan.from(yaml);
+            // The canonical writer quotes strings YAML would read as numbers ("0xabc"); this mapper does not.
+            String yaml = YamlSerializer.serialize(doc);
+            TxPlan plan = TxPlan.fromSnapshot(yaml);
 
             // Add flow variables
             for (var entry : flowVariables.entrySet()) {

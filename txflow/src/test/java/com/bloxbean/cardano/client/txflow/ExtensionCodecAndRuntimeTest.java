@@ -50,8 +50,8 @@ import static org.mockito.Mockito.when;
  * FlowRuntime entry point, and the genericity invariant I3.
  */
 class ExtensionCodecAndRuntimeTest {
-    private static final FlowWriteOptions JSON = FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1);
-    private static final FlowWriteOptions YAML = FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1);
+    private static final FlowWriteOptions JSON = FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1);
+    private static final FlowWriteOptions YAML = FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1);
     private final FakeExtension extension = new FakeExtension();
 
     private TxFlow flow() {
@@ -144,7 +144,7 @@ class ExtensionCodecAndRuntimeTest {
     @Test
     void portableBindingsAreValidatedWhenParsed() {
         String unused = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: core-only}
                 spec:

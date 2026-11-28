@@ -105,7 +105,7 @@ class ResourcePolicyPreflightTest {
     @Test
     void portableRollbackAndValidityRequestsAreCappedOrSemanticallyRejected() {
         String yaml = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: policy-settings}
                 spec:
@@ -144,7 +144,7 @@ class ResourcePolicyPreflightTest {
 
     private TxFlow definition() {
         String yaml = """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: resource-flow}
                 spec:

@@ -4,7 +4,7 @@ description: "Chain two transactions where the second spends what the first prod
 ---
 
 :::tip[Preview API]
-TxFlow is preview. It works and is documented in full, but `txflow.cardano-client.dev/v1alpha1`
+TxFlow is preview. It works and is documented in full, but `txflow.cardano-client.dev/v1`
 can still change before a stable schema version. Pin an exact version if you build on it now.
 :::
 
@@ -43,7 +43,7 @@ substitutes the concrete transaction hash and output index at run time.
 TxFlow definitions are YAML. Save this as `funding-flow.yaml`:
 
 ```yaml
-api_version: txflow.cardano-client.dev/v1alpha1
+api_version: txflow.cardano-client.dev/v1
 kind: TxFlow
 metadata:
   name: funding

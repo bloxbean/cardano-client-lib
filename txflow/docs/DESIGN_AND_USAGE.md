@@ -884,5 +884,5 @@ registry.addLifecycleListener(new FlowLifecycleListener() {
 - **[FLOWLISTENER_PATTERNS.md](FLOWLISTENER_PATTERNS.md)** — Listener implementation patterns, logging, metrics, alerting
 - **[SPRING_BOOT_INTEGRATION.md](SPRING_BOOT_INTEGRATION.md)** — Spring Boot auto-configuration, bean wiring, profiles
 - **[VIRTUAL_THREADS.md](VIRTUAL_THREADS.md)** — Java 21 virtual threads integration, executor configuration
-- **[PORTABLE_TXFLOW_MIGRATION.md](PORTABLE_TXFLOW_MIGRATION.md)** — portable v1alpha1 authoring and migration
+- **[PORTABLE_TXFLOW_MIGRATION.md](PORTABLE_TXFLOW_MIGRATION.md)** — portable v1 authoring and migration
 - **[DURABLE_RUNTIME.md](DURABLE_RUNTIME.md)** — durable store, fencing, executor, and recovery contract

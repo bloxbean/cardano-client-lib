@@ -134,7 +134,7 @@ class RdbmsTxStreamStateStoreTest {
         // resolved secret. This sentinel value is deliberately never handed to the store.
         String secretValue = "SUPER_SECRET_SIGNING_KEY_VALUE";
         store.persistPlanned(new TxStreamPlannedRecord("payouts", "exec-1", "flow-key", "lane",
-                "addr:sender", "{\"apiVersion\":\"v1alpha1\"}",
+                "addr:sender", "{\"apiVersion\":\"v1\"}",
                 Map.of("amount", 100L),
                 Map.of("signingKey", "vault://payouts/key"),
                 Map.of("signingKey", "fp-9f8e7d"),

@@ -153,7 +153,7 @@ class UnfrackingUnsupportedTest {
 
     private static String portableFlow() {
         return """
-                api_version: txflow.cardano-client.dev/v1alpha1
+                api_version: txflow.cardano-client.dev/v1
                 kind: TxFlow
                 metadata: {name: unsupported-unfrack}
                 spec:

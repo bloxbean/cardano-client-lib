@@ -317,7 +317,7 @@ public abstract class TxStreamStateStoreContract {
     @Test
     void plannedRecordRoundTripsBindingsReferencesAndFingerprints() {
         TxStreamPlannedRecord planned = new TxStreamPlannedRecord(STREAM, "exec-1", "flow-key",
-                "lane-a", "addr:sender", "{\"apiVersion\":\"v1alpha1\"}",
+                "lane-a", "addr:sender", "{\"apiVersion\":\"v1\"}",
                 Map.of("amount", 100L, "memo", "hello", "flag", Boolean.TRUE),
                 Map.of("signingKey", "vault://payouts/key"),
                 Map.of("signingKey", "fp-9f8e"),
@@ -326,7 +326,7 @@ public abstract class TxStreamStateStoreContract {
 
         TxStreamPlannedRecord stored = store.listPlanned(STREAM).get(0);
         assertEquals("addr:sender", stored.canonicalSpendingIdentity());
-        assertEquals("{\"apiVersion\":\"v1alpha1\"}", stored.portableFlow());
+        assertEquals("{\"apiVersion\":\"v1\"}", stored.portableFlow());
         assertEquals(Map.of("amount", 100L, "memo", "hello", "flag", Boolean.TRUE),
                 stored.bindings());
         assertEquals(Map.of("signingKey", "vault://payouts/key"),
@@ -343,7 +343,7 @@ public abstract class TxStreamStateStoreContract {
     @Test
     void plannedRecordRoundTripsTemplateReference() {
         TxStreamPlannedRecord planned = new TxStreamPlannedRecord(STREAM, "exec-t", "flow-key",
-                "lane-a", "addr:sender", "{\"apiVersion\":\"v1alpha1\"}",
+                "lane-a", "addr:sender", "{\"apiVersion\":\"v1\"}",
                 Map.of("amount", 42L), Map.of(), Map.of(),
                 List.of(member("item-t", "key-t", "step-t")), "payout-template",
                 "tmpl-fp-abc123");
@@ -627,7 +627,7 @@ public abstract class TxStreamStateStoreContract {
                                                 String idempotencyKey,
                                                 TxStreamPlannedRecord.Member... members) {
         return new TxStreamPlannedRecord(streamId, executionId, idempotencyKey, "lane-a",
-                "addr:sender", "{\"apiVersion\":\"v1alpha1\"}", Map.of(), Map.of(), Map.of(),
+                "addr:sender", "{\"apiVersion\":\"v1\"}", Map.of(), Map.of(), Map.of(),
                 List.of(members));
     }
 

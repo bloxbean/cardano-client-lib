@@ -112,7 +112,7 @@ class TxFlowStreamContractClaimRoundTripTest {
         // script intents intact end to end.
         TxFlowCodec codec = TxFlowCodec.standard();
         String encoded = codec.write(claimFlow,
-                FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
         TxFlow decoded = codec.parse(encoded, FlowParseOptions.serverDefaults()).requireFlow();
         assertEquals(1, decoded.getSteps().size());
         FlowCompilationResult compiled = new TxFlowCompiler().compile(

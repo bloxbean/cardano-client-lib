@@ -64,7 +64,7 @@ class TxStreamRdbmsRestartIntegrationTest {
                     "fp-0042", NOW));
             streamStore.bind(ITEM, new TxStreamBinding(EXECUTION, "flow-0042", "step", "lane-a"));
             streamStore.persistPlanned(new TxStreamPlannedRecord(STREAM, EXECUTION, "order-0042",
-                    "lane-a", "addr:sender", "{\"apiVersion\":\"v1alpha1\"}", Map.of("amount", 10L),
+                    "lane-a", "addr:sender", "{\"apiVersion\":\"v1\"}", Map.of("amount", 10L),
                     Map.of("signingKey", "vault://payouts/key"), Map.of("signingKey", "fp-sig"),
                     List.of(new TxStreamPlannedRecord.Member(ITEM, "order-0042", "step",
                             "fp-0042"))));
@@ -85,7 +85,7 @@ class TxStreamRdbmsRestartIntegrationTest {
             assertEquals(1, planned.size());
             TxStreamPlannedRecord record = planned.get(0);
             assertEquals(EXECUTION, record.executionId());
-            assertEquals("{\"apiVersion\":\"v1alpha1\"}", record.portableFlow());
+            assertEquals("{\"apiVersion\":\"v1\"}", record.portableFlow());
             assertEquals(Map.of("amount", 10L), record.bindings());
             assertEquals("vault://payouts/key", record.secureBindingReferences().get("signingKey"));
             assertEquals(1, record.members().size());

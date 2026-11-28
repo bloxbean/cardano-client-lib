@@ -342,7 +342,7 @@ final class EngineTxFlowStream implements TxFlowStream {
             String portableFlow;
             try {
                 portableFlow = codec.write(definition,
-                        FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                        FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
             } catch (RuntimeException encodeFailure) {
                 throw new IllegalStateException(
                         "Template '" + templateId + "' has no portable encoding: "
@@ -1588,7 +1588,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         String payload;
         try {
             payload = codec.write(definition,
-                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
         } catch (RuntimeException encodingFailure) {
             throw new TxStreamException("TXSTREAM_NON_PORTABLE_ITEM",
                     "Item '" + item.getItemId() + "' has no portable encoding: "
@@ -1833,7 +1833,7 @@ final class EngineTxFlowStream implements TxFlowStream {
     /** The single {@link Tx} of a plan, or {@code null} when it is not exactly one Tx. */
     /** Deep copy; a plan using extensions is copied literally through the registered extensions. */
     private TxPlan copyPlan(TxPlan plan) {
-        return plan.hasExtensions() ? extensions.copy(plan) : TxPlan.from(plan.toYaml());
+        return plan.hasExtensions() ? extensions.copy(plan) : TxPlan.fromSnapshot(plan.toYaml());
     }
 
     private static Tx singleTx(TxPlan plan) {
@@ -3475,7 +3475,7 @@ final class EngineTxFlowStream implements TxFlowStream {
         String portableFlow;
         try {
             portableFlow = codec.write(execution.definition,
-                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
         } catch (RuntimeException encodeFailure) {
             throw new TxStreamException("TXSTREAM_PLANNED_ENCODE_FAILED",
                     "Planned flow for execution '" + execution.executionId

@@ -4,8 +4,8 @@ package com.bloxbean.cardano.client.txflow.codec;
 public enum FlowSchemaVersion {
     /** Compatibility format identified by the historical {@code version: 1.0} field. */
     LEGACY("1.0"),
-    /** First explicitly versioned portable contract. */
-    V1ALPHA1("txflow.cardano-client.dev/v1alpha1");
+    /** Explicitly versioned portable contract. */
+    V1("txflow.cardano-client.dev/v1");
 
     private final String identifier;
 

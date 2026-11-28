@@ -1,13 +1,13 @@
 ---
 title: "Portable TxFlow Authoring"
-description: "Author safe, reusable TxFlow v1alpha1 YAML and JSON definitions"
+description: "Author safe, reusable TxFlow v1 YAML and JSON definitions"
 ---
 
 Portable TxFlow is a versioned YAML/JSON contract for reusable, ordered transaction workflows. It
 contains transaction intent and logical resource names, but no execution ID, runtime parameter
 values, signer keys, database credentials, or backend connection details.
 
-This page describes `txflow.cardano-client.dev/v1alpha1`. The legacy `version: "1.0"` format uses
+This page describes `txflow.cardano-client.dev/v1`. The legacy `version: "1.0"` format uses
 a different envelope and expression syntax. The codec can read that format for migration, but new
 portable documents should not mix the two contracts.
 
@@ -16,7 +16,7 @@ portable documents should not mix the two contracts.
 Every portable document has four required top-level fields:
 
 ```yaml
-api_version: txflow.cardano-client.dev/v1alpha1
+api_version: txflow.cardano-client.dev/v1
 kind: TxFlow
 metadata:
   name: treasury-distribution
@@ -35,7 +35,7 @@ spec:
 
 | Field | Meaning |
 | --- | --- |
-| `api_version` | Contract identifier. `v1alpha1` is the only version enabled by the default parser. |
+| `api_version` | Contract identifier. `v1` is the only version enabled by the default parser. |
 | `kind` | Must be `TxFlow`. It distinguishes a flow from a standalone QuickTx plan. |
 | `metadata.name` | Stable definition name; it is not an execution/run identifier. |
 | `metadata.description` | Optional human-readable description with no execution semantics. |
@@ -50,7 +50,7 @@ Both flow-level `metadata.description` and step-level `description` values round
 portable codec. Annotations remain the right place for machine-readable ownership or classification
 metadata.
 
-Steps run in document order in `v1alpha1`. IDs must be unique. Dependencies and output references
+Steps run in document order in `v1`. IDs must be unique. Dependencies and output references
 must name earlier steps; dangling references, cycles, duplicate `needs`, and forward references are
 rejected.
 
@@ -195,37 +195,33 @@ projection cannot materialize a wallet name safely. Compilation therefore reject
 logical `from_ref` instead, resolved through QuickTx's `SignerRegistry` or the `.account(...)` builder
 call. The TxFlow catalog can describe it, but doesn't resolve it.
 
-Compilation also materializes the embedded QuickTx model with a compiler-local strict mapper.
-Fields unknown to the concrete transaction or intent type fail with
-`TXFLOW_TRANSACTION_FIELD_UNKNOWN`, and each materialized intent runs its existing QuickTx model
-validation before fingerprinting. This strictness is scoped to portable TxFlow compilation; it does
-not change standalone legacy QuickTx deserialization behavior.
+Compilation also materializes the embedded QuickTx model with the shared strict reader
+configuration (`StrictReading`). Fields unknown to the concrete transaction or intent type fail
+with `TXFLOW_TRANSACTION_FIELD_UNKNOWN`, and each materialized intent runs its existing QuickTx
+model validation before fingerprinting. Standalone `TxPlan.from(...)` and `TxPlanCodec` now apply
+the same strict reading by default; callers that need the older lenient behavior for standalone
+TxPlan files can opt out with `TxPlanCodec.builder().strictReading(false)` (see
+[TxPlan Strict Reading](/txplan/overview/#strict-reading)). Portable TxFlow compilation is always
+strict.
 
-A standalone `TxPlan` can contain a transaction list. Portable TxFlow `v1alpha1` intentionally
+A standalone `TxPlan` can contain a transaction list. Portable TxFlow `v1` intentionally
 allows only one transaction per step. When writing portable output from Java, a step with a
 multi-transaction `TxPlan` or a Java `TxContext` factory fails with `FlowEncodingException` instead
 of silently losing behavior.
 
 ### Current JSON Schema boundary
 
-`txflow-v1alpha1.schema.json` references
-`quicktx-transaction-v1alpha1.schema.json#/$defs/transaction`. The QuickTx schema covers the
-embedded, single-transaction structural projection represented by `TransactionDocument`—the `tx`
-fields and optional transaction `context`.
+`txflow-v1.schema.json` references `txplan-v1.schema.json#/$defs/transaction`. The generated
+`txplan-v1.schema.json` schema covers the embedded single-transaction projection (`tx` and optional
+`context`) as well as all 23 core `TxIntent` subtypes field-by-field (`additionalProperties: false`),
+array placement (`inputs`, `intents`, `scripts`), nested models, and placeholder-tolerant value
+positions. Extension intents (`<namespace>:<operation>`) are permitted as open objects in
+`tx.intents`.
 
-It is **not yet an exhaustive schema for every `TxIntent` implementation**. In particular,
-`inputs`, `intents`, and `scripts` are currently broad object schemas (regular intent/script entries
-require a `type`, but subtype-specific required fields are not fully described). QuickTx's runtime
-`TxIntent` registrations support payment, metadata, minting, staking, pools, governance, input
-collection, script collection/minting, reference inputs, and script attachments beyond what the
-schema constrains field by field.
-
-Therefore, a document passing an external JSON Schema validator is not proof that every intent can
-be deserialized and composed. Treat the published schema as editor/structural validation, then run
-`TxFlowCodec` parsing, compiler preflight, and transaction-focused tests. Expanding the schema into
-type-discriminated definitions for all supported intentions is tracked in
-[issue #636](https://github.com/bloxbean/cardano-client-lib/issues/636), separately from the
-`v1alpha1` runtime implementation.
+Schema validation checks structure, field names, types, and placement; value-level and semantic
+rules (Bech32 addresses, hex lengths, bounds, intent cross-field rules, and extension validation)
+remain enforced at runtime. Run `TxFlowCodec` parsing, compiler preflight, and transaction-focused
+tests alongside external JSON Schema validation.
 
 ## Named outputs and `flow_output`
 
@@ -249,7 +245,7 @@ Publish a producer transaction output under a flow-local name:
               quantity: 5000000
 ```
 
-`output_index` is zero-based. Portable `v1alpha1` supports only index selection with
+`output_index` is zero-based. Portable `v1` supports only index selection with
 `expect: exactly_one`; execution fails if that output is absent.
 
 A later step explicitly consumes it through QuickTx's input-reference model:
@@ -406,7 +402,7 @@ FlowParseOptions options = FlowParseOptions.builder()
         .maxSteps(200)
         .unknownFieldPolicy(UnknownFieldPolicy.REJECT)
         .supportedApiVersions(Set.of(
-                FlowSchemaVersion.V1ALPHA1.getIdentifier()))
+                FlowSchemaVersion.V1.getIdentifier()))
         .build();
 
 FlowParseResult result = TxFlowCodec.standard().parse(source, options);
@@ -414,7 +410,7 @@ FlowParseResult result = TxFlowCodec.standard().parse(source, options);
 
 `FlowParseOptions.serverDefaults()` uses a 3,000,000-byte UTF-8 limit, at most 50 YAML collection
 aliases, nesting depth 100, at most 1,000 steps, unknown-field rejection, and an allowlist containing
-only `v1alpha1`. Tighten those limits for your service rather than increasing them to accommodate
+only `v1`. Tighten those limits for your service rather than increasing them to accommodate
 untrusted input.
 
 The standard codec also rejects duplicate YAML/JSON keys and multi-document YAML streams. It
@@ -442,9 +438,9 @@ The portable writer supports both syntaxes:
 TxFlowCodec codec = TxFlowCodec.standard();
 
 String yaml = codec.write(definition,
-        FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1ALPHA1));
+        FlowWriteOptions.of(FlowFormat.YAML, FlowSchemaVersion.V1));
 String json = codec.write(definition,
-        FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+        FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
 ```
 
 Use `TxFlowCodec.write` when you need a portable document. `TxFlow.toYaml()` is retained for the
@@ -462,8 +458,8 @@ in build-time conformance tests.
 The schemas are available on the classpath as:
 
 ```text
-/schema/txflow-v1alpha1.schema.json
-/schema/quicktx-transaction-v1alpha1.schema.json
+/schema/txflow-v1.schema.json
+/schema/txplan-v1.schema.json
 ```
 
 An external schema validator must resolve the TxFlow schema's QuickTx `$ref` to the second resource.
@@ -471,7 +467,7 @@ The Java codec does not replace compiler preflight or QuickTx runtime validation
 
 ## Portable versus legacy at a glance
 
-| Concern | Portable `v1alpha1` | Legacy compatibility format |
+| Concern | Portable `v1` | Legacy compatibility format |
 | --- | --- | --- |
 | Envelope | `api_version`, `kind`, `metadata`, `spec` | `version`, optional `context`, `flow` |
 | Runtime values | Typed `FlowBindings` | Definition variables and `${name}` text substitution |

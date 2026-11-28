@@ -7,7 +7,7 @@ TxFlow turns an ordered set of QuickTx transactions into one observable executio
 definition is reusable: runtime values, execution identity, backend services, signers, policy, and
 durability remain application-owned.
 
-This guide uses the portable `v1alpha1` contract and `FlowEngine`. The historical
+This guide uses the portable `v1` contract and `FlowEngine`. The historical
 `version: "1.0"` / `flow:` document and `FlowExecutor` APIs are compatibility surfaces, not the
 recommended starting point for new applications.
 
@@ -59,7 +59,7 @@ interfaces; the second dependency selects one concrete backend provider.
 Save this as `payment-flow.yaml`:
 
 ```yaml
-api_version: txflow.cardano-client.dev/v1alpha1
+api_version: txflow.cardano-client.dev/v1
 kind: TxFlow
 metadata:
   name: payment

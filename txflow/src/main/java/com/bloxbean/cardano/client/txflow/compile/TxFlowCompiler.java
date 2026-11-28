@@ -159,14 +159,14 @@ public final class TxFlowCompiler {
                     TxPlan source = step.getTxPlan();
                     target.withTxPlan(source.hasExtensions()
                             ? extensions.copy(source)
-                            : TxPlan.from(source.toYaml()));
+                            : TxPlan.fromSnapshot(source.toYaml()));
                 } else continue; // Shared portability validation already reported this path.
                 compiled.addStep(target.build());
             }
             if (hasErrors(diagnostics)) return new FlowCompilationResult(null, diagnostics);
             TxFlow plan = compiled.build();
             String canonical = codec.write(plan,
-                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1ALPHA1));
+                    FlowWriteOptions.of(FlowFormat.JSON, FlowSchemaVersion.V1));
             return new FlowCompilationResult(new CompiledTxFlow(
                     plan, SignedPayloadVerifier.sha256(FINGERPRINT_FORMAT + canonical), spendingResources,
                     explicitConsumers(definition)), diagnostics);
