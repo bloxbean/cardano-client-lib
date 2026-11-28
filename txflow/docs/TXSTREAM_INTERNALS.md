@@ -5,11 +5,11 @@ is implemented before touching the code. This document explains the architecture
 end-to-end path of a work item, the exactly-once machinery, and the invariants that must
 not be broken. Read it before opening `EngineTxFlowStream.java` (~5,000 lines).
 
-Related docs: [DESIGN_AND_USAGE.md](DESIGN_AND_USAGE.md) (user-facing API),
+Related docs: [`txflow/README.md`](../README.md) (user-facing API),
 [TXFLOW_ENGINE_INTERNALS.md](TXFLOW_ENGINE_INTERNALS.md) (FlowEngine internals —
 claims, leases, journal, recovery, and the canonical uncertain-disposition contract),
 [DURABLE_RUNTIME.md](DURABLE_RUNTIME.md) (store contract in outline),
-[Flowexecutor-code-flow.md](Flowexecutor-code-flow.md) (portable executor),
+`exec/FlowExecutor.java` (package-private step runner),
 ADR `adr/txflow/002-txflowstream-concept.md` (original concept).
 
 ---
@@ -63,7 +63,7 @@ Everything lives in `txflow/src/main/java/com/bloxbean/cardano/client/txflow/`:
 | `stream/StableIdFactory.java` | Deterministic flow/step id derivation (ADR 0004 Decision 3) |
 | `stream/TxStreamStateStore.java`, `InMemoryTxStreamStore.java`, `InMemoryDurableTxStreamStore.java` | Stream-side persistence SPI |
 | `exec/FlowEngine.java` | Durable engine: `start(request)`, `recover(request)` |
-| `exec/FlowExecutor.java` | Chaining-mode execution (SEQUENTIAL / PIPELINED / BATCH), rollback handling, uncertain-disposition settlement, legacy `resumeSync`/`resume` |
+| `exec/FlowExecutor.java` | Package-private chaining-mode step runner (SEQUENTIAL / PIPELINED / BATCH), rollback handling, uncertain-disposition settlement |
 | `exec/StepRunner.java` | Single-step build/sign/submit/confirm |
 | `exec/ConfirmationTracker.java`, `ConfirmationOutcome.java` | Confirmation polling, rollback detection, outcome typing |
 | `exec/DurableLeaseGuard.java`, `store/MutationFence.java` | Lease + fencing-epoch enforcement on store writes |
@@ -395,7 +395,6 @@ cancellation (next subsection).
 | Journal (`FlowEventType`) | `STEP_FAILED` / `EXECUTION_FAILED` | **`RECOVERY_REQUIRED`** (step-scoped with stepId+hash, and flow-scoped) |
 | Stream projection | `FAILED` | **`RECOVERY_REQUIRED`** (non-final; read-through repair) |
 | `FlowError.retryable` | per category | **per-request truth**: `true` only when a durable store is attached or the request carries an explicit idempotency key (a retry can attach to the claim); keyless non-durable retry would be fresh work → `false` |
-| Legacy `resumeSync`/`resume` | re-executes from failed step | **refuses** (`IllegalStateException`) when the previous result contains an `IN_PROGRESS`+hash step — re-executing could duplicate a tx that may still confirm; reconcile on chain first |
 
 > **Note on pending `outputUtxos`:** a submission-pending step's `outputUtxos` are
 > **not guaranteed**. The `FlowExecutor` settlement sites preserve the captured outputs
@@ -533,7 +532,7 @@ to RECOVERY_REQUIRED, notify uncertain.
 | Concern | Tests |
 |---|---|
 | Uncertain settlement (engine state, journal events, retryable) | `FlowEngineTest`: `confirmationTimeoutSettlesRecoveryRequiredNotFailed`, `confirmationTimeoutJournalsRecoveryRequiredEventsNotFailureEvents`, `batchUnknownSubmissionObservationFailureIsDurablyRecoveryRequired`, `reconciliationUncertaintyNestedUnderRollbackMapsToRecoveryRequired` |
-| Uncertain settlement (executor, listeners, pending step results) | `FlowExecutorTest`: timeout trio, uncertain-submission tests, `portableWaitForReinclusionExhaustsAtWindowNotRecoveryCycleCount`, `testResumeSync_submissionPendingStep_refusesResume` |
+| Uncertain settlement (executor, listeners, pending step results) | `FlowExecutorTest`: timeout trio, uncertain-submission tests, `portableWaitForReinclusionExhaustsAtWindowNotRecoveryCycleCount` |
 | Stream projection & lifecycle | `stream/` tests around `EngineTxFlowStream` (acceptance, dedup, claim-key reuse, reattach, reconcile), including `TxFlowStreamTemplateTest.submittedThenCancelledTemplateRequiresRecoveryUntilAttemptIsResolved` and `durablePresentCancelledTemplateWithSubmittedAttemptReattachesRecoveryRequired` |
 | Durable stores | `txflow-store-rdbms` tests (`RdbmsSchemaManagerTest`, store round-trips) |
 | End-to-end under chaos (crash / rollback / failover, chain-as-oracle reconciliation) | `txflow-extensions/txflow-soak` (see its README; run against Yaci DevKit or preprod) |
@@ -545,7 +544,7 @@ soak via the fat jar in `txflow-extensions/txflow-soak`.
 
 ## 11. Suggested reading order for a new maintainer
 
-1. This document, then [DESIGN_AND_USAGE.md](DESIGN_AND_USAGE.md) for the user's view.
+1. This document, then [TXSTREAM_GETTING_STARTED.md](TXSTREAM_GETTING_STARTED.md) for the user's view.
 2. `TxFlowStream.java` — the interface + builder javadoc (the contract).
 3. `TxStreamItemStatus`, `FlowExecutionState`, `ConfirmationOutcome`, `FlowEventType` —
    the vocabulary.

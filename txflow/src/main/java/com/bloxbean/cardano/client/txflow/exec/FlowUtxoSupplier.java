@@ -31,7 +31,7 @@ import java.util.*;
  */
 @Slf4j
 @Getter
-public class FlowUtxoSupplier implements UtxoSupplier {
+class FlowUtxoSupplier implements UtxoSupplier {
 
     private final UtxoSupplier baseSupplier;
     private final FlowExecutionContext context;
@@ -39,16 +39,9 @@ public class FlowUtxoSupplier implements UtxoSupplier {
     private final Set<String> exactPendingStepIds;
     private final List<String> fundingStepIds;
 
-    /**
-     * Create a flow-aware UTXO supplier.
-     *
-     * @param baseSupplier the underlying UTXO supplier to delegate to
-     * @param context the flow execution context containing step results
-     * @param dependencies the list of step dependencies for UTXO resolution
-     */
-    public FlowUtxoSupplier(UtxoSupplier baseSupplier,
-                            FlowExecutionContext context,
-                            List<StepDependency> dependencies) {
+    FlowUtxoSupplier(UtxoSupplier baseSupplier,
+                     FlowExecutionContext context,
+                     List<StepDependency> dependencies) {
         this(baseSupplier, context, dependencies, Set.of(), List.of());
     }
 

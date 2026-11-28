@@ -7,7 +7,7 @@ import lombok.Getter;
 /**
  * Exception indicating a transaction rollback was detected during flow execution.
  * <p>
- * This exception is used internally by the {@link FlowExecutor} to signal rollback
+ * This exception is used internally during flow execution to signal rollback
  * conditions when using {@link RollbackStrategy#REBUILD_FROM_FAILED} or
  * {@link RollbackStrategy#REBUILD_ENTIRE_FLOW} strategies.
  * <p>

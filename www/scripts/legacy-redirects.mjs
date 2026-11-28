@@ -36,7 +36,7 @@ const PAGES = {
   'preview/txflow/policies-results-observability': 'txflow/policies-results-observability',
   'preview/txflow/durable-runtime': 'txflow/durable-runtime',
   'preview/txflow/operations-testing': 'txflow/operations-testing',
-  // Pages for the FlowExecutor compatibility API, which this site doesn't document.
+  // Pages for the removed legacy FlowExecutor API, which redirect to the FlowEngine guide.
   'preview/txflow/legacy-flowexecutor': 'txflow/overview',
   'preview/txflow/building-flows': 'txflow/getting-started',
   'preview/txflow/chaining-modes': 'txflow/execution-engine',

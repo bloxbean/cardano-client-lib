@@ -166,8 +166,8 @@ burn additionally runs its `minting_logic_script`.
 - Programmable outputs hold one policy each; inline datums are bounded by the deployment's
   `max_inline_datum_bytes`.
 - TxFlow runs Java `TxPlan` steps that use programmable-token intents when the extension is
-  registered on the runtime (`FlowRuntime.builder(...).extension(ext)`,
-  `FlowEngine.builder(...).extension(ext)` or `FlowExecutor.withExtension(ext)`). Bind it on each
+  registered on the runtime (`FlowRuntime.builder(...).extension(ext)` or
+  `FlowEngine.builder(...).extension(ext)`). Bind it on each
   plan with `ext.configure(plan)`. The registry, the coordination UTxO and global state are read
   through the build's UTxO supplier, so in PIPELINED mode a step sees the registry node an earlier
   pending step created once it declares

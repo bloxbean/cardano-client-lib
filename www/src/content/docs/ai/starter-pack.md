@@ -31,7 +31,7 @@ machinery.
 | `WatchableQuickTxBuilder` | **Does not exist.** Never shipped in any release. If your training data suggests it, that memory is wrong. | `FlowEngine` (TxFlow) |
 | `com.bloxbean.cardano.client.function.*` (`TxBuilder`, `TxOutputBuilder`, `InputBuilders`, `BalanceTxBuilders`) | The internal implementation layer beneath QuickTx. It works, but mistakes are silent and it is far more verbose. | `QuickTx` |
 | `ScriptTx`, on 0.8.0 previews | **Deprecated in the 0.8.0 previews**, where every operation is also on `Tx`. Not deprecated in stable 0.7.x, where it is the right API for scripts. | `Tx` on previews |
-| `FlowExecutor` | Compatibility API. Combines definition and execution concerns; not the canonical durable path. | `FlowEngine` |
+| `FlowExecutor` | **Removed.** No longer a public API; use `FlowEngine` (or `FlowRuntime`). | `FlowEngine` |
 | `JellyfishMerkleTree` for on-chain proofs | Not Aiken-compatible. Off-chain authenticated state only. | `MpfTrie` |
 
 ---

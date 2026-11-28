@@ -4,20 +4,19 @@
 (`exec/FlowEngine.java` and its collaborators). This is the code-level companion to
 [DURABLE_RUNTIME.md](DURABLE_RUNTIME.md) (the store contract in outline) and the
 engine-side counterpart of [TXSTREAM_INTERNALS.md](TXSTREAM_INTERNALS.md). For the
-portable executor underneath (chaining modes, UTXO resolution, rollback strategies),
-see [Flowexecutor-code-flow.md](Flowexecutor-code-flow.md) — none of that is repeated
-here.
+package-private step runner underneath (chaining modes, UTXO resolution, rollback strategies),
+see `exec/FlowExecutor.java` — none of that is repeated here.
 
 This document is also the **canonical home of the uncertain-disposition contract**
 (§7): other docs summarize it and link here.
 
 ---
 
-## 1. What FlowEngine adds on top of FlowExecutor
+## 1. What FlowEngine adds on top of internal FlowExecutor
 
-`FlowExecutor` executes one flow, in-process, with no memory of the attempt once the
-JVM dies. `FlowEngine` wraps it with everything needed to make execution **safe to
-retry and safe to crash**:
+Package-private `FlowExecutor` executes one compiled flow synchronously, in-process, with no memory
+of the attempt once the JVM dies. Public `FlowEngine` wraps it with everything needed to make
+execution **safe to retry and safe to crash**:
 
 ```
 FlowEngine.start(request)
@@ -221,7 +220,6 @@ What uncertain settlement looks like at each layer:
 | Listener | `onStepUncertain` / `onFlowUncertain` (routed via the sole choke points `notifyStepTerminal` / `notifyFlowTerminal` in `FlowExecutor`) |
 | Journal | `RECOVERY_REQUIRED` events (step-scoped with stepId+hash, and flow-scoped) — **never `STEP_FAILED`/`EXECUTION_FAILED`** for an uncertain outcome; the journal listener and `run()`'s persisted state must always agree |
 | `FlowError.retryable` | **Per-request truth**: `true` only when a claim exists to attach to — a durable store or an explicit idempotency key. A keyless non-durable re-`start()` is fresh work and can pay twice → `false` |
-| Legacy `resumeSync`/`resume` | **Refuse** (`IllegalStateException`) when the previous result contains an `IN_PROGRESS`+hash step |
 | `StepRunner` | An `UncertainSubmissionException` never enters the fresh-rebuild retry loop: the policy may choose `RECONCILE_THEN_RETRY` (reconcile the hash first) or the step settles pending via `uncertainFailure` |
 
 **Cancellation during confirmation is a partial case**: the step still settles
@@ -283,15 +281,14 @@ retained by a terminally cancelled execution, which is never resumed automatical
 |---|---|
 | Uncertain elevation, journal agreement, retryable | `FlowEngineTest`: `confirmationTimeoutSettlesRecoveryRequiredNotFailed`, `confirmationTimeoutJournalsRecoveryRequiredEventsNotFailureEvents`, `batchUnknownSubmissionObservationFailureIsDurablyRecoveryRequired`, `reconciliationUncertaintyNestedUnderRollbackMapsToRecoveryRequired` |
 | Claims, conflicts, MATCHED, busy-void, leases | `FlowEngineTest` (idempotency / lease / resource-busy groups) |
-| Executor-side uncertain settlement + resume guard | `FlowExecutorTest`: timeout trio, uncertain-submission tests, `portableWaitForReinclusionExhaustsAtWindowNotRecoveryCycleCount`, `testResumeSync_submissionPendingStep_refusesResume` |
+| Executor-side uncertain settlement | `FlowExecutorTest`: timeout trio, uncertain-submission tests, `portableWaitForReinclusionExhaustsAtWindowNotRecoveryCycleCount` |
 | Recovery coordinator | `recovery/` tests (observe / expired-window / identical-resubmit paths) |
 | Store contract + fencing | `txflow-extensions/txflow-store-rdbms` tests |
 | End-to-end under chaos | `txflow-extensions/txflow-soak` (crash / rollback / failover; chain-as-oracle reconciliation) |
 
 ## 11. Reading order for a new maintainer
 
-1. This document, then [Flowexecutor-code-flow.md](Flowexecutor-code-flow.md) for the
-   executor underneath.
+1. This document, then `exec/FlowExecutor.java` for the package-private step runner underneath.
 2. `FlowExecutionState`, `FlowEventType`, `AttemptState`, `ConfirmationOutcome` —
    the vocabulary.
 3. `FlowEngine.start()` → `createHandle()` → `run()` — the spine of §3–§4, in code.

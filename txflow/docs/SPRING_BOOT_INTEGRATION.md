@@ -1,23 +1,20 @@
 # Spring Boot Integration Guide
 
-> **Compatibility reference:** This example uses the preview `FlowExecutor` facade. For new
-> services, construct an application-scoped `FlowEngine`, supply application-owned task and
-> maintenance executors, and use `FlowExecutionRequest`. See [`txflow/README.md`](../README.md)
-> and the current public TxFlow guide.
-
-This guide shows how to integrate TxFlow with Spring Boot applications for production use.
+This guide shows how to integrate `FlowEngine` with Spring Boot applications for production use.
 
 ## Basic Setup
 
-### Maven/Gradle Dependencies
+### Gradle Dependencies
 
 ```gradle
-// build.gradle
-def cclVersion = "0.8.0-pre5-SNAPSHOT"
+def cclVersion = "<version>"
 
 dependencies {
     implementation "com.bloxbean.cardano:cardano-client-txflow:${cclVersion}"
     implementation "com.bloxbean.cardano:cardano-client-backend-blockfrost:${cclVersion}"
+
+    // Optional: add for durable restart recovery (H2 / PostgreSQL)
+    implementation "com.bloxbean.cardano:cardano-client-txflow-store-rdbms:${cclVersion}"
 }
 ```
 
@@ -39,17 +36,36 @@ public class CardanoConfig {
     }
 
     @Bean(destroyMethod = "shutdown")
-    public ExecutorService txFlowExecutorService() {
-        return Executors.newCachedThreadPool();
+    public ExecutorService txFlowTaskExecutor() {
+        return Executors.newFixedThreadPool(16);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public ExecutorService txFlowMaintenanceExecutor() {
+        return Executors.newFixedThreadPool(4);
     }
 
     @Bean
-    public FlowExecutor flowExecutor(BackendService backendService,
-                                     ExecutorService txFlowExecutorService) {
-        return FlowExecutor.create(backendService)
-            .withExecutor(txFlowExecutorService)
-            .withConfirmationConfig(ConfirmationConfig.defaults())
-            .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW);
+    public FlowExecutionStore flowExecutionStore(DataSource dataSource) {
+        return RdbmsFlowExecutionStore.builder()
+            .dataSource(dataSource)
+            .dialect(PostgresDialect.INSTANCE)
+            .schemaManagement(SchemaManagement.VALIDATE)
+            .build();
+    }
+
+    @Bean
+    public FlowEngine flowEngine(BackendService backendService,
+                                 SignerRegistry signerRegistry,
+                                 FlowExecutionStore flowExecutionStore,
+                                 ExecutorService txFlowTaskExecutor,
+                                 ExecutorService txFlowMaintenanceExecutor) {
+        return FlowEngine.builder(backendService)
+            .executor(txFlowTaskExecutor)
+            .maintenanceExecutor(txFlowMaintenanceExecutor)
+            .signerRegistry(signerRegistry)
+            .store(flowExecutionStore)
+            .build();
     }
 }
 ```
@@ -57,7 +73,6 @@ public class CardanoConfig {
 ### Application Properties
 
 ```yaml
-# application.yml
 cardano:
   backend:
     url: https://cardano-mainnet.blockfrost.io/api/v0
@@ -73,87 +88,75 @@ cardano:
 @Slf4j
 public class TransactionService {
 
-    private final FlowExecutor flowExecutor;
-    private final BackendService backendService;
+    private final FlowEngine flowEngine;
+    private final FlowExecutionStore store;
+    private final ConcurrentMap<String, FlowExecutionHandle> activeHandles = new ConcurrentHashMap<>();
 
-    // Track active flows in-memory (use FlowRegistry when available)
-    private final ConcurrentMap<String, FlowHandle> activeFlows = new ConcurrentHashMap<>();
-
-    public TransactionService(FlowExecutor flowExecutor, BackendService backendService) {
-        this.flowExecutor = flowExecutor;
-        this.backendService = backendService;
+    public TransactionService(FlowEngine flowEngine, FlowExecutionStore store) {
+        this.flowEngine = flowEngine;
+        this.store = store;
     }
 
     /**
-     * Submit a payment and return immediately with a tracking handle.
+     * Submit a payment and return immediately with an execution handle.
      */
-    public FlowHandle submitPayment(String fromAddress, String toAddress,
-                                    BigInteger amount, Account signer) {
-        TxFlow flow = TxFlow.builder("payment-" + UUID.randomUUID())
+    public FlowExecutionHandle submitPayment(String orderId, String senderRef,
+                                             String toAddress, BigInteger amount) {
+        TxPlan plan = TxPlan.from(new Tx()
+                .payToAddress(toAddress, Amount.lovelace(amount))
+                .fromRef(senderRef))
+            .withSigner(senderRef);
+
+        TxFlow flow = TxFlow.builder("payment")
             .withDescription("Payment of " + amount + " lovelace")
+            .withConfirmationConfig(ConfirmationConfig.defaults())
             .addStep(FlowStep.builder("send")
                 .withDescription("Send payment")
-                .withTxContext(builder -> builder
-                    .compose(new Tx()
-                        .payToAddress(toAddress, Amount.lovelace(amount))
-                        .from(fromAddress))
-                    .withSigner(SignerProviders.signerFrom(signer)))
+                .withTxPlan(plan)
                 .build())
             .build();
 
-        FlowHandle handle = flowExecutor.execute(flow);
-        activeFlows.put(flow.getId(), handle);
+        String executionId = "payment-" + orderId;
+        FlowExecutionRequest request = FlowExecutionRequest.builder(flow)
+            .executionId(executionId)
+            .idempotency("payments", orderId)
+            .spendingResource(senderRef)
+            .build();
 
-        // Auto-remove when complete
-        handle.getResultFuture().whenComplete((result, error) -> {
-            activeFlows.remove(flow.getId());
-        });
-
+        FlowExecutionHandle handle = flowEngine.start(request);
+        activeHandles.put(executionId, handle);
+        handle.completion().whenComplete((result, error) -> activeHandles.remove(executionId));
         return handle;
     }
 
     /**
-     * Get status of a specific flow.
+     * Look up the durable snapshot for an execution.
      */
-    public Optional<FlowStatus> getFlowStatus(String flowId) {
-        return Optional.ofNullable(activeFlows.get(flowId))
-            .map(FlowHandle::getStatus);
+    public Optional<FlowExecutionSnapshot> getExecution(String executionId) {
+        return store.get(executionId);
     }
 
     /**
-     * Get all active flows.
+     * Read ordered execution events from an in-flight handle.
      */
-    public List<FlowSummary> getActiveFlows() {
-        return activeFlows.entrySet().stream()
-            .map(entry -> new FlowSummary(
-                entry.getKey(),
-                entry.getValue().getStatus(),
-                entry.getValue().getCompletedStepCount(),
-                entry.getValue().getTotalStepCount()
-            ))
-            .collect(Collectors.toList());
+    public List<FlowEvent> getEvents(String executionId, long afterSequence) {
+        FlowExecutionHandle handle = activeHandles.get(executionId);
+        return handle != null ? handle.getEventsAfter(afterSequence) : List.of();
     }
 
     /**
-     * Wait for a flow to complete (with timeout).
+     * Wait for an active execution to complete (with timeout).
      */
-    public FlowResult awaitCompletion(String flowId, Duration timeout)
-            throws TimeoutException {
-        FlowHandle handle = activeFlows.get(flowId);
+    public FlowExecutionResult awaitCompletion(String executionId, Duration timeout)
+            throws Exception {
+        FlowExecutionHandle handle = activeHandles.get(executionId);
         if (handle == null) {
-            throw new IllegalArgumentException("Flow not found: " + flowId);
+            throw new IllegalArgumentException("Active execution not found: " + executionId);
         }
-        return handle.await(timeout);
+        return handle.completion()
+            .toCompletableFuture()
+            .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
     }
-}
-
-@Data
-@AllArgsConstructor
-public class FlowSummary {
-    private String flowId;
-    private FlowStatus status;
-    private int completedSteps;
-    private int totalSteps;
 }
 ```
 
@@ -166,42 +169,38 @@ public class TransactionController {
 
     private final TransactionService transactionService;
 
-    @PostMapping("/payment")
-    public ResponseEntity<PaymentResponse> submitPayment(
-            @RequestBody PaymentRequest request) {
+    public TransactionController(TransactionService transactionService) {
+        this.transactionService = transactionService;
+    }
 
-        FlowHandle handle = transactionService.submitPayment(
-            request.getFromAddress(),
+    @PostMapping("/payment")
+    public ResponseEntity<Map<String, String>> submitPayment(@RequestBody PaymentRequest request) {
+        FlowExecutionHandle handle = transactionService.submitPayment(
+            request.getOrderId(),
+            request.getSenderRef(),
             request.getToAddress(),
-            request.getAmount(),
-            request.getSigner()
+            request.getAmount()
         );
 
-        return ResponseEntity.accepted().body(new PaymentResponse(
-            handle.getFlow().getId(),
-            handle.getStatus()
+        return ResponseEntity.accepted().body(Map.of(
+            "executionId", handle.getExecutionId()
         ));
     }
 
-    @GetMapping("/{flowId}/status")
-    public ResponseEntity<FlowStatus> getStatus(@PathVariable String flowId) {
-        return transactionService.getFlowStatus(flowId)
+    @GetMapping("/{executionId}")
+    public ResponseEntity<FlowExecutionSnapshot> getExecution(@PathVariable String executionId) {
+        return transactionService.getExecution(executionId)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/active")
-    public ResponseEntity<List<FlowSummary>> getActiveFlows() {
-        return ResponseEntity.ok(transactionService.getActiveFlows());
-    }
-
-    @PostMapping("/{flowId}/await")
-    public ResponseEntity<FlowResult> awaitCompletion(
-            @PathVariable String flowId,
-            @RequestParam(defaultValue = "60") int timeoutSeconds) {
+    @PostMapping("/{executionId}/await")
+    public ResponseEntity<FlowExecutionResult> awaitCompletion(
+            @PathVariable String executionId,
+            @RequestParam(defaultValue = "60") int timeoutSeconds) throws Exception {
         try {
-            FlowResult result = transactionService.awaitCompletion(
-                flowId, Duration.ofSeconds(timeoutSeconds));
+            FlowExecutionResult result = transactionService.awaitCompletion(
+                executionId, Duration.ofSeconds(timeoutSeconds));
             return ResponseEntity.ok(result);
         } catch (TimeoutException e) {
             return ResponseEntity.status(HttpStatus.REQUEST_TIMEOUT).build();
@@ -210,91 +209,21 @@ public class TransactionController {
 }
 ```
 
-## Metrics with FlowListener
+## Metrics from Terminal Results and Events
+
+Record metrics from `FlowExecutionResult` (and ordered `FlowEvent` entries from
+`FlowExecutionHandle.getEventsAfter(cursor)` or `FlowExecutionStore.readEvents(...)`):
 
 ```java
-@Component
-public class MetricsFlowListener implements FlowListener {
+public void recordOutcome(MeterRegistry meterRegistry, FlowExecutionResult result) {
+    meterRegistry.counter("txflow.executions.terminal",
+        "state", result.state().name()).increment();
 
-    private final MeterRegistry meterRegistry;
-    private final Counter flowsStarted;
-    private final Counter flowsCompleted;
-    private final Counter flowsFailed;
-    private final Counter transactionsSubmitted;
-    private final Counter rollbacksDetected;
-
-    public MetricsFlowListener(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
-        this.flowsStarted = meterRegistry.counter("txflow.flows.started");
-        this.flowsCompleted = meterRegistry.counter("txflow.flows.completed");
-        this.flowsFailed = meterRegistry.counter("txflow.flows.failed");
-        this.transactionsSubmitted = meterRegistry.counter("txflow.transactions.submitted");
-        this.rollbacksDetected = meterRegistry.counter("txflow.rollbacks.detected");
-    }
-
-    @Override
-    public void onFlowStarted(TxFlow flow) {
-        flowsStarted.increment();
-    }
-
-    @Override
-    public void onFlowCompleted(TxFlow flow, FlowResult result) {
-        flowsCompleted.increment();
-    }
-
-    @Override
-    public void onFlowFailed(TxFlow flow, FlowResult result) {
-        flowsFailed.increment();
-    }
-
-    @Override
-    public void onTransactionSubmitted(FlowStep step, String transactionHash) {
-        transactionsSubmitted.increment();
-    }
-
-    @Override
-    public void onTransactionRolledBack(FlowStep step, String txHash, long height) {
-        rollbacksDetected.increment();
-    }
-}
-
-// Configuration to use the metrics listener
-@Configuration
-public class CardanoConfig {
-
-    @Bean
-    public FlowExecutor flowExecutor(BackendService backendService,
-                                     ExecutorService txFlowExecutorService,
-                                     MetricsFlowListener metricsListener) {
-        return FlowExecutor.create(backendService)
-            .withExecutor(txFlowExecutorService)
-            .withConfirmationConfig(ConfirmationConfig.defaults())
-            .withListener(metricsListener);
-    }
-}
-```
-
-## Error Handling
-
-```java
-@ControllerAdvice
-public class TxFlowExceptionHandler {
-
-    @ExceptionHandler(FlowExecutionException.class)
-    public ResponseEntity<ErrorResponse> handleFlowException(
-            FlowExecutionException ex) {
-        return ResponseEntity.badRequest().body(
-            new ErrorResponse("FLOW_ERROR", ex.getMessage())
-        );
-    }
-
-    @ExceptionHandler(ConfirmationTimeoutException.class)
-    public ResponseEntity<ErrorResponse> handleTimeout(
-            ConfirmationTimeoutException ex) {
-        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(
-            new ErrorResponse("CONFIRMATION_TIMEOUT",
-                "Transaction " + ex.getTxHash() + " did not confirm in time")
-        );
+    FlowError error = result.error();
+    if (error != null) {
+        meterRegistry.counter("txflow.executions.error",
+            "code", error.code(),
+            "category", error.category().name()).increment();
     }
 }
 ```
@@ -306,18 +235,27 @@ public class TxFlowExceptionHandler {
 public class AsyncConfig {
 
     @Bean(destroyMethod = "shutdown")
-    public ExecutorService virtualThreadExecutor() {
+    public ExecutorService txFlowTaskExecutor() {
+        return Executors.newVirtualThreadPerTaskExecutor();
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public ExecutorService txFlowMaintenanceExecutor() {
         return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     @Bean
-    public FlowExecutor flowExecutor(BackendService backendService,
-                                     ExecutorService virtualThreadExecutor,
-                                     MetricsFlowListener metricsListener) {
-        return FlowExecutor.create(backendService)
-            .withExecutor(virtualThreadExecutor)  // Use virtual threads
-            .withConfirmationConfig(ConfirmationConfig.defaults())
-            .withListener(metricsListener);
+    public FlowEngine flowEngine(BackendService backendService,
+                                 SignerRegistry signerRegistry,
+                                 FlowExecutionStore store,
+                                 ExecutorService txFlowTaskExecutor,
+                                 ExecutorService txFlowMaintenanceExecutor) {
+        return FlowEngine.builder(backendService)
+            .executor(txFlowTaskExecutor)
+            .maintenanceExecutor(txFlowMaintenanceExecutor)
+            .signerRegistry(signerRegistry)
+            .store(store)
+            .build();
     }
 }
 ```
@@ -329,6 +267,10 @@ public class AsyncConfig {
 public class CardanoHealthIndicator implements HealthIndicator {
 
     private final BackendService backendService;
+
+    public CardanoHealthIndicator(BackendService backendService) {
+        this.backendService = backendService;
+    }
 
     @Override
     public Health health() {
@@ -351,38 +293,51 @@ public class CardanoHealthIndicator implements HealthIndicator {
 }
 ```
 
-## Multi-Step Transaction Example
+## Multi-Step Flow Example
 
 ```java
 @Service
 public class EscrowService {
 
-    private final FlowExecutor flowExecutor;
+    private final FlowEngine flowEngine;
 
-    public FlowHandle createEscrow(Account buyer, Account seller,
-                                   String escrowAddress, BigInteger amount) {
-        TxFlow flow = TxFlow.builder("escrow-" + UUID.randomUUID())
-            .withDescription("Escrow transaction")
+    public EscrowService(FlowEngine flowEngine) {
+        this.flowEngine = flowEngine;
+    }
+
+    public FlowExecutionHandle createEscrow(String orderId, String buyerRef, String escrowRef,
+                                            String escrowAddress, String sellerAddress,
+                                            BigInteger amount) {
+        TxPlan depositPlan = TxPlan.from(new Tx()
+                .payToAddress(escrowAddress, Amount.lovelace(amount))
+                .fromRef(buyerRef))
+            .withSigner(buyerRef);
+
+        TxPlan releasePlan = TxPlan.from(new Tx()
+                .payToAddress(sellerAddress, Amount.lovelace(amount))
+                .fromRef(escrowRef))
+            .withSigner(escrowRef);
+
+        TxFlow flow = TxFlow.builder("escrow")
+            .withDescription("Escrow workflow")
             .addStep(FlowStep.builder("deposit")
                 .withDescription("Buyer deposits to escrow")
-                .withTxContext(builder -> builder
-                    .compose(new Tx()
-                        .payToAddress(escrowAddress, Amount.lovelace(amount))
-                        .from(buyer.baseAddress()))
-                    .withSigner(SignerProviders.signerFrom(buyer)))
+                .withTxPlan(depositPlan)
                 .build())
             .addStep(FlowStep.builder("release")
                 .withDescription("Release from escrow to seller")
-                .dependsOn("deposit", SelectionStrategy.ALL)
-                .withTxContext(builder -> builder
-                    .compose(new Tx()
-                        .payToAddress(seller.baseAddress(), Amount.lovelace(amount))
-                        .from(escrowAddress))
-                    .withSigner(SignerProviders.signerFrom(/* escrow signer */)))
+                .needs("deposit")
+                .fundsFrom("deposit")
+                .withTxPlan(releasePlan)
                 .build())
             .build();
 
-        return flowExecutor.execute(flow);
+        return flowEngine.start(FlowExecutionRequest.builder(flow)
+            .executionId("escrow-" + orderId)
+            .idempotency("escrow", orderId)
+            .spendingResource(buyerRef)
+            .spendingResource(escrowRef)
+            .build());
     }
 }
 ```
@@ -390,4 +345,4 @@ public class EscrowService {
 ## See Also
 
 - [Virtual Threads Support](VIRTUAL_THREADS.md)
-- [FlowListener Patterns](FLOWLISTENER_PATTERNS.md)
+- [Durable Runtime Contract](DURABLE_RUNTIME.md)

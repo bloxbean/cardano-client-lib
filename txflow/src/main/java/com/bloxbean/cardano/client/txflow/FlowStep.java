@@ -233,7 +233,10 @@ public class FlowStep {
          *
          * @param txContextFactory a function that creates a configured TxContext
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Use {@link #withTxPlan(TxPlan)} or {@link #withTransactionTemplate(TransactionTemplate)}.
          */
+        @Deprecated(forRemoval = true)
         public Builder withTxContext(Function<QuickTxBuilder, QuickTxBuilder.TxContext> txContextFactory) {
             if (this.txPlan != null || this.transactionTemplate != null) {
                 throw new IllegalStateException("Cannot set TxContext factory when another transaction definition is already set");
@@ -321,12 +324,16 @@ public class FlowStep {
         /**
          * Set a step-level retry policy for this step.
          * <p>
-         * Step-level retry policies take precedence over the default retry policy set on the FlowExecutor.
+         * Step-level retry policies take precedence over the flow-level default retry policy.
          * This is useful when different steps require different retry behavior.
          *
          * @param retryPolicy the retry policy for this step
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Use {@link TxFlow.Builder#withDefaultRetryPolicy(RetryPolicy)} or
+         *             {@code FlowExecutionSettings.Builder#retryPolicy(RetryPolicy)}.
          */
+        @Deprecated(forRemoval = true)
         public Builder withRetryPolicy(RetryPolicy retryPolicy) {
             this.retryPolicy = retryPolicy;
             return this;
@@ -337,7 +344,11 @@ public class FlowStep {
          *
          * @param stepId the ID of the step to depend on
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Use {@link #needs(String)}, {@link #fundsFrom(String)}, and
+         *             {@link #bindOutput(String, FlowOutputSelector)} with {@code flow_output}.
          */
+        @Deprecated(forRemoval = true)
         public Builder dependsOn(String stepId) {
             return dependsOn(stepId, SelectionStrategy.ALL);
         }
@@ -348,7 +359,11 @@ public class FlowStep {
          * @param stepId the ID of the step to depend on
          * @param strategy the selection strategy
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Use {@link #needs(String)}, {@link #fundsFrom(String)}, and
+         *             {@link #bindOutput(String, FlowOutputSelector)} with {@code flow_output}.
          */
+        @Deprecated(forRemoval = true)
         public Builder dependsOn(String stepId, SelectionStrategy strategy) {
             this.dependencies.add(StepDependency.builder(stepId).withStrategy(strategy).build());
             return this;
@@ -360,7 +375,11 @@ public class FlowStep {
          * @param stepId the ID of the step to depend on
          * @param utxoIndex the output index to use
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Use {@link #needs(String)}, {@link #fundsFrom(String)}, and
+         *             {@link #bindOutput(String, FlowOutputSelector)} with {@code flow_output}.
          */
+        @Deprecated(forRemoval = true)
         public Builder dependsOnIndex(String stepId, int utxoIndex) {
             this.dependencies.add(StepDependency.atIndex(stepId, utxoIndex));
             return this;
@@ -371,7 +390,11 @@ public class FlowStep {
          *
          * @param dependency the step dependency
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Use {@link #needs(String)}, {@link #fundsFrom(String)}, and
+         *             {@link #bindOutput(String, FlowOutputSelector)} with {@code flow_output}.
          */
+        @Deprecated(forRemoval = true)
         public Builder dependsOn(StepDependency dependency) {
             this.dependencies.add(dependency);
             return this;

@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow.exec;
 
+import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -29,10 +30,9 @@ class ConfirmationConfigTest {
         assertEquals(3, config.getMinConfirmations());
         assertEquals(Duration.ofSeconds(1), config.getCheckInterval());
         assertEquals(Duration.ofMinutes(5), config.getTimeout());
-        // Post-rollback wait enabled for devnet
-        assertTrue(config.isWaitForBackendAfterRollback());
-        assertEquals(30, config.getPostRollbackWaitAttempts());
-        assertEquals(Duration.ofSeconds(3), config.getPostRollbackUtxoSyncDelay());
+        assertFalse(config.isWaitForBackendAfterRollback());
+        assertEquals(5, config.getPostRollbackWaitAttempts());
+        assertEquals(Duration.ZERO, config.getPostRollbackUtxoSyncDelay());
     }
 
     @Test
@@ -51,10 +51,9 @@ class ConfirmationConfigTest {
         assertEquals(1, config.getMinConfirmations());
         assertEquals(Duration.ofSeconds(1), config.getCheckInterval());
         assertEquals(Duration.ofMinutes(2), config.getTimeout());
-        // Post-rollback wait enabled for quick/test
-        assertTrue(config.isWaitForBackendAfterRollback());
-        assertEquals(30, config.getPostRollbackWaitAttempts());
-        assertEquals(Duration.ofSeconds(3), config.getPostRollbackUtxoSyncDelay());
+        assertFalse(config.isWaitForBackendAfterRollback());
+        assertEquals(5, config.getPostRollbackWaitAttempts());
+        assertEquals(Duration.ZERO, config.getPostRollbackUtxoSyncDelay());
     }
 
     @Test
@@ -136,15 +135,17 @@ class ConfirmationConfigTest {
     }
 
     @Test
-    void testDevAndQuickConfigsEnablePostRollbackWait() {
-        // Dev/test configs should enable wait for backend after rollback
-        ConfirmationConfig devnetConfig = ConfirmationConfig.devnet();
-        ConfirmationConfig quickConfig = ConfirmationConfig.quick();
-
-        assertTrue(devnetConfig.isWaitForBackendAfterRollback(),
-                "Devnet should wait for backend after rollback (Yaci DevKit)");
-        assertTrue(quickConfig.isWaitForBackendAfterRollback(),
-                "Quick/dev should wait for backend after rollback");
+    void testAllPresetsUsePortableDefaultsForLegacyWaitFields() {
+        for (ConfirmationConfig preset : new ConfirmationConfig[]{
+                ConfirmationConfig.defaults(),
+                ConfirmationConfig.devnet(),
+                ConfirmationConfig.testnet(),
+                ConfirmationConfig.quick()}) {
+            assertFalse(preset.isWaitForBackendAfterRollback(),
+                    "Portable preset should not enable legacy post-rollback backend wait");
+            assertEquals(5, preset.getPostRollbackWaitAttempts());
+            assertEquals(Duration.ZERO, preset.getPostRollbackUtxoSyncDelay());
+        }
     }
 
     @Test

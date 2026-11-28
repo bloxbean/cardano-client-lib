@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.txflow;
+package com.bloxbean.cardano.client.txflow.exec;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
@@ -7,11 +7,13 @@ import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
+import com.bloxbean.cardano.client.txflow.ChainingMode;
+import com.bloxbean.cardano.client.txflow.FlowStep;
+import com.bloxbean.cardano.client.txflow.SelectionStrategy;
+import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.config.ConfirmationConfig;
-import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
-import com.bloxbean.cardano.client.txflow.exec.FlowHandle;
-import com.bloxbean.cardano.client.txflow.exec.FlowListener;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStatus;
@@ -80,7 +82,6 @@ public class TxFlowIntegrationTest {
         // Create FlowExecutor
         flowExecutor = FlowExecutor.create(backendService)
                 .withSignerRegistry(signerRegistry)
-                .withExecutor(asyncExecutor)
                 .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(60)).build());
 
         // Verify accounts have funds
@@ -299,38 +300,37 @@ public class TxFlowIntegrationTest {
     @Test
     @Order(4)
     void testAsyncExecution() throws Exception {
-        System.out.println("=== Test 4: Async Execution with FlowHandle ===");
+        System.out.println("=== Test 4: Async Execution with FlowEngine ===");
 
         TxFlow flow = TxFlow.builder("async-flow")
                 .withDescription("Async execution test")
                 .addStep(FlowStep.builder("async-payment")
-                        .withTxContext(builder -> builder
-                                .compose(new Tx()
+                        .withTxPlan(TxPlan.from(new Tx()
                                         .payToAddress(account1.baseAddress(), Amount.ada(1.5))
-                                        .from(account0.baseAddress()))
-                                .withSigner(SignerProviders.signerFrom(account0)))
+                                        .fromRef("account://account0"))
+                                .withSigner("account://account0"))
                         .build())
                 .build();
 
         System.out.println("Starting async execution...");
 
-        FlowHandle handle = FlowExecutor.create(backendService)
-                .withExecutor(asyncExecutor)
-                .execute(flow);
+        FlowEngine engine = FlowEngine.builder(backendService)
+                .executor(asyncExecutor)
+                .signerRegistry(signerRegistry)
+                .build();
 
-        // Check initial status
-        System.out.println("Initial status: " + handle.getStatus());
-        assertFalse(handle.isDone());
+        FlowExecutionHandle handle = engine.start(FlowExecutionRequest.builder(flow).build());
 
         // Wait for completion
-        FlowResult result = handle.await(Duration.ofSeconds(120));
+        FlowExecutionResult result = handle.await();
 
         assertTrue(handle.isDone());
         assertTrue(result.isSuccessful());
-        assertEquals(FlowStatus.COMPLETED, handle.getStatus());
+        assertEquals(FlowExecutionState.COMPLETED, result.state());
+        assertEquals(1, result.steps().size());
 
-        System.out.println("Final status: " + handle.getStatus());
-        System.out.println("Completed steps: " + handle.getCompletedStepCount() + "/" + handle.getTotalStepCount());
+        System.out.println("Final state: " + result.state());
+        System.out.println("Completed steps: " + result.steps().size());
 
         System.out.println("\n=== Test 4 completed successfully! ===\n");
     }

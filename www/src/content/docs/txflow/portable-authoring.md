@@ -478,7 +478,6 @@ The Java codec does not replace compiler preflight or QuickTx runtime validation
 | Ordering | `needs` | `depends_on` also mixed with UTxO availability |
 | Exact output use | Named `outputs` plus `flow_output` | Implicit pending-UTxO behavior |
 | Transaction | One embedded QuickTx transaction per step | TxPlan/Java factory compatibility paths |
-| Execution API | Immutable `FlowEngine` and `FlowExecutionRequest` | Mutable `FlowExecutor` facade |
 | Diagnostics | Structured parser/compiler diagnostics | Compatibility warnings and exceptions |
 
 The codec reports `TXFLOW_LEGACY_FORMAT` when it reads the old envelope. Migrate intentionally;

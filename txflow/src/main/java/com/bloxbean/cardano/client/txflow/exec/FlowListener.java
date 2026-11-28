@@ -7,12 +7,9 @@ import com.bloxbean.cardano.client.txflow.result.FlowResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 
 /**
- * Listener interface for flow execution events.
- * <p>
- * Implement this interface to receive callbacks during flow execution.
- * This is useful for logging, monitoring, and custom event handling.
+ * Package-private listener interface for internal flow execution events.
  */
-public interface FlowListener {
+interface FlowListener {
 
     /**
      * Called when flow execution starts.

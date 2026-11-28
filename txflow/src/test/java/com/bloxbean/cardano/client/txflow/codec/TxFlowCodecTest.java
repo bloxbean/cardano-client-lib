@@ -379,15 +379,29 @@ class TxFlowCodecTest {
         ConfirmationConfig parsedDevnet = codec.parse(withConfirmationPreset("devnet"),
                         FlowParseOptions.serverDefaults()).requireFlow()
                 .getExecutionSettings().getConfirmationConfig();
-        assertEquals(3, parsedDevnet.getMinConfirmations());
+        assertEquals(ConfirmationConfig.devnet(), parsedDevnet);
         assertFalse(parsedDevnet.isWaitForBackendAfterRollback());
         assertEquals(5, parsedDevnet.getPostRollbackWaitAttempts());
         assertEquals(Duration.ZERO, parsedDevnet.getPostRollbackUtxoSyncDelay());
 
         TxFlow javaDevnet = singleStepFlowWithSettings(FlowExecutionSettings.builder()
                 .confirmationConfig(ConfirmationConfig.devnet()).build());
+        assertEquals(ConfirmationConfig.devnet(),
+                codec.parse(codec.write(javaDevnet, portableYaml()), FlowParseOptions.serverDefaults())
+                        .requireFlow().getExecutionSettings().getConfirmationConfig());
+
+        TxFlow javaQuick = singleStepFlowWithSettings(FlowExecutionSettings.builder()
+                .confirmationConfig(ConfirmationConfig.quick()).build());
+        assertEquals(ConfirmationConfig.quick(),
+                codec.parse(codec.write(javaQuick, portableYaml()), FlowParseOptions.serverDefaults())
+                        .requireFlow().getExecutionSettings().getConfirmationConfig());
+
+        @SuppressWarnings("deprecation")
+        TxFlow legacyWaitFlow = singleStepFlowWithSettings(FlowExecutionSettings.builder()
+                .confirmationConfig(ConfirmationConfig.builder()
+                        .waitForBackendAfterRollback(true).build()).build());
         assertTrue(assertThrows(FlowEncodingException.class,
-                () -> codec.write(javaDevnet, portableYaml())).getMessage()
+                () -> codec.write(legacyWaitFlow, portableYaml())).getMessage()
                 .contains("TXFLOW_NON_PORTABLE_CONFIRMATION_COMPATIBILITY"));
     }
 

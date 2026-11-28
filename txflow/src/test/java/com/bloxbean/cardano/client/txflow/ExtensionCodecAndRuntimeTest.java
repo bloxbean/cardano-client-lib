@@ -20,7 +20,9 @@ import com.bloxbean.cardano.client.txflow.codec.FlowWriteOptions;
 import com.bloxbean.cardano.client.txflow.codec.TxFlowCodec;
 import com.bloxbean.cardano.client.txflow.compile.FlowCompilationRequest;
 import com.bloxbean.cardano.client.txflow.compile.TxFlowCompiler;
-import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
+import com.bloxbean.cardano.client.txflow.exec.FlowEngine;
+import com.bloxbean.cardano.client.txflow.exec.FlowExecutionRequest;
+import com.bloxbean.cardano.client.txflow.exec.FlowExecutionResult;
 import com.bloxbean.cardano.client.txflow.internal.FlowExtensions;
 import com.bloxbean.cardano.client.txflow.model.FlowBindings;
 import com.bloxbean.cardano.client.txflow.testsupport.FakeChain;
@@ -192,11 +194,16 @@ class ExtensionCodecAndRuntimeTest {
                 .hasMessageContaining("TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED");
 
         FakeChain chain = new FakeChain();
-        assertThatThrownBy(() -> FlowExecutor.create(chain.utxoSupplier, chain.protocolParamsSupplier,
+        FlowEngine engine = FlowEngine.builder(chain.utxoSupplier, chain.protocolParamsSupplier,
                         chain.transactionProcessor, chain.chainDataSupplier)
-                .withExecutor(Runnable::run).withSignerRegistry(chain.signers).withExtension(extension)
-                .executeSync(flow))
-                .hasMessageContaining("TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED");
+                .executor(Runnable::run)
+                .signerRegistry(chain.signers)
+                .extension(extension)
+                .build();
+        FlowExecutionResult result = engine.executeSync(FlowExecutionRequest.builder(flow).build());
+        assertThat(result.isSuccessful()).isFalse();
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("TXFLOW_EXTENSION_FLOW_OUTPUT_UNSUPPORTED");
         assertThat(chain.submitted).isEmpty();
     }
 

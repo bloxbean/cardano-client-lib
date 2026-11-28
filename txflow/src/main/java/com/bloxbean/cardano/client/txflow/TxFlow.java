@@ -438,7 +438,10 @@ public class TxFlow {
          * @param name the variable name
          * @param value the variable value
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Use {@link #addParameter(ParameterSpec)} and {@code FlowBindings}.
          */
+        @Deprecated(forRemoval = true)
         public Builder addVariable(String name, Object value) {
             this.variables.put(name, value);
             return this;
@@ -449,7 +452,10 @@ public class TxFlow {
          *
          * @param variables the variables map
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Use {@link #addParameter(ParameterSpec)} and {@code FlowBindings}.
          */
+        @Deprecated(forRemoval = true)
         public Builder withVariables(Map<String, Object> variables) {
             this.variables.clear();
             if (variables != null) {
@@ -512,7 +518,10 @@ public class TxFlow {
          *
          * @param rollbackStrategy rollback strategy
          * @return this builder
+         * @deprecated Legacy model; rejected by {@code FlowEngine}/{@code FlowRuntime}.
+         *             Configure {@code RollbackPolicy} via {@link #withExecutionSettings(FlowExecutionSettings)}.
          */
+        @Deprecated(forRemoval = true)
         public Builder withRollbackStrategy(RollbackStrategy rollbackStrategy) {
             this.executionSettings = this.executionSettings.toBuilder()
                     .rollbackStrategy(rollbackStrategy)

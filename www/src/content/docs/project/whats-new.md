@@ -40,6 +40,20 @@ Merkle Patricia Forestry (MPF) and Jellyfish Merkle Tree (JMT), with RocksDB and
 - **Lower-level parsing:** stack-safe CBOR and Plutus data codecs, plus `RawTx` and `RawBlock` views that keep a transaction's original bytes.
 - **GraalVM:** reachability metadata now ships in the module jars.
 
+## Upgrading from 0.8.0-pre8 — TxFlow Legacy API Removals
+
+The legacy pre-release TxFlow execution facade and deprecated config forwarding classes have been removed in favor of `FlowEngine` (and managed `FlowRuntime`):
+
+| Removed legacy API | Replacement |
+|---|---|
+| `FlowExecutor.execute(...)` / `executeSync(...)` | `FlowEngine.start(FlowExecutionRequest)` / `executeSync(FlowExecutionRequest)` (or `FlowRuntime`) |
+| `FlowHandle` | `FlowExecutionHandle` |
+| `FlowExecutor.resume(...)` / `resumeSync(...)` | `FlowEngine.recover(FlowRecoveryRequest)` |
+| `txflow.exec.store.*` (`FlowStateStore`, `InMemoryFlowStateStore`, snapshots) | `txflow.store.FlowExecutionStore` (`InMemoryFlowExecutionStore`, `RdbmsFlowExecutionStore`) |
+| `txflow.exec.registry.*` (`FlowRegistry`, `InMemoryFlowRegistry`, `FlowLifecycleListener`) | Track executions by `executionId`, `FlowExecutionHandle` events, and `FlowExecutionStore` |
+| `FlowExecutor.withExecutor(...)` | `FlowEngine.Builder.executor(...)` (plus `maintenanceExecutor(...)` in durable mode) |
+| `txflow.FlowExecutionSettings` / `txflow.exec.ConfirmationConfig` | `txflow.config.FlowExecutionSettings` / `txflow.config.ConfirmationConfig` |
+
 ## Gradle dependencies
 
 ```gradle

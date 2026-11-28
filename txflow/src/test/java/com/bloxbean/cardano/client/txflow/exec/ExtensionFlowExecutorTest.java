@@ -49,7 +49,6 @@ class ExtensionFlowExecutorTest {
     private FlowExecutor executor(ChainingMode mode) {
         return FlowExecutor.create(chain.utxoSupplier, chain.protocolParamsSupplier,
                         chain.transactionProcessor, chain.chainDataSupplier)
-                .withExecutor(Runnable::run)
                 .withChainingMode(mode)
                 .withConfirmationConfig(ConfirmationConfig.builder().minConfirmations(1)
                         .checkInterval(Duration.ofMillis(10)).timeout(Duration.ofSeconds(5)).build())
@@ -85,9 +84,6 @@ class ExtensionFlowExecutorTest {
                 .build();
 
         assertThatThrownBy(() -> executor(ChainingMode.PIPELINED).executeSync(flow))
-                .isInstanceOf(FlowExecutionException.class)
-                .hasMessageContaining("TXFLOW_EXTENSION_UNREGISTERED");
-        assertThatThrownBy(() -> executor(ChainingMode.SEQUENTIAL).withExecutor(Runnable::run).execute(flow))
                 .isInstanceOf(FlowExecutionException.class)
                 .hasMessageContaining("TXFLOW_EXTENSION_UNREGISTERED");
         assertThat(chain.submitted).isEmpty();

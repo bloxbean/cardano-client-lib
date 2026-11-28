@@ -4,8 +4,7 @@ description: "Retry, confirmation, rollback, results, cancellation, recovery, an
 ---
 
 > **Preview API:** This page describes `FlowEngine`, `FlowExecutionHandle`, and the portable
-> execution policy. The similarly named `FlowExecutor`, `FlowHandle`, and `FlowListener` APIs are
-> the legacy facade.
+> execution policy.
 
 Portable definitions may request execution behavior, but the application remains the authority.
 `FlowExecutionPolicy` evaluates those requests during compilation and either accepts them, caps a
@@ -153,9 +152,8 @@ ConfirmationConfig confirmation = ConfirmationConfig.builder()
 
 The production-oriented defaults are depth 10, five-second polling, a 30-minute timeout, and two
 consecutive authoritative absences before rollback. `testnet()`, `devnet()`, and `quick()` are
-convenience presets; verify them against the risk and block cadence of your deployment. On a
-Java-built `TxFlow` run through `FlowEngine`, `ConfirmationConfig.devnet()` and `quick()` are rejected
-because they carry legacy backend-wait fields. Use `preset: devnet` or `preset: quick` in the document.
+convenience presets matching YAML `preset: testnet`, `preset: devnet`, and `preset: quick`; verify
+them against the risk and block cadence of your deployment.
 
 If a portable definition has neither `confirmation` nor `rollback`, the engine uses simple on-chain
 polling with no depth tracking. If it has `rollback` but no `confirmation`, it uses
@@ -300,17 +298,8 @@ Important event groups include:
 - recovery: `RECOVERY_STARTED`, `RECOVERY_COMPLETED`, and `RECOVERY_REQUIRED`.
 
 Consumers should tolerate event types added in future releases. Event `details` are useful
-diagnostic attributes, but the typed event and terminal result remain the contract.
-
-### What about `FlowListener`?
-
-`FlowListener` is configured with `FlowExecutor.withListener(...)`; it is not a method on
-`FlowEngine.Builder`. `FlowEngine` internally translates execution callbacks into ordered
-`FlowEvent` values. Portable-runtime applications should consume handle or durable-store events
-instead of attempting to attach a `FlowListener` to the engine.
-
-Likewise, `FlowRegistry` tracks legacy `FlowHandle` instances. Track portable executions by their
-`executionId`, handle, event stream, and—when configured—`FlowExecutionStore`.
+diagnostic attributes, but the typed event and terminal result remain the contract. Track
+executions by their `executionId`, handle, event stream, and—when configured—`FlowExecutionStore`.
 
 ## Cooperative cancellation
 
@@ -418,8 +407,8 @@ See also the [known issues](/project/known-issues/#txflow-engine) in the latest 
 - Cooperative cancellation cannot reverse a submitted or confirmed transaction.
 - Indexer absence is not proof of rollback unless the backend adapter declares authoritative
   absence. Uncertainty remains `RECOVERY_REQUIRED`.
-- The in-memory execution store, in-memory idempotency claims, handle event list, and legacy
-  registry do not survive a process restart.
+- The in-memory execution store, in-memory idempotency claims, and handle event list do not survive
+  a process restart.
 - Explicit recovery reconciles a persisted attempt; it is not a general automatic continuation
   service for every remaining step after a process restart.
 - Resource catalogs contain public metadata. Signer keys, scripts, secure bindings, payload

@@ -8,8 +8,8 @@ definition is reusable: runtime values, execution identity, backend services, si
 durability remain application-owned.
 
 This guide uses the portable `v1alpha1` contract and `FlowEngine`. The historical
-`version: "1.0"` / `flow:` document and `FlowExecutor` APIs are compatibility surfaces, not the
-recommended starting point for new applications.
+`version: "1.0"` / `flow:` YAML format is retained only for reading legacy definitions during
+migration, not as the starting point for new applications.
 
 > **Baseline:** TxFlow is built and tested on Java 17. `FlowEngine` accepts caller-owned
 > `Executor` instances rather than creating threads. A Java 21 application can therefore supply a

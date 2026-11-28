@@ -25,13 +25,11 @@ below remains the advanced/server path with caller-owned resources.
 | Server-owned continuous submission | `FlowEngine`, `TxFlowStream` | Recommended explicit-resource front door |
 | New portable or server-side flows | `TxFlowCodec`, `FlowExecutionRequest`, `FlowEngine` | Current |
 | Programmatic definition construction | `TxFlow`, `FlowStep`, exactly-one-transaction `TxPlan` | Supported portable subset |
-| Existing preview integrations | `FlowExecutor`, `FlowResult`, legacy YAML | Compatibility API |
 
-New applications should use `FlowEngine`. `FlowExecutor` remains available for compatibility, but
-it combines definition and execution concerns and is not the canonical durable-runtime API.
+Use `FlowEngine` (or `FlowRuntime` for managed scripts and small applications) to execute flows.
 Programmatic definitions submitted to `FlowEngine` follow the same portable boundary as YAML/JSON:
-Java factories, multi-transaction or variable-bearing `TxPlan` values, legacy dependencies, and
-step-local retry overrides remain compatibility-only constructs.
+each step carries a single-transaction `TxPlan` without legacy flow variables, legacy step
+dependencies, or step-local retry overrides.
 
 ## Dependencies
 
@@ -207,7 +205,7 @@ intents, once the operator registers the extension. TxFlow needs no code for a s
 
 ```java
 FlowRuntime runtime = FlowRuntime.builder(backend)
-        .extension(programmableTokens)   // also FlowEngine.Builder.extension / FlowExecutor.withExtension
+        .extension(programmableTokens)   // or FlowEngine.Builder.extension(...)
         .build();
 ```
 
@@ -231,7 +229,7 @@ FlowRuntime runtime = FlowRuntime.builder(backend)
   the backend evaluator knows only confirmed UTxOs. Supply one per step from the step's UTxO view,
   which also resolves the funding steps' outputs the built transaction references:
   `.txEvaluator((utxos, params) -> new AikenTransactionEvaluator(utxos, params, scripts))` on
-  `FlowEngine.Builder` or `FlowRuntime.Builder`, or `FlowExecutor.withTxEvaluator(...)`.
+  `FlowEngine.Builder` or `FlowRuntime.Builder`.
 
 See [ADR 0008](adr/0008-generic-quicktx-extensions-in-txflow.md).
 
@@ -372,13 +370,11 @@ dedup only — read the durability guide before pairing them with a redelivering
 - [Current public guide](https://cardano-client.dev/txflow/overview/)
 - [Portable authoring migration](docs/PORTABLE_TXFLOW_MIGRATION.md)
 - [Durable runtime contract](docs/DURABLE_RUNTIME.md)
-- [Detailed design and compatibility reference](docs/DESIGN_AND_USAGE.md)
 - [ADR 0002: portable contract and runtime](adr/0002-portable-txflow-contract-and-runtime.md)
 - [ADR 0003: relational durable store extension](adr/0003-relational-durable-store-extension.md)
 - [ADR 0008: generic QuickTx extension support](adr/0008-generic-quicktx-extensions-in-txflow.md)
 
-The public guide is the recommended learning path. The design document and legacy public pages
-remain useful when maintaining an existing `FlowExecutor` integration.
+The public guide is the recommended learning path for `FlowEngine` and `FlowRuntime`.
 
 ## Developer map
 
