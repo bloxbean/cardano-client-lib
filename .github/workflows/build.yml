@@ -78,41 +78,13 @@ jobs:
           distribution: 'temurin'
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-      - name: Run CBOR span and transaction bytes tests, including the virtual-thread depth tests
-        run: ./gradlew :common:test :transaction-spec:test -PskipSigning=true --stacktrace
+      - name: Run CBOR span, ledger reader and transaction bytes tests, including the virtual-thread depth tests
+        run: ./gradlew :common:test :ledger-cbor:test :transaction-spec:test -PskipSigning=true --stacktrace
 
+  # ADR 0005 D6: the three corpus gates, in the workflow release.yml also runs before publishing.
   cbor-conformance:
-    name: CBOR conformance corpus
-    runs-on: ubuntu-latest
-    env:
-      CBOR_DATASET_REVISION: 4fd977b201f7426a2983161a702bb127c87973f7
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          submodules: 'true'
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-      - name: Fetch the pinned dataset (not vendored, as it has no licence)
-        run: |
-          git init -q "$RUNNER_TEMP/cbor-dataset"
-          git -C "$RUNNER_TEMP/cbor-dataset" fetch -q --depth 1 \
-            https://github.com/r2rationality/cardano-cbor-dataset.git "$CBOR_DATASET_REVISION"
-          git -C "$RUNNER_TEMP/cbor-dataset" checkout -q FETCH_HEAD
-      - name: Run the corpus gate
-        run: >-
-          ./gradlew :transaction-spec:test --tests '*CborCorpusConformanceTest'
-          -PcborDataset="$RUNNER_TEMP/cbor-dataset/dataset" -PskipSigning=true --stacktrace
-      - name: Fail if the gate was skipped
-        run: >-
-          grep -q 'tests="4" skipped="0" failures="0" errors="0"'
-          transaction-spec/build/test-results/test/TEST-*CborCorpusConformanceTest.xml
+    name: CBOR conformance
+    uses: ./.github/workflows/cbor-conformance.yml
 
   jmt-postgresql:
     name: JMT PostgreSQL qualification

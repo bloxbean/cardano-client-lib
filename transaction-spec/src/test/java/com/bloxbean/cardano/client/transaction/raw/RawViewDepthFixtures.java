@@ -55,6 +55,7 @@ final class RawViewDepthFixtures {
 
     static void runAll() throws Exception {
         trigger();
+        strictReads();
 
         String witnessScript = "820181".repeat(5_410) + SIG;
         RawTx tx = tx(BODY, "a10181" + witnessScript, "f6");
@@ -259,6 +260,50 @@ final class RawViewDepthFixtures {
             }
         }
         check(found, "trigger block: contains the trigger");
+    }
+
+    /**
+     * ADR 0005 J7: the Haskell-strict reads at depth: the preprod trigger and its block, and 200,000-level native
+     * scripts, Plutus data and metadata. Each read either accepts or rejects with a {@link LedgerDecodingException};
+     * none may overflow the stack.
+     */
+    private static void strictReads() {
+        HaskellPolicy p = HaskellPolicy.CONWAY;
+        RealCborFixturesAccess.Tx trigger = RealCborFixturesAccess.trigger();
+        check(verdict(() -> p.transaction(trigger.cbor())).equals("accepted"), "strict: the trigger transaction");
+        RealCborFixturesAccess.Block block = RealCborFixturesAccess.blocks().stream()
+                .filter(b -> b.txHashes().contains(trigger.txHash())).findFirst().orElseThrow();
+        byte[] bare = CborSpan.of(block.cbor()).items().get(1).bytes();
+        check(verdict(() -> p.block(bare)).equals("accepted"), "strict: the trigger's block");
+
+        int levels = 200_000;
+        String script = "820181".repeat(levels) + SIG;
+        check(verdict(() -> p.transaction(hex("84" + BODY + "a10181" + script + "f5f6"))).equals("accepted"),
+                "strict: a deep witness native script");
+        check(verdict(() -> p.transaction(hex("84" + BODY + "a0f5" + "d90103a10181" + script))).equals("accepted"),
+                "strict: a deep auxiliary native script");
+        String data = "81".repeat(levels) + "00";
+        check(verdict(() -> p.transaction(hex("84" + BODY + "a10481" + data + "f5f6"))).equals("accepted"),
+                "strict: deep Plutus data");
+        check(verdict(() -> p.transaction(hex("84" + BODY + "a0f5" + "a100" + data))).equals("accepted"),
+                "strict: deep metadata");
+        check(verdict(() -> p.transaction(hex("84" + BODY + "a10481" + "81".repeat(levels) + "60" + "f5f6")))
+                .startsWith("rejected PLUTUS_DATA"), "strict: deep Plutus data with a text leaf");
+        check(verdict(() -> p.transaction(hex("84" + BODY + "a10181" + script.replace("8200581c", "8206581c")
+                + "f5f6"))).startsWith("rejected SCRIPT"), "strict: a deep guard");
+    }
+
+    private static String verdict(Runnable read) {
+        try {
+            read.run();
+            return "accepted";
+        } catch (LedgerDecodingException e) {
+            return "rejected " + e.reason() + ": " + e.getMessage();
+        }
+    }
+
+    private static byte[] hex(String hex) {
+        return decodeHexString(hex);
     }
 
     private static void nativeScript(String name, RawScript script, String hex) throws Exception {

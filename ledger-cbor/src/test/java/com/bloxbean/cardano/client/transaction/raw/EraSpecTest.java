@@ -74,12 +74,18 @@ class EraSpecTest {
                 e -> assertThat(e.eraIndex()).isEqualTo(index));
     }
 
-    /** ADR 0003 I1: the build keeps the models out of this module, so the reader cannot import one. */
+    /**
+     * ADR 0003 I1, amended by ADR 0005 J6: the build keeps the models out of this module, so neither the reader nor the
+     * Haskell-strict policy can import one. The policy's one other dependency is {@code address}, for Byron addresses.
+     */
     @Test
-    void noModelIsOnTheClasspath() {
-        assertThatThrownBy(() -> Class.forName("com.bloxbean.cardano.client.transaction.spec.Transaction"))
-                .isInstanceOf(ClassNotFoundException.class);
-        assertThatThrownBy(() -> Class.forName("com.bloxbean.cardano.client.plutus.spec.PlutusData"))
-                .isInstanceOf(ClassNotFoundException.class);
+    void noModelIsOnTheClasspath() throws ClassNotFoundException {
+        for (String model : new String[]{"com.bloxbean.cardano.client.transaction.spec.Transaction",
+                "com.bloxbean.cardano.client.transaction.spec.script.NativeScript",
+                "com.bloxbean.cardano.client.plutus.spec.PlutusData",
+                "com.bloxbean.cardano.client.metadata.Metadata"}) {
+            assertThatThrownBy(() -> Class.forName(model)).as(model).isInstanceOf(ClassNotFoundException.class);
+        }
+        assertThat(Class.forName("com.bloxbean.cardano.client.address.ByronAddress")).isNotNull();
     }
 }
