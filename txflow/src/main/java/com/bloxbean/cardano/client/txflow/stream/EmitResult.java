@@ -159,7 +159,7 @@ public final class EmitResult {
      * @param conflict duplicate-item conflict
      * @return emit result
      */
-    public static EmitResult conflict(TxStreamDuplicateItemException conflict) {
+    public static EmitResult conflicted(TxStreamDuplicateItemException conflict) {
         return new EmitResult(Status.CONFLICT, null,
                 Objects.requireNonNull(conflict, "conflict"), null);
     }

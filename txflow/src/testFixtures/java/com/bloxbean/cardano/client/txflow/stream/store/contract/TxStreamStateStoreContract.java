@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.txflow.stream.contract;
+package com.bloxbean.cardano.client.txflow.stream.store.contract;
 
 import com.bloxbean.cardano.client.txflow.stream.TxStreamBatchResult;
 import com.bloxbean.cardano.client.txflow.stream.TxStreamBatchStatus;

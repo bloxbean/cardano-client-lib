@@ -20,7 +20,11 @@
  * }
  * }</pre>
  * Direct engine and stream builders remain the advanced/server path and never
- * take ownership of caller-supplied executors. See the module's
+ * take ownership of caller-supplied executors. TxStream value, result, policy,
+ * and exception types use Java 17 record-style {@code x()} accessors. Durable
+ * store adapter authors should implement
+ * {@link com.bloxbean.cardano.client.txflow.stream.store.TxStreamStateStore}
+ * in {@code com.bloxbean.cardano.client.txflow.stream.store}. See the module's
  * {@code TXSTREAM_GETTING_STARTED.md} for typed uncertainty recovery and the
  * effective defaults.
  * <p>

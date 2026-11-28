@@ -579,7 +579,7 @@ class TxFlowStreamFlowAdapterTest {
         ReceiptHandle rA = unsettledReceipt("pay-a");
         ReceiptHandle rD = unsettledReceipt("pay-d");
         sink.enqueue(EmitResult.ok(rA.receipt));
-        sink.enqueue(EmitResult.conflict(new TxStreamDuplicateItemException("pay-b", "conflict")));
+        sink.enqueue(EmitResult.conflicted(new TxStreamDuplicateItemException("pay-b", "conflict")));
         sink.enqueue(EmitResult.rejected(new TxStreamException("TXSTREAM_REJECTED", "rejected")));
         sink.enqueue(EmitResult.duplicateAttached(rD.receipt));
         source.start(sink);

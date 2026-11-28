@@ -397,22 +397,20 @@ Specify ordering and cardinality: `onStreamAborted` fires exactly once after the
 
 Also tighten `submit`-not-started error text: *"Stream 'payouts' has not been started; call start() or use TxFlowStream.open(...)"* instead of the generic `TXSTREAM_CLOSED`.
 
-### 5.11 Defer moving store types out of the front-door package
+### 5.11 Store SPI subpackage (`com.bloxbean.cardano.client.txflow.stream.store`)
 
-The eventual package shape may be cleaner as:
+Store SPI types live in `com.bloxbean.cardano.client.txflow.stream.store` (moved cleanly alongside the RDBMS extension and test-fixture contract in `stream.store.contract`):
 
 ```
 com.bloxbean.cardano.client.txflow.stream.store
     TxStreamStateStore
-    TxStreamItemRecord, TxStreamBinding, TxStreamPlannedRecord
+    TxStreamItemRecord, TxStreamBinding, TxStreamPlannedRecord, TxStreamStoredProjection
     TxStreamStoreCodec
-    InMemoryTxStreamStore, InMemoryDurableTxStreamStore
     StreamOwnershipLease, BindingOutcome
+    (package-private) InMemoryTxStreamStore, InMemoryDurableTxStreamStore
 ```
 
-Do not perform this move in the DX release. Java has no typedef/re-export mechanism: deprecated bridge interfaces do not preserve method signatures whose parameters are moved records, and final records/classes cannot be subclassed into compatibility aliases. A move would break external `TxStreamStateStore` implementations and the shipped RDBMS extension at source and potentially binary level.
-
-Package size does not affect the documented beginner imports, so functional DX wins first. If the move is still desired before 1.0, make one explicit clean break with extension migration in the same release. `PlannedExecution`, `TxStreamPlanner`, and `StableIdFactory` remain in `stream` because they are the planner SPI advanced applications implement.
+`PlannedExecution`, `TxStreamPlanner`, and `StableIdFactory` remain in `stream` because they are the planner SPI advanced applications implement.
 
 ### 5.12 Optional later: `FlowRuntime` — the only type allowed to own threads
 

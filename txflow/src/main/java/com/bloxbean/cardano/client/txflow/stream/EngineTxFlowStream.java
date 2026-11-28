@@ -1328,7 +1328,7 @@ final class EngineTxFlowStream implements TxFlowStream {
                 notifyRejected(item, acceptance.rejection);
                 return EmitResult.rejected(acceptance.rejection);
             case CONFLICT:
-                return EmitResult.conflict(acceptance.conflict);
+                return EmitResult.conflicted(acceptance.conflict);
             case FULL:
                 return EmitResult.full();
             case PAUSED:

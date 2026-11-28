@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * different senders lane concurrently while items from the same sender
  * serialize — with no resolver, no per-item lane name, and no bootstrap.
  */
-class TxFlowStreamByFundingAddressTest {
+class TxFlowStreamByFundingSourceTest {
     private static final String SENDER_A = "addr_test1vpqsendera";
     private static final String SENDER_B = "addr_test1vpqsenderb";
     private static final String RECEIVER = "addr_test1vpqreceiver";
